@@ -50,9 +50,7 @@ def clamp(value, low, high):
     return max(low, min(high, value))
 
 ticker = st.text_input("Aktien-Ticker eingeben:", "SAP.DE").strip().upper()
-isin_map = {"US2561631068": "DOCU"}
-if ticker in isin_map:
-    ticker = isin_map[ticker]
+
 with st.sidebar:
     st.header("Fair-Value-Annahmen")
     target_pe = st.number_input("Ziel-KGV", 5.0, 60.0, 25.0, 0.5)
