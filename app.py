@@ -56,7 +56,6 @@ if ticker in isin_map:
 with st.sidebar:
     st.header("Fair-Value-Annahmen")
     target_pe = st.number_input("Ziel-KGV", 5.0, 60.0, 25.0, 0.5)
-    target_fcf_yield = st.number_input("Ziel-Free-Cashflow-Rendite (%)", 1.0, 15.0, 4.0, 0.25)
 safety_margin = st.number_input("Sicherheitsmarge (%)", 0.0, 50.0, 15.0, step=1.0)
 if ticker:
     try:
@@ -130,7 +129,9 @@ if ticker:
         
 
         net_debt = total_debt - cash if total_debt is not None and cash is not None else None
-        st.write("Netto-Cash:" if net_debt < 0 else "Nettoverschuldung:", f"{abs(net_debt) / 1_000_000_000:.2f} Mrd.EUR")
+        if net_debt is not None:
+            st.write("Netto-Cash:" if net_debt < 0 else "Nettoverschuldung:",
+                     f"{abs(net_debt) / 1_000_000_000:.2f} Mrd. {currency}")
         net_debt_to_fcf = (
             net_debt / free_cash_flow
             if net_debt is not None and free_cash_flow is not None and free_cash_flow > 0
@@ -145,22 +146,25 @@ if ticker:
             roe *= 100
 
         effective_pe = 12 if is_financial else target_pe
-        fair_value_pe =eps * effective_pe if eps is not None and eps > 0 else None
-        fair_value_fcf = None
-        if not is_financial and free_cash_flow is not None and shares and shares > 0:
-            fcf_per_share = free_cash_flow / shares
-            fair_value_fcf = fcf_per_share / (target_fcf_yield / 100)
+        fair_value_pe = eps * effective_pe if eps is not None and eps > 0 else None
 
-        fair_values = [x for x in [fair_value_pe, fair_value_fcf] if x is not None and x > 0]
-        fair_value = sum(fair_values) / len(fair_values) if fair_values else None
-        net_cash_per_share = (-net_debt / shares) if net_debt is not None and net_debt < 0 and shares else 0
+        net_cash_per_share = (
+            -net_debt / shares
+            if net_debt is not None and net_debt < 0 and shares and shares > 0
+            else 0
+        )
+
+        # Fair Value: KGV/EPS als einfache, nachvollziehbare Basis.
+        fair_value = fair_value_pe
         if fair_value is not None and not is_financial:
             fair_value += net_cash_per_share
+
         buy_price = fair_value * (1 - safety_margin / 100) if fair_value is not None else None
         buy_price_10 = fair_value * 0.90 if fair_value is not None else None
         buy_price_15 = fair_value * 0.85 if fair_value is not None else None
         buy_price_20 = fair_value * 0.80 if fair_value is not None else None
-        st.write("Netto-Cash je Aktie:", f"{net_cash_per_share:.2f} EUR")
+
+        st.write("Netto-Cash je Aktie:", f"{net_cash_per_share:.2f} {currency}")
         upside = ((fair_value / price) - 1) * 100 if fair_value is not None and price > 0 else None
 
         score = 0
@@ -179,16 +183,14 @@ if ticker:
 
         score = int(clamp(score, 0, 100))
 
-        if fair_value is None or buy_price_10 is None or buy_price_15 is None or buy_price_20 is None:
-           verdict = "Daten prüfen"
-        elif price <= buy_price_20:
-            verdict = "\U0001F7E2 Starker Kauf" 
-        elif price <= buy_price_15:
-            verdict = "\U0001F7E1 Kaufen"
-        elif price <= buy_price_10:
-            verdict = "\U0001F7E0 Beobachten"
+        if upside is None:
+            verdict = "⚪ Daten prüfen"
+        elif upside >= 10:
+            verdict = f"🟢 Unterbewertet (+{upside:.1f} %)"
+        elif upside >= -10:
+            verdict = f"🟡 Fair bewertet – Abwarten ({upside:+.1f} %)"
         else:
-            verdict = "\U0001F535 Neutral / abwarten"    
+            verdict = f"🔴 Überbewertet – Nicht kaufen ({upside:+.1f} %)"
 
         st.subheader(name)
 
@@ -224,9 +226,9 @@ if ticker:
         st.subheader("Fair Value")
 
         f1, f2, f3 = st.columns(3)
-        f1.metric("Fair Value – KGV-Methode", f"{fmt_number(fair_value_pe)} {currency}")
-        f2.metric("Fair Value – FCF-Methode", f"{fmt_number(fair_value_fcf)} {currency}")
-        f3.metric("Fair Value – Durchschnitt", f"{fmt_number(fair_value)} {currency}")
+        f1.metric("Fair Value", f"{fmt_number(fair_value)} {currency}")
+        f2.metric("KGV-Basiswert", f"{fmt_number(fair_value_pe)} {currency}")
+        f3.metric("Netto-Cash je Aktie", f"{fmt_number(net_cash_per_share)} {currency}")
         k1, k2, k3 = st.columns(3)
         k1.metric("Kaufzone -10 %", f"{fmt_number(buy_price_10)} {currency}")
         k2.metric("Kaufzone -15 %", f"{fmt_number(buy_price_15)} {currency}")
@@ -261,9 +263,8 @@ if ticker:
             "Dividendenrendite_%": dividend_yield,
             "ROE_%": roe,
             "Ziel_KGV": target_pe,
-            "Ziel_FCF_Rendite_%": target_fcf_yield,
             "Fair_Value_KGV": fair_value_pe,
-            "Fair_Value_FCF": fair_value_fcf,
+            "Netto_Cash_je_Aktie": net_cash_per_share,
             "Fair_Value": fair_value,
             "Potenzial_%": upside,
             "Qualitätsscore": score,
