@@ -43,6 +43,8 @@ ALIAS_MAP = {
     "MARVELL": "MRVL",
     "ALBEMARLE": "ALB",
     "HECLA MINING": "HL",
+    "MICROSOFT": "MSFT",
+    "MICROSOFT CORPORATION": "MSFT",
 }
 
 
@@ -83,7 +85,7 @@ def resolve_query(query):
         return [(symbol, f"{q} → {symbol}")]
 
     looks_like_ticker = (
-        len(q) <= 12
+        (len(q) <= 5 or "." in q)
         and " " not in q
         and not ISIN_RE.match(upper)
         and re.match(r"^[A-Za-z0-9.\-^=]+$", q)
@@ -736,6 +738,32 @@ if query.strip():
             st.caption("Noch keine Analysen gespeichert.")
         else:
             st.dataframe(saved, hide_index=True, width="stretch")
+
+            st.markdown("#### Gespeicherte Analyse löschen")
+
+            delete_options = []
+            for idx, row in saved.iterrows():
+                unternehmen = str(row.get("Unternehmen", ""))
+                ticker_saved = str(row.get("Ticker", ""))
+                datum = str(row.get("Datum", ""))
+                label = f"{unternehmen} ({ticker_saved})"
+                if datum and datum != "nan":
+                    label += f" – {datum}"
+                delete_options.append((idx, label))
+
+            selected_delete = st.selectbox(
+                "Analyse auswählen",
+                options=delete_options,
+                format_func=lambda x: x[1],
+                key="delete_saved_analysis",
+            )
+
+            if st.button("🗑️ Ausgewählte Analyse löschen", type="secondary"):
+                delete_index = selected_delete[0]
+                saved = saved.drop(index=delete_index).reset_index(drop=True)
+                saved.to_csv(SAVE_FILE, index=False)
+                st.success("Gespeicherte Analyse wurde gelöscht.")
+                st.rerun()
 
     except Exception as exc:
         st.error("Die Aktie konnte nicht vollständig geladen werden.")
