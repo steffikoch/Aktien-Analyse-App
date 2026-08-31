@@ -27,6 +27,24 @@ ISIN_MAP = {
 
 ISIN_RE = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
 
+# Häufige Kurzformen / Firmennamen
+ALIAS_MAP = {
+    "VW": "VOW3.DE",
+    "VOLKSWAGEN": "VOW3.DE",
+    "VOLKSWAGEN AG": "VOW3.DE",
+    "VOW3": "VOW3.DE",
+    "SAP": "SAP.DE",
+    "DEUTSCHE BANK": "DBK.DE",
+    "ALLIANZ": "ALV.DE",
+    "DEUTSCHE TELEKOM": "DTE.DE",
+    "TELEKOM": "DTE.DE",
+    "RHEINMETALL": "RHM.DE",
+    "DOCUSIGN": "DOCU",
+    "MARVELL": "MRVL",
+    "ALBEMARLE": "ALB",
+    "HECLA MINING": "HL",
+}
+
 
 def fmt_number(value, decimals=2):
     if value is None or pd.isna(value):
@@ -59,6 +77,10 @@ def resolve_query(query):
 
     if upper in ISIN_MAP:
         return [(ISIN_MAP[upper], f"{upper} → {ISIN_MAP[upper]}")]
+
+    if upper in ALIAS_MAP:
+        symbol = ALIAS_MAP[upper]
+        return [(symbol, f"{q} → {symbol}")]
 
     looks_like_ticker = (
         len(q) <= 12
