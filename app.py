@@ -234,6 +234,60 @@ def calc_quality_score(
     return max(0, min(100, int(round(score))))
 
 
+def calc_auto_quality_score(
+    net_margin_pct,
+    revenue_growth_pct,
+    earnings_growth_pct,
+    earnings_growth_special,
+    roe_pct,
+):
+    """Autohersteller mit Finanzierungsgeschäft: Konzern-FCF und Konzern-Net-Debt
+    werden nicht bewertet, weil Finanzdienstleistungen diese Kennzahlen verzerren."""
+    score = 0
+
+    if net_margin_pct is not None:
+        if net_margin_pct >= 10:
+            score += 30
+        elif net_margin_pct >= 5:
+            score += 25
+        elif net_margin_pct >= 3:
+            score += 18
+        elif net_margin_pct > 0:
+            score += 10
+
+    if revenue_growth_pct is not None:
+        if revenue_growth_pct >= 10:
+            score += 20
+        elif revenue_growth_pct >= 5:
+            score += 16
+        elif revenue_growth_pct >= 0:
+            score += 12
+        elif revenue_growth_pct >= -5:
+            score += 6
+
+    if earnings_growth_pct is not None and not earnings_growth_special:
+        if earnings_growth_pct >= 15:
+            score += 25
+        elif earnings_growth_pct >= 5:
+            score += 20
+        elif earnings_growth_pct >= 0:
+            score += 14
+
+    if roe_pct is not None:
+        if roe_pct >= 20:
+            score += 25
+        elif roe_pct >= 15:
+            score += 22
+        elif roe_pct >= 10:
+            score += 17
+        elif roe_pct >= 5:
+            score += 10
+        elif roe_pct > 0:
+            score += 5
+
+    return max(0, min(100, int(round(score))))
+
+
 def calc_financial_quality_score(
     net_margin_pct,
     revenue_growth_pct,
@@ -401,6 +455,10 @@ if query.strip():
         industry_lower = industry.lower()
         is_bank = "bank" in industry_lower
         is_insurer = "insurance" in industry_lower
+        is_auto_finance = any(
+            x in industry_lower
+            for x in ["auto manufacturer", "automobile", "auto & truck"]
+        )
         is_financial_special = is_bank or is_insurer
 
         revenue_growth_pct = revenue_growth_raw * 100 if revenue_growth_raw is not None else None
@@ -428,12 +486,18 @@ if query.strip():
         net_cash_per_share = 0.0
         # Bei Banken und Versicherern ist Cash/Verschuldung Teil des Geschäftsmodells.
         # Deshalb wird kein Netto-Cash-Aufschlag auf den Fair Value vorgenommen.
-        if not is_financial_special and net_cash is not None and shares not in (None, 0):
+        if (
+            not is_financial_special
+            and not is_auto_finance
+            and net_cash is not None
+            and shares not in (None, 0)
+        ):
             net_cash_per_share = net_cash / shares
 
         net_debt_fcf = None
         if (
             not is_financial_special
+            and not is_auto_finance
             and net_debt is not None
             and free_cash_flow is not None
             and free_cash_flow > 0
@@ -450,6 +514,11 @@ if query.strip():
             )
             if is_financial_special:
                 st.caption("Finanzwert: Kein Netto-Cash-Aufschlag auf den Fair Value.")
+            if is_auto_finance:
+                st.caption(
+                    "Autohersteller mit Finanzierungsgeschäft: Konzernverschuldung und "
+                    "Konzern-FCF werden nicht für den Qualitätsscore oder einen Netto-Cash-Aufschlag verwendet."
+                )
             target_pe = st.number_input(
                 "Ziel-KGV",
                 min_value=1.0,
@@ -466,6 +535,14 @@ if query.strip():
 
         if is_financial_special:
             quality_score = calc_financial_quality_score(
+                net_margin_pct,
+                revenue_growth_pct,
+                earnings_growth_pct,
+                earnings_growth_special,
+                roe_pct,
+            )
+        elif is_auto_finance:
+            quality_score = calc_auto_quality_score(
                 net_margin_pct,
                 revenue_growth_pct,
                 earnings_growth_pct,
@@ -527,6 +604,14 @@ if query.strip():
             st.metric("Free Cashflow", "n.v. (Finanzwert)")
             st.metric("Nettoverschuldung", "n.v. (Finanzwert)")
             st.metric("Net Debt / FCF", "n.v. (Finanzwert)")
+        elif is_auto_finance:
+            st.caption(
+                "Autohersteller mit Finanzierungsgeschäft: Konzern-FCF und Konzernverschuldung "
+                "werden nicht für den Qualitätsscore verwendet."
+            )
+            st.metric("Free Cashflow", "nicht verwendet (Auto/Finanzierung)")
+            st.metric("Nettoverschuldung", "nicht verwendet (Auto/Finanzierung)")
+            st.metric("Net Debt / FCF", "nicht verwendet (Auto/Finanzierung)")
         else:
             st.metric("Free Cashflow", fmt_billions(free_cash_flow, currency))
             st.metric("Nettoverschuldung", fmt_billions(net_debt, currency))
