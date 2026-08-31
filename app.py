@@ -298,6 +298,10 @@ if query.strip():
         shares = first_valid(info.get("sharesOutstanding"), info.get("impliedSharesOutstanding"))
         sector = info.get("sector") or ""
         industry = info.get("industry") or ""
+        industry_lower = industry.lower()
+        is_bank = "bank" in industry_lower
+        is_insurer = "insurance" in industry_lower
+        is_financial_special = is_bank or is_insurer
 
         revenue_growth_pct = revenue_growth_raw * 100 if revenue_growth_raw is not None else None
         earnings_growth_pct, earnings_growth_special = sanitize_growth(earnings_growth_raw)
@@ -307,7 +311,7 @@ if query.strip():
         if dividend_yield_raw is None or pd.isna(dividend_yield_raw):
             dividend_yield_pct = 0.0
         else:
-            dividend_yield_pct = dividend_yield_raw * 100 if dividend_yield_raw <= 1 else dividend_yield_raw
+            dividend_yield_pct = float(dividend_yield_raw)
 
         fcf_margin_pct = None
         if free_cash_flow is not None and revenue not in (None, 0):
@@ -322,11 +326,18 @@ if query.strip():
             net_cash = max(cash - debt, 0)
 
         net_cash_per_share = 0.0
-        if net_cash is not None and shares not in (None, 0):
+        # Bei Banken und Versicherern ist Cash/Verschuldung Teil des Geschäftsmodells.
+        # Deshalb wird kein Netto-Cash-Aufschlag auf den Fair Value vorgenommen.
+        if not is_financial_special and net_cash is not None and shares not in (None, 0):
             net_cash_per_share = net_cash / shares
 
         net_debt_fcf = None
-        if net_debt is not None and free_cash_flow is not None and free_cash_flow > 0:
+        if (
+            not is_financial_special
+            and net_debt is not None
+            and free_cash_flow is not None
+            and free_cash_flow > 0
+        ):
             net_debt_fcf = net_debt / free_cash_flow
 
         auto_target_pe, pe_reason = get_target_pe(sector, industry)
@@ -337,6 +348,8 @@ if query.strip():
                 + (f" | Sektor: {sector}" if sector else "")
                 + (f" | Branche: {industry}" if industry else "")
             )
+            if is_financial_special:
+                st.caption("Finanzwert: Kein Netto-Cash-Aufschlag auf den Fair Value.")
             target_pe = st.number_input(
                 "Ziel-KGV",
                 min_value=1.0,
@@ -349,15 +362,15 @@ if query.strip():
         fair_value = None
         if eps is not None and eps > 0:
             fair_value_pe = eps * target_pe
-            fair_value = fair_value_pe + net_cash_per_share
+            fair_value = fair_value_pe if is_financial_special else fair_value_pe + net_cash_per_share
 
         quality_score = calc_quality_score(
             net_margin_pct,
             revenue_growth_pct,
             earnings_growth_pct,
             earnings_growth_special,
-            fcf_margin_pct,
-            net_debt_fcf,
+            None if is_financial_special else fcf_margin_pct,
+            None if is_financial_special else net_debt_fcf,
             roe_pct,
         )
 
@@ -379,13 +392,25 @@ if query.strip():
         else:
             st.metric("Gewinnwachstum", fmt_percent(earnings_growth_pct))
 
-        st.metric("Free-Cashflow-Marge", fmt_percent(fcf_margin_pct))
+        st.metric(
+            "Free-Cashflow-Marge",
+            "n.v. (Finanzwert)" if is_financial_special else fmt_percent(fcf_margin_pct),
+        )
 
         st.divider()
         st.subheader("Cashflow & Bilanz")
-        st.metric("Free Cashflow", fmt_billions(free_cash_flow, currency))
-        st.metric("Nettoverschuldung", fmt_billions(net_debt, currency))
-        st.metric("Net Debt / FCF", fmt_number(net_debt_fcf))
+        if is_financial_special:
+            st.caption(
+                "Bei Banken und Versicherern werden Free Cashflow, Nettoverschuldung und "
+                "Net Debt / FCF nicht für die Bewertung verwendet."
+            )
+            st.metric("Free Cashflow", "n.v. (Finanzwert)")
+            st.metric("Nettoverschuldung", "n.v. (Finanzwert)")
+            st.metric("Net Debt / FCF", "n.v. (Finanzwert)")
+        else:
+            st.metric("Free Cashflow", fmt_billions(free_cash_flow, currency))
+            st.metric("Nettoverschuldung", fmt_billions(net_debt, currency))
+            st.metric("Net Debt / FCF", fmt_number(net_debt_fcf))
         st.metric("Marktkapitalisierung", fmt_billions(market_cap, currency))
         st.metric("Dividendenrendite", fmt_percent(dividend_yield_pct))
         st.metric("Eigenkapitalrendite (ROE)", fmt_percent(roe_pct))
@@ -409,7 +434,7 @@ if query.strip():
 
             st.metric("Fair Value", f"{fair_value:.2f} {currency}")
             st.metric("KGV-Basiswert", f"{fair_value_pe:.2f} {currency}")
-            st.metric("Netto-Cash je Aktie", f"{net_cash_per_share:.2f} {currency}")
+            st.metric("Netto-Cash je Aktie", "nicht verwendet" if is_financial_special else f"{net_cash_per_share:.2f} {currency}")
             st.metric("Kaufzone -10 %", f"{buy_10:.2f} {currency}")
             st.metric("Kaufzone -15 %", f"{buy_15:.2f} {currency}")
             st.metric("Kaufzone -20 %", f"{buy_20:.2f} {currency}")
@@ -424,13 +449,12 @@ if query.strip():
                 hist = ticker.history(period="5y", auto_adjust=True)
                 if not hist.empty and "Close" in hist:
                     chart_df = pd.DataFrame(index=hist.index)
-                    chart_df["Kurs"] = pd.to_numeric(hist["Close"], errors="coerce")
-                    chart_df["Fair Value"] = float(fair_value)
-                    chart_df["Kaufzone -10 %"] = float(buy_10)
-                    chart_df["Kaufzone -15 %"] = float(buy_15)
-                    chart_df["Kaufzone -20 %"] = float(buy_20)
-                    chart_df = chart_df.dropna(subset=["Kurs"])
-                    st.line_chart(chart_df, height=360)
+                    chart_df["Kurs"] = hist["Close"]
+                    chart_df["Fair Value"] = fair_value
+                    chart_df["Kaufzone -10 %"] = buy_10
+                    chart_df["Kaufzone -15 %"] = buy_15
+                    chart_df["Kaufzone -20 %"] = buy_20
+                    st.line_chart(chart_df)
                 else:
                     st.info("Für den 5-Jahres-Chart sind keine Kursdaten verfügbar.")
             except Exception:
