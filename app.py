@@ -5,7 +5,6 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 import yfinance as yf
-import altair as alt
 
 st.set_page_config(page_title="Aktien-Analyse-App", layout="centered")
 st.title("Aktien-Analyse-App")
@@ -133,6 +132,8 @@ def get_target_pe(sector, industry):
         return 11.0, "Bank"
     if "insurance" in industry:
         return 12.0, "Versicherung"
+    if any(x in industry for x in ["aerospace & defense", "aerospace and defense", "defense", "defence"]):
+        return 25.0, "Rüstung / Defense"
     if any(x in industry for x in ["semiconductor", "software", "information technology"]):
         return 25.0, "Technologie"
     if any(x in industry for x in ["gold", "silver", "copper", "mining", "specialty chemicals"]):
@@ -507,47 +508,13 @@ if query.strip():
             try:
                 hist = ticker.history(period="5y", auto_adjust=True)
                 if not hist.empty and "Close" in hist:
-                    chart_df = pd.DataFrame({
-                        "Datum": hist.index,
-                        "Kurs": pd.to_numeric(hist["Close"], errors="coerce").values,
-                    }).dropna(subset=["Kurs"])
-
-                    # Expliziter Altair-Chart verhindert fehlerhafte mobile Achsenformatierung.
-                    base = alt.Chart(chart_df).encode(
-                        x=alt.X("Datum:T", title=None, axis=alt.Axis(format="%Y")),
-                        y=alt.Y(
-                            "Kurs:Q",
-                            title=f"Kurs ({currency})",
-                            scale=alt.Scale(zero=False),
-                            axis=alt.Axis(format=".0f"),
-                        ),
-                    )
-                    price_line = base.mark_line().encode(
-                        tooltip=[
-                            alt.Tooltip("Datum:T", title="Datum", format="%d.%m.%Y"),
-                            alt.Tooltip("Kurs:Q", title="Kurs", format=".2f"),
-                        ]
-                    )
-
-                    levels = pd.DataFrame({
-                        "Linie": ["Fair Value", "Kaufzone -10 %", "Kaufzone -15 %", "Kaufzone -20 %"],
-                        "Wert": [fair_value, buy_10, buy_15, buy_20],
-                    })
-                    level_lines = alt.Chart(levels).mark_rule(strokeDash=[5, 4]).encode(
-                        y=alt.Y("Wert:Q", axis=alt.Axis(format=".0f")),
-                        color=alt.Color(
-                            "Linie:N",
-                            title=None,
-                            legend=alt.Legend(orient="bottom", columns=2),
-                        ),
-                        tooltip=[
-                            alt.Tooltip("Linie:N", title="Linie"),
-                            alt.Tooltip("Wert:Q", title="Wert", format=".2f"),
-                        ],
-                    )
-
-                    chart = (price_line + level_lines).properties(height=360).interactive()
-                    st.altair_chart(chart, width="stretch")
+                    chart_df = pd.DataFrame(index=hist.index)
+                    chart_df["Kurs"] = hist["Close"]
+                    chart_df["Fair Value"] = fair_value
+                    chart_df["Kaufzone -10 %"] = buy_10
+                    chart_df["Kaufzone -15 %"] = buy_15
+                    chart_df["Kaufzone -20 %"] = buy_20
+                    st.line_chart(chart_df)
                 else:
                     st.info("Für den 5-Jahres-Chart sind keine Kursdaten verfügbar.")
             except Exception:
