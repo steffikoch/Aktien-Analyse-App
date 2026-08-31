@@ -128,6 +128,10 @@ def get_target_pe(sector, industry):
 
     if any(x in industry for x in ["auto manufacturer", "automobile", "auto & truck"]):
         return 8.0, "Autohersteller"
+    if "tobacco" in industry:
+        return 13.0, "Tabak"
+    if any(x in industry for x in ["household & personal products", "household and personal products"]):
+        return 16.0, "Haushalt & Körperpflege"
     if any(x in industry for x in ["bank", "banks"]):
         return 11.0, "Bank"
     if "insurance" in industry:
