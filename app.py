@@ -424,12 +424,13 @@ if query.strip():
                 hist = ticker.history(period="5y", auto_adjust=True)
                 if not hist.empty and "Close" in hist:
                     chart_df = pd.DataFrame(index=hist.index)
-                    chart_df["Kurs"] = hist["Close"]
-                    chart_df["Fair Value"] = fair_value
-                    chart_df["Kaufzone -10 %"] = buy_10
-                    chart_df["Kaufzone -15 %"] = buy_15
-                    chart_df["Kaufzone -20 %"] = buy_20
-                    st.line_chart(chart_df)
+                    chart_df["Kurs"] = pd.to_numeric(hist["Close"], errors="coerce")
+                    chart_df["Fair Value"] = float(fair_value)
+                    chart_df["Kaufzone -10 %"] = float(buy_10)
+                    chart_df["Kaufzone -15 %"] = float(buy_15)
+                    chart_df["Kaufzone -20 %"] = float(buy_20)
+                    chart_df = chart_df.dropna(subset=["Kurs"])
+                    st.line_chart(chart_df, height=360)
                 else:
                     st.info("Für den 5-Jahres-Chart sind keine Kursdaten verfügbar.")
             except Exception:
