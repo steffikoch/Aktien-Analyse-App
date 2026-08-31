@@ -232,6 +232,55 @@ def calc_quality_score(
     return max(0, min(100, int(round(score))))
 
 
+def calc_financial_quality_score(
+    net_margin_pct,
+    revenue_growth_pct,
+    earnings_growth_pct,
+    earnings_growth_special,
+    roe_pct,
+):
+    """Qualitätsscore für Banken und Versicherungen ohne FCF/Net-Debt-Verzerrung."""
+    score = 0
+
+    if net_margin_pct is not None:
+        if net_margin_pct >= 20:
+            score += 30
+        elif net_margin_pct >= 10:
+            score += 25
+        elif net_margin_pct >= 5:
+            score += 20
+        elif net_margin_pct > 0:
+            score += 10
+
+    if revenue_growth_pct is not None:
+        if revenue_growth_pct >= 10:
+            score += 15
+        elif revenue_growth_pct >= 5:
+            score += 12
+        elif revenue_growth_pct >= 0:
+            score += 8
+
+    if earnings_growth_pct is not None and not earnings_growth_special:
+        if earnings_growth_pct >= 15:
+            score += 20
+        elif earnings_growth_pct >= 5:
+            score += 15
+        elif earnings_growth_pct >= 0:
+            score += 10
+
+    if roe_pct is not None:
+        if roe_pct >= 20:
+            score += 35
+        elif roe_pct >= 15:
+            score += 30
+        elif roe_pct >= 10:
+            score += 22
+        elif roe_pct > 0:
+            score += 10
+
+    return max(0, min(100, int(round(score))))
+
+
 def load_saved():
     if SAVE_FILE.exists():
         try:
@@ -364,15 +413,24 @@ if query.strip():
             fair_value_pe = eps * target_pe
             fair_value = fair_value_pe if is_financial_special else fair_value_pe + net_cash_per_share
 
-        quality_score = calc_quality_score(
-            net_margin_pct,
-            revenue_growth_pct,
-            earnings_growth_pct,
-            earnings_growth_special,
-            None if is_financial_special else fcf_margin_pct,
-            None if is_financial_special else net_debt_fcf,
-            roe_pct,
-        )
+        if is_financial_special:
+            quality_score = calc_financial_quality_score(
+                net_margin_pct,
+                revenue_growth_pct,
+                earnings_growth_pct,
+                earnings_growth_special,
+                roe_pct,
+            )
+        else:
+            quality_score = calc_quality_score(
+                net_margin_pct,
+                revenue_growth_pct,
+                earnings_growth_pct,
+                earnings_growth_special,
+                fcf_margin_pct,
+                net_debt_fcf,
+                roe_pct,
+            )
 
         st.markdown(f"## {company_name}")
         st.metric("Aktueller Kurs", f"{fmt_number(current_price)} {currency}")
@@ -475,6 +533,20 @@ if query.strip():
 
         st.metric("Bewertung", verdict)
 
+        # Klare Modell-Handlung: Bewertung + Qualität zusammenführen.
+        if potential_pct is None:
+            action = "⚪ KEINE HANDLUNG"
+        elif potential_pct <= -10:
+            action = "🔴 VERKAUFEN"
+        elif potential_pct >= 10 and quality_score >= 50:
+            action = "🟢 KAUFEN"
+        else:
+            action = "🟡 HALTEN"
+
+        st.metric("Handlung", action)
+        if potential_pct >= 10 and quality_score < 50:
+            st.caption("Trotz Unterbewertung kein Kaufsignal, weil der Qualitätsscore unter 50 liegt.")
+
         if quality_score < 30 and potential_pct is not None and potential_pct >= 10:
             st.warning(
                 "Achtung: Rechnerisch unterbewertet, aber sehr niedriger Qualitätsscore. "
@@ -483,7 +555,8 @@ if query.strip():
 
         st.caption(
             "Hinweis: Der Fair Value ist eine Modellschätzung und keine Anlageberatung. "
-            "Sektorabhängige Ziel-KGVs sind Startwerte und werden in der Testphase geprüft."
+            "Sektorabhängige Ziel-KGVs sind Startwerte und werden in der Testphase geprüft. "
+            "Kaufen/Halten/Verkaufen ist ein Modellsignal, keine persönliche Anlageberatung."
         )
 
         if st.button("Analyse speichern"):
@@ -498,6 +571,7 @@ if query.strip():
                 "Potenzial %": potential_pct,
                 "Qualitätsscore": quality_score,
                 "Bewertung": verdict,
+                "Handlung": action,
             }
             old = load_saved()
             new = pd.concat([old, pd.DataFrame([row])], ignore_index=True)
