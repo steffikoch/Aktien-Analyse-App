@@ -354,6 +354,36 @@ if query.strip():
             (current_price / eps if current_price and eps and eps > 0 else None),
         )
 
+        # Erwartetes EPS von Yahoo. Es wird nur vorsichtig für den Fair Value genutzt.
+        forward_eps = first_valid(info.get("forwardEps"))
+        if is_gbp_pence_quote and forward_eps is not None:
+            yahoo_forward_pe = first_valid(info.get("forwardPE"))
+            implied_forward_pe_without_conversion = (
+                current_price / forward_eps
+                if current_price is not None and forward_eps > 0
+                else None
+            )
+            if (
+                yahoo_forward_pe is not None
+                and implied_forward_pe_without_conversion is not None
+                and yahoo_forward_pe > 0
+                and implied_forward_pe_without_conversion / yahoo_forward_pe > 50
+            ):
+                forward_eps = forward_eps * 100
+
+        # Normalisiertes EPS:
+        # - ohne brauchbare Prognose bleibt das aktuelle EPS die Basis
+        # - Prognoseänderungen werden auf +/- 35 % begrenzt
+        # - aktuelles und begrenztes Forward-EPS werden 50/50 gemittelt
+        normalized_eps = eps
+        if eps is not None and eps > 0 and forward_eps is not None and forward_eps > 0:
+            forward_floor = eps * 0.65
+            forward_cap = eps * 1.35
+            forward_eps_capped = min(max(forward_eps, forward_floor), forward_cap)
+            normalized_eps = (eps + forward_eps_capped) / 2
+        elif (eps is None or eps <= 0) and forward_eps is not None and forward_eps > 0:
+            normalized_eps = forward_eps
+
         revenue = info.get("totalRevenue")
         net_income = first_valid(info.get("netIncomeToCommon"), info.get("netIncome"))
         net_margin = info.get("profitMargins")
@@ -430,8 +460,8 @@ if query.strip():
 
         fair_value_pe = None
         fair_value = None
-        if eps is not None and eps > 0:
-            fair_value_pe = eps * target_pe
+        if normalized_eps is not None and normalized_eps > 0:
+            fair_value_pe = normalized_eps * target_pe
             fair_value = fair_value_pe if is_financial_special else fair_value_pe + net_cash_per_share
 
         if is_financial_special:
@@ -457,6 +487,17 @@ if query.strip():
         st.metric("Aktueller Kurs", f"{fmt_number(current_price)} {currency}")
         st.metric("KGV", fmt_number(pe))
         st.metric("Gewinn je Aktie (EPS)", f"{fmt_number(eps)} {currency}")
+        st.metric("EPS erwartet", f"{fmt_number(forward_eps)} {currency}" if forward_eps is not None else "n.v.")
+        st.metric(
+            "EPS für Fair Value",
+            f"{fmt_number(normalized_eps)} {currency}" if normalized_eps is not None else "n.v.",
+        )
+        if (
+            eps is not None and eps > 0
+            and forward_eps is not None and forward_eps > 0
+            and abs(forward_eps / eps - 1) > 0.35
+        ):
+            st.caption("Forward-EPS stark abweichend: Für den Fair Value wird die Prognose auf ±35 % begrenzt.")
         st.metric("Umsatz", fmt_billions(revenue, currency))
         st.metric("Nettogewinn", fmt_billions(net_income, currency))
         st.metric("Nettomarge", fmt_percent(net_margin_pct))
