@@ -330,6 +330,25 @@ if query.strip():
             fast.get("last_price"),
         )
         eps = first_valid(info.get("trailingEps"), info.get("epsTrailingTwelveMonths"))
+
+        # London Stock Exchange: Yahoo quotes share prices in GBp (pence),
+        # while EPS is commonly returned in GBP (pounds). Convert EPS to GBp
+        # so price, EPS and Fair Value use the same unit.
+        is_gbp_pence_quote = str(currency).strip().upper() in {"GBP", "GBX"} or str(currency).strip() == "GBp"
+        if is_gbp_pence_quote and eps is not None:
+            # Only convert when the price/EPS relationship shows the classic 100x mismatch.
+            yahoo_pe = first_valid(info.get("trailingPE"))
+            implied_pe_without_conversion = (
+                current_price / eps if current_price is not None and eps > 0 else None
+            )
+            if (
+                yahoo_pe is not None
+                and implied_pe_without_conversion is not None
+                and yahoo_pe > 0
+                and implied_pe_without_conversion / yahoo_pe > 50
+            ):
+                eps = eps * 100
+
         pe = first_valid(
             info.get("trailingPE"),
             (current_price / eps if current_price and eps and eps > 0 else None),
