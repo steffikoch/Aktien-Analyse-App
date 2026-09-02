@@ -86,9 +86,10 @@ def format_date(timestamp):
 # Unternehmen klassifizieren
 # -----------------------------
 
-def classify_company(name, sector, industry):
+def classify_company(name, symbol, sector, industry):
 
     name_text = str(name or "").lower()
+    symbol_text = str(symbol or "").upper()
     sector_text = str(sector or "").lower()
     industry_text = str(industry or "").lower()
 
@@ -98,7 +99,30 @@ def classify_company(name, sector, industry):
         industry_text
     )
 
+    # -------------------------
+    # Bekannte Spezialfälle
+    # -------------------------
+
+    # Albemarle:
+    # Yahoo führt ALB als Specialty Chemicals.
+    # Für die Bewertung behandeln wir das Unternehmen
+    # wegen der starken Lithium-/Rohstoffabhängigkeit
+    # als zyklischen Rohstoffwert.
+
+    if (
+        symbol_text == "ALB"
+        or "albemarle" in name_text
+    ):
+        return {
+            "type": "Rohstoffe / Lithium / zyklisch",
+            "method": "Zyklus-normalisierte Gewinne + FCF",
+            "confidence_cap": "Mittel"
+        }
+
+    # -------------------------
     # Banken
+    # -------------------------
+
     if (
         "bank" in industry_text
         or "banks" in industry_text
@@ -110,7 +134,10 @@ def classify_company(name, sector, industry):
             "confidence_cap": "Mittel bis Hoch"
         }
 
+    # -------------------------
     # Versicherungen
+    # -------------------------
+
     if (
         "insurance" in industry_text
         or "insurer" in combined
@@ -121,7 +148,10 @@ def classify_company(name, sector, industry):
             "confidence_cap": "Mittel bis Hoch"
         }
 
-    # REIT
+    # -------------------------
+    # REIT / Immobilien
+    # -------------------------
+
     if (
         "reit" in industry_text
         or "reit" in sector_text
@@ -132,7 +162,10 @@ def classify_company(name, sector, industry):
             "confidence_cap": "Mittel bis Hoch"
         }
 
+    # -------------------------
     # Autohersteller
+    # -------------------------
+
     auto_terms = [
         "auto manufacturers",
         "automobile",
@@ -140,14 +173,20 @@ def classify_company(name, sector, industry):
         "car manufacturer"
     ]
 
-    if any(term in industry_text for term in auto_terms):
+    if any(
+        term in industry_text
+        for term in auto_terms
+    ):
         return {
             "type": "Autohersteller / zyklisch",
             "method": "Normalisiertes Mehrjahres-EPS + KGV",
             "confidence_cap": "Mittel"
         }
 
+    # -------------------------
     # Öl & Gas
+    # -------------------------
+
     oil_terms = [
         "oil & gas",
         "oil and gas",
@@ -155,14 +194,20 @@ def classify_company(name, sector, industry):
         "energy - fossil"
     ]
 
-    if any(term in combined for term in oil_terms):
+    if any(
+        term in combined
+        for term in oil_terms
+    ):
         return {
             "type": "Öl & Gas / zyklisch",
             "method": "Normalisierte Gewinne + FCF + Verschuldung",
             "confidence_cap": "Mittel"
         }
 
+    # -------------------------
     # Bergbau / Rohstoffe
+    # -------------------------
+
     mining_terms = [
         "gold",
         "silver",
@@ -173,14 +218,20 @@ def classify_company(name, sector, industry):
         "other industrial metals"
     ]
 
-    if any(term in industry_text for term in mining_terms):
+    if any(
+        term in industry_text
+        for term in mining_terms
+    ):
         return {
             "type": "Rohstoffe / Bergbau / zyklisch",
             "method": "Zyklus-normalisierte Gewinne + FCF",
             "confidence_cap": "Mittel"
         }
 
+    # -------------------------
     # Biotechnologie
+    # -------------------------
+
     if "biotechnology" in industry_text:
         return {
             "type": "Biotechnologie",
@@ -188,72 +239,105 @@ def classify_company(name, sector, industry):
             "confidence_cap": "Niedrig bis Mittel"
         }
 
+    # -------------------------
     # Pharma
+    # -------------------------
+
     pharma_terms = [
         "drug manufacturers",
         "pharmaceutical"
     ]
 
-    if any(term in industry_text for term in pharma_terms):
+    if any(
+        term in industry_text
+        for term in pharma_terms
+    ):
         return {
             "type": "Pharma",
             "method": "Normalisiertes EPS + KGV",
             "confidence_cap": "Mittel bis Hoch"
         }
 
+    # -------------------------
     # Halbleiter
+    # -------------------------
+
     semiconductor_terms = [
         "semiconductor",
         "semiconductors"
     ]
 
-    if any(term in industry_text for term in semiconductor_terms):
+    if any(
+        term in industry_text
+        for term in semiconductor_terms
+    ):
         return {
             "type": "Halbleiter / Wachstum",
             "method": "Forward EPS + qualitätsbereinigtes KGV",
             "confidence_cap": "Mittel bis Hoch"
         }
 
+    # -------------------------
     # Software
+    # -------------------------
+
     software_terms = [
         "software",
         "information technology services"
     ]
 
-    if any(term in industry_text for term in software_terms):
+    if any(
+        term in industry_text
+        for term in software_terms
+    ):
         return {
             "type": "Etablierte Software / Technologie",
             "method": "Normalisiertes EPS + qualitätsbereinigtes KGV",
             "confidence_cap": "Hoch"
         }
 
-    # Telekom
+    # -------------------------
+    # Telekommunikation
+    # -------------------------
+
     telecom_terms = [
         "telecom",
         "telecommunication"
     ]
 
-    if any(term in combined for term in telecom_terms):
+    if any(
+        term in combined
+        for term in telecom_terms
+    ):
         return {
             "type": "Telekommunikation",
             "method": "Adjusted EPS + FCF + Verschuldung",
             "confidence_cap": "Mittel bis Hoch"
         }
 
+    # -------------------------
     # Versorger
+    # -------------------------
+
     utility_terms = [
         "utilities",
         "utility"
     ]
 
-    if any(term in combined for term in utility_terms):
+    if any(
+        term in combined
+        for term in utility_terms
+    ):
         return {
             "type": "Versorger",
             "method": "KGV bzw. EV/EBITDA + Verschuldung",
             "confidence_cap": "Mittel bis Hoch"
         }
 
-    # Basiskonsumgüter
+    # -------------------------
+    # Defensiver Konsum
+    # -------------------------
+
     staples_terms = [
         "consumer defensive",
         "beverages - non-alcoholic",
@@ -261,14 +345,20 @@ def classify_company(name, sector, industry):
         "packaged foods"
     ]
 
-    if any(term in combined for term in staples_terms):
+    if any(
+        term in combined
+        for term in staples_terms
+    ):
         return {
             "type": "Defensiver Konsum",
             "method": "Normalisiertes EPS + KGV",
             "confidence_cap": "Hoch"
         }
 
+    # -------------------------
     # Industrie
+    # -------------------------
+
     if "industrials" in sector_text:
         return {
             "type": "Industrie",
@@ -276,7 +366,10 @@ def classify_company(name, sector, industry):
             "confidence_cap": "Mittel bis Hoch"
         }
 
-    # Standardmodell
+    # -------------------------
+    # Standard
+    # -------------------------
+
     return {
         "type": "Standard-Unternehmen",
         "method": "Normalisiertes EPS + KGV + FCF-Kontrolle",
@@ -289,6 +382,7 @@ def classify_company(name, sector, industry):
 # -----------------------------
 
 def find_stock(search_text):
+
     query = search_text.strip()
 
     if not query:
@@ -307,15 +401,24 @@ def find_stock(search_text):
 
     equities = [
         item for item in quotes
-        if str(item.get("quoteType", "")).upper() == "EQUITY"
+        if str(
+            item.get("quoteType", "")
+        ).upper() == "EQUITY"
     ]
 
-    candidates = equities if equities else quotes
+    candidates = (
+        equities
+        if equities
+        else quotes
+    )
 
     query_upper = query.upper()
 
     for item in candidates:
-        symbol = str(item.get("symbol", "")).upper()
+
+        symbol = str(
+            item.get("symbol", "")
+        ).upper()
 
         if symbol == query_upper:
             return item
@@ -327,7 +430,10 @@ def find_stock(search_text):
 # Daten laden
 # -----------------------------
 
-@st.cache_data(ttl=900, show_spinner=False)
+@st.cache_data(
+    ttl=900,
+    show_spinner=False
+)
 def load_stock(search_text):
 
     result = find_stock(search_text)
@@ -364,6 +470,7 @@ def load_stock(search_text):
 
     company_type = classify_company(
         name,
+        symbol,
         info.get("sector"),
         info.get("industry")
     )
@@ -423,7 +530,10 @@ def load_stock(search_text):
 
 search_text = st.text_input(
     "Aktie suchen",
-    placeholder="z. B. Microsoft, MSFT, Volkswagen, Allianz oder ALB"
+    placeholder=(
+        "z. B. Microsoft, MSFT, Volkswagen, "
+        "Allianz oder ALB"
+    )
 ).strip()
 
 
@@ -440,12 +550,15 @@ if search_text:
             if not data:
 
                 st.error(
-                    "Aktie konnte nicht eindeutig gefunden werden."
+                    "Aktie konnte nicht eindeutig "
+                    "gefunden werden."
                 )
 
             else:
 
-                currency = text_or_dash(data["currency"])
+                currency = text_or_dash(
+                    data["currency"]
+                )
 
                 st.success("Aktie gefunden")
 
@@ -457,7 +570,8 @@ if search_text:
 
                     st.info(
                         f"„{search_text}“ → "
-                        f"{data['symbol']} automatisch erkannt"
+                        f"{data['symbol']} "
+                        f"automatisch erkannt"
                     )
 
                 # -----------------------------
@@ -506,10 +620,13 @@ if search_text:
                 # -----------------------------
 
                 st.subheader(
-                    "🧭 Automatische Unternehmens-Klassifizierung"
+                    "🧭 Automatische "
+                    "Unternehmens-Klassifizierung"
                 )
 
-                company_type = data["company_type"]
+                company_type = data[
+                    "company_type"
+                ]
 
                 st.success(
                     f"Unternehmenstyp: "
@@ -543,7 +660,8 @@ if search_text:
 
                     st.metric(
                         "Kurs",
-                        f"{data['price']:,.2f} {currency}"
+                        f"{data['price']:,.2f} "
+                        f"{currency}"
                     )
 
                 else:
@@ -635,7 +753,7 @@ if search_text:
                 st.divider()
 
                 # -----------------------------
-                # Wachstum
+                # Wachstum & Profitabilität
                 # -----------------------------
 
                 st.subheader(
@@ -646,7 +764,10 @@ if search_text:
 
                 with col1:
 
-                    if data["revenue_growth"] is not None:
+                    if (
+                        data["revenue_growth"]
+                        is not None
+                    ):
                         st.metric(
                             "Umsatzwachstum",
                             f"{data['revenue_growth'] * 100:.1f} %"
@@ -657,7 +778,10 @@ if search_text:
                             "–"
                         )
 
-                    if data["profit_margin"] is not None:
+                    if (
+                        data["profit_margin"]
+                        is not None
+                    ):
                         st.metric(
                             "Nettomarge",
                             f"{data['profit_margin'] * 100:.1f} %"
@@ -670,7 +794,10 @@ if search_text:
 
                 with col2:
 
-                    if data["earnings_growth"] is not None:
+                    if (
+                        data["earnings_growth"]
+                        is not None
+                    ):
                         st.metric(
                             "Gewinnwachstum",
                             f"{data['earnings_growth'] * 100:.1f} %"
