@@ -9,7 +9,7 @@ st.set_page_config(
 )
 
 st.title("📊 Aktien-Analyse V2")
-st.caption("Modul 1 + 2 – Aktiensuche & Datenbasis")
+st.caption("Modul 1 + 2 + 3 – Suche, Datenbasis & Unternehmenstyp")
 
 
 # -----------------------------
@@ -73,8 +73,6 @@ def format_date(timestamp):
     try:
         date_value = datetime.fromtimestamp(timestamp)
 
-        # Vergangene Termine nicht als kommende
-        # Quartalszahlen anzeigen
         if date_value.date() < datetime.now().date():
             return None
 
@@ -83,6 +81,212 @@ def format_date(timestamp):
     except Exception:
         return None
 
+
+# -----------------------------
+# Unternehmen klassifizieren
+# -----------------------------
+
+def classify_company(name, sector, industry):
+
+    name_text = str(name or "").lower()
+    sector_text = str(sector or "").lower()
+    industry_text = str(industry or "").lower()
+
+    combined = (
+        name_text + " " +
+        sector_text + " " +
+        industry_text
+    )
+
+    # Banken
+    if (
+        "bank" in industry_text
+        or "banks" in industry_text
+        or "banking" in industry_text
+    ):
+        return {
+            "type": "Bank",
+            "method": "KBV / Eigenkapital + normalisiertes KGV",
+            "confidence_cap": "Mittel bis Hoch"
+        }
+
+    # Versicherungen
+    if (
+        "insurance" in industry_text
+        or "insurer" in combined
+    ):
+        return {
+            "type": "Versicherung",
+            "method": "Core EPS + KGV + ROE / KBV",
+            "confidence_cap": "Mittel bis Hoch"
+        }
+
+    # REIT
+    if (
+        "reit" in industry_text
+        or "reit" in sector_text
+    ):
+        return {
+            "type": "REIT / Immobilien",
+            "method": "P/AFFO bzw. P/FFO",
+            "confidence_cap": "Mittel bis Hoch"
+        }
+
+    # Autohersteller
+    auto_terms = [
+        "auto manufacturers",
+        "automobile",
+        "automotive",
+        "car manufacturer"
+    ]
+
+    if any(term in industry_text for term in auto_terms):
+        return {
+            "type": "Autohersteller / zyklisch",
+            "method": "Normalisiertes Mehrjahres-EPS + KGV",
+            "confidence_cap": "Mittel"
+        }
+
+    # Öl & Gas
+    oil_terms = [
+        "oil & gas",
+        "oil and gas",
+        "integrated oil",
+        "energy - fossil"
+    ]
+
+    if any(term in combined for term in oil_terms):
+        return {
+            "type": "Öl & Gas / zyklisch",
+            "method": "Normalisierte Gewinne + FCF + Verschuldung",
+            "confidence_cap": "Mittel"
+        }
+
+    # Bergbau / Rohstoffe
+    mining_terms = [
+        "gold",
+        "silver",
+        "copper",
+        "lithium",
+        "mining",
+        "industrial metals",
+        "other industrial metals"
+    ]
+
+    if any(term in industry_text for term in mining_terms):
+        return {
+            "type": "Rohstoffe / Bergbau / zyklisch",
+            "method": "Zyklus-normalisierte Gewinne + FCF",
+            "confidence_cap": "Mittel"
+        }
+
+    # Biotechnologie
+    if "biotechnology" in industry_text:
+        return {
+            "type": "Biotechnologie",
+            "method": "Gewinnmodell oder Cash + Pipeline / rNPV",
+            "confidence_cap": "Niedrig bis Mittel"
+        }
+
+    # Pharma
+    pharma_terms = [
+        "drug manufacturers",
+        "pharmaceutical"
+    ]
+
+    if any(term in industry_text for term in pharma_terms):
+        return {
+            "type": "Pharma",
+            "method": "Normalisiertes EPS + KGV",
+            "confidence_cap": "Mittel bis Hoch"
+        }
+
+    # Halbleiter
+    semiconductor_terms = [
+        "semiconductor",
+        "semiconductors"
+    ]
+
+    if any(term in industry_text for term in semiconductor_terms):
+        return {
+            "type": "Halbleiter / Wachstum",
+            "method": "Forward EPS + qualitätsbereinigtes KGV",
+            "confidence_cap": "Mittel bis Hoch"
+        }
+
+    # Software
+    software_terms = [
+        "software",
+        "information technology services"
+    ]
+
+    if any(term in industry_text for term in software_terms):
+        return {
+            "type": "Etablierte Software / Technologie",
+            "method": "Normalisiertes EPS + qualitätsbereinigtes KGV",
+            "confidence_cap": "Hoch"
+        }
+
+    # Telekom
+    telecom_terms = [
+        "telecom",
+        "telecommunication"
+    ]
+
+    if any(term in combined for term in telecom_terms):
+        return {
+            "type": "Telekommunikation",
+            "method": "Adjusted EPS + FCF + Verschuldung",
+            "confidence_cap": "Mittel bis Hoch"
+        }
+
+    # Versorger
+    utility_terms = [
+        "utilities",
+        "utility"
+    ]
+
+    if any(term in combined for term in utility_terms):
+        return {
+            "type": "Versorger",
+            "method": "KGV bzw. EV/EBITDA + Verschuldung",
+            "confidence_cap": "Mittel bis Hoch"
+        }
+
+    # Basiskonsumgüter
+    staples_terms = [
+        "consumer defensive",
+        "beverages - non-alcoholic",
+        "household & personal products",
+        "packaged foods"
+    ]
+
+    if any(term in combined for term in staples_terms):
+        return {
+            "type": "Defensiver Konsum",
+            "method": "Normalisiertes EPS + KGV",
+            "confidence_cap": "Hoch"
+        }
+
+    # Industrie
+    if "industrials" in sector_text:
+        return {
+            "type": "Industrie",
+            "method": "Normalisiertes EPS + KGV + FCF",
+            "confidence_cap": "Mittel bis Hoch"
+        }
+
+    # Standardmodell
+    return {
+        "type": "Standard-Unternehmen",
+        "method": "Normalisiertes EPS + KGV + FCF-Kontrolle",
+        "confidence_cap": "Mittel"
+    }
+
+
+# -----------------------------
+# Aktiensuche
+# -----------------------------
 
 def find_stock(search_text):
     query = search_text.strip()
@@ -110,14 +314,12 @@ def find_stock(search_text):
 
     query_upper = query.upper()
 
-    # Exakten Ticker bevorzugen
     for item in candidates:
         symbol = str(item.get("symbol", "")).upper()
 
         if symbol == query_upper:
             return item
 
-    # Sonst besten Suchtreffer verwenden
     return candidates[0]
 
 
@@ -160,6 +362,12 @@ def load_stock(search_text):
         or info.get("earningsTimestampStart")
     )
 
+    company_type = classify_company(
+        name,
+        info.get("sector"),
+        info.get("industry")
+    )
+
     return {
         "name": name,
         "symbol": symbol,
@@ -186,35 +394,31 @@ def load_stock(search_text):
         "sector": info.get("sector"),
         "industry": info.get("industry"),
 
-        # Bewertungs-Daten
         "market_cap": info.get("marketCap"),
         "trailing_eps": info.get("trailingEps"),
         "forward_eps": info.get("forwardEps"),
 
-        # Unternehmens-Daten
         "revenue": info.get("totalRevenue"),
         "net_income": info.get("netIncomeToCommon"),
         "free_cashflow": info.get("freeCashflow"),
 
-        # Bilanz
         "cash": info.get("totalCash"),
         "debt": info.get("totalDebt"),
 
-        # Wachstum
         "revenue_growth": info.get("revenueGrowth"),
         "earnings_growth": info.get("earningsGrowth"),
 
-        # Profitabilität
         "profit_margin": info.get("profitMargins"),
         "roe": info.get("returnOnEquity"),
 
-        # Termine
-        "earnings_timestamp": earnings_timestamp
+        "earnings_timestamp": earnings_timestamp,
+
+        "company_type": company_type
     }
 
 
 # -----------------------------
-# Suche
+# Benutzeroberfläche
 # -----------------------------
 
 search_text = st.text_input(
@@ -225,7 +429,9 @@ search_text = st.text_input(
 
 if search_text:
 
-    with st.spinner("Aktie wird gesucht und Daten werden geladen..."):
+    with st.spinner(
+        "Aktie wird gesucht und Daten werden geladen..."
+    ):
 
         try:
 
@@ -245,7 +451,9 @@ if search_text:
 
                 st.header(data["name"])
 
-                if search_text.upper() != str(data["symbol"]).upper():
+                if search_text.upper() != str(
+                    data["symbol"]
+                ).upper():
 
                     st.info(
                         f"„{search_text}“ → "
@@ -278,8 +486,7 @@ if search_text:
                 with col2:
 
                     st.write(
-                        f"**Währung:** "
-                        f"{currency}"
+                        f"**Währung:** {currency}"
                     )
 
                     st.write(
@@ -295,6 +502,38 @@ if search_text:
                 st.divider()
 
                 # -----------------------------
+                # Unternehmenstyp
+                # -----------------------------
+
+                st.subheader(
+                    "🧭 Automatische Unternehmens-Klassifizierung"
+                )
+
+                company_type = data["company_type"]
+
+                st.success(
+                    f"Unternehmenstyp: "
+                    f"**{company_type['type']}**"
+                )
+
+                st.write(
+                    f"**Spätere Bewertungsmethode:** "
+                    f"{company_type['method']}"
+                )
+
+                st.write(
+                    f"**Maximale Bewertungssicherheit:** "
+                    f"{company_type['confidence_cap']}"
+                )
+
+                st.caption(
+                    "Die Klassifizierung bestimmt später, "
+                    "welches Bewertungsmodell verwendet wird."
+                )
+
+                st.divider()
+
+                # -----------------------------
                 # Kurs
                 # -----------------------------
 
@@ -303,8 +542,8 @@ if search_text:
                 if data["price"] is not None:
 
                     st.metric(
-                        label="Kurs",
-                        value=f"{data['price']:,.2f} {currency}"
+                        "Kurs",
+                        f"{data['price']:,.2f} {currency}"
                     )
 
                 else:
@@ -319,7 +558,9 @@ if search_text:
                 # Datenbasis
                 # -----------------------------
 
-                st.subheader("📋 Datenbasis für die Bewertung")
+                st.subheader(
+                    "📋 Datenbasis für die Bewertung"
+                )
 
                 col1, col2 = st.columns(2)
 
@@ -394,10 +635,12 @@ if search_text:
                 st.divider()
 
                 # -----------------------------
-                # Wachstum & Profitabilität
+                # Wachstum
                 # -----------------------------
 
-                st.subheader("Wachstum & Profitabilität")
+                st.subheader(
+                    "Wachstum & Profitabilität"
+                )
 
                 col1, col2 = st.columns(2)
 
@@ -455,7 +698,9 @@ if search_text:
                 # Quartalszahlen
                 # -----------------------------
 
-                st.subheader("📅 Nächste Quartalszahlen")
+                st.subheader(
+                    "📅 Nächste Quartalszahlen"
+                )
 
                 earnings_date = format_date(
                     data["earnings_timestamp"]
@@ -532,8 +777,7 @@ if search_text:
                     st.info(
                         "Börsenplatz erkannt. "
                         "Die automatische Prüfung der "
-                        "Hauptnotierung wird später "
-                        "noch erweitert."
+                        "Hauptnotierung wird später erweitert."
                     )
 
                 st.caption(
@@ -550,4 +794,4 @@ if search_text:
             st.caption(
                 "Bitte Suchbegriff prüfen "
                 "und erneut versuchen."
-            )
+    )
