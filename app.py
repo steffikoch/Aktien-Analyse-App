@@ -352,7 +352,17 @@ def load_saved():
     return pd.DataFrame()
 
 
-query = st.text_input("Aktie suchen (Name, Ticker oder ISIN):", value="SAP.DE")
+if "stock_query" not in st.session_state:
+    st.session_state["stock_query"] = "SAP.DE"
+
+# Wird gesetzt, wenn unten eine gespeicherte Aktie erneut geöffnet wird.
+if "pending_stock_query" in st.session_state:
+    st.session_state["stock_query"] = st.session_state.pop("pending_stock_query")
+
+query = st.text_input(
+    "Aktie suchen (Name, Ticker oder ISIN):",
+    key="stock_query",
+)
 
 security_margin = st.number_input(
     "Sicherheitsmarge (%)",
@@ -739,27 +749,34 @@ if query.strip():
         else:
             st.dataframe(saved, hide_index=True, width="stretch")
 
-            st.markdown("#### Gespeicherte Analyse löschen")
+            st.markdown("#### Gespeicherte Analyse auswählen")
 
-            delete_options = []
+            saved_options = []
             for idx, row in saved.iterrows():
                 unternehmen = str(row.get("Unternehmen", ""))
                 ticker_saved = str(row.get("Ticker", ""))
-                datum = str(row.get("Datum", ""))
-                label = f"{unternehmen} ({ticker_saved})"
-                if datum and datum != "nan":
-                    label += f" – {datum}"
-                delete_options.append((idx, label))
+                datum = row.get("Datum", row.get("Zeitpunkt", ""))
+                datum = "" if pd.isna(datum) else str(datum)
 
-            selected_delete = st.selectbox(
+                label = f"{unternehmen} ({ticker_saved})"
+                if datum and datum != "None":
+                    label += f" – {datum}"
+
+                saved_options.append((idx, ticker_saved, label))
+
+            selected_saved = st.selectbox(
                 "Analyse auswählen",
-                options=delete_options,
-                format_func=lambda x: x[1],
-                key="delete_saved_analysis",
+                options=saved_options,
+                format_func=lambda x: x[2],
+                key="saved_analysis_selection",
             )
 
+            if st.button("🔄 Aktie erneut analysieren", type="primary"):
+                st.session_state["pending_stock_query"] = selected_saved[1]
+                st.rerun()
+
             if st.button("🗑️ Ausgewählte Analyse löschen", type="secondary"):
-                delete_index = selected_delete[0]
+                delete_index = selected_saved[0]
                 saved = saved.drop(index=delete_index).reset_index(drop=True)
                 saved.to_csv(SAVE_FILE, index=False)
                 st.success("Gespeicherte Analyse wurde gelöscht.")
