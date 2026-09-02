@@ -1419,4 +1419,675 @@ def historical_table(historical, currency):
 
     for item in historical["eps"]:
 
-       
+        year = item["date"].year
+        years.setdefault(year, {})
+
+        years[year]["EPS"] = (
+            format_eps(
+                item["value"],
+                currency
+            )
+        )
+
+    for item in historical["fcf"]:
+
+        year = item["date"].year
+        years.setdefault(year, {})
+
+        years[year]["Free Cashflow"] = (
+            format_money(
+                item["value"],
+                currency
+            )
+        )
+
+    rows = []
+
+    for year in sorted(
+        years.keys(),
+        reverse=True
+    )[:5]:
+
+        values = years[year]
+
+        rows.append({
+            "Jahr": year,
+            "EPS": values.get(
+                "EPS",
+                "–"
+            ),
+            "Nettogewinn": values.get(
+                "Nettogewinn",
+                "–"
+            ),
+            "Free Cashflow": values.get(
+                "Free Cashflow",
+                "–"
+            )
+        })
+
+    return pd.DataFrame(rows)
+
+
+# =========================================================
+# Benutzeroberfläche
+# =========================================================
+
+search_text = st.text_input(
+    "Aktie suchen",
+    placeholder=(
+        "z. B. Microsoft, MSFT, Volkswagen, "
+        "Allianz oder ALB"
+    )
+).strip()
+
+
+if search_text:
+
+    with st.spinner(
+        "Aktie wird gesucht und Daten werden geladen..."
+    ):
+
+        try:
+
+            data = load_stock(search_text)
+
+            if not data:
+
+                st.error(
+                    "Aktie konnte nicht eindeutig "
+                    "gefunden werden."
+                )
+
+            else:
+
+                currency = text_or_dash(
+                    data["currency"]
+                )
+
+                st.success("Aktie gefunden")
+
+                st.header(data["name"])
+
+                if search_text.upper() != str(
+                    data["symbol"]
+                ).upper():
+
+                    st.info(
+                        f"„{search_text}“ → "
+                        f"{data['symbol']} "
+                        f"automatisch erkannt"
+                    )
+
+                # Unternehmensübersicht
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+
+                    st.write(
+                        f"**Ticker:** "
+                        f"{text_or_dash(data['symbol'])}"
+                    )
+
+                    st.write(
+                        f"**Typ:** "
+                        f"{text_or_dash(data['quote_type'])}"
+                    )
+
+                    st.write(
+                        f"**Börse:** "
+                        f"{text_or_dash(data['exchange_name'])}"
+                    )
+
+                with col2:
+
+                    st.write(
+                        f"**Währung:** {currency}"
+                    )
+
+                    st.write(
+                        f"**Sektor:** "
+                        f"{text_or_dash(data['sector'])}"
+                    )
+
+                    st.write(
+                        f"**Branche:** "
+                        f"{text_or_dash(data['industry'])}"
+                    )
+
+                st.divider()
+
+                # Klassifizierung
+
+                st.subheader(
+                    "🧭 Automatische "
+                    "Unternehmens-Klassifizierung"
+                )
+
+                company_type = data[
+                    "company_type"
+                ]
+
+                st.success(
+                    f"Unternehmenstyp: "
+                    f"**{company_type['type']}**"
+                )
+
+                st.write(
+                    f"**Spätere Bewertungsmethode:** "
+                    f"{company_type['method']}"
+                )
+
+                st.write(
+                    f"**Maximale Bewertungssicherheit:** "
+                    f"{company_type['confidence_cap']}"
+                )
+
+                st.divider()
+
+                # Kurs
+
+                st.subheader("Aktueller Kurs")
+
+                if data["price"] is not None:
+
+                    st.metric(
+                        "Kurs",
+                        f"{data['price']:,.2f} "
+                        f"{currency}"
+                    )
+
+                else:
+
+                    st.warning(
+                        "Aktueller Kurs nicht verfügbar."
+                    )
+
+                st.divider()
+
+                # Aktuelle Datenbasis
+
+                st.subheader(
+                    "📋 Datenbasis für die Bewertung"
+                )
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+
+                    st.metric(
+                        "Marktkapitalisierung",
+                        format_money(
+                            data["market_cap"],
+                            currency
+                        )
+                    )
+
+                    st.metric(
+                        "EPS aktuell (TTM)",
+                        format_eps(
+                            data["trailing_eps"],
+                            currency
+                        )
+                    )
+
+                    st.metric(
+                        "EPS erwartet (Forward)",
+                        format_eps(
+                            data["forward_eps"],
+                            currency
+                        )
+                    )
+
+                    st.metric(
+                        "Umsatz",
+                        format_money(
+                            data["revenue"],
+                            currency
+                        )
+                    )
+
+                with col2:
+
+                    st.metric(
+                        "Nettogewinn",
+                        format_money(
+                            data["net_income"],
+                            currency
+                        )
+                    )
+
+                    st.metric(
+                        "Free Cashflow",
+                        format_money(
+                            data["free_cashflow"],
+                            currency
+                        )
+                    )
+
+                    st.metric(
+                        "Liquide Mittel",
+                        format_money(
+                            data["cash"],
+                            currency
+                        )
+                    )
+
+                    st.metric(
+                        "Gesamtschulden",
+                        format_money(
+                            data["debt"],
+                            currency
+                        )
+                    )
+
+                st.divider()
+
+                # Wachstum
+
+                st.subheader(
+                    "Wachstum & Profitabilität"
+                )
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+
+                    if data[
+                        "revenue_growth"
+                    ] is not None:
+
+                        st.metric(
+                            "Umsatzwachstum",
+                            f"{data['revenue_growth'] * 100:.1f} %"
+                        )
+
+                    else:
+
+                        st.metric(
+                            "Umsatzwachstum",
+                            "–"
+                        )
+
+                    if data[
+                        "profit_margin"
+                    ] is not None:
+
+                        st.metric(
+                            "Nettomarge",
+                            f"{data['profit_margin'] * 100:.1f} %"
+                        )
+
+                    else:
+
+                        st.metric(
+                            "Nettomarge",
+                            "–"
+                        )
+
+                with col2:
+
+                    if data[
+                        "earnings_growth"
+                    ] is not None:
+
+                        st.metric(
+                            "Gewinnwachstum",
+                            f"{data['earnings_growth'] * 100:.1f} %"
+                        )
+
+                    else:
+
+                        st.metric(
+                            "Gewinnwachstum",
+                            "–"
+                        )
+
+                    if data["roe"] is not None:
+
+                        st.metric(
+                            "Eigenkapitalrendite",
+                            f"{data['roe'] * 100:.1f} %"
+                        )
+
+                    else:
+
+                        st.metric(
+                            "Eigenkapitalrendite",
+                            "–"
+                        )
+
+                st.divider()
+
+                # Historische Daten
+
+                st.subheader(
+                    "📚 Historische Datenbasis"
+                )
+
+                historical = data[
+                    "historical"
+                ]
+
+                st.write(
+                    f"**Verfügbare Geschäftsjahre:** "
+                    f"{historical['available_years']}"
+                )
+
+                quality = historical[
+                    "data_quality"
+                ]
+
+                if quality == "Hoch":
+
+                    st.success(
+                        "Datenqualität für die "
+                        "Mehrjahresanalyse: Hoch"
+                    )
+
+                elif quality == "Mittel":
+
+                    st.warning(
+                        "Datenqualität für die "
+                        "Mehrjahresanalyse: Mittel"
+                    )
+
+                else:
+
+                    st.error(
+                        "Datenqualität für die "
+                        "Mehrjahresanalyse: Niedrig"
+                    )
+
+                history_df = historical_table(
+                    historical,
+                    currency
+                )
+
+                if not history_df.empty:
+
+                    st.dataframe(
+                        history_df,
+                        hide_index=True,
+                        use_container_width=True
+                    )
+
+                else:
+
+                    st.warning(
+                        "Keine ausreichenden historischen "
+                        "Finanzdaten verfügbar."
+                    )
+
+                st.divider()
+
+                # EPS-Normalisierung
+
+                st.subheader(
+                    "🧮 EPS-Normalisierung"
+                )
+
+                eps_result = data[
+                    "eps_normalization"
+                ]
+
+                normalized_eps = eps_result[
+                    "normalized_eps"
+                ]
+
+                if normalized_eps is not None:
+
+                    st.metric(
+                        "Normalisiertes EPS",
+                        format_eps(
+                            normalized_eps,
+                            currency
+                        )
+                    )
+
+                else:
+
+                    st.warning(
+                        "Kein zuverlässiges normalisiertes "
+                        "EPS berechenbar."
+                    )
+
+                st.write(
+                    f"**Verwendete Methode:** "
+                    f"{eps_result['method']}"
+                )
+
+                confidence = eps_result[
+                    "confidence"
+                ]
+
+                if confidence == "Hoch":
+
+                    st.success(
+                        "EPS-Normalisierung: "
+                        "**Hohe Sicherheit**"
+                    )
+
+                elif confidence == "Mittel":
+
+                    st.warning(
+                        "EPS-Normalisierung: "
+                        "**Mittlere Sicherheit**"
+                    )
+
+                else:
+
+                    st.error(
+                        "EPS-Normalisierung: "
+                        "**Niedrige Sicherheit**"
+                    )
+
+                if (
+                    eps_result["cycle_basis"]
+                    is not None
+                ):
+
+                    cycle_basis_text = format_eps(
+                        eps_result["cycle_basis"],
+                        currency
+                    )
+
+                    st.write(
+                        f"**Zyklus-Basis vor "
+                        f"Forward-Anpassung:** "
+                        f"{cycle_basis_text}"
+                    )
+
+                st.caption(
+                    "Dieser Wert ist noch kein Fair Value. "
+                    "Er bildet nur die Gewinnbasis für die "
+                    "spätere Bewertung."
+                )
+
+                st.divider()
+
+                # -----------------------------------------
+                # NEU: Fundamentales Ziel-KGV
+                # -----------------------------------------
+
+                st.subheader(
+                    "🎯 Fundamentales Ziel-KGV"
+                )
+
+                multiple = data[
+                    "multiple_result"
+                ]
+
+                if multiple["available"]:
+
+                    st.write(
+                        f"**KGV-Korridor:** "
+                        f"{multiple['lower']:.0f}× bis "
+                        f"{multiple['upper']:.0f}×"
+                    )
+
+                    st.metric(
+                        "Fundamentaler Multiple-Score",
+                        f"{multiple['total_score']:.0f} / 100"
+                    )
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+
+                        st.metric(
+                            "Wachstum",
+                            f"{multiple['growth_score']:.0f} / 30"
+                        )
+
+                        st.metric(
+                            "Profitabilität",
+                            f"{multiple['profitability_score']:.0f} / 30"
+                        )
+
+                    with col2:
+
+                        st.metric(
+                            "Free Cashflow",
+                            f"{multiple['fcf_score']:.0f} / 25"
+                        )
+
+                        st.metric(
+                            "Bilanz",
+                            f"{multiple['balance_score']:.0f} / 15"
+                        )
+
+                    st.metric(
+                        "Ermitteltes Ziel-KGV",
+                        f"{multiple['target_multiple']:.1f}×"
+                    )
+
+                    if multiple["fcf_margin"] is not None:
+
+                        st.write(
+                            f"**FCF-Marge:** "
+                            f"{multiple['fcf_margin'] * 100:.1f} %"
+                        )
+
+                    st.write(
+                        f"**Begründung:** "
+                        f"{multiple['reason']}"
+                    )
+
+                    st.caption(
+                        multiple["balance_note"]
+                    )
+
+                    st.info(
+                        "Das Ziel-KGV ist noch kein Fair Value. "
+                        "Zuerst prüfen wir, ob der automatisch "
+                        "ermittelte Multiple bei verschiedenen "
+                        "Unternehmen plausibel ist."
+                    )
+
+                else:
+
+                    st.info(
+                        multiple["reason"]
+                    )
+
+                st.divider()
+
+                # Quartalszahlen
+
+                st.subheader(
+                    "📅 Nächste Quartalszahlen"
+                )
+
+                earnings_date = format_date(
+                    data["earnings_timestamp"]
+                )
+
+                if earnings_date:
+
+                    st.info(
+                        f"Voraussichtlicher Termin: "
+                        f"**{earnings_date}**"
+                    )
+
+                else:
+
+                    st.write(
+                        "Kein zukünftiger Termin verfügbar."
+                    )
+
+                st.divider()
+
+                # Börsenplatz
+
+                st.subheader("Börsenplatz")
+
+                st.write(
+                    f"**Ticker:** "
+                    f"{text_or_dash(data['symbol'])}"
+                )
+
+                st.write(
+                    f"**Börse:** "
+                    f"{text_or_dash(data['exchange_name'])}"
+                )
+
+                st.write(
+                    f"**Börsen-Code:** "
+                    f"{text_or_dash(data['exchange'])}"
+                )
+
+                exchange_code = str(
+                    data["exchange"] or ""
+                ).upper()
+
+                symbol_upper = str(
+                    data["symbol"] or ""
+                ).upper()
+
+                if exchange_code in [
+                    "NMS",
+                    "NGM",
+                    "NCM"
+                ]:
+
+                    st.success(
+                        "✓ US-Hauptbörse / Nasdaq erkannt"
+                    )
+
+                elif exchange_code == "NYQ":
+
+                    st.success(
+                        "✓ US-Hauptbörse / NYSE erkannt"
+                    )
+
+                elif symbol_upper.endswith(".DE"):
+
+                    st.success(
+                        "✓ Deutsche Börsennotierung erkannt"
+                    )
+
+                else:
+
+                    st.info(
+                        "Börsenplatz erkannt. "
+                        "Die automatische Prüfung der "
+                        "Hauptnotierung wird später erweitert."
+                    )
+
+                st.caption(
+                    "Fehlende Yahoo-Daten werden mit „–“ "
+                    "angezeigt und führen nicht zu einem Fehler."
+                )
+
+        except Exception:
+
+            st.error(
+                "Die Aktie konnte nicht geladen werden."
+            )
+
+            st.caption(
+                "Bitte Suchbegriff prüfen "
+                "und erneut versuchen."
+    )
