@@ -1,5 +1,6 @@
 import streamlit as st
 import yfinance as yf
+from datetime import datetime
 
 st.set_page_config(
     page_title="Aktien-Analyse V2",
@@ -8,7 +9,7 @@ st.set_page_config(
 )
 
 st.title("📊 Aktien-Analyse V2")
-st.caption("Modul 1 – Aktiensuche")
+st.caption("Modul 1 + 2 – Aktiensuche & Datenbasis")
 
 
 # -----------------------------
@@ -21,12 +22,62 @@ def text_or_dash(value):
     return str(value)
 
 
-def find_stock(search_text):
-    """
-    Sucht nach Firmenname oder Ticker.
-    Exakte Ticker-Treffer werden bevorzugt.
-    """
+def format_number(value):
+    if value is None:
+        return "–"
 
+    try:
+        value = float(value)
+
+        if abs(value) >= 1_000_000_000_000:
+            return f"{value / 1_000_000_000_000:,.2f} Bio."
+
+        if abs(value) >= 1_000_000_000:
+            return f"{value / 1_000_000_000:,.2f} Mrd."
+
+        if abs(value) >= 1_000_000:
+            return f"{value / 1_000_000:,.2f} Mio."
+
+        return f"{value:,.2f}"
+
+    except Exception:
+        return "–"
+
+
+def format_money(value, currency):
+    if value is None:
+        return "–"
+
+    formatted = format_number(value)
+
+    if formatted == "–":
+        return "–"
+
+    return f"{formatted} {currency}"
+
+
+def format_eps(value, currency):
+    if value is None:
+        return "–"
+
+    try:
+        return f"{float(value):,.2f} {currency}"
+    except Exception:
+        return "–"
+
+
+def format_date(timestamp):
+    if timestamp is None:
+        return "–"
+
+    try:
+        date_value = datetime.fromtimestamp(timestamp)
+        return date_value.strftime("%d.%m.%Y")
+    except Exception:
+        return "–"
+
+
+def find_stock(search_text):
     query = search_text.strip()
 
     if not query:
@@ -43,7 +94,6 @@ def find_stock(search_text):
     if not quotes:
         return None
 
-    # Nur Aktien bevorzugen
     equities = [
         item for item in quotes
         if str(item.get("quoteType", "")).upper() == "EQUITY"
@@ -53,16 +103,20 @@ def find_stock(search_text):
 
     query_upper = query.upper()
 
-    # Exakten Ticker zuerst nehmen
+    # Exakten Ticker bevorzugen
     for item in candidates:
         symbol = str(item.get("symbol", "")).upper()
 
         if symbol == query_upper:
             return item
 
-    # Sonst den relevantesten Suchtreffer nehmen
+    # Sonst besten Suchtreffer verwenden
     return candidates[0]
 
+
+# -----------------------------
+# Daten laden
+# -----------------------------
 
 @st.cache_data(ttl=900, show_spinner=False)
 def load_stock(search_text):
@@ -94,31 +148,66 @@ def load_stock(search_text):
         or info.get("previousClose")
     )
 
+    earnings_timestamp = (
+        info.get("earningsTimestamp")
+        or info.get("earningsTimestampStart")
+    )
+
     return {
         "name": name,
         "symbol": symbol,
+
         "quote_type": (
             info.get("quoteType")
             or result.get("quoteType")
         ),
+
         "exchange": (
             info.get("exchange")
             or result.get("exchange")
         ),
+
         "exchange_name": (
             info.get("fullExchangeName")
             or result.get("exchDisp")
             or result.get("exchange")
         ),
+
         "price": price,
         "currency": info.get("currency"),
+
         "sector": info.get("sector"),
         "industry": info.get("industry"),
+
+        # Bewertungs-Daten
+        "market_cap": info.get("marketCap"),
+        "trailing_eps": info.get("trailingEps"),
+        "forward_eps": info.get("forwardEps"),
+
+        # Unternehmens-Daten
+        "revenue": info.get("totalRevenue"),
+        "net_income": info.get("netIncomeToCommon"),
+        "free_cashflow": info.get("freeCashflow"),
+
+        # Bilanz
+        "cash": info.get("totalCash"),
+        "debt": info.get("totalDebt"),
+
+        # Wachstum
+        "revenue_growth": info.get("revenueGrowth"),
+        "earnings_growth": info.get("earningsGrowth"),
+
+        # Profitabilität
+        "profit_margin": info.get("profitMargins"),
+        "roe": info.get("returnOnEquity"),
+
+        # Termine
+        "earnings_timestamp": earnings_timestamp
     }
 
 
 # -----------------------------
-# Aktiensuche
+# Suche
 # -----------------------------
 
 search_text = st.text_input(
@@ -129,7 +218,7 @@ search_text = st.text_input(
 
 if search_text:
 
-    with st.spinner("Aktie wird gesucht..."):
+    with st.spinner("Aktie wird gesucht und Daten werden geladen..."):
 
         try:
 
@@ -143,17 +232,22 @@ if search_text:
 
             else:
 
+                currency = text_or_dash(data["currency"])
+
                 st.success("Aktie gefunden")
 
                 st.header(data["name"])
 
-                # Zeigt an, welchen Ticker die Namenssuche gefunden hat
                 if search_text.upper() != str(data["symbol"]).upper():
 
                     st.info(
                         f"„{search_text}“ → "
                         f"{data['symbol']} automatisch erkannt"
                     )
+
+                # -----------------------------
+                # Unternehmensübersicht
+                # -----------------------------
 
                 col1, col2 = st.columns(2)
 
@@ -178,7 +272,7 @@ if search_text:
 
                     st.write(
                         f"**Währung:** "
-                        f"{text_or_dash(data['currency'])}"
+                        f"{currency}"
                     )
 
                     st.write(
@@ -194,7 +288,7 @@ if search_text:
                 st.divider()
 
                 # -----------------------------
-                # Aktueller Kurs
+                # Kurs
                 # -----------------------------
 
                 st.subheader("Aktueller Kurs")
@@ -203,16 +297,174 @@ if search_text:
 
                     st.metric(
                         label="Kurs",
-                        value=(
-                            f"{data['price']:,.2f} "
-                            f"{text_or_dash(data['currency'])}"
-                        )
+                        value=f"{data['price']:,.2f} {currency}"
                     )
 
                 else:
 
                     st.warning(
                         "Aktueller Kurs nicht verfügbar."
+                    )
+
+                st.divider()
+
+                # -----------------------------
+                # Datenbasis
+                # -----------------------------
+
+                st.subheader("📋 Datenbasis für die Bewertung")
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+
+                    st.metric(
+                        "Marktkapitalisierung",
+                        format_money(
+                            data["market_cap"],
+                            currency
+                        )
+                    )
+
+                    st.metric(
+                        "EPS aktuell (TTM)",
+                        format_eps(
+                            data["trailing_eps"],
+                            currency
+                        )
+                    )
+
+                    st.metric(
+                        "EPS erwartet (Forward)",
+                        format_eps(
+                            data["forward_eps"],
+                            currency
+                        )
+                    )
+
+                    st.metric(
+                        "Umsatz",
+                        format_money(
+                            data["revenue"],
+                            currency
+                        )
+                    )
+
+                with col2:
+
+                    st.metric(
+                        "Nettogewinn",
+                        format_money(
+                            data["net_income"],
+                            currency
+                        )
+                    )
+
+                    st.metric(
+                        "Free Cashflow",
+                        format_money(
+                            data["free_cashflow"],
+                            currency
+                        )
+                    )
+
+                    st.metric(
+                        "Liquide Mittel",
+                        format_money(
+                            data["cash"],
+                            currency
+                        )
+                    )
+
+                    st.metric(
+                        "Gesamtschulden",
+                        format_money(
+                            data["debt"],
+                            currency
+                        )
+                    )
+
+                st.divider()
+
+                # -----------------------------
+                # Wachstum & Profitabilität
+                # -----------------------------
+
+                st.subheader("Wachstum & Profitabilität")
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+
+                    if data["revenue_growth"] is not None:
+                        st.metric(
+                            "Umsatzwachstum",
+                            f"{data['revenue_growth'] * 100:.1f} %"
+                        )
+                    else:
+                        st.metric(
+                            "Umsatzwachstum",
+                            "–"
+                        )
+
+                    if data["profit_margin"] is not None:
+                        st.metric(
+                            "Nettomarge",
+                            f"{data['profit_margin'] * 100:.1f} %"
+                        )
+                    else:
+                        st.metric(
+                            "Nettomarge",
+                            "–"
+                        )
+
+                with col2:
+
+                    if data["earnings_growth"] is not None:
+                        st.metric(
+                            "Gewinnwachstum",
+                            f"{data['earnings_growth'] * 100:.1f} %"
+                        )
+                    else:
+                        st.metric(
+                            "Gewinnwachstum",
+                            "–"
+                        )
+
+                    if data["roe"] is not None:
+                        st.metric(
+                            "Eigenkapitalrendite",
+                            f"{data['roe'] * 100:.1f} %"
+                        )
+                    else:
+                        st.metric(
+                            "Eigenkapitalrendite",
+                            "–"
+                        )
+
+                st.divider()
+
+                # -----------------------------
+                # Quartalszahlen
+                # -----------------------------
+
+                st.subheader("📅 Nächste Quartalszahlen")
+
+                earnings_date = format_date(
+                    data["earnings_timestamp"]
+                )
+
+                if earnings_date != "–":
+
+                    st.info(
+                        f"Voraussichtlicher Termin: "
+                        f"**{earnings_date}**"
+                    )
+
+                else:
+
+                    st.write(
+                        "Termin derzeit nicht verfügbar."
                     )
 
                 st.divider()
@@ -273,13 +525,13 @@ if search_text:
                     st.info(
                         "Börsenplatz erkannt. "
                         "Die automatische Prüfung der "
-                        "Hauptnotierung bauen wir in V2 "
-                        "noch weiter aus."
+                        "Hauptnotierung wird später "
+                        "noch erweitert."
                     )
 
                 st.caption(
-                    "Die Suche akzeptiert jetzt "
-                    "Firmenname oder Ticker."
+                    "Fehlende Yahoo-Daten werden mit „–“ "
+                    "angezeigt und führen nicht zu einem Fehler."
                 )
 
         except Exception:
@@ -291,4 +543,4 @@ if search_text:
             st.caption(
                 "Bitte Suchbegriff prüfen "
                 "und erneut versuchen."
-            )
+                             )
