@@ -11,8 +11,8 @@ st.set_page_config(
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
-    "Modul 1 + 2 + 3 + 4 + 5 – Suche, Datenbasis, "
-    "Unternehmenstyp, EPS-Normalisierung & Ziel-KGV"
+    "Modul 1 + 2 + 3 + 4 – Suche, Datenbasis, "
+    "Unternehmenstyp & EPS-Normalisierung"
 )
 
 
@@ -103,13 +103,6 @@ def safe_float(value):
 
     except Exception:
         return None
-
-
-def clamp(value, minimum, maximum):
-    return max(
-        minimum,
-        min(maximum, value)
-    )
 
 
 # =========================================================
@@ -602,7 +595,9 @@ def normalize_eps(
         company_type.get("type", "")
     ).lower()
 
+    # -----------------------------------------------------
     # Zyklische Unternehmen
+    # -----------------------------------------------------
 
     if "zyklisch" in type_name:
 
@@ -637,6 +632,9 @@ def normalize_eps(
                     )
                     / denominator
                 )
+
+                # Sehr starke Abweichung:
+                # Forward-EPS nur vorsichtig gewichten
 
                 if forward_difference > 0.75:
 
@@ -674,12 +672,16 @@ def normalize_eps(
                     "und 40 % Durchschnitt"
                 )
 
+            confidence = "Mittel"
+
             return {
                 "normalized_eps": normalized,
                 "method": method,
-                "confidence": "Mittel",
+                "confidence": confidence,
                 "cycle_basis": cycle_basis
             }
+
+        # Zu wenige historische Jahre
 
         if trailing is not None and forward is not None:
 
@@ -712,7 +714,9 @@ def normalize_eps(
             "cycle_basis": None
         }
 
+    # -----------------------------------------------------
     # Nicht-zyklische profitable Unternehmen
+    # -----------------------------------------------------
 
     if (
         trailing is not None
@@ -733,6 +737,8 @@ def normalize_eps(
             else 0
         )
 
+        # Starkes Wachstum
+
         if (
             rev_growth >= 0.15
             and earn_growth >= 0.15
@@ -746,6 +752,8 @@ def normalize_eps(
                 "bei starkem profitablem Wachstum"
             )
 
+        # Normales Wachstum
+
         elif (
             rev_growth >= 0.08
             or earn_growth >= 0.10
@@ -758,6 +766,8 @@ def normalize_eps(
                 "30 % TTM-EPS + 70 % Forward-EPS "
                 "bei normalem Wachstum"
             )
+
+        # Reifer / stabiler
 
         else:
 
@@ -786,11 +796,17 @@ def normalize_eps(
             "cycle_basis": None
         }
 
+    # -----------------------------------------------------
+    # Nur ein brauchbarer EPS-Wert
+    # -----------------------------------------------------
+
     if forward is not None and forward > 0:
 
         return {
             "normalized_eps": forward,
-            "method": "Nur Forward-EPS verwendbar",
+            "method": (
+                "Nur Forward-EPS verwendbar"
+            ),
             "confidence": "Niedrig",
             "cycle_basis": None
         }
@@ -799,10 +815,14 @@ def normalize_eps(
 
         return {
             "normalized_eps": trailing,
-            "method": "Nur TTM-EPS verwendbar",
+            "method": (
+                "Nur TTM-EPS verwendbar"
+            ),
             "confidence": "Niedrig",
             "cycle_basis": None
         }
+
+    # Negative / unbrauchbare EPS
 
     return {
         "normalized_eps": None,
@@ -811,463 +831,6 @@ def normalize_eps(
         ),
         "confidence": "Niedrig",
         "cycle_basis": None
-    }
-
-
-# =========================================================
-# NEU: KGV-Korridor
-# =========================================================
-
-def get_multiple_corridor(company_type):
-
-    type_name = str(
-        company_type.get("type", "")
-    )
-
-    corridors = {
-        "Etablierte Software / Technologie": (20, 28),
-        "Autohersteller / zyklisch": (6, 10),
-        "Rohstoffe / Lithium / zyklisch": (8, 14),
-        "Rohstoffe / Bergbau / zyklisch": (8, 14),
-        "Öl & Gas / zyklisch": (8, 13),
-        "Pharma": (13, 19),
-        "Halbleiter / Wachstum": (22, 32),
-        "Telekommunikation": (11, 16),
-        "Defensiver Konsum": (18, 26),
-        "Industrie": (15, 22),
-        "Versorger": (10, 15),
-        "Standard-Unternehmen": (12, 20)
-    }
-
-    if type_name in corridors:
-
-        lower, upper = corridors[type_name]
-
-        return {
-            "available": True,
-            "lower": lower,
-            "upper": upper
-        }
-
-    return {
-        "available": False,
-        "lower": None,
-        "upper": None
-    }
-
-
-# =========================================================
-# NEU: Multiple-Score
-# =========================================================
-
-def calculate_multiple_score(
-    company_type,
-    revenue_growth,
-    earnings_growth,
-    profit_margin,
-    roe,
-    free_cashflow,
-    revenue,
-    cash,
-    debt
-):
-
-    type_name = str(
-        company_type.get("type", "")
-    )
-
-    corridor = get_multiple_corridor(
-        company_type
-    )
-
-    if not corridor["available"]:
-
-        return {
-            "available": False,
-            "reason": (
-                "Für diesen Unternehmenstyp wird später "
-                "eine spezielle Bewertungsmethode verwendet."
-            )
-        }
-
-    rev_growth = safe_float(
-        revenue_growth
-    )
-
-    earn_growth = safe_float(
-        earnings_growth
-    )
-
-    margin = safe_float(
-        profit_margin
-    )
-
-    roe_value = safe_float(
-        roe
-    )
-
-    fcf = safe_float(
-        free_cashflow
-    )
-
-    revenue_value = safe_float(
-        revenue
-    )
-
-    cash_value = safe_float(
-        cash
-    )
-
-    debt_value = safe_float(
-        debt
-    )
-
-    # -----------------------------------------------------
-    # 1. Wachstum – maximal 30 Punkte
-    # -----------------------------------------------------
-
-    growth_score = 0.0
-
-    if rev_growth is not None:
-
-        if rev_growth >= 0.20:
-            growth_score += 15
-
-        elif rev_growth >= 0.12:
-            growth_score += 13
-
-        elif rev_growth >= 0.07:
-            growth_score += 10
-
-        elif rev_growth >= 0.03:
-            growth_score += 7
-
-        elif rev_growth >= 0:
-            growth_score += 5
-
-        elif rev_growth >= -0.05:
-            growth_score += 2
-
-    if earn_growth is not None:
-
-        if earn_growth >= 0.25:
-            growth_score += 15
-
-        elif earn_growth >= 0.15:
-            growth_score += 13
-
-        elif earn_growth >= 0.08:
-            growth_score += 10
-
-        elif earn_growth >= 0.03:
-            growth_score += 7
-
-        elif earn_growth >= 0:
-            growth_score += 5
-
-        elif earn_growth >= -0.10:
-            growth_score += 2
-
-    else:
-        # Fehlendes Gewinnwachstum soll nicht automatisch
-        # wie stark negatives Wachstum behandelt werden.
-        growth_score += 5
-
-    growth_score = clamp(
-        growth_score,
-        0,
-        30
-    )
-
-    # -----------------------------------------------------
-    # 2. Profitabilität – maximal 30 Punkte
-    # -----------------------------------------------------
-
-    profitability_score = 0.0
-
-    if margin is not None:
-
-        if margin >= 0.25:
-            profitability_score += 15
-
-        elif margin >= 0.15:
-            profitability_score += 13
-
-        elif margin >= 0.10:
-            profitability_score += 10
-
-        elif margin >= 0.05:
-            profitability_score += 7
-
-        elif margin > 0:
-            profitability_score += 4
-
-    if roe_value is not None:
-
-        if roe_value >= 0.25:
-            profitability_score += 15
-
-        elif roe_value >= 0.18:
-            profitability_score += 13
-
-        elif roe_value >= 0.12:
-            profitability_score += 10
-
-        elif roe_value >= 0.08:
-            profitability_score += 7
-
-        elif roe_value > 0:
-            profitability_score += 4
-
-    profitability_score = clamp(
-        profitability_score,
-        0,
-        30
-    )
-
-    # -----------------------------------------------------
-    # 3. Free Cashflow – maximal 25 Punkte
-    # -----------------------------------------------------
-
-    fcf_score = 0.0
-    fcf_margin = None
-
-    if (
-        fcf is not None
-        and revenue_value is not None
-        and revenue_value != 0
-    ):
-
-        fcf_margin = (
-            fcf /
-            revenue_value
-        )
-
-        if fcf_margin >= 0.20:
-            fcf_score = 25
-
-        elif fcf_margin >= 0.15:
-            fcf_score = 22
-
-        elif fcf_margin >= 0.10:
-            fcf_score = 19
-
-        elif fcf_margin >= 0.07:
-            fcf_score = 16
-
-        elif fcf_margin >= 0.04:
-            fcf_score = 13
-
-        elif fcf_margin > 0:
-            fcf_score = 9
-
-        elif fcf_margin > -0.05:
-            fcf_score = 4
-
-        else:
-            fcf_score = 0
-
-    elif fcf is not None:
-
-        if fcf > 0:
-            fcf_score = 10
-
-    fcf_score = clamp(
-        fcf_score,
-        0,
-        25
-    )
-
-    # -----------------------------------------------------
-    # 4. Bilanz – maximal 15 Punkte
-    # -----------------------------------------------------
-
-    balance_score = 0.0
-    balance_note = ""
-
-    if type_name == "Autohersteller / zyklisch":
-
-        # WICHTIG:
-        # Bei Autoherstellern verzerren Finanzierungs-
-        # gesellschaften die konsolidierte Verschuldung.
-        # Deshalb keine normale Cash-minus-Debt-Bewertung.
-
-        balance_score = 8
-
-        balance_note = (
-            "Neutrale Bilanzbewertung: Bei Autoherstellern "
-            "wird die konsolidierte Verschuldung wegen der "
-            "Finanzsparte nicht wie bei normalen Unternehmen "
-            "bewertet."
-        )
-
-    elif (
-        cash_value is not None
-        and debt_value is not None
-    ):
-
-        if debt_value <= 0:
-
-            balance_score = 15
-
-        elif cash_value >= debt_value:
-
-            balance_score = 15
-
-        else:
-
-            net_debt = (
-                debt_value -
-                cash_value
-            )
-
-            if (
-                fcf is not None
-                and fcf > 0
-            ):
-
-                debt_to_fcf = (
-                    net_debt /
-                    fcf
-                )
-
-                if debt_to_fcf <= 1.0:
-                    balance_score = 13
-
-                elif debt_to_fcf <= 2.0:
-                    balance_score = 11
-
-                elif debt_to_fcf <= 3.0:
-                    balance_score = 8
-
-                elif debt_to_fcf <= 4.0:
-                    balance_score = 5
-
-                else:
-                    balance_score = 2
-
-            else:
-
-                balance_score = 4
-
-        balance_note = (
-            "Bilanzbewertung aus liquiden Mitteln, "
-            "Schulden und Free Cashflow."
-        )
-
-    else:
-
-        # Fehlende Daten bekommen einen neutral-vorsichtigen
-        # Wert und nicht automatisch null Punkte.
-
-        balance_score = 7
-
-        balance_note = (
-            "Bilanzdaten nicht vollständig; "
-            "vorsichtige neutrale Bewertung."
-        )
-
-    balance_score = clamp(
-        balance_score,
-        0,
-        15
-    )
-
-    # -----------------------------------------------------
-    # Gesamt-Score
-    # -----------------------------------------------------
-
-    total_score = (
-        growth_score +
-        profitability_score +
-        fcf_score +
-        balance_score
-    )
-
-    total_score = clamp(
-        total_score,
-        0,
-        100
-    )
-
-    lower = corridor["lower"]
-    upper = corridor["upper"]
-
-    target_multiple = (
-        lower +
-        (
-            upper - lower
-        ) *
-        (
-            total_score / 100
-        )
-    )
-
-    # -----------------------------------------------------
-    # Kurze Begründung
-    # -----------------------------------------------------
-
-    reasons = []
-
-    if growth_score >= 24:
-        reasons.append("starkes Wachstum")
-    elif growth_score >= 16:
-        reasons.append("solides Wachstum")
-    elif growth_score < 10:
-        reasons.append("schwaches bzw. zyklisches Wachstum")
-
-    if profitability_score >= 24:
-        reasons.append("hohe Profitabilität")
-    elif profitability_score >= 16:
-        reasons.append("solide Profitabilität")
-    elif profitability_score < 10:
-        reasons.append("niedrige Profitabilität")
-
-    if fcf_score >= 19:
-        reasons.append("starker Free Cashflow")
-    elif fcf_score >= 10:
-        reasons.append("positiver Free Cashflow")
-    else:
-        reasons.append("schwacher Free Cashflow")
-
-    if balance_score >= 12:
-        reasons.append("starke Bilanz")
-    elif balance_score <= 5:
-        reasons.append("erhöhte Bilanzbelastung")
-
-    reason_text = ", ".join(reasons)
-
-    return {
-        "available": True,
-        "lower": lower,
-        "upper": upper,
-        "growth_score": round(
-            growth_score,
-            1
-        ),
-        "profitability_score": round(
-            profitability_score,
-            1
-        ),
-        "fcf_score": round(
-            fcf_score,
-            1
-        ),
-        "balance_score": round(
-            balance_score,
-            1
-        ),
-        "total_score": round(
-            total_score,
-            1
-        ),
-        "target_multiple": round(
-            target_multiple,
-            1
-        ),
-        "fcf_margin": fcf_margin,
-        "balance_note": balance_note,
-        "reason": reason_text
     }
 
 
@@ -1333,18 +896,6 @@ def load_stock(search_text):
         info.get("earningsGrowth")
     )
 
-    multiple_result = calculate_multiple_score(
-        company_type,
-        info.get("revenueGrowth"),
-        info.get("earningsGrowth"),
-        info.get("profitMargins"),
-        info.get("returnOnEquity"),
-        info.get("freeCashflow"),
-        info.get("totalRevenue"),
-        info.get("totalCash"),
-        info.get("totalDebt")
-    )
-
     return {
         "name": name,
         "symbol": symbol,
@@ -1392,8 +943,7 @@ def load_stock(search_text):
 
         "company_type": company_type,
         "historical": historical,
-        "eps_normalization": eps_normalization,
-        "multiple_result": multiple_result
+        "eps_normalization": eps_normalization
     }
 
 
@@ -1519,7 +1069,9 @@ if search_text:
                         f"automatisch erkannt"
                     )
 
+                # -----------------------------------------
                 # Unternehmensübersicht
+                # -----------------------------------------
 
                 col1, col2 = st.columns(2)
 
@@ -1558,7 +1110,9 @@ if search_text:
 
                 st.divider()
 
+                # -----------------------------------------
                 # Klassifizierung
+                # -----------------------------------------
 
                 st.subheader(
                     "🧭 Automatische "
@@ -1586,7 +1140,9 @@ if search_text:
 
                 st.divider()
 
+                # -----------------------------------------
                 # Kurs
+                # -----------------------------------------
 
                 st.subheader("Aktueller Kurs")
 
@@ -1606,7 +1162,9 @@ if search_text:
 
                 st.divider()
 
+                # -----------------------------------------
                 # Aktuelle Datenbasis
+                # -----------------------------------------
 
                 st.subheader(
                     "📋 Datenbasis für die Bewertung"
@@ -1684,7 +1242,9 @@ if search_text:
 
                 st.divider()
 
+                # -----------------------------------------
                 # Wachstum
+                # -----------------------------------------
 
                 st.subheader(
                     "Wachstum & Profitabilität"
@@ -1760,7 +1320,9 @@ if search_text:
 
                 st.divider()
 
+                # -----------------------------------------
                 # Historische Daten
+                # -----------------------------------------
 
                 st.subheader(
                     "📚 Historische Datenbasis"
@@ -1822,7 +1384,9 @@ if search_text:
 
                 st.divider()
 
-                # EPS-Normalisierung
+                # -----------------------------------------
+                # NEU: EPS-Normalisierung
+                # -----------------------------------------
 
                 st.subheader(
                     "🧮 EPS-Normalisierung"
@@ -1888,15 +1452,13 @@ if search_text:
                     is not None
                 ):
 
-                    cycle_basis_text = format_eps(
-                        eps_result["cycle_basis"],
-                        currency
-                    )
-
                     st.write(
-                        f"**Zyklus-Basis vor "
-                        f"Forward-Anpassung:** "
-                        f"{cycle_basis_text}"
+                        "**Zyklus-Basis vor "
+                        "Forward-Anpassung:** "
+                        f"{format_eps(
+                            eps_result['cycle_basis'],
+                            currency
+                        )}"
                     )
 
                 st.caption(
@@ -1908,93 +1470,8 @@ if search_text:
                 st.divider()
 
                 # -----------------------------------------
-                # NEU: Fundamentales Ziel-KGV
-                # -----------------------------------------
-
-                st.subheader(
-                    "🎯 Fundamentales Ziel-KGV"
-                )
-
-                multiple = data[
-                    "multiple_result"
-                ]
-
-                if multiple["available"]:
-
-                    st.write(
-                        f"**KGV-Korridor:** "
-                        f"{multiple['lower']:.0f}× bis "
-                        f"{multiple['upper']:.0f}×"
-                    )
-
-                    st.metric(
-                        "Fundamentaler Multiple-Score",
-                        f"{multiple['total_score']:.0f} / 100"
-                    )
-
-                    col1, col2 = st.columns(2)
-
-                    with col1:
-
-                        st.metric(
-                            "Wachstum",
-                            f"{multiple['growth_score']:.0f} / 30"
-                        )
-
-                        st.metric(
-                            "Profitabilität",
-                            f"{multiple['profitability_score']:.0f} / 30"
-                        )
-
-                    with col2:
-
-                        st.metric(
-                            "Free Cashflow",
-                            f"{multiple['fcf_score']:.0f} / 25"
-                        )
-
-                        st.metric(
-                            "Bilanz",
-                            f"{multiple['balance_score']:.0f} / 15"
-                        )
-
-                    st.metric(
-                        "Ermitteltes Ziel-KGV",
-                        f"{multiple['target_multiple']:.1f}×"
-                    )
-
-                    if multiple["fcf_margin"] is not None:
-
-                        st.write(
-                            f"**FCF-Marge:** "
-                            f"{multiple['fcf_margin'] * 100:.1f} %"
-                        )
-
-                    st.write(
-                        f"**Begründung:** "
-                        f"{multiple['reason']}"
-                    )
-
-                    st.caption(
-                        multiple["balance_note"]
-                    )
-
-                    st.info(
-                        "Das Ziel-KGV ist noch kein Fair Value. "
-                        "Zuerst prüfen wir, ob der automatisch "
-                        "ermittelte Multiple bei verschiedenen "
-                        "Unternehmen plausibel ist."
-                    )
-
-                else:
-
-                    st.info(
-                        multiple["reason"]
-                    )
-
-                st.divider()
-
                 # Quartalszahlen
+                # -----------------------------------------
 
                 st.subheader(
                     "📅 Nächste Quartalszahlen"
@@ -2019,7 +1496,9 @@ if search_text:
 
                 st.divider()
 
+                # -----------------------------------------
                 # Börsenplatz
+                # -----------------------------------------
 
                 st.subheader("Börsenplatz")
 
@@ -2090,4 +1569,4 @@ if search_text:
             st.caption(
                 "Bitte Suchbegriff prüfen "
                 "und erneut versuchen."
-    )
+)
