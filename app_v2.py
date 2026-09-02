@@ -68,13 +68,20 @@ def format_eps(value, currency):
 
 def format_date(timestamp):
     if timestamp is None:
-        return "–"
+        return None
 
     try:
         date_value = datetime.fromtimestamp(timestamp)
+
+        # Vergangene Termine nicht als kommende
+        # Quartalszahlen anzeigen
+        if date_value.date() < datetime.now().date():
+            return None
+
         return date_value.strftime("%d.%m.%Y")
+
     except Exception:
-        return "–"
+        return None
 
 
 def find_stock(search_text):
@@ -454,7 +461,7 @@ if search_text:
                     data["earnings_timestamp"]
                 )
 
-                if earnings_date != "–":
+                if earnings_date:
 
                     st.info(
                         f"Voraussichtlicher Termin: "
@@ -464,7 +471,7 @@ if search_text:
                 else:
 
                     st.write(
-                        "Termin derzeit nicht verfügbar."
+                        "Kein zukünftiger Termin verfügbar."
                     )
 
                 st.divider()
@@ -543,4 +550,4 @@ if search_text:
             st.caption(
                 "Bitte Suchbegriff prüfen "
                 "und erneut versuchen."
-                             )
+            )
