@@ -1,5 +1,6 @@
 import streamlit as st
 import yfinance as yf
+import pandas as pd
 from datetime import datetime
 
 st.set_page_config(
@@ -9,12 +10,15 @@ st.set_page_config(
 )
 
 st.title("📊 Aktien-Analyse V2")
-st.caption("Modul 1 + 2 + 3 – Suche, Datenbasis & Unternehmenstyp")
+st.caption(
+    "Modul 1 + 2 + 3 + 4 – Suche, Datenbasis, "
+    "Unternehmenstyp & historische Finanzdaten"
+)
 
 
-# -----------------------------
+# =========================================================
 # Hilfsfunktionen
-# -----------------------------
+# =========================================================
 
 def text_or_dash(value):
     if value is None or value == "":
@@ -28,6 +32,9 @@ def format_number(value):
 
     try:
         value = float(value)
+
+        if pd.isna(value):
+            return "–"
 
         if abs(value) >= 1_000_000_000_000:
             return f"{value / 1_000_000_000_000:,.2f} Bio."
@@ -45,9 +52,6 @@ def format_number(value):
 
 
 def format_money(value, currency):
-    if value is None:
-        return "–"
-
     formatted = format_number(value)
 
     if formatted == "–":
@@ -61,7 +65,13 @@ def format_eps(value, currency):
         return "–"
 
     try:
-        return f"{float(value):,.2f} {currency}"
+        value = float(value)
+
+        if pd.isna(value):
+            return "–"
+
+        return f"{value:,.2f} {currency}"
+
     except Exception:
         return "–"
 
@@ -82,9 +92,22 @@ def format_date(timestamp):
         return None
 
 
-# -----------------------------
+def safe_float(value):
+    try:
+        value = float(value)
+
+        if pd.isna(value):
+            return None
+
+        return value
+
+    except Exception:
+        return None
+
+
+# =========================================================
 # Unternehmen klassifizieren
-# -----------------------------
+# =========================================================
 
 def classify_company(name, symbol, sector, industry):
 
@@ -99,15 +122,10 @@ def classify_company(name, symbol, sector, industry):
         industry_text
     )
 
-    # -------------------------
-    # Bekannte Spezialfälle
-    # -------------------------
-
-    # Albemarle:
-    # Yahoo führt ALB als Specialty Chemicals.
-    # Für die Bewertung behandeln wir das Unternehmen
-    # wegen der starken Lithium-/Rohstoffabhängigkeit
-    # als zyklischen Rohstoffwert.
+    # Albemarle – Yahoo führt das Unternehmen
+    # als Specialty Chemicals.
+    # Für unsere Bewertung ist die Lithium-
+    # und Rohstoffabhängigkeit entscheidend.
 
     if (
         symbol_text == "ALB"
@@ -119,9 +137,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel"
         }
 
-    # -------------------------
     # Banken
-    # -------------------------
 
     if (
         "bank" in industry_text
@@ -134,9 +150,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel bis Hoch"
         }
 
-    # -------------------------
     # Versicherungen
-    # -------------------------
 
     if (
         "insurance" in industry_text
@@ -148,9 +162,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel bis Hoch"
         }
 
-    # -------------------------
-    # REIT / Immobilien
-    # -------------------------
+    # REIT
 
     if (
         "reit" in industry_text
@@ -162,9 +174,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel bis Hoch"
         }
 
-    # -------------------------
     # Autohersteller
-    # -------------------------
 
     auto_terms = [
         "auto manufacturers",
@@ -183,9 +193,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel"
         }
 
-    # -------------------------
     # Öl & Gas
-    # -------------------------
 
     oil_terms = [
         "oil & gas",
@@ -204,9 +212,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel"
         }
 
-    # -------------------------
     # Bergbau / Rohstoffe
-    # -------------------------
 
     mining_terms = [
         "gold",
@@ -228,9 +234,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel"
         }
 
-    # -------------------------
     # Biotechnologie
-    # -------------------------
 
     if "biotechnology" in industry_text:
         return {
@@ -239,9 +243,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Niedrig bis Mittel"
         }
 
-    # -------------------------
     # Pharma
-    # -------------------------
 
     pharma_terms = [
         "drug manufacturers",
@@ -258,9 +260,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel bis Hoch"
         }
 
-    # -------------------------
     # Halbleiter
-    # -------------------------
 
     semiconductor_terms = [
         "semiconductor",
@@ -277,9 +277,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel bis Hoch"
         }
 
-    # -------------------------
     # Software
-    # -------------------------
 
     software_terms = [
         "software",
@@ -296,9 +294,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Hoch"
         }
 
-    # -------------------------
-    # Telekommunikation
-    # -------------------------
+    # Telekom
 
     telecom_terms = [
         "telecom",
@@ -315,9 +311,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel bis Hoch"
         }
 
-    # -------------------------
     # Versorger
-    # -------------------------
 
     utility_terms = [
         "utilities",
@@ -334,9 +328,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel bis Hoch"
         }
 
-    # -------------------------
     # Defensiver Konsum
-    # -------------------------
 
     staples_terms = [
         "consumer defensive",
@@ -355,9 +347,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Hoch"
         }
 
-    # -------------------------
     # Industrie
-    # -------------------------
 
     if "industrials" in sector_text:
         return {
@@ -366,9 +356,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel bis Hoch"
         }
 
-    # -------------------------
     # Standard
-    # -------------------------
 
     return {
         "type": "Standard-Unternehmen",
@@ -377,9 +365,9 @@ def classify_company(name, symbol, sector, industry):
     }
 
 
-# -----------------------------
+# =========================================================
 # Aktiensuche
-# -----------------------------
+# =========================================================
 
 def find_stock(search_text):
 
@@ -406,12 +394,7 @@ def find_stock(search_text):
         ).upper() == "EQUITY"
     ]
 
-    candidates = (
-        equities
-        if equities
-        else quotes
-    )
-
+    candidates = equities if equities else quotes
     query_upper = query.upper()
 
     for item in candidates:
@@ -426,9 +409,173 @@ def find_stock(search_text):
     return candidates[0]
 
 
-# -----------------------------
-# Daten laden
-# -----------------------------
+# =========================================================
+# Historische Daten
+# =========================================================
+
+def get_row_values(statement, possible_names):
+
+    if statement is None:
+        return []
+
+    if statement.empty:
+        return []
+
+    for row_name in possible_names:
+
+        if row_name in statement.index:
+
+            row = statement.loc[row_name]
+
+            values = []
+
+            for date, value in row.items():
+
+                number = safe_float(value)
+
+                if number is not None:
+
+                    values.append({
+                        "date": date,
+                        "value": number
+                    })
+
+            values.sort(
+                key=lambda item: item["date"],
+                reverse=True
+            )
+
+            return values
+
+    return []
+
+
+def build_historical_data(ticker):
+
+    try:
+        income = ticker.income_stmt
+    except Exception:
+        income = pd.DataFrame()
+
+    try:
+        cashflow = ticker.cashflow
+    except Exception:
+        cashflow = pd.DataFrame()
+
+    net_income_values = get_row_values(
+        income,
+        [
+            "Net Income",
+            "Net Income Common Stockholders",
+            "Net Income Continuous Operations"
+        ]
+    )
+
+    diluted_eps_values = get_row_values(
+        income,
+        [
+            "Diluted EPS",
+            "Basic EPS"
+        ]
+    )
+
+    free_cashflow_values = get_row_values(
+        cashflow,
+        [
+            "Free Cash Flow"
+        ]
+    )
+
+    operating_cashflow_values = get_row_values(
+        cashflow,
+        [
+            "Operating Cash Flow",
+            "Total Cash From Operating Activities"
+        ]
+    )
+
+    capex_values = get_row_values(
+        cashflow,
+        [
+            "Capital Expenditure",
+            "Capital Expenditures"
+        ]
+    )
+
+    # Falls Yahoo keine direkte FCF-Zeile liefert:
+    # FCF = operativer Cashflow + CapEx
+    # Yahoo führt CapEx normalerweise negativ.
+
+    if (
+        not free_cashflow_values
+        and operating_cashflow_values
+        and capex_values
+    ):
+
+        ocf_by_year = {
+            item["date"]: item["value"]
+            for item in operating_cashflow_values
+        }
+
+        capex_by_year = {
+            item["date"]: item["value"]
+            for item in capex_values
+        }
+
+        calculated_fcf = []
+
+        for date, ocf in ocf_by_year.items():
+
+            if date in capex_by_year:
+
+                calculated_fcf.append({
+                    "date": date,
+                    "value": (
+                        ocf +
+                        capex_by_year[date]
+                    )
+                })
+
+        calculated_fcf.sort(
+            key=lambda item: item["date"],
+            reverse=True
+        )
+
+        free_cashflow_values = calculated_fcf
+
+    # Maximal fünf Jahre verwenden
+
+    net_income_values = net_income_values[:5]
+    diluted_eps_values = diluted_eps_values[:5]
+    free_cashflow_values = free_cashflow_values[:5]
+
+    available_years = max(
+        len(net_income_values),
+        len(diluted_eps_values),
+        len(free_cashflow_values)
+    )
+
+    if available_years >= 4:
+        data_quality = "Hoch"
+
+    elif available_years >= 3:
+        data_quality = "Mittel"
+
+    else:
+        data_quality = "Niedrig"
+
+    return {
+        "net_income": net_income_values,
+        "eps": diluted_eps_values,
+        "fcf": free_cashflow_values,
+        "available_years": available_years,
+        "data_quality": data_quality
+    }
+
+
+# =========================================================
+# Hauptdaten laden
+# =========================================================
 
 @st.cache_data(
     ttl=900,
@@ -473,6 +620,10 @@ def load_stock(search_text):
         symbol,
         info.get("sector"),
         info.get("industry")
+    )
+
+    historical = build_historical_data(
+        ticker
     )
 
     return {
@@ -520,13 +671,89 @@ def load_stock(search_text):
 
         "earnings_timestamp": earnings_timestamp,
 
-        "company_type": company_type
+        "company_type": company_type,
+        "historical": historical
     }
 
 
-# -----------------------------
+# =========================================================
+# Historische Tabelle erzeugen
+# =========================================================
+
+def historical_table(historical, currency):
+
+    years = {}
+
+    for item in historical["net_income"]:
+
+        year = item["date"].year
+
+        years.setdefault(year, {})
+
+        years[year]["Nettogewinn"] = (
+            format_money(
+                item["value"],
+                currency
+            )
+        )
+
+    for item in historical["eps"]:
+
+        year = item["date"].year
+
+        years.setdefault(year, {})
+
+        years[year]["EPS"] = (
+            format_eps(
+                item["value"],
+                currency
+            )
+        )
+
+    for item in historical["fcf"]:
+
+        year = item["date"].year
+
+        years.setdefault(year, {})
+
+        years[year]["Free Cashflow"] = (
+            format_money(
+                item["value"],
+                currency
+            )
+        )
+
+    rows = []
+
+    for year in sorted(
+        years.keys(),
+        reverse=True
+    )[:5]:
+
+        values = years[year]
+
+        rows.append({
+            "Jahr": year,
+            "EPS": values.get(
+                "EPS",
+                "–"
+            ),
+            "Nettogewinn": values.get(
+                "Nettogewinn",
+                "–"
+            ),
+            "Free Cashflow": values.get(
+                "Free Cashflow",
+                "–"
+            )
+        })
+
+    return pd.DataFrame(rows)
+
+
+# =========================================================
 # Benutzeroberfläche
-# -----------------------------
+# =========================================================
 
 search_text = st.text_input(
     "Aktie suchen",
@@ -574,9 +801,9 @@ if search_text:
                         f"automatisch erkannt"
                     )
 
-                # -----------------------------
+                # -----------------------------------------
                 # Unternehmensübersicht
-                # -----------------------------
+                # -----------------------------------------
 
                 col1, col2 = st.columns(2)
 
@@ -615,9 +842,9 @@ if search_text:
 
                 st.divider()
 
-                # -----------------------------
-                # Unternehmenstyp
-                # -----------------------------
+                # -----------------------------------------
+                # Klassifizierung
+                # -----------------------------------------
 
                 st.subheader(
                     "🧭 Automatische "
@@ -643,16 +870,11 @@ if search_text:
                     f"{company_type['confidence_cap']}"
                 )
 
-                st.caption(
-                    "Die Klassifizierung bestimmt später, "
-                    "welches Bewertungsmodell verwendet wird."
-                )
-
                 st.divider()
 
-                # -----------------------------
+                # -----------------------------------------
                 # Kurs
-                # -----------------------------
+                # -----------------------------------------
 
                 st.subheader("Aktueller Kurs")
 
@@ -672,9 +894,9 @@ if search_text:
 
                 st.divider()
 
-                # -----------------------------
-                # Datenbasis
-                # -----------------------------
+                # -----------------------------------------
+                # Aktuelle Daten
+                # -----------------------------------------
 
                 st.subheader(
                     "📋 Datenbasis für die Bewertung"
@@ -752,9 +974,9 @@ if search_text:
 
                 st.divider()
 
-                # -----------------------------
-                # Wachstum & Profitabilität
-                # -----------------------------
+                # -----------------------------------------
+                # Wachstum
+                # -----------------------------------------
 
                 st.subheader(
                     "Wachstum & Profitabilität"
@@ -764,29 +986,33 @@ if search_text:
 
                 with col1:
 
-                    if (
-                        data["revenue_growth"]
-                        is not None
-                    ):
+                    if data[
+                        "revenue_growth"
+                    ] is not None:
+
                         st.metric(
                             "Umsatzwachstum",
                             f"{data['revenue_growth'] * 100:.1f} %"
                         )
+
                     else:
+
                         st.metric(
                             "Umsatzwachstum",
                             "–"
                         )
 
-                    if (
-                        data["profit_margin"]
-                        is not None
-                    ):
+                    if data[
+                        "profit_margin"
+                    ] is not None:
+
                         st.metric(
                             "Nettomarge",
                             f"{data['profit_margin'] * 100:.1f} %"
                         )
+
                     else:
+
                         st.metric(
                             "Nettomarge",
                             "–"
@@ -794,26 +1020,31 @@ if search_text:
 
                 with col2:
 
-                    if (
-                        data["earnings_growth"]
-                        is not None
-                    ):
+                    if data[
+                        "earnings_growth"
+                    ] is not None:
+
                         st.metric(
                             "Gewinnwachstum",
                             f"{data['earnings_growth'] * 100:.1f} %"
                         )
+
                     else:
+
                         st.metric(
                             "Gewinnwachstum",
                             "–"
                         )
 
                     if data["roe"] is not None:
+
                         st.metric(
                             "Eigenkapitalrendite",
                             f"{data['roe'] * 100:.1f} %"
                         )
+
                     else:
+
                         st.metric(
                             "Eigenkapitalrendite",
                             "–"
@@ -821,9 +1052,80 @@ if search_text:
 
                 st.divider()
 
-                # -----------------------------
+                # -----------------------------------------
+                # NEU: Historische Datenbasis
+                # -----------------------------------------
+
+                st.subheader(
+                    "📚 Historische Datenbasis"
+                )
+
+                historical = data[
+                    "historical"
+                ]
+
+                st.write(
+                    f"**Verfügbare Geschäftsjahre:** "
+                    f"{historical['available_years']}"
+                )
+
+                quality = historical[
+                    "data_quality"
+                ]
+
+                if quality == "Hoch":
+
+                    st.success(
+                        "Datenqualität für die "
+                        "Mehrjahresanalyse: Hoch"
+                    )
+
+                elif quality == "Mittel":
+
+                    st.warning(
+                        "Datenqualität für die "
+                        "Mehrjahresanalyse: Mittel"
+                    )
+
+                else:
+
+                    st.error(
+                        "Datenqualität für die "
+                        "Mehrjahresanalyse: Niedrig"
+                    )
+
+                history_df = historical_table(
+                    historical,
+                    currency
+                )
+
+                if not history_df.empty:
+
+                    st.dataframe(
+                        history_df,
+                        hide_index=True,
+                        use_container_width=True
+                    )
+
+                else:
+
+                    st.warning(
+                        "Keine ausreichenden historischen "
+                        "Finanzdaten verfügbar."
+                    )
+
+                st.caption(
+                    "Diese Mehrjahresdaten werden später "
+                    "für die EPS- und Zyklus-Normalisierung "
+                    "verwendet. Noch wird daraus kein "
+                    "Fair Value berechnet."
+                )
+
+                st.divider()
+
+                # -----------------------------------------
                 # Quartalszahlen
-                # -----------------------------
+                # -----------------------------------------
 
                 st.subheader(
                     "📅 Nächste Quartalszahlen"
@@ -848,9 +1150,9 @@ if search_text:
 
                 st.divider()
 
-                # -----------------------------
+                # -----------------------------------------
                 # Börsenplatz
-                # -----------------------------
+                # -----------------------------------------
 
                 st.subheader("Börsenplatz")
 
@@ -912,7 +1214,7 @@ if search_text:
                     "angezeigt und führen nicht zu einem Fehler."
                 )
 
-        except Exception:
+        except Exception as error:
 
             st.error(
                 "Die Aktie konnte nicht geladen werden."
@@ -921,4 +1223,4 @@ if search_text:
             st.caption(
                 "Bitte Suchbegriff prüfen "
                 "und erneut versuchen."
-    )
+        )
