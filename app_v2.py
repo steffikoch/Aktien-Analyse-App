@@ -12,7 +12,7 @@ st.set_page_config(
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1 + 2 + 3 + 4 – Suche, Datenbasis, "
-    "Unternehmenstyp & historische Finanzdaten"
+    "Unternehmenstyp & EPS-Normalisierung"
 )
 
 
@@ -122,10 +122,7 @@ def classify_company(name, symbol, sector, industry):
         industry_text
     )
 
-    # Albemarle – Yahoo führt das Unternehmen
-    # als Specialty Chemicals.
-    # Für unsere Bewertung ist die Lithium-
-    # und Rohstoffabhängigkeit entscheidend.
+    # Albemarle
 
     if (
         symbol_text == "ALB"
@@ -502,10 +499,6 @@ def build_historical_data(ticker):
         ]
     )
 
-    # Falls Yahoo keine direkte FCF-Zeile liefert:
-    # FCF = operativer Cashflow + CapEx
-    # Yahoo führt CapEx normalerweise negativ.
-
     if (
         not free_cashflow_values
         and operating_cashflow_values
@@ -543,8 +536,6 @@ def build_historical_data(ticker):
 
         free_cashflow_values = calculated_fcf
 
-    # Maximal fünf Jahre verwenden
-
     net_income_values = net_income_values[:5]
     diluted_eps_values = diluted_eps_values[:5]
     free_cashflow_values = free_cashflow_values[:5]
@@ -570,6 +561,276 @@ def build_historical_data(ticker):
         "fcf": free_cashflow_values,
         "available_years": available_years,
         "data_quality": data_quality
+    }
+
+
+# =========================================================
+# EPS normalisieren
+# =========================================================
+
+def normalize_eps(
+    company_type,
+    trailing_eps,
+    forward_eps,
+    historical_eps,
+    revenue_growth,
+    earnings_growth
+):
+
+    trailing = safe_float(trailing_eps)
+    forward = safe_float(forward_eps)
+
+    history = [
+        safe_float(item["value"])
+        for item in historical_eps
+    ]
+
+    history = [
+        value
+        for value in history
+        if value is not None
+    ]
+
+    type_name = str(
+        company_type.get("type", "")
+    ).lower()
+
+    # -----------------------------------------------------
+    # Zyklische Unternehmen
+    # -----------------------------------------------------
+
+    if "zyklisch" in type_name:
+
+        if len(history) >= 3:
+
+            series = pd.Series(history)
+
+            median_eps = float(
+                series.median()
+            )
+
+            mean_eps = float(
+                series.mean()
+            )
+
+            cycle_basis = (
+                0.60 * median_eps +
+                0.40 * mean_eps
+            )
+
+            if forward is not None:
+
+                denominator = max(
+                    abs(cycle_basis),
+                    1.0
+                )
+
+                forward_difference = (
+                    abs(
+                        forward -
+                        cycle_basis
+                    )
+                    / denominator
+                )
+
+                # Sehr starke Abweichung:
+                # Forward-EPS nur vorsichtig gewichten
+
+                if forward_difference > 0.75:
+
+                    normalized = (
+                        0.85 * cycle_basis +
+                        0.15 * forward
+                    )
+
+                    method = (
+                        "Zyklus-EPS aus Median und "
+                        "Durchschnitt; Forward-EPS "
+                        "wegen starker Abweichung "
+                        "nur mit 15 % gewichtet"
+                    )
+
+                else:
+
+                    normalized = (
+                        0.70 * cycle_basis +
+                        0.30 * forward
+                    )
+
+                    method = (
+                        "Zyklus-EPS aus Median und "
+                        "Durchschnitt plus 30 % "
+                        "Forward-EPS"
+                    )
+
+            else:
+
+                normalized = cycle_basis
+
+                method = (
+                    "Zyklus-EPS aus 60 % Median "
+                    "und 40 % Durchschnitt"
+                )
+
+            confidence = "Mittel"
+
+            return {
+                "normalized_eps": normalized,
+                "method": method,
+                "confidence": confidence,
+                "cycle_basis": cycle_basis
+            }
+
+        # Zu wenige historische Jahre
+
+        if trailing is not None and forward is not None:
+
+            normalized = (
+                0.60 * trailing +
+                0.40 * forward
+            )
+
+            return {
+                "normalized_eps": normalized,
+                "method": (
+                    "Nur eingeschränkte Mehrjahresdaten; "
+                    "60 % TTM-EPS + 40 % Forward-EPS"
+                ),
+                "confidence": "Niedrig",
+                "cycle_basis": None
+            }
+
+        return {
+            "normalized_eps": (
+                trailing
+                if trailing is not None
+                else forward
+            ),
+            "method": (
+                "Zu wenige Daten für eine "
+                "zuverlässige Zyklus-Normalisierung"
+            ),
+            "confidence": "Niedrig",
+            "cycle_basis": None
+        }
+
+    # -----------------------------------------------------
+    # Nicht-zyklische profitable Unternehmen
+    # -----------------------------------------------------
+
+    if (
+        trailing is not None
+        and forward is not None
+        and trailing > 0
+        and forward > 0
+    ):
+
+        rev_growth = (
+            revenue_growth
+            if revenue_growth is not None
+            else 0
+        )
+
+        earn_growth = (
+            earnings_growth
+            if earnings_growth is not None
+            else 0
+        )
+
+        # Starkes Wachstum
+
+        if (
+            rev_growth >= 0.15
+            and earn_growth >= 0.15
+        ):
+
+            trailing_weight = 0.25
+            forward_weight = 0.75
+
+            method = (
+                "25 % TTM-EPS + 75 % Forward-EPS "
+                "bei starkem profitablem Wachstum"
+            )
+
+        # Normales Wachstum
+
+        elif (
+            rev_growth >= 0.08
+            or earn_growth >= 0.10
+        ):
+
+            trailing_weight = 0.30
+            forward_weight = 0.70
+
+            method = (
+                "30 % TTM-EPS + 70 % Forward-EPS "
+                "bei normalem Wachstum"
+            )
+
+        # Reifer / stabiler
+
+        else:
+
+            trailing_weight = 0.40
+            forward_weight = 0.60
+
+            method = (
+                "40 % TTM-EPS + 60 % Forward-EPS "
+                "bei stabilem Unternehmen"
+            )
+
+        normalized = (
+            trailing_weight * trailing +
+            forward_weight * forward
+        )
+
+        if len(history) >= 3:
+            confidence = "Hoch"
+        else:
+            confidence = "Mittel"
+
+        return {
+            "normalized_eps": normalized,
+            "method": method,
+            "confidence": confidence,
+            "cycle_basis": None
+        }
+
+    # -----------------------------------------------------
+    # Nur ein brauchbarer EPS-Wert
+    # -----------------------------------------------------
+
+    if forward is not None and forward > 0:
+
+        return {
+            "normalized_eps": forward,
+            "method": (
+                "Nur Forward-EPS verwendbar"
+            ),
+            "confidence": "Niedrig",
+            "cycle_basis": None
+        }
+
+    if trailing is not None and trailing > 0:
+
+        return {
+            "normalized_eps": trailing,
+            "method": (
+                "Nur TTM-EPS verwendbar"
+            ),
+            "confidence": "Niedrig",
+            "cycle_basis": None
+        }
+
+    # Negative / unbrauchbare EPS
+
+    return {
+        "normalized_eps": None,
+        "method": (
+            "Keine zuverlässige EPS-Normalisierung möglich"
+        ),
+        "confidence": "Niedrig",
+        "cycle_basis": None
     }
 
 
@@ -626,6 +887,15 @@ def load_stock(search_text):
         ticker
     )
 
+    eps_normalization = normalize_eps(
+        company_type,
+        info.get("trailingEps"),
+        info.get("forwardEps"),
+        historical["eps"],
+        info.get("revenueGrowth"),
+        info.get("earningsGrowth")
+    )
+
     return {
         "name": name,
         "symbol": symbol,
@@ -672,12 +942,13 @@ def load_stock(search_text):
         "earnings_timestamp": earnings_timestamp,
 
         "company_type": company_type,
-        "historical": historical
+        "historical": historical,
+        "eps_normalization": eps_normalization
     }
 
 
 # =========================================================
-# Historische Tabelle erzeugen
+# Historische Tabelle
 # =========================================================
 
 def historical_table(historical, currency):
@@ -687,7 +958,6 @@ def historical_table(historical, currency):
     for item in historical["net_income"]:
 
         year = item["date"].year
-
         years.setdefault(year, {})
 
         years[year]["Nettogewinn"] = (
@@ -700,7 +970,6 @@ def historical_table(historical, currency):
     for item in historical["eps"]:
 
         year = item["date"].year
-
         years.setdefault(year, {})
 
         years[year]["EPS"] = (
@@ -713,7 +982,6 @@ def historical_table(historical, currency):
     for item in historical["fcf"]:
 
         year = item["date"].year
-
         years.setdefault(year, {})
 
         years[year]["Free Cashflow"] = (
@@ -895,7 +1163,7 @@ if search_text:
                 st.divider()
 
                 # -----------------------------------------
-                # Aktuelle Daten
+                # Aktuelle Datenbasis
                 # -----------------------------------------
 
                 st.subheader(
@@ -1053,7 +1321,7 @@ if search_text:
                 st.divider()
 
                 # -----------------------------------------
-                # NEU: Historische Datenbasis
+                # Historische Daten
                 # -----------------------------------------
 
                 st.subheader(
@@ -1114,11 +1382,89 @@ if search_text:
                         "Finanzdaten verfügbar."
                     )
 
+                st.divider()
+
+                # -----------------------------------------
+                # NEU: EPS-Normalisierung
+                # -----------------------------------------
+
+                st.subheader(
+                    "🧮 EPS-Normalisierung"
+                )
+
+                eps_result = data[
+                    "eps_normalization"
+                ]
+
+                normalized_eps = eps_result[
+                    "normalized_eps"
+                ]
+
+                if normalized_eps is not None:
+
+                    st.metric(
+                        "Normalisiertes EPS",
+                        format_eps(
+                            normalized_eps,
+                            currency
+                        )
+                    )
+
+                else:
+
+                    st.warning(
+                        "Kein zuverlässiges normalisiertes "
+                        "EPS berechenbar."
+                    )
+
+                st.write(
+                    f"**Verwendete Methode:** "
+                    f"{eps_result['method']}"
+                )
+
+                confidence = eps_result[
+                    "confidence"
+                ]
+
+                if confidence == "Hoch":
+
+                    st.success(
+                        "EPS-Normalisierung: "
+                        "**Hohe Sicherheit**"
+                    )
+
+                elif confidence == "Mittel":
+
+                    st.warning(
+                        "EPS-Normalisierung: "
+                        "**Mittlere Sicherheit**"
+                    )
+
+                else:
+
+                    st.error(
+                        "EPS-Normalisierung: "
+                        "**Niedrige Sicherheit**"
+                    )
+
+                if (
+                    eps_result["cycle_basis"]
+                    is not None
+                ):
+
+                    st.write(
+                        "**Zyklus-Basis vor "
+                        "Forward-Anpassung:** "
+                        f"{format_eps(
+                            eps_result['cycle_basis'],
+                            currency
+                        )}"
+                    )
+
                 st.caption(
-                    "Diese Mehrjahresdaten werden später "
-                    "für die EPS- und Zyklus-Normalisierung "
-                    "verwendet. Noch wird daraus kein "
-                    "Fair Value berechnet."
+                    "Dieser Wert ist noch kein Fair Value. "
+                    "Er bildet nur die Gewinnbasis für die "
+                    "spätere Bewertung."
                 )
 
                 st.divider()
@@ -1214,7 +1560,7 @@ if search_text:
                     "angezeigt und führen nicht zu einem Fehler."
                 )
 
-        except Exception as error:
+        except Exception:
 
             st.error(
                 "Die Aktie konnte nicht geladen werden."
@@ -1223,4 +1569,4 @@ if search_text:
             st.caption(
                 "Bitte Suchbegriff prüfen "
                 "und erneut versuchen."
-        )
+)
