@@ -616,8 +616,15 @@ def calculate_fcf_score(
             if isinstance(historical_fcf, dict)
             else list(historical_fcf)
         )
-        for value in source_values:
+
+        for item in source_values:
+            if isinstance(item, dict):
+                value = item.get("value")
+            else:
+                value = item
+
             number = safe_float(value)
+
             if number is not None:
                 history.append(number)
 
@@ -1400,7 +1407,7 @@ def normalize_eps(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m5_s3_fcf_stabilitaet_v2"
+CACHE_VERSION = "m5_s3_fcf_stabilitaet_v3"
 
 @st.cache_data(
     ttl=900,
