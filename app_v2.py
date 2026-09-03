@@ -2005,7 +2005,7 @@ if search_text:
                             )
 
                     earnings_growth_value = safe_float(
-                        data["info"].get("earningsGrowth")
+                        data.get("earnings_growth")
                     )
 
                     if profitability_result[
