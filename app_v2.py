@@ -11,8 +11,8 @@ st.set_page_config(
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
-    "Modul 1 + 2 + 3 + 4 – Suche, Datenbasis, "
-    "Unternehmenstyp & EPS-Normalisierung"
+    "Modul 1 + 2 + 3 + 4 + 5 – Suche, Datenbasis, "
+    "Unternehmenstyp, EPS-Normalisierung & Multiple Score"
 )
 
 
@@ -103,6 +103,104 @@ def safe_float(value):
 
     except Exception:
         return None
+
+
+# =========================================================
+# Modul 5 – Multiple Score: Wachstum
+# =========================================================
+
+def growth_points(value):
+    value = safe_float(value)
+
+    if value is None:
+        return None
+
+    if value >= 0.20:
+        return 15
+
+    if value >= 0.15:
+        return 13
+
+    if value >= 0.10:
+        return 11
+
+    if value >= 0.05:
+        return 8
+
+    if value >= 0.00:
+        return 5
+
+    if value >= -0.05:
+        return 2
+
+    return 0
+
+
+def calculate_growth_score(
+    revenue_growth,
+    earnings_growth
+):
+
+    revenue_points = growth_points(
+        revenue_growth
+    )
+
+    earnings_points = growth_points(
+        earnings_growth
+    )
+
+    available = [
+        points
+        for points in [
+            revenue_points,
+            earnings_points
+        ]
+        if points is not None
+    ]
+
+    if not available:
+
+        return {
+            "score": None,
+            "revenue_points": None,
+            "earnings_points": None,
+            "confidence": "Niedrig",
+            "note": (
+                "Keine ausreichenden Wachstumsdaten verfügbar."
+            )
+        }
+
+    if len(available) == 2:
+
+        score = (
+            revenue_points +
+            earnings_points
+        )
+
+        confidence = "Hoch"
+
+        note = (
+            "Umsatz- und Gewinnwachstum vollständig berücksichtigt."
+        )
+
+    else:
+
+        score = available[0] * 2
+        confidence = "Mittel"
+
+        note = (
+            "Nur eine Wachstumskennzahl verfügbar. "
+            "Der vorhandene Teil wurde proportional "
+            "auf maximal 30 Punkte hochgerechnet."
+        )
+
+    return {
+        "score": score,
+        "revenue_points": revenue_points,
+        "earnings_points": earnings_points,
+        "confidence": confidence,
+        "note": note
+    }
 
 
 # =========================================================
@@ -633,9 +731,6 @@ def normalize_eps(
                     / denominator
                 )
 
-                # Sehr starke Abweichung:
-                # Forward-EPS nur vorsichtig gewichten
-
                 if forward_difference > 0.75:
 
                     normalized = (
@@ -681,8 +776,6 @@ def normalize_eps(
                 "cycle_basis": cycle_basis
             }
 
-        # Zu wenige historische Jahre
-
         if trailing is not None and forward is not None:
 
             normalized = (
@@ -714,10 +807,6 @@ def normalize_eps(
             "cycle_basis": None
         }
 
-    # -----------------------------------------------------
-    # Nicht-zyklische profitable Unternehmen
-    # -----------------------------------------------------
-
     if (
         trailing is not None
         and forward is not None
@@ -737,8 +826,6 @@ def normalize_eps(
             else 0
         )
 
-        # Starkes Wachstum
-
         if (
             rev_growth >= 0.15
             and earn_growth >= 0.15
@@ -752,8 +839,6 @@ def normalize_eps(
                 "bei starkem profitablem Wachstum"
             )
 
-        # Normales Wachstum
-
         elif (
             rev_growth >= 0.08
             or earn_growth >= 0.10
@@ -766,8 +851,6 @@ def normalize_eps(
                 "30 % TTM-EPS + 70 % Forward-EPS "
                 "bei normalem Wachstum"
             )
-
-        # Reifer / stabiler
 
         else:
 
@@ -796,10 +879,6 @@ def normalize_eps(
             "cycle_basis": None
         }
 
-    # -----------------------------------------------------
-    # Nur ein brauchbarer EPS-Wert
-    # -----------------------------------------------------
-
     if forward is not None and forward > 0:
 
         return {
@@ -821,8 +900,6 @@ def normalize_eps(
             "confidence": "Niedrig",
             "cycle_basis": None
         }
-
-    # Negative / unbrauchbare EPS
 
     return {
         "normalized_eps": None,
@@ -896,6 +973,11 @@ def load_stock(search_text):
         info.get("earningsGrowth")
     )
 
+    growth_score = calculate_growth_score(
+        info.get("revenueGrowth"),
+        info.get("earningsGrowth")
+    )
+
     return {
         "name": name,
         "symbol": symbol,
@@ -943,7 +1025,8 @@ def load_stock(search_text):
 
         "company_type": company_type,
         "historical": historical,
-        "eps_normalization": eps_normalization
+        "eps_normalization": eps_normalization,
+        "growth_score": growth_score
     }
 
 
@@ -1069,10 +1152,6 @@ if search_text:
                         f"automatisch erkannt"
                     )
 
-                # -----------------------------------------
-                # Unternehmensübersicht
-                # -----------------------------------------
-
                 col1, col2 = st.columns(2)
 
                 with col1:
@@ -1110,10 +1189,6 @@ if search_text:
 
                 st.divider()
 
-                # -----------------------------------------
-                # Klassifizierung
-                # -----------------------------------------
-
                 st.subheader(
                     "🧭 Automatische "
                     "Unternehmens-Klassifizierung"
@@ -1140,10 +1215,6 @@ if search_text:
 
                 st.divider()
 
-                # -----------------------------------------
-                # Kurs
-                # -----------------------------------------
-
                 st.subheader("Aktueller Kurs")
 
                 if data["price"] is not None:
@@ -1161,10 +1232,6 @@ if search_text:
                     )
 
                 st.divider()
-
-                # -----------------------------------------
-                # Aktuelle Datenbasis
-                # -----------------------------------------
 
                 st.subheader(
                     "📋 Datenbasis für die Bewertung"
@@ -1242,10 +1309,6 @@ if search_text:
 
                 st.divider()
 
-                # -----------------------------------------
-                # Wachstum
-                # -----------------------------------------
-
                 st.subheader(
                     "Wachstum & Profitabilität"
                 )
@@ -1320,10 +1383,6 @@ if search_text:
 
                 st.divider()
 
-                # -----------------------------------------
-                # Historische Daten
-                # -----------------------------------------
-
                 st.subheader(
                     "📚 Historische Datenbasis"
                 )
@@ -1383,10 +1442,6 @@ if search_text:
                     )
 
                 st.divider()
-
-                # -----------------------------------------
-                # NEU: EPS-Normalisierung
-                # -----------------------------------------
 
                 st.subheader(
                     "🧮 EPS-Normalisierung"
@@ -1469,9 +1524,98 @@ if search_text:
 
                 st.divider()
 
-                # -----------------------------------------
-                # Quartalszahlen
-                # -----------------------------------------
+                st.subheader(
+                    "📊 Multiple Score – Wachstum"
+                )
+
+                growth_result = data[
+                    "growth_score"
+                ]
+
+                if growth_result["score"] is not None:
+
+                    st.metric(
+                        "Wachstums-Score",
+                        f"{growth_result['score']}/30 Punkte"
+                    )
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+
+                        revenue_points = growth_result[
+                            "revenue_points"
+                        ]
+
+                        if revenue_points is not None:
+
+                            st.write(
+                                f"**Umsatzwachstum:** "
+                                f"{revenue_points}/15 Punkte"
+                            )
+
+                        else:
+
+                            st.write(
+                                "**Umsatzwachstum:** "
+                                "nicht verfügbar"
+                            )
+
+                    with col2:
+
+                        earnings_points = growth_result[
+                            "earnings_points"
+                        ]
+
+                        if earnings_points is not None:
+
+                            st.write(
+                                f"**Gewinnwachstum:** "
+                                f"{earnings_points}/15 Punkte"
+                            )
+
+                        else:
+
+                            st.write(
+                                "**Gewinnwachstum:** "
+                                "nicht verfügbar"
+                            )
+
+                    if growth_result[
+                        "confidence"
+                    ] == "Hoch":
+
+                        st.success(
+                            "Datengrundlage Wachstum: "
+                            "**Hoch**"
+                        )
+
+                    else:
+
+                        st.warning(
+                            "Datengrundlage Wachstum: "
+                            "**Mittel**"
+                        )
+
+                    st.caption(
+                        growth_result["note"]
+                    )
+
+                else:
+
+                    st.warning(
+                        "Wachstums-Score derzeit "
+                        "nicht berechenbar."
+                    )
+
+                st.caption(
+                    "Modul 5 wird schrittweise aufgebaut. "
+                    "Derzeit werden nur die maximal "
+                    "30 Wachstumspunkte berechnet. "
+                    "Noch kein Fair Value."
+                )
+
+                st.divider()
 
                 st.subheader(
                     "📅 Nächste Quartalszahlen"
@@ -1495,10 +1639,6 @@ if search_text:
                     )
 
                 st.divider()
-
-                # -----------------------------------------
-                # Börsenplatz
-                # -----------------------------------------
 
                 st.subheader("Börsenplatz")
 
@@ -1569,4 +1709,4 @@ if search_text:
             st.caption(
                 "Bitte Suchbegriff prüfen "
                 "und erneut versuchen."
-)
+            )
