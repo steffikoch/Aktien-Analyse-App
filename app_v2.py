@@ -1485,7 +1485,7 @@ def load_stock(search_text):
         company_type,
         info.get("totalRevenue"),
         info.get("freeCashflow"),
-        historical_data.get("fcf", [])
+        historical.get("fcf", [])
     )
 
     return {
