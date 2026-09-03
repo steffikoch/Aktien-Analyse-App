@@ -12,7 +12,7 @@ st.set_page_config(
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1 + 2 + 3 + 4 + 5 – Suche, Datenbasis, "
-    "Unternehmenstyp, EPS-Normalisierung & Multiple Score – Schritt 3"
+    "Unternehmenstyp, EPS-Normalisierung & Multiple Score – Schritt 4"
 )
 
 
@@ -689,6 +689,200 @@ def calculate_fcf_score(
         "score": score,
         "raw_score": raw_score,
         "fcf_margin": fcf_margin,
+        "confidence": confidence,
+        "status": status,
+        "note": note
+    }
+
+
+# =========================================================
+# Modul 5 – Multiple Score: Bilanz / Verschuldung
+# =========================================================
+
+def is_special_balance_model(company_type):
+    type_name = str(
+        company_type.get("type", "")
+    ).lower()
+
+    special_terms = [
+        "bank",
+        "versicherung",
+        "reit",
+        "immobilien",
+        "autohersteller"
+    ]
+
+    return any(
+        term in type_name
+        for term in special_terms
+    )
+
+
+def balance_debt_points(net_debt_to_fcf):
+    ratio = safe_float(net_debt_to_fcf)
+
+    if ratio is None:
+        return None
+
+    if ratio < 1.0:
+        return 14
+    if ratio < 1.5:
+        return 12
+    if ratio < 2.5:
+        return 9
+    if ratio < 3.5:
+        return 6
+    if ratio < 4.5:
+        return 3
+
+    return 0
+
+
+def calculate_balance_score(
+    company_type,
+    cash,
+    debt,
+    current_fcf,
+    historical_fcf
+):
+    if is_special_balance_model(company_type):
+        return {
+            "score": None,
+            "net_debt": None,
+            "net_debt_to_fcf": None,
+            "confidence": "Sondermodell",
+            "status": "special",
+            "note": (
+                "Für diesen Unternehmenstyp wird die normale "
+                "Netto-Schulden/FCF-Logik bewusst nicht verwendet. "
+                "Hier ist später ein eigenes Bilanzmodell nötig."
+            )
+        }
+
+    cash_value = safe_float(cash)
+    debt_value = safe_float(debt)
+    fcf_value = safe_float(current_fcf)
+
+    if cash_value is None or debt_value is None:
+        return {
+            "score": None,
+            "net_debt": None,
+            "net_debt_to_fcf": None,
+            "confidence": "Niedrig",
+            "status": "missing",
+            "note": (
+                "Liquide Mittel oder Gesamtschulden fehlen. "
+                "Es werden keine Bilanzpunkte geschätzt."
+            )
+        }
+
+    net_debt = debt_value - cash_value
+
+    # Netto-Cash ist unabhängig vom FCF die stärkste Bilanzstufe.
+    if net_debt <= 0:
+        return {
+            "score": 15,
+            "net_debt": net_debt,
+            "net_debt_to_fcf": 0.0,
+            "confidence": "Hoch",
+            "status": "net_cash",
+            "note": (
+                "Netto-Cash: Die liquiden Mittel decken die "
+                "Gesamtschulden vollständig."
+            )
+        }
+
+    if fcf_value is None or fcf_value <= 0:
+        return {
+            "score": None,
+            "net_debt": net_debt,
+            "net_debt_to_fcf": None,
+            "confidence": "Niedrig",
+            "status": "fcf_unusable",
+            "note": (
+                "Nettoschulden sind vorhanden, aber der aktuelle "
+                "Free Cashflow ist nicht positiv bzw. nicht verfügbar. "
+                "Eine Netto-Schulden/FCF-Kennzahl wäre nicht belastbar."
+            )
+        }
+
+    ratio = net_debt / fcf_value
+    score = balance_debt_points(ratio)
+
+    history = []
+    if historical_fcf:
+        source_values = (
+            list(historical_fcf.values())
+            if isinstance(historical_fcf, dict)
+            else list(historical_fcf)
+        )
+
+        for item in source_values:
+            if isinstance(item, dict):
+                value = item.get("value")
+            else:
+                value = item
+
+            number = safe_float(value)
+            if number is not None:
+                history.append(number)
+
+    if len(history) >= 3:
+        confidence = "Hoch"
+    elif len(history) >= 1:
+        confidence = "Mittel"
+    else:
+        confidence = "Niedrig"
+
+    type_name = str(
+        company_type.get("type", "")
+    ).lower()
+
+    is_cyclical = (
+        "zyklisch" in type_name
+        or "rohstoffe" in type_name
+        or "lithium" in type_name
+        or "öl" in type_name
+        or "gas" in type_name
+        or "bergbau" in type_name
+    )
+
+    positive_years = sum(
+        1 for value in history if value > 0
+    )
+    negative_years = sum(
+        1 for value in history if value < 0
+    )
+
+    status = "normal"
+    note = (
+        "Bilanzpunkte basieren auf Nettoschulden im Verhältnis "
+        "zum aktuellen positiven Free Cashflow."
+    )
+
+    # Bei Zyklikern bleibt die aktuelle Kennzahl erhalten,
+    # aber die Aussagekraft wird wegen wechselnder Cashflows
+    # ausdrücklich herabgesetzt. Es gibt keine künstliche
+    # Hochrechnung und keine Zusatzpunkte.
+    if (
+        is_cyclical
+        and positive_years >= 1
+        and negative_years >= 1
+    ):
+        confidence = "Mittel"
+        status = "cyclical"
+        note = (
+            "⚠️ Zyklische Cashflows: Die aktuelle "
+            "Netto-Schulden/FCF-Kennzahl ist günstig, "
+            "aber historisch nicht durchgehend stabil. "
+            "Die Bilanzpunkte werden nicht erhöht; "
+            "die Datensicherheit wird auf Mittel begrenzt."
+        )
+
+    return {
+        "score": score,
+        "net_debt": net_debt,
+        "net_debt_to_fcf": ratio,
         "confidence": confidence,
         "status": status,
         "note": note
@@ -1407,7 +1601,7 @@ def normalize_eps(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m5_s3_fcf_stabilitaet_v3"
+CACHE_VERSION = "m5_s4_balance_v1"
 
 @st.cache_data(
     ttl=900,
@@ -1491,6 +1685,14 @@ def load_stock(search_text, cache_version):
         historical.get("fcf", [])
     )
 
+    balance_score = calculate_balance_score(
+        company_type,
+        info.get("totalCash"),
+        info.get("totalDebt"),
+        info.get("freeCashflow"),
+        historical.get("fcf", [])
+    )
+
     return {
         "name": name,
         "symbol": symbol,
@@ -1541,7 +1743,8 @@ def load_stock(search_text, cache_version):
         "eps_normalization": eps_normalization,
         "growth_score": growth_score,
         "profitability_score": profitability_score,
-        "fcf_score": fcf_score
+        "fcf_score": fcf_score,
+        "balance_score": balance_score
     }
 
 
@@ -2372,6 +2575,146 @@ if search_text:
                     "Free-Cashflow-Marge. Historische FCF-Werte "
                     "dienen als Trendkontrolle und dürfen einen "
                     "schwachen aktuellen Cashflow nicht schönrechnen."
+                )
+
+                st.divider()
+
+                st.subheader(
+                    "🏦 Multiple Score – Bilanz / Verschuldung"
+                )
+
+                balance_result = data[
+                    "balance_score"
+                ]
+
+                if balance_result["score"] is not None:
+
+                    st.metric(
+                        "Bilanz-Score",
+                        f"{balance_result['score']}/15 Punkte"
+                    )
+
+                    st.write(
+                        "**Nettoschulden:** "
+                        f"{format_money(
+                            balance_result['net_debt'],
+                            currency
+                        )}"
+                    )
+
+                    if balance_result[
+                        "status"
+                    ] == "net_cash":
+
+                        st.success(
+                            "✓ Netto-Cash / praktisch schuldenfrei"
+                        )
+
+                    else:
+
+                        ratio_value = balance_result[
+                            "net_debt_to_fcf"
+                        ]
+
+                        if ratio_value is not None:
+                            st.write(
+                                "**Netto-Schulden / FCF:** "
+                                f"{ratio_value:.2f}×"
+                            )
+
+                        if balance_result[
+                            "status"
+                        ] == "cyclical":
+
+                            st.warning(
+                                "⚠️ Zyklische FCF-Basis"
+                            )
+
+                        else:
+
+                            st.success(
+                                "✓ Normale Bilanzlogik anwendbar"
+                            )
+
+                    st.write(
+                        "**Datengrundlage Bilanz:** "
+                        f"{balance_result['confidence']}"
+                    )
+
+                    st.caption(
+                        balance_result[
+                            "note"
+                        ]
+                    )
+
+                    growth_total = data[
+                        "growth_score"
+                    ]["score"]
+
+                    profitability_total = data[
+                        "profitability_score"
+                    ]["score"]
+
+                    fcf_total = data[
+                        "fcf_score"
+                    ]["score"]
+
+                    if (
+                        growth_total is not None
+                        and profitability_total is not None
+                        and fcf_total is not None
+                    ):
+                        total_score_100 = (
+                            growth_total
+                            + profitability_total
+                            + fcf_total
+                            + balance_result["score"]
+                        )
+
+                        st.success(
+                            f"Multiple Score gesamt: "
+                            f"**{total_score_100}/100 Punkte**"
+                        )
+
+                else:
+
+                    if balance_result[
+                        "confidence"
+                    ] == "Sondermodell":
+
+                        st.warning(
+                            "⚠️ Bilanz-Sondermodell erforderlich"
+                        )
+
+                    else:
+
+                        st.info(
+                            "Bilanz-Score derzeit nicht verfügbar"
+                        )
+
+                    if balance_result[
+                        "net_debt"
+                    ] is not None:
+
+                        st.write(
+                            "**Nettoschulden:** "
+                            f"{format_money(
+                                balance_result['net_debt'],
+                                currency
+                            )}"
+                        )
+
+                    st.caption(
+                        balance_result[
+                            "note"
+                        ]
+                    )
+
+                st.caption(
+                    "Bilanzpunkte: Netto-Cash 15/15; "
+                    "sonst Bewertung über Netto-Schulden/FCF. "
+                    "Banken, Versicherungen, REIT/Immobilien "
+                    "und Autohersteller benötigen Sondermodelle."
                 )
 
                 st.divider()
