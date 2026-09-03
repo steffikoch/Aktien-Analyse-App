@@ -431,43 +431,88 @@ def calculate_profitability_score(
         )
 
     elif growth <= -0.30:
+        limit = 18
         score = min(
             score,
-            18
+            limit
         )
         brake_active = (
             score < raw_score
         )
-        brake_text = (
-            "Starker Gewinnrückgang von mindestens 30 %: "
-            "Profitabilitäts-Score auf maximal 18/30 begrenzt."
-        )
+
+        if brake_active:
+            brake_text = (
+                f"Starker Gewinnrückgang von "
+                f"{growth * 100:.1f} % erkannt. "
+                f"Die Verschlechterungsbremse begrenzt "
+                f"den Profitabilitäts-Score auf "
+                f"maximal {limit}/30 Punkte."
+            )
+        else:
+            brake_text = (
+                f"Starker Gewinnrückgang von "
+                f"{growth * 100:.1f} % erkannt. "
+                f"Der aktuelle Profitabilitäts-Score "
+                f"von {raw_score}/30 liegt bereits "
+                f"unter der Obergrenze von "
+                f"{limit}/30 – keine weitere Kürzung."
+            )
 
     elif growth <= -0.15:
+        limit = 22
         score = min(
             score,
-            22
+            limit
         )
         brake_active = (
             score < raw_score
-        )
-        brake_text = (
-            "Deutlicher Gewinnrückgang von mindestens 15 %: "
-            "Profitabilitäts-Score auf maximal 22/30 begrenzt."
         )
 
+        if brake_active:
+            brake_text = (
+                f"Deutlicher Gewinnrückgang von "
+                f"{growth * 100:.1f} % erkannt. "
+                f"Die Verschlechterungsbremse begrenzt "
+                f"den Profitabilitäts-Score auf "
+                f"maximal {limit}/30 Punkte."
+            )
+        else:
+            brake_text = (
+                f"Deutlicher Gewinnrückgang von "
+                f"{growth * 100:.1f} % erkannt. "
+                f"Der aktuelle Profitabilitäts-Score "
+                f"von {raw_score}/30 liegt bereits "
+                f"unter der Obergrenze von "
+                f"{limit}/30 – keine weitere Kürzung."
+            )
+
     elif growth <= -0.05:
+        limit = 26
         score = min(
             score,
-            26
+            limit
         )
         brake_active = (
             score < raw_score
         )
-        brake_text = (
-            "Gewinnrückgang von mindestens 5 %: "
-            "Profitabilitäts-Score auf maximal 26/30 begrenzt."
-        )
+
+        if brake_active:
+            brake_text = (
+                f"Gewinnrückgang von "
+                f"{growth * 100:.1f} % erkannt. "
+                f"Die Verschlechterungsbremse begrenzt "
+                f"den Profitabilitäts-Score auf "
+                f"maximal {limit}/30 Punkte."
+            )
+        else:
+            brake_text = (
+                f"Gewinnrückgang von "
+                f"{growth * 100:.1f} % erkannt. "
+                f"Der aktuelle Profitabilitäts-Score "
+                f"von {raw_score}/30 liegt bereits "
+                f"unter der Obergrenze von "
+                f"{limit}/30 – keine weitere Kürzung."
+            )
 
     return {
         "score": score,
@@ -1959,12 +2004,25 @@ if search_text:
                                 "nicht verfügbar"
                             )
 
+                    earnings_growth_value = safe_float(
+                        data["info"].get("earningsGrowth")
+                    )
+
                     if profitability_result[
                         "brake_active"
                     ]:
 
                         st.warning(
                             "⚠️ Verschlechterungsbremse aktiv"
+                        )
+
+                    elif (
+                        earnings_growth_value is not None
+                        and earnings_growth_value <= -0.05
+                    ):
+
+                        st.warning(
+                            "⚠️ Gewinnrückgang erkannt"
                         )
 
                     else:
