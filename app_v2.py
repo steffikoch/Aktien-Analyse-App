@@ -185,13 +185,13 @@ def calculate_growth_score(
 
     else:
 
-        score = available[0] * 2
+        score = available[0]
         confidence = "Mittel"
 
         note = (
             "Nur eine Wachstumskennzahl verfügbar. "
-            "Der vorhandene Teil wurde proportional "
-            "auf maximal 30 Punkte hochgerechnet."
+            "Es werden nur die tatsächlich belegten Punkte "
+            "vergeben; fehlende Daten werden nicht hochgerechnet."
         )
 
     return {
@@ -578,11 +578,10 @@ def calculate_fcf_score(
     current_fcf,
     historical_fcf
 ):
-    if is_special_fcf_model(
-        company_type
-    ):
+    if is_special_fcf_model(company_type):
         return {
             "score": None,
+            "raw_score": None,
             "fcf_margin": None,
             "confidence": "Sondermodell",
             "status": "special",
@@ -593,105 +592,95 @@ def calculate_fcf_score(
             )
         }
 
-    revenue_value = safe_float(
-        revenue
-    )
-    fcf_value = safe_float(
-        current_fcf
-    )
+    revenue_value = safe_float(revenue)
+    fcf_value = safe_float(current_fcf)
 
-    if (
-        revenue_value is None
-        or revenue_value <= 0
-        or fcf_value is None
-    ):
+    if revenue_value is None or revenue_value <= 0 or fcf_value is None:
         return {
             "score": None,
+            "raw_score": None,
             "fcf_margin": None,
             "confidence": "Niedrig",
             "status": "missing",
-            "note": (
-                "Keine ausreichenden aktuellen Daten "
-                "für den FCF-Score verfügbar."
-            )
+            "note": "Keine ausreichenden aktuellen Daten für den FCF-Score verfügbar."
         }
 
-    fcf_margin = (
-        fcf_value /
-        revenue_value
-    )
-
-    score = fcf_margin_points(
-        fcf_margin
-    )
+    fcf_margin = fcf_value / revenue_value
+    raw_score = fcf_margin_points(fcf_margin)
+    score = raw_score
 
     history = []
-
     if historical_fcf:
-        for value in historical_fcf:
-            number = safe_float(
-                value
-            )
-
+        source_values = (
+            list(historical_fcf.values())
+            if isinstance(historical_fcf, dict)
+            else list(historical_fcf)
+        )
+        for value in source_values:
+            number = safe_float(value)
             if number is not None:
-                history.append(
-                    number
-                )
+                history.append(number)
+
+    if len(history) >= 3:
+        confidence = "Hoch"
+    elif len(history) >= 1:
+        confidence = "Mittel"
+    else:
+        confidence = "Niedrig"
 
     status = "normal"
-    confidence = (
-        "Hoch"
-        if len(history) >= 3
-        else "Mittel"
+    note = (
+        "Aktuelle FCF-Marge bestimmt die Ausgangspunkte. "
+        "Die Mehrjahreswerte dienen als Stabilitäts- und Trendkontrolle."
     )
 
-    note = (
-        "Aktuelle FCF-Marge bestimmt die Punkte. "
-        "Die Mehrjahreswerte dienen nur als "
-        "Stabilitäts- und Trendkontrolle."
+    type_name = str(company_type.get("type", "")).lower()
+    is_cyclical = (
+        "zyklisch" in type_name
+        or "rohstoffe" in type_name
+        or "lithium" in type_name
+        or "öl" in type_name
+        or "gas" in type_name
+        or "bergbau" in type_name
     )
 
     if len(history) >= 2:
-        older_values = history[1:]
+        positive_years = sum(1 for value in history if value > 0)
+        negative_years = sum(1 for value in history if value < 0)
 
-        positive_older = sum(
-            1
-            for value in older_values
-            if value > 0
-        )
-
-        negative_older = sum(
-            1
-            for value in older_values
-            if value < 0
-        )
-
-        if (
-            fcf_value < 0
-            and positive_older >= 2
-        ):
+        if is_cyclical and positive_years >= 1 and negative_years >= 1:
+            cycle_limit = 19
+            score = min(score, cycle_limit)
+            status = "cyclical"
+            if score < raw_score:
+                note = (
+                    "⚠️ Zyklischer FCF: Die historischen Free-Cashflows wechseln "
+                    "zwischen positiv und negativ. Die aktuelle Stärke wird daher "
+                    f"auf maximal {cycle_limit}/25 Punkte begrenzt."
+                )
+            else:
+                note = (
+                    "⚠️ Zyklischer FCF: Die historischen Free-Cashflows wechseln "
+                    "zwischen positiv und negativ. Der aktuelle Score liegt bereits "
+                    f"unter der Obergrenze von {cycle_limit}/25."
+                )
+        elif fcf_value < 0 and positive_years >= 2:
             status = "deterioration"
             note = (
-                "⚠️ Free Cashflow aktuell negativ, obwohl "
-                "mehrere frühere Jahre positiv waren. "
-                "Die guten Vorjahre erhöhen den aktuellen "
-                "FCF-Score nicht."
+                "⚠️ Free Cashflow aktuell negativ, obwohl mehrere historische Jahre "
+                "positiv waren. Die guten Vorjahre erhöhen den aktuellen FCF-Score nicht."
             )
-
-        elif (
-            fcf_value > 0
-            and negative_older >= 2
-        ):
+        elif fcf_value > 0 and negative_years >= 2:
             status = "recovery"
             note = (
-                "↗️ FCF-Erholung erkennbar: Der aktuelle "
-                "Free Cashflow ist positiv, nachdem mehrere "
-                "frühere Jahre negativ waren. "
+                "↗️ FCF-Erholung erkennbar: Der aktuelle Free Cashflow ist positiv, "
+                "nachdem mehrere historische Jahre negativ waren. "
                 "Dafür werden keine Zusatzpunkte vergeben."
             )
 
     return {
         "score": score,
+        "raw_score": raw_score,
         "fcf_margin": fcf_margin,
         "confidence": confidence,
         "status": status,
@@ -2285,6 +2274,14 @@ if search_text:
 
                         st.warning(
                             "⚠️ FCF-Verschlechterung erkannt"
+                        )
+
+                    elif fcf_result[
+                        "status"
+                    ] == "cyclical":
+
+                        st.warning(
+                            "⚠️ Zyklischer FCF erkannt"
                         )
 
                     elif fcf_result[
