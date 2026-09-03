@@ -12,7 +12,7 @@ st.set_page_config(
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1 + 2 + 3 + 4 + 5 – Suche, Datenbasis, "
-    "Unternehmenstyp, EPS-Normalisierung & Multiple Score – Schritt 2"
+    "Unternehmenstyp, EPS-Normalisierung & Multiple Score – Schritt 3"
 )
 
 
@@ -522,6 +522,180 @@ def calculate_profitability_score(
         "confidence": confidence,
         "brake_active": brake_active,
         "brake_text": brake_text
+    }
+
+
+# =========================================================
+# Modul 5 – Multiple Score: Free Cashflow
+# =========================================================
+
+def is_special_fcf_model(company_type):
+    type_name = str(
+        company_type.get("type", "")
+    ).lower()
+
+    special_terms = [
+        "bank",
+        "versicherung",
+        "reit",
+        "immobilien",
+        "autohersteller"
+    ]
+
+    return any(
+        term in type_name
+        for term in special_terms
+    )
+
+
+def fcf_margin_points(fcf_margin):
+    margin = safe_float(fcf_margin)
+
+    if margin is None:
+        return None
+
+    if margin >= 0.20:
+        return 25
+    if margin >= 0.15:
+        return 22
+    if margin >= 0.10:
+        return 19
+    if margin >= 0.07:
+        return 16
+    if margin >= 0.04:
+        return 13
+    if margin >= 0.00:
+        return 9
+    if margin >= -0.05:
+        return 4
+
+    return 0
+
+
+def calculate_fcf_score(
+    company_type,
+    revenue,
+    current_fcf,
+    historical_fcf
+):
+    if is_special_fcf_model(
+        company_type
+    ):
+        return {
+            "score": None,
+            "fcf_margin": None,
+            "confidence": "Sondermodell",
+            "status": "special",
+            "note": (
+                "Für diesen Unternehmenstyp wird der normale "
+                "Yahoo-Free-Cashflow bewusst nicht bewertet. "
+                "Hier ist später eine eigene Cashflow-Logik nötig."
+            )
+        }
+
+    revenue_value = safe_float(
+        revenue
+    )
+    fcf_value = safe_float(
+        current_fcf
+    )
+
+    if (
+        revenue_value is None
+        or revenue_value <= 0
+        or fcf_value is None
+    ):
+        return {
+            "score": None,
+            "fcf_margin": None,
+            "confidence": "Niedrig",
+            "status": "missing",
+            "note": (
+                "Keine ausreichenden aktuellen Daten "
+                "für den FCF-Score verfügbar."
+            )
+        }
+
+    fcf_margin = (
+        fcf_value /
+        revenue_value
+    )
+
+    score = fcf_margin_points(
+        fcf_margin
+    )
+
+    history = []
+
+    if historical_fcf:
+        for value in historical_fcf:
+            number = safe_float(
+                value
+            )
+
+            if number is not None:
+                history.append(
+                    number
+                )
+
+    status = "normal"
+    confidence = (
+        "Hoch"
+        if len(history) >= 3
+        else "Mittel"
+    )
+
+    note = (
+        "Aktuelle FCF-Marge bestimmt die Punkte. "
+        "Die Mehrjahreswerte dienen nur als "
+        "Stabilitäts- und Trendkontrolle."
+    )
+
+    if len(history) >= 2:
+        older_values = history[1:]
+
+        positive_older = sum(
+            1
+            for value in older_values
+            if value > 0
+        )
+
+        negative_older = sum(
+            1
+            for value in older_values
+            if value < 0
+        )
+
+        if (
+            fcf_value < 0
+            and positive_older >= 2
+        ):
+            status = "deterioration"
+            note = (
+                "⚠️ Free Cashflow aktuell negativ, obwohl "
+                "mehrere frühere Jahre positiv waren. "
+                "Die guten Vorjahre erhöhen den aktuellen "
+                "FCF-Score nicht."
+            )
+
+        elif (
+            fcf_value > 0
+            and negative_older >= 2
+        ):
+            status = "recovery"
+            note = (
+                "↗️ FCF-Erholung erkennbar: Der aktuelle "
+                "Free Cashflow ist positiv, nachdem mehrere "
+                "frühere Jahre negativ waren. "
+                "Dafür werden keine Zusatzpunkte vergeben."
+            )
+
+    return {
+        "score": score,
+        "fcf_margin": fcf_margin,
+        "confidence": confidence,
+        "status": status,
+        "note": note
     }
 
 
@@ -1307,6 +1481,13 @@ def load_stock(search_text):
         info.get("earningsGrowth")
     )
 
+    fcf_score = calculate_fcf_score(
+        company_type,
+        info.get("totalRevenue"),
+        info.get("freeCashflow"),
+        historical_data.get("fcf", [])
+    )
+
     return {
         "name": name,
         "symbol": symbol,
@@ -1356,7 +1537,8 @@ def load_stock(search_text):
         "historical": historical,
         "eps_normalization": eps_normalization,
         "growth_score": growth_score,
-        "profitability_score": profitability_score
+        "profitability_score": profitability_score,
+        "fcf_score": fcf_score
     }
 
 
@@ -2068,6 +2250,114 @@ if search_text:
                     "Historische Margen werden später ergänzt "
                     "und dürfen aktuelle Verschlechterungen "
                     "nicht verdecken."
+                )
+
+                st.divider()
+
+                st.subheader(
+                    "💵 Multiple Score – Free Cashflow"
+                )
+
+                fcf_result = data[
+                    "fcf_score"
+                ]
+
+                if fcf_result["score"] is not None:
+
+                    st.metric(
+                        "FCF-Score",
+                        f"{fcf_result['score']}/25 Punkte"
+                    )
+
+                    st.write(
+                        "**Aktuelle FCF-Marge:** "
+                        f"{fcf_result['fcf_margin'] * 100:.1f} %"
+                    )
+
+                    st.write(
+                        "**Datengrundlage FCF:** "
+                        f"{fcf_result['confidence']}"
+                    )
+
+                    if fcf_result[
+                        "status"
+                    ] == "deterioration":
+
+                        st.warning(
+                            "⚠️ FCF-Verschlechterung erkannt"
+                        )
+
+                    elif fcf_result[
+                        "status"
+                    ] == "recovery":
+
+                        st.info(
+                            "↗️ FCF-Erholung erkannt"
+                        )
+
+                    else:
+
+                        st.success(
+                            "✓ Keine FCF-Warnung"
+                        )
+
+                    st.caption(
+                        fcf_result[
+                            "note"
+                        ]
+                    )
+
+                    growth_total = data[
+                        "growth_score"
+                    ]["score"]
+
+                    profitability_total = data[
+                        "profitability_score"
+                    ]["score"]
+
+                    if (
+                        growth_total is not None
+                        and profitability_total is not None
+                    ):
+                        interim_score_85 = (
+                            growth_total
+                            + profitability_total
+                            + fcf_result["score"]
+                        )
+
+                        st.info(
+                            f"Zwischenstand Multiple Score: "
+                            f"**{interim_score_85}/85 Punkte** "
+                            f"(Wachstum + Profitabilität + FCF)"
+                        )
+
+                else:
+
+                    if fcf_result[
+                        "confidence"
+                    ] == "Sondermodell":
+
+                        st.warning(
+                            "⚠️ FCF-Sondermodell erforderlich"
+                        )
+
+                    else:
+
+                        st.info(
+                            "FCF-Score derzeit nicht verfügbar"
+                        )
+
+                    st.caption(
+                        fcf_result[
+                            "note"
+                        ]
+                    )
+
+                st.caption(
+                    "Die FCF-Punkte basieren auf der aktuellen "
+                    "Free-Cashflow-Marge. Historische FCF-Werte "
+                    "dienen als Trendkontrolle und dürfen einen "
+                    "schwachen aktuellen Cashflow nicht schönrechnen."
                 )
 
                 st.divider()
