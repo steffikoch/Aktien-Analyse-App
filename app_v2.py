@@ -12,7 +12,7 @@ st.set_page_config(
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1 + 2 + 3 + 4 + 5 – Suche, Datenbasis, "
-    "Unternehmenstyp, EPS-Normalisierung & Multiple Score"
+    "Unternehmenstyp, EPS-Normalisierung & Multiple Score – Schritt 2"
 )
 
 
@@ -200,6 +200,283 @@ def calculate_growth_score(
         "earnings_points": earnings_points,
         "confidence": confidence,
         "note": note
+    }
+
+
+# =========================================================
+# Modul 5 – Multiple Score: Profitabilität
+# =========================================================
+
+def profitability_margin_points(
+    company_type,
+    profit_margin
+):
+    margin = safe_float(profit_margin)
+
+    if margin is None:
+        return None
+
+    type_name = str(
+        company_type.get("type", "")
+    ).lower()
+
+    # Sondermodelle: normale Nettomarge ist hier nicht
+    # ausreichend aussagekräftig.
+    if (
+        "bank" in type_name
+        or "versicherung" in type_name
+        or "reit" in type_name
+        or "immobilien" in type_name
+        or "biotechnologie" in type_name
+    ):
+        return None
+
+    # Software
+    if "software" in type_name:
+        thresholds = [
+            (0.30, 15),
+            (0.20, 13),
+            (0.12, 10),
+            (0.07, 7),
+            (0.00, 4)
+        ]
+
+    # Halbleiter
+    elif "halbleiter" in type_name:
+        thresholds = [
+            (0.30, 15),
+            (0.22, 13),
+            (0.15, 10),
+            (0.08, 7),
+            (0.00, 4)
+        ]
+
+    # Defensiver Konsum / Pharma
+    elif (
+        "defensiver konsum" in type_name
+        or "pharma" in type_name
+    ):
+        thresholds = [
+            (0.20, 15),
+            (0.15, 13),
+            (0.10, 10),
+            (0.06, 7),
+            (0.00, 4)
+        ]
+
+    # Zyklische Unternehmen
+    elif "zyklisch" in type_name:
+        thresholds = [
+            (0.12, 15),
+            (0.08, 13),
+            (0.05, 10),
+            (0.03, 7),
+            (0.00, 4)
+        ]
+
+    # Industrie / Telekom / Versorger / Standard
+    else:
+        thresholds = [
+            (0.15, 15),
+            (0.10, 13),
+            (0.07, 10),
+            (0.04, 7),
+            (0.00, 4)
+        ]
+
+    for threshold, points in thresholds:
+        if margin >= threshold:
+            return points
+
+    return 0
+
+
+def profitability_roe_points(
+    company_type,
+    roe
+):
+    roe_value = safe_float(roe)
+
+    if roe_value is None:
+        return None
+
+    type_name = str(
+        company_type.get("type", "")
+    ).lower()
+
+    if (
+        "bank" in type_name
+        or "versicherung" in type_name
+        or "reit" in type_name
+        or "immobilien" in type_name
+        or "biotechnologie" in type_name
+    ):
+        return None
+
+    if "zyklisch" in type_name:
+        thresholds = [
+            (0.25, 15),
+            (0.18, 13),
+            (0.12, 10),
+            (0.08, 7),
+            (0.00, 4)
+        ]
+    else:
+        thresholds = [
+            (0.30, 15),
+            (0.22, 13),
+            (0.15, 10),
+            (0.10, 7),
+            (0.00, 4)
+        ]
+
+    for threshold, points in thresholds:
+        if roe_value >= threshold:
+            return points
+
+    return 0
+
+
+def calculate_profitability_score(
+    company_type,
+    profit_margin,
+    roe,
+    earnings_growth
+):
+    margin_points = profitability_margin_points(
+        company_type,
+        profit_margin
+    )
+
+    roe_points = profitability_roe_points(
+        company_type,
+        roe
+    )
+
+    type_name = str(
+        company_type.get("type", "")
+    ).lower()
+
+    special_model = (
+        "bank" in type_name
+        or "versicherung" in type_name
+        or "reit" in type_name
+        or "immobilien" in type_name
+        or "biotechnologie" in type_name
+    )
+
+    if special_model:
+        return {
+            "score": None,
+            "raw_score": None,
+            "margin_points": None,
+            "roe_points": None,
+            "confidence": "Sondermodell",
+            "brake_active": False,
+            "brake_text": (
+                "Für diesen Unternehmenstyp wird später "
+                "eine eigene Profitabilitätslogik verwendet."
+            )
+        }
+
+    available = [
+        points
+        for points in [
+            margin_points,
+            roe_points
+        ]
+        if points is not None
+    ]
+
+    if not available:
+        return {
+            "score": None,
+            "raw_score": None,
+            "margin_points": None,
+            "roe_points": None,
+            "confidence": "Niedrig",
+            "brake_active": False,
+            "brake_text": (
+                "Keine ausreichenden Profitabilitätsdaten verfügbar."
+            )
+        }
+
+    if len(available) == 2:
+        raw_score = (
+            margin_points +
+            roe_points
+        )
+        confidence = "Hoch"
+    else:
+        raw_score = available[0] * 2
+        confidence = "Mittel"
+
+    score = raw_score
+    brake_active = False
+    brake_text = (
+        "Keine Verschlechterungsbremse aktiv."
+    )
+
+    growth = safe_float(
+        earnings_growth
+    )
+
+    if growth is None:
+        if confidence == "Hoch":
+            confidence = "Mittel"
+
+        brake_text = (
+            "Gewinnentwicklung nicht verfügbar; "
+            "Verschlechterungsbremse konnte nicht geprüft werden."
+        )
+
+    elif growth <= -0.30:
+        score = min(
+            score,
+            18
+        )
+        brake_active = (
+            score < raw_score
+        )
+        brake_text = (
+            "Starker Gewinnrückgang von mindestens 30 %: "
+            "Profitabilitäts-Score auf maximal 18/30 begrenzt."
+        )
+
+    elif growth <= -0.15:
+        score = min(
+            score,
+            22
+        )
+        brake_active = (
+            score < raw_score
+        )
+        brake_text = (
+            "Deutlicher Gewinnrückgang von mindestens 15 %: "
+            "Profitabilitäts-Score auf maximal 22/30 begrenzt."
+        )
+
+    elif growth <= -0.05:
+        score = min(
+            score,
+            26
+        )
+        brake_active = (
+            score < raw_score
+        )
+        brake_text = (
+            "Gewinnrückgang von mindestens 5 %: "
+            "Profitabilitäts-Score auf maximal 26/30 begrenzt."
+        )
+
+    return {
+        "score": score,
+        "raw_score": raw_score,
+        "margin_points": margin_points,
+        "roe_points": roe_points,
+        "confidence": confidence,
+        "brake_active": brake_active,
+        "brake_text": brake_text
     }
 
 
@@ -978,6 +1255,13 @@ def load_stock(search_text):
         info.get("earningsGrowth")
     )
 
+    profitability_score = calculate_profitability_score(
+        company_type,
+        info.get("profitMargins"),
+        info.get("returnOnEquity"),
+        info.get("earningsGrowth")
+    )
+
     return {
         "name": name,
         "symbol": symbol,
@@ -1026,7 +1310,8 @@ def load_stock(search_text):
         "company_type": company_type,
         "historical": historical,
         "eps_normalization": eps_normalization,
-        "growth_score": growth_score
+        "growth_score": growth_score,
+        "profitability_score": profitability_score
     }
 
 
@@ -1610,9 +1895,121 @@ if search_text:
 
                 st.caption(
                     "Modul 5 wird schrittweise aufgebaut. "
-                    "Derzeit werden nur die maximal "
-                    "30 Wachstumspunkte berechnet. "
+                    "Wachstum liefert maximal 30 Punkte. "
+                    "Danach folgt die Profitabilität. "
                     "Noch kein Fair Value."
+                )
+
+                st.divider()
+
+                st.subheader(
+                    "📈 Multiple Score – Profitabilität"
+                )
+
+                profitability_result = data[
+                    "profitability_score"
+                ]
+
+                if profitability_result["score"] is not None:
+
+                    st.metric(
+                        "Profitabilitäts-Score",
+                        f"{profitability_result['score']}/30 Punkte"
+                    )
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+
+                        margin_points = profitability_result[
+                            "margin_points"
+                        ]
+
+                        if margin_points is not None:
+
+                            st.write(
+                                f"**Nettomarge:** "
+                                f"{margin_points}/15 Punkte"
+                            )
+
+                        else:
+
+                            st.write(
+                                "**Nettomarge:** "
+                                "nicht verfügbar"
+                            )
+
+                    with col2:
+
+                        roe_points = profitability_result[
+                            "roe_points"
+                        ]
+
+                        if roe_points is not None:
+
+                            st.write(
+                                f"**ROE:** "
+                                f"{roe_points}/15 Punkte"
+                            )
+
+                        else:
+
+                            st.write(
+                                "**ROE:** "
+                                "nicht verfügbar"
+                            )
+
+                    if profitability_result[
+                        "brake_active"
+                    ]:
+
+                        st.warning(
+                            "⚠️ Verschlechterungsbremse aktiv"
+                        )
+
+                    else:
+
+                        st.success(
+                            "✓ Keine Verschlechterungsbremse aktiv"
+                        )
+
+                    st.caption(
+                        profitability_result[
+                            "brake_text"
+                        ]
+                    )
+
+                    growth_total = data[
+                        "growth_score"
+                    ]["score"]
+
+                    if growth_total is not None:
+
+                        interim_score = (
+                            growth_total +
+                            profitability_result["score"]
+                        )
+
+                        st.info(
+                            f"Zwischenstand Multiple Score: "
+                            f"**{interim_score}/60 Punkte** "
+                            f"(Wachstum + Profitabilität)"
+                        )
+
+                else:
+
+                    st.info(
+                        profitability_result[
+                            "brake_text"
+                        ]
+                    )
+
+                st.caption(
+                    "Die Profitabilität basiert derzeit auf "
+                    "aktueller Nettomarge und aktuellem ROE. "
+                    "Historische Margen werden später ergänzt "
+                    "und dürfen aktuelle Verschlechterungen "
+                    "nicht verdecken."
                 )
 
                 st.divider()
