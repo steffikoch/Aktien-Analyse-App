@@ -1400,11 +1400,18 @@ def normalize_eps(
 # Hauptdaten laden
 # =========================================================
 
+CACHE_VERSION = "m5_s3_fcf_stabilitaet_v2"
+
 @st.cache_data(
     ttl=900,
     show_spinner=False
 )
-def load_stock(search_text):
+def load_stock(search_text, cache_version):
+
+    # cache_version ist absichtlich Teil des Cache-Schlüssels.
+    # Wenn wir Bewertungslogik ändern, erhöhen wir diese Version
+    # und erzwingen damit frische Berechnungen.
+    _ = cache_version
 
     result = find_stock(search_text)
 
@@ -1624,7 +1631,10 @@ if search_text:
 
         try:
 
-            data = load_stock(search_text)
+            data = load_stock(
+                search_text,
+                CACHE_VERSION
+            )
 
             if not data:
 
