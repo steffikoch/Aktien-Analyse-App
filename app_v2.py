@@ -2318,10 +2318,135 @@ def calculate_peer_check(
 
 
 # =========================================================
+# Modul 6 – Schritt 3A: Spezialkontroll-Router
+# =========================================================
+
+def get_special_control(company_type, symbol):
+    type_name = str(
+        company_type.get("type", "")
+    ).lower()
+
+    symbol_text = str(
+        symbol or ""
+    ).upper()
+
+    # Dieser Router erkennt ausschließlich bereits
+    # fachlich vereinbarte Spezialkontrollen.
+    # Er lädt noch keine Spezialdaten und verändert
+    # weder Multiple Score noch Bewertungs-Multiple.
+
+    if (
+        "defense / stark wachsend" in type_name
+        or symbol_text in ["RHM.DE", "RNMBY", "RNMBF"]
+    ):
+        return {
+            "required": True,
+            "control_key": "defense_order_visibility",
+            "control_name": (
+                "Defense / Auftrags- & "
+                "Visibilitätskontrolle"
+            ),
+            "planned_checks": [
+                "Backlog",
+                "Fixed Orders",
+                "Book-to-Bill",
+                "Revenue Coverage",
+                "Margentrend"
+            ],
+            "status": "Router aktiv",
+            "note": (
+                "Die eigentliche Auftrags-/Visibilitätslogik "
+                "wird erst im nächsten Schritt implementiert. "
+                "Es werden noch keine Spezialdaten geladen."
+            )
+        }
+
+    if "halbleiterausrüstung / lithografie" in type_name:
+        return {
+            "required": True,
+            "control_key": "semicap_order_visibility",
+            "control_name": (
+                "Halbleiterausrüstung / Auftrags- & "
+                "Visibilitätskontrolle"
+            ),
+            "planned_checks": [],
+            "status": "Router aktiv",
+            "note": (
+                "Die konkreten ASML-Prüfkennzahlen werden "
+                "erst in einem späteren kontrollierten Schritt "
+                "fachlich festgelegt und implementiert."
+            )
+        }
+
+    if "halbleiter / fabless / ai-wachstum" in type_name:
+        return {
+            "required": True,
+            "control_key": "ai_growth_margin",
+            "control_name": (
+                "AI-Wachstumsdauer- / Margenkontrolle"
+            ),
+            "planned_checks": [],
+            "status": "Router aktiv",
+            "note": (
+                "Die konkrete Nvidia-Spezialkontrolle wird "
+                "erst später fachlich definiert und mit "
+                "belastbaren Daten umgesetzt."
+            )
+        }
+
+    if "halbleiter / foundry" in type_name:
+        return {
+            "required": True,
+            "control_key": "foundry_capex_geopolitics",
+            "control_name": (
+                "Foundry / CapEx- & geopolitische "
+                "Risikokontrolle"
+            ),
+            "planned_checks": [],
+            "status": "Router aktiv",
+            "note": (
+                "Die konkrete TSMC-Spezialkontrolle wird "
+                "erst später fachlich definiert und mit "
+                "belastbaren Daten umgesetzt."
+            )
+        }
+
+    if "rohstoffe / lithium / zyklisch" in type_name:
+        return {
+            "required": True,
+            "control_key": "lithium_cycle",
+            "control_name": (
+                "Lithium- / Zykluskontrolle"
+            ),
+            "planned_checks": [],
+            "status": "Router aktiv",
+            "note": (
+                "Die konkrete Lithium-Zykluskontrolle wird "
+                "erst später fachlich definiert. Aktuelle "
+                "Forward-KGVs werden dabei nicht ungeprüft "
+                "als Zyklusmaßstab verwendet."
+            )
+        }
+
+    return {
+        "required": False,
+        "control_key": None,
+        "control_name": None,
+        "planned_checks": [],
+        "status": "Keine Spezialkontrolle hinterlegt",
+        "note": (
+            "Für diesen Unternehmenstyp ist in Schritt 3A "
+            "noch keine separate Spezialkontrolle fachlich "
+            "vereinbart. Es wird nichts geschätzt oder erfunden."
+        )
+    }
+
+
+# =========================================================
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_s2b_peer_median_v1"
+CACHE_VERSION = "m6_s3a_special_control_router_v1"
 
 @st.cache_data(
     ttl=900,
@@ -2430,6 +2555,11 @@ def load_stock(search_text, cache_version):
         cache_version
     )
 
+    special_control = get_special_control(
+        company_type,
+        symbol
+    )
+
     return {
         "name": name,
         "symbol": symbol,
@@ -2484,7 +2614,8 @@ def load_stock(search_text, cache_version):
         "balance_score": balance_score,
         "fundamental_multiple": fundamental_multiple,
         "peer_group": peer_group,
-        "peer_check": peer_check
+        "peer_check": peer_check,
+        "special_control": special_control
     }
 
 
@@ -3704,6 +3835,79 @@ if search_text:
                     "Mindestens 3 brauchbare Peers sind "
                     "Pflicht; der Median wird statt des "
                     "Durchschnitts verwendet."
+                )
+
+                st.caption(
+                    "Noch kein Fair Value und noch kein "
+                    "Kauf-/Verkaufssignal."
+                )
+
+                st.divider()
+
+                st.subheader(
+                    "🧩 Modul 6 – Schritt 3A: "
+                    "Spezialkontroll-Router"
+                )
+
+                special_control = data[
+                    "special_control"
+                ]
+
+                if special_control[
+                    "required"
+                ]:
+
+                    st.success(
+                        "Erkannte Spezialkontrolle: "
+                        f"**{special_control['control_name']}**"
+                    )
+
+                    st.write(
+                        "**Status:** "
+                        f"{special_control['status']}"
+                    )
+
+                    planned_checks = special_control[
+                        "planned_checks"
+                    ]
+
+                    if planned_checks:
+
+                        st.write(
+                            "**Bereits festgelegte spätere "
+                            "Prüfpunkte:**"
+                        )
+
+                        for check in planned_checks:
+                            st.write(
+                                f"• {check}"
+                            )
+
+                    st.info(
+                        special_control[
+                            "note"
+                        ]
+                    )
+
+                else:
+
+                    st.info(
+                        "Für diesen Unternehmenstyp ist "
+                        "in Schritt 3A keine separate "
+                        "Spezialkontrolle hinterlegt."
+                    )
+
+                    st.caption(
+                        special_control[
+                            "note"
+                        ]
+                    )
+
+                st.caption(
+                    "Schritt 3A ist nur ein Router. "
+                    "Er lädt noch keine Spezialkennzahlen "
+                    "und verändert weder Multiple Score "
+                    "noch Fundamental-/Peer-Multiple."
                 )
 
                 st.caption(
