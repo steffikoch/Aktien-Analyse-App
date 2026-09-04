@@ -12,7 +12,7 @@ st.set_page_config(
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1 + 2 + 3 + 4 + 5 – Suche, Datenbasis, "
-    "Unternehmenstyp, EPS-Normalisierung & Multiple Score – Schritt 4"
+    "Unternehmenstyp, EPS-Normalisierung, Multiple Score & Bewertungs-Korridor"
 )
 
 
@@ -1747,10 +1747,226 @@ def normalize_eps(
 
 
 # =========================================================
+# Modul 6 – Schritt 1: Bewertungs-Korridor & Fundamental-Multiple
+# =========================================================
+
+def get_valuation_corridor(company_type):
+    type_name = str(
+        company_type.get("type", "")
+    ).lower()
+
+    corridors = [
+        (
+            "halbleiterausrüstung / lithografie",
+            22.0,
+            32.0,
+            "Forward/normalisiertes KGV"
+        ),
+        (
+            "halbleiter / fabless / ai-wachstum",
+            22.0,
+            35.0,
+            "Forward/normalisiertes KGV"
+        ),
+        (
+            "halbleiter / foundry",
+            15.0,
+            24.0,
+            "Forward/normalisiertes KGV"
+        ),
+        (
+            "defense / stark wachsend",
+            18.0,
+            30.0,
+            "Forward-KGV"
+        ),
+        (
+            "etablierte software / technologie",
+            20.0,
+            30.0,
+            "Normalisiertes/Forward-KGV"
+        ),
+        (
+            "autohersteller / zyklisch",
+            6.0,
+            10.0,
+            "Zyklus-normalisiertes KGV"
+        ),
+        (
+            "rohstoffe / lithium / zyklisch",
+            8.0,
+            14.0,
+            "Zyklus-normalisiertes KGV"
+        ),
+        (
+            "öl & gas / zyklisch",
+            8.0,
+            13.0,
+            "Zyklus-normalisiertes KGV"
+        ),
+        (
+            "telekommunikation",
+            11.0,
+            16.0,
+            "Adjusted/normalisiertes KGV"
+        ),
+        (
+            "defensiver konsum",
+            18.0,
+            26.0,
+            "Normalisiertes KGV"
+        ),
+        (
+            "pharma",
+            13.0,
+            19.0,
+            "Normalisiertes/Business-KGV"
+        )
+    ]
+
+    for key, lower, upper, method in corridors:
+        if key in type_name:
+            return {
+                "available": True,
+                "lower": lower,
+                "upper": upper,
+                "method": method,
+                "note": (
+                    "Der Bewertungs-Korridor wird durch den "
+                    "Unternehmenstyp bestimmt."
+                )
+            }
+
+    special_or_unresolved_terms = [
+        "bank",
+        "versicherung",
+        "reit",
+        "immobilien",
+        "biotechnologie",
+        "untertyp noch nicht eindeutig",
+        "standard-unternehmen",
+        "versorger"
+    ]
+
+    if any(
+        term in type_name
+        for term in special_or_unresolved_terms
+    ):
+        return {
+            "available": False,
+            "lower": None,
+            "upper": None,
+            "method": None,
+            "note": (
+                "Für diesen Unternehmenstyp ist noch kein "
+                "ausreichend belastbarer Bewertungs-Korridor "
+                "implementiert. Es wird kein Multiple geschätzt."
+            )
+        }
+
+    return {
+        "available": False,
+        "lower": None,
+        "upper": None,
+        "method": None,
+        "note": (
+            "Für diesen Unternehmenstyp ist noch kein "
+            "Bewertungs-Korridor hinterlegt."
+        )
+    }
+
+
+def calculate_total_multiple_score(
+    growth_score,
+    profitability_score,
+    fcf_score,
+    balance_score
+):
+    components = [
+        growth_score.get("score"),
+        profitability_score.get("score"),
+        fcf_score.get("score"),
+        balance_score.get("score")
+    ]
+
+    if any(
+        value is None
+        for value in components
+    ):
+        return None
+
+    return sum(components)
+
+
+def calculate_fundamental_multiple(
+    company_type,
+    growth_score,
+    profitability_score,
+    fcf_score,
+    balance_score
+):
+    corridor = get_valuation_corridor(
+        company_type
+    )
+
+    total_score = calculate_total_multiple_score(
+        growth_score,
+        profitability_score,
+        fcf_score,
+        balance_score
+    )
+
+    if not corridor["available"]:
+        return {
+            "available": False,
+            "score": total_score,
+            "corridor": corridor,
+            "multiple": None,
+            "note": corridor["note"]
+        }
+
+    if total_score is None:
+        return {
+            "available": False,
+            "score": None,
+            "corridor": corridor,
+            "multiple": None,
+            "note": (
+                "Der vollständige Multiple Score ist nicht "
+                "verfügbar. Fehlende Komponenten werden nicht "
+                "hochgerechnet; daher wird kein Fundamental-"
+                "Multiple berechnet."
+            )
+        }
+
+    lower = corridor["lower"]
+    upper = corridor["upper"]
+
+    multiple = (
+        lower
+        + (upper - lower)
+        * total_score / 100.0
+    )
+
+    return {
+        "available": True,
+        "score": total_score,
+        "corridor": corridor,
+        "multiple": multiple,
+        "note": (
+            "Das Fundamental-Multiple wird linear innerhalb "
+            "des unternehmenstypischen Korridors aus dem "
+            "Multiple Score abgeleitet. Noch kein Peer-Check "
+            "und noch kein Fair Value."
+        )
+    }
+
+
+# =========================================================
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m5_s4_tsmc_direct_v1"
+CACHE_VERSION = "m6_s1_corridor_multiple_v1"
 
 @st.cache_data(
     ttl=900,
@@ -1839,6 +2055,14 @@ def load_stock(search_text, cache_version):
         historical.get("fcf", [])
     )
 
+    fundamental_multiple = calculate_fundamental_multiple(
+        company_type,
+        growth_score,
+        profitability_score,
+        fcf_score,
+        balance_score
+    )
+
     return {
         "name": name,
         "symbol": symbol,
@@ -1890,7 +2114,8 @@ def load_stock(search_text, cache_version):
         "growth_score": growth_score,
         "profitability_score": profitability_score,
         "fcf_score": fcf_score,
-        "balance_score": balance_score
+        "balance_score": balance_score,
+        "fundamental_multiple": fundamental_multiple
     }
 
 
@@ -2861,6 +3086,75 @@ if search_text:
                     "sonst Bewertung über Netto-Schulden/FCF. "
                     "Banken, Versicherungen, REIT/Immobilien "
                     "und Autohersteller benötigen Sondermodelle."
+                )
+
+                st.divider()
+
+                st.subheader(
+                    "🧭 Modul 6 – Bewertungs-Korridor & Fundamental-Multiple"
+                )
+
+                multiple_result = data[
+                    "fundamental_multiple"
+                ]
+
+                corridor = multiple_result[
+                    "corridor"
+                ]
+
+                if corridor["available"]:
+
+                    st.write(
+                        "**Bewertungs-Korridor:** "
+                        f"{corridor['lower']:.1f}× bis "
+                        f"{corridor['upper']:.1f}×"
+                    )
+
+                    st.write(
+                        "**Multiple-Methode:** "
+                        f"{corridor['method']}"
+                    )
+
+                else:
+
+                    st.warning(
+                        "Noch kein belastbarer "
+                        "Bewertungs-Korridor verfügbar."
+                    )
+
+                if multiple_result["score"] is not None:
+
+                    st.write(
+                        "**Verwendeter Multiple Score:** "
+                        f"{multiple_result['score']}/100"
+                    )
+
+                if multiple_result["available"]:
+
+                    st.metric(
+                        "Fundamental-Multiple",
+                        f"{multiple_result['multiple']:.2f}×"
+                    )
+
+                    st.success(
+                        "Fundamental-Multiple erfolgreich "
+                        "aus Score und Korridor berechnet."
+                    )
+
+                else:
+
+                    st.info(
+                        "Noch kein Fundamental-Multiple berechenbar."
+                    )
+
+                st.caption(
+                    multiple_result["note"]
+                )
+
+                st.caption(
+                    "Schritt 1 berechnet ausschließlich das "
+                    "Fundamental-Multiple. Peer-Check, Fair Value "
+                    "und Handlungssignal folgen erst später."
                 )
 
                 st.divider()
