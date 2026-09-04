@@ -408,7 +408,9 @@ def calculate_profitability_score(
         )
         confidence = "Hoch"
     else:
-        raw_score = available[0] * 2
+        # Fehlende Profitabilitätsdaten werden bewusst
+        # nicht hochgerechnet oder verdoppelt.
+        raw_score = available[0]
         confidence = "Mittel"
 
     score = raw_score
@@ -1601,7 +1603,7 @@ def normalize_eps(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m5_s4_balance_v1"
+CACHE_VERSION = "m5_s4_profit_missing_v2"
 
 @st.cache_data(
     ttl=900,
