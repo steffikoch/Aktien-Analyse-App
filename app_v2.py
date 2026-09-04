@@ -2108,10 +2108,220 @@ def get_peer_group(company_type, symbol):
 
 
 # =========================================================
+# Modul 6 – Schritt 2B: Peer-Daten, Median & ±5-%-Kontrolle
+# =========================================================
+
+def peer_forward_pe_is_supported(company_type):
+    type_name = str(
+        company_type.get("type", "")
+    ).lower()
+
+    # Für zyklische Unternehmen ist ein einfaches aktuelles
+    # Forward-KGV als Peer-Maßstab nicht belastbar genug.
+    unsupported_terms = [
+        "zyklisch",
+        "autohersteller",
+        "rohstoffe",
+        "lithium",
+        "öl & gas",
+        "bank",
+        "versicherung",
+        "reit",
+        "immobilien",
+        "biotechnologie",
+        "untertyp noch nicht eindeutig",
+        "standard-unternehmen"
+    ]
+
+    return not any(
+        term in type_name
+        for term in unsupported_terms
+    )
+
+
+@st.cache_data(ttl=900)
+def load_peer_forward_pe(peer_symbol, cache_version):
+
+    try:
+        peer_ticker = yf.Ticker(peer_symbol)
+        peer_info = peer_ticker.info or {}
+
+        forward_pe = peer_info.get("forwardPE")
+
+        if forward_pe is None:
+            forward_pe = peer_info.get("forwardPe")
+
+        try:
+            forward_pe = float(forward_pe)
+        except (TypeError, ValueError):
+            forward_pe = None
+
+        if (
+            forward_pe is None
+            or forward_pe <= 0
+            or forward_pe > 100
+        ):
+            return {
+                "usable": False,
+                "forward_pe": None,
+                "reason": (
+                    "Kein plausibles positives "
+                    "Forward-KGV verfügbar."
+                )
+            }
+
+        return {
+            "usable": True,
+            "forward_pe": forward_pe,
+            "reason": None
+        }
+
+    except Exception:
+        return {
+            "usable": False,
+            "forward_pe": None,
+            "reason": (
+                "Peer-Daten konnten nicht zuverlässig "
+                "geladen werden."
+            )
+        }
+
+
+def calculate_peer_check(
+    company_type,
+    peer_group,
+    fundamental_multiple,
+    cache_version
+):
+    result = {
+        "method_supported": False,
+        "peer_rows": [],
+        "usable_count": 0,
+        "peer_median": None,
+        "adjustment_pct": 0.0,
+        "adjusted_multiple": None,
+        "applied": False,
+        "note": None
+    }
+
+    if not peer_group.get("available"):
+        result["note"] = (
+            "Keine automatische Peer-Gruppe verfügbar."
+        )
+        return result
+
+    if not peer_forward_pe_is_supported(company_type):
+        result["note"] = (
+            "Für diesen Unternehmenstyp wird kein einfaches "
+            "Forward-KGV-Peerverfahren verwendet. Zyklische "
+            "und Sondermodelle benötigen eine eigene "
+            "normalisierte Peer-Bewertung."
+        )
+        return result
+
+    result["method_supported"] = True
+
+    for peer in peer_group.get("peers", []):
+
+        peer_data = load_peer_forward_pe(
+            peer["symbol"],
+            cache_version
+        )
+
+        row = {
+            "symbol": peer["symbol"],
+            "name": peer["name"],
+            "usable": peer_data["usable"],
+            "forward_pe": peer_data["forward_pe"],
+            "reason": peer_data["reason"]
+        }
+
+        result["peer_rows"].append(row)
+
+    usable_values = [
+        row["forward_pe"]
+        for row in result["peer_rows"]
+        if row["usable"]
+    ]
+
+    result["usable_count"] = len(
+        usable_values
+    )
+
+    if result["usable_count"] < 3:
+        result["note"] = (
+            "Weniger als 3 brauchbare Peer-KGVs verfügbar. "
+            "Nach unserer Regel erfolgt deshalb keine "
+            "automatische Peer-Anpassung."
+        )
+
+        if fundamental_multiple is not None:
+            result["adjusted_multiple"] = (
+                fundamental_multiple
+            )
+
+        return result
+
+    peer_median = float(
+        pd.Series(usable_values).median()
+    )
+
+    result["peer_median"] = peer_median
+
+    if (
+        fundamental_multiple is None
+        or fundamental_multiple <= 0
+    ):
+        result["note"] = (
+            "Peer-Median vorhanden, aber kein belastbares "
+            "Fundamental-Multiple als Ausgangsbasis."
+        )
+        return result
+
+    raw_difference = (
+        peer_median / fundamental_multiple
+        - 1.0
+    )
+
+    adjustment_pct = max(
+        -0.05,
+        min(0.05, raw_difference)
+    )
+
+    adjusted_multiple = (
+        fundamental_multiple
+        * (1.0 + adjustment_pct)
+    )
+
+    result["adjustment_pct"] = (
+        adjustment_pct
+    )
+    result["adjusted_multiple"] = (
+        adjusted_multiple
+    )
+    result["applied"] = True
+
+    if abs(raw_difference) <= 0.05:
+        result["note"] = (
+            "Der Peer-Median liegt nahe am eigenen "
+            "Fundamental-Multiple. Die tatsächliche "
+            "Abweichung wird vollständig berücksichtigt."
+        )
+    else:
+        result["note"] = (
+            "Der Abstand zum Peer-Median ist größer als "
+            "5 %. Die automatische Peer-Anpassung wird "
+            "deshalb strikt auf maximal ±5 % begrenzt."
+        )
+
+    return result
+
+
+# =========================================================
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_s2a_peer_selection_v1"
+CACHE_VERSION = "m6_s2b_peer_median_v1"
 
 @st.cache_data(
     ttl=900,
@@ -2213,6 +2423,13 @@ def load_stock(search_text, cache_version):
         symbol
     )
 
+    peer_check = calculate_peer_check(
+        company_type,
+        peer_group,
+        fundamental_multiple.get("multiple"),
+        cache_version
+    )
+
     return {
         "name": name,
         "symbol": symbol,
@@ -2266,7 +2483,8 @@ def load_stock(search_text, cache_version):
         "fcf_score": fcf_score,
         "balance_score": balance_score,
         "fundamental_multiple": fundamental_multiple,
-        "peer_group": peer_group
+        "peer_group": peer_group,
+        "peer_check": peer_check
     }
 
 
@@ -3365,6 +3583,132 @@ if search_text:
                     "noch Fundamental-Multiple. Peer-Median und "
                     "maximale ±5-%-Anpassung folgen erst nach "
                     "Prüfung der tatsächlichen Peer-Daten."
+                )
+
+                st.divider()
+
+                st.subheader(
+                    "📐 Modul 6 – Schritt 2B: Peer-Check"
+                )
+
+                peer_check = data[
+                    "peer_check"
+                ]
+
+                if not peer_check[
+                    "method_supported"
+                ]:
+
+                    st.info(
+                        peer_check["note"]
+                    )
+
+                else:
+
+                    st.write(
+                        "**Geladene Peer-KGVs:**"
+                    )
+
+                    for row in peer_check[
+                        "peer_rows"
+                    ]:
+
+                        if row["usable"]:
+
+                            st.write(
+                                f"• {row['name']} "
+                                f"({row['symbol']}): "
+                                f"{row['forward_pe']:.2f}×"
+                            )
+
+                        else:
+
+                            st.write(
+                                f"• {row['name']} "
+                                f"({row['symbol']}): –"
+                            )
+
+                    st.write(
+                        "**Brauchbare Peer-Daten:** "
+                        f"{peer_check['usable_count']}"
+                    )
+
+                    if peer_check[
+                        "peer_median"
+                    ] is not None:
+
+                        st.metric(
+                            "Peer-Median Forward-KGV",
+                            (
+                                f"{peer_check['peer_median']:.2f}×"
+                            )
+                        )
+
+                    if peer_check["applied"]:
+
+                        adjustment_percent = (
+                            peer_check[
+                                "adjustment_pct"
+                            ]
+                            * 100.0
+                        )
+
+                        st.write(
+                            "**Peer-Anpassung:** "
+                            f"{adjustment_percent:+.2f} %"
+                        )
+
+                        st.metric(
+                            "Peer-kontrolliertes Multiple",
+                            (
+                                f"{peer_check['adjusted_multiple']:.2f}×"
+                            )
+                        )
+
+                        st.success(
+                            "Peer-Kontrolle angewendet. "
+                            "Die Anpassung ist auf maximal "
+                            "±5 % begrenzt."
+                        )
+
+                    else:
+
+                        if (
+                            data[
+                                "fundamental_multiple"
+                            ]["available"]
+                            and peer_check[
+                                "adjusted_multiple"
+                            ] is not None
+                        ):
+
+                            st.metric(
+                                "Multiple nach Peer-Prüfung",
+                                (
+                                    f"{peer_check['adjusted_multiple']:.2f}×"
+                                )
+                            )
+
+                        st.warning(
+                            "Keine automatische Peer-Anpassung."
+                        )
+
+                    st.caption(
+                        peer_check["note"]
+                    )
+
+                st.caption(
+                    "Der Peer-Check ist nur ein externer "
+                    "Realitätscheck. Er verändert den "
+                    "100-Punkte-Multiple-Score nicht. "
+                    "Mindestens 3 brauchbare Peers sind "
+                    "Pflicht; der Median wird statt des "
+                    "Durchschnitts verwendet."
+                )
+
+                st.caption(
+                    "Noch kein Fair Value und noch kein "
+                    "Kauf-/Verkaufssignal."
                 )
 
                 st.divider()
