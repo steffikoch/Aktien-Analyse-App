@@ -1206,6 +1206,23 @@ def find_stock(search_text):
     if not query:
         return None
 
+    query_upper = query.upper()
+
+    # Eindeutiger TSMC-Fall:
+    # "TSMC" bedeutet Heimatnotierung Taiwan.
+    # Direkt eingegebene Ticker wie "TSM" oder "2330.TW"
+    # werden weiterhin unverändert respektiert.
+    if query_upper == "TSMC":
+        return {
+            "symbol": "2330.TW",
+            "quoteType": "EQUITY",
+            "longname": (
+                "Taiwan Semiconductor Manufacturing "
+                "Company Limited"
+            ),
+            "exchange": "TAI"
+        }
+
     search = yf.Search(
         query,
         max_results=10,
@@ -1236,7 +1253,94 @@ def find_stock(search_text):
         if symbol == query_upper:
             return item
 
-    return candidates[0]
+    # Bekannte Unternehmen mit klarer Heimat-/Hauptnotierung
+    preferred_primary_symbols = {
+        "TSMC": "2330.TW",
+        "TAIWAN SEMICONDUCTOR": "2330.TW",
+        "TAIWAN SEMICONDUCTOR MANUFACTURING": "2330.TW",
+        "TAIWAN SEMICONDUCTOR MANUFACTURING COMPANY": "2330.TW",
+    }
+
+    normalized_query = " ".join(query_upper.split())
+
+    for key, preferred_symbol in preferred_primary_symbols.items():
+        if key in normalized_query:
+            for item in candidates:
+                symbol = str(item.get("symbol", "")).upper()
+                if symbol == preferred_symbol:
+                    return item
+
+            return {
+                "symbol": preferred_symbol,
+                "quoteType": "EQUITY",
+                "longname": "Taiwan Semiconductor Manufacturing Company Limited",
+                "exchange": "TAI"
+            }
+
+    # Allgemeine Priorisierung:
+    # Heimat-/größere Primärmärkte vor Nebenbörsen/Depositary Receipts.
+    preferred_exchange_order = {
+        "NMS": 100,
+        "NGM": 95,
+        "NCM": 90,
+        "NYQ": 100,
+        "ASE": 85,
+        "GER": 90,
+        "FRA": 85,
+        "LSE": 90,
+        "AMS": 90,
+        "PAR": 90,
+        "MIL": 90,
+        "STO": 90,
+        "CPH": 90,
+        "OSL": 90,
+        "HEL": 90,
+        "SWX": 90,
+        "TAI": 100,
+        "HKG": 95,
+        "JPX": 95,
+        "TOR": 95,
+        "ASX": 95,
+        "SAO": 40
+    }
+
+    def candidate_score(item):
+        symbol = str(item.get("symbol", "")).upper()
+        exchange = str(item.get("exchange", "")).upper()
+        longname = str(
+            item.get("longname")
+            or item.get("shortname")
+            or ""
+        ).upper()
+
+        score = preferred_exchange_order.get(exchange, 50)
+
+        # Namensnähe
+        query_words = [
+            word for word in normalized_query.split()
+            if len(word) >= 3
+        ]
+        if query_words:
+            matches = sum(
+                1 for word in query_words
+                if word in longname
+            )
+            score += matches * 10
+
+        # Nebenbörsen-Symbole leicht abwerten
+        secondary_suffixes = [
+            ".F", ".BE", ".MU", ".DU", ".HM", ".HA", ".SG",
+            ".VI", ".MX", ".SA"
+        ]
+        if any(symbol.endswith(suffix) for suffix in secondary_suffixes):
+            score -= 25
+
+        return score
+
+    return max(
+        candidates,
+        key=candidate_score
+    )
 
 
 # =========================================================
@@ -1646,7 +1750,7 @@ def normalize_eps(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m5_s4_classification_v3"
+CACHE_VERSION = "m5_s4_tsmc_direct_v1"
 
 @st.cache_data(
     ttl=900,
