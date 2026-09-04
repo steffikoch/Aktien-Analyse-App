@@ -1963,10 +1963,155 @@ def calculate_fundamental_multiple(
 
 
 # =========================================================
+# Modul 6 – Schritt 2A: Peer-Gruppe festlegen
+# =========================================================
+
+def get_peer_group(company_type, symbol):
+    type_name = str(
+        company_type.get("type", "")
+    ).lower()
+
+    peer_groups = [
+        (
+            "halbleiterausrüstung / lithografie",
+            [
+                ("AMAT", "Applied Materials"),
+                ("LRCX", "Lam Research"),
+                ("KLAC", "KLA Corporation"),
+            ]
+        ),
+        (
+            "halbleiter / fabless / ai-wachstum",
+            [
+                ("AVGO", "Broadcom"),
+                ("AMD", "Advanced Micro Devices"),
+                ("QCOM", "Qualcomm"),
+                ("MRVL", "Marvell Technology"),
+            ]
+        ),
+        (
+            "halbleiter / foundry",
+            [
+                ("UMC", "United Microelectronics"),
+                ("GFS", "GlobalFoundries"),
+            ]
+        ),
+        (
+            "defense / stark wachsend",
+            [
+                ("BA.L", "BAE Systems"),
+                ("LDO.MI", "Leonardo"),
+                ("HO.PA", "Thales"),
+                ("SAAB-B.ST", "Saab"),
+            ]
+        ),
+        (
+            "etablierte software / technologie",
+            [
+                ("GOOGL", "Alphabet"),
+                ("ORCL", "Oracle"),
+                ("SAP", "SAP"),
+                ("CRM", "Salesforce"),
+                ("IBM", "IBM"),
+            ]
+        ),
+        (
+            "rohstoffe / lithium / zyklisch",
+            [
+                ("SQM", "Sociedad Química y Minera"),
+                ("1772.HK", "Ganfeng Lithium"),
+                ("002466.SZ", "Tianqi Lithium"),
+            ]
+        ),
+        (
+            "autohersteller / zyklisch",
+            [
+                ("BMW.DE", "BMW"),
+                ("MBG.DE", "Mercedes-Benz Group"),
+                ("STLAM.MI", "Stellantis"),
+                ("7203.T", "Toyota Motor"),
+            ]
+        ),
+        (
+            "öl & gas / zyklisch",
+            [
+                ("SHEL", "Shell"),
+                ("XOM", "Exxon Mobil"),
+                ("CVX", "Chevron"),
+                ("TTE", "TotalEnergies"),
+            ]
+        ),
+        (
+            "telekommunikation",
+            [
+                ("VZ", "Verizon"),
+                ("T", "AT&T"),
+                ("VOD.L", "Vodafone"),
+                ("ORAN", "Orange"),
+            ]
+        ),
+        (
+            "defensiver konsum",
+            [
+                ("PG", "Procter & Gamble"),
+                ("KO", "Coca-Cola"),
+                ("PEP", "PepsiCo"),
+                ("NESN.SW", "Nestlé"),
+            ]
+        ),
+        (
+            "pharma",
+            [
+                ("NVS", "Novartis"),
+                ("GSK", "GSK"),
+                ("AZN", "AstraZeneca"),
+                ("SNY", "Sanofi"),
+            ]
+        ),
+    ]
+
+    own_symbol = str(symbol or "").upper()
+
+    for key, peers in peer_groups:
+        if key in type_name:
+            filtered = [
+                {
+                    "symbol": peer_symbol,
+                    "name": peer_name
+                }
+                for peer_symbol, peer_name in peers
+                if peer_symbol.upper() != own_symbol
+            ]
+
+            return {
+                "available": len(filtered) > 0,
+                "peers": filtered,
+                "count": len(filtered),
+                "note": (
+                    "Peer-Gruppe automatisch aus dem "
+                    "Unternehmenstyp ausgewählt. In Schritt 2A "
+                    "werden noch keine Peer-Kennzahlen geladen "
+                    "und das Fundamental-Multiple bleibt "
+                    "unverändert."
+                )
+            }
+
+    return {
+        "available": False,
+        "peers": [],
+        "count": 0,
+        "note": (
+            "Für diesen Unternehmenstyp ist noch keine "
+            "automatische Peer-Gruppe hinterlegt."
+        )
+    }
+
+
+# =========================================================
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_s1_corridor_multiple_v1"
+CACHE_VERSION = "m6_s2a_peer_selection_v1"
 
 @st.cache_data(
     ttl=900,
@@ -2063,6 +2208,11 @@ def load_stock(search_text, cache_version):
         balance_score
     )
 
+    peer_group = get_peer_group(
+        company_type,
+        symbol
+    )
+
     return {
         "name": name,
         "symbol": symbol,
@@ -2115,7 +2265,8 @@ def load_stock(search_text, cache_version):
         "profitability_score": profitability_score,
         "fcf_score": fcf_score,
         "balance_score": balance_score,
-        "fundamental_multiple": fundamental_multiple
+        "fundamental_multiple": fundamental_multiple,
+        "peer_group": peer_group
     }
 
 
@@ -3155,6 +3306,65 @@ if search_text:
                     "Schritt 1 berechnet ausschließlich das "
                     "Fundamental-Multiple. Peer-Check, Fair Value "
                     "und Handlungssignal folgen erst später."
+                )
+
+                st.divider()
+
+                st.subheader(
+                    "👥 Modul 6 – Schritt 2A: Peer-Gruppe"
+                )
+
+                peer_group = data[
+                    "peer_group"
+                ]
+
+                if peer_group["available"]:
+
+                    st.write(
+                        "**Automatisch ausgewählte Peers:**"
+                    )
+
+                    for peer in peer_group["peers"]:
+                        st.write(
+                            f"• {peer['name']} "
+                            f"({peer['symbol']})"
+                        )
+
+                    st.write(
+                        "**Anzahl vorgesehener Peers:** "
+                        f"{peer_group['count']}"
+                    )
+
+                    if peer_group["count"] >= 3:
+                        st.success(
+                            "Mindestens 3 vorgesehene Peers "
+                            "vorhanden. Ob mindestens 3 davon "
+                            "brauchbare Bewertungsdaten liefern, "
+                            "wird erst in Schritt 2B geprüft."
+                        )
+                    else:
+                        st.warning(
+                            "Weniger als 3 vorgesehene Peers. "
+                            "Damit wäre später keine automatische "
+                            "Peer-Anpassung zulässig."
+                        )
+
+                else:
+
+                    st.info(
+                        "Noch keine automatische Peer-Gruppe "
+                        "für diesen Unternehmenstyp hinterlegt."
+                    )
+
+                st.caption(
+                    peer_group["note"]
+                )
+
+                st.caption(
+                    "Schritt 2A verändert weder Multiple Score "
+                    "noch Fundamental-Multiple. Peer-Median und "
+                    "maximale ±5-%-Anpassung folgen erst nach "
+                    "Prüfung der tatsächlichen Peer-Daten."
                 )
 
                 st.divider()
