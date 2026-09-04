@@ -220,8 +220,6 @@ def profitability_margin_points(
         company_type.get("type", "")
     ).lower()
 
-    # Sondermodelle: normale Nettomarge ist hier nicht
-    # ausreichend aussagekräftig.
     if (
         "bank" in type_name
         or "versicherung" in type_name
@@ -231,7 +229,6 @@ def profitability_margin_points(
     ):
         return None
 
-    # Software
     if "software" in type_name:
         thresholds = [
             (0.30, 15),
@@ -241,7 +238,6 @@ def profitability_margin_points(
             (0.00, 4)
         ]
 
-    # Halbleiter
     elif "halbleiter" in type_name:
         thresholds = [
             (0.30, 15),
@@ -251,7 +247,6 @@ def profitability_margin_points(
             (0.00, 4)
         ]
 
-    # Defensiver Konsum / Pharma
     elif (
         "defensiver konsum" in type_name
         or "pharma" in type_name
@@ -264,7 +259,6 @@ def profitability_margin_points(
             (0.00, 4)
         ]
 
-    # Zyklische Unternehmen
     elif "zyklisch" in type_name:
         thresholds = [
             (0.12, 15),
@@ -274,7 +268,6 @@ def profitability_margin_points(
             (0.00, 4)
         ]
 
-    # Industrie / Telekom / Versorger / Standard
     else:
         thresholds = [
             (0.15, 15),
@@ -408,8 +401,6 @@ def calculate_profitability_score(
         )
         confidence = "Hoch"
     else:
-        # Fehlende Profitabilitätsdaten werden bewusst
-        # nicht hochgerechnet oder verdoppelt.
         raw_score = available[0]
         confidence = "Mittel"
 
@@ -780,7 +771,6 @@ def calculate_balance_score(
 
     net_debt = debt_value - cash_value
 
-    # Netto-Cash ist unabhängig vom FCF die stärkste Bilanzstufe.
     if net_debt <= 0:
         return {
             "score": 15,
@@ -862,10 +852,6 @@ def calculate_balance_score(
         "zum aktuellen positiven Free Cashflow."
     )
 
-    # Bei Zyklikern bleibt die aktuelle Kennzahl erhalten,
-    # aber die Aussagekraft wird wegen wechselnder Cashflows
-    # ausdrücklich herabgesetzt. Es gibt keine künstliche
-    # Hochrechnung und keine Zusatzpunkte.
     if (
         is_cyclical
         and positive_years >= 1
@@ -908,8 +894,78 @@ def classify_company(name, symbol, sector, industry):
         industry_text
     )
 
-    # Albemarle
+    # -----------------------------------------------------
+    # Spezifische Untertypen zuerst
+    # -----------------------------------------------------
 
+    # Defense / Rheinmetall
+    defense_terms = [
+        "aerospace & defense",
+        "aerospace and defense",
+        "defense",
+        "defence"
+    ]
+
+    if (
+        symbol_text in ["RHM.DE", "RNMBY", "RNMBF"]
+        or "rheinmetall" in name_text
+        or any(term in industry_text for term in defense_terms)
+    ):
+        return {
+            "type": "Defense / stark wachsend",
+            "method": (
+                "Forward EPS + KGV + "
+                "Auftrags-/Visibilitätskontrolle"
+            ),
+            "confidence_cap": "Mittel bis Hoch"
+        }
+
+    # ASML / Halbleiterausrüstung / Lithografie
+    if (
+        symbol_text in ["ASML", "ASML.AS"]
+        or "asml" in name_text
+        or "semiconductor equipment" in industry_text
+    ):
+        return {
+            "type": "Halbleiterausrüstung / Lithografie",
+            "method": (
+                "Forward EPS + KGV + "
+                "Auftrags-/Visibilitätskontrolle"
+            ),
+            "confidence_cap": "Mittel bis Hoch"
+        }
+
+    # Nvidia / Fabless / AI
+    if (
+        symbol_text == "NVDA"
+        or "nvidia" in name_text
+    ):
+        return {
+            "type": "Halbleiter / Fabless / AI-Wachstum",
+            "method": (
+                "Forward EPS + KGV + "
+                "Wachstumsdauer-/Margenkontrolle"
+            ),
+            "confidence_cap": "Mittel bis Hoch"
+        }
+
+    # TSMC / Foundry
+    if (
+        symbol_text in ["TSM", "2330.TW"]
+        or "taiwan semiconductor" in name_text
+        or "semiconductor foundry" in industry_text
+        or "foundries" in industry_text
+    ):
+        return {
+            "type": "Halbleiter / Foundry",
+            "method": (
+                "Forward/normalisiertes EPS + KGV + "
+                "CapEx-/geopolitische Risikokontrolle"
+            ),
+            "confidence_cap": "Mittel bis Hoch"
+        }
+
+    # Albemarle
     if (
         symbol_text == "ALB"
         or "albemarle" in name_text
@@ -921,7 +977,6 @@ def classify_company(name, symbol, sector, industry):
         }
 
     # Banken
-
     if (
         "bank" in industry_text
         or "banks" in industry_text
@@ -934,7 +989,6 @@ def classify_company(name, symbol, sector, industry):
         }
 
     # Versicherungen
-
     if (
         "insurance" in industry_text
         or "insurer" in combined
@@ -946,7 +1000,6 @@ def classify_company(name, symbol, sector, industry):
         }
 
     # REIT
-
     if (
         "reit" in industry_text
         or "reit" in sector_text
@@ -958,7 +1011,6 @@ def classify_company(name, symbol, sector, industry):
         }
 
     # Autohersteller
-
     auto_terms = [
         "auto manufacturers",
         "automobile",
@@ -977,7 +1029,6 @@ def classify_company(name, symbol, sector, industry):
         }
 
     # Öl & Gas
-
     oil_terms = [
         "oil & gas",
         "oil and gas",
@@ -996,7 +1047,6 @@ def classify_company(name, symbol, sector, industry):
         }
 
     # Bergbau / Rohstoffe
-
     mining_terms = [
         "gold",
         "silver",
@@ -1018,7 +1068,6 @@ def classify_company(name, symbol, sector, industry):
         }
 
     # Biotechnologie
-
     if "biotechnology" in industry_text:
         return {
             "type": "Biotechnologie",
@@ -1027,7 +1076,6 @@ def classify_company(name, symbol, sector, industry):
         }
 
     # Pharma
-
     pharma_terms = [
         "drug manufacturers",
         "pharmaceutical"
@@ -1043,8 +1091,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel bis Hoch"
         }
 
-    # Halbleiter
-
+    # Übrige Halbleiter
     semiconductor_terms = [
         "semiconductor",
         "semiconductors"
@@ -1055,13 +1102,15 @@ def classify_company(name, symbol, sector, industry):
         for term in semiconductor_terms
     ):
         return {
-            "type": "Halbleiter / Wachstum",
-            "method": "Forward EPS + qualitätsbereinigtes KGV",
-            "confidence_cap": "Mittel bis Hoch"
+            "type": "Halbleiter / Untertyp noch nicht eindeutig",
+            "method": (
+                "Untertyp bestimmen, bevor ein "
+                "Bewertungs-Korridor verwendet wird"
+            ),
+            "confidence_cap": "Niedrig"
         }
 
     # Software
-
     software_terms = [
         "software",
         "information technology services"
@@ -1078,7 +1127,6 @@ def classify_company(name, symbol, sector, industry):
         }
 
     # Telekom
-
     telecom_terms = [
         "telecom",
         "telecommunication"
@@ -1095,7 +1143,6 @@ def classify_company(name, symbol, sector, industry):
         }
 
     # Versorger
-
     utility_terms = [
         "utilities",
         "utility"
@@ -1112,7 +1159,6 @@ def classify_company(name, symbol, sector, industry):
         }
 
     # Defensiver Konsum
-
     staples_terms = [
         "consumer defensive",
         "beverages - non-alcoholic",
@@ -1131,16 +1177,17 @@ def classify_company(name, symbol, sector, industry):
         }
 
     # Industrie
-
     if "industrials" in sector_text:
         return {
-            "type": "Industrie",
-            "method": "Normalisiertes EPS + KGV + FCF",
-            "confidence_cap": "Mittel bis Hoch"
+            "type": "Industrie / Untertyp noch nicht eindeutig",
+            "method": (
+                "Untertyp bestimmen, bevor ein "
+                "Bewertungs-Korridor verwendet wird"
+            ),
+            "confidence_cap": "Niedrig"
         }
 
     # Standard
-
     return {
         "type": "Standard-Unternehmen",
         "method": "Normalisiertes EPS + KGV + FCF-Kontrolle",
@@ -1381,10 +1428,6 @@ def normalize_eps(
         company_type.get("type", "")
     ).lower()
 
-    # -----------------------------------------------------
-    # Zyklische Unternehmen
-    # -----------------------------------------------------
-
     if "zyklisch" in type_name:
 
         if len(history) >= 3:
@@ -1603,7 +1646,7 @@ def normalize_eps(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m5_s4_profit_missing_v2"
+CACHE_VERSION = "m5_s4_classification_v3"
 
 @st.cache_data(
     ttl=900,
@@ -1611,9 +1654,6 @@ CACHE_VERSION = "m5_s4_profit_missing_v2"
 )
 def load_stock(search_text, cache_version):
 
-    # cache_version ist absichtlich Teil des Cache-Schlüssels.
-    # Wenn wir Bewertungslogik ändern, erhöhen wir diese Version
-    # und erzwingen damit frische Berechnungen.
     _ = cache_version
 
     result = find_stock(search_text)
