@@ -676,7 +676,8 @@ def is_special_fcf_model(company_type):
         "versicherung",
         "reit",
         "immobilien",
-        "autohersteller"
+        "autohersteller",
+        "midstream"
     ]
 
     return any(
@@ -846,7 +847,8 @@ def is_special_balance_model(company_type):
         "versicherung",
         "reit",
         "immobilien",
-        "autohersteller"
+        "autohersteller",
+        "midstream"
     ]
 
     return any(
@@ -1042,18 +1044,124 @@ def classify_company(name, symbol, sector, industry):
     # Spezifische Untertypen zuerst
     # -----------------------------------------------------
 
-    # Defense / Rheinmetall
-    defense_terms = [
-        "aerospace & defense",
-        "aerospace and defense",
-        "defense",
-        "defence"
-    ]
+    # BETA Technologies: elektrische Luftfahrt / Early Growth,
+    # nicht automatisch klassisches Defense-Unternehmen.
+    if (
+        symbol_text == "BETA"
+        or "beta technologies" in name_text
+    ):
+        return {
+            "type": "Aerospace / elektrische Luftfahrt / Early Growth",
+            "method": (
+                "Reifegrad-/Projektbewertung; "
+                "kein Standard-KGV"
+            ),
+            "confidence_cap": "Niedrig"
+        }
 
+    # Legal & General: Finanzkonzern mit Versicherung und Asset Management.
+    if (
+        symbol_text == "LGEN.L"
+        or "legal & general" in name_text
+        or "legal and general" in name_text
+    ):
+        return {
+            "type": "Versicherung / Asset Management / Finanzkonzern",
+            "method": (
+                "Core Earnings + ROE/Book Value + "
+                "Solvency-/Kapitalprüfung"
+            ),
+            "confidence_cap": "Mittel"
+        }
+
+    # Kinder Morgan: Midstream-Infrastruktur, nicht integriertes Öl & Gas.
+    if (
+        symbol_text == "KMI"
+        or "kinder morgan" in name_text
+    ):
+        return {
+            "type": "Öl & Gas / Midstream",
+            "method": (
+                "EV/EBITDA + distributable Cashflow + "
+                "Verschuldung"
+            ),
+            "confidence_cap": "Mittel"
+        }
+
+    # USA Rare Earth: Projekt-/Aufbauphase, kein normaler zyklischer Produzent.
+    if (
+        symbol_text == "USAR"
+        or "usa rare earth" in name_text
+    ):
+        return {
+            "type": "Rohstoffe / Early-Stage Mining / Projektentwicklung",
+            "method": (
+                "Projekt-/Asset-basierte Bewertung; "
+                "kein Standard-KGV"
+            ),
+            "confidence_cap": "Niedrig"
+        }
+
+    # IPG Photonics: industrielle Photonik/Lasersysteme,
+    # nicht automatisch Lithografie oder klassisches SemiCap.
+    if (
+        symbol_text == "IPGP"
+        or "ipg photonics" in name_text
+    ):
+        return {
+            "type": "Industrie / Photonik & Lasersysteme",
+            "method": (
+                "Normalisiertes EPS + FCF; "
+                "Peer-Set später festlegen"
+            ),
+            "confidence_cap": "Mittel"
+        }
+
+    # Software-Untertypen aus dem Testlauf.
+    if (
+        symbol_text == "DOCU"
+        or "docusign" in name_text
+    ):
+        return {
+            "type": "Software / reifes SaaS / moderates Wachstum",
+            "method": (
+                "Normalisiertes EPS + FCF; "
+                "eigenes SaaS-KGV später festlegen"
+            ),
+            "confidence_cap": "Mittel"
+        }
+
+    if (
+        symbol_text == "TOST"
+        or "toast, inc" in name_text
+        or name_text == "toast"
+    ):
+        return {
+            "type": "Software / Vertical SaaS + Payments / Wachstum",
+            "method": (
+                "EV/Sales bzw. EV/FCF + "
+                "Wachstum/Profitabilität"
+            ),
+            "confidence_cap": "Mittel"
+        }
+
+    if (
+        symbol_text == "DBX"
+        or "dropbox" in name_text
+    ):
+        return {
+            "type": "Software / reifes SaaS / langsames Wachstum",
+            "method": (
+                "Normalisiertes EPS + FCF; "
+                "eigener SaaS-Korridor später festlegen"
+            ),
+            "confidence_cap": "Mittel"
+        }
+
+    # Rheinmetall bleibt bewusst im bereits getesteten Defense-Modell.
     if (
         symbol_text in ["RHM.DE", "RNMBY", "RNMBF"]
         or "rheinmetall" in name_text
-        or any(term in industry_text for term in defense_terms)
     ):
         return {
             "type": "Defense / stark wachsend",
@@ -1064,11 +1172,58 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel bis Hoch"
         }
 
-    # ASML / Halbleiterausrüstung / Lithografie
+    # Weitere klar erkennbare Defense-Fälle.
+    defense_name_terms = [
+        "defense",
+        "defence",
+        "military",
+        "ordnance"
+    ]
+    known_defense_symbols = [
+        "KTOS",
+        "BA.L",
+        "LDO.MI",
+        "HO.PA",
+        "SAAB-B.ST"
+    ]
+
+    if (
+        symbol_text in known_defense_symbols
+        or any(term in name_text for term in defense_name_terms)
+    ):
+        return {
+            "type": "Defense / stark wachsend",
+            "method": (
+                "Forward EPS + KGV + "
+                "Auftrags-/Visibilitätskontrolle"
+            ),
+            "confidence_cap": "Mittel bis Hoch"
+        }
+
+    # Aerospace & Defense als Yahoo-Branche allein reicht nicht mehr
+    # für die Zuordnung zum klassischen Defense-Modell.
+    aerospace_defense_terms = [
+        "aerospace & defense",
+        "aerospace and defense"
+    ]
+
+    if any(
+        term in industry_text
+        for term in aerospace_defense_terms
+    ):
+        return {
+            "type": "Aerospace & Defense / Untertyp noch nicht eindeutig",
+            "method": (
+                "Geschäftsmodell bestimmen, bevor ein "
+                "Bewertungs-Korridor verwendet wird"
+            ),
+            "confidence_cap": "Niedrig"
+        }
+
+    # ASML / Lithografie nur noch über eindeutige Identifikation.
     if (
         symbol_text in ["ASML", "ASML.AS"]
         or "asml" in name_text
-        or "semiconductor equipment" in industry_text
     ):
         return {
             "type": "Halbleiterausrüstung / Lithografie",
@@ -1077,6 +1232,17 @@ def classify_company(name, symbol, sector, industry):
                 "Auftrags-/Visibilitätskontrolle"
             ),
             "confidence_cap": "Mittel bis Hoch"
+        }
+
+    # Andere Halbleiterausrüster werden nicht automatisch als Lithografie gewertet.
+    if "semiconductor equipment" in industry_text:
+        return {
+            "type": "Halbleiterausrüstung / Untertyp noch nicht eindeutig",
+            "method": (
+                "Untertyp bestimmen, bevor ein "
+                "Bewertungs-Korridor verwendet wird"
+            ),
+            "confidence_cap": "Niedrig"
         }
 
     # Nvidia / Fabless / AI
@@ -1172,7 +1338,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel"
         }
 
-    # Öl & Gas
+    # Öl & Gas – nach dem spezifischen Midstream-Router.
     oil_terms = [
         "oil & gas",
         "oil and gas",
@@ -1190,7 +1356,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel"
         }
 
-    # Bergbau / Rohstoffe
+    # Bergbau / Rohstoffe – nach dem spezifischen Early-Stage-Router.
     mining_terms = [
         "gold",
         "silver",
@@ -1254,7 +1420,36 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Niedrig"
         }
 
-    # Software
+    # Bewusst bestätigte etablierte Software-/Technologie-Unternehmen.
+    established_software_symbols = [
+        "MSFT",
+        "ORCL",
+        "SAP",
+        "SAP.DE",
+        "CRM",
+        "ADBE",
+        "IBM"
+    ]
+    established_software_names = [
+        "microsoft",
+        "oracle",
+        "sap se",
+        "salesforce",
+        "adobe",
+        "international business machines"
+    ]
+
+    if (
+        symbol_text in established_software_symbols
+        or any(term in name_text for term in established_software_names)
+    ):
+        return {
+            "type": "Etablierte Software / Technologie",
+            "method": "Normalisiertes EPS + qualitätsbereinigtes KGV",
+            "confidence_cap": "Hoch"
+        }
+
+    # Andere Software wird nicht mehr automatisch in den Premium-Korridor geroutet.
     software_terms = [
         "software",
         "information technology services"
@@ -1265,9 +1460,12 @@ def classify_company(name, symbol, sector, industry):
         for term in software_terms
     ):
         return {
-            "type": "Etablierte Software / Technologie",
-            "method": "Normalisiertes EPS + qualitätsbereinigtes KGV",
-            "confidence_cap": "Hoch"
+            "type": "Software / Untertyp noch nicht eindeutig",
+            "method": (
+                "Software-Untertyp bestimmen, bevor ein "
+                "Bewertungs-Korridor verwendet wird"
+            ),
+            "confidence_cap": "Niedrig"
         }
 
     # Telekom
@@ -1676,6 +1874,23 @@ def normalize_eps(
         company_type.get("type", "")
     ).lower()
 
+    if (
+        "early-stage mining" in type_name
+        or "projektentwicklung" in type_name
+    ):
+        return build_eps_result(
+            None,
+            (
+                "Early-Stage-/Projektunternehmen: "
+                "keine belastbare EPS-Normalisierung für "
+                "eine KGV-Bewertung"
+            ),
+            "Niedrig",
+            None,
+            trailing,
+            forward
+        )
+
     if "zyklisch" in type_name:
 
         if len(history) >= 3:
@@ -2005,7 +2220,14 @@ def get_valuation_corridor(company_type):
         "biotechnologie",
         "untertyp noch nicht eindeutig",
         "standard-unternehmen",
-        "versorger"
+        "versorger",
+        "midstream",
+        "early-stage mining",
+        "projektentwicklung",
+        "photonik",
+        "elektrische luftfahrt",
+        "reifes saas",
+        "vertical saas"
     ]
 
     if any(
@@ -2329,13 +2551,20 @@ def peer_forward_pe_is_supported(company_type):
         "rohstoffe",
         "lithium",
         "öl & gas",
+        "midstream",
         "bank",
         "versicherung",
         "reit",
         "immobilien",
         "biotechnologie",
         "untertyp noch nicht eindeutig",
-        "standard-unternehmen"
+        "standard-unternehmen",
+        "early-stage",
+        "projektentwicklung",
+        "photonik",
+        "elektrische luftfahrt",
+        "reifes saas",
+        "vertical saas"
     ]
 
     return not any(
@@ -2661,7 +2890,7 @@ def get_special_control(company_type, symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "safety_hardstop_missing_epsconfidence_v1"
+CACHE_VERSION = "classifier_refinement_v1_safety_v1"
 
 @st.cache_data(
     ttl=900,
