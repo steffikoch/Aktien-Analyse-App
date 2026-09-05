@@ -105,6 +105,150 @@ def safe_float(value):
         return None
 
 
+def sanitize_profit_margin(
+    raw_margin,
+    net_income,
+    revenue
+):
+    """
+    Treat a demonstrably contradictory Yahoo 0.0 margin as missing.
+
+    A real zero remains valid when the reported net income is also zero.
+    No replacement margin is estimated from other values.
+    """
+    margin = safe_float(raw_margin)
+    net_income_value = safe_float(net_income)
+    revenue_value = safe_float(revenue)
+
+    if margin is None:
+        return None, None
+
+    if (
+        margin == 0.0
+        and revenue_value is not None
+        and revenue_value > 0
+        and net_income_value is not None
+        and net_income_value != 0.0
+    ):
+        return (
+            None,
+            (
+                "Yahoo meldet 0,0 % Nettomarge, obwohl gleichzeitig "
+                "ein von null abweichender Nettogewinn ausgewiesen wird. "
+                "Der widersprüchliche Margenwert wird deshalb als fehlend "
+                "behandelt und erhält keine Punkte."
+            )
+        )
+
+    return margin, None
+
+
+def apply_eps_confidence_brake(
+    base_confidence,
+    trailing_eps,
+    forward_eps
+):
+    """
+    Reduce EPS-normalization confidence when positive TTM and forward EPS
+    diverge strongly. The EPS calculation itself is not changed.
+    """
+    trailing = safe_float(trailing_eps)
+    forward = safe_float(forward_eps)
+
+    if (
+        trailing is None
+        or forward is None
+        or trailing <= 0
+        or forward <= 0
+    ):
+        return base_confidence, None, None
+
+    deviation = abs(forward / trailing - 1.0)
+
+    confidence_rank = {
+        "Niedrig": 0,
+        "Mittel": 1,
+        "Hoch": 2
+    }
+
+    if deviation >= 1.50:
+        confidence_cap = "Niedrig"
+    elif deviation >= 0.50:
+        confidence_cap = "Mittel"
+    else:
+        return base_confidence, None, deviation
+
+    base_rank = confidence_rank.get(
+        base_confidence,
+        0
+    )
+    cap_rank = confidence_rank[
+        confidence_cap
+    ]
+
+    confidence = (
+        base_confidence
+        if base_rank <= cap_rank
+        else confidence_cap
+    )
+
+    note = (
+        "TTM-EPS und Forward-EPS weichen um "
+        f"{deviation * 100:.1f} % voneinander ab. "
+        "Die EPS-Berechnung bleibt unverändert; "
+        f"die angezeigte Sicherheit wird höchstens als {confidence_cap} eingestuft."
+    )
+
+    return confidence, note, deviation
+
+
+def build_eps_result(
+    normalized_eps,
+    method,
+    confidence,
+    cycle_basis,
+    trailing_eps,
+    forward_eps
+):
+    adjusted_confidence, confidence_note, deviation = (
+        apply_eps_confidence_brake(
+            confidence,
+            trailing_eps,
+            forward_eps
+        )
+    )
+
+    return {
+        "normalized_eps": normalized_eps,
+        "method": method,
+        "confidence": adjusted_confidence,
+        "cycle_basis": cycle_basis,
+        "confidence_note": confidence_note,
+        "ttm_forward_deviation": deviation
+    }
+
+
+def has_usable_positive_earnings_basis(
+    eps_normalization
+):
+    if not isinstance(
+        eps_normalization,
+        dict
+    ):
+        return False
+
+    normalized_eps = safe_float(
+        eps_normalization.get(
+            "normalized_eps"
+        )
+    )
+
+    return (
+        normalized_eps is not None
+        and normalized_eps > 0
+    )
+
+
 # =========================================================
 # Modul 5 – Multiple Score: Wachstum
 # =========================================================
@@ -1602,14 +1746,14 @@ def normalize_eps(
                     "und 40 % Durchschnitt"
                 )
 
-            confidence = "Mittel"
-
-            return {
-                "normalized_eps": normalized,
-                "method": method,
-                "confidence": confidence,
-                "cycle_basis": cycle_basis
-            }
+            return build_eps_result(
+                normalized,
+                method,
+                "Mittel",
+                cycle_basis,
+                trailing,
+                forward
+            )
 
         if trailing is not None and forward is not None:
 
@@ -1618,29 +1762,35 @@ def normalize_eps(
                 0.40 * forward
             )
 
-            return {
-                "normalized_eps": normalized,
-                "method": (
+            return build_eps_result(
+                normalized,
+                (
                     "Nur eingeschränkte Mehrjahresdaten; "
                     "60 % TTM-EPS + 40 % Forward-EPS"
                 ),
-                "confidence": "Niedrig",
-                "cycle_basis": None
-            }
+                "Niedrig",
+                None,
+                trailing,
+                forward
+            )
 
-        return {
-            "normalized_eps": (
-                trailing
-                if trailing is not None
-                else forward
-            ),
-            "method": (
+        normalized = (
+            trailing
+            if trailing is not None
+            else forward
+        )
+
+        return build_eps_result(
+            normalized,
+            (
                 "Zu wenige Daten für eine "
                 "zuverlässige Zyklus-Normalisierung"
             ),
-            "confidence": "Niedrig",
-            "cycle_basis": None
-        }
+            "Niedrig",
+            None,
+            trailing,
+            forward
+        )
 
     if (
         trailing is not None
@@ -1649,22 +1799,33 @@ def normalize_eps(
         and forward > 0
     ):
 
-        rev_growth = (
+        # Missing growth data stay missing. They are not converted to 0.
+        rev_growth = safe_float(
             revenue_growth
-            if revenue_growth is not None
-            else 0
         )
-
-        earn_growth = (
+        earn_growth = safe_float(
             earnings_growth
-            if earnings_growth is not None
-            else 0
         )
 
-        if (
-            rev_growth >= 0.15
+        strong_growth = (
+            rev_growth is not None
+            and earn_growth is not None
+            and rev_growth >= 0.15
             and earn_growth >= 0.15
-        ):
+        )
+
+        normal_growth = (
+            (
+                rev_growth is not None
+                and rev_growth >= 0.08
+            )
+            or (
+                earn_growth is not None
+                and earn_growth >= 0.10
+            )
+        )
+
+        if strong_growth:
 
             trailing_weight = 0.25
             forward_weight = 0.75
@@ -1674,10 +1835,7 @@ def normalize_eps(
                 "bei starkem profitablem Wachstum"
             )
 
-        elif (
-            rev_growth >= 0.08
-            or earn_growth >= 0.10
-        ):
+        elif normal_growth:
 
             trailing_weight = 0.30
             forward_weight = 0.70
@@ -1707,43 +1865,45 @@ def normalize_eps(
         else:
             confidence = "Mittel"
 
-        return {
-            "normalized_eps": normalized,
-            "method": method,
-            "confidence": confidence,
-            "cycle_basis": None
-        }
+        return build_eps_result(
+            normalized,
+            method,
+            confidence,
+            None,
+            trailing,
+            forward
+        )
 
     if forward is not None and forward > 0:
 
-        return {
-            "normalized_eps": forward,
-            "method": (
-                "Nur Forward-EPS verwendbar"
-            ),
-            "confidence": "Niedrig",
-            "cycle_basis": None
-        }
+        return build_eps_result(
+            forward,
+            "Nur Forward-EPS verwendbar",
+            "Niedrig",
+            None,
+            trailing,
+            forward
+        )
 
     if trailing is not None and trailing > 0:
 
-        return {
-            "normalized_eps": trailing,
-            "method": (
-                "Nur TTM-EPS verwendbar"
-            ),
-            "confidence": "Niedrig",
-            "cycle_basis": None
-        }
+        return build_eps_result(
+            trailing,
+            "Nur TTM-EPS verwendbar",
+            "Niedrig",
+            None,
+            trailing,
+            forward
+        )
 
-    return {
-        "normalized_eps": None,
-        "method": (
-            "Keine zuverlässige EPS-Normalisierung möglich"
-        ),
-        "confidence": "Niedrig",
-        "cycle_basis": None
-    }
+    return build_eps_result(
+        None,
+        "Keine zuverlässige EPS-Normalisierung möglich",
+        "Niedrig",
+        None,
+        trailing,
+        forward
+    )
 
 
 # =========================================================
@@ -1903,7 +2063,8 @@ def calculate_fundamental_multiple(
     growth_score,
     profitability_score,
     fcf_score,
-    balance_score
+    balance_score,
+    eps_normalization
 ):
     corridor = get_valuation_corridor(
         company_type
@@ -1922,7 +2083,49 @@ def calculate_fundamental_multiple(
             "score": total_score,
             "corridor": corridor,
             "multiple": None,
+            "earnings_basis_usable": (
+                has_usable_positive_earnings_basis(
+                    eps_normalization
+                )
+            ),
             "note": corridor["note"]
+        }
+
+    method_name = str(
+        corridor.get("method", "")
+    ).lower()
+
+    earnings_basis_usable = (
+        has_usable_positive_earnings_basis(
+            eps_normalization
+        )
+    )
+
+    if (
+        "kgv" in method_name
+        and not earnings_basis_usable
+    ):
+        blocked_corridor = {
+            "available": False,
+            "lower": None,
+            "upper": None,
+            "method": None,
+            "note": (
+                "KGV-Bewertung gesperrt: Es liegt keine "
+                "positive und verwertbare normalisierte "
+                "Gewinnbasis vor. Deshalb werden weder "
+                "KGV-Korridor noch Fundamental-Multiple "
+                "berechnet."
+            )
+        }
+
+        return {
+            "available": False,
+            "score": total_score,
+            "corridor": blocked_corridor,
+            "multiple": None,
+            "earnings_basis_usable": False,
+            "note": blocked_corridor["note"]
         }
 
     if total_score is None:
@@ -1931,6 +2134,7 @@ def calculate_fundamental_multiple(
             "score": None,
             "corridor": corridor,
             "multiple": None,
+            "earnings_basis_usable": earnings_basis_usable,
             "note": (
                 "Der vollständige Multiple Score ist nicht "
                 "verfügbar. Fehlende Komponenten werden nicht "
@@ -1953,6 +2157,7 @@ def calculate_fundamental_multiple(
         "score": total_score,
         "corridor": corridor,
         "multiple": multiple,
+        "earnings_basis_usable": earnings_basis_usable,
         "note": (
             "Das Fundamental-Multiple wird linear innerhalb "
             "des unternehmenstypischen Korridors aus dem "
@@ -2191,7 +2396,8 @@ def calculate_peer_check(
     company_type,
     peer_group,
     fundamental_multiple,
-    cache_version
+    cache_version,
+    earnings_basis_usable=True
 ):
     result = {
         "method_supported": False,
@@ -2216,6 +2422,15 @@ def calculate_peer_check(
             "Forward-KGV-Peerverfahren verwendet. Zyklische "
             "und Sondermodelle benötigen eine eigene "
             "normalisierte Peer-Bewertung."
+        )
+        return result
+
+    if not earnings_basis_usable:
+        result["note"] = (
+            "KGV-Peer-Check gesperrt: Für die Aktie liegt "
+            "keine positive und verwertbare normalisierte "
+            "Gewinnbasis vor. Es werden deshalb keine "
+            "Peer-KGVs geladen oder angewendet."
         )
         return result
 
@@ -2446,7 +2661,7 @@ def get_special_control(company_type, symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_s3a_special_control_router_v1"
+CACHE_VERSION = "safety_hardstop_missing_epsconfidence_v1"
 
 @st.cache_data(
     ttl=900,
@@ -2499,39 +2714,78 @@ def load_stock(search_text, cache_version):
         ticker
     )
 
+    trailing_eps = safe_float(
+        info.get("trailingEps")
+    )
+    forward_eps = safe_float(
+        info.get("forwardEps")
+    )
+    revenue = safe_float(
+        info.get("totalRevenue")
+    )
+    net_income = safe_float(
+        info.get("netIncomeToCommon")
+    )
+    free_cashflow = safe_float(
+        info.get("freeCashflow")
+    )
+    cash = safe_float(
+        info.get("totalCash")
+    )
+    debt = safe_float(
+        info.get("totalDebt")
+    )
+    revenue_growth = safe_float(
+        info.get("revenueGrowth")
+    )
+    earnings_growth = safe_float(
+        info.get("earningsGrowth")
+    )
+    roe = safe_float(
+        info.get("returnOnEquity")
+    )
+
+    profit_margin, profit_margin_note = (
+        sanitize_profit_margin(
+            info.get("profitMargins"),
+            net_income,
+            revenue
+        )
+    )
+
     eps_normalization = normalize_eps(
         company_type,
-        info.get("trailingEps"),
-        info.get("forwardEps"),
+        trailing_eps,
+        forward_eps,
         historical["eps"],
-        info.get("revenueGrowth"),
-        info.get("earningsGrowth")
+        revenue_growth,
+        earnings_growth
     )
 
     growth_score = calculate_growth_score(
-        info.get("revenueGrowth"),
-        info.get("earningsGrowth")
+        revenue_growth,
+        earnings_growth
     )
 
     profitability_score = calculate_profitability_score(
         company_type,
-        info.get("profitMargins"),
-        info.get("returnOnEquity"),
-        info.get("earningsGrowth")
+        profit_margin,
+        roe,
+        earnings_growth
     )
 
     fcf_score = calculate_fcf_score(
         company_type,
-        info.get("totalRevenue"),
-        info.get("freeCashflow"),
+        revenue,
+        free_cashflow,
         historical.get("fcf", [])
     )
 
     balance_score = calculate_balance_score(
         company_type,
-        info.get("totalCash"),
-        info.get("totalDebt"),
-        info.get("freeCashflow"),
+        cash,
+        debt,
+        free_cashflow,
         historical.get("fcf", [])
     )
 
@@ -2540,7 +2794,8 @@ def load_stock(search_text, cache_version):
         growth_score,
         profitability_score,
         fcf_score,
-        balance_score
+        balance_score,
+        eps_normalization
     )
 
     peer_group = get_peer_group(
@@ -2552,7 +2807,11 @@ def load_stock(search_text, cache_version):
         company_type,
         peer_group,
         fundamental_multiple.get("multiple"),
-        cache_version
+        cache_version,
+        fundamental_multiple.get(
+            "earnings_basis_usable",
+            False
+        )
     )
 
     special_control = get_special_control(
@@ -2587,21 +2846,22 @@ def load_stock(search_text, cache_version):
         "industry": info.get("industry"),
 
         "market_cap": info.get("marketCap"),
-        "trailing_eps": info.get("trailingEps"),
-        "forward_eps": info.get("forwardEps"),
+        "trailing_eps": trailing_eps,
+        "forward_eps": forward_eps,
 
-        "revenue": info.get("totalRevenue"),
-        "net_income": info.get("netIncomeToCommon"),
-        "free_cashflow": info.get("freeCashflow"),
+        "revenue": revenue,
+        "net_income": net_income,
+        "free_cashflow": free_cashflow,
 
-        "cash": info.get("totalCash"),
-        "debt": info.get("totalDebt"),
+        "cash": cash,
+        "debt": debt,
 
-        "revenue_growth": info.get("revenueGrowth"),
-        "earnings_growth": info.get("earningsGrowth"),
+        "revenue_growth": revenue_growth,
+        "earnings_growth": earnings_growth,
 
-        "profit_margin": info.get("profitMargins"),
-        "roe": info.get("returnOnEquity"),
+        "profit_margin": profit_margin,
+        "profit_margin_note": profit_margin_note,
+        "roe": roe,
 
         "earnings_timestamp": earnings_timestamp,
 
@@ -2973,6 +3233,11 @@ if search_text:
                             "–"
                         )
 
+                if data.get("profit_margin_note"):
+                    st.warning(
+                        data["profit_margin_note"]
+                    )
+
                 st.divider()
 
                 st.subheader(
@@ -3092,6 +3357,11 @@ if search_text:
                     st.error(
                         "EPS-Normalisierung: "
                         "**Niedrige Sicherheit**"
+                    )
+
+                if eps_result.get("confidence_note"):
+                    st.warning(
+                        eps_result["confidence_note"]
                     )
 
                 if (
