@@ -2889,6 +2889,250 @@ def build_insurance_special_model(
 
 
 # =========================================================
+# Banken-Sondermodell V1 – Datenbasis / Plausibilitätscheck
+# =========================================================
+
+def build_bank_special_model(
+    company_type,
+    info,
+    price,
+    currency_context
+):
+    """
+    Conservative bank-specific data block.
+
+    It does not create a new score, valuation multiple or fair value.
+    It only prepares bank-relevant Yahoo fields and checks whether
+    book-value and P/E references are unit-consistent. RoTE, tangible
+    book value and CET1 are not estimated or replaced by proxies.
+    """
+    type_name = str(
+        company_type.get("type", "")
+    ).lower()
+
+    if "bank" not in type_name:
+        return {
+            "applicable": False
+        }
+
+    quote_price = safe_float(price)
+    quote_to_financial = safe_float(
+        currency_context.get(
+            "quote_to_financial_factor",
+            1.0
+        )
+    )
+
+    if quote_to_financial is None:
+        quote_to_financial = 1.0
+
+    price_financial = (
+        quote_price * quote_to_financial
+        if quote_price is not None
+        else None
+    )
+
+    book_value = safe_float(
+        info.get("bookValue")
+    )
+    roe = safe_float(
+        info.get("returnOnEquity")
+    )
+    trailing_eps = safe_float(
+        info.get("trailingEps")
+    )
+    forward_eps = safe_float(
+        info.get("forwardEps")
+    )
+    yahoo_price_to_book = safe_float(
+        info.get("priceToBook")
+    )
+    yahoo_forward_pe = safe_float(
+        info.get("forwardPE")
+    )
+    if yahoo_forward_pe is None:
+        yahoo_forward_pe = safe_float(
+            info.get("forwardPe")
+        )
+
+    # -----------------------------------------------------
+    # KBV: Kurs/Buchwert nur dann anzeigen, wenn Yahoo-KBV
+    # als zweiter Anker innerhalb 20 % bestätigt.
+    # -----------------------------------------------------
+    calculated_price_to_book = None
+    if (
+        price_financial is not None
+        and price_financial > 0
+        and book_value is not None
+        and book_value > 0
+    ):
+        calculated_price_to_book = (
+            price_financial / book_value
+        )
+
+    pb_display_value = None
+    pb_consistency_status = "unverified"
+    pb_consistency_note = None
+
+    if calculated_price_to_book is None:
+        pb_consistency_note = (
+            "KBV konnte aus Kurs und Buchwert je Aktie nicht "
+            "belastbar berechnet werden. Es wird kein Wert geschätzt."
+        )
+
+    elif (
+        yahoo_price_to_book is not None
+        and yahoo_price_to_book > 0
+    ):
+        pb_deviation = abs(
+            calculated_price_to_book
+            / yahoo_price_to_book
+            - 1.0
+        )
+
+        if pb_deviation <= 0.20:
+            pb_display_value = calculated_price_to_book
+            pb_consistency_status = "plausible"
+            pb_consistency_note = (
+                "KBV-Plausibilitätscheck bestanden: Das aus Kurs und "
+                "Buchwert je Aktie berechnete KBV liegt innerhalb von "
+                "20 % des separat gemeldeten Yahoo-KBV. Der Wert bleibt "
+                "nur eine Datenbasis und erzeugt noch keine Bankbewertung."
+            )
+        else:
+            pb_consistency_status = "conflict"
+            pb_consistency_note = (
+                "⚠️ KBV-Einheiten/Plausibilität widersprüchlich: Das aus "
+                "Kurs und Buchwert je Aktie berechnete KBV weicht um mehr "
+                "als 20 % vom separat gemeldeten Yahoo-KBV ab. Deshalb wird "
+                "das KBV nicht als belastbare Kennzahl angezeigt."
+            )
+
+    else:
+        pb_consistency_note = (
+            "KBV konnte zwar aus Kurs und Buchwert je Aktie berechnet werden, "
+            "aber ein zweiter Yahoo-KBV-Anker fehlt. Der Wert wird deshalb "
+            "nicht als belastbar angezeigt und nicht für eine Bewertung verwendet."
+        )
+
+    # -----------------------------------------------------
+    # Forward-KGV: ebenfalls nur als Referenz und nur bei
+    # ausreichender Übereinstimmung mit Yahoo-forwardPE.
+    # -----------------------------------------------------
+    calculated_forward_pe = None
+    if (
+        price_financial is not None
+        and price_financial > 0
+        and forward_eps is not None
+        and forward_eps > 0
+    ):
+        calculated_forward_pe = (
+            price_financial / forward_eps
+        )
+
+    forward_pe_display = None
+    forward_pe_status = "unverified"
+    forward_pe_note = None
+
+    if calculated_forward_pe is None:
+        forward_pe_note = (
+            "Forward-KGV konnte aus Kurs und Forward-EPS nicht belastbar "
+            "berechnet werden. Es wird kein Wert geschätzt."
+        )
+
+    elif (
+        yahoo_forward_pe is not None
+        and yahoo_forward_pe > 0
+    ):
+        pe_deviation = abs(
+            calculated_forward_pe
+            / yahoo_forward_pe
+            - 1.0
+        )
+
+        if pe_deviation <= 0.20:
+            forward_pe_display = calculated_forward_pe
+            forward_pe_status = "plausible"
+            forward_pe_note = (
+                "Forward-KGV-Plausibilitätscheck bestanden: Kurs/Forward-EPS "
+                "und Yahoo-forwardPE liegen innerhalb von 20 % beieinander. "
+                "Das KGV bleibt eine reine Referenz und erzeugt noch keine Bewertung."
+            )
+        else:
+            forward_pe_status = "conflict"
+            forward_pe_note = (
+                "⚠️ Forward-KGV nicht belastbar: Das aus Kurs und Forward-EPS "
+                "berechnete KGV weicht um mehr als 20 % vom Yahoo-forwardPE ab. "
+                "Der Wert wird deshalb nicht für das Sondermodell verwendet."
+            )
+
+    else:
+        forward_pe_note = (
+            "Forward-KGV konnte berechnet werden, aber ein separater Yahoo-"
+            "forwardPE-Anker fehlt. Der Wert wird deshalb nicht als belastbar "
+            "angezeigt und nicht für eine Bewertung verwendet."
+        )
+
+    calculated_trailing_pe = None
+    if (
+        price_financial is not None
+        and price_financial > 0
+        and trailing_eps is not None
+        and trailing_eps > 0
+    ):
+        calculated_trailing_pe = (
+            price_financial / trailing_eps
+        )
+
+    anchor_values = [
+        roe,
+        pb_display_value,
+        forward_pe_display
+    ]
+    available_anchors = sum(
+        value is not None
+        for value in anchor_values
+    )
+
+    readiness = (
+        "Teilweise"
+        if available_anchors >= 2
+        else "Unvollständig"
+    )
+
+    return {
+        "applicable": True,
+        "price_financial": price_financial,
+        "book_value_per_share": book_value,
+        "roe": roe,
+        "calculated_price_to_book": calculated_price_to_book,
+        "display_price_to_book": pb_display_value,
+        "yahoo_price_to_book": yahoo_price_to_book,
+        "pb_consistency_status": pb_consistency_status,
+        "pb_consistency_note": pb_consistency_note,
+        "calculated_forward_pe": calculated_forward_pe,
+        "display_forward_pe": forward_pe_display,
+        "yahoo_forward_pe": yahoo_forward_pe,
+        "forward_pe_status": forward_pe_status,
+        "forward_pe_note": forward_pe_note,
+        "calculated_trailing_pe": calculated_trailing_pe,
+        "readiness": readiness,
+        "rote_available": False,
+        "tangible_book_value_available": False,
+        "cet1_available": False,
+        "note": (
+            "Banken-Sondermodell V1 bleibt ein reiner Daten- und "
+            "Plausibilitätsblock. ROE, Buchwert/KBV und Forward-KGV werden "
+            "nur als belastbare Basiskennzahlen angezeigt. RoTE, Tangible "
+            "Book Value und CET1 werden in der aktuellen Datenquelle nicht "
+            "separat belastbar geladen und deshalb nicht geschätzt oder durch "
+            "ROE bzw. normalen Buchwert ersetzt. Noch keine Bankpunkte, kein "
+            "Bewertungs-Multiple und kein Fair Value."
+        )
+    }
+
+
+# =========================================================
 # Modul 6 – Schritt 1: Bewertungs-Korridor & Fundamental-Multiple
 # =========================================================
 
@@ -3639,6 +3883,29 @@ def get_special_control(company_type, symbol):
             )
         }
 
+    if "bank" in type_name:
+        return {
+            "required": True,
+            "control_key": "bank_book_capital",
+            "control_name": (
+                "Bank / Buchwert-, Ertrags- & Kapitalprüfung"
+            ),
+            "planned_checks": [
+                "Normalisiertes / Core EPS",
+                "RoTE / ROE",
+                "Tangible Book Value / KBV",
+                "CET1-Kapitalquote"
+            ],
+            "status": "Router aktiv – V1 Datenbasis vorhanden",
+            "note": (
+                "V1 lädt nur belastbare Basiskennzahlen aus der aktuellen "
+                "Datenquelle. RoTE, Tangible Book Value und CET1 werden "
+                "nicht geschätzt oder durch ungeeignete Standardkennzahlen "
+                "ersetzt. Das Sondermodell verändert noch keinen Score und "
+                "kein Bewertungs-Multiple."
+            )
+        }
+
     if "versicherung" in type_name:
         return {
             "required": True,
@@ -3680,7 +3947,7 @@ def get_special_control(company_type, symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2"
+CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1"
 
 @st.cache_data(
     ttl=900,
@@ -3819,6 +4086,13 @@ def load_stock(search_text, cache_version):
         currency_context
     )
 
+    bank_special_model = build_bank_special_model(
+        company_type,
+        info,
+        price,
+        currency_context
+    )
+
     fundamental_multiple = calculate_fundamental_multiple(
         company_type,
         growth_score,
@@ -3905,6 +4179,7 @@ def load_stock(search_text, cache_version):
         "fcf_score": fcf_score,
         "balance_score": balance_score,
         "insurance_special_model": insurance_special_model,
+        "bank_special_model": bank_special_model,
         "fundamental_multiple": fundamental_multiple,
         "peer_group": peer_group,
         "peer_check": peer_check,
@@ -5142,6 +5417,159 @@ if selected_symbol:
 
                     st.caption(
                         insurance_model["note"]
+                    )
+
+                bank_model = data.get(
+                    "bank_special_model",
+                    {"applicable": False}
+                )
+
+                if bank_model.get("applicable"):
+
+                    st.divider()
+
+                    st.subheader(
+                        "🏦 Banken-Sondermodell V1 – Datenbasis"
+                    )
+
+                    st.info(
+                        "Bankmodell erkannt. In V1 werden nur "
+                        "bankspezifische Basiskennzahlen und ihre "
+                        "Einheiten/Plausibilität geprüft; es wird noch "
+                        "keine Bankbewertung erzeugt."
+                    )
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+
+                        if bank_model["roe"] is not None:
+                            st.metric(
+                                "ROE",
+                                f"{bank_model['roe'] * 100:.1f} %"
+                            )
+                        else:
+                            st.metric(
+                                "ROE",
+                                "–"
+                            )
+
+                        if bank_model[
+                            "book_value_per_share"
+                        ] is not None:
+                            st.metric(
+                                "Buchwert je Aktie",
+                                format_eps(
+                                    bank_model[
+                                        "book_value_per_share"
+                                    ],
+                                    financial_currency
+                                )
+                            )
+                        else:
+                            st.metric(
+                                "Buchwert je Aktie",
+                                "–"
+                            )
+
+                        if bank_model[
+                            "display_price_to_book"
+                        ] is not None:
+                            st.metric(
+                                "KBV aus Kurs / Buchwert",
+                                f"{bank_model['display_price_to_book']:.2f}×"
+                            )
+                        else:
+                            st.metric(
+                                "KBV aus Kurs / Buchwert",
+                                "–"
+                            )
+
+                    with col2:
+
+                        if bank_model[
+                            "display_forward_pe"
+                        ] is not None:
+                            st.metric(
+                                "Forward-KGV (nur Referenz)",
+                                f"{bank_model['display_forward_pe']:.2f}×"
+                            )
+                        else:
+                            st.metric(
+                                "Forward-KGV (nur Referenz)",
+                                "–"
+                            )
+
+                        st.metric(
+                            "RoTE",
+                            "–"
+                        )
+
+                        st.metric(
+                            "CET1-Kapitalquote",
+                            "–"
+                        )
+
+                    if data[
+                        "currency_context"
+                    ].get("mixed_units"):
+                        price_financial = bank_model.get(
+                            "price_financial"
+                        )
+                        if price_financial is not None:
+                            st.write(
+                                "**Kurs für fundamentale Verhältniskennzahlen:** "
+                                f"{price_financial:,.4f} {financial_currency} "
+                                "(explizit aus der Pence-Notierung umgerechnet)"
+                            )
+
+                    st.write(
+                        "**Tangible Book Value / TBV:** – "
+                        "(nicht separat belastbar verfügbar; normaler "
+                        "Buchwert wird nicht als Ersatz verwendet)"
+                    )
+
+                    st.write(
+                        "**RoTE:** – "
+                        "(nicht separat verfügbar; ROE wird nicht als "
+                        "identischer Ersatzwert behandelt)"
+                    )
+
+                    st.write(
+                        "**CET1-Kapitalquote:** – "
+                        "(in der aktuellen Datenquelle nicht separat "
+                        "verfügbar; wird nicht geschätzt)"
+                    )
+
+                    st.write(
+                        "**Datenreife Sondermodell:** "
+                        f"{bank_model['readiness']}"
+                    )
+
+                    if bank_model.get(
+                        "pb_consistency_note"
+                    ):
+                        pb_note = bank_model[
+                            "pb_consistency_note"
+                        ]
+                        if pb_note.startswith("⚠️"):
+                            st.warning(pb_note)
+                        else:
+                            st.caption(pb_note)
+
+                    if bank_model.get(
+                        "forward_pe_note"
+                    ):
+                        pe_note = bank_model[
+                            "forward_pe_note"
+                        ]
+                        if pe_note.startswith("⚠️"):
+                            st.warning(pe_note)
+                        else:
+                            st.caption(pe_note)
+
+                    st.caption(
+                        bank_model["note"]
                     )
 
                 st.divider()
