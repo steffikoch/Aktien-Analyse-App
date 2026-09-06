@@ -2188,8 +2188,8 @@ def build_insurance_special_model(
     Conservative insurer-specific data block.
 
     It does not create a new score, valuation multiple or fair value.
-    It only prepares insurer-relevant Yahoo fields and makes the
-    GBp/GBP unit handling explicit for per-share ratios.
+    It only prepares insurer-relevant Yahoo fields, checks obvious
+    unit/plausibility conflicts and makes GBp/GBP handling explicit.
     Core earnings and solvency/capital ratios are not estimated.
     """
     type_name = str(
@@ -2230,8 +2230,14 @@ def build_insurance_special_model(
     forward_eps = safe_float(
         info.get("forwardEps")
     )
-    dividend_yield = safe_float(
+    raw_dividend_yield = safe_float(
         info.get("dividendYield")
+    )
+    trailing_annual_dividend_yield = safe_float(
+        info.get("trailingAnnualDividendYield")
+    )
+    dividend_rate = safe_float(
+        info.get("dividendRate")
     )
     payout_ratio = safe_float(
         info.get("payoutRatio")
@@ -2240,6 +2246,10 @@ def build_insurance_special_model(
         info.get("priceToBook")
     )
 
+    # -----------------------------------------------------
+    # KBV: nur anzeigen, wenn Kurs/Buchwert und Yahoo-KBV
+    # als zweiter Anker ausreichend gut zusammenpassen.
+    # -----------------------------------------------------
     calculated_price_to_book = None
     if (
         price_financial is not None
@@ -2251,6 +2261,55 @@ def build_insurance_special_model(
             price_financial / book_value
         )
 
+    pb_display_value = None
+    pb_consistency_status = "unverified"
+    pb_consistency_note = None
+
+    if calculated_price_to_book is None:
+        pb_consistency_note = (
+            "KBV konnte aus Kurs und Buchwert je Aktie nicht "
+            "belastbar berechnet werden. Es wird kein Wert geschätzt."
+        )
+
+    elif (
+        yahoo_price_to_book is not None
+        and yahoo_price_to_book > 0
+    ):
+        pb_deviation = abs(
+            calculated_price_to_book
+            / yahoo_price_to_book
+            - 1.0
+        )
+
+        if pb_deviation <= 0.20:
+            pb_display_value = calculated_price_to_book
+            pb_consistency_status = "plausible"
+            pb_consistency_note = (
+                "KBV-Plausibilitätscheck bestanden: Das aus Kurs und "
+                "Buchwert je Aktie berechnete KBV liegt innerhalb von "
+                "20 % des separat gemeldeten Yahoo-KBV. Der Wert bleibt "
+                "trotzdem nur eine Datenbasis und erzeugt noch keine Bewertung."
+            )
+        else:
+            pb_consistency_status = "conflict"
+            pb_consistency_note = (
+                "⚠️ KBV-Einheiten/Plausibilität widersprüchlich: Das aus "
+                "Kurs und Buchwert je Aktie berechnete KBV weicht um mehr "
+                "als 20 % vom separat gemeldeten Yahoo-KBV ab. Deshalb wird "
+                "das KBV nicht als belastbare Kennzahl angezeigt und nicht "
+                "für eine Bewertung verwendet."
+            )
+
+    else:
+        pb_consistency_note = (
+            "KBV konnte zwar aus Kurs und Buchwert je Aktie berechnet werden, "
+            "aber ein zweiter Yahoo-KBV-Anker fehlt. Der Wert wird deshalb "
+            "nicht als belastbar angezeigt und nicht für eine Bewertung verwendet."
+        )
+
+    # -----------------------------------------------------
+    # KGV-Referenzen: reine Datenbasis, keine Bewertung.
+    # -----------------------------------------------------
     calculated_forward_pe = None
     if (
         price_financial is not None
@@ -2273,30 +2332,180 @@ def build_insurance_special_model(
             price_financial / trailing_eps
         )
 
-    pb_consistency_note = None
+    # -----------------------------------------------------
+    # Dividendenrendite: Yahoo liefert je nach Feld/Version
+    # teils Verhältniswerte, teils bereits Prozentzahlen.
+    # Wir normalisieren nur, wenn die Darstellung eindeutig
+    # oder durch DividendRate/Kurs plausibilisiert ist.
+    # Bei unklaren/absurden Werten bleibt die Kennzahl leer.
+    # -----------------------------------------------------
+    calculated_dividend_yield = None
     if (
-        calculated_price_to_book is not None
-        and yahoo_price_to_book is not None
-        and yahoo_price_to_book > 0
+        dividend_rate is not None
+        and dividend_rate >= 0
+        and price_financial is not None
+        and price_financial > 0
     ):
-        pb_deviation = abs(
-            calculated_price_to_book
-            / yahoo_price_to_book
-            - 1.0
+        candidate = dividend_rate / price_financial
+        if 0 <= candidate <= 0.25:
+            calculated_dividend_yield = candidate
+
+    def dividend_yield_candidates(raw_value):
+        value = safe_float(raw_value)
+        if value is None or value < 0:
+            return []
+
+        candidates = []
+
+        # Eindeutiger Verhältniswert: z. B. 0.074 = 7.4 %.
+        if value <= 0.25:
+            candidates.append((
+                "ratio",
+                value
+            ))
+
+        # Mögliche bereits-prozentuale Yahoo-Darstellung:
+        # z. B. 7.41 = 7.41 % -> 0.0741.
+        if value <= 25.0:
+            percent_candidate = value / 100.0
+            if percent_candidate <= 0.25:
+                candidates.append((
+                    "percent",
+                    percent_candidate
+                ))
+
+        return candidates
+
+    raw_yield_candidates = dividend_yield_candidates(
+        raw_dividend_yield
+    )
+    trailing_yield_candidates = dividend_yield_candidates(
+        trailing_annual_dividend_yield
+    )
+
+    dividend_yield = None
+    dividend_yield_source = None
+    dividend_yield_note = None
+
+    # Primär: DividendRate/Kurs als unabhängiger Plausibilitätsanker.
+    if calculated_dividend_yield is not None:
+        all_candidates = (
+            raw_yield_candidates
+            + trailing_yield_candidates
         )
 
-        if pb_deviation > 0.20:
-            pb_consistency_note = (
-                "Das aus Kurs und Buchwert je Aktie berechnete KBV "
-                "weicht um mehr als 20 % vom Yahoo-KBV ab. Der Wert "
-                "wird deshalb nur als Plausibilitätscheck angezeigt "
-                "und nicht automatisch für eine Bewertung verwendet."
+        matching_candidates = []
+        for candidate_type, candidate_value in all_candidates:
+            absolute_difference = abs(
+                candidate_value
+                - calculated_dividend_yield
+            )
+            relative_difference = (
+                absolute_difference
+                / max(
+                    calculated_dividend_yield,
+                    0.01
+                )
+            )
+
+            if (
+                absolute_difference <= 0.005
+                or relative_difference <= 0.20
+            ):
+                matching_candidates.append((
+                    candidate_type,
+                    candidate_value
+                ))
+
+        if matching_candidates:
+            dividend_yield = calculated_dividend_yield
+            dividend_yield_source = (
+                "DividendRate/Kurs + Yahoo-Rendite plausibilisiert"
+            )
+
+            used_percent_format = any(
+                candidate_type == "percent"
+                for candidate_type, _ in matching_candidates
+            )
+
+            if used_percent_format:
+                dividend_yield_note = (
+                    "Yahoo liefert die Dividendenrendite in diesem Fall "
+                    "offenbar bereits als Prozentzahl. Die Anzeige wurde "
+                    "nicht blind mit 100 multipliziert, sondern über "
+                    "Dividendenrate/Kurs plausibilisiert und auf einen "
+                    "einheitlichen Verhältniswert normalisiert."
+                )
+            else:
+                dividend_yield_note = (
+                    "Dividendenrendite wurde über Dividendenrate/Kurs "
+                    "plausibilisiert."
+                )
+
+        elif (
+            raw_dividend_yield is None
+            and trailing_annual_dividend_yield is None
+        ):
+            dividend_yield = calculated_dividend_yield
+            dividend_yield_source = "DividendRate/Kurs"
+            dividend_yield_note = (
+                "Yahoo liefert keine separate Dividendenrendite. Die "
+                "Rendite wird transparent aus Yahoo-Dividendenrate und "
+                "dem für Verhältniskennzahlen angeglichenen Kurs berechnet."
+            )
+
+        else:
+            dividend_yield_note = (
+                "⚠️ Dividendenrendite nicht belastbar: Die Yahoo-Rendite "
+                "passt weder als Verhältniswert noch als Prozentdarstellung "
+                "ausreichend zur Dividendenrate/Kurs-Plausibilisierung. "
+                "Der Wert wird deshalb als fehlend behandelt."
+            )
+
+    # Ohne DividendRate/Kurs nur eindeutig plausible Verhältniswerte zulassen.
+    elif (
+        raw_dividend_yield is not None
+        and 0 <= raw_dividend_yield <= 0.25
+    ):
+        dividend_yield = raw_dividend_yield
+        dividend_yield_source = "Yahoo dividendYield"
+        dividend_yield_note = (
+            "Yahoo-Dividendenrendite liegt als plausibler Verhältniswert vor."
+        )
+
+    elif (
+        raw_dividend_yield is not None
+        or trailing_annual_dividend_yield is not None
+    ):
+        dividend_yield_note = (
+            "⚠️ Dividendenrendite nicht belastbar: Die Yahoo-Darstellung "
+            "ist ohne einen unabhängigen Dividendenrate/Kurs-Anker nicht "
+            "eindeutig als Verhältnis- oder Prozentwert interpretierbar. "
+            "Es wird nicht geraten oder automatisch durch 100 geteilt."
+        )
+
+    # -----------------------------------------------------
+    # Ausschüttungsquote: auffällige Werte markieren,
+    # aber niemals automatisch verändern.
+    # -----------------------------------------------------
+    payout_ratio_note = None
+    if payout_ratio is not None:
+        if payout_ratio > 1.0:
+            payout_ratio_note = (
+                "⚠️ Ausschüttungsquote über 100 % erkannt. Der Yahoo-Wert "
+                "wird unverändert angezeigt, aber nicht als normal oder "
+                "nachhaltig interpretiert und nicht automatisch korrigiert."
+            )
+        elif payout_ratio < 0:
+            payout_ratio_note = (
+                "⚠️ Negative Ausschüttungsquote erkannt. Der Wert wird "
+                "unverändert angezeigt und nicht automatisch interpretiert."
             )
 
     anchor_values = [
         roe,
         book_value,
-        calculated_price_to_book,
+        pb_display_value,
         calculated_forward_pe
     ]
     available_anchors = sum(
@@ -2316,9 +2525,16 @@ def build_insurance_special_model(
         "book_value_per_share": book_value,
         "roe": roe,
         "dividend_yield": dividend_yield,
+        "dividend_yield_raw": raw_dividend_yield,
+        "dividend_yield_source": dividend_yield_source,
+        "dividend_yield_note": dividend_yield_note,
+        "dividend_rate": dividend_rate,
         "payout_ratio": payout_ratio,
+        "payout_ratio_note": payout_ratio_note,
         "calculated_price_to_book": calculated_price_to_book,
+        "display_price_to_book": pb_display_value,
         "yahoo_price_to_book": yahoo_price_to_book,
+        "pb_consistency_status": pb_consistency_status,
         "calculated_forward_pe": calculated_forward_pe,
         "calculated_trailing_pe": calculated_trailing_pe,
         "pb_consistency_note": pb_consistency_note,
@@ -2326,12 +2542,13 @@ def build_insurance_special_model(
         "core_earnings_available": False,
         "solvency_capital_available": False,
         "note": (
-            "Versicherungs-Sondermodell V1 ist ein reiner Daten- und "
-            "Plausibilitätsblock. Core Earnings und Solvency-/Kapitalquote "
-            "werden in der aktuellen Datenquelle nicht separat geladen und "
-            "deshalb nicht geschätzt oder durch andere Kennzahlen ersetzt. "
-            "Noch keine Versicherungspunkte, kein Bewertungs-Multiple und "
-            "kein Fair Value."
+            "Versicherungs-Sondermodell V1 bleibt ein reiner Daten- und "
+            "Plausibilitätsblock. Dividendenrendite und KBV werden nur "
+            "angezeigt, wenn ihre Einheit/Datenbasis ausreichend plausibel "
+            "ist. Core Earnings und Solvency-/Kapitalquote werden in der "
+            "aktuellen Datenquelle nicht separat geladen und deshalb nicht "
+            "geschätzt oder durch andere Kennzahlen ersetzt. Noch keine "
+            "Versicherungspunkte, kein Bewertungs-Multiple und kein Fair Value."
         )
     }
 
@@ -3128,7 +3345,7 @@ def get_special_control(company_type, symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1"
+CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1"
 
 @st.cache_data(
     ttl=900,
@@ -4418,11 +4635,11 @@ if search_text:
                             )
 
                         if insurance_model[
-                            "calculated_price_to_book"
+                            "display_price_to_book"
                         ] is not None:
                             st.metric(
                                 "KBV aus Kurs / Buchwert",
-                                f"{insurance_model['calculated_price_to_book']:.2f}×"
+                                f"{insurance_model['display_price_to_book']:.2f}×"
                             )
                         else:
                             st.metric(
@@ -4458,6 +4675,14 @@ if search_text:
                                 "–"
                             )
 
+                        if insurance_model.get(
+                            "dividend_yield_source"
+                        ):
+                            st.caption(
+                                "Quelle/Plausibilisierung: "
+                                f"{insurance_model['dividend_yield_source']}"
+                            )
+
                         if insurance_model[
                             "payout_ratio"
                         ] is not None:
@@ -4483,6 +4708,26 @@ if search_text:
                                 f"{price_financial:,.4f} {financial_currency} "
                                 "(explizit aus der Pence-Notierung umgerechnet)"
                             )
+
+                    if insurance_model.get(
+                        "dividend_yield_note"
+                    ):
+                        dividend_note = insurance_model[
+                            "dividend_yield_note"
+                        ]
+                        if dividend_note.startswith("⚠️"):
+                            st.warning(dividend_note)
+                        else:
+                            st.caption(dividend_note)
+
+                    if insurance_model.get(
+                        "payout_ratio_note"
+                    ):
+                        st.warning(
+                            insurance_model[
+                                "payout_ratio_note"
+                            ]
+                        )
 
                     st.write(
                         "**Core Earnings:** – "
