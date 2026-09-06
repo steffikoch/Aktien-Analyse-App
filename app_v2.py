@@ -4814,11 +4814,12 @@ def get_special_control(company_type, symbol):
                 "Life-of-Mine-Profil & NAV-Freigabe-Gate",
                 "Portfolio-Abdeckungslogik (Gesamt / gemanagt operativ / NAV-fähig)",
                 "Portfolio-Completeness-Gate (Managed Operations / JVs / Entwicklungsprojekte)",
+                "Asset-NAV-Normalisierung Phase 2 (Gold / Nebenprodukte / Eigentum / Diskont)",
                 "Allgemeiner Primärrohstoff-Router"
             ],
-            "status": "Router aktiv – V2.14.2 Portfolio-Completeness-Gate + Portfolio-Abdeckung + LOM/NAV Phase 1 + Structural-Break-Fallback",
+            "status": "Router aktiv – V2.15 Asset-NAV Phase 2 + Portfolio-Completeness-Gate + LOM/NAV Phase 1",
             "note": (
-                "V2.14.2 ergänzt das Bergbaumodell um ein unternehmensweites Portfolio-Completeness-Gate, eine feste Portfolio-Abdeckungslogik und eine technische LOM/NAV-Phase-1-Prüfung für aktuelle S-K-1300-Minenberichte. Das 90-%-Gate verwendet alle gemanagten operativen Reserven als Nenner und nicht mehr eine frei gewählte Kernasset-Liste. Zusätzlich bleiben der streng abgesicherte Structural-Break-Fallback, der verifizierte Reserve-/NAV-Snapshot und der konservative allgemeine "
+                "V2.15 ergänzt das Bergbaumodell um eine Asset-NAV-Normalisierung Phase 2 sowie ein unternehmensweites Portfolio-Completeness-Gate, eine feste Portfolio-Abdeckungslogik und eine technische LOM/NAV-Phase-1-Prüfung für aktuelle S-K-1300-Minenberichte. Das 90-%-Gate verwendet alle gemanagten operativen Reserven als Nenner und nicht mehr eine frei gewählte Kernasset-Liste. Zusätzlich bleiben der streng abgesicherte Structural-Break-Fallback, der verifizierte Reserve-/NAV-Snapshot und der konservative allgemeine "
                 "Primärrohstoff-Router für eindeutige Branchen wie Gold, Silber und "
                 "Kupfer. Unspezifische Mischbranchen bleiben gesperrt. Das bestehende "
                 "V2.7-Life-of-Mine-Gate bleibt unverändert aktiv. Zusätzlich darf ein später bestandener "
@@ -5635,7 +5636,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
                 "Hecla wird wegen der gemischten Yahoo-Branche ausdrücklich primär "
                 "dem Silberpreis zugeordnet. Gold, Blei und Zink bleiben zusätzliche "
                 "Exposures und werden nicht als separate Primärrohstoffe in diese "
-                "V2.14.1-Kontrolle hineingeschätzt."
+                "V2.15-Kontrolle hineingeschätzt."
             ),
         },
     }
@@ -5673,7 +5674,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
         "route_source": "Allgemeiner Branchen-Router",
         "routing_basis": f"Yahoo-Branche: {industry_text}",
         "mapping_note": (
-            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.14.1 "
+            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.15 "
             f"automatisch dem Primärrohstoff {base['commodity_name']} zugeordnet. "
             "Unspezifische oder gemischte Bergbau-Branchen werden weiterhin nicht "
             "automatisch geroutet."
@@ -6529,10 +6530,10 @@ def get_verified_mining_asset_snapshot(symbol):
             "core_asset_lom_structure": get_verified_newmont_core_asset_lom_structure(),
             "technical_nav_references": [],
             "technical_nav_note": (
-                "V2.14.2 übernimmt für Lihir, Cadia, Boddington und den Ahafo Complex die in Phase 1 verifizierten aktuellen "
+                "V2.15 übernimmt für Lihir, Cadia, Boddington und den Ahafo Complex die in Phase 1 verifizierten aktuellen "
                 "S-K-1300-Technical-Report-Summaries mit LOM-Cashflows verifiziert. "
-                "Phase 1 prüft nur die NAV-Eignung der einzelnen Assets; die veröffentlichten "
-                "NPVs werden noch nicht zu einem Newmont-Gesamt-NAV addiert. Für die übrigen "
+                "Phase 1 prüft die NAV-Eignung; Phase 2 normalisiert die vier geeigneten Assets einzeln auf Modell-Rohstoffpreise und weist Eigentums-/Diskonteffekte getrennt aus. "
+                "Die Werte werden weiterhin nicht zu einem Newmont-Gesamt-NAV addiert. Für die übrigen "
                 "weiteren gemanagten operativen Reserve-Assetgruppen fehlt im verifizierten 2025-Form-10-K-Exhibit-Set "
                 "weiterhin ein entsprechendes aktuelles TRS."
             ),
@@ -6725,7 +6726,7 @@ def build_mining_normalized_mine_nav_v26(
         if symbol_text == "NEM" and asset_snapshot:
             result["status"] = "Phase-1-NAV-Kandidaten verfügbar – Portfolio-NAV noch gesperrt"
             result["reason"] = (
-                "V2.14.2 übernimmt aktuelle S-K-1300-LOM-Datensätze für Lihir, Cadia, Boddington und den Ahafo Complex "
+                "V2.15 übernimmt aktuelle S-K-1300-LOM-Datensätze für Lihir, Cadia, Boddington und den Ahafo Complex "
                 "verifiziert. Diese Assets dürfen in einer späteren Phase einzeln normalisiert werden. Die aktuelle "
                 "Abdeckung liegt jedoch unter dem 90-%-Gate der gesamten gemanagten operativen Reservebasis; deshalb wird noch kein "
                 "Newmont-Portfolio-NAV gerechnet und kein synthetischer Ersatz für fehlende Assets geschätzt."
@@ -7456,6 +7457,394 @@ def build_newmont_portfolio_completeness_gate(
         ),
     }
 
+
+
+def _discount_cashflow_series_musd(cashflows_musd, discount_rate_pct):
+    """Discount end-of-year cash flows; used only for TRS NAV diagnostics."""
+    rate = safe_float(discount_rate_pct)
+    if rate is None or rate < 0:
+        return None
+    r = rate / 100.0
+    try:
+        values = [float(v) for v in cashflows_musd]
+    except Exception:
+        return None
+    return sum(v / ((1.0 + r) ** (idx + 1)) for idx, v in enumerate(values))
+
+
+def _newmont_phase2_trs_asset_inputs():
+    """
+    Verified rounded annual TRS tables for Newmont's four 2025 S-K 1300 exhibits.
+
+    Values are intentionally kept in the units used in the reports. Annual FCF
+    figures are rounded to one decimal US$bn in the published tables; Phase 2
+    therefore calibrates each annual pattern back to the published native NPV
+    before applying commodity-price deltas. This avoids treating rounded table
+    cells as exact cash flows.
+    """
+    return {
+        "Lihir": {
+            "ownership_pct": 100.0,
+            "native_discount_rate_pct": 10.0,
+            "native_npv_musd": 2000.0,
+            "native_fcf_musd": 3100.0,
+            "trs_prices": {"gold": 2000.0},
+            "tax_rate_pct": 30.0,
+            "revenue_levy_pct": {"gold": 2.5},  # 2% royalty + 0.5% production levy
+            "years": list(range(2026, 2044)),
+            "fcf_busd": [0.1,-0.1,0.1,0.4,0.5,0.6,0.6,0.5,0.4,0.3,0.1,0.0,0.1,0.2,0.0,0.1,0.0,-0.1],
+            "recovered": {
+                "gold_moz": [0.6,0.7,0.7,0.9,1.0,1.0,1.0,0.9,0.8,0.7,0.6,0.6,0.6,0.6,0.4,0.4,0.4,0.2],
+            },
+            "source_exhibit": "96.3",
+            "source_note": (
+                "Lihir TRS: Gold 2.000 USD/oz, NPV10 2,0 Mrd. USD, 100%-Projektbasis; "
+                "30% Körperschaftsteuer sowie 2% Mineralroyalty + 0,5% Produktionsabgabe."
+            ),
+        },
+        "Cadia": {
+            "ownership_pct": 100.0,
+            "native_discount_rate_pct": 5.0,
+            "native_npv_musd": 2600.0,
+            "native_fcf_musd": 5300.0,
+            "trs_prices": {"gold": 2000.0, "copper": 3.75, "silver": 25.0, "molybdenum": 13.0},
+            "tax_rate_pct": 30.0,
+            "revenue_levy_pct": {"gold": 4.0, "copper": 4.0, "silver": 4.0, "molybdenum": 4.0},
+            "years": list(range(2026, 2059)),
+            "fcf_busd": (
+                [-0.1,-0.4,-0.3,0.1,0.3,0.4,0.5,0.5]
+                + [0.3,0.3,0.3,0.2,0.3,0.4,0.3,0.3,0.3,0.1]
+                + [0.1,0.2,0.3,0.3,0.2,0.2,0.2,0.2,0.3,0.2]
+                + [0.2,-0.1,-0.2,-0.2,-0.2]
+            ),
+            "recovered": {
+                "gold_moz": (
+                    [0.3,0.3,0.3,0.4,0.4,0.4,0.4,0.4]
+                    + [0.4,0.4,0.4,0.5,0.5,0.5,0.4,0.4,0.4,0.4]
+                    + [0.4,0.4,0.4,0.3,0.3,0.3,0.3,0.3,0.3,0.3]
+                    + [0.2,0.1,0.1,0.0,0.0]
+                ),
+                "copper_kt": (
+                    [84,81,84,94,96,99,100,89]
+                    + [81,76,67,63,67,81,90,91,83,79]
+                    + [84,86,91,86,79,77,73,73,77,74]
+                    + [72,47,21,0,0]
+                ),
+                "silver_moz": (
+                    [0.4,0.4,0.4,0.4,0.4,0.4,0.5,0.5]
+                    + [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5]
+                    + [0.5,0.5,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4]
+                    + [0.3,0.2,0.1,0.0,0.0]
+                ),
+                "molybdenum_kt": (
+                    [2,2,2,2,2,2,2,2]
+                    + [1,1,1,2,2,2,2,2,2,2]
+                    + [2,2,2,2,2,2,2,2,1,2]
+                    + [2,1,1,0,0]
+                ),
+            },
+            "source_exhibit": "96.2",
+            "source_note": (
+                "Cadia TRS: Gold 2.000 USD/oz, Kupfer 3,75 USD/lb, Silber 25 USD/oz, "
+                "Molybdän 13 USD/lb; NPV5 2,6 Mrd. USD; 30% Bundessteuer und 4% NSW-Royalty."
+            ),
+        },
+        "Boddington": {
+            "ownership_pct": 100.0,
+            "native_discount_rate_pct": 5.0,
+            "native_npv_musd": 1500.0,
+            "native_fcf_musd": 2200.0,
+            "trs_prices": {"gold": 2000.0, "copper": 3.75},
+            "tax_rate_pct": 30.0,
+            "revenue_levy_pct": {"gold": 2.5, "copper": 5.0},
+            "years": list(range(2026, 2041)),
+            "fcf_busd": [0.0,0.1,0.1,0.1,0.0,0.1,0.3,0.3,0.0,0.1,0.1,0.1,0.3,0.3,0.2],
+            "recovered": {
+                "gold_moz": [0.6,0.7,0.7,0.7,0.7,0.7,0.7,0.6,0.5,0.5,0.5,0.5,0.4,0.4,0.3],
+                "copper_kt": [20,25,27,27,27,31,33,27,20,25,26,29,29,26,21],
+            },
+            "source_exhibit": "96.1",
+            "source_note": (
+                "Boddington TRS: Gold 2.000 USD/oz, Kupfer 3,75 USD/lb, NPV5 1,5 Mrd. USD; "
+                "30% Bundessteuer, 2,5% Gold- und 5% Kupferroyalty. Newmont besitzt 100%."
+            ),
+        },
+        "Ahafo Complex": {
+            "ownership_pct": 90.0,
+            "native_discount_rate_pct": 8.0,
+            "native_npv_musd": 1700.0,
+            "native_fcf_musd": 2700.0,
+            "trs_prices": {"gold": 2000.0},
+            "tax_rate_pct": 35.0,
+            # Post-stability-period fiscal burden: 5% royalty + 3% GSL + 0.6% advance dividend.
+            # The separate 2% Rank NSR applies only to specific ounces and is not extrapolated to all production.
+            "revenue_levy_pct": {"gold": 8.6},
+            "years": list(range(2026, 2045)),
+            "fcf_busd": [-0.1,0.2,0.2,0.2,0.4,0.5,0.2,0.2,0.0,0.2,0.0,0.1,0.1,0.1,0.1,0.2,0.1,0.2,0.0],
+            "recovered": {
+                "gold_moz": [0.7,0.8,0.7,0.7,0.8,0.8,0.6,0.5,0.3,0.2,0.2,0.2,0.2,0.2,0.2,0.3,0.2,0.3,0.1],
+            },
+            "source_exhibit": "96.4",
+            "source_note": (
+                "Ahafo Complex TRS: Gold 2.000 USD/oz, NPV8 1,7 Mrd. USD auf 100%-Projektbasis; "
+                "Newmont wirtschaftlich 90%. Seit 2026: 35% Steuer, 5% Royalty, 3% GSL; "
+                "0,6% Advance-Dividend wird konservativ in der Preisbrücke berücksichtigt."
+            ),
+        },
+    }
+
+
+def _newmont_phase2_price_map(cache_version):
+    """Load model-normal commodity prices for the Phase-2 asset bridge."""
+    specs = {
+        "gold": ("Gold", "GC=F", "USD/oz"),
+        "copper": ("Kupfer", "HG=F", "USD/lb"),
+        "silver": ("Silber", "SI=F", "USD/oz"),
+    }
+    out = {}
+    for key, (label, symbol, unit) in specs.items():
+        cycle = load_mining_commodity_price_cycle(
+            symbol, cache_version, normalization_years=5, current_window_days=60
+        )
+        out[key] = {
+            "commodity": label,
+            "symbol": symbol,
+            "unit": unit,
+            "available": bool(cycle.get("available", False)),
+            "normalized_price": safe_float(cycle.get("normalized_price")),
+            "years_used": cycle.get("years_used") or [],
+            "annual_averages": cycle.get("annual_averages") or [],
+            "reason": cycle.get("reason"),
+        }
+    # No reliable Yahoo futures series is used for molybdenum in V2.15.
+    out["molybdenum"] = {
+        "commodity": "Molybdän",
+        "symbol": None,
+        "unit": "USD/lb",
+        "available": False,
+        "normalized_price": None,
+        "reason": "Keine verifizierte dynamische Yahoo-Rohstoffserie im Modell; TRS-Basis bleibt unverändert.",
+    }
+    return out
+
+
+def _metal_gross_revenue_musd(metal, quantity, price):
+    q = safe_float(quantity)
+    p = safe_float(price)
+    if q is None or p is None:
+        return None
+    if metal in ("gold", "silver"):
+        return q * 1_000_000.0 * p / 1_000_000.0  # Moz * USD/oz -> MUSD
+    if metal in ("copper", "molybdenum"):
+        return q * 1_000.0 * 2204.62262185 * p / 1_000_000.0  # kt -> lb -> MUSD
+    return None
+
+
+def build_newmont_asset_nav_phase2(cache_version):
+    """
+    V2.15 asset-level commodity-price normalization for the four current TRS.
+
+    This is deliberately a *price bridge* over the published annual after-tax
+    cash-flow timing, not a re-optimized mine plan. Annual TRS FCF cells are
+    rounded; the base series is calibrated to the published native NPV at the
+    native TRS discount rate before price deltas are applied.
+    """
+    trs_assets = _newmont_phase2_trs_asset_inputs()
+    prices = _newmont_phase2_price_map(cache_version)
+    common_discount_rate_pct = 8.0
+    material_unmodeled_revenue_share_limit_pct = 5.0
+    max_material_price_gap_pct = 25.0
+    results = []
+
+    for asset_name, data in trs_assets.items():
+        years = list(data.get("years") or [])
+        raw_fcf_musd = [float(x) * 1000.0 for x in (data.get("fcf_busd") or [])]
+        native_rate = safe_float(data.get("native_discount_rate_pct"))
+        native_npv = safe_float(data.get("native_npv_musd"))
+        ownership_pct = safe_float(data.get("ownership_pct")) or 100.0
+
+        raw_base_npv = _discount_cashflow_series_musd(raw_fcf_musd, native_rate)
+        calibration_factor = None
+        calibrated_fcf_musd = list(raw_fcf_musd)
+        if raw_base_npv not in (None, 0) and native_npv is not None:
+            calibration_factor = native_npv / raw_base_npv
+            calibrated_fcf_musd = [x * calibration_factor for x in raw_fcf_musd]
+
+        trs_prices = data.get("trs_prices") or {}
+        recovered = data.get("recovered") or {}
+
+        # Base gross-metal revenue shares are diagnostics only; net revenue in
+        # the TRS also contains realization effects and therefore will not match exactly.
+        base_revenue_by_metal = {}
+        for metal, base_price in trs_prices.items():
+            q_key = {
+                "gold": "gold_moz", "silver": "silver_moz",
+                "copper": "copper_kt", "molybdenum": "molybdenum_kt",
+            }.get(metal)
+            if not q_key:
+                continue
+            q_total = sum(float(x) for x in (recovered.get(q_key) or []))
+            rev = _metal_gross_revenue_musd(metal, q_total, base_price)
+            if rev is not None:
+                base_revenue_by_metal[metal] = rev
+        total_base_metal_revenue = sum(base_revenue_by_metal.values())
+        revenue_share_pct = {
+            metal: (value / total_base_metal_revenue * 100.0 if total_base_metal_revenue > 0 else None)
+            for metal, value in base_revenue_by_metal.items()
+        }
+
+        commodity_details = []
+        blockers = []
+        annual_adjustments_musd = [0.0 for _ in years]
+        unmodeled_share_pct = 0.0
+
+        for metal, base_price in trs_prices.items():
+            price_info = prices.get(metal) or {}
+            share_pct = safe_float(revenue_share_pct.get(metal)) or 0.0
+            normalized_price = safe_float(price_info.get("normalized_price"))
+            material = share_pct >= material_unmodeled_revenue_share_limit_pct
+            normalized = bool(price_info.get("available", False)) and normalized_price is not None
+            if not normalized:
+                unmodeled_share_pct += share_pct
+                if material:
+                    blockers.append(
+                        f"{price_info.get('commodity', metal)} ({share_pct:.1f}% Brutto-Metallumsatz) nicht dynamisch normalisiert"
+                    )
+                commodity_details.append({
+                    "metal": metal,
+                    "label": price_info.get("commodity", metal),
+                    "symbol": price_info.get("symbol"),
+                    "unit": price_info.get("unit"),
+                    "trs_price": base_price,
+                    "normalized_price": None,
+                    "price_gap_pct": None,
+                    "gross_revenue_share_pct": share_pct,
+                    "material": material,
+                    "normalized": False,
+                    "note": price_info.get("reason") or "Keine dynamische Normalisierung verfügbar.",
+                })
+                continue
+
+            price_gap_pct = (normalized_price / base_price - 1.0) * 100.0 if base_price else None
+            if material and price_gap_pct is not None and abs(price_gap_pct) > max_material_price_gap_pct:
+                blockers.append(
+                    f"{price_info.get('commodity', metal)}-Normalpreis weicht {price_gap_pct:+.1f}% von der TRS-Basis ab (>25%); Mine-Plan müsste neu optimiert werden"
+                )
+
+            q_key = {
+                "gold": "gold_moz", "silver": "silver_moz",
+                "copper": "copper_kt", "molybdenum": "molybdenum_kt",
+            }.get(metal)
+            quantities = list(recovered.get(q_key) or [])
+            levy_pct = safe_float((data.get("revenue_levy_pct") or {}).get(metal)) or 0.0
+            tax_pct = safe_float(data.get("tax_rate_pct")) or 0.0
+            marginal_after_tax_factor = (1.0 - levy_pct / 100.0) * (1.0 - tax_pct / 100.0)
+
+            for idx in range(min(len(years), len(quantities))):
+                base_rev = _metal_gross_revenue_musd(metal, quantities[idx], base_price)
+                norm_rev = _metal_gross_revenue_musd(metal, quantities[idx], normalized_price)
+                if base_rev is None or norm_rev is None:
+                    continue
+                annual_adjustments_musd[idx] += (norm_rev - base_rev) * marginal_after_tax_factor
+
+            commodity_details.append({
+                "metal": metal,
+                "label": price_info.get("commodity", metal),
+                "symbol": price_info.get("symbol"),
+                "unit": price_info.get("unit"),
+                "trs_price": base_price,
+                "normalized_price": normalized_price,
+                "price_gap_pct": price_gap_pct,
+                "gross_revenue_share_pct": share_pct,
+                "material": material,
+                "normalized": True,
+                "marginal_after_tax_factor": marginal_after_tax_factor,
+                "years_used": price_info.get("years_used") or [],
+            })
+
+        # Cadia's un-normalized molybdenum is tolerated only while its base gross
+        # metal-revenue share remains below the explicit 5% de-minimis threshold.
+        if unmodeled_share_pct > material_unmodeled_revenue_share_limit_pct:
+            blockers.append(
+                f"Nicht dynamisch normalisierte Nebenprodukt-Exposures summieren sich auf {unmodeled_share_pct:.1f}% (>5%)."
+            )
+
+        normalized_fcf_musd = [
+            calibrated_fcf_musd[i] + annual_adjustments_musd[i]
+            for i in range(min(len(calibrated_fcf_musd), len(annual_adjustments_musd)))
+        ]
+        normalized_npv_native_100 = _discount_cashflow_series_musd(normalized_fcf_musd, native_rate)
+        normalized_npv_common_100 = _discount_cashflow_series_musd(normalized_fcf_musd, common_discount_rate_pct)
+        ownership_factor = ownership_pct / 100.0
+        normalized_npv_native_owned = (
+            normalized_npv_native_100 * ownership_factor if normalized_npv_native_100 is not None else None
+        )
+        normalized_npv_common_owned = (
+            normalized_npv_common_100 * ownership_factor if normalized_npv_common_100 is not None else None
+        )
+        native_owned_npv = native_npv * ownership_factor if native_npv is not None else None
+        delta_vs_native_owned_pct = None
+        if native_owned_npv not in (None, 0) and normalized_npv_native_owned is not None:
+            delta_vs_native_owned_pct = (normalized_npv_native_owned / native_owned_npv - 1.0) * 100.0
+
+        available = len(blockers) == 0 and normalized_npv_native_owned is not None
+        confidence = "Mittel" if available and unmodeled_share_pct <= 0.5 else "Niedrig bis Mittel" if available else "Niedrig"
+        results.append({
+            "asset": asset_name,
+            "available": available,
+            "status": (
+                "Phase-2-Asset-NAV normalisiert"
+                if available else "Phase-2-Normalisierung gesperrt"
+            ),
+            "ownership_pct": ownership_pct,
+            "native_discount_rate_pct": native_rate,
+            "common_discount_rate_pct": common_discount_rate_pct,
+            "native_trs_npv_musd_100pct": native_npv,
+            "native_trs_npv_musd_owned": native_owned_npv,
+            "raw_rounded_series_npv_musd": raw_base_npv,
+            "annual_cashflow_calibration_factor": calibration_factor,
+            "normalized_nav_native_rate_musd_100pct": normalized_npv_native_100,
+            "normalized_nav_native_rate_musd_owned": normalized_npv_native_owned,
+            "normalized_nav_common_rate_musd_100pct": normalized_npv_common_100,
+            "normalized_nav_common_rate_musd_owned": normalized_npv_common_owned,
+            "delta_vs_native_owned_pct": delta_vs_native_owned_pct,
+            "unmodeled_gross_revenue_share_pct": unmodeled_share_pct,
+            "commodity_details": commodity_details,
+            "blockers": blockers,
+            "confidence": confidence,
+            "source_exhibit": data.get("source_exhibit"),
+            "source_note": data.get("source_note"),
+            "method_note": (
+                "Die veröffentlichten annualisierten TRS-Cashflows sind gerundet. V2.15 kalibriert daher zunächst das "
+                "jährliche FCF-Muster auf den veröffentlichten nativen TRS-NPV. Anschließend werden nur die "
+                "Rohstoffpreis-Differenzen über die verifizierten jährlichen Rückgewinnungsmengen nach einem "
+                "asset-spezifischen marginalen Steuer-/Royalty-Haircut übergeleitet. Mine-Plan, Kostenpfad, FX und "
+                "Reserven werden nicht neu optimiert."
+            ),
+        })
+
+    phase2_ready_assets = [x for x in results if x.get("available")]
+    return {
+        "available": True,
+        "status": (
+            f"Phase 2: {len(phase2_ready_assets)}/{len(results)} TRS-Assets preisnormalisiert"
+        ),
+        "common_discount_rate_pct": common_discount_rate_pct,
+        "asset_count": len(results),
+        "normalized_asset_count": len(phase2_ready_assets),
+        "assets": results,
+        "price_map": prices,
+        "aggregation_released": False,
+        "reason": (
+            "V2.15 normalisiert die vorhandenen TRS-Assets einzeln, gibt aber bewusst noch keinen Newmont-Portfolio-NAV frei. "
+            "Das Managed-Operations-90%-Gate sowie die separaten JV- und Entwicklungsprojekt-Blöcke bleiben bindend."
+        ),
+        "note": (
+            "Der 8%-Vergleichs-NAV dient nur der Vergleichbarkeit zwischen Assets. Native TRS-Diskontsätze bleiben separat sichtbar. "
+            "Eine spätere Portfolio-Aggregation darf erst nach bestandener Abdeckungs- und Completeness-Prüfung erfolgen."
+        ),
+    }
+
 def get_verified_newmont_core_asset_lom_structure():
     """Verified Newmont V2.14.2 portfolio LOM evidence map with completeness gate; not a synthetic NAV."""
     total_reserves = 118.2
@@ -7464,6 +7853,16 @@ def get_verified_newmont_core_asset_lom_structure():
     nonmanaged_jv_reserves = 25.6
     development_project_reserves = 21.0
     phase1 = get_verified_newmont_technical_lom_phase1()
+    try:
+        phase2 = build_newmont_asset_nav_phase2(CACHE_VERSION)
+    except Exception as exc:
+        phase2 = {
+            "available": False,
+            "status": "Phase 2 – Daten/Preisnormalisierung nicht verfügbar",
+            "assets": [],
+            "aggregation_released": False,
+            "reason": f"Phase-2-Normalisierung konnte nicht belastbar berechnet werden: {exc}",
+        }
     nav_eligible_reserves = phase1.get("verified_trs_reserves_moz", 0.0)
     portfolio_completeness_gate = build_newmont_portfolio_completeness_gate(
         total_reserves,
@@ -7535,6 +7934,7 @@ def get_verified_newmont_core_asset_lom_structure():
         "nav_eligible_total_portfolio_coverage_pct": nav_eligible_reserves / total_reserves * 100.0,
         "full_lom_profile_coverage_pct": nav_eligible_reserves / total_reserves * 100.0,
         "technical_lom_phase1": phase1,
+        "asset_nav_phase2": phase2,
         "nonmanaged_jv_reserves_moz": nonmanaged_jv_reserves,
         "nonmanaged_jv_coverage_pct": nonmanaged_jv_reserves / total_reserves * 100.0,
         "development_project_reserves_moz": development_project_reserves,
@@ -7593,6 +7993,7 @@ def build_mining_asset_nav_control(
         "mine_life_status": "Daten unzureichend",
         "core_asset_lom_structure": {},
         "technical_lom_phase1": {},
+        "asset_nav_phase2": {},
         "portfolio_completeness_gate": {},
         "technical_nav_available": False,
         "technical_nav_reference_fresh": False,
@@ -7693,6 +8094,8 @@ def build_mining_asset_nav_control(
     result["core_asset_lom_structure"] = core_asset_lom_structure
     technical_lom_phase1 = core_asset_lom_structure.get("technical_lom_phase1") or {}
     result["technical_lom_phase1"] = technical_lom_phase1
+    asset_nav_phase2 = core_asset_lom_structure.get("asset_nav_phase2") or {}
+    result["asset_nav_phase2"] = asset_nav_phase2
     portfolio_completeness_gate = core_asset_lom_structure.get("portfolio_completeness_gate") or {}
     result["portfolio_completeness_gate"] = portfolio_completeness_gate
 
@@ -7859,7 +8262,13 @@ def build_mining_asset_nav_control(
             managed_reserves = safe_float((technical_lom_phase1 or {}).get("managed_operating_reserves_moz"))
             nav_eligible = safe_float((technical_lom_phase1 or {}).get("nav_eligible_reserves_moz"))
             total_pct = safe_float((technical_lom_phase1 or {}).get("total_portfolio_coverage_pct"))
-            status = "LOM/NAV Phase 1 – NAV-fähige Abdeckung gemanagter operativer Reserven unter Freigabegrenze"
+            phase2_ready = int((asset_nav_phase2 or {}).get("normalized_asset_count") or 0)
+            phase2_total = int((asset_nav_phase2 or {}).get("asset_count") or 0)
+            status = (
+                f"LOM/NAV Phase 2 – {phase2_ready}/{phase2_total} TRS-Assets normalisiert; Managed-Abdeckung unter Freigabegrenze"
+                if phase2_total > 0 else
+                "LOM/NAV Phase 1 – NAV-fähige Abdeckung gemanagter operativer Reserven unter Freigabegrenze"
+            )
             if phase1_pct is not None:
                 missing_names = ", ".join(
                     str(x.get("asset")) for x in (technical_lom_phase1 or {}).get("missing_current_trs_assets", []) if x.get("asset")
@@ -8347,7 +8756,7 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.14.2 trennt Portfolio-Completeness-Gate, Portfolio-Abdeckungslogik, technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.15 trennt Asset-NAV-Normalisierung Phase 2, Portfolio-Completeness-Gate, Portfolio-Abdeckungslogik, technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
             "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
             "Ertragskraft, Reserve-/Asset-Kontrolle, Run-rate-Mine-NAV und das "
             "formale Life-of-Mine-Freigabe-Gate. Ein Guidance-Jahr ersetzt kein "
@@ -9106,7 +9515,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_portfolio_completeness_v2142_20260906"
+CACHE_VERSION = "m6_mining_asset_nav_phase2_v215_20260906"
 
 @st.cache_data(
     ttl=900,
@@ -11925,7 +12334,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.14.2 – Portfolio-Completeness-Gate + Portfolio-Abdeckung + LOM/NAV Phase 1")
+                    st.caption("Bergbau-Schutzmodell V2.15 – Asset-NAV Phase 2 + Portfolio-Completeness-Gate + LOM/NAV Phase 1")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -12427,7 +12836,7 @@ if selected_symbol:
                         structural_fallback = checks.get("structural_break_fallback", {})
                         if structural_fallback.get("applicable", False):
                             st.write(
-                                "**Structural-Break-Fallback V2.13.1 (unverändert innerhalb V2.14.2):** "
+                                "**Structural-Break-Fallback V2.13.1 (unverändert innerhalb V2.15):** "
                                 f"{structural_fallback.get('status', 'Noch offen')}"
                             )
                             fb1, fb2 = st.columns(2)
@@ -12599,7 +13008,7 @@ if selected_symbol:
 
                             core_lom = asset_nav_control.get("core_asset_lom_structure") or {}
                             if core_lom.get("available"):
-                                st.markdown("**Portfolio-LOM-Abdeckungsstruktur (V2.14.2):**")
+                                st.markdown("**Portfolio-LOM-Abdeckungsstruktur (V2.15):**")
                                 cov1, cov2, cov3 = st.columns(3)
                                 with cov1:
                                     st.metric("Gesamtportfolio-Reserven", f"{safe_float(core_lom.get('total_reserves_moz')) or 0.0:.1f} Mio. oz")
@@ -12625,7 +13034,7 @@ if selected_symbol:
 
                                 completeness_gate = core_lom.get("portfolio_completeness_gate") or {}
                                 if completeness_gate.get("available"):
-                                    st.markdown("**Portfolio-Completeness-Gate (V2.14.2):**")
+                                    st.markdown("**Portfolio-Completeness-Gate (V2.14.2 innerhalb V2.15):**")
                                     block_map = {b.get("key"): b for b in completeness_gate.get("blocks", [])}
                                     pc1, pc2, pc3 = st.columns(3)
                                     for col, key in [
@@ -12661,7 +13070,7 @@ if selected_symbol:
 
                                 phase1 = core_lom.get("technical_lom_phase1") or {}
                                 if phase1.get("available"):
-                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – Teilmodul V2.14.1 innerhalb V2.14.2:**")
+                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – Teilmodul V2.14.1 innerhalb V2.15:**")
                                     st.write(f"**Status:** {phase1.get('status', '–')}")
                                     p1c1, p1c2, p1c3, p1c4 = st.columns(4)
                                     with p1c1:
@@ -12735,6 +13144,72 @@ if selected_symbol:
 
                                     if not phase1.get("coverage_ok", False):
                                         st.warning(phase1.get("reason") or "Phase-1-Abdeckung unter Freigabegrenze.")
+
+                                phase2 = core_lom.get("asset_nav_phase2") or {}
+                                if phase2.get("available"):
+                                    st.markdown("**Asset-NAV-Normalisierung Phase 2 – V2.15:**")
+                                    st.write(f"**Status:** {phase2.get('status', '–')}")
+                                    p2a, p2b, p2c = st.columns(3)
+                                    with p2a:
+                                        st.metric("TRS-Assets", f"{int(phase2.get('normalized_asset_count') or 0)}/{int(phase2.get('asset_count') or 0)} normalisiert")
+                                    with p2b:
+                                        st.metric("Vergleichs-Diskontsatz", f"{safe_float(phase2.get('common_discount_rate_pct')) or 0.0:.1f} %")
+                                    with p2c:
+                                        st.metric("Portfolio-Aggregation", "Gesperrt")
+                                    st.caption(phase2.get("note") or "")
+
+                                    for nav_asset in phase2.get("assets", []):
+                                        st.write(
+                                            f"• **{nav_asset.get('asset')}** – Exhibit {nav_asset.get('source_exhibit')} · "
+                                            f"Newmont-Anteil {safe_float(nav_asset.get('ownership_pct')) or 0.0:.0f} % · "
+                                            f"TRS-Diskont {safe_float(nav_asset.get('native_discount_rate_pct')) or 0.0:.1f} %"
+                                        )
+                                        n1, n2, n3, n4 = st.columns(4)
+                                        with n1:
+                                            val = safe_float(nav_asset.get("native_trs_npv_musd_owned"))
+                                            st.metric("Native TRS-NPV · Anteil", f"{(val or 0.0)/1000.0:.2f} Mrd. USD")
+                                        with n2:
+                                            val = safe_float(nav_asset.get("normalized_nav_native_rate_musd_owned"))
+                                            st.metric("Normalisiert · TRS-Rate", f"{(val or 0.0)/1000.0:.2f} Mrd. USD" if val is not None else "–")
+                                        with n3:
+                                            val = safe_float(nav_asset.get("normalized_nav_common_rate_musd_owned"))
+                                            st.metric("Vergleichs-NAV · 8 %", f"{(val or 0.0)/1000.0:.2f} Mrd. USD" if val is not None else "–")
+                                        with n4:
+                                            delta = safe_float(nav_asset.get("delta_vs_native_owned_pct"))
+                                            st.metric("Preisnormalisierung vs. nativ", f"{delta:+.1f} %" if delta is not None else "–")
+
+                                        metal_parts = []
+                                        for metal in nav_asset.get("commodity_details", []):
+                                            base = safe_float(metal.get("trs_price"))
+                                            norm = safe_float(metal.get("normalized_price"))
+                                            share = safe_float(metal.get("gross_revenue_share_pct"))
+                                            unit = metal.get("unit") or ""
+                                            if metal.get("normalized") and base is not None and norm is not None:
+                                                metal_parts.append(
+                                                    f"{metal.get('label')}: TRS {base:.2f} → Modell {norm:.2f} {unit} "
+                                                    f"({safe_float(metal.get('price_gap_pct')) or 0.0:+.1f} %; Brutto-Metallumsatz ~{share or 0.0:.1f} %)"
+                                                )
+                                            else:
+                                                metal_parts.append(
+                                                    f"{metal.get('label')}: TRS {base:.2f} {unit}; nicht dynamisch normalisiert "
+                                                    f"(Brutto-Metallumsatz ~{share or 0.0:.1f} %)"
+                                                )
+                                        if metal_parts:
+                                            st.caption(" · ".join(metal_parts))
+                                        cal = safe_float(nav_asset.get("annual_cashflow_calibration_factor"))
+                                        st.caption(
+                                            f"Annualisierte TRS-FCFs wegen Tabellenrundung auf den veröffentlichten nativen NPV kalibriert"
+                                            + (f" (Faktor {cal:.3f}). " if cal is not None else ". ")
+                                            + f"Phase-2-Konfidenz: {nav_asset.get('confidence', '–')}."
+                                        )
+                                        st.caption(nav_asset.get("source_note") or "")
+                                        st.caption(nav_asset.get("method_note") or "")
+                                        if nav_asset.get("blockers"):
+                                            st.warning("Phase-2-Sperren: " + " · ".join(str(x) for x in nav_asset.get("blockers", [])))
+
+                                    st.warning(phase2.get("reason") or "Phase 2 erzeugt noch keinen Newmont-Portfolio-NAV.")
+                                elif phase2:
+                                    st.warning(phase2.get("reason") or "Asset-NAV-Normalisierung Phase 2 nicht verfügbar.")
 
                                 for asset in core_lom.get("managed_operating_assets", core_lom.get("managed_core_assets", [])):
                                     reserve_moz = safe_float(asset.get("reserve_moz")) or 0.0
