@@ -3350,6 +3350,168 @@ def build_midstream_special_model(
 
 
 # =========================================================
+# Autohersteller-Sondermodell V1 – Datenbasis / Plausibilitätscheck
+# =========================================================
+
+def build_auto_special_model(
+    company_type,
+    info,
+    eps_normalization,
+    currency_context
+):
+    """
+    Conservative auto-manufacturer data block.
+
+    It does not create a score, valuation multiple or fair value.
+    Consolidated Yahoo cash flow and debt can mix the industrial
+    automotive business with captive financial services, so V1
+    never treats them as automotive industrial FCF/net debt.
+    """
+    type_name = str(
+        company_type.get("type", "")
+    ).lower()
+
+    if "autohersteller" not in type_name:
+        return {
+            "applicable": False
+        }
+
+    enterprise_value = safe_float(
+        info.get("enterpriseValue")
+    )
+    ebitda = safe_float(
+        info.get("ebitda")
+    )
+    yahoo_ev_to_ebitda = safe_float(
+        info.get("enterpriseToEbitda")
+    )
+    operating_cashflow = safe_float(
+        info.get("operatingCashflow")
+    )
+    free_cashflow_reference = safe_float(
+        info.get("freeCashflow")
+    )
+    total_cash_reference = safe_float(
+        info.get("totalCash")
+    )
+    total_debt_reference = safe_float(
+        info.get("totalDebt")
+    )
+
+    normalized_eps = None
+    eps_method = None
+    eps_confidence = None
+    if isinstance(eps_normalization, dict):
+        normalized_eps = safe_float(
+            eps_normalization.get("normalized_eps")
+        )
+        eps_method = eps_normalization.get("method")
+        eps_confidence = eps_normalization.get("confidence")
+
+    calculated_ev_to_ebitda = None
+    if (
+        enterprise_value is not None
+        and enterprise_value > 0
+        and ebitda is not None
+        and ebitda > 0
+    ):
+        calculated_ev_to_ebitda = (
+            enterprise_value / ebitda
+        )
+
+    display_ev_to_ebitda = None
+    ev_to_ebitda_status = "unverified"
+    ev_to_ebitda_note = None
+
+    if calculated_ev_to_ebitda is None:
+        ev_to_ebitda_note = (
+            "EV/EBITDA konnte aus Enterprise Value und EBITDA nicht "
+            "belastbar berechnet werden. Es wird kein Wert geschätzt."
+        )
+    elif (
+        yahoo_ev_to_ebitda is not None
+        and yahoo_ev_to_ebitda > 0
+    ):
+        deviation = abs(
+            calculated_ev_to_ebitda
+            / yahoo_ev_to_ebitda
+            - 1.0
+        )
+        if deviation <= 0.20:
+            display_ev_to_ebitda = calculated_ev_to_ebitda
+            ev_to_ebitda_status = "plausible"
+            ev_to_ebitda_note = (
+                "EV/EBITDA-Plausibilitätscheck bestanden: Die aus "
+                "Enterprise Value und EBITDA berechnete Kennzahl liegt "
+                "innerhalb von 20 % des separat gemeldeten Yahoo-"
+                "enterpriseToEbitda. Bei Autoherstellern bleibt dieser "
+                "Wert trotzdem nur Konzern-Kontext, weil Finanzdienstleistungen "
+                "die Konzernkennzahlen beeinflussen können."
+            )
+        else:
+            ev_to_ebitda_status = "conflict"
+            ev_to_ebitda_note = (
+                "⚠️ EV/EBITDA nicht belastbar: Die selbst berechnete "
+                "Kennzahl weicht um mehr als 20 % vom separat gemeldeten "
+                "Yahoo-enterpriseToEbitda ab. Deshalb wird sie nicht als "
+                "belastbare Referenz angezeigt."
+            )
+    else:
+        ev_to_ebitda_note = (
+            "EV/EBITDA konnte zwar aus Enterprise Value und EBITDA "
+            "berechnet werden, aber ein separater Yahoo-Anker fehlt. "
+            "Der Wert wird deshalb nicht als belastbar angezeigt."
+        )
+
+    available_anchors = sum(
+        value is not None
+        for value in [
+            normalized_eps,
+            display_ev_to_ebitda,
+            operating_cashflow
+        ]
+    )
+
+    readiness = (
+        "Teilweise"
+        if available_anchors >= 2
+        else "Unvollständig"
+    )
+
+    return {
+        "applicable": True,
+        "normalized_eps": normalized_eps,
+        "eps_method": eps_method,
+        "eps_confidence": eps_confidence,
+        "enterprise_value": enterprise_value,
+        "ebitda": ebitda,
+        "calculated_ev_to_ebitda": calculated_ev_to_ebitda,
+        "display_ev_to_ebitda": display_ev_to_ebitda,
+        "yahoo_ev_to_ebitda": yahoo_ev_to_ebitda,
+        "ev_to_ebitda_status": ev_to_ebitda_status,
+        "ev_to_ebitda_note": ev_to_ebitda_note,
+        "operating_cashflow": operating_cashflow,
+        "free_cashflow_reference": free_cashflow_reference,
+        "total_cash_reference": total_cash_reference,
+        "total_debt_reference": total_debt_reference,
+        "automotive_fcf_available": False,
+        "industrial_net_debt_available": False,
+        "financial_services_split_available": False,
+        "readiness": readiness,
+        "note": (
+            "Autohersteller-Sondermodell V1 bleibt ein reiner Daten- und "
+            "Plausibilitätsblock. Yahoo-Free-Cashflow, Cash und Schulden "
+            "werden bei Autoherstellern nicht als Automotive-Industrie-FCF "
+            "oder Industrie-Netto-Schulden interpretiert, weil konsolidierte "
+            "Werte häufig das Finanzdienstleistungsgeschäft enthalten. "
+            "Automotive Free Cash Flow, Industrie-Netto-Cash/-Schulden und "
+            "der Finanzdienstleistungs-Anteil werden nicht geschätzt. Noch "
+            "keine Auto-Punkte, kein Bewertungs-Multiple und kein Fair Value."
+        )
+    }
+
+
+# =========================================================
 # Modul 6 – Schritt 1: Bewertungs-Korridor & Fundamental-Multiple
 # =========================================================
 
@@ -4100,6 +4262,31 @@ def get_special_control(company_type, symbol):
             )
         }
 
+    if "autohersteller" in type_name:
+        return {
+            "required": True,
+            "control_key": "auto_cycle_industrial_cashflow",
+            "control_name": (
+                "Autohersteller / Zyklus-, Industrie-Cashflow- & "
+                "Finanzdienstleistungsprüfung"
+            ),
+            "planned_checks": [
+                "Zyklus-normalisiertes EPS",
+                "Automotive Free Cash Flow",
+                "Industrie-Netto-Cash / -Schulden",
+                "EV / EBITDA",
+                "Finanzdienstleistungs-Anteil"
+            ],
+            "status": "Router aktiv – V1 Datenbasis vorhanden",
+            "note": (
+                "V1 lädt nur belastbare Konzern-Basiskennzahlen. "
+                "Automotive Free Cash Flow, Industrie-Netto-Cash/-Schulden "
+                "und der Finanzdienstleistungs-Anteil werden nicht aus "
+                "konsolidierten Yahoo-Werten geschätzt. Das Sondermodell "
+                "verändert noch keinen Score und kein Bewertungs-Multiple."
+            )
+        }
+
     if "midstream" in type_name:
         return {
             "required": True,
@@ -4187,7 +4374,7 @@ def get_special_control(company_type, symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1_ing_primary_priority_v2_midstream_v1_generic_router_v1"
+CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1_ing_primary_priority_v2_midstream_v1_generic_router_v1_auto_v1"
 
 @st.cache_data(
     ttl=900,
@@ -4340,6 +4527,13 @@ def load_stock(search_text, cache_version):
         currency_context
     )
 
+    auto_special_model = build_auto_special_model(
+        company_type,
+        info,
+        eps_normalization,
+        currency_context
+    )
+
     fundamental_multiple = calculate_fundamental_multiple(
         company_type,
         growth_score,
@@ -4428,6 +4622,7 @@ def load_stock(search_text, cache_version):
         "insurance_special_model": insurance_special_model,
         "bank_special_model": bank_special_model,
         "midstream_special_model": midstream_special_model,
+        "auto_special_model": auto_special_model,
         "fundamental_multiple": fundamental_multiple,
         "peer_group": peer_group,
         "peer_check": peer_check,
@@ -5941,6 +6136,157 @@ if selected_symbol:
 
                     st.caption(
                         midstream_model["note"]
+                    )
+
+                auto_model = data.get(
+                    "auto_special_model",
+                    {"applicable": False}
+                )
+
+                if auto_model.get("applicable"):
+
+                    st.divider()
+
+                    st.subheader(
+                        "🚗 Autohersteller-Sondermodell V1 – Datenbasis"
+                    )
+
+                    st.info(
+                        "Autohersteller-Modell erkannt. In V1 werden nur "
+                        "Zyklus-EPS, EV/EBITDA und Konzern-Cashflow-Daten "
+                        "plausibilisiert. Konsolidierte Schulden und Cashflows "
+                        "werden nicht als reines Automotive-Industriegeschäft "
+                        "interpretiert."
+                    )
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+
+                        st.metric(
+                            "Zyklus-/normalisiertes EPS",
+                            format_eps(
+                                auto_model["normalized_eps"],
+                                financial_currency
+                            )
+                        )
+
+                        st.write(
+                            "**EPS-Methode:** "
+                            f"{text_or_dash(auto_model['eps_method'])}"
+                        )
+
+                        st.write(
+                            "**EPS-Sicherheit:** "
+                            f"{text_or_dash(auto_model['eps_confidence'])}"
+                        )
+
+                        st.metric(
+                            "EBITDA",
+                            format_money(
+                                auto_model["ebitda"],
+                                financial_currency
+                            )
+                        )
+
+                        st.metric(
+                            "Enterprise Value",
+                            format_money(
+                                auto_model["enterprise_value"],
+                                financial_currency
+                            )
+                        )
+
+                        if auto_model[
+                            "display_ev_to_ebitda"
+                        ] is not None:
+                            st.metric(
+                                "EV / EBITDA (Konzern-Kontext)",
+                                f"{auto_model['display_ev_to_ebitda']:.2f}×"
+                            )
+                        else:
+                            st.metric(
+                                "EV / EBITDA (Konzern-Kontext)",
+                                "–"
+                            )
+
+                    with col2:
+
+                        st.metric(
+                            "Operating Cashflow (Konzern, nur Kontext)",
+                            format_money(
+                                auto_model["operating_cashflow"],
+                                financial_currency
+                            )
+                        )
+
+                        st.metric(
+                            "Yahoo-Free-Cashflow (Konzern, nur Referenz)",
+                            format_money(
+                                auto_model["free_cashflow_reference"],
+                                financial_currency
+                            )
+                        )
+
+                        st.metric(
+                            "Cash (Konzern, nur Referenz)",
+                            format_money(
+                                auto_model["total_cash_reference"],
+                                financial_currency
+                            )
+                        )
+
+                        st.metric(
+                            "Schulden (Konzern, nur Referenz)",
+                            format_money(
+                                auto_model["total_debt_reference"],
+                                financial_currency
+                            )
+                        )
+
+                    st.write(
+                        "**Automotive Free Cash Flow:** – "
+                        "(nicht separat belastbar verfügbar; Konzern-FCF wird "
+                        "nicht als Ersatz verwendet)"
+                    )
+
+                    st.write(
+                        "**Industrie-Netto-Cash / -Schulden:** – "
+                        "(nicht separat belastbar verfügbar; Konzern-Cash und "
+                        "-Schulden werden nicht als Ersatz verwendet)"
+                    )
+
+                    st.write(
+                        "**Finanzdienstleistungs-Anteil:** – "
+                        "(in der aktuellen Datenquelle nicht separat belastbar "
+                        "verfügbar; wird nicht geschätzt)"
+                    )
+
+                    st.write(
+                        "**Datenreife Sondermodell:** "
+                        f"{auto_model['readiness']}"
+                    )
+
+                    if auto_model.get(
+                        "ev_to_ebitda_note"
+                    ):
+                        ev_note = auto_model[
+                            "ev_to_ebitda_note"
+                        ]
+                        if ev_note.startswith("⚠️"):
+                            st.warning(ev_note)
+                        else:
+                            st.caption(ev_note)
+
+                    st.warning(
+                        "Bei Autoherstellern können konsolidierte Yahoo-"
+                        "Schulden und Cashflows das Finanzdienstleistungsgeschäft "
+                        "enthalten. Deshalb werden diese Werte in V1 nicht für "
+                        "eine normale Netto-Schulden/FCF-Bewertung verwendet."
+                    )
+
+                    st.caption(
+                        auto_model["note"]
                     )
 
                 st.divider()
