@@ -4814,9 +4814,9 @@ def get_special_control(company_type, symbol):
                 "Life-of-Mine-Profil & NAV-Freigabe-Gate",
                 "Allgemeiner Primärrohstoff-Router"
             ],
-            "status": "Router aktiv – V2.13.1 Structural-Break-Fallback + Kernasset-LOM-Struktur + LOM-Gate",
+            "status": "Router aktiv – V2.14 LOM/NAV Phase 1 + Structural-Break-Fallback + LOM-Gate",
             "note": (
-                "V2.13.1 ergänzt das Bergbaumodell um einen streng abgesicherten Structural-Break-Fallback für zyklische EPS-Historien sowie einen verifizierten Reserve-/NAV-Snapshot und einen konservativen allgemeinen "
+                "V2.14 ergänzt das Bergbaumodell um eine technische LOM/NAV-Phase-1-Prüfung für aktuelle S-K-1300-Minenberichte, einen streng abgesicherten Structural-Break-Fallback für zyklische EPS-Historien sowie einen verifizierten Reserve-/NAV-Snapshot und einen konservativen allgemeinen "
                 "Primärrohstoff-Router für eindeutige Branchen wie Gold, Silber und "
                 "Kupfer. Unspezifische Mischbranchen bleiben gesperrt. Das bestehende "
                 "V2.7-Life-of-Mine-Gate bleibt unverändert aktiv. "
@@ -5631,7 +5631,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
                 "Hecla wird wegen der gemischten Yahoo-Branche ausdrücklich primär "
                 "dem Silberpreis zugeordnet. Gold, Blei und Zink bleiben zusätzliche "
                 "Exposures und werden nicht als separate Primärrohstoffe in diese "
-                "V2.13.1-Kontrolle hineingeschätzt."
+                "V2.14-Kontrolle hineingeschätzt."
             ),
         },
     }
@@ -5669,7 +5669,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
         "route_source": "Allgemeiner Branchen-Router",
         "routing_basis": f"Yahoo-Branche: {industry_text}",
         "mapping_note": (
-            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.13.1 "
+            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.14 "
             f"automatisch dem Primärrohstoff {base['commodity_name']} zugeordnet. "
             "Unspezifische oder gemischte Bergbau-Branchen werden weiterhin nicht "
             "automatisch geroutet."
@@ -6525,9 +6525,12 @@ def get_verified_mining_asset_snapshot(symbol):
             "core_asset_lom_structure": get_verified_newmont_core_asset_lom_structure(),
             "technical_nav_references": [],
             "technical_nav_note": (
-                "V2.11 integriert bewusst noch keinen aktuellen mine-spezifischen "
-                "Newmont-NAV. Ohne aktuelle technische LOM-Produktions-, Kosten-, "
-                "Sustaining-CapEx- und Steuerprofile wird kein synthetischer NAV gebaut."
+                "V2.14 hat für Lihir, Cadia, Boddington und den Ahafo Complex aktuelle "
+                "S-K-1300-Technical-Report-Summaries mit LOM-Cashflows verifiziert. "
+                "Phase 1 prüft nur die NAV-Eignung der einzelnen Assets; die veröffentlichten "
+                "NPVs werden noch nicht zu einem Newmont-Gesamt-NAV addiert. Für die übrigen "
+                "wesentlichen Kernassets fehlt im verifizierten 2025-Form-10-K-Exhibit-Set "
+                "weiterhin ein entsprechendes aktuelles TRS."
             ),
         }
 
@@ -6716,17 +6719,17 @@ def build_mining_normalized_mine_nav_v26(
     symbol_text = str(symbol or "").upper()
     if symbol_text != "HL" or not operating_snapshot or not asset_snapshot:
         if symbol_text == "NEM" and asset_snapshot:
-            result["status"] = "Portfolio-Reservebasis verfügbar – mine-spezifischer LOM-NAV noch offen"
+            result["status"] = "Phase-1-NAV-Kandidaten verfügbar – Portfolio-NAV noch gesperrt"
             result["reason"] = (
-                "Newmonts 2025er Goldreserven sind verifiziert, aber V2.11 besitzt "
-                "noch keine aktuellen mine-spezifischen Life-of-Mine-Produktions-, "
-                "Kosten-, Sustaining-CapEx- und Steuerprofile für einen belastbaren "
-                "Portfolio-NAV. Es wird kein synthetischer Mine-NAV geschätzt."
+                "V2.14 hat aktuelle S-K-1300-LOM-Datensätze für Lihir, Cadia, Boddington und den Ahafo Complex "
+                "verifiziert. Diese Assets dürfen in einer späteren Phase einzeln normalisiert werden. Die aktuelle "
+                "Abdeckung liegt jedoch unter dem 90-%-Gate der gemanagten Kernreserven; deshalb wird noch kein "
+                "Newmont-Portfolio-NAV gerechnet und kein synthetischer Ersatz für fehlende Assets geschätzt."
             )
             result["method_note"] = (
-                "Das LOM-Teilmodul trennt den aktuellen Reserve-Snapshot strikt vom Mine-NAV. "
-                "Ein Portfolio-Guidance-Jahr ersetzt keine mine-spezifischen LOM-"
-                "Cashflows."
+                "Phase 1 ist nur eine Eignungsprüfung. Native TRS-NPVs mit unterschiedlichen asset-spezifischen "
+                "Diskontsätzen werden nicht ungeprüft addiert. Ein Portfolio-Guidance-Jahr ersetzt ebenfalls keine "
+                "mine-spezifischen LOM-Cashflows."
             )
         else:
             result["reason"] = "Kein verifizierter V2.11-Mine-NAV-Datensatz verfügbar."
@@ -7157,29 +7160,149 @@ def build_mining_lom_release_gate_v27(
 
 
 
+def get_verified_newmont_technical_lom_phase1():
+    """
+    Newmont V2.14 technical LOM/NAV Phase 1.
+
+    This is an eligibility audit, not a portfolio NAV. Newmont's 2025 Form 10-K
+    includes current S-K 1300 Technical Report Summaries for Boddington, Cadia,
+    Lihir and the Ahafo Complex (Exhibits 96.1-96.4; effective 31.12.2025).
+    Each report contains a mine plan / production schedule, operating costs,
+    capital, taxes/royalties and an after-tax economic analysis. Native TRS NPVs
+    remain asset-specific reference values and are not summed in Phase 1.
+    """
+    total_portfolio_reserves_moz = 118.2
+    managed_core_reserves_moz = 64.2
+    verified_trs_reserves_moz = 48.5
+    required_managed_core_coverage_pct = 90.0
+
+    eligible_assets = [
+        {
+            "asset": "Lihir", "reserve_moz": 16.0,
+            "trs_exhibit": "96.3", "effective_date": "31.12.2025", "report_date": "Februar 2026",
+            "current_trs": True, "production_schedule": True, "operating_costs": True,
+            "capital_costs": True, "taxes_royalties": True, "annual_cashflows": True,
+            "gold_price_usd_oz": 2000.0, "discount_rate_pct": 10.0,
+            "native_after_tax_npv_musd": 2000.0, "native_fcf_musd": 3100.0,
+            "lom_capital_musd": 2200.0, "lom_operating_cost_musd": 16100.0,
+            "active_mining_end_year": 2040, "processing_end_year": 2043,
+            "nav_candidate_phase1": True,
+            "note": "Aktuelles TRS; LOM-Cashflow vollständig genug für eine spätere Asset-NAV-Normalisierung. Native NPV10 nur Referenz."
+        },
+        {
+            "asset": "Cadia", "reserve_moz": 13.5,
+            "trs_exhibit": "96.2", "effective_date": "31.12.2025", "report_date": "Februar 2026",
+            "current_trs": True, "production_schedule": True, "operating_costs": True,
+            "capital_costs": True, "taxes_royalties": True, "annual_cashflows": True,
+            "gold_price_usd_oz": 2000.0, "discount_rate_pct": 5.0,
+            "native_after_tax_npv_musd": 2600.0, "native_fcf_musd": 5300.0,
+            "lom_capital_musd": 9700.0, "lom_operating_cost_musd": 22000.0,
+            "active_mining_end_year": 2056, "processing_end_year": 2056,
+            "nav_candidate_phase1": True,
+            "note": "Aktuelles TRS mit jährlichen LOM-Cashflows; native NPV5 nur Asset-Referenz. Genehmigungs-/TSF-Risiken bleiben separat zu beachten."
+        },
+        {
+            "asset": "Boddington", "reserve_moz": 10.2,
+            "trs_exhibit": "96.1", "effective_date": "31.12.2025", "report_date": "Februar 2026",
+            "current_trs": True, "production_schedule": True, "operating_costs": True,
+            "capital_costs": True, "taxes_royalties": True, "annual_cashflows": True,
+            "gold_price_usd_oz": 2000.0, "discount_rate_pct": 5.0,
+            "native_after_tax_npv_musd": 1500.0, "native_fcf_musd": 2200.0,
+            "lom_capital_musd": 3300.0, "lom_operating_cost_musd": 12300.0,
+            "active_mining_end_year": 2040, "processing_end_year": 2040,
+            "nav_candidate_phase1": True,
+            "note": "Aktuelles TRS mit annualisiertem Cashflow bis 2040; native NPV5 nur Asset-Referenz."
+        },
+        {
+            "asset": "Ahafo Complex", "reserve_moz": 8.8,
+            "trs_exhibit": "96.4", "effective_date": "31.12.2025", "report_date": "Februar 2026",
+            "current_trs": True, "production_schedule": True, "operating_costs": True,
+            "capital_costs": True, "taxes_royalties": True, "annual_cashflows": True,
+            "gold_price_usd_oz": 2000.0, "discount_rate_pct": 8.0,
+            "native_after_tax_npv_musd": 1700.0, "native_fcf_musd": 2700.0,
+            "lom_capital_musd": 1600.0, "lom_operating_cost_musd": 7300.0,
+            "active_mining_end_year": 2044, "processing_end_year": 2044,
+            "nav_candidate_phase1": True,
+            "note": "TRS berichtet den Ahafo-Complex auf 100%-Projektbasis; Newmonts 90%-Interesse wird in Phase 1 noch nicht in einen Portfolio-NAV umgerechnet."
+        },
+    ]
+
+    missing_current_trs_assets = [
+        {"asset": "Tanami", "reserve_moz": 5.3, "reason": "Kein separates aktuelles Exhibit-96-TRS im verifizierten Newmont-2025-Form-10-K-Set."},
+        {"asset": "Merian", "reserve_moz": 4.5, "reason": "Kein separates aktuelles Exhibit-96-TRS im verifizierten Newmont-2025-Form-10-K-Set."},
+        {"asset": "Cerro Negro", "reserve_moz": 3.0, "reason": "Kein separates aktuelles Exhibit-96-TRS im verifizierten Newmont-2025-Form-10-K-Set."},
+        {"asset": "Brucejack", "reserve_moz": 2.9, "reason": "Kein separates aktuelles Exhibit-96-TRS im verifizierten Newmont-2025-Form-10-K-Set."},
+    ]
+
+    managed_core_coverage_pct = verified_trs_reserves_moz / managed_core_reserves_moz * 100.0
+    total_portfolio_coverage_pct = verified_trs_reserves_moz / total_portfolio_reserves_moz * 100.0
+    coverage_ok = managed_core_coverage_pct >= required_managed_core_coverage_pct
+    return {
+        "available": True,
+        "status": (
+            "Phase 1 vollständig – ausreichende Kernasset-Abdeckung"
+            if coverage_ok else
+            "Phase 1 teilweise bestanden – aktuelle TRS vorhanden, Kernasset-Abdeckung unter 90 %"
+        ),
+        "as_of_date": "31.12.2025",
+        "published_date": "19.02.2026",
+        "source_name": "Newmont 2025 Form 10-K – S-K 1300 TRS Exhibits 96.1–96.4",
+        "source_note": (
+            "Newmonts Form 10-K 2025 enthält aktuelle Technical Report Summaries für Boddington, Cadia, "
+            "Lihir und den Ahafo Complex. Die Reports sind effektiv 31.12.2025 und enthalten jeweils "
+            "LOM-Minenplan/Produktion, Betriebs- und Kapitalkosten sowie Steuer-/Royalty- und Cashflow-"
+            "Elemente. Phase 1 klassifiziert diese vier Assets deshalb als NAV-Kandidaten, addiert ihre "
+            "veröffentlichten NPVs aber ausdrücklich noch nicht zu einem Konzern-NAV."
+        ),
+        "managed_core_reserves_moz": managed_core_reserves_moz,
+        "verified_trs_reserves_moz": verified_trs_reserves_moz,
+        "managed_core_coverage_pct": managed_core_coverage_pct,
+        "total_portfolio_coverage_pct": total_portfolio_coverage_pct,
+        "required_managed_core_coverage_pct": required_managed_core_coverage_pct,
+        "eligible_asset_count": len(eligible_assets),
+        "managed_core_asset_count": 8,
+        "eligible_assets": eligible_assets,
+        "missing_current_trs_assets": missing_current_trs_assets,
+        "coverage_ok": coverage_ok,
+        "phase1_nav_candidates_verified": True,
+        "phase1_portfolio_nav_release_ready": False,
+        "reason": (
+            f"Aktuelle vollständige TRS decken {managed_core_coverage_pct:.1f} % der verifizierten gemanagten "
+            f"Kernasset-Reserven ab; für die Portfolio-NAV-Freigabe sind mindestens "
+            f"{required_managed_core_coverage_pct:.0f} % erforderlich. Tanami, Merian, Cerro Negro und "
+            "Brucejack bleiben bis zu einem gleichwertig verifizierten aktuellen LOM-Datensatz außerhalb "
+            "eines späteren NAV."
+        ),
+    }
+
+
 def get_verified_newmont_core_asset_lom_structure():
-    """Verified Newmont V2.11 LOM evidence map; not a synthetic NAV."""
+    """Verified Newmont V2.14 LOM evidence map; not a synthetic NAV."""
     total_reserves = 118.2
     long_life_reserves = 85.7
     managed_run_rate_reserves = 71.5
     nonmanaged_jv_reserves = 25.6
     development_project_reserves = 21.0
+    phase1 = get_verified_newmont_technical_lom_phase1()
+    full_lom_verified_reserves = phase1.get("verified_trs_reserves_moz", 0.0)
     return {
         "available": True,
         "as_of_date": "23.07.2026",
         "reserve_as_of_date": "31.12.2025",
-        "source_name": "Newmont 2025 Reserves + 2026 Site Guidance",
+        "source_name": "Newmont 2025 Reserves + 2026 Site Guidance + 2025 S-K 1300 TRS",
         "source_note": (
-            "V2.11 trennt drei Ebenen: offizielle Reserve-Langlebigkeit, aktuelle 2026 "
-            "Run-rate-Produktion/AISC und echte mine-spezifische Life-of-Mine-Produktions-, "
-            "Kosten-, CapEx- und Steuerprofile. Nur die dritte Ebene kann später ein LOM-NAV-Gate freigeben."
+            "V2.14 trennt vier Ebenen: offizielle Reserve-Langlebigkeit, aktuelle 2026 Run-rate-Produktion/AISC, "
+            "verifizierte aktuelle S-K-1300-LOM-Berichte und den späteren normalisierten Portfolio-NAV. "
+            "Nur Assets mit aktuellem ausreichend vollständigem LOM-Datensatz dürfen in Phase 2 überhaupt "
+            "als NAV-Kandidaten verwendet werden."
         ),
         "total_reserves_moz": total_reserves,
         "long_life_reserves_moz": long_life_reserves,
         "long_life_reserve_coverage_pct": long_life_reserves / total_reserves * 100.0,
         "managed_run_rate_reserves_moz": managed_run_rate_reserves,
         "managed_run_rate_coverage_pct": managed_run_rate_reserves / total_reserves * 100.0,
-        "full_lom_profile_coverage_pct": 0.0,
+        "full_lom_profile_coverage_pct": full_lom_verified_reserves / total_reserves * 100.0,
+        "technical_lom_phase1": phase1,
         "nonmanaged_jv_reserves_moz": nonmanaged_jv_reserves,
         "nonmanaged_jv_coverage_pct": nonmanaged_jv_reserves / total_reserves * 100.0,
         "development_project_reserves_moz": development_project_reserves,
@@ -7187,29 +7310,29 @@ def get_verified_newmont_core_asset_lom_structure():
         "managed_core_assets": [
             {"asset":"Lihir","reserve_moz":16.0,"production_2026_koz":560,"aisc_2026_usd_oz":1765,
              "reserve_life_evidence":"≥10 Jahre; Nearshore Barrier verlängert Minenleben über 2040",
-             "lom_profile_status":"Teilweise belegt – kein vollständiger aktueller LOM-Kosten-/CapEx-Pfad"},
+             "lom_profile_status":"Aktuelles S-K 1300 TRS – Phase-1-NAV-Kandidat; noch kein aggregierter NAV"},
             {"asset":"Cadia","reserve_moz":13.5,"production_2026_koz":270,"aisc_2026_usd_oz":1575,
-             "reserve_life_evidence":"≥10 Jahre; Panel-Caves/Tailings-Investitionen stützen langfristige Fortführung",
-             "lom_profile_status":"Teilweise belegt – aktuelles Run-rate-Profil, kein vollständiger LOM-Kostenpfad"},
+             "reserve_life_evidence":"≥10 Jahre; aktuelles TRS modelliert Betrieb bis 2056",
+             "lom_profile_status":"Aktuelles S-K 1300 TRS – Phase-1-NAV-Kandidat; noch kein aggregierter NAV"},
             {"asset":"Boddington","reserve_moz":10.2,"production_2026_koz":580,"aisc_2026_usd_oz":1630,
-             "reserve_life_evidence":"≥10 Jahre; Tailings-Ausbau unterstützt künftiges Minenleben",
-             "lom_profile_status":"Teilweise belegt – kein vollständiger aktueller LOM-Kosten-/CapEx-Pfad"},
+             "reserve_life_evidence":"≥10 Jahre; aktuelles TRS modelliert Betrieb bis 2040",
+             "lom_profile_status":"Aktuelles S-K 1300 TRS – Phase-1-NAV-Kandidat; noch kein aggregierter NAV"},
             {"asset":"Ahafo Complex","reserve_moz":8.8,"production_2026_koz":755,"aisc_2026_usd_oz":None,
-             "reserve_life_evidence":"Ahafo North ≥10 Jahre; Ahafo South separat zu modellieren",
-             "lom_profile_status":"Gemischtes Teilprofil – North/South besitzen unterschiedliche Kostenprofile",
+             "reserve_life_evidence":"Ahafo North ≥10 Jahre; aktuelles Complex-TRS modelliert Betrieb bis 2044",
+             "lom_profile_status":"Aktuelles S-K 1300 TRS – Phase-1-NAV-Kandidat; North/South im Report getrennt",
              "note":"2026 Guidance: Ahafo South 440 koz / 2.160 USD AISC; Ahafo North 315 koz / 1.285 USD AISC."},
             {"asset":"Tanami","reserve_moz":5.3,"production_2026_koz":365,"aisc_2026_usd_oz":2145,
              "reserve_life_evidence":"≥10 Jahre; Expansion 2 verlängert Minenleben über 2040",
-             "lom_profile_status":"Teilweise belegt – Expansionspfad bekannt, vollständiger LOM-Kostenpfad fehlt"},
+             "lom_profile_status":"Kein gleichwertig verifiziertes aktuelles TRS im 2025-Exhibit-Set – kein Phase-1-NAV-Kandidat"},
             {"asset":"Merian","reserve_moz":4.5,"production_2026_koz":225,"aisc_2026_usd_oz":1800,
              "reserve_life_evidence":"≥10 Jahre Reserveleben",
-             "lom_profile_status":"Teilweise belegt – aktuelles Run-rate-Profil, kein vollständiger LOM-Kostenpfad"},
+             "lom_profile_status":"Kein gleichwertig verifiziertes aktuelles TRS im 2025-Exhibit-Set – kein Phase-1-NAV-Kandidat"},
             {"asset":"Cerro Negro","reserve_moz":3.0,"production_2026_koz":220,"aisc_2026_usd_oz":1960,
              "reserve_life_evidence":"≥10 Jahre; 2026 Investitionen für Minenlebensverlängerung",
-             "lom_profile_status":"Teilweise belegt – aktuelles Run-rate-Profil, vollständiger LOM-Pfad fehlt"},
+             "lom_profile_status":"Kein gleichwertig verifiziertes aktuelles TRS im 2025-Exhibit-Set – kein Phase-1-NAV-Kandidat"},
             {"asset":"Brucejack","reserve_moz":2.9,"production_2026_koz":260,"aisc_2026_usd_oz":2085,
              "reserve_life_evidence":"≥10 Jahre Reserveleben",
-             "lom_profile_status":"Teilweise belegt – aktuelles Run-rate-Profil, kein vollständiger LOM-Kostenpfad"},
+             "lom_profile_status":"Kein gleichwertig verifiziertes aktuelles TRS im 2025-Exhibit-Set – kein Phase-1-NAV-Kandidat"},
         ],
         "nonmanaged_long_life_assets": [
             {"asset":"Nevada Gold Mines (38,5 %)","reserve_moz":17.4,"reserve_life_evidence":"≥10 Jahre"},
@@ -7221,10 +7344,7 @@ def get_verified_newmont_core_asset_lom_structure():
             {"asset":"NuevaUnión","reserve_moz":5.1},
         ],
         "full_lom_release_ready": False,
-        "reason": (
-            "Reserve-Langlebigkeit ist für einen großen Teil des Portfolios belegt, aber aktuelle vollständige "
-            "mine-spezifische LOM-Produktions-, Kosten-, Sustaining-CapEx- und Steuerpfade sind noch nicht integriert."
-        ),
+        "reason": phase1.get("reason"),
     }
 
 def build_mining_asset_nav_control(
@@ -7260,6 +7380,7 @@ def build_mining_asset_nav_control(
         "company_average_reserve_mine_life_years": None,
         "mine_life_status": "Daten unzureichend",
         "core_asset_lom_structure": {},
+        "technical_lom_phase1": {},
         "technical_nav_available": False,
         "technical_nav_reference_fresh": False,
         "technical_nav_sum_musd": None,
@@ -7357,18 +7478,22 @@ def build_mining_asset_nav_control(
 
     core_asset_lom_structure = snapshot.get("core_asset_lom_structure") or {}
     result["core_asset_lom_structure"] = core_asset_lom_structure
+    technical_lom_phase1 = core_asset_lom_structure.get("technical_lom_phase1") or {}
+    result["technical_lom_phase1"] = technical_lom_phase1
 
     company_mine_life = safe_float(snapshot.get("company_average_reserve_mine_life_years"))
     result["company_average_reserve_mine_life_years"] = company_mine_life
 
     symbol_text = str(symbol or "").upper()
     if symbol_text == "NEM" and core_asset_lom_structure:
-        full_lom_pct = safe_float(core_asset_lom_structure.get("full_lom_profile_coverage_pct"))
+        phase1_core_pct = safe_float(technical_lom_phase1.get("managed_core_coverage_pct"))
         long_life_pct = safe_float(core_asset_lom_structure.get("long_life_reserve_coverage_pct"))
-        if full_lom_pct is not None and full_lom_pct >= 90.0:
-            mine_life_status = "LOM weitgehend verifiziert"
+        if phase1_core_pct is not None and phase1_core_pct >= 90.0:
+            mine_life_status = "Aktuelle technische LOM-Profile decken ≥90 % der gemanagten Kernreserven ab"
+        elif phase1_core_pct is not None:
+            mine_life_status = f"Aktuelle technische LOM-Profile decken {phase1_core_pct:.1f} % der gemanagten Kernreserven ab – unter 90 %"
         elif long_life_pct is not None and long_life_pct >= 70.0:
-            mine_life_status = "Reserve-Langlebigkeit stark – mine-spezifische LOM-Profile noch unvollständig"
+            mine_life_status = "Reserve-Langlebigkeit stark – technische LOM-Abdeckung noch unvollständig"
         else:
             mine_life_status = "Mine-spezifische LOM-Abdeckung noch nicht ausreichend verifiziert"
     else:
@@ -7488,8 +7613,9 @@ def build_mining_asset_nav_control(
 
     reserve_ok = reserve_fresh and price_alignment_status in ["Sehr stark", "Stark", "Ausreichend"]
     if str(symbol or "").upper() == "NEM" and core_asset_lom_structure:
-        full_lom_pct = safe_float(core_asset_lom_structure.get("full_lom_profile_coverage_pct"))
-        life_ok = full_lom_pct is not None and full_lom_pct >= 90.0
+        phase1_core_pct = safe_float((technical_lom_phase1 or {}).get("managed_core_coverage_pct"))
+        phase1_threshold = safe_float((technical_lom_phase1 or {}).get("required_managed_core_coverage_pct")) or 90.0
+        life_ok = phase1_core_pct is not None and phase1_core_pct >= phase1_threshold
     else:
         life_ok = mine_life_status in ["Sehr stark", "Stark", "Ausreichend"]
     nav_current_ok = result["technical_nav_available"] and nav_reference_fresh
@@ -7508,12 +7634,20 @@ def build_mining_asset_nav_control(
         )
     elif not life_ok:
         if str(symbol or "").upper() == "NEM" and core_asset_lom_structure:
-            status = "Portfolio-Reservebasis stark – mine-spezifische LOM-Abdeckung noch unvollständig"
-            reason = (
-                "Die Portfolio-Reserveabdeckung ist stark und Newmont weist für viele Kernassets mindestens zehn Jahre "
-                "Reserveleben aus. Für eine NAV-Freigabe fehlen jedoch noch aktuelle vollständige mine-spezifische "
-                "LOM-Produktions-, Kosten-, Sustaining-CapEx- und Steuerpfade."
-            )
+            phase1_pct = safe_float((technical_lom_phase1 or {}).get("managed_core_coverage_pct"))
+            threshold = safe_float((technical_lom_phase1 or {}).get("required_managed_core_coverage_pct")) or 90.0
+            status = "LOM/NAV Phase 1 – aktuelle TRS-Abdeckung unter Freigabegrenze"
+            if phase1_pct is not None:
+                reason = (
+                    f"Aktuelle S-K-1300-LOM-Berichte sind für Lihir, Cadia, Boddington und Ahafo verifiziert und "
+                    f"decken {phase1_pct:.1f} % der gemanagten Kernasset-Reserven ab. Für den späteren Portfolio-NAV "
+                    f"verlangt das Gate mindestens {threshold:.0f} %. Tanami, Merian, Cerro Negro und Brucejack bleiben "
+                    "bis zu einem gleichwertig verifizierten aktuellen LOM-Datensatz ausgeschlossen."
+                )
+            else:
+                reason = (technical_lom_phase1 or {}).get("reason") or (
+                    "Aktuelle technische LOM-Abdeckung der gemanagten Kernassets ist noch nicht ausreichend verifiziert."
+                )
         else:
             status = "Minenlebensdauer zu kurz oder unklar"
             reason = "Die Reserve-Lebensdauer reicht nicht für eine robuste Asset-Bewertung."
@@ -7980,7 +8114,7 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.13.1 trennt Structural-Break-Kontrolle, Structural-Break-Fallback, Kernasset-LOM-Struktur, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.14 trennt technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Kernasset-LOM-Struktur, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
             "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
             "Ertragskraft, Reserve-/Asset-Kontrolle, Run-rate-Mine-NAV und das "
             "formale Life-of-Mine-Freigabe-Gate. Ein Guidance-Jahr ersetzt kein "
@@ -8739,7 +8873,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_structural_break_fcf_v2131_20260906"
+CACHE_VERSION = "m6_mining_lom_nav_phase1_v214_20260906"
 
 @st.cache_data(
     ttl=900,
@@ -11558,7 +11692,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.13.1 – Structural-Break-Fallback + Kernasset-LOM-Struktur + LOM-Gate")
+                    st.caption("Bergbau-Schutzmodell V2.14 – LOM/NAV Phase 1 + Structural-Break-Fallback + LOM-Gate")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -12054,7 +12188,7 @@ if selected_symbol:
                         structural_fallback = checks.get("structural_break_fallback", {})
                         if structural_fallback.get("applicable", False):
                             st.write(
-                                "**Structural-Break-Fallback V2.13.1:** "
+                                "**Structural-Break-Fallback V2.13.1 (unverändert innerhalb V2.14):** "
                                 f"{structural_fallback.get('status', 'Noch offen')}"
                             )
                             fb1, fb2 = st.columns(2)
@@ -12226,7 +12360,7 @@ if selected_symbol:
 
                             core_lom = asset_nav_control.get("core_asset_lom_structure") or {}
                             if core_lom.get("available"):
-                                st.markdown("**Kernasset-LOM-Struktur (Teilmodul V2.11 innerhalb V2.13.1):**")
+                                st.markdown("**Kernasset-LOM-Struktur (V2.14):**")
                                 kc1, kc2, kc3 = st.columns(3)
                                 with kc1:
                                     st.metric("Reserven mit offizieller 10+-Jahre-Langlebigkeit", f"{core_lom.get('long_life_reserve_coverage_pct', 0.0):.1f} %")
@@ -12240,6 +12374,79 @@ if selected_symbol:
                                     f"**Entwicklungs-/Projektreserven:** {core_lom.get('development_project_coverage_pct', 0.0):.1f} %"
                                 )
                                 st.caption(core_lom.get("source_note") or "")
+
+                                phase1 = core_lom.get("technical_lom_phase1") or {}
+                                if phase1.get("available"):
+                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – V2.14:**")
+                                    st.write(f"**Status:** {phase1.get('status', '–')}")
+                                    p1c1, p1c2, p1c3, p1c4 = st.columns(4)
+                                    with p1c1:
+                                        st.metric(
+                                            "NAV-Kandidaten",
+                                            f"{phase1.get('eligible_asset_count', 0)}/{phase1.get('managed_core_asset_count', 0)}"
+                                        )
+                                    with p1c2:
+                                        st.metric(
+                                            "Verifizierte TRS-Reserven",
+                                            f"{safe_float(phase1.get('verified_trs_reserves_moz')) or 0.0:.1f} Mio. oz"
+                                        )
+                                    with p1c3:
+                                        st.metric(
+                                            "Abdeckung gemanagte Kernreserven",
+                                            f"{safe_float(phase1.get('managed_core_coverage_pct')) or 0.0:.1f} %"
+                                        )
+                                    with p1c4:
+                                        st.metric(
+                                            "Abdeckung Gesamtportfolio",
+                                            f"{safe_float(phase1.get('total_portfolio_coverage_pct')) or 0.0:.1f} %"
+                                        )
+
+                                    st.caption(phase1.get("source_note") or "")
+                                    st.write("**Aktuelle Phase-1-NAV-Kandidaten:**")
+                                    for trs in phase1.get("eligible_assets", []):
+                                        st.write(
+                                            f"• **{trs.get('asset')}** – Exhibit {trs.get('trs_exhibit')} · "
+                                            f"TRS effektiv {trs.get('effective_date')} · Reserve {safe_float(trs.get('reserve_moz')) or 0.0:.1f} Mio. oz"
+                                        )
+                                        t1, t2, t3 = st.columns(3)
+                                        with t1:
+                                            st.write(f"Diskontsatz: {safe_float(trs.get('discount_rate_pct')) or 0.0:.1f} %")
+                                            if trs.get("active_mining_end_year"):
+                                                st.write(f"Aktiver Minenplan bis: {trs.get('active_mining_end_year')}")
+                                        with t2:
+                                            npv = safe_float(trs.get("native_after_tax_npv_musd"))
+                                            fcf = safe_float(trs.get("native_fcf_musd"))
+                                            if npv is not None:
+                                                st.write(f"Native TRS-NPV-Referenz: {npv/1000.0:.2f} Mrd. USD")
+                                            if fcf is not None:
+                                                st.write(f"Native TRS-FCF: {fcf/1000.0:.2f} Mrd. USD")
+                                        with t3:
+                                            capex = safe_float(trs.get("lom_capital_musd"))
+                                            opex = safe_float(trs.get("lom_operating_cost_musd"))
+                                            if capex is not None:
+                                                st.write(f"LOM-Kapital: {capex/1000.0:.2f} Mrd. USD")
+                                            if opex is not None:
+                                                st.write(f"LOM-Betriebskosten: {opex/1000.0:.2f} Mrd. USD")
+                                        st.caption(
+                                            "Produktionspfad: ja · Betriebskosten: ja · CapEx: ja · Steuern/Royalties: ja · "
+                                            "jährliche Cashflows: ja. " + str(trs.get("note") or "")
+                                        )
+
+                                    missing = phase1.get("missing_current_trs_assets", [])
+                                    if missing:
+                                        missing_text = " · ".join(
+                                            f"{x.get('asset')} ({safe_float(x.get('reserve_moz')) or 0.0:.1f} Mio. oz)"
+                                            for x in missing
+                                        )
+                                        st.write(f"**Noch nicht Phase-1-NAV-freigegeben:** {missing_text}")
+                                        st.caption(
+                                            "Für diese gemanagten Kernassets ist im verifizierten Newmont-2025-Form-10-K-Exhibit-Set "
+                                            "kein gleichwertiges aktuelles S-K-1300-TRS hinterlegt. Fehlende Daten werden nicht aus Run-rate-"
+                                            "Guidance oder Reserveleben hochgerechnet."
+                                        )
+
+                                    if not phase1.get("coverage_ok", False):
+                                        st.warning(phase1.get("reason") or "Phase-1-Abdeckung unter Freigabegrenze.")
 
                                 for asset in core_lom.get("managed_core_assets", []):
                                     reserve_moz = safe_float(asset.get("reserve_moz")) or 0.0
@@ -12275,10 +12482,13 @@ if selected_symbol:
                                     st.write(f"**Entwicklungs-/Projektreserven:** {project_names}")
                                     st.caption("Projektreserven werden nicht mit einem laufenden Produktions-AISC-Profil bewertet.")
 
+                                phase1 = core_lom.get("technical_lom_phase1") or {}
+                                phase1_pct = safe_float(phase1.get("managed_core_coverage_pct"))
+                                phase1_threshold = safe_float(phase1.get("required_managed_core_coverage_pct")) or 90.0
                                 st.warning(
-                                    "LOM-Freigabe weiterhin gesperrt: Die offizielle Reserve-Langlebigkeit ist stark, aber vollständige aktuelle "
-                                    "mine-spezifische Produktions-, Kosten-, Sustaining-CapEx- und Steuerpfade decken noch nicht mindestens 90 % "
-                                    "der Kernreserven ab."
+                                    "LOM-/NAV-Freigabe weiterhin gesperrt: Aktuelle ausreichend vollständige S-K-1300-LOM-Datensätze "
+                                    + (f"decken {phase1_pct:.1f} % der gemanagten Kernreserven ab; " if phase1_pct is not None else "decken die gemanagten Kernreserven noch nicht ausreichend ab; ")
+                                    + f"erforderlich sind mindestens {phase1_threshold:.0f} %."
                                 )
 
                             if asset_snapshot.get("technical_nav_note"):
@@ -12339,7 +12549,7 @@ if selected_symbol:
                         normalized_mine_nav = asset_nav_control.get("normalized_mine_nav") or {}
                         if normalized_mine_nav:
                             st.write(
-                                "**Normalisierter Mine-NAV (LOM-Teilmodul innerhalb V2.13.1; Run-rate DCF-Kontrolle):** "
+                                "**Normalisierter Mine-NAV (nach Phase-1-Prüfung; noch keine Portfolio-Aggregation):** "
                                 f"{normalized_mine_nav.get('status', '–')}"
                             )
                             nav_method1, nav_method2 = st.columns(2)
