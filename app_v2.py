@@ -1602,6 +1602,84 @@ def find_stock(search_text):
         return None
 
     query_upper = query.upper()
+    normalized_query = " ".join(query_upper.split())
+
+    # Eindeutige Hauptnotierungen für bekannte Suchnamen.
+    # Kurze bzw. mehrdeutige Firmennamen werden bewusst vor der
+    # allgemeinen Yahoo-Suche geroutet, damit keine ähnlich
+    # benannten Nebenwerte gewählt werden. Direkt eingegebene
+    # Ticker wie CS.PA oder MUV2.DE bleiben unverändert respektiert.
+    primary_name_routes = {
+        "AXA": {
+            "symbol": "CS.PA",
+            "quoteType": "EQUITY",
+            "longname": "AXA SA",
+            "exchange": "PAR"
+        },
+        "AXA SA": {
+            "symbol": "CS.PA",
+            "quoteType": "EQUITY",
+            "longname": "AXA SA",
+            "exchange": "PAR"
+        },
+        "MUNICH RE": {
+            "symbol": "MUV2.DE",
+            "quoteType": "EQUITY",
+            "longname": (
+                "Münchener Rückversicherungs-Gesellschaft "
+                "Aktiengesellschaft in München"
+            ),
+            "exchange": "GER"
+        },
+        "MUNICHRE": {
+            "symbol": "MUV2.DE",
+            "quoteType": "EQUITY",
+            "longname": (
+                "Münchener Rückversicherungs-Gesellschaft "
+                "Aktiengesellschaft in München"
+            ),
+            "exchange": "GER"
+        },
+        "MÜNCHENER RÜCK": {
+            "symbol": "MUV2.DE",
+            "quoteType": "EQUITY",
+            "longname": (
+                "Münchener Rückversicherungs-Gesellschaft "
+                "Aktiengesellschaft in München"
+            ),
+            "exchange": "GER"
+        },
+        "MUENCHENER RUECK": {
+            "symbol": "MUV2.DE",
+            "quoteType": "EQUITY",
+            "longname": (
+                "Münchener Rückversicherungs-Gesellschaft "
+                "Aktiengesellschaft in München"
+            ),
+            "exchange": "GER"
+        },
+        "MÜNCHENER RÜCKVERSICHERUNG": {
+            "symbol": "MUV2.DE",
+            "quoteType": "EQUITY",
+            "longname": (
+                "Münchener Rückversicherungs-Gesellschaft "
+                "Aktiengesellschaft in München"
+            ),
+            "exchange": "GER"
+        },
+        "MUENCHENER RUECKVERSICHERUNG": {
+            "symbol": "MUV2.DE",
+            "quoteType": "EQUITY",
+            "longname": (
+                "Münchener Rückversicherungs-Gesellschaft "
+                "Aktiengesellschaft in München"
+            ),
+            "exchange": "GER"
+        }
+    }
+
+    if normalized_query in primary_name_routes:
+        return primary_name_routes[normalized_query]
 
     # Eindeutiger TSMC-Fall:
     # "TSMC" bedeutet Heimatnotierung Taiwan.
@@ -1655,8 +1733,6 @@ def find_stock(search_text):
         "TAIWAN SEMICONDUCTOR MANUFACTURING": "2330.TW",
         "TAIWAN SEMICONDUCTOR MANUFACTURING COMPANY": "2330.TW",
     }
-
-    normalized_query = " ".join(query_upper.split())
 
     for key, preferred_symbol in preferred_primary_symbols.items():
         if key in normalized_query:
@@ -3345,7 +3421,7 @@ def get_special_control(company_type, symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1"
+CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1"
 
 @st.cache_data(
     ttl=900,
