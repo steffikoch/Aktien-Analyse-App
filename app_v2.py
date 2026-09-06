@@ -1885,6 +1885,18 @@ def search_stock_suggestions(search_text):
             "exchDisp": "Taiwan",
             "_preferred": True,
         },
+        {
+            "aliases": [
+                "MICROSOFT",
+                "MICROSOFT CORPORATION",
+            ],
+            "symbol": "MSFT",
+            "quoteType": "EQUITY",
+            "longname": "Microsoft Corporation",
+            "exchange": "NMS",
+            "exchDisp": "NASDAQ",
+            "_preferred": True,
+        },
     ]
 
     for preferred in preferred_aliases:
@@ -1906,7 +1918,7 @@ def search_stock_suggestions(search_text):
     try:
         search = yf.Search(
             query,
-            max_results=15,
+            max_results=25,
             news_count=0
         )
         quotes = search.quotes or []
@@ -1918,9 +1930,10 @@ def search_stock_suggestions(search_text):
         if str(item.get("quoteType", "")).upper() == "EQUITY"
     ]
 
-    for item in equities:
+    for yahoo_rank, item in enumerate(equities):
         row = dict(item)
         row["_preferred"] = False
+        row["_yahoo_rank"] = yahoo_rank
         suggestions.append(row)
 
     preferred_exchange_order = {
@@ -1964,28 +1977,54 @@ def search_stock_suggestions(search_text):
 
         score = preferred_exchange_order.get(exchange, 50)
 
+        # 1) Exact ticker match is always the strongest signal.
+        if symbol == query_upper:
+            score += 1400
+        elif symbol.startswith(query_upper):
+            score += 180
+
+        # 2) Tested main listings / aliases are deliberately promoted,
+        #    but the user still has to select the result explicitly.
         if item.get("_preferred"):
             score += 1000
 
-        if symbol == query_upper:
-            score += 500
-        elif symbol.startswith(query_upper):
-            score += 80
-
-        if name.startswith(query_upper):
-            score += 100
+        # 3) Name-prefix matches are more useful than a match somewhere
+        #    inside the company name. This improves short 2–3 letter input.
+        if name == normalized_query:
+            score += 800
+        elif name.startswith(normalized_query):
+            score += 360
         elif normalized_query and normalized_query in name:
-            score += 60
+            score += 120
+
+        name_words = [
+            word for word in name.replace("-", " ").split()
+            if word
+        ]
+        if normalized_query and any(
+            word.startswith(normalized_query)
+            for word in name_words
+        ):
+            score += 180
 
         query_words = [
             word for word in normalized_query.split()
             if len(word) >= 2
         ]
         score += sum(
-            12 for word in query_words
+            18 for word in query_words
             if word in name
         )
 
+        # 4) Preserve some of Yahoo's own relevance order as a tie-breaker.
+        yahoo_rank = item.get("_yahoo_rank")
+        if yahoo_rank is not None:
+            try:
+                score += max(0, 80 - int(yahoo_rank) * 4)
+            except Exception:
+                pass
+
+        # 5) Secondary/local side listings remain slightly less preferred.
         if any(
             symbol.endswith(suffix)
             for suffix in secondary_suffixes
@@ -3641,7 +3680,7 @@ def get_special_control(company_type, symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_v1"
+CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2"
 
 @st.cache_data(
     ttl=900,
