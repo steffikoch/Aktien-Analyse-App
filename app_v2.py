@@ -4673,16 +4673,17 @@ def get_special_control(company_type, symbol):
                 "Bilanzpuffer",
                 "Produktions-/Kostenvisibilität",
                 "Rohstoffpreis-/Preiszyklus-Normalisierung",
-                "Überleitung Preiszyklus → normalisierte Ertragskraft"
+                "Überleitung Preiszyklus → normalisierte Ertragskraft",
+                "Reserve-/Minenlebensdauer- & NAV-Kontrolle"
             ],
-            "status": "Router aktiv – V2.3 Preiszyklus-Normalisierung",
+            "status": "Router aktiv – V2.4 Ertragskraft-Überleitung",
             "note": (
-                "V2.3 prüft Mehrjahres-Gewinnbasis, FCF-Stabilität, Bilanz, "
-                "verifizierte Produktions-/Kostenkennzahlen und einen dynamisch "
-                "normalisierten Rohstoffpreiszyklus. Der Preiszyklus allein wird "
-                "noch nicht direkt in EPS oder FCF umgerechnet. Bis diese "
-                "Bewertungsüberleitung fachlich freigegeben ist, bleibt der Fair "
-                "Value gesperrt."
+                "V2.4 prüft Mehrjahres-Gewinnbasis, FCF-Stabilität, Bilanz, "
+                "verifizierte Produktions-/Kostenkennzahlen, den dynamisch "
+                "normalisierten Rohstoffpreiszyklus und eine konservative "
+                "Überleitung in nachhaltige EPS-/FCF-Ertragskraft. Ein Bergbau-"
+                "Fair-Value bleibt trotzdem gesperrt, bis zusätzlich Reserve-/"
+                "Minenlebensdauer und Asset-NAV belastbar kontrolliert sind."
             )
         }
 
@@ -5332,7 +5333,7 @@ def get_verified_mining_commodity_route(symbol):
             "mapping_note": (
                 "Hecla wird für die Preiszyklus-Kontrolle primär dem Silberpreis "
                 "zugeordnet. Gold, Blei und Zink bleiben zusätzliche Exposures und "
-                "werden nicht als separate Primärrohstoffe in diese V2.3-Kontrolle "
+                "werden nicht als separate Primärrohstoffe in diese V2.4-Kontrolle "
                 "hineingeschätzt."
             ),
         },
@@ -5489,10 +5490,10 @@ def build_mining_commodity_cycle(symbol, snapshot, cache_version):
     """
     Combine dynamic commodity-price normalization with verified mine cost data.
 
-    V2.3 deliberately stops before translating this margin proxy into EPS/FCF.
-    That translation is a separate valuation step because by-product credits,
-    other metals, taxes, sustaining capex and mine mix must not be collapsed into
-    one unverified linear factor.
+    The normalized commodity margin is an input into the V2.4 earnings-power
+    bridge. It is never used as a direct one-for-one price-to-EPS factor. The
+    bridge requires convergence with the already-normalized EPS and an FCF
+    plausibility check.
     """
     route = get_verified_mining_commodity_route(symbol)
     if route is None:
@@ -5595,6 +5596,168 @@ def build_mining_commodity_cycle(symbol, snapshot, cache_version):
     return result
 
 
+def build_mining_earnings_translation(
+    commodity_cycle,
+    eps_normalization,
+    trailing_eps,
+    free_cashflow,
+    net_income,
+    shares_outstanding,
+):
+    """
+    Conservative bridge from normalized commodity economics to sustainable
+    company earnings power.
+
+    This is deliberately a *plausibility bridge*, not a direct commodity-price
+    model. Two independent earnings views must converge:
+      1) the existing multi-year cycle-normalized EPS, and
+      2) TTM EPS scaled only by the change in AISC-covered commodity margin.
+
+    FCF/share is scaled by the same margin factor only as a cash-conversion
+    cross-check. Mixed-metal exposure, by-product credits and corporate items
+    prevent this bridge from being a standalone NAV model.
+    """
+    result = {
+        "available": False,
+        "status": "Daten unzureichend",
+        "raw_margin_factor": None,
+        "used_margin_factor": None,
+        "margin_adjusted_ttm_eps": None,
+        "cycle_normalized_eps": safe_float((eps_normalization or {}).get("normalized_eps")),
+        "eps_convergence_pct": None,
+        "eps_convergence_status": "Daten unzureichend",
+        "sustainable_eps": None,
+        "shares_basis": None,
+        "shares_outstanding_used": None,
+        "current_fcf_per_share": None,
+        "normalized_fcf_per_share": None,
+        "fcf_support_ratio": None,
+        "fcf_support_status": "Daten unzureichend",
+        "translation_confidence": "Niedrig",
+        "mixed_metal_guard": True,
+        "reason": None,
+    }
+
+    if not isinstance(commodity_cycle, dict) or not commodity_cycle.get("available", False):
+        result["reason"] = "Rohstoffpreis-/Margenzyklus ist nicht belastbar verfügbar."
+        return result
+
+    normalized_margin = safe_float(commodity_cycle.get("normalized_margin_per_oz"))
+    current_margin = safe_float(commodity_cycle.get("current_margin_per_oz"))
+    ttm_eps = safe_float(trailing_eps)
+    cycle_eps = safe_float((eps_normalization or {}).get("normalized_eps"))
+
+    if (
+        normalized_margin is None or current_margin is None
+        or normalized_margin <= 0 or current_margin <= 0
+        or ttm_eps is None or ttm_eps <= 0
+        or cycle_eps is None or cycle_eps <= 0
+    ):
+        result["reason"] = (
+            "Positive normalisierte/aktuelle Rohstoffmarge sowie positive TTM- "
+            "und Zyklus-EPS sind für die Ertragskraft-Überleitung erforderlich."
+        )
+        return result
+
+    raw_factor = normalized_margin / current_margin
+    # Guard against aggressive extrapolation when the current commodity price
+    # is below the normal price. Down-normalization is kept intact; upward
+    # normalization is capped at +50 %.
+    used_factor = max(0.0, min(raw_factor, 1.50))
+    margin_adjusted_eps = ttm_eps * used_factor
+
+    denominator = max((abs(margin_adjusted_eps) + abs(cycle_eps)) / 2.0, 0.10)
+    convergence_pct = abs(margin_adjusted_eps - cycle_eps) / denominator * 100.0
+
+    if convergence_pct <= 25.0:
+        convergence_status = "Stark konvergent"
+    elif convergence_pct <= 50.0:
+        convergence_status = "Ausreichend konvergent"
+    else:
+        convergence_status = "Nicht konvergent"
+
+    # Conservative blend: 60 % weight on the lower of both independent views.
+    low_eps = min(margin_adjusted_eps, cycle_eps)
+    high_eps = max(margin_adjusted_eps, cycle_eps)
+    sustainable_eps = 0.60 * low_eps + 0.40 * high_eps
+
+    shares = safe_float(shares_outstanding)
+    shares_basis = None
+    if shares is not None and shares > 0:
+        shares_basis = "Yahoo sharesOutstanding"
+    else:
+        ni = safe_float(net_income)
+        if ni is not None and ni > 0 and ttm_eps > 0:
+            shares = ni / ttm_eps
+            shares_basis = "Net Income / TTM-EPS (Fallback)"
+
+    current_fcf_ps = None
+    normalized_fcf_ps = None
+    fcf_support_ratio = None
+    fcf_support_status = "Daten unzureichend"
+
+    fcf = safe_float(free_cashflow)
+    if shares is not None and shares > 0 and fcf is not None:
+        current_fcf_ps = fcf / shares
+        normalized_fcf_ps = current_fcf_ps * used_factor
+        if sustainable_eps > 0:
+            fcf_support_ratio = normalized_fcf_ps / sustainable_eps
+
+        if normalized_fcf_ps <= 0:
+            fcf_support_status = "Nicht stützend"
+        elif fcf_support_ratio is None:
+            fcf_support_status = "Daten unzureichend"
+        elif 0.50 <= fcf_support_ratio <= 1.50:
+            fcf_support_status = "Stützend"
+        elif 0.25 <= fcf_support_ratio < 0.50:
+            fcf_support_status = "Teilweise stützend"
+        elif fcf_support_ratio > 1.50:
+            fcf_support_status = "Stark – Plausibilität prüfen"
+        else:
+            fcf_support_status = "Schwach"
+
+    convergence_ok = convergence_status in ["Stark konvergent", "Ausreichend konvergent"]
+    fcf_ok = fcf_support_status in [
+        "Stützend",
+        "Teilweise stützend",
+        "Stark – Plausibilität prüfen",
+    ]
+
+    available = convergence_ok and fcf_ok and sustainable_eps > 0
+    if available and convergence_status == "Stark konvergent" and fcf_support_status == "Stützend":
+        status = "Ertragskraft plausibilisiert – starke Konvergenz"
+        translation_confidence = "Mittel"
+    elif available:
+        status = "Ertragskraft plausibilisiert – mit Vorsicht"
+        translation_confidence = "Niedrig"
+    elif not convergence_ok:
+        status = "Ertragskraft nicht freigegeben – EPS-Wege divergieren"
+        translation_confidence = "Niedrig"
+    else:
+        status = "Ertragskraft nicht freigegeben – FCF stützt nicht ausreichend"
+        translation_confidence = "Niedrig"
+
+    result.update({
+        "available": available,
+        "status": status,
+        "raw_margin_factor": raw_factor,
+        "used_margin_factor": used_factor,
+        "margin_adjusted_ttm_eps": margin_adjusted_eps,
+        "eps_convergence_pct": convergence_pct,
+        "eps_convergence_status": convergence_status,
+        "sustainable_eps": sustainable_eps if available else None,
+        "shares_basis": shares_basis,
+        "shares_outstanding_used": shares,
+        "current_fcf_per_share": current_fcf_ps,
+        "normalized_fcf_per_share": normalized_fcf_ps,
+        "fcf_support_ratio": fcf_support_ratio,
+        "fcf_support_status": fcf_support_status,
+        "translation_confidence": translation_confidence,
+        "reason": None if available else status,
+    })
+    return result
+
+
 def build_mining_special_control(
     base_control,
     company_type,
@@ -5607,9 +5770,12 @@ def build_mining_special_control(
     balance_score,
     profit_margin,
     roe,
+    free_cashflow=None,
+    net_income=None,
+    shares_outstanding=None,
 ):
     """
-    Conservative Mining V2.3.
+    Conservative Mining V2.4.
 
     Financial-cycle checks are calculated from already-loaded company data.
     Production guidance and AISC/unit-cost data are used only when a dated,
@@ -5753,11 +5919,33 @@ def build_mining_special_control(
         "status", "Daten unzureichend"
     )
 
-    # Separate hard gate: translating normalized commodity economics into
-    # company-level earnings/FCF requires a validated methodology that accounts
-    # for mine mix, by-product credits, other metals, taxes and sustaining capex.
-    earnings_translation_available = False
-    earnings_translation_status = "Noch nicht fachlich implementiert"
+    # Mining V2.4: independent earnings-power bridge. The bridge can become
+    # available only when cycle-normalized EPS and commodity-margin-adjusted TTM
+    # EPS converge and normalized FCF/share provides a positive cash cross-check.
+    earnings_translation = build_mining_earnings_translation(
+        commodity_price_cycle,
+        eps_normalization,
+        trailing_eps,
+        free_cashflow,
+        net_income,
+        shares_outstanding,
+    )
+    earnings_translation_available = earnings_translation.get("available", False)
+    earnings_translation_status = earnings_translation.get("status", "Daten unzureichend")
+
+    # Asset/NAV guard. Even a plausible sustainable EPS is not enough for a
+    # miner: reserves/resources, mine life and asset NAV must still be checked
+    # before an earnings multiple is allowed to create a final Fair Value.
+    asset_nav_control = {
+        "available": False,
+        "status": "Noch nicht implementiert",
+        "required": True,
+        "reason": (
+            "Reserve-/Ressourcenbasis, Minenlebensdauer und Asset-NAV sind für "
+            "eine belastbare Bergbau-Bewertung noch nicht integriert."
+        ),
+    }
+    asset_nav_available = asset_nav_control.get("available", False)
 
     if not financial_checks_usable:
         released = False
@@ -5781,7 +5969,11 @@ def build_mining_special_control(
         confidence_cap = "Niedrig"
     elif not earnings_translation_available:
         released = False
-        overall_status = "Preiszyklus normalisiert – Bewertungsüberleitung noch offen"
+        overall_status = "Ertragskraft-Überleitung nicht belastbar freigegeben"
+        confidence_cap = "Niedrig"
+    elif not asset_nav_available:
+        released = False
+        overall_status = "Ertragskraft plausibilisiert – Reserve/NAV-Kontrolle noch offen"
         confidence_cap = "Niedrig"
     elif peak_risk:
         released = True
@@ -5843,20 +6035,17 @@ def build_mining_special_control(
                 "actual_aisc_status": actual_aisc_status,
             },
             "commodity_price_cycle": commodity_price_cycle,
-            "commodity_earnings_translation": {
-                "available": earnings_translation_available,
-                "status": earnings_translation_status,
-                "required": True,
-            },
+            "commodity_earnings_translation": earnings_translation,
+            "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.3 trennt Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.4 trennt Finanzzyklus, operative "
             "Minenvisibilität, dynamische Rohstoffpreis-Normalisierung und die "
-            "spätere Bewertungsüberleitung. Produktions-Guidance und AISC werden "
-            "nur aus einem verifizierten, datierten Snapshot verwendet. Ein "
-            "normalisierter Rohstoffpreis wird nicht ungeprüft linear in EPS oder "
-            "FCF umgerechnet. Bis diese Überleitung fachlich freigegeben ist, bleibt "
-            "der Fair Value gesperrt. Der 100-Punkte-Multiple-Score bleibt unverändert."
+            "Überleitung in nachhaltige Ertragskraft. Die Überleitung wird nur "
+            "plausibilisiert, wenn Zyklus-EPS und margenadjustierte TTM-EPS "
+            "konvergieren und FCF/share stützt. Ein finaler Bergbau-Fair-Value "
+            "bleibt zusätzlich bis zur Reserve-/Minenlebensdauer- und NAV-Kontrolle "
+            "gesperrt. Der 100-Punkte-Multiple-Score bleibt unverändert."
         ),
     })
 
@@ -6224,10 +6413,21 @@ def calculate_fair_value_v1(
             return result
         if not earnings_translation.get("available", False):
             result["note"] = (
-                "Fair Value V1 gesperrt: Der Rohstoffpreis-/Margenzyklus ist zwar "
-                "normalisiert, aber die fachlich belastbare Überleitung in "
-                "normalisierte Unternehmensgewinne bzw. Free Cashflows fehlt noch. "
-                "Eine lineare Preis-zu-EPS-Umrechnung wird bewusst nicht geschätzt."
+                "Fair Value V1 gesperrt: Der Rohstoffpreis-/Margenzyklus ist "
+                "normalisiert, aber die Überleitung in nachhaltige Ertragskraft "
+                "ist noch nicht ausreichend konvergent bzw. durch FCF gestützt."
+            )
+            return result
+        asset_nav_control = (special_control.get("checks") or {}).get(
+            "mining_asset_nav_control", {}
+        )
+        if not asset_nav_control.get("available", False):
+            result["note"] = (
+                "Fair Value V1 gesperrt: Die nachhaltige Ertragskraft ist zwar "
+                "plausibilisiert, aber Reserve-/Ressourcenbasis, Minenlebensdauer "
+                "und Asset-NAV sind noch nicht belastbar kontrolliert. Ein reines "
+                "KGV auf Minenerträge wird deshalb noch nicht als finaler Fair "
+                "Value freigegeben."
             )
             return result
 
@@ -6551,7 +6751,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_pricecycle_normalization_v23_20260906"
+CACHE_VERSION = "m6_mining_earnings_bridge_v24_20260906"
 
 @st.cache_data(
     ttl=900,
@@ -6673,6 +6873,9 @@ def load_stock(search_text, cache_version):
     )
     free_cashflow = safe_float(
         fundamental_info.get("freeCashflow")
+    )
+    shares_outstanding = safe_float(
+        fundamental_info.get("sharesOutstanding")
     )
     cash = safe_float(
         fundamental_info.get("totalCash")
@@ -6820,6 +7023,9 @@ def load_stock(search_text, cache_version):
         balance_score,
         profit_margin,
         roe,
+        free_cashflow,
+        net_income,
+        shares_outstanding,
     )
 
     fair_value = calculate_fair_value_v1(
@@ -9313,7 +9519,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.3 – dynamische Preiszyklus-Normalisierung")
+                    st.caption("Bergbau-Schutzmodell V2.4 – Preiszyklus → nachhaltige Ertragskraft")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -9576,13 +9782,77 @@ if selected_symbol:
                             "**Überleitung Preiszyklus → normalisierte Ertragskraft:** "
                             f"{earnings_translation.get('status', 'Noch offen')}"
                         )
-                        if not earnings_translation.get("available", False):
+                        if earnings_translation.get("available", False):
+                            et1, et2 = st.columns(2)
+                            with et1:
+                                if earnings_translation.get("used_margin_factor") is not None:
+                                    st.metric(
+                                        "Verwendeter Margen-Normalisierungsfaktor",
+                                        f"{earnings_translation['used_margin_factor']:.3f}×"
+                                    )
+                                if earnings_translation.get("margin_adjusted_ttm_eps") is not None:
+                                    st.metric(
+                                        "Margenadjustiertes TTM-EPS",
+                                        f"{earnings_translation['margin_adjusted_ttm_eps']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                    )
+                                if earnings_translation.get("cycle_normalized_eps") is not None:
+                                    st.write(
+                                        "**Mehrjahres-/Zyklus-EPS:** "
+                                        f"{earnings_translation['cycle_normalized_eps']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                    )
+                                if earnings_translation.get("eps_convergence_pct") is not None:
+                                    st.write(
+                                        "**Abweichung der EPS-Wege:** "
+                                        f"{earnings_translation['eps_convergence_pct']:.1f} % "
+                                        f"({earnings_translation.get('eps_convergence_status', '–')})"
+                                    )
+                            with et2:
+                                if earnings_translation.get("sustainable_eps") is not None:
+                                    st.metric(
+                                        "Plausibilisierte nachhaltige EPS-Basis",
+                                        f"{earnings_translation['sustainable_eps']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                    )
+                                if earnings_translation.get("normalized_fcf_per_share") is not None:
+                                    st.metric(
+                                        "Normalisierter FCF je Aktie (Kontrolle)",
+                                        f"{earnings_translation['normalized_fcf_per_share']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                    )
+                                st.write(
+                                    "**FCF-Unterstützung:** "
+                                    f"{earnings_translation.get('fcf_support_status', '–')}"
+                                )
+                                if earnings_translation.get("fcf_support_ratio") is not None:
+                                    st.write(
+                                        "**FCF / nachhaltiges EPS:** "
+                                        f"{earnings_translation['fcf_support_ratio']:.2f}×"
+                                    )
+                            st.info(
+                                "Die nachhaltige EPS-Basis wird nicht aus dem Silberpreis "
+                                "allein abgeleitet. Sie wird nur akzeptiert, wenn die "
+                                "margenadjustierte TTM-Ertragskraft mit der unabhängigen "
+                                "Mehrjahres-EPS-Normalisierung konvergiert und der "
+                                "normalisierte FCF je Aktie die Richtung stützt."
+                            )
+                        else:
                             st.warning(
-                                "Der normalisierte Rohstoffpreis wird bewusst noch nicht "
-                                "linear in EPS oder FCF umgerechnet. Mine-Mix, Nebenprodukt-"
-                                "gutschriften, andere Metalle, Steuern und Sustaining CapEx "
-                                "müssen dafür fachlich sauber berücksichtigt werden. Der "
-                                "Fair Value bleibt bis dahin gesperrt."
+                                "Die Ertragskraft-Überleitung ist noch nicht ausreichend "
+                                "plausibilisiert. Es wird kein nachhaltiges EPS für eine "
+                                "Bergbau-Bewertung freigegeben."
+                            )
+                            if earnings_translation.get("reason"):
+                                st.caption(earnings_translation.get("reason"))
+
+                        asset_nav_control = checks.get("mining_asset_nav_control", {})
+                        st.write(
+                            "**Reserve-/Minenlebensdauer- & NAV-Kontrolle:** "
+                            f"{asset_nav_control.get('status', 'Noch offen')}"
+                        )
+                        if not asset_nav_control.get("available", False):
+                            st.warning(
+                                "Auch eine plausibilisierte nachhaltige Ertragskraft reicht "
+                                "bei Minenunternehmen allein nicht für einen finalen Fair "
+                                "Value. Reserve-/Ressourcenbasis, Minenlebensdauer und Asset-"
+                                "NAV werden als nächstes separat kontrolliert."
                             )
 
                         if special_control.get("released"):
