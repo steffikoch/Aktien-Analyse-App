@@ -3914,6 +3914,12 @@ def get_valuation_corridor(company_type):
             "Zyklus-normalisiertes KGV"
         ),
         (
+            "rohstoffe / bergbau / zyklisch",
+            7.0,
+            12.0,
+            "Zyklus-normalisiertes KGV"
+        ),
+        (
             "öl & gas / zyklisch",
             8.0,
             13.0,
@@ -4653,6 +4659,29 @@ def get_special_control(company_type, symbol):
             )
         }
 
+    if "rohstoffe / bergbau / zyklisch" in type_name:
+        return {
+            "required": True,
+            "control_key": "mining_cycle_quality",
+            "control_name": (
+                "Bergbau / Zyklus-, Cashflow- & operative Minenkontrolle"
+            ),
+            "planned_checks": [
+                "Mehrjahres-/Zyklus-EPS",
+                "Peak-Cycle-Abstand",
+                "FCF-Stabilität",
+                "Bilanzpuffer",
+                "Produktions-/Kostenvisibilität"
+            ],
+            "status": "Router aktiv – V1 Finanzzyklusdaten vorhanden",
+            "note": (
+                "V1 prüft die vorhandene Mehrjahres-Gewinnbasis, FCF-Stabilität "
+                "und Bilanz. Produktions-Guidance, AISC bzw. Stückkosten werden "
+                "nicht aus Yahoo-Kennzahlen geschätzt. Solange diese operativen "
+                "Minendaten nicht verifiziert vorliegen, bleibt der Fair Value gesperrt."
+            )
+        }
+
     if "autohersteller" in type_name:
         return {
             "required": True,
@@ -5135,6 +5164,193 @@ def build_defense_special_control(base_control, company_type, symbol):
             "Die Defense-Spezialkontrolle prüft Backlog, Revenue Coverage, "
             "Fixed Orders, Book-to-Bill und Margentrend. Sie verändert den "
             "100-Punkte-Multiple-Score nicht."
+        ),
+    })
+
+    return control
+
+
+# =========================================================
+# Modul 6 – Schritt 3B: Bergbau-/Rohstoff-Zykluskontrolle V1
+# =========================================================
+
+def _extract_numeric_history(items):
+    values = []
+    for item in items or []:
+        if isinstance(item, dict):
+            value = safe_float(item.get("value"))
+        else:
+            value = safe_float(item)
+        if value is not None:
+            values.append(value)
+    return values
+
+
+def build_mining_special_control(
+    base_control,
+    company_type,
+    eps_normalization,
+    trailing_eps,
+    forward_eps,
+    historical,
+    fcf_score,
+    balance_score,
+    profit_margin,
+    roe,
+):
+    """
+    Conservative Mining V1.
+
+    Financial-cycle checks are calculated from already-loaded company data.
+    Operating mine KPIs (production guidance, AISC/unit costs) are critical
+    for release and are deliberately NOT inferred from Yahoo summary fields.
+    """
+
+    control = dict(base_control or {})
+    control.setdefault("router_status", control.get("status"))
+    control.setdefault("router_note", control.get("note"))
+
+    if control.get("control_key") != "mining_cycle_quality":
+        return control
+
+    eps_history = _extract_numeric_history((historical or {}).get("eps", []))
+    fcf_history = _extract_numeric_history((historical or {}).get("fcf", []))
+
+    cycle_basis = safe_float((eps_normalization or {}).get("cycle_basis"))
+    normalized_eps = safe_float((eps_normalization or {}).get("normalized_eps"))
+    ttm_eps = safe_float(trailing_eps)
+    fwd_eps = safe_float(forward_eps)
+
+    ttm_to_cycle = None
+    if cycle_basis is not None and cycle_basis > 0 and ttm_eps is not None:
+        ttm_to_cycle = ttm_eps / cycle_basis
+
+    if len(eps_history) < 3 or cycle_basis is None or cycle_basis <= 0:
+        eps_status = "Daten unzureichend"
+    elif ttm_to_cycle is None:
+        eps_status = "Zyklus-Basis vorhanden"
+    elif ttm_to_cycle <= 1.5:
+        eps_status = "Unauffällig"
+    elif ttm_to_cycle <= 3.0:
+        eps_status = "Erhöht"
+    else:
+        eps_status = "Peak-Risiko"
+
+    positive_fcf_years = sum(1 for value in fcf_history if value > 0)
+    negative_fcf_years = sum(1 for value in fcf_history if value < 0)
+
+    if len(fcf_history) < 3:
+        fcf_status = "Daten unzureichend"
+    elif negative_fcf_years == 0 and positive_fcf_years >= 3:
+        fcf_status = "Stark"
+    elif positive_fcf_years >= 2 and negative_fcf_years <= 1:
+        fcf_status = "Ausreichend"
+    elif positive_fcf_years >= 1 and negative_fcf_years >= 1:
+        fcf_status = "Zyklisch"
+    else:
+        fcf_status = "Schwach"
+
+    balance_status_raw = (balance_score or {}).get("status")
+    net_debt_to_fcf = safe_float((balance_score or {}).get("net_debt_to_fcf"))
+    net_debt = safe_float((balance_score or {}).get("net_debt"))
+
+    if balance_status_raw == "net_cash" or (net_debt is not None and net_debt <= 0):
+        balance_status = "Sehr stark"
+    elif net_debt_to_fcf is None:
+        balance_status = "Daten unzureichend"
+    elif net_debt_to_fcf < 1.5:
+        balance_status = "Stark"
+    elif net_debt_to_fcf < 3.0:
+        balance_status = "Ausreichend"
+    else:
+        balance_status = "Schwach"
+
+    margin = safe_float(profit_margin)
+    roe_value = safe_float(roe)
+    if margin is None or roe_value is None:
+        profitability_status = "Daten unzureichend"
+    elif margin < 0 or roe_value < 0:
+        profitability_status = "Schwach"
+    elif margin >= 0.15 and roe_value >= 0.15:
+        profitability_status = "Stark"
+    else:
+        profitability_status = "Ausreichend"
+
+    # Critical operational mining data are intentionally not inferred.
+    operating_data_status = "Daten fehlen"
+    operating_data_available = False
+
+    financial_checks_usable = (
+        eps_status != "Daten unzureichend"
+        and fcf_status != "Daten unzureichend"
+        and balance_status != "Daten unzureichend"
+    )
+
+    peak_risk = eps_status == "Peak-Risiko"
+    weak_financial_check = (
+        fcf_status == "Schwach"
+        or balance_status == "Schwach"
+        or profitability_status == "Schwach"
+    )
+
+    # V1 is deliberately NOT released without verified mine-operating KPIs.
+    released = False
+    if not financial_checks_usable:
+        overall_status = "Finanzzyklus-Daten unzureichend"
+    elif weak_financial_check:
+        overall_status = "Finanzielle Warnung"
+    elif peak_risk:
+        overall_status = "Peak-Cycle-Risiko erkannt"
+    else:
+        overall_status = "Finanzzyklus geprüft – operative Minendaten fehlen"
+
+    control.update({
+        "implemented": True,
+        "released": released,
+        "confidence_cap": "Niedrig",
+        "step3b_status": "Schritt 3B V1 aktiv – Fair Value noch gesperrt",
+        "overall_status": overall_status,
+        "checks": {
+            "cycle_eps": {
+                "history_count": len(eps_history),
+                "cycle_basis": cycle_basis,
+                "normalized_eps": normalized_eps,
+                "ttm_eps": ttm_eps,
+                "forward_eps": fwd_eps,
+                "ttm_to_cycle_ratio": ttm_to_cycle,
+                "status": eps_status,
+            },
+            "fcf_stability": {
+                "history_count": len(fcf_history),
+                "positive_years": positive_fcf_years,
+                "negative_years": negative_fcf_years,
+                "score_status": (fcf_score or {}).get("status"),
+                "status": fcf_status,
+            },
+            "balance_buffer": {
+                "net_debt": net_debt,
+                "net_debt_to_fcf": net_debt_to_fcf,
+                "status": balance_status,
+            },
+            "profitability": {
+                "margin": margin,
+                "roe": roe_value,
+                "status": profitability_status,
+            },
+            "operating_mine_data": {
+                "available": operating_data_available,
+                "production_guidance": None,
+                "unit_cost_or_aisc": None,
+                "status": operating_data_status,
+            },
+        },
+        "note": (
+            "Die Bergbau-Spezialkontrolle V1 prüft Zyklus-EPS, Peak-Cycle-Risiko, "
+            "FCF-Stabilität und Bilanzpuffer. Produktions-Guidance sowie AISC/"
+            "Stückkosten sind für eine belastbare Freigabe kritisch und werden "
+            "nicht aus ungeeigneten Standarddaten geschätzt. Deshalb bleibt der "
+            "Fair Value in V1 gesperrt, bis diese operativen Minendaten verifiziert "
+            "integriert sind. Der 100-Punkte-Multiple-Score wird nicht verändert."
         ),
     })
 
@@ -5800,7 +6016,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_primary_fundamentals_fx_v1_20260906"
+CACHE_VERSION = "m6_mining_cycle_control_v1_20260906"
 
 @st.cache_data(
     ttl=900,
@@ -6055,6 +6271,19 @@ def load_stock(search_text, cache_version):
         special_control,
         company_type,
         symbol
+    )
+
+    special_control = build_mining_special_control(
+        special_control,
+        company_type,
+        eps_normalization,
+        trailing_eps,
+        forward_eps,
+        historical,
+        fcf_score,
+        balance_score,
+        profit_margin,
+        roe,
     )
 
     fair_value = calculate_fair_value_v1(
@@ -8537,6 +8766,110 @@ if selected_symbol:
                         "Verifizierte Spezialdaten werden nach ihrem Gültigkeitsdatum "
                         "nicht stillschweigend weiterverwendet."
                     )
+
+                if special_control.get(
+                    "control_key"
+                ) == "mining_cycle_quality":
+
+                    st.divider()
+
+                    st.subheader(
+                        "⛏️ Modul 6 – Schritt 3B: "
+                        "Bergbau-/Rohstoff-Zykluskontrolle"
+                    )
+
+                    if special_control.get("implemented"):
+                        checks = special_control.get("checks", {})
+                        cycle_eps = checks.get("cycle_eps", {})
+                        fcf_stability = checks.get("fcf_stability", {})
+                        balance_buffer = checks.get("balance_buffer", {})
+                        profitability = checks.get("profitability", {})
+                        operating = checks.get("operating_mine_data", {})
+
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            st.metric(
+                                "Zyklus-Basis EPS",
+                                format_eps(
+                                    cycle_eps.get("cycle_basis"),
+                                    financial_currency
+                                )
+                            )
+                            st.write(
+                                "**Verfügbare EPS-Historie:** "
+                                f"{cycle_eps.get('history_count', 0)} Jahre"
+                            )
+                            if cycle_eps.get("ttm_to_cycle_ratio") is not None:
+                                st.metric(
+                                    "TTM-EPS / Zyklus-Basis",
+                                    f"{cycle_eps['ttm_to_cycle_ratio']:.2f}×"
+                                )
+                            st.write(
+                                "**Peak-Cycle-Status:** "
+                                f"{cycle_eps.get('status', '–')}"
+                            )
+
+                            st.write(
+                                "**FCF-Stabilität:** "
+                                f"{fcf_stability.get('status', '–')}"
+                            )
+                            st.write(
+                                "Positive / negative FCF-Jahre: "
+                                f"{fcf_stability.get('positive_years', 0)} / "
+                                f"{fcf_stability.get('negative_years', 0)}"
+                            )
+
+                        with col2:
+                            st.write(
+                                "**Bilanzpuffer:** "
+                                f"{balance_buffer.get('status', '–')}"
+                            )
+                            net_debt_value = balance_buffer.get("net_debt")
+                            if net_debt_value is not None:
+                                st.metric(
+                                    "Nettoschulden",
+                                    format_money(
+                                        net_debt_value,
+                                        financial_currency
+                                    )
+                                )
+
+                            st.write(
+                                "**Aktuelle Profitabilität:** "
+                                f"{profitability.get('status', '–')}"
+                            )
+                            if profitability.get("margin") is not None:
+                                st.write(
+                                    "Nettomarge: "
+                                    f"{profitability['margin'] * 100:.1f} %"
+                                )
+                            if profitability.get("roe") is not None:
+                                st.write(
+                                    "ROE: "
+                                    f"{profitability['roe'] * 100:.1f} %"
+                                )
+
+                            st.write(
+                                "**Produktions-/Kostenvisibilität:** "
+                                f"{operating.get('status', '–')}"
+                            )
+                            st.caption(
+                                "Benötigt werden verifizierte operative Minendaten, "
+                                "z. B. Produktions-Guidance sowie AISC/Stückkosten. "
+                                "Diese Werte werden nicht aus Yahoo geschätzt."
+                            )
+
+                        st.warning(
+                            "Bergbau-Spezialkontrolle: "
+                            f"**{special_control.get('overall_status', 'Nicht freigegeben')}**. "
+                            "Der Fair Value bleibt gesperrt, bis die kritischen "
+                            "operativen Minendaten belastbar integriert sind."
+                        )
+
+                        st.caption(special_control.get("note"))
+                    else:
+                        st.info(special_control.get("note"))
 
                 st.divider()
 
