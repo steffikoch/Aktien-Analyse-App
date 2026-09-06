@@ -4677,9 +4677,9 @@ def get_special_control(company_type, symbol):
                 "Reserve-/Minenlebensdauer- & NAV-Kontrolle",
                 "Normalisierter Mine-NAV (Run-rate DCF / LOM-Kontrolle)"
             ],
-            "status": "Router aktiv – V2.6 normalisierter Mine-NAV",
+            "status": "Router aktiv – V2.6.1 normalisierter Mine-NAV",
             "note": (
-                "V2.6 ergänzt Reserve- und NAV-Kontrolle um einen unabhängig "
+                "V2.6.1 ergänzt Reserve- und NAV-Kontrolle um einen unabhängig "
                 "berechneten normalisierten Mine-NAV-Kontrollwert. Verwendet "
                 "werden verifizierte 2026 Produktions-/AISC-Reconciliation, "
                 "2025 Reservepreise und Reserve-Minenleben. Ein einzelnes "
@@ -5236,7 +5236,7 @@ def get_verified_mining_snapshot(symbol):
         "lucky_friday_guidance_high_moz": 5.2,
         "keno_hill_guidance_low_moz": 2.2,
         "keno_hill_guidance_high_moz": 2.6,
-        # Q2-2026 guidance reconciliation used by Mining V2.6. Values are
+        # Q2-2026 guidance reconciliation used by Mining V2.6.1. Values are
         # company-published guidance inputs, not inferred from Yahoo data.
         "nav_model_discount_rate_pct": 5.0,
         "ytd_income_tax_provision_musd": 69.667,
@@ -5380,7 +5380,7 @@ def get_verified_mining_commodity_route(symbol):
             "mapping_note": (
                 "Hecla wird für die Preiszyklus-Kontrolle primär dem Silberpreis "
                 "zugeordnet. Gold, Blei und Zink bleiben zusätzliche Exposures und "
-                "werden nicht als separate Primärrohstoffe in diese V2.5-Kontrolle "
+                "werden nicht als separate Primärrohstoffe in diese V2.6.1-Kontrolle "
                 "hineingeschätzt."
             ),
         },
@@ -5844,7 +5844,7 @@ def get_verified_mining_asset_snapshot(symbol):
         "reserve_price_basis_lead": 0.90,
         "reserve_price_basis_zinc": 1.15,
         # No copper reserve-price basis is published for the core silver reserve
-        # set used here. V2.6 therefore gives copper by-product credits no value
+        # set used here. V2.6.1 therefore gives copper by-product credits no value
         # in the normalized run-rate NAV instead of inventing a price.
         "reserve_price_basis_copper": None,
         "reserve_mine_life_years": {
@@ -5958,7 +5958,7 @@ def build_mining_normalized_mine_nav_v26(
     technical_nav_details=None,
 ):
     """
-    Mining V2.6 independent normalized mine-NAV control.
+    Mining V2.6.1 independent normalized mine-NAV control.
 
     This is deliberately a run-rate reserve DCF, not a substitute for a current
     Life-of-Mine technical model. It uses current verified production guidance,
@@ -5968,7 +5968,7 @@ def build_mining_normalized_mine_nav_v26(
 
     Final NAV release requires full core-mine coverage and a long-term cost
     profile. Keno Hill remains pre-commercial in the Q2-2026 guidance and has no
-    comparable AISC reconciliation, so V2.6 is a diagnostic/control value only.
+    comparable AISC reconciliation, so V2.6.1 is a diagnostic/control value only.
     """
     result = {
         "available": False,
@@ -5992,7 +5992,7 @@ def build_mining_normalized_mine_nav_v26(
     }
 
     if str(symbol or "").upper() != "HL" or not operating_snapshot or not asset_snapshot:
-        result["reason"] = "Kein verifizierter V2.6-Mine-NAV-Datensatz verfügbar."
+        result["reason"] = "Kein verifizierter V2.6.1-Mine-NAV-Datensatz verfügbar."
         return result
 
     silver_price = safe_float((commodity_cycle or {}).get("normalized_price"))
@@ -6087,7 +6087,7 @@ def build_mining_normalized_mine_nav_v26(
             detail["note"] = (
                 "Keno Hill ist in der Q2-2026-Guidance weiterhin vor kommerzieller "
                 "Produktion und wird aus der AISC-Reconciliation ausgeschlossen. "
-                "V2.6 erfindet deshalb keine Life-of-Mine-Kosten."
+                "V2.6.1 erfindet deshalb keine Life-of-Mine-Kosten."
             )
             tech = technical_by_asset.get(asset) or {}
             detail["technical_reference_musd"] = safe_float(
@@ -6189,7 +6189,7 @@ def build_mining_normalized_mine_nav_v26(
         "all_core_mines_covered": calculated_mines >= 3,
     })
 
-    # V2.6 deliberately does not claim a full current NAV. A current annual AISC
+    # V2.6.1 deliberately does not claim a full current NAV. A current annual AISC
     # reconciliation cannot replace mine-by-mine Life-of-Mine costs, and Keno
     # Hill still lacks a comparable commercial AISC profile.
     if calculated_mines < 2:
@@ -6223,10 +6223,10 @@ def build_mining_asset_nav_control(
     operating_snapshot,
 ):
     """
-    Mining V2.6 reserve / mine-life / technical-NAV + run-rate NAV control.
+    Mining V2.6.1 reserve / mine-life / technical-NAV + run-rate NAV control.
 
     Important: technical-report NPVs are not presented as current company NAV.
-    They are independent asset anchors only. V2.6 also builds an independent
+    They are independent asset anchors only. V2.6.1 also builds an independent
     normalized run-rate mine NAV and blocks final Fair Value when
     the technical mine plans are too old or when earnings value and the asset
     anchor diverge materially.
@@ -6488,7 +6488,7 @@ def build_mining_special_control(
     fundamental_multiple=None,
 ):
     """
-    Conservative Mining V2.6.
+    Conservative Mining V2.6.1.
 
     Financial-cycle checks are calculated from already-loaded company data.
     Production guidance and AISC/unit-cost data are used only when a dated,
@@ -6632,7 +6632,7 @@ def build_mining_special_control(
         "status", "Daten unzureichend"
     )
 
-    # Mining V2.6: independent earnings-power bridge. The bridge can become
+    # Mining V2.6.1: independent earnings-power bridge. The bridge can become
     # available only when cycle-normalized EPS and commodity-margin-adjusted TTM
     # EPS converge and normalized FCF/share provides a positive cash cross-check.
     earnings_translation = build_mining_earnings_translation(
@@ -6646,9 +6646,9 @@ def build_mining_special_control(
     earnings_translation_available = earnings_translation.get("available", False)
     earnings_translation_status = earnings_translation.get("status", "Daten unzureichend")
 
-    # Mining V2.6: reserve / mine-life / normalized run-rate NAV / technical anchor.
+    # Mining V2.6.1: reserve / mine-life / normalized run-rate NAV / technical anchor.
     # Current reserve data may be fresh while the incorporated S-K 1300 mine
-    # plans are older. In that case V2.6 shows the technical NAV as a reference
+    # plans are older. In that case V2.6.1 shows the technical NAV as a reference
     # but deliberately does not release a final Fair Value.
     asset_nav_control = build_mining_asset_nav_control(
         symbol,
@@ -6754,7 +6754,7 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.6 trennt Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.6.1 trennt Finanzzyklus, operative "
             "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
             "Ertragskraft, Reserve-/Asset-Kontrolle und einen unabhängig "
             "berechneten Run-rate-Mine-NAV. Ein Guidance-Jahr ersetzt kein "
@@ -7470,7 +7470,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_asset_nav_v25_20260906"
+CACHE_VERSION = "m6_mining_mine_nav_v261_20260906"
 
 @st.cache_data(
     ttl=900,
@@ -10239,7 +10239,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.6 – normalisierter Mine-NAV + Reserve/NAV-Kontrolle")
+                    st.caption("Bergbau-Schutzmodell V2.6.1 – normalisierter Mine-NAV + Reserve/NAV-Kontrolle")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -10688,7 +10688,7 @@ if selected_symbol:
                         normalized_mine_nav = asset_nav_control.get("normalized_mine_nav") or {}
                         if normalized_mine_nav:
                             st.write(
-                                "**Normalisierter Mine-NAV V2.6 (Run-rate DCF):** "
+                                "**Normalisierter Mine-NAV V2.6.1 (Run-rate DCF):** "
                                 f"{normalized_mine_nav.get('status', '–')}"
                             )
                             nav_method1, nav_method2 = st.columns(2)
