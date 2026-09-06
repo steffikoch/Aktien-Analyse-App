@@ -1127,10 +1127,14 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel"
         }
 
-    # Kinder Morgan: Midstream-Infrastruktur, nicht integriertes Öl & Gas.
+    # Midstream-Infrastruktur: Yahoo-Branche Oil & Gas Midstream wird
+    # generell vor der normalen Öl-&-Gas-Logik geroutet. Kinder Morgan
+    # bleibt zusätzlich über Ticker/Name eindeutig abgesichert.
     if (
         symbol_text == "KMI"
         or "kinder morgan" in name_text
+        or "oil & gas midstream" in industry_text
+        or "oil and gas midstream" in industry_text
     ):
         return {
             "type": "Öl & Gas / Midstream",
@@ -4183,7 +4187,7 @@ def get_special_control(company_type, symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1_ing_primary_priority_v2_midstream_v1"
+CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1_ing_primary_priority_v2_midstream_v1_generic_router_v1"
 
 @st.cache_data(
     ttl=900,
