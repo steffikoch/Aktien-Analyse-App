@@ -105,48 +105,117 @@ def safe_float(value):
         return None
 
 
-def build_currency_context(quote_currency):
+def build_currency_context(
+    quote_currency,
+    financial_currency=None,
+    fx_conversion=None
+):
     """
-    Separate quote currency from financial-statement currency.
+    Keep trading/quote currency separate from the currency of fundamentals.
 
-    Yahoo can quote UK shares in pence (GBp/GBX) while EPS and
-    fundamental financial values are reported in pounds sterling (GBP).
-    The current modules only label these units separately; no silent
-    multiplication or division is performed.
+    Examples:
+    - UK shares can trade in GBp while fundamentals are in GBP.
+    - A German secondary listing can trade in EUR while the verified primary
+      fundamental source reports in USD. In that case an explicit FX factor
+      is required for Fair-Value/price comparisons.
+
+    No currency mismatch is silently treated as 1:1.
     """
-    raw_currency = str(quote_currency or "").strip()
+    raw_quote = str(quote_currency or "").strip()
+    raw_financial = str(
+        financial_currency or raw_quote or ""
+    ).strip()
 
-    is_gbp_pence_quote = (
-        raw_currency == "GBp"
-        or raw_currency.upper() == "GBX"
-    )
+    if raw_quote.upper() == "GBX":
+        raw_quote = "GBp"
 
-    if is_gbp_pence_quote:
+    if raw_financial.upper() == "GBX":
+        raw_financial = "GBp"
+
+    # Explicit UK pence handling.
+    if raw_quote == "GBp" and raw_financial == "GBP":
         return {
             "quote_currency": "GBp",
             "financial_currency": "GBP",
             "valuation_currency": "GBP",
             "mixed_units": True,
+            "conversion_available": True,
+            "conversion_kind": "gbp_pence",
             "financial_to_quote_factor": 100.0,
             "quote_to_financial_factor": 0.01,
+            "fx_symbol": None,
             "note": (
                 "Britische Pence-Notierung erkannt: Der Aktienkurs wird "
                 "in GBp (Pence) geführt, während EPS und die fundamentalen "
-                "Finanzkennzahlen in GBP (Pfund Sterling) beschriftet werden. "
-                "Die Rohwerte werden in den Datenmodulen nicht stillschweigend "
-                "umgerechnet. Für den Fair-Value/Kurs-Vergleich wird die Einheit "
-                "ausdrücklich angeglichen (1 GBP = 100 GBp)."
+                "Finanzkennzahlen in GBP (Pfund Sterling) geführt werden. "
+                "Für den Fair-Value/Kurs-Vergleich wird ausdrücklich "
+                "1 GBP = 100 GBp verwendet."
             )
         }
 
+    # Same currency: no conversion required.
+    if raw_quote and raw_financial and raw_quote == raw_financial:
+        return {
+            "quote_currency": raw_quote,
+            "financial_currency": raw_financial,
+            "valuation_currency": raw_financial,
+            "mixed_units": False,
+            "conversion_available": True,
+            "conversion_kind": "same_currency",
+            "financial_to_quote_factor": 1.0,
+            "quote_to_financial_factor": 1.0,
+            "fx_symbol": None,
+            "note": None
+        }
+
+    fx = fx_conversion if isinstance(fx_conversion, dict) else {}
+    factor = safe_float(fx.get("factor"))
+
+    if (
+        raw_quote
+        and raw_financial
+        and factor is not None
+        and factor > 0
+    ):
+        inverse = 1.0 / factor
+        fx_symbol = fx.get("symbol")
+
+        return {
+            "quote_currency": raw_quote,
+            "financial_currency": raw_financial,
+            "valuation_currency": raw_financial,
+            "mixed_units": True,
+            "conversion_available": True,
+            "conversion_kind": "fx",
+            "financial_to_quote_factor": factor,
+            "quote_to_financial_factor": inverse,
+            "fx_symbol": fx_symbol,
+            "note": (
+                f"Getrennte Handels- und Finanzwährung erkannt: Kurs in "
+                f"{raw_quote}, Fundamentaldaten in {raw_financial}. Für "
+                f"Bewertungen wird ausdrücklich 1 {raw_financial} = "
+                f"{factor:.6f} {raw_quote} verwendet"
+                + (f" ({fx_symbol})." if fx_symbol else ".")
+            )
+        }
+
+    # Mismatch without a verified conversion: keep it visible and block
+    # currency-dependent valuation steps instead of assuming parity.
     return {
-        "quote_currency": quote_currency,
-        "financial_currency": quote_currency,
-        "valuation_currency": quote_currency,
-        "mixed_units": False,
-        "financial_to_quote_factor": 1.0,
-        "quote_to_financial_factor": 1.0,
-        "note": None
+        "quote_currency": raw_quote or quote_currency,
+        "financial_currency": raw_financial or financial_currency,
+        "valuation_currency": raw_financial or financial_currency,
+        "mixed_units": bool(raw_quote and raw_financial and raw_quote != raw_financial),
+        "conversion_available": False,
+        "conversion_kind": "unavailable",
+        "financial_to_quote_factor": None,
+        "quote_to_financial_factor": None,
+        "fx_symbol": None,
+        "note": (
+            "Kurs- und Finanzwährung weichen voneinander ab. Eine belastbare "
+            "Währungsumrechnung konnte nicht geladen werden; abhängige "
+            "Bewertungsschritte werden deshalb gesperrt."
+        ) if raw_quote != raw_financial else None
     }
 
 
@@ -5514,28 +5583,34 @@ def calculate_fair_value_v1(
             context.get("financial_to_quote_factor")
         )
 
-        if not (
-            financial_currency == "GBP"
-            and quote_currency == "GBp"
-            and factor == 100.0
+        if (
+            not context.get("conversion_available")
+            or factor is None
+            or factor <= 0
         ):
             result["note"] = (
-                "Fair Value V1 gesperrt: Eine gemischte Währungseinheit "
-                "wurde erkannt, aber die Umrechnung ist nicht eindeutig "
-                "als GBP → GBp hinterlegt."
+                "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen "
+                "voneinander ab, aber es ist keine belastbare ausdrückliche "
+                "Umrechnung verfügbar."
             )
             return result
 
-        fair_value_quote = (
-            fair_value_financial * factor
-        )
-
+        fair_value_quote = fair_value_financial * factor
         result["unit_conversion_applied"] = True
-        result["unit_note"] = (
-            "Einheitenangleichung ausdrücklich angewendet: Der Fair Value "
-            "wird zunächst aus EPS in GBP berechnet und anschließend mit "
-            "1 GBP = 100 GBp in die Kurs-Einheit GBp umgerechnet."
-        )
+
+        if context.get("conversion_kind") == "gbp_pence":
+            result["unit_note"] = (
+                "Einheitenangleichung ausdrücklich angewendet: Der Fair Value "
+                "wird zunächst aus EPS in GBP berechnet und anschließend mit "
+                "1 GBP = 100 GBp in die Kurs-Einheit GBp umgerechnet."
+            )
+        else:
+            fx_symbol = context.get("fx_symbol")
+            result["unit_note"] = (
+                f"Währungsumrechnung ausdrücklich angewendet: 1 "
+                f"{financial_currency} = {factor:.6f} {quote_currency}"
+                + (f" über {fx_symbol}." if fx_symbol else ".")
+            )
 
     else:
         if quote_currency != financial_currency:
@@ -5582,10 +5657,150 @@ def calculate_fair_value_v1(
 
 
 # =========================================================
+# Handelsnotierung vs. Fundamentaldatenquelle
+# =========================================================
+
+def resolve_fundamental_symbol(selected_symbol, company_name=None):
+    """
+    Return a verified primary symbol for fundamentals when we have explicitly
+    established one. Unknown secondary listings are NOT guessed.
+
+    The selected symbol always remains the trading/price source.
+    """
+    symbol = str(selected_symbol or "").strip().upper()
+    name = str(company_name or "").strip().upper()
+
+    exact_routes = {
+        # Cisco: German secondary listings -> Nasdaq primary fundamentals.
+        "CIS.DE": "CSCO",
+        "CIS.F": "CSCO",
+        "CIS.BE": "CSCO",
+        "CIS.MU": "CSCO",
+        "CIS.DU": "CSCO",
+        "CIS.HM": "CSCO",
+        "CIS.HA": "CSCO",
+        "CIS.SG": "CSCO",
+
+        # Rheinmetall Frankfurt -> XETRA primary fundamentals.
+        "RHM.F": "RHM.DE",
+    }
+
+    if symbol in exact_routes:
+        return {
+            "symbol": exact_routes[symbol],
+            "separate_source": exact_routes[symbol] != symbol,
+            "reason": "Verifizierte Hauptnotierung"
+        }
+
+    # Conservative name safeguard for Cisco German listings.
+    if (
+        "CISCO SYSTEMS" in name
+        and symbol.startswith("CIS.")
+    ):
+        return {
+            "symbol": "CSCO",
+            "separate_source": True,
+            "reason": "Verifizierte Hauptnotierung"
+        }
+
+    return {
+        "symbol": symbol,
+        "separate_source": False,
+        "reason": "Ausgewählte Notierung"
+    }
+
+
+@st.cache_data(
+    ttl=3600,
+    show_spinner=False
+)
+def load_fx_conversion(
+    from_currency,
+    to_currency,
+    cache_version
+):
+    """Load an explicit current FX factor: 1 from_currency -> to_currency."""
+    _ = cache_version
+
+    source = str(from_currency or "").strip()
+    target = str(to_currency or "").strip()
+
+    if source.upper() == "GBX":
+        source = "GBp"
+    if target.upper() == "GBX":
+        target = "GBp"
+
+    if not source or not target:
+        return {"available": False, "factor": None, "symbol": None}
+
+    if source == target:
+        return {"available": True, "factor": 1.0, "symbol": None}
+
+    if source == "GBP" and target == "GBp":
+        return {"available": True, "factor": 100.0, "symbol": None}
+
+    if source == "GBp" and target == "GBP":
+        return {"available": True, "factor": 0.01, "symbol": None}
+
+    # GBp is not a standalone FX currency. Other combinations involving GBp
+    # require a two-step conversion and are intentionally not guessed here.
+    if source == "GBp" or target == "GBp":
+        return {"available": False, "factor": None, "symbol": None}
+
+    direct_symbol = f"{source}{target}=X"
+    inverse_symbol = f"{target}{source}=X"
+
+    def last_rate(symbol):
+        try:
+            ticker = yf.Ticker(symbol)
+            history = ticker.history(period="5d")
+            if history is not None and not history.empty and "Close" in history:
+                close = history["Close"].dropna()
+                if not close.empty:
+                    value = safe_float(close.iloc[-1])
+                    if value is not None and value > 0:
+                        return value
+        except Exception:
+            pass
+
+        try:
+            info = yf.Ticker(symbol).info or {}
+            value = safe_float(
+                info.get("regularMarketPrice")
+                or info.get("currentPrice")
+                or info.get("previousClose")
+            )
+            if value is not None and value > 0:
+                return value
+        except Exception:
+            pass
+
+        return None
+
+    direct = last_rate(direct_symbol)
+    if direct is not None:
+        return {
+            "available": True,
+            "factor": direct,
+            "symbol": direct_symbol
+        }
+
+    inverse = last_rate(inverse_symbol)
+    if inverse is not None and inverse > 0:
+        return {
+            "available": True,
+            "factor": 1.0 / inverse,
+            "symbol": inverse_symbol + " (invertiert)"
+        }
+
+    return {"available": False, "factor": None, "symbol": None}
+
+
+# =========================================================
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_standard_company_v1_20260906"
+CACHE_VERSION = "m6_primary_fundamentals_fx_v1_20260906"
 
 @st.cache_data(
     ttl=900,
@@ -5605,77 +5820,128 @@ def load_stock(search_text, cache_version):
     if not symbol:
         return None
 
-    ticker = yf.Ticker(symbol)
-    info = ticker.info or {}
-
-    currency_context = build_currency_context(
-        info.get("currency")
-    )
+    # -----------------------------------------------------
+    # 1. Trading/quote source: exactly the selected listing.
+    # -----------------------------------------------------
+    quote_ticker = yf.Ticker(symbol)
+    quote_info = quote_ticker.info or {}
 
     name = (
-        info.get("longName")
-        or info.get("shortName")
+        quote_info.get("longName")
+        or quote_info.get("shortName")
         or result.get("longname")
         or result.get("shortname")
         or symbol
     )
 
     price = (
-        info.get("currentPrice")
-        or info.get("regularMarketPrice")
-        or info.get("previousClose")
+        quote_info.get("currentPrice")
+        or quote_info.get("regularMarketPrice")
+        or quote_info.get("previousClose")
+    )
+
+    quote_currency = quote_info.get("currency")
+
+    # -----------------------------------------------------
+    # 2. Fundamental source: verified primary route only.
+    #    Unknown secondary listings are not guessed.
+    # -----------------------------------------------------
+    fundamental_route = resolve_fundamental_symbol(
+        symbol,
+        name
+    )
+    fundamental_symbol = fundamental_route.get("symbol") or symbol
+
+    if fundamental_symbol == symbol:
+        fundamental_ticker = quote_ticker
+        fundamental_info = quote_info
+    else:
+        fundamental_ticker = yf.Ticker(fundamental_symbol)
+        fundamental_info = fundamental_ticker.info or {}
+
+        # Hard safety fallback: if the routed source does not return usable
+        # company data, keep the selected listing instead of mixing blanks.
+        if not fundamental_info:
+            fundamental_symbol = symbol
+            fundamental_ticker = quote_ticker
+            fundamental_info = quote_info
+            fundamental_route = {
+                "symbol": symbol,
+                "separate_source": False,
+                "reason": "Hauptnotierung nicht verfügbar – ausgewählte Notierung verwendet"
+            }
+
+    financial_currency = (
+        fundamental_info.get("financialCurrency")
+        or fundamental_info.get("currency")
+        or quote_info.get("financialCurrency")
+        or quote_currency
+    )
+
+    fx_conversion = load_fx_conversion(
+        financial_currency,
+        quote_currency,
+        cache_version
+    )
+
+    currency_context = build_currency_context(
+        quote_currency,
+        financial_currency,
+        fx_conversion
     )
 
     earnings_timestamp = (
-        info.get("earningsTimestamp")
-        or info.get("earningsTimestampStart")
+        fundamental_info.get("earningsTimestamp")
+        or fundamental_info.get("earningsTimestampStart")
+        or quote_info.get("earningsTimestamp")
+        or quote_info.get("earningsTimestampStart")
     )
 
     company_type = classify_company(
         name,
-        symbol,
-        info.get("sector"),
-        info.get("industry")
+        fundamental_symbol,
+        fundamental_info.get("sector") or quote_info.get("sector"),
+        fundamental_info.get("industry") or quote_info.get("industry")
     )
 
     historical = build_historical_data(
-        ticker
+        fundamental_ticker
     )
 
     trailing_eps = safe_float(
-        info.get("trailingEps")
+        fundamental_info.get("trailingEps")
     )
     forward_eps = safe_float(
-        info.get("forwardEps")
+        fundamental_info.get("forwardEps")
     )
     revenue = safe_float(
-        info.get("totalRevenue")
+        fundamental_info.get("totalRevenue")
     )
     net_income = safe_float(
-        info.get("netIncomeToCommon")
+        fundamental_info.get("netIncomeToCommon")
     )
     free_cashflow = safe_float(
-        info.get("freeCashflow")
+        fundamental_info.get("freeCashflow")
     )
     cash = safe_float(
-        info.get("totalCash")
+        fundamental_info.get("totalCash")
     )
     debt = safe_float(
-        info.get("totalDebt")
+        fundamental_info.get("totalDebt")
     )
     revenue_growth = safe_float(
-        info.get("revenueGrowth")
+        fundamental_info.get("revenueGrowth")
     )
     earnings_growth = safe_float(
-        info.get("earningsGrowth")
+        fundamental_info.get("earningsGrowth")
     )
     roe = safe_float(
-        info.get("returnOnEquity")
+        fundamental_info.get("returnOnEquity")
     )
 
     profit_margin, profit_margin_note = (
         sanitize_profit_margin(
-            info.get("profitMargins"),
+            fundamental_info.get("profitMargins"),
             net_income,
             revenue
         )
@@ -5717,37 +5983,40 @@ def load_stock(search_text, cache_version):
         historical.get("fcf", [])
     )
 
+    # Special models receive the fundamental data package, while price is
+    # still the selected market quote. Currency context converts explicitly
+    # when a model needs price in the financial currency.
     insurance_special_model = build_insurance_special_model(
         company_type,
-        info,
+        fundamental_info,
         price,
         currency_context
     )
 
     bank_special_model = build_bank_special_model(
         company_type,
-        info,
+        fundamental_info,
         price,
         currency_context
     )
 
     midstream_special_model = build_midstream_special_model(
         company_type,
-        info,
+        fundamental_info,
         price,
         currency_context
     )
 
     auto_special_model = build_auto_special_model(
         company_type,
-        info,
+        fundamental_info,
         eps_normalization,
         currency_context
     )
 
     reit_special_model = build_reit_special_model(
         company_type,
-        info,
+        fundamental_info,
         price,
         currency_context
     )
@@ -5763,7 +6032,7 @@ def load_stock(search_text, cache_version):
 
     peer_group = get_peer_group(
         company_type,
-        symbol
+        fundamental_symbol
     )
 
     peer_check = calculate_peer_check(
@@ -5828,19 +6097,28 @@ def load_stock(search_text, cache_version):
         "symbol": symbol,
 
         "quote_type": (
-            info.get("quoteType")
+            quote_info.get("quoteType")
             or result.get("quoteType")
         ),
 
         "exchange": (
-            info.get("exchange")
+            quote_info.get("exchange")
             or result.get("exchange")
         ),
 
         "exchange_name": (
-            info.get("fullExchangeName")
+            quote_info.get("fullExchangeName")
             or result.get("exchDisp")
             or result.get("exchange")
+        ),
+
+        "fundamental_symbol": fundamental_symbol,
+        "fundamental_source_separate": fundamental_symbol != symbol,
+        "fundamental_source_reason": fundamental_route.get("reason"),
+        "fundamental_exchange": fundamental_info.get("exchange"),
+        "fundamental_exchange_name": (
+            fundamental_info.get("fullExchangeName")
+            or fundamental_info.get("exchange")
         ),
 
         "price": price,
@@ -5848,10 +6126,16 @@ def load_stock(search_text, cache_version):
         "financial_currency": currency_context["financial_currency"],
         "currency_context": currency_context,
 
-        "sector": info.get("sector"),
-        "industry": info.get("industry"),
+        "sector": (
+            fundamental_info.get("sector")
+            or quote_info.get("sector")
+        ),
+        "industry": (
+            fundamental_info.get("industry")
+            or quote_info.get("industry")
+        ),
 
-        "market_cap": info.get("marketCap"),
+        "market_cap": fundamental_info.get("marketCap"),
         "trailing_eps": trailing_eps,
         "forward_eps": forward_eps,
 
@@ -6117,10 +6401,25 @@ if selected_symbol:
                         f"{text_or_dash(data['industry'])}"
                     )
 
-                if currency_context.get("mixed_units"):
-                    st.warning(
-                        currency_context.get("note")
+                if data.get("fundamental_source_separate"):
+                    st.info(
+                        "Handelsnotierung und Fundamentaldaten werden getrennt "
+                        "geführt: "
+                        f"Kurs von {data['symbol']} "
+                        f"({text_or_dash(data['exchange_name'])}), "
+                        f"Fundamentaldaten von {data['fundamental_symbol']} "
+                        f"({text_or_dash(data.get('fundamental_exchange_name'))})."
                     )
+
+                if currency_context.get("mixed_units"):
+                    if currency_context.get("conversion_available"):
+                        st.info(
+                            currency_context.get("note")
+                        )
+                    else:
+                        st.warning(
+                            currency_context.get("note")
+                        )
 
                 st.divider()
 
@@ -8307,9 +8606,15 @@ if selected_symbol:
                     if fair_value[
                         "potential_pct"
                     ] is not None:
+                        potential = fair_value["potential_pct"]
+                        potential_label = (
+                            "Upside bis Fair Value"
+                            if potential >= 0
+                            else "Downside bis Fair Value"
+                        )
                         st.metric(
-                            "Upside bis Fair Value",
-                            f"{fair_value['potential_pct']:+.1f} %"
+                            potential_label,
+                            f"{potential:+.1f} %"
                         )
 
                     st.success(
