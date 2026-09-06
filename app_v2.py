@@ -3512,6 +3512,280 @@ def build_auto_special_model(
 
 
 # =========================================================
+# REIT-/Immobilien-Sondermodell V1 – Datenbasis / Plausibilitätscheck
+# =========================================================
+
+def build_reit_special_model(
+    company_type,
+    info,
+    price,
+    currency_context
+):
+    """
+    Conservative REIT / real-estate data block.
+
+    It does not create a score, valuation multiple or fair value.
+    FFO/AFFO are only used when Yahoo exposes them directly. V1 never
+    reconstructs FFO/AFFO from net income, depreciation, standard FCF
+    or operating cash flow. Leverage is shown via EBITDA-based context.
+    """
+    type_name = str(
+        company_type.get("type", "")
+    ).lower()
+
+    if (
+        "reit" not in type_name
+        and "immobilien" not in type_name
+    ):
+        return {
+            "applicable": False
+        }
+
+    quote_price = safe_float(price)
+    quote_to_financial = safe_float(
+        currency_context.get(
+            "quote_to_financial_factor",
+            1.0
+        )
+    )
+
+    if quote_to_financial is None:
+        quote_to_financial = 1.0
+
+    price_financial = (
+        quote_price * quote_to_financial
+        if quote_price is not None
+        else None
+    )
+
+    def first_direct_value(keys):
+        for key in keys:
+            value = safe_float(info.get(key))
+            if value is not None:
+                return value, key
+        return None, None
+
+    # Direct Yahoo fields only. No FFO/AFFO reconstruction.
+    ffo_total, ffo_total_source = first_direct_value([
+        "fundsFromOperations",
+        "fundsFromOperationsTTM",
+        "ffo"
+    ])
+    ffo_per_share, ffo_per_share_source = first_direct_value([
+        "fundsFromOperationsPerShare",
+        "ffoPerShare",
+        "trailingFfoPerShare"
+    ])
+    affo_total, affo_total_source = first_direct_value([
+        "adjustedFundsFromOperations",
+        "adjustedFundsFromOperationsTTM",
+        "affo"
+    ])
+    affo_per_share, affo_per_share_source = first_direct_value([
+        "adjustedFundsFromOperationsPerShare",
+        "affoPerShare",
+        "trailingAffoPerShare"
+    ])
+
+    price_to_ffo = None
+    if (
+        price_financial is not None
+        and price_financial > 0
+        and ffo_per_share is not None
+        and ffo_per_share > 0
+    ):
+        price_to_ffo = (
+            price_financial / ffo_per_share
+        )
+
+    price_to_affo = None
+    if (
+        price_financial is not None
+        and price_financial > 0
+        and affo_per_share is not None
+        and affo_per_share > 0
+    ):
+        price_to_affo = (
+            price_financial / affo_per_share
+        )
+
+    if ffo_per_share is not None:
+        ffo_note = (
+            "FFO je Aktie wurde als direkt gemeldetes Yahoo-Feld erkannt. "
+            "P/FFO wird daraus transparent als reine Datenreferenz berechnet; "
+            "es entsteht noch keine Bewertung."
+        )
+    else:
+        ffo_note = (
+            "FFO je Aktie ist in der aktuellen Yahoo-Datenquelle nicht "
+            "separat belastbar verfügbar. Es wird nicht aus Nettogewinn, "
+            "Abschreibungen, Standard-FCF oder Operating Cashflow rekonstruiert."
+        )
+
+    if affo_per_share is not None:
+        affo_note = (
+            "AFFO je Aktie wurde als direkt gemeldetes Yahoo-Feld erkannt. "
+            "P/AFFO wird daraus transparent als reine Datenreferenz berechnet; "
+            "es entsteht noch keine Bewertung."
+        )
+    else:
+        affo_note = (
+            "AFFO je Aktie ist in der aktuellen Yahoo-Datenquelle nicht "
+            "separat belastbar verfügbar. Es wird nicht aus FFO, Standard-FCF "
+            "oder anderen Kennzahlen geschätzt."
+        )
+
+    enterprise_value = safe_float(
+        info.get("enterpriseValue")
+    )
+    ebitda = safe_float(
+        info.get("ebitda")
+    )
+    yahoo_ev_to_ebitda = safe_float(
+        info.get("enterpriseToEbitda")
+    )
+    total_cash = safe_float(
+        info.get("totalCash")
+    )
+    total_debt = safe_float(
+        info.get("totalDebt")
+    )
+
+    calculated_ev_to_ebitda = None
+    if (
+        enterprise_value is not None
+        and enterprise_value > 0
+        and ebitda is not None
+        and ebitda > 0
+    ):
+        calculated_ev_to_ebitda = (
+            enterprise_value / ebitda
+        )
+
+    display_ev_to_ebitda = None
+    ev_to_ebitda_status = "unverified"
+    ev_to_ebitda_note = None
+
+    if calculated_ev_to_ebitda is None:
+        ev_to_ebitda_note = (
+            "EV/EBITDA konnte aus Enterprise Value und EBITDA nicht "
+            "belastbar berechnet werden. Es wird kein Wert geschätzt."
+        )
+    elif (
+        yahoo_ev_to_ebitda is not None
+        and yahoo_ev_to_ebitda > 0
+    ):
+        deviation = abs(
+            calculated_ev_to_ebitda
+            / yahoo_ev_to_ebitda
+            - 1.0
+        )
+
+        if deviation <= 0.20:
+            display_ev_to_ebitda = calculated_ev_to_ebitda
+            ev_to_ebitda_status = "plausible"
+            ev_to_ebitda_note = (
+                "EV/EBITDA-Plausibilitätscheck bestanden: Die aus "
+                "Enterprise Value und EBITDA berechnete Kennzahl liegt "
+                "innerhalb von 20 % des separat gemeldeten Yahoo-"
+                "enterpriseToEbitda. Bei REITs bleibt sie nur eine "
+                "Verschuldungs-/Unternehmenswert-Referenz und ersetzt "
+                "kein P/FFO- oder P/AFFO-Modell."
+            )
+        else:
+            ev_to_ebitda_status = "conflict"
+            ev_to_ebitda_note = (
+                "⚠️ EV/EBITDA nicht belastbar: Die selbst berechnete "
+                "Kennzahl weicht um mehr als 20 % vom separat gemeldeten "
+                "Yahoo-enterpriseToEbitda ab. Deshalb wird sie nicht als "
+                "belastbare Referenz angezeigt."
+            )
+    else:
+        ev_to_ebitda_note = (
+            "EV/EBITDA konnte zwar aus Enterprise Value und EBITDA "
+            "berechnet werden, aber ein separater Yahoo-Anker fehlt. "
+            "Der Wert wird deshalb nicht als belastbar angezeigt."
+        )
+
+    net_debt = None
+    if (
+        total_debt is not None
+        and total_cash is not None
+    ):
+        net_debt = total_debt - total_cash
+
+    net_debt_to_ebitda = None
+    if (
+        net_debt is not None
+        and net_debt > 0
+        and ebitda is not None
+        and ebitda > 0
+    ):
+        net_debt_to_ebitda = (
+            net_debt / ebitda
+        )
+
+    available_anchors = sum(
+        value is not None
+        for value in [
+            ffo_total,
+            ffo_per_share,
+            affo_total,
+            affo_per_share,
+            display_ev_to_ebitda,
+            net_debt_to_ebitda
+        ]
+    )
+
+    readiness = (
+        "Teilweise"
+        if available_anchors >= 2
+        else "Unvollständig"
+    )
+
+    return {
+        "applicable": True,
+        "price_financial": price_financial,
+        "ffo_total": ffo_total,
+        "ffo_total_source": ffo_total_source,
+        "ffo_per_share": ffo_per_share,
+        "ffo_per_share_source": ffo_per_share_source,
+        "affo_total": affo_total,
+        "affo_total_source": affo_total_source,
+        "affo_per_share": affo_per_share,
+        "affo_per_share_source": affo_per_share_source,
+        "price_to_ffo": price_to_ffo,
+        "price_to_affo": price_to_affo,
+        "ffo_note": ffo_note,
+        "affo_note": affo_note,
+        "enterprise_value": enterprise_value,
+        "ebitda": ebitda,
+        "calculated_ev_to_ebitda": calculated_ev_to_ebitda,
+        "display_ev_to_ebitda": display_ev_to_ebitda,
+        "yahoo_ev_to_ebitda": yahoo_ev_to_ebitda,
+        "ev_to_ebitda_status": ev_to_ebitda_status,
+        "ev_to_ebitda_note": ev_to_ebitda_note,
+        "total_cash": total_cash,
+        "total_debt": total_debt,
+        "net_debt": net_debt,
+        "net_debt_to_ebitda": net_debt_to_ebitda,
+        "nav_available": False,
+        "property_value_available": False,
+        "readiness": readiness,
+        "note": (
+            "REIT-/Immobilien-Sondermodell V1 bleibt ein reiner Daten- und "
+            "Plausibilitätsblock. FFO und AFFO werden ausschließlich verwendet, "
+            "wenn sie direkt separat verfügbar sind; sie werden nicht aus "
+            "Nettogewinn, Abschreibungen, Standard-FCF oder Operating Cashflow "
+            "rekonstruiert. NAV/EPRA NTA bzw. Immobilienwerte werden in der "
+            "aktuellen Datenquelle nicht separat belastbar geladen und nicht "
+            "geschätzt. Noch keine REIT-Punkte, kein Bewertungs-Multiple und "
+            "kein Fair Value."
+        )
+    }
+
+
+# =========================================================
 # Modul 6 – Schritt 1: Bewertungs-Korridor & Fundamental-Multiple
 # =========================================================
 
@@ -4310,6 +4584,34 @@ def get_special_control(company_type, symbol):
             )
         }
 
+    if (
+        "reit" in type_name
+        or "immobilien" in type_name
+    ):
+        return {
+            "required": True,
+            "control_key": "reit_ffo_affo_leverage",
+            "control_name": (
+                "REIT / FFO-, AFFO- & Verschuldungsprüfung"
+            ),
+            "planned_checks": [
+                "FFO / AFFO je Aktie",
+                "P/FFO bzw. P/AFFO",
+                "Netto-Schulden / EBITDA",
+                "NAV / Immobilienwert",
+                "Ausschüttungsdeckung"
+            ],
+            "status": "Router aktiv – V1 Datenbasis vorhanden",
+            "note": (
+                "V1 nutzt FFO/AFFO nur, wenn Yahoo sie direkt separat "
+                "liefert. FFO/AFFO, NAV und Immobilienwerte werden nicht "
+                "aus Standardkennzahlen rekonstruiert oder geschätzt. "
+                "EV/EBITDA und Netto-Schulden/EBITDA bleiben reine "
+                "Datenreferenzen. Das Sondermodell verändert noch keinen "
+                "Score und kein Bewertungs-Multiple."
+            )
+        }
+
     if "bank" in type_name:
         return {
             "required": True,
@@ -4374,7 +4676,7 @@ def get_special_control(company_type, symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1_ing_primary_priority_v2_midstream_v1_generic_router_v1_auto_v1"
+CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1_ing_primary_priority_v2_midstream_v1_generic_router_v1_auto_v1_reit_v1"
 
 @st.cache_data(
     ttl=900,
@@ -4534,6 +4836,13 @@ def load_stock(search_text, cache_version):
         currency_context
     )
 
+    reit_special_model = build_reit_special_model(
+        company_type,
+        info,
+        price,
+        currency_context
+    )
+
     fundamental_multiple = calculate_fundamental_multiple(
         company_type,
         growth_score,
@@ -4623,6 +4932,7 @@ def load_stock(search_text, cache_version):
         "bank_special_model": bank_special_model,
         "midstream_special_model": midstream_special_model,
         "auto_special_model": auto_special_model,
+        "reit_special_model": reit_special_model,
         "fundamental_multiple": fundamental_multiple,
         "peer_group": peer_group,
         "peer_check": peer_check,
@@ -6287,6 +6597,183 @@ if selected_symbol:
 
                     st.caption(
                         auto_model["note"]
+                    )
+
+                reit_model = data.get(
+                    "reit_special_model",
+                    {"applicable": False}
+                )
+
+                if reit_model.get("applicable"):
+
+                    st.divider()
+
+                    st.subheader(
+                        "🏢 REIT-/Immobilien-Sondermodell V1 – Datenbasis"
+                    )
+
+                    st.info(
+                        "REIT-/Immobilien-Modell erkannt. In V1 werden nur "
+                        "direkt verfügbare FFO/AFFO-Daten sowie EV/EBITDA- "
+                        "und Verschuldungskennzahlen plausibilisiert. FFO "
+                        "und AFFO werden nicht aus Standard-FCF oder "
+                        "Nettogewinn rekonstruiert."
+                    )
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+
+                        st.metric(
+                            "FFO (direkt gemeldet)",
+                            format_money(
+                                reit_model["ffo_total"],
+                                financial_currency
+                            )
+                        )
+
+                        st.metric(
+                            "FFO je Aktie (direkt gemeldet)",
+                            format_eps(
+                                reit_model["ffo_per_share"],
+                                financial_currency
+                            )
+                        )
+
+                        if reit_model["price_to_ffo"] is not None:
+                            st.metric(
+                                "P / FFO (nur Datenreferenz)",
+                                f"{reit_model['price_to_ffo']:.2f}×"
+                            )
+                        else:
+                            st.metric(
+                                "P / FFO (nur Datenreferenz)",
+                                "–"
+                            )
+
+                        st.metric(
+                            "AFFO je Aktie (direkt gemeldet)",
+                            format_eps(
+                                reit_model["affo_per_share"],
+                                financial_currency
+                            )
+                        )
+
+                        if reit_model["price_to_affo"] is not None:
+                            st.metric(
+                                "P / AFFO (nur Datenreferenz)",
+                                f"{reit_model['price_to_affo']:.2f}×"
+                            )
+                        else:
+                            st.metric(
+                                "P / AFFO (nur Datenreferenz)",
+                                "–"
+                            )
+
+                    with col2:
+
+                        st.metric(
+                            "EBITDA",
+                            format_money(
+                                reit_model["ebitda"],
+                                financial_currency
+                            )
+                        )
+
+                        st.metric(
+                            "Enterprise Value",
+                            format_money(
+                                reit_model["enterprise_value"],
+                                financial_currency
+                            )
+                        )
+
+                        if reit_model[
+                            "display_ev_to_ebitda"
+                        ] is not None:
+                            st.metric(
+                                "EV / EBITDA (nur Kontext)",
+                                f"{reit_model['display_ev_to_ebitda']:.2f}×"
+                            )
+                        else:
+                            st.metric(
+                                "EV / EBITDA (nur Kontext)",
+                                "–"
+                            )
+
+                        st.metric(
+                            "Nettoschulden",
+                            format_money(
+                                reit_model["net_debt"],
+                                financial_currency
+                            )
+                        )
+
+                        if reit_model[
+                            "net_debt_to_ebitda"
+                        ] is not None:
+                            st.metric(
+                                "Netto-Schulden / EBITDA",
+                                f"{reit_model['net_debt_to_ebitda']:.2f}×"
+                            )
+                        else:
+                            st.metric(
+                                "Netto-Schulden / EBITDA",
+                                "–"
+                            )
+
+                    if data[
+                        "currency_context"
+                    ].get("mixed_units"):
+                        price_financial = reit_model.get(
+                            "price_financial"
+                        )
+                        if price_financial is not None:
+                            st.write(
+                                "**Kurs für fundamentale Verhältniskennzahlen:** "
+                                f"{price_financial:,.4f} {financial_currency} "
+                                "(explizit aus der Pence-Notierung umgerechnet)"
+                            )
+
+                    st.write(
+                        "**NAV / EPRA NTA / Immobilienwert:** – "
+                        "(in der aktuellen Datenquelle nicht separat belastbar "
+                        "verfügbar; wird nicht aus Buchwert oder Enterprise "
+                        "Value geschätzt)"
+                    )
+
+                    st.write(
+                        "**Datenreife Sondermodell:** "
+                        f"{reit_model['readiness']}"
+                    )
+
+                    st.caption(
+                        reit_model["ffo_note"]
+                    )
+
+                    st.caption(
+                        reit_model["affo_note"]
+                    )
+
+                    if reit_model.get(
+                        "ev_to_ebitda_note"
+                    ):
+                        ev_note = reit_model[
+                            "ev_to_ebitda_note"
+                        ]
+                        if ev_note.startswith("⚠️"):
+                            st.warning(ev_note)
+                        else:
+                            st.caption(ev_note)
+
+                    st.warning(
+                        "Bei REITs werden normales EPS, Yahoo-Free-Cashflow "
+                        "und die allgemeine Netto-Schulden/FCF-Logik nicht "
+                        "als Ersatz für FFO/AFFO verwendet."
+                    )
+
+                    st.caption(
+                        reit_model["note"]
                     )
 
                 st.divider()
