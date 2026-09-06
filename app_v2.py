@@ -2008,16 +2008,20 @@ def search_stock_suggestions(search_text):
 
         score = preferred_exchange_order.get(exchange, 50)
 
-        # 1) Exact ticker match is always the strongest signal.
+        # 1) Tested main listings / aliases have top priority.
+        #    This deliberately outranks an exact ticker match when the
+        #    exact ticker is an ADR/secondary listing (for example ING
+        #    on NYSE versus INGA.AS in Amsterdam). The user still has to
+        #    select the result explicitly.
+        if item.get("_preferred"):
+            score += 2600
+
+        # 2) Exact ticker matches remain a very strong signal, but below
+        #    a deliberately defined primary/home listing.
         if symbol == query_upper:
             score += 1400
         elif symbol.startswith(query_upper):
             score += 180
-
-        # 2) Tested main listings / aliases are deliberately promoted,
-        #    but the user still has to select the result explicitly.
-        if item.get("_preferred"):
-            score += 1000
 
         # 3) Name-prefix matches are more useful than a match somewhere
         #    inside the company name. This improves short 2–3 letter input.
@@ -3978,7 +3982,7 @@ def get_special_control(company_type, symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1_ing_primary_v1"
+CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1_ing_primary_priority_v2"
 
 @st.cache_data(
     ttl=900,
