@@ -4676,14 +4676,13 @@ def get_special_control(company_type, symbol):
                 "Überleitung Preiszyklus → normalisierte Ertragskraft",
                 "Reserve-/Minenlebensdauer- & NAV-Kontrolle"
             ],
-            "status": "Router aktiv – V2.4 Ertragskraft-Überleitung",
+            "status": "Router aktiv – V2.5 Reserve-, Minenleben- & NAV-Kontrolle",
             "note": (
-                "V2.4 prüft Mehrjahres-Gewinnbasis, FCF-Stabilität, Bilanz, "
-                "verifizierte Produktions-/Kostenkennzahlen, den dynamisch "
-                "normalisierten Rohstoffpreiszyklus und eine konservative "
-                "Überleitung in nachhaltige EPS-/FCF-Ertragskraft. Ein Bergbau-"
-                "Fair-Value bleibt trotzdem gesperrt, bis zusätzlich Reserve-/"
-                "Minenlebensdauer und Asset-NAV belastbar kontrolliert sind."
+                "V2.5 ergänzt die Ertragskraft-Überleitung um verifizierte "
+                "Reserven, Reserve-Minenlebensdauer und einen unabhängigen "
+                "technischen NAV-Referenzanker. Alte technische Mine-NPVs "
+                "werden sichtbar als Referenz geführt, dürfen aber keinen "
+                "aktuellen Fair Value freigeben."
             )
         }
 
@@ -5333,7 +5332,7 @@ def get_verified_mining_commodity_route(symbol):
             "mapping_note": (
                 "Hecla wird für die Preiszyklus-Kontrolle primär dem Silberpreis "
                 "zugeordnet. Gold, Blei und Zink bleiben zusätzliche Exposures und "
-                "werden nicht als separate Primärrohstoffe in diese V2.4-Kontrolle "
+                "werden nicht als separate Primärrohstoffe in diese V2.5-Kontrolle "
                 "hineingeschätzt."
             ),
         },
@@ -5758,6 +5757,365 @@ def build_mining_earnings_translation(
     return result
 
 
+
+
+def get_verified_mining_asset_snapshot(symbol):
+    """
+    Curated reserve / mine-life / technical-NAV reference data for Mining V2.5.
+
+    The reserve snapshot is current year-end company data. Technical NPV values
+    are deliberately kept separate because the currently incorporated S-K 1300
+    mine plans for Greens Creek and Lucky Friday have 2021 effective dates and
+    Keno Hill has a 2023 effective date. They are useful as independent asset
+    anchors, but are not silently treated as current NAV.
+    """
+    symbol_text = str(symbol or "").upper()
+    if symbol_text != "HL":
+        return None
+
+    return {
+        "company": "Hecla Mining Company",
+        "reserve_as_of_date": "31.12.2025",
+        "reserve_published_date": "13.02.2026",
+        "reserve_valid_until": "31.03.2027",
+        "reserve_source_name": "Hecla Year-End 2025 Mineral Reserves & Resources",
+        "reserve_source_note": (
+            "Verifizierte Hecla-Jahresenddaten 2025. Die Silberreserven der drei "
+            "Kern-Silberminen Greens Creek, Lucky Friday und Keno Hill summieren "
+            "sich auf rund 231,1 Mio. oz. Mineral Resources sind nicht als "
+            "Reserven behandelt und werden im Basis-NAV nicht hochgerechnet."
+        ),
+        "silver_reserves_moz": {
+            "Greens Creek": 106.097,
+            "Lucky Friday": 71.589,
+            "Keno Hill": 53.407,
+        },
+        "total_core_silver_reserves_moz": 231.093,
+        "reserve_price_basis_silver": 25.00,
+        "reserve_price_basis_gold": 2100.0,
+        "reserve_price_basis_lead": 0.90,
+        "reserve_price_basis_zinc": 1.15,
+        "company_average_reserve_mine_life_years": 13.3,
+        "mine_life_source_date": "Mai 2026",
+        "mine_life_note": (
+            "Hecla weist für das Portfolio eine durchschnittliche Reserve-"
+            "Minenlebensdauer von 13,3 Jahren aus. Die Unternehmensdarstellung "
+            "berechnet Reserve Mine Life aus Reservetonnen / Nameplate-Durchsatz."
+        ),
+        "technical_nav_references": [
+            {
+                "asset": "Greens Creek",
+                "effective_date": "31.12.2021",
+                "discount_rate_pct": 5.0,
+                "base_after_tax_npv_musd": 747.0,
+                "base_silver_reference": 21.00,
+                "sensitivity_points": [
+                    (23.10, 1029.0),
+                    (25.20, 1313.0),
+                ],
+                "note": (
+                    "S-K 1300 TRS 2021; technische NPV-Sensitivität. Der Report "
+                    "ist kein aktueller 2026-NAV."
+                ),
+            },
+            {
+                "asset": "Lucky Friday",
+                "effective_date": "31.12.2021",
+                "discount_rate_pct": 5.0,
+                "base_after_tax_npv_musd": 554.0,
+                "base_silver_reference": 21.00,
+                "sensitivity_points": [
+                    (23.10, 721.0),
+                    (25.20, 893.0),
+                ],
+                "note": (
+                    "S-K 1300 TRS 2021; technische NPV-Sensitivität. Der Report "
+                    "ist kein aktueller 2026-NAV."
+                ),
+            },
+            {
+                "asset": "Keno Hill",
+                "effective_date": "31.12.2023",
+                "discount_rate_pct": 5.0,
+                "base_after_tax_npv_musd": 304.5,
+                "base_silver_reference": 22.00,
+                "sensitivity_points": [
+                    (24.20, 369.08),
+                    (26.40, 433.68),
+                ],
+                "note": (
+                    "S-K 1300 TRS 2023; technische NPV-Sensitivität. Der Report "
+                    "ist jünger als die beiden US-Minen-TRS, bleibt aber ein "
+                    "historischer Minenplan."
+                ),
+            },
+        ],
+    }
+
+
+def _linear_interpolate_no_extrapolation(x, points):
+    """Linear interpolation only inside verified sensitivity points."""
+    x = safe_float(x)
+    cleaned = []
+    for point in points or []:
+        try:
+            px, py = point
+        except Exception:
+            continue
+        px = safe_float(px)
+        py = safe_float(py)
+        if px is not None and py is not None:
+            cleaned.append((px, py))
+
+    cleaned = sorted(cleaned, key=lambda item: item[0])
+    if x is None or len(cleaned) < 2:
+        return None
+    if x < cleaned[0][0] or x > cleaned[-1][0]:
+        return None
+
+    for (x0, y0), (x1, y1) in zip(cleaned[:-1], cleaned[1:]):
+        if x0 <= x <= x1:
+            if x1 == x0:
+                return y0
+            weight = (x - x0) / (x1 - x0)
+            return y0 + weight * (y1 - y0)
+    return None
+
+
+def build_mining_asset_nav_control(
+    symbol,
+    commodity_cycle,
+    earnings_translation,
+    balance_score,
+    fundamental_multiple,
+    operating_snapshot,
+):
+    """
+    Mining V2.5 reserve / mine-life / technical-NAV plausibility control.
+
+    Important: technical-report NPVs are not presented as current company NAV.
+    They are independent asset anchors only. V2.5 blocks final Fair Value when
+    the technical mine plans are too old or when earnings value and the asset
+    anchor diverge materially.
+    """
+    result = {
+        "available": False,
+        "status": "Daten unzureichend",
+        "required": True,
+        "reference_only": True,
+        "reserve_snapshot_fresh": False,
+        "reserve_price_alignment_pct": None,
+        "reserve_price_alignment_status": "Daten unzureichend",
+        "total_core_silver_reserves_moz": None,
+        "production_guidance_mid_moz": None,
+        "reserve_coverage_years": None,
+        "company_average_reserve_mine_life_years": None,
+        "mine_life_status": "Daten unzureichend",
+        "technical_nav_available": False,
+        "technical_nav_reference_fresh": False,
+        "technical_nav_sum_musd": None,
+        "equity_nav_anchor_musd": None,
+        "nav_anchor_per_share": None,
+        "earnings_value_per_share": None,
+        "earnings_nav_gap_pct": None,
+        "earnings_nav_convergence_status": "Daten unzureichend",
+        "nav_details": [],
+        "snapshot": None,
+        "reason": None,
+    }
+
+    snapshot = get_verified_mining_asset_snapshot(symbol)
+    if snapshot is None:
+        result["reason"] = (
+            "Für diese Bergbau-Aktie ist noch kein verifizierter Reserve-/NAV-"
+            "Snapshot hinterlegt."
+        )
+        return result
+    result["snapshot"] = snapshot
+
+    try:
+        reserve_valid_until = datetime.strptime(
+            snapshot["reserve_valid_until"], "%d.%m.%Y"
+        ).date()
+        reserve_fresh = datetime.now().date() <= reserve_valid_until
+    except Exception:
+        reserve_fresh = False
+    result["reserve_snapshot_fresh"] = reserve_fresh
+
+    normalized_price = safe_float((commodity_cycle or {}).get("normalized_price"))
+    reserve_price = safe_float(snapshot.get("reserve_price_basis_silver"))
+    if normalized_price is not None and reserve_price is not None and reserve_price > 0:
+        price_gap_pct = abs(normalized_price / reserve_price - 1.0) * 100.0
+        result["reserve_price_alignment_pct"] = price_gap_pct
+        if price_gap_pct <= 5.0:
+            price_alignment_status = "Sehr stark"
+        elif price_gap_pct <= 10.0:
+            price_alignment_status = "Stark"
+        elif price_gap_pct <= 20.0:
+            price_alignment_status = "Ausreichend"
+        else:
+            price_alignment_status = "Schwach"
+    else:
+        price_alignment_status = "Daten unzureichend"
+    result["reserve_price_alignment_status"] = price_alignment_status
+
+    reserves_moz = safe_float(snapshot.get("total_core_silver_reserves_moz"))
+    result["total_core_silver_reserves_moz"] = reserves_moz
+
+    current_low = safe_float((operating_snapshot or {}).get("production_guidance_current_low_moz"))
+    current_high = safe_float((operating_snapshot or {}).get("production_guidance_current_high_moz"))
+    production_mid = None
+    reserve_coverage = None
+    if current_low is not None and current_high is not None and current_low > 0 and current_high > 0:
+        production_mid = (current_low + current_high) / 2.0
+        if reserves_moz is not None and reserves_moz > 0:
+            reserve_coverage = reserves_moz / production_mid
+    result["production_guidance_mid_moz"] = production_mid
+    result["reserve_coverage_years"] = reserve_coverage
+
+    company_mine_life = safe_float(snapshot.get("company_average_reserve_mine_life_years"))
+    result["company_average_reserve_mine_life_years"] = company_mine_life
+
+    life_values = [value for value in [reserve_coverage, company_mine_life] if value is not None]
+    if not life_values:
+        mine_life_status = "Daten unzureichend"
+    elif min(life_values) >= 10.0:
+        mine_life_status = "Sehr stark"
+    elif min(life_values) >= 7.0:
+        mine_life_status = "Stark"
+    elif min(life_values) >= 5.0:
+        mine_life_status = "Ausreichend"
+    else:
+        mine_life_status = "Kurz"
+    result["mine_life_status"] = mine_life_status
+
+    nav_details = []
+    technical_nav_sum = 0.0
+    technical_nav_ok = True
+    nav_reference_fresh = True
+    today = datetime.now().date()
+
+    for ref in snapshot.get("technical_nav_references", []):
+        interpolated = _linear_interpolate_no_extrapolation(
+            normalized_price,
+            ref.get("sensitivity_points"),
+        )
+        try:
+            effective_date = datetime.strptime(ref["effective_date"], "%d.%m.%Y").date()
+            age_years = (today - effective_date).days / 365.25
+        except Exception:
+            age_years = None
+
+        # A current independent NAV anchor should generally use a technical mine
+        # plan no older than three years. Older reports stay visible as references
+        # but cannot release Fair Value.
+        reference_fresh = age_years is not None and age_years <= 3.0
+        if not reference_fresh:
+            nav_reference_fresh = False
+        if interpolated is None:
+            technical_nav_ok = False
+        else:
+            technical_nav_sum += interpolated
+
+        nav_details.append({
+            "asset": ref.get("asset"),
+            "effective_date": ref.get("effective_date"),
+            "age_years": age_years,
+            "discount_rate_pct": ref.get("discount_rate_pct"),
+            "base_after_tax_npv_musd": ref.get("base_after_tax_npv_musd"),
+            "normalized_sensitivity_npv_musd": interpolated,
+            "reference_fresh": reference_fresh,
+            "note": ref.get("note"),
+        })
+
+    result["nav_details"] = nav_details
+    result["technical_nav_available"] = technical_nav_ok and len(nav_details) >= 3
+    result["technical_nav_reference_fresh"] = nav_reference_fresh
+    if result["technical_nav_available"]:
+        result["technical_nav_sum_musd"] = technical_nav_sum
+
+    net_debt = safe_float((balance_score or {}).get("net_debt"))
+    equity_nav_anchor_musd = None
+    if result["technical_nav_available"] and net_debt is not None:
+        # net_debt < 0 means net cash and therefore increases equity NAV.
+        equity_nav_anchor_musd = technical_nav_sum - (net_debt / 1_000_000.0)
+        result["equity_nav_anchor_musd"] = equity_nav_anchor_musd
+
+    shares = safe_float((earnings_translation or {}).get("shares_outstanding_used"))
+    if equity_nav_anchor_musd is not None and shares is not None and shares > 0:
+        result["nav_anchor_per_share"] = equity_nav_anchor_musd * 1_000_000.0 / shares
+
+    sustainable_eps = safe_float((earnings_translation or {}).get("sustainable_eps"))
+    used_multiple = safe_float((fundamental_multiple or {}).get("multiple"))
+    if sustainable_eps is not None and sustainable_eps > 0 and used_multiple is not None and used_multiple > 0:
+        result["earnings_value_per_share"] = sustainable_eps * used_multiple
+
+    nav_ps = safe_float(result.get("nav_anchor_per_share"))
+    earnings_ps = safe_float(result.get("earnings_value_per_share"))
+    if nav_ps is not None and nav_ps > 0 and earnings_ps is not None and earnings_ps > 0:
+        midpoint = (nav_ps + earnings_ps) / 2.0
+        gap_pct = abs(nav_ps - earnings_ps) / midpoint * 100.0 if midpoint > 0 else None
+        result["earnings_nav_gap_pct"] = gap_pct
+        if gap_pct is None:
+            convergence = "Daten unzureichend"
+        elif gap_pct <= 25.0:
+            convergence = "Stark konvergent"
+        elif gap_pct <= 50.0:
+            convergence = "Ausreichend konvergent"
+        else:
+            convergence = "Nicht konvergent"
+    else:
+        convergence = "Daten unzureichend"
+    result["earnings_nav_convergence_status"] = convergence
+
+    reserve_ok = reserve_fresh and price_alignment_status in ["Sehr stark", "Stark", "Ausreichend"]
+    life_ok = mine_life_status in ["Sehr stark", "Stark", "Ausreichend"]
+    nav_current_ok = result["technical_nav_available"] and nav_reference_fresh
+    convergence_ok = convergence in ["Stark konvergent", "Ausreichend konvergent"]
+
+    if not reserve_ok:
+        status = "Reservebasis nicht belastbar freigegeben"
+        reason = (
+            "Reserve-Daten sind veraltet oder die verwendete Reserve-Preisannahme "
+            "liegt zu weit vom normalisierten Rohstoffpreis entfernt."
+        )
+    elif not life_ok:
+        status = "Minenlebensdauer zu kurz oder unklar"
+        reason = "Die Reserve-Lebensdauer reicht nicht für eine robuste Asset-Bewertung."
+    elif not result["technical_nav_available"]:
+        status = "Technischer NAV-Anker nicht vollständig verfügbar"
+        reason = (
+            "Es fehlen mindestens drei belastbare technische Mine-NPV-Referenzen "
+            "innerhalb ihrer veröffentlichten Sensitivitätsbereiche."
+        )
+    elif not nav_reference_fresh:
+        status = "Reserven/Lebensdauer stark – technischer NAV-Anker veraltet"
+        reason = (
+            "Die Reservebasis und Minenlebensdauer sind belastbar, aber die "
+            "eingebundenen technischen Mine-NPVs beruhen teilweise auf 2021er "
+            "Minenplänen. Sie bleiben ein unabhängiger Referenzanker und dürfen "
+            "keinen finalen 2026-Fair-Value freigeben."
+        )
+    elif not convergence_ok:
+        status = "NAV und Ertragswert nicht ausreichend konvergent"
+        reason = (
+            "Der unabhängige Asset-NAV-Anker und der nachhaltige Ertragswert "
+            "liegen zu weit auseinander. Der Fair Value bleibt gesperrt."
+        )
+    else:
+        status = "Reserve/NAV-Kontrolle freigegeben"
+        reason = None
+
+    available = reserve_ok and life_ok and nav_current_ok and convergence_ok
+    result.update({
+        "available": available,
+        "reference_only": not available,
+        "status": status,
+        "reason": reason,
+    })
+    return result
+
+
 def build_mining_special_control(
     base_control,
     company_type,
@@ -5773,9 +6131,10 @@ def build_mining_special_control(
     free_cashflow=None,
     net_income=None,
     shares_outstanding=None,
+    fundamental_multiple=None,
 ):
     """
-    Conservative Mining V2.4.
+    Conservative Mining V2.5.
 
     Financial-cycle checks are calculated from already-loaded company data.
     Production guidance and AISC/unit-cost data are used only when a dated,
@@ -5919,7 +6278,7 @@ def build_mining_special_control(
         "status", "Daten unzureichend"
     )
 
-    # Mining V2.4: independent earnings-power bridge. The bridge can become
+    # Mining V2.5: independent earnings-power bridge. The bridge can become
     # available only when cycle-normalized EPS and commodity-margin-adjusted TTM
     # EPS converge and normalized FCF/share provides a positive cash cross-check.
     earnings_translation = build_mining_earnings_translation(
@@ -5933,18 +6292,18 @@ def build_mining_special_control(
     earnings_translation_available = earnings_translation.get("available", False)
     earnings_translation_status = earnings_translation.get("status", "Daten unzureichend")
 
-    # Asset/NAV guard. Even a plausible sustainable EPS is not enough for a
-    # miner: reserves/resources, mine life and asset NAV must still be checked
-    # before an earnings multiple is allowed to create a final Fair Value.
-    asset_nav_control = {
-        "available": False,
-        "status": "Noch nicht implementiert",
-        "required": True,
-        "reason": (
-            "Reserve-/Ressourcenbasis, Minenlebensdauer und Asset-NAV sind für "
-            "eine belastbare Bergbau-Bewertung noch nicht integriert."
-        ),
-    }
+    # Mining V2.5: reserve / mine-life / independent technical-NAV anchor.
+    # Current reserve data may be fresh while the incorporated S-K 1300 mine
+    # plans are older. In that case V2.5 shows the technical NAV as a reference
+    # but deliberately does not release a final Fair Value.
+    asset_nav_control = build_mining_asset_nav_control(
+        symbol,
+        commodity_price_cycle,
+        earnings_translation,
+        balance_score,
+        fundamental_multiple,
+        snapshot,
+    )
     asset_nav_available = asset_nav_control.get("available", False)
 
     if not financial_checks_usable:
@@ -5973,7 +6332,9 @@ def build_mining_special_control(
         confidence_cap = "Niedrig"
     elif not asset_nav_available:
         released = False
-        overall_status = "Ertragskraft plausibilisiert – Reserve/NAV-Kontrolle noch offen"
+        overall_status = asset_nav_control.get(
+            "status", "Reserve-/NAV-Kontrolle nicht freigegeben"
+        )
         confidence_cap = "Niedrig"
     elif peak_risk:
         released = True
@@ -6039,13 +6400,13 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.4 trennt Finanzzyklus, operative "
-            "Minenvisibilität, dynamische Rohstoffpreis-Normalisierung und die "
-            "Überleitung in nachhaltige Ertragskraft. Die Überleitung wird nur "
-            "plausibilisiert, wenn Zyklus-EPS und margenadjustierte TTM-EPS "
-            "konvergieren und FCF/share stützt. Ein finaler Bergbau-Fair-Value "
-            "bleibt zusätzlich bis zur Reserve-/Minenlebensdauer- und NAV-Kontrolle "
-            "gesperrt. Der 100-Punkte-Multiple-Score bleibt unverändert."
+            "Die Bergbau-Spezialkontrolle V2.5 trennt Finanzzyklus, operative "
+            "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
+            "Ertragskraft und Reserve-/Asset-Kontrolle. Reservebasis und "
+            "Minenlebensdauer werden mit einem unabhängigen technischen NAV-"
+            "Referenzanker abgeglichen. Veraltete technische Mine-Pläne bleiben "
+            "nur Referenz und können keinen aktuellen Fair Value freigeben. "
+            "Der 100-Punkte-Multiple-Score bleibt unverändert."
         ),
     })
 
@@ -6422,13 +6783,17 @@ def calculate_fair_value_v1(
             "mining_asset_nav_control", {}
         )
         if not asset_nav_control.get("available", False):
-            result["note"] = (
-                "Fair Value V1 gesperrt: Die nachhaltige Ertragskraft ist zwar "
-                "plausibilisiert, aber Reserve-/Ressourcenbasis, Minenlebensdauer "
-                "und Asset-NAV sind noch nicht belastbar kontrolliert. Ein reines "
-                "KGV auf Minenerträge wird deshalb noch nicht als finaler Fair "
-                "Value freigegeben."
-            )
+            nav_reason = asset_nav_control.get("reason")
+            if nav_reason:
+                result["note"] = (
+                    "Fair Value V1 gesperrt: Reserve-/Minenlebensdauer- & NAV-"
+                    "Kontrolle nicht freigegeben. " + str(nav_reason)
+                )
+            else:
+                result["note"] = (
+                    "Fair Value V1 gesperrt: Reserve-/Minenlebensdauer und "
+                    "Asset-NAV sind noch nicht belastbar freigegeben."
+                )
             return result
 
     if (
@@ -6751,7 +7116,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_earnings_bridge_v24_20260906"
+CACHE_VERSION = "m6_mining_asset_nav_v25_20260906"
 
 @st.cache_data(
     ttl=900,
@@ -7026,6 +7391,7 @@ def load_stock(search_text, cache_version):
         free_cashflow,
         net_income,
         shares_outstanding,
+        fundamental_multiple,
     )
 
     fair_value = calculate_fair_value_v1(
@@ -9519,7 +9885,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.4 – Preiszyklus → nachhaltige Ertragskraft")
+                    st.caption("Bergbau-Schutzmodell V2.5 – Ertragskraft + Reserve/NAV-Kontrolle")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -9847,12 +10213,131 @@ if selected_symbol:
                             "**Reserve-/Minenlebensdauer- & NAV-Kontrolle:** "
                             f"{asset_nav_control.get('status', 'Noch offen')}"
                         )
+
+                        asset_snapshot = asset_nav_control.get("snapshot") or {}
+                        if asset_snapshot:
+                            st.write(
+                                "**Datenstand Reserven:** "
+                                f"{asset_snapshot.get('reserve_as_of_date', '–')} "
+                                f"(veröffentlicht {asset_snapshot.get('reserve_published_date', '–')})"
+                            )
+
+                            navc1, navc2 = st.columns(2)
+                            with navc1:
+                                if asset_nav_control.get("total_core_silver_reserves_moz") is not None:
+                                    st.metric(
+                                        "Kern-Silberreserven",
+                                        f"{asset_nav_control['total_core_silver_reserves_moz']:.1f} Mio. oz"
+                                    )
+                                if asset_nav_control.get("company_average_reserve_mine_life_years") is not None:
+                                    st.metric(
+                                        "Hecla Ø Reserve-Minenleben",
+                                        f"{asset_nav_control['company_average_reserve_mine_life_years']:.1f} Jahre"
+                                    )
+                                if asset_nav_control.get("reserve_coverage_years") is not None:
+                                    st.write(
+                                        "**Reserve/Guidance-Abdeckung:** "
+                                        f"{asset_nav_control['reserve_coverage_years']:.1f} Jahre "
+                                        "(Kontrollrechnung, nicht identisch mit Nameplate-Minenleben)"
+                                    )
+                                st.write(
+                                    "**Minenlebensdauer-Status:** "
+                                    f"{asset_nav_control.get('mine_life_status', '–')}"
+                                )
+
+                            with navc2:
+                                reserve_price_basis = safe_float(
+                                    asset_snapshot.get("reserve_price_basis_silver")
+                                )
+                                if reserve_price_basis is not None:
+                                    st.metric(
+                                        "Silberpreis-Basis der Reserven",
+                                        f"{reserve_price_basis:.2f} USD/oz"
+                                    )
+                                if asset_nav_control.get("reserve_price_alignment_pct") is not None:
+                                    st.write(
+                                        "**Abstand zum normalisierten Silberpreis:** "
+                                        f"{asset_nav_control['reserve_price_alignment_pct']:.1f} % "
+                                        f"({asset_nav_control.get('reserve_price_alignment_status', '–')})"
+                                    )
+                                st.write(
+                                    "**Reserve-Snapshot:** "
+                                    + (
+                                        "Aktuell"
+                                        if asset_nav_control.get("reserve_snapshot_fresh", False)
+                                        else "Veraltet / nicht freigegeben"
+                                    )
+                                )
+
+                            reserve_map = asset_snapshot.get("silver_reserves_moz") or {}
+                            if reserve_map:
+                                reserve_text = " · ".join(
+                                    f"{name}: {value:.1f} Mio. oz"
+                                    for name, value in reserve_map.items()
+                                )
+                                st.caption("Silberreserven: " + reserve_text)
+                            if asset_snapshot.get("reserve_source_note"):
+                                st.info(asset_snapshot.get("reserve_source_note"))
+
+                        if asset_nav_control.get("technical_nav_available", False):
+                            st.write("**Technischer NAV-Referenzanker (S-K 1300):**")
+                            for detail in asset_nav_control.get("nav_details", []):
+                                npv_value = detail.get("normalized_sensitivity_npv_musd")
+                                npv_text = (
+                                    f"{npv_value:,.0f} Mio. USD"
+                                    if npv_value is not None
+                                    else "–"
+                                )
+                                age_value = detail.get("age_years")
+                                age_text = f"{age_value:.1f} J." if age_value is not None else "–"
+                                st.write(
+                                    f"• {detail.get('asset', '–')}: {npv_text} "
+                                    f"(TRS effektiv {detail.get('effective_date', '–')}, Alter {age_text})"
+                                )
+
+                            navsum1, navsum2 = st.columns(2)
+                            with navsum1:
+                                if asset_nav_control.get("technical_nav_sum_musd") is not None:
+                                    st.metric(
+                                        "Summe technischer Mine-NPV-Anker",
+                                        f"{asset_nav_control['technical_nav_sum_musd'] / 1000.0:.2f} Mrd. USD"
+                                    )
+                                if asset_nav_control.get("equity_nav_anchor_musd") is not None:
+                                    st.metric(
+                                        "Equity-NAV-Referenz inkl. Netto-Cash/-Schulden",
+                                        f"{asset_nav_control['equity_nav_anchor_musd'] / 1000.0:.2f} Mrd. USD"
+                                    )
+                            with navsum2:
+                                if asset_nav_control.get("nav_anchor_per_share") is not None:
+                                    st.metric(
+                                        "NAV-Referenz je Aktie",
+                                        f"{asset_nav_control['nav_anchor_per_share']:.2f} USD"
+                                    )
+                                if asset_nav_control.get("earnings_value_per_share") is not None:
+                                    st.metric(
+                                        "Ertragswert-Referenz je Aktie",
+                                        f"{asset_nav_control['earnings_value_per_share']:.2f} USD"
+                                    )
+                                if asset_nav_control.get("earnings_nav_gap_pct") is not None:
+                                    st.write(
+                                        "**NAV-/Ertragswert-Abweichung:** "
+                                        f"{asset_nav_control['earnings_nav_gap_pct']:.1f} % "
+                                        f"({asset_nav_control.get('earnings_nav_convergence_status', '–')})"
+                                    )
+
+                            st.caption(
+                                "Der technische NAV-Anker interpoliert nur innerhalb der "
+                                "veröffentlichten S-K-1300-Metallpreis-Sensitivitäten. "
+                                "Es wird nicht außerhalb der offiziellen Sensitivitätsbereiche extrapoliert."
+                            )
+
                         if not asset_nav_control.get("available", False):
                             st.warning(
-                                "Auch eine plausibilisierte nachhaltige Ertragskraft reicht "
-                                "bei Minenunternehmen allein nicht für einen finalen Fair "
-                                "Value. Reserve-/Ressourcenbasis, Minenlebensdauer und Asset-"
-                                "NAV werden als nächstes separat kontrolliert."
+                                asset_nav_control.get("reason")
+                                or (
+                                    "Reserve-/Minenlebensdauer- und NAV-Kontrolle ist "
+                                    "noch nicht belastbar freigegeben."
+                                )
                             )
 
                         if special_control.get("released"):
