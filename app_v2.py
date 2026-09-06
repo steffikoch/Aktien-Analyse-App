@@ -4679,9 +4679,9 @@ def get_special_control(company_type, symbol):
                 "Life-of-Mine-Profil & NAV-Freigabe-Gate",
                 "Allgemeiner Primärrohstoff-Router"
             ],
-            "status": "Router aktiv – V2.9 Betriebsdaten + Primärrohstoff-Router + LOM-Gate",
+            "status": "Router aktiv – V2.9.1 Transparenz + Betriebsdaten + Primärrohstoff-Router + LOM-Gate",
             "note": (
-                "V2.9 ergänzt das Bergbaumodell um einen konservativen allgemeinen "
+                "V2.9.1 ergänzt das Bergbaumodell um einen konservativen allgemeinen "
                 "Primärrohstoff-Router für eindeutige Branchen wie Gold, Silber und "
                 "Kupfer. Unspezifische Mischbranchen bleiben gesperrt. Das bestehende "
                 "V2.7-Life-of-Mine-Gate bleibt unverändert aktiv. "
@@ -5481,7 +5481,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
                 "Hecla wird wegen der gemischten Yahoo-Branche ausdrücklich primär "
                 "dem Silberpreis zugeordnet. Gold, Blei und Zink bleiben zusätzliche "
                 "Exposures und werden nicht als separate Primärrohstoffe in diese "
-                "V2.9-Kontrolle hineingeschätzt."
+                "V2.9.1-Kontrolle hineingeschätzt."
             ),
         },
     }
@@ -5519,7 +5519,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
         "route_source": "Allgemeiner Branchen-Router",
         "routing_basis": f"Yahoo-Branche: {industry_text}",
         "mapping_note": (
-            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.9 "
+            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.9.1 "
             f"automatisch dem Primärrohstoff {base['commodity_name']} zugeordnet. "
             "Unspezifische oder gemischte Bergbau-Branchen werden weiterhin nicht "
             "automatisch geroutet."
@@ -5953,6 +5953,7 @@ def build_mining_earnings_translation(
     ]
 
     available = convergence_ok and fcf_ok and sustainable_eps > 0
+    release_reason = None
     if available and convergence_status == "Stark konvergent" and fcf_support_status == "Stützend":
         status = "Ertragskraft plausibilisiert – starke Konvergenz"
         translation_confidence = "Mittel"
@@ -5962,9 +5963,24 @@ def build_mining_earnings_translation(
     elif not convergence_ok:
         status = "Ertragskraft nicht freigegeben – EPS-Wege divergieren"
         translation_confidence = "Niedrig"
+        release_reason = (
+            f"EPS-Wege nicht ausreichend konvergent: {convergence_pct:.1f} % Abweichung "
+            f"zwischen margenadjustiertem TTM-EPS ({margin_adjusted_eps:.2f}) und "
+            f"Mehrjahres-/Zyklus-EPS ({cycle_eps:.2f}); Freigabegrenze ≤ 50 %."
+        )
     else:
         status = "Ertragskraft nicht freigegeben – FCF stützt nicht ausreichend"
         translation_confidence = "Niedrig"
+        if fcf_support_ratio is not None:
+            release_reason = (
+                f"EPS-Wege sind ausreichend konvergent, aber die FCF-Unterstützung ist "
+                f"nicht ausreichend ({fcf_support_status}; FCF/EPS {fcf_support_ratio:.2f}×)."
+            )
+        else:
+            release_reason = (
+                f"EPS-Wege sind ausreichend konvergent, aber die FCF-Unterstützung ist "
+                f"nicht ausreichend ({fcf_support_status})."
+            )
 
     result.update({
         "available": available,
@@ -5982,7 +5998,7 @@ def build_mining_earnings_translation(
         "fcf_support_ratio": fcf_support_ratio,
         "fcf_support_status": fcf_support_status,
         "translation_confidence": translation_confidence,
-        "reason": None if available else status,
+        "reason": release_reason,
     })
     return result
 
@@ -6899,7 +6915,7 @@ def build_mining_special_control(
     industry=None,
 ):
     """
-    Conservative Mining V2.9.
+    Conservative Mining V2.9.1.
 
     Financial-cycle checks are calculated from already-loaded company data.
     Production guidance and AISC/unit-cost data are used only when a dated,
@@ -7029,7 +7045,7 @@ def build_mining_special_control(
         and operating_status not in ["Daten fehlen", "Daten unzureichend", "Daten veraltet"]
     )
 
-    # Mining V2.9 price-cycle normalization. Price history is loaded dynamically
+    # Mining V2.9.1 price-cycle normalization. Price history is loaded dynamically
     # from either an explicitly verified company route or an exact, unambiguous
     # industry route. The normalized commodity margin is a control input, not a
     # direct one-for-one price-to-EPS conversion factor.
@@ -7166,7 +7182,7 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.9 trennt Primärrohstoff-Routing, Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.9.1 trennt Primärrohstoff-Routing, Finanzzyklus, operative "
             "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
             "Ertragskraft, Reserve-/Asset-Kontrolle, Run-rate-Mine-NAV und das "
             "formale Life-of-Mine-Freigabe-Gate. Ein Guidance-Jahr ersetzt kein "
@@ -7897,7 +7913,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_newmont_ops_v29_20260906"
+CACHE_VERSION = "m6_mining_newmont_ops_v291_20260906"
 
 @st.cache_data(
     ttl=900,
@@ -10667,7 +10683,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.9 – Betriebsdaten + Primärrohstoff-Router + LOM-Gate")
+                    st.caption("Bergbau-Schutzmodell V2.9.1 – transparente Ertragskraft-Sperre + Betriebsdaten + LOM-Gate")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -11046,20 +11062,61 @@ if selected_symbol:
                                         f"{earnings_translation['fcf_support_ratio']:.2f}×"
                                     )
                             st.info(
-                                "Die nachhaltige EPS-Basis wird nicht aus dem Silberpreis "
+                                "Die nachhaltige EPS-Basis wird nicht aus dem Primärrohstoffpreis "
                                 "allein abgeleitet. Sie wird nur akzeptiert, wenn die "
                                 "margenadjustierte TTM-Ertragskraft mit der unabhängigen "
                                 "Mehrjahres-EPS-Normalisierung konvergiert und der "
                                 "normalisierte FCF je Aktie die Richtung stützt."
                             )
                         else:
+                            # V2.9.1: Auch bei gesperrter Ertragskraft die Diagnosewerte
+                            # transparent zeigen. Die Freigabelogik selbst bleibt unverändert.
+                            diag1, diag2 = st.columns(2)
+                            with diag1:
+                                if earnings_translation.get("used_margin_factor") is not None:
+                                    st.metric(
+                                        "Verwendeter Margen-Normalisierungsfaktor",
+                                        f"{earnings_translation['used_margin_factor']:.3f}×"
+                                    )
+                                if earnings_translation.get("margin_adjusted_ttm_eps") is not None:
+                                    st.metric(
+                                        "Margenadjustiertes TTM-EPS",
+                                        f"{earnings_translation['margin_adjusted_ttm_eps']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                    )
+                                if earnings_translation.get("cycle_normalized_eps") is not None:
+                                    st.write(
+                                        "**Mehrjahres-/Zyklus-EPS:** "
+                                        f"{earnings_translation['cycle_normalized_eps']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                    )
+                                if earnings_translation.get("eps_convergence_pct") is not None:
+                                    st.write(
+                                        "**Abweichung der EPS-Wege:** "
+                                        f"{earnings_translation['eps_convergence_pct']:.1f} % "
+                                        f"({earnings_translation.get('eps_convergence_status', '–')})"
+                                    )
+                            with diag2:
+                                if earnings_translation.get("normalized_fcf_per_share") is not None:
+                                    st.metric(
+                                        "Normalisierter FCF je Aktie (Kontrolle)",
+                                        f"{earnings_translation['normalized_fcf_per_share']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                    )
+                                st.write(
+                                    "**FCF-Unterstützung:** "
+                                    f"{earnings_translation.get('fcf_support_status', '–')}"
+                                )
+                                if earnings_translation.get("fcf_support_ratio") is not None:
+                                    st.write(
+                                        "**FCF / diagnostische EPS-Basis:** "
+                                        f"{earnings_translation['fcf_support_ratio']:.2f}×"
+                                    )
+
                             st.warning(
-                                "Die Ertragskraft-Überleitung ist noch nicht ausreichend "
-                                "plausibilisiert. Es wird kein nachhaltiges EPS für eine "
-                                "Bergbau-Bewertung freigegeben."
+                                "Die Ertragskraft-Überleitung ist nicht freigegeben. "
+                                "Die Diagnosewerte werden nur zur Nachvollziehbarkeit angezeigt "
+                                "und erzeugen kein nachhaltiges EPS für die Bewertung."
                             )
                             if earnings_translation.get("reason"):
-                                st.caption(earnings_translation.get("reason"))
+                                st.caption("Sperrgrund: " + earnings_translation.get("reason"))
 
                         asset_nav_control = checks.get("mining_asset_nav_control", {})
                         st.write(
