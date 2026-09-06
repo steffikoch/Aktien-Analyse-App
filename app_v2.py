@@ -4675,17 +4675,17 @@ def get_special_control(company_type, symbol):
                 "Rohstoffpreis-/Preiszyklus-Normalisierung",
                 "Überleitung Preiszyklus → normalisierte Ertragskraft",
                 "Reserve-/Minenlebensdauer- & NAV-Kontrolle",
-                "Normalisierter Mine-NAV (Run-rate DCF / LOM-Kontrolle)"
+                "Normalisierter Mine-NAV (Run-rate DCF / LOM-Kontrolle)",
+                "Life-of-Mine-Profil & NAV-Freigabe-Gate"
             ],
-            "status": "Router aktiv – V2.6.1 normalisierter Mine-NAV",
+            "status": "Router aktiv – V2.7 Life-of-Mine-Freigabe-Gate",
             "note": (
-                "V2.6.1 ergänzt Reserve- und NAV-Kontrolle um einen unabhängig "
-                "berechneten normalisierten Mine-NAV-Kontrollwert. Verwendet "
-                "werden verifizierte 2026 Produktions-/AISC-Reconciliation, "
-                "2025 Reservepreise und Reserve-Minenleben. Ein einzelnes "
-                "Guidance-Jahr wird jedoch nicht als Life-of-Mine-Kostenprofil "
-                "ausgegeben; bei unvollständiger LOM-Abdeckung bleibt der Fair "
-                "Value gesperrt."
+                "V2.7 ergänzt den normalisierten Mine-NAV um ein formales "
+                "Life-of-Mine-Freigabe-Gate. Das Gate verlangt eine hohe "
+                "Reserveabdeckung, aktuelle technische Minenpläne und belastbare "
+                "mine-spezifische LOM-Kosten-/CapEx-Profile. Ein einzelnes "
+                "Guidance-Jahr bleibt ausdrücklich nur Run-rate-Kontrolle; bei "
+                "unvollständiger LOM-Abdeckung bleibt der Fair Value gesperrt."
             )
         }
 
@@ -5236,7 +5236,7 @@ def get_verified_mining_snapshot(symbol):
         "lucky_friday_guidance_high_moz": 5.2,
         "keno_hill_guidance_low_moz": 2.2,
         "keno_hill_guidance_high_moz": 2.6,
-        # Q2-2026 guidance reconciliation used by Mining V2.6.1. Values are
+        # Q2-2026 guidance reconciliation used by Mining V2.7. Values are
         # company-published guidance inputs, not inferred from Yahoo data.
         "nav_model_discount_rate_pct": 5.0,
         "ytd_income_tax_provision_musd": 69.667,
@@ -5380,7 +5380,7 @@ def get_verified_mining_commodity_route(symbol):
             "mapping_note": (
                 "Hecla wird für die Preiszyklus-Kontrolle primär dem Silberpreis "
                 "zugeordnet. Gold, Blei und Zink bleiben zusätzliche Exposures und "
-                "werden nicht als separate Primärrohstoffe in diese V2.6.1-Kontrolle "
+                "werden nicht als separate Primärrohstoffe in diese V2.7-Kontrolle "
                 "hineingeschätzt."
             ),
         },
@@ -5809,7 +5809,7 @@ def build_mining_earnings_translation(
 
 def get_verified_mining_asset_snapshot(symbol):
     """
-    Curated reserve / mine-life / technical-NAV reference data for Mining V2.5.
+    Curated reserve / mine-life / technical-NAV reference data for Mining V2.7.
 
     The reserve snapshot is current year-end company data. Technical NPV values
     are deliberately kept separate because the currently incorporated S-K 1300
@@ -5844,7 +5844,7 @@ def get_verified_mining_asset_snapshot(symbol):
         "reserve_price_basis_lead": 0.90,
         "reserve_price_basis_zinc": 1.15,
         # No copper reserve-price basis is published for the core silver reserve
-        # set used here. V2.6.1 therefore gives copper by-product credits no value
+        # set used here. V2.7 therefore gives copper by-product credits no value
         # in the normalized run-rate NAV instead of inventing a price.
         "reserve_price_basis_copper": None,
         "reserve_mine_life_years": {
@@ -5958,7 +5958,7 @@ def build_mining_normalized_mine_nav_v26(
     technical_nav_details=None,
 ):
     """
-    Mining V2.6.1 independent normalized mine-NAV control.
+    Mining V2.7 normalized run-rate mine-NAV control.
 
     This is deliberately a run-rate reserve DCF, not a substitute for a current
     Life-of-Mine technical model. It uses current verified production guidance,
@@ -5968,7 +5968,7 @@ def build_mining_normalized_mine_nav_v26(
 
     Final NAV release requires full core-mine coverage and a long-term cost
     profile. Keno Hill remains pre-commercial in the Q2-2026 guidance and has no
-    comparable AISC reconciliation, so V2.6.1 is a diagnostic/control value only.
+    comparable AISC reconciliation, so V2.7 keeps this as a diagnostic/control value until the LOM gate passes.
     """
     result = {
         "available": False,
@@ -5992,7 +5992,7 @@ def build_mining_normalized_mine_nav_v26(
     }
 
     if str(symbol or "").upper() != "HL" or not operating_snapshot or not asset_snapshot:
-        result["reason"] = "Kein verifizierter V2.6.1-Mine-NAV-Datensatz verfügbar."
+        result["reason"] = "Kein verifizierter V2.7-Mine-NAV-Datensatz verfügbar."
         return result
 
     silver_price = safe_float((commodity_cycle or {}).get("normalized_price"))
@@ -6087,7 +6087,7 @@ def build_mining_normalized_mine_nav_v26(
             detail["note"] = (
                 "Keno Hill ist in der Q2-2026-Guidance weiterhin vor kommerzieller "
                 "Produktion und wird aus der AISC-Reconciliation ausgeschlossen. "
-                "V2.6.1 erfindet deshalb keine Life-of-Mine-Kosten."
+                "V2.7 erfindet deshalb keine Life-of-Mine-Kosten."
             )
             tech = technical_by_asset.get(asset) or {}
             detail["technical_reference_musd"] = safe_float(
@@ -6189,7 +6189,7 @@ def build_mining_normalized_mine_nav_v26(
         "all_core_mines_covered": calculated_mines >= 3,
     })
 
-    # V2.6.1 deliberately does not claim a full current NAV. A current annual AISC
+    # V2.7 deliberately does not claim a full current NAV. A current annual AISC
     # reconciliation cannot replace mine-by-mine Life-of-Mine costs, and Keno
     # Hill still lacks a comparable commercial AISC profile.
     if calculated_mines < 2:
@@ -6214,6 +6214,211 @@ def build_mining_normalized_mine_nav_v26(
     return result
 
 
+def build_mining_lom_release_gate_v27(
+    asset_snapshot,
+    normalized_mine_nav,
+    technical_nav_details,
+):
+    """
+    Mining V2.7 formal Life-of-Mine release gate.
+
+    The gate does not create missing mine economics. It only decides whether the
+    already available reserve, run-rate and technical-plan evidence is complete
+    enough for a final mining NAV. Current annual guidance is never promoted to
+    a Life-of-Mine cost curve.
+    """
+    result = {
+        "available": False,
+        "released": False,
+        "status": "LOM-Gate nicht prüfbar",
+        "reason": None,
+        "minimum_release_reserve_coverage_pct": 90.0,
+        "maximum_unmodeled_material_reserve_pct": 10.0,
+        "maximum_technical_plan_age_years": 3.0,
+        "annual_run_rate_reserve_coverage_pct": None,
+        "current_technical_plan_reserve_coverage_pct": None,
+        "release_ready_lom_reserve_coverage_pct": None,
+        "unmodeled_or_precommercial_reserve_pct": None,
+        "material_mine_threshold_pct": 10.0,
+        "material_mines_total": 0,
+        "material_mines_release_ready": 0,
+        "mine_specific_lom_tax_capex_available": False,
+        "single_year_guidance_guard_active": True,
+        "mine_details": [],
+        "gate_checks": {},
+        "blocking_reasons": [],
+        "method_note": (
+            "V2.7 ist ein Freigabe-Gate, kein zusätzlicher Schätzer. Mindestens "
+            "90 % der Kernreserven müssen durch aktuelle technische Minenpläne "
+            "und belastbare mine-spezifische Life-of-Mine-Kosten-/CapEx-Profile "
+            "abgedeckt sein. Ein einzelnes Guidance-Jahr zählt ausdrücklich nicht "
+            "als LOM-Profil."
+        ),
+    }
+
+    if not isinstance(asset_snapshot, dict) or not isinstance(normalized_mine_nav, dict):
+        result["reason"] = "Reserve- oder Run-rate-NAV-Daten fehlen."
+        return result
+
+    reserves = asset_snapshot.get("silver_reserves_moz") or {}
+    total_reserves = safe_float(asset_snapshot.get("total_core_silver_reserves_moz"))
+    if total_reserves is None or total_reserves <= 0:
+        result["reason"] = "Kernreservebasis fehlt."
+        return result
+
+    run_rate_by_asset = {
+        str(item.get("asset")): item
+        for item in (normalized_mine_nav.get("mine_details") or [])
+        if isinstance(item, dict) and item.get("asset")
+    }
+    technical_by_asset = {
+        str(item.get("asset")): item
+        for item in (technical_nav_details or [])
+        if isinstance(item, dict) and item.get("asset")
+    }
+
+    annual_coverage_reserves = 0.0
+    current_technical_reserves = 0.0
+    release_ready_reserves = 0.0
+    unmodeled_reserves = 0.0
+    material_total = 0
+    material_ready = 0
+    mine_rows = []
+
+    for asset in ["Greens Creek", "Lucky Friday", "Keno Hill"]:
+        reserve_moz = safe_float(reserves.get(asset)) or 0.0
+        reserve_share_pct = reserve_moz / total_reserves * 100.0 if total_reserves > 0 else 0.0
+        material = reserve_share_pct >= result["material_mine_threshold_pct"]
+        if material:
+            material_total += 1
+
+        run_rate = run_rate_by_asset.get(asset) or {}
+        technical = technical_by_asset.get(asset) or {}
+
+        annual_profile_available = (
+            safe_float(run_rate.get("run_rate_nav_musd")) is not None
+            and not bool(run_rate.get("precommercial"))
+        )
+        technical_plan_current = bool(technical.get("reference_fresh"))
+        technical_age_years = safe_float(technical.get("age_years"))
+
+        # V2.7 currently has no verified current mine-by-mine LOM cost/CapEx
+        # schedule. Annual 2026 guidance and an old technical NPV are not merged
+        # into a synthetic LOM curve.
+        lom_cost_profile_current = False
+        mine_specific_tax_capex_current = False
+        release_ready = (
+            annual_profile_available
+            and technical_plan_current
+            and lom_cost_profile_current
+            and mine_specific_tax_capex_current
+        )
+
+        if annual_profile_available:
+            annual_coverage_reserves += reserve_moz
+        else:
+            unmodeled_reserves += reserve_moz
+        if technical_plan_current:
+            current_technical_reserves += reserve_moz
+        if release_ready:
+            release_ready_reserves += reserve_moz
+            if material:
+                material_ready += 1
+
+        if release_ready:
+            status = "LOM-freigabefähig"
+        elif not annual_profile_available:
+            status = "Kein aktuelles kommerzielles Kostenprofil"
+        elif not technical_plan_current:
+            status = "Technischer Minenplan zu alt"
+        elif not lom_cost_profile_current:
+            status = "Aktuelles LOM-Kosten-/CapEx-Profil fehlt"
+        else:
+            status = "Mine-spezifische LOM-Steuer/CapEx-Basis fehlt"
+
+        mine_rows.append({
+            "asset": asset,
+            "reserve_moz": reserve_moz,
+            "reserve_share_pct": reserve_share_pct,
+            "material": material,
+            "annual_run_rate_profile_available": annual_profile_available,
+            "technical_plan_current": technical_plan_current,
+            "technical_plan_age_years": technical_age_years,
+            "lom_cost_profile_current": lom_cost_profile_current,
+            "mine_specific_tax_capex_current": mine_specific_tax_capex_current,
+            "release_ready": release_ready,
+            "status": status,
+        })
+
+    annual_pct = annual_coverage_reserves / total_reserves * 100.0
+    technical_pct = current_technical_reserves / total_reserves * 100.0
+    release_pct = release_ready_reserves / total_reserves * 100.0
+    unmodeled_pct = unmodeled_reserves / total_reserves * 100.0
+
+    min_coverage = result["minimum_release_reserve_coverage_pct"]
+    max_unmodeled = result["maximum_unmodeled_material_reserve_pct"]
+    checks = {
+        "annual_run_rate_coverage_ok": annual_pct >= min_coverage,
+        "current_technical_plan_coverage_ok": technical_pct >= min_coverage,
+        "release_ready_lom_coverage_ok": release_pct >= min_coverage,
+        "unmodeled_reserve_ok": unmodeled_pct <= max_unmodeled,
+        "all_material_mines_ready": material_total > 0 and material_ready == material_total,
+        "mine_specific_lom_tax_capex_ok": False,
+        "single_year_guidance_guard_ok": True,
+    }
+
+    blocking = []
+    if not checks["annual_run_rate_coverage_ok"]:
+        blocking.append(
+            f"Run-rate-Kostenprofil deckt nur {annual_pct:.1f} % der Kernreserven ab; erforderlich sind ≥ {min_coverage:.0f} %."
+        )
+    if not checks["current_technical_plan_coverage_ok"]:
+        blocking.append(
+            f"Aktuelle technische Minenpläne (≤ {result['maximum_technical_plan_age_years']:.0f} Jahre) decken nur {technical_pct:.1f} % der Kernreserven ab."
+        )
+    if not checks["release_ready_lom_coverage_ok"]:
+        blocking.append(
+            f"Belastbare aktuelle LOM-Kosten-/CapEx-Profile decken {release_pct:.1f} % der Kernreserven ab; erforderlich sind ≥ {min_coverage:.0f} %."
+        )
+    if not checks["unmodeled_reserve_ok"]:
+        blocking.append(
+            f"Nicht kommerziell modellierte Kernreserven liegen bei {unmodeled_pct:.1f} % und damit über der {max_unmodeled:.0f}-%-Grenze."
+        )
+    if not checks["all_material_mines_ready"]:
+        blocking.append(
+            f"Nur {material_ready} von {material_total} wesentlichen Kernminen sind LOM-freigabefähig."
+        )
+    if not checks["mine_specific_lom_tax_capex_ok"]:
+        blocking.append(
+            "Mine-spezifische langfristige Steuer-, Sustaining-CapEx- und Kostenverläufe sind noch nicht vollständig verifiziert."
+        )
+
+    released = all(checks.values())
+    status = (
+        "LOM-Gate freigegeben"
+        if released
+        else "LOM-Gate gesperrt – aktuelle Life-of-Mine-Profile unvollständig"
+    )
+    reason = None if released else " ".join(blocking)
+
+    result.update({
+        "available": True,
+        "released": released,
+        "status": status,
+        "reason": reason,
+        "annual_run_rate_reserve_coverage_pct": annual_pct,
+        "current_technical_plan_reserve_coverage_pct": technical_pct,
+        "release_ready_lom_reserve_coverage_pct": release_pct,
+        "unmodeled_or_precommercial_reserve_pct": unmodeled_pct,
+        "material_mines_total": material_total,
+        "material_mines_release_ready": material_ready,
+        "mine_details": mine_rows,
+        "gate_checks": checks,
+        "blocking_reasons": blocking,
+    })
+    return result
+
+
 def build_mining_asset_nav_control(
     symbol,
     commodity_cycle,
@@ -6223,10 +6428,10 @@ def build_mining_asset_nav_control(
     operating_snapshot,
 ):
     """
-    Mining V2.6.1 reserve / mine-life / technical-NAV + run-rate NAV control.
+    Mining V2.7 reserve / mine-life / technical-NAV + LOM release control.
 
     Important: technical-report NPVs are not presented as current company NAV.
-    They are independent asset anchors only. V2.6.1 also builds an independent
+    They are independent asset anchors only. V2.7 also builds an independent
     normalized run-rate mine NAV and blocks final Fair Value when
     the technical mine plans are too old or when earnings value and the asset
     anchor diverge materially.
@@ -6254,6 +6459,7 @@ def build_mining_asset_nav_control(
         "earnings_nav_convergence_status": "Daten unzureichend",
         "nav_details": [],
         "normalized_mine_nav": {},
+        "lom_release_gate": {},
         "snapshot": None,
         "reason": None,
     }
@@ -6377,6 +6583,13 @@ def build_mining_asset_nav_control(
     )
     result["normalized_mine_nav"] = normalized_mine_nav
 
+    lom_release_gate = build_mining_lom_release_gate_v27(
+        snapshot,
+        normalized_mine_nav,
+        nav_details,
+    )
+    result["lom_release_gate"] = lom_release_gate
+
     net_debt = safe_float((balance_score or {}).get("net_debt"))
     equity_nav_anchor_musd = None
     if result["technical_nav_available"] and net_debt is not None:
@@ -6416,6 +6629,11 @@ def build_mining_asset_nav_control(
     nav_current_ok = result["technical_nav_available"] and nav_reference_fresh
     convergence_ok = convergence in ["Stark konvergent", "Ausreichend konvergent"]
 
+    normalized_nav_partial_ok = (result.get("normalized_mine_nav") or {}).get(
+        "partial_available", False
+    )
+    lom_gate_ok = (result.get("lom_release_gate") or {}).get("released", False)
+
     if not reserve_ok:
         status = "Reservebasis nicht belastbar freigegeben"
         reason = (
@@ -6425,13 +6643,19 @@ def build_mining_asset_nav_control(
     elif not life_ok:
         status = "Minenlebensdauer zu kurz oder unklar"
         reason = "Die Reserve-Lebensdauer reicht nicht für eine robuste Asset-Bewertung."
-    elif not (result.get("normalized_mine_nav") or {}).get("available", False):
+    elif not normalized_nav_partial_ok:
         status = (result.get("normalized_mine_nav") or {}).get(
-            "status", "Normalisierter Mine-NAV nicht freigegeben"
+            "status", "Normalisierter Mine-NAV nicht ausreichend berechenbar"
         )
         reason = (result.get("normalized_mine_nav") or {}).get("reason") or (
-            "Der selbst berechnete normalisierte Mine-NAV ist noch nicht als "
-            "vollständiges Life-of-Mine-Modell freigegeben."
+            "Zu wenige Kernminen besitzen eine belastbare Run-rate-NAV-Kontrolle."
+        )
+    elif not lom_gate_ok:
+        status = (result.get("lom_release_gate") or {}).get(
+            "status", "LOM-Gate nicht freigegeben"
+        )
+        reason = (result.get("lom_release_gate") or {}).get("reason") or (
+            "Die Life-of-Mine-Abdeckung reicht noch nicht für eine Fair-Value-Freigabe."
         )
     elif not result["technical_nav_available"]:
         status = "Technischer NAV-Anker nicht vollständig verfügbar"
@@ -6457,9 +6681,13 @@ def build_mining_asset_nav_control(
         status = "Reserve/NAV-Kontrolle freigegeben"
         reason = None
 
-    normalized_nav_ok = (result.get("normalized_mine_nav") or {}).get("available", False)
     available = (
-        reserve_ok and life_ok and normalized_nav_ok and nav_current_ok and convergence_ok
+        reserve_ok
+        and life_ok
+        and normalized_nav_partial_ok
+        and lom_gate_ok
+        and nav_current_ok
+        and convergence_ok
     )
     result.update({
         "available": available,
@@ -6488,7 +6716,7 @@ def build_mining_special_control(
     fundamental_multiple=None,
 ):
     """
-    Conservative Mining V2.6.1.
+    Conservative Mining V2.7.
 
     Financial-cycle checks are calculated from already-loaded company data.
     Production guidance and AISC/unit-cost data are used only when a dated,
@@ -6632,7 +6860,7 @@ def build_mining_special_control(
         "status", "Daten unzureichend"
     )
 
-    # Mining V2.6.1: independent earnings-power bridge. The bridge can become
+    # Mining V2.7: independent earnings-power bridge. The bridge can become
     # available only when cycle-normalized EPS and commodity-margin-adjusted TTM
     # EPS converge and normalized FCF/share provides a positive cash cross-check.
     earnings_translation = build_mining_earnings_translation(
@@ -6646,9 +6874,9 @@ def build_mining_special_control(
     earnings_translation_available = earnings_translation.get("available", False)
     earnings_translation_status = earnings_translation.get("status", "Daten unzureichend")
 
-    # Mining V2.6.1: reserve / mine-life / normalized run-rate NAV / technical anchor.
+    # Mining V2.7: reserve / mine-life / normalized run-rate NAV / technical anchor.
     # Current reserve data may be fresh while the incorporated S-K 1300 mine
-    # plans are older. In that case V2.6.1 shows the technical NAV as a reference
+    # plans are older. In that case V2.7 shows the technical NAV as a reference
     # but deliberately does not release a final Fair Value.
     asset_nav_control = build_mining_asset_nav_control(
         symbol,
@@ -6754,13 +6982,12 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.6.1 trennt Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.7 trennt Finanzzyklus, operative "
             "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
-            "Ertragskraft, Reserve-/Asset-Kontrolle und einen unabhängig "
-            "berechneten Run-rate-Mine-NAV. Ein Guidance-Jahr ersetzt kein "
-            "Life-of-Mine-Kostenprofil; Keno Hill wird ohne kommerzielles AISC "
-            "nicht geschätzt. Veraltete technische Mine-Pläne bleiben nur "
-            "Referenz. Der 100-Punkte-Multiple-Score bleibt unverändert."
+            "Ertragskraft, Reserve-/Asset-Kontrolle, Run-rate-Mine-NAV und das "
+            "formale Life-of-Mine-Freigabe-Gate. Ein Guidance-Jahr ersetzt kein "
+            "LOM-Kostenprofil; unvollständige oder veraltete Minenpläne sperren "
+            "den Fair Value. Der 100-Punkte-Multiple-Score bleibt unverändert."
         ),
     })
 
@@ -7106,7 +7333,7 @@ def calculate_fair_value_v1(
         "quote_currency"
     )
 
-    # Mining V2.3 hard safety gate. This is intentionally independent of the
+    # Mining V2.7 hard safety gate. This is intentionally independent of the
     # special-control release flag so that stale cache/state can never release
     # a mining Fair Value before commodity-price / margin-cycle normalization.
     if (
@@ -7136,6 +7363,14 @@ def calculate_fair_value_v1(
         asset_nav_control = (special_control.get("checks") or {}).get(
             "mining_asset_nav_control", {}
         )
+        lom_release_gate = asset_nav_control.get("lom_release_gate") or {}
+        if lom_release_gate.get("available", False) and not lom_release_gate.get("released", False):
+            result["note"] = (
+                "Fair Value V1 gesperrt: Life-of-Mine-Freigabe-Gate V2.7 nicht "
+                "bestanden. " + str(lom_release_gate.get("reason") or "Die aktuelle "
+                "LOM-Abdeckung reicht nicht für einen finalen Bergbau-NAV.")
+            )
+            return result
         if not asset_nav_control.get("available", False):
             nav_reason = asset_nav_control.get("reason")
             if nav_reason:
@@ -7470,7 +7705,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_mine_nav_v261_20260906"
+CACHE_VERSION = "m6_mining_lom_gate_v27_20260906"
 
 @st.cache_data(
     ttl=900,
@@ -10239,7 +10474,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.6.1 – normalisierter Mine-NAV + Reserve/NAV-Kontrolle")
+                    st.caption("Bergbau-Schutzmodell V2.7 – Life-of-Mine-Profil & NAV-Freigabe-Gate")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -10688,7 +10923,7 @@ if selected_symbol:
                         normalized_mine_nav = asset_nav_control.get("normalized_mine_nav") or {}
                         if normalized_mine_nav:
                             st.write(
-                                "**Normalisierter Mine-NAV V2.6.1 (Run-rate DCF):** "
+                                "**Normalisierter Mine-NAV V2.7 (Run-rate DCF-Kontrolle):** "
                                 f"{normalized_mine_nav.get('status', '–')}"
                             )
                             nav_method1, nav_method2 = st.columns(2)
@@ -10776,8 +11011,71 @@ if selected_symbol:
                                     st.caption(mine.get("note"))
 
                             st.info(normalized_mine_nav.get("method_note"))
-                            if normalized_mine_nav.get("reason"):
-                                st.warning(normalized_mine_nav.get("reason"))
+                            normalized_reason = normalized_mine_nav.get("reason")
+                            asset_reason = asset_nav_control.get("reason")
+                            if normalized_reason and normalized_reason != asset_reason:
+                                st.warning(normalized_reason)
+
+                        lom_gate = asset_nav_control.get("lom_release_gate") or {}
+                        if lom_gate:
+                            st.write(
+                                "**Life-of-Mine-Freigabe-Gate V2.7:** "
+                                f"{lom_gate.get('status', '–')}"
+                            )
+                            lg1, lg2 = st.columns(2)
+                            with lg1:
+                                if lom_gate.get("annual_run_rate_reserve_coverage_pct") is not None:
+                                    st.metric(
+                                        "Run-rate-Kostenprofil – Reserveabdeckung",
+                                        f"{lom_gate['annual_run_rate_reserve_coverage_pct']:.1f} %"
+                                    )
+                                if lom_gate.get("current_technical_plan_reserve_coverage_pct") is not None:
+                                    st.metric(
+                                        "Aktuelle technische Pläne – Reserveabdeckung",
+                                        f"{lom_gate['current_technical_plan_reserve_coverage_pct']:.1f} %"
+                                    )
+                            with lg2:
+                                if lom_gate.get("release_ready_lom_reserve_coverage_pct") is not None:
+                                    st.metric(
+                                        "LOM-freigabefähige Reserveabdeckung",
+                                        f"{lom_gate['release_ready_lom_reserve_coverage_pct']:.1f} %"
+                                    )
+                                if lom_gate.get("unmodeled_or_precommercial_reserve_pct") is not None:
+                                    st.metric(
+                                        "Nicht kommerziell modellierte Reserven",
+                                        f"{lom_gate['unmodeled_or_precommercial_reserve_pct']:.1f} %"
+                                    )
+
+                            st.caption(
+                                "Freigabegrenzen V2.7: mindestens "
+                                f"{lom_gate.get('minimum_release_reserve_coverage_pct', 90):.0f} % "
+                                "LOM-Abdeckung; höchstens "
+                                f"{lom_gate.get('maximum_unmodeled_material_reserve_pct', 10):.0f} % "
+                                "nicht modellierte wesentliche Reserven; technische Minenpläne "
+                                f"höchstens {lom_gate.get('maximum_technical_plan_age_years', 3):.0f} Jahre alt."
+                            )
+
+                            for mine in lom_gate.get("mine_details", []):
+                                tech_age = mine.get("technical_plan_age_years")
+                                tech_age_text = f"{tech_age:.1f} J." if tech_age is not None else "–"
+                                annual_text = "ja" if mine.get("annual_run_rate_profile_available") else "nein"
+                                tech_text = "ja" if mine.get("technical_plan_current") else "nein"
+                                lom_text = "ja" if mine.get("lom_cost_profile_current") else "nein"
+                                st.write(
+                                    f"• **{mine.get('asset', 'Mine')}** – Reserveanteil "
+                                    f"{mine.get('reserve_share_pct', 0):.1f} % · "
+                                    f"aktuelles Run-rate-Profil: {annual_text} · "
+                                    f"technischer Plan aktuell: {tech_text} ({tech_age_text}) · "
+                                    f"aktuelles LOM-Kosten-/CapEx-Profil: {lom_text} · "
+                                    f"Status: {mine.get('status', '–')}"
+                                )
+
+                            blocking_reasons = lom_gate.get("blocking_reasons") or []
+                            if blocking_reasons:
+                                st.warning(
+                                    "LOM-Gate blockiert: " + " ".join(blocking_reasons)
+                                )
+                            st.info(lom_gate.get("method_note"))
 
                         if not asset_nav_control.get("available", False):
                             st.warning(
