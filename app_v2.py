@@ -4814,12 +4814,12 @@ def get_special_control(company_type, symbol):
                 "Life-of-Mine-Profil & NAV-Freigabe-Gate",
                 "Portfolio-Abdeckungslogik (Gesamt / gemanagt operativ / NAV-fähig)",
                 "Portfolio-Completeness-Gate (Managed Operations / JVs / Entwicklungsprojekte)",
-                "Asset-NAV-Normalisierung Phase 2 (Gold / Nebenprodukte / Eigentum / Diskont)",
+                "Asset-NAV-Normalisierung Phase 2 + Kalibrierungs-Qualitätsgate (Gold / Nebenprodukte / Eigentum / Diskont)",
                 "Allgemeiner Primärrohstoff-Router"
             ],
-            "status": "Router aktiv – V2.15 Asset-NAV Phase 2 + Portfolio-Completeness-Gate + LOM/NAV Phase 1",
+            "status": "Router aktiv – V2.15.1 Asset-NAV Phase 2 + Kalibrierungs-Qualitätsgate + Portfolio-Completeness-Gate + LOM/NAV Phase 1",
             "note": (
-                "V2.15 ergänzt das Bergbaumodell um eine Asset-NAV-Normalisierung Phase 2 sowie ein unternehmensweites Portfolio-Completeness-Gate, eine feste Portfolio-Abdeckungslogik und eine technische LOM/NAV-Phase-1-Prüfung für aktuelle S-K-1300-Minenberichte. Das 90-%-Gate verwendet alle gemanagten operativen Reserven als Nenner und nicht mehr eine frei gewählte Kernasset-Liste. Zusätzlich bleiben der streng abgesicherte Structural-Break-Fallback, der verifizierte Reserve-/NAV-Snapshot und der konservative allgemeine "
+                "V2.15.1 ergänzt das Bergbaumodell um eine Asset-NAV-Normalisierung Phase 2 sowie ein unternehmensweites Portfolio-Completeness-Gate, eine feste Portfolio-Abdeckungslogik und eine technische LOM/NAV-Phase-1-Prüfung für aktuelle S-K-1300-Minenberichte. Das 90-%-Gate verwendet alle gemanagten operativen Reserven als Nenner und nicht mehr eine frei gewählte Kernasset-Liste. Zusätzlich bleiben der streng abgesicherte Structural-Break-Fallback, der verifizierte Reserve-/NAV-Snapshot und der konservative allgemeine "
                 "Primärrohstoff-Router für eindeutige Branchen wie Gold, Silber und "
                 "Kupfer. Unspezifische Mischbranchen bleiben gesperrt. Das bestehende "
                 "V2.7-Life-of-Mine-Gate bleibt unverändert aktiv. Zusätzlich darf ein später bestandener "
@@ -5636,7 +5636,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
                 "Hecla wird wegen der gemischten Yahoo-Branche ausdrücklich primär "
                 "dem Silberpreis zugeordnet. Gold, Blei und Zink bleiben zusätzliche "
                 "Exposures und werden nicht als separate Primärrohstoffe in diese "
-                "V2.15-Kontrolle hineingeschätzt."
+                "V2.15.1-Kontrolle hineingeschätzt."
             ),
         },
     }
@@ -5674,7 +5674,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
         "route_source": "Allgemeiner Branchen-Router",
         "routing_basis": f"Yahoo-Branche: {industry_text}",
         "mapping_note": (
-            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.15 "
+            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.15.1 "
             f"automatisch dem Primärrohstoff {base['commodity_name']} zugeordnet. "
             "Unspezifische oder gemischte Bergbau-Branchen werden weiterhin nicht "
             "automatisch geroutet."
@@ -6530,7 +6530,7 @@ def get_verified_mining_asset_snapshot(symbol):
             "core_asset_lom_structure": get_verified_newmont_core_asset_lom_structure(),
             "technical_nav_references": [],
             "technical_nav_note": (
-                "V2.15 übernimmt für Lihir, Cadia, Boddington und den Ahafo Complex die in Phase 1 verifizierten aktuellen "
+                "V2.15.1 übernimmt für Lihir, Cadia, Boddington und den Ahafo Complex die in Phase 1 verifizierten aktuellen "
                 "S-K-1300-Technical-Report-Summaries mit LOM-Cashflows verifiziert. "
                 "Phase 1 prüft die NAV-Eignung; Phase 2 normalisiert die vier geeigneten Assets einzeln auf Modell-Rohstoffpreise und weist Eigentums-/Diskonteffekte getrennt aus. "
                 "Die Werte werden weiterhin nicht zu einem Newmont-Gesamt-NAV addiert. Für die übrigen "
@@ -6726,7 +6726,7 @@ def build_mining_normalized_mine_nav_v26(
         if symbol_text == "NEM" and asset_snapshot:
             result["status"] = "Phase-1-NAV-Kandidaten verfügbar – Portfolio-NAV noch gesperrt"
             result["reason"] = (
-                "V2.15 übernimmt aktuelle S-K-1300-LOM-Datensätze für Lihir, Cadia, Boddington und den Ahafo Complex "
+                "V2.15.1 übernimmt aktuelle S-K-1300-LOM-Datensätze für Lihir, Cadia, Boddington und den Ahafo Complex "
                 "verifiziert. Diese Assets dürfen in einer späteren Phase einzeln normalisiert werden. Die aktuelle "
                 "Abdeckung liegt jedoch unter dem 90-%-Gate der gesamten gemanagten operativen Reservebasis; deshalb wird noch kein "
                 "Newmont-Portfolio-NAV gerechnet und kein synthetischer Ersatz für fehlende Assets geschätzt."
@@ -7616,7 +7616,7 @@ def _newmont_phase2_price_map(cache_version):
             "annual_averages": cycle.get("annual_averages") or [],
             "reason": cycle.get("reason"),
         }
-    # No reliable Yahoo futures series is used for molybdenum in V2.15.
+    # No reliable Yahoo futures series is used for molybdenum in V2.15.1.
     out["molybdenum"] = {
         "commodity": "Molybdän",
         "symbol": None,
@@ -7642,7 +7642,7 @@ def _metal_gross_revenue_musd(metal, quantity, price):
 
 def build_newmont_asset_nav_phase2(cache_version):
     """
-    V2.15 asset-level commodity-price normalization for the four current TRS.
+    V2.15.1 asset-level commodity-price normalization for the four current TRS.
 
     This is deliberately a *price bridge* over the published annual after-tax
     cash-flow timing, not a re-optimized mine plan. Annual TRS FCF cells are
@@ -7654,6 +7654,10 @@ def build_newmont_asset_nav_phase2(cache_version):
     common_discount_rate_pct = 8.0
     material_unmodeled_revenue_share_limit_pct = 5.0
     max_material_price_gap_pct = 25.0
+    calibration_good_limit_pct = 5.0
+    calibration_warning_limit_pct = 10.0
+    sensitivity_nav_move_warning_pct = 20.0
+    sensitivity_material_price_gap_ceiling_pct = 15.0
     results = []
 
     for asset_name, data in trs_assets.items():
@@ -7669,6 +7673,37 @@ def build_newmont_asset_nav_phase2(cache_version):
         if raw_base_npv not in (None, 0) and native_npv is not None:
             calibration_factor = native_npv / raw_base_npv
             calibrated_fcf_musd = [x * calibration_factor for x in raw_fcf_musd]
+
+        calibration_adjustment_pct = None
+        raw_vs_official_npv_pct = None
+        calibration_quality = "Nicht prüfbar"
+        calibration_nav_released = False
+        calibration_quality_note = "Kalibrierungsqualität nicht belastbar prüfbar."
+        if calibration_factor is not None:
+            calibration_adjustment_pct = abs(calibration_factor - 1.0) * 100.0
+            if native_npv not in (None, 0) and raw_base_npv is not None:
+                raw_vs_official_npv_pct = (raw_base_npv / native_npv - 1.0) * 100.0
+            if calibration_adjustment_pct <= calibration_good_limit_pct:
+                calibration_quality = "Gut"
+                calibration_nav_released = True
+                calibration_quality_note = (
+                    f"Kalibrierungsabweichung {calibration_adjustment_pct:.1f}% ≤ {calibration_good_limit_pct:.0f}%: "
+                    "annualisiertes TRS-Cashflow-Profil ausreichend nah am offiziellen NPV."
+                )
+            elif calibration_adjustment_pct <= calibration_warning_limit_pct:
+                calibration_quality = "Eingeschränkt"
+                calibration_nav_released = True
+                calibration_quality_note = (
+                    f"Kalibrierungsabweichung {calibration_adjustment_pct:.1f}% > {calibration_good_limit_pct:.0f}% bis "
+                    f"≤ {calibration_warning_limit_pct:.0f}%: NAV nur mit Qualitätswarnung freigegeben."
+                )
+            else:
+                calibration_quality = "Gesperrt"
+                calibration_nav_released = False
+                calibration_quality_note = (
+                    f"Kalibrierungsabweichung {calibration_adjustment_pct:.1f}% > {calibration_warning_limit_pct:.0f}%: "
+                    "Ursache der Differenz zwischen annualisiertem TRS-Cashflow und offiziellem NPV muss vor NAV-Freigabe geklärt werden."
+                )
 
         trs_prices = data.get("trs_prices") or {}
         recovered = data.get("recovered") or {}
@@ -7695,6 +7730,8 @@ def build_newmont_asset_nav_phase2(cache_version):
 
         commodity_details = []
         blockers = []
+        if not calibration_nav_released:
+            blockers.append(calibration_quality_note)
         annual_adjustments_musd = [0.0 for _ in years]
         unmodeled_share_pct = 0.0
 
@@ -7787,14 +7824,45 @@ def build_newmont_asset_nav_phase2(cache_version):
         if native_owned_npv not in (None, 0) and normalized_npv_native_owned is not None:
             delta_vs_native_owned_pct = (normalized_npv_native_owned / native_owned_npv - 1.0) * 100.0
 
-        available = len(blockers) == 0 and normalized_npv_native_owned is not None
-        confidence = "Mittel" if available and unmodeled_share_pct <= 0.5 else "Niedrig bis Mittel" if available else "Niedrig"
+        material_price_gaps = [
+            abs(safe_float(x.get("price_gap_pct")) or 0.0)
+            for x in commodity_details
+            if x.get("material") and x.get("normalized") and safe_float(x.get("price_gap_pct")) is not None
+        ]
+        max_material_price_gap_observed_pct = max(material_price_gaps) if material_price_gaps else None
+        sensitivity_warning = False
+        sensitivity_note = None
+        if (
+            delta_vs_native_owned_pct is not None
+            and abs(delta_vs_native_owned_pct) >= sensitivity_nav_move_warning_pct
+            and max_material_price_gap_observed_pct is not None
+            and max_material_price_gap_observed_pct <= sensitivity_material_price_gap_ceiling_pct
+        ):
+            sensitivity_warning = True
+            sensitivity_note = (
+                f"Hohe NAV-Preissensitivität: Asset-NAV reagiert mit {delta_vs_native_owned_pct:+.1f}% auf materielle "
+                f"Rohstoffpreisabweichungen von maximal {max_material_price_gap_observed_pct:.1f}%. Das ist eine Sensitivitätswarnung, "
+                "kein automatischer Fehler oder Sperrgrund."
+            )
+
+        calculated = normalized_npv_native_owned is not None
+        available = len(blockers) == 0 and calculated
+        if available and calibration_quality == "Eingeschränkt":
+            confidence = "Niedrig bis Mittel"
+        elif available and unmodeled_share_pct <= 0.5:
+            confidence = "Mittel"
+        elif available:
+            confidence = "Niedrig bis Mittel"
+        else:
+            confidence = "Niedrig"
         results.append({
             "asset": asset_name,
+            "calculated": calculated,
             "available": available,
+            "nav_released": available,
             "status": (
-                "Phase-2-Asset-NAV normalisiert"
-                if available else "Phase-2-Normalisierung gesperrt"
+                "Phase-2-Asset-NAV berechnet und freigegeben"
+                if available else "Phase-2-Asset-NAV berechnet, Qualitätsfreigabe gesperrt" if calculated else "Phase-2-Normalisierung gesperrt"
             ),
             "ownership_pct": ownership_pct,
             "native_discount_rate_pct": native_rate,
@@ -7802,12 +7870,20 @@ def build_newmont_asset_nav_phase2(cache_version):
             "native_trs_npv_musd_100pct": native_npv,
             "native_trs_npv_musd_owned": native_owned_npv,
             "raw_rounded_series_npv_musd": raw_base_npv,
+            "raw_vs_official_npv_pct": raw_vs_official_npv_pct,
             "annual_cashflow_calibration_factor": calibration_factor,
+            "calibration_adjustment_pct": calibration_adjustment_pct,
+            "calibration_quality": calibration_quality,
+            "calibration_quality_note": calibration_quality_note,
+            "calibration_nav_released": calibration_nav_released,
             "normalized_nav_native_rate_musd_100pct": normalized_npv_native_100,
             "normalized_nav_native_rate_musd_owned": normalized_npv_native_owned,
             "normalized_nav_common_rate_musd_100pct": normalized_npv_common_100,
             "normalized_nav_common_rate_musd_owned": normalized_npv_common_owned,
             "delta_vs_native_owned_pct": delta_vs_native_owned_pct,
+            "max_material_price_gap_observed_pct": max_material_price_gap_observed_pct,
+            "sensitivity_warning": sensitivity_warning,
+            "sensitivity_note": sensitivity_note,
             "unmodeled_gross_revenue_share_pct": unmodeled_share_pct,
             "commodity_details": commodity_details,
             "blockers": blockers,
@@ -7815,33 +7891,42 @@ def build_newmont_asset_nav_phase2(cache_version):
             "source_exhibit": data.get("source_exhibit"),
             "source_note": data.get("source_note"),
             "method_note": (
-                "Die veröffentlichten annualisierten TRS-Cashflows sind gerundet. V2.15 kalibriert daher zunächst das "
+                "Die veröffentlichten annualisierten TRS-Cashflows sind gerundet. V2.15.1 kalibriert daher zunächst das "
                 "jährliche FCF-Muster auf den veröffentlichten nativen TRS-NPV. Anschließend werden nur die "
                 "Rohstoffpreis-Differenzen über die verifizierten jährlichen Rückgewinnungsmengen nach einem "
                 "asset-spezifischen marginalen Steuer-/Royalty-Haircut übergeleitet. Mine-Plan, Kostenpfad, FX und "
-                "Reserven werden nicht neu optimiert."
+                "Reserven werden nicht neu optimiert. Das Kalibrierungs-Qualitätsgate trennt davon unabhängig, ob dieser "
+                "berechnete Asset-NAV für eine spätere Portfolio-Aggregation freigegeben werden darf."
             ),
         })
 
-    phase2_ready_assets = [x for x in results if x.get("available")]
+    phase2_calculated_assets = [x for x in results if x.get("calculated")]
+    phase2_ready_assets = [x for x in results if x.get("nav_released")]
     return {
         "available": True,
         "status": (
-            f"Phase 2: {len(phase2_ready_assets)}/{len(results)} TRS-Assets preisnormalisiert"
+            f"Phase 2: {len(phase2_calculated_assets)}/{len(results)} berechnet · "
+            f"{len(phase2_ready_assets)}/{len(results)} für NAV freigegeben"
         ),
         "common_discount_rate_pct": common_discount_rate_pct,
         "asset_count": len(results),
-        "normalized_asset_count": len(phase2_ready_assets),
+        "calculated_asset_count": len(phase2_calculated_assets),
+        "normalized_asset_count": len(phase2_calculated_assets),
+        "nav_released_asset_count": len(phase2_ready_assets),
+        "calibration_good_limit_pct": calibration_good_limit_pct,
+        "calibration_warning_limit_pct": calibration_warning_limit_pct,
         "assets": results,
         "price_map": prices,
         "aggregation_released": False,
         "reason": (
-            "V2.15 normalisiert die vorhandenen TRS-Assets einzeln, gibt aber bewusst noch keinen Newmont-Portfolio-NAV frei. "
-            "Das Managed-Operations-90%-Gate sowie die separaten JV- und Entwicklungsprojekt-Blöcke bleiben bindend."
+            "V2.15.1 berechnet die vorhandenen TRS-Assets einzeln und prüft zusätzlich die Kalibrierungsqualität. "
+            "Ein berechneter Asset-NAV ist nicht automatisch für eine spätere Aggregation freigegeben. Das Managed-Operations-90%-Gate "
+            "sowie die separaten JV- und Entwicklungsprojekt-Blöcke bleiben bindend."
         ),
         "note": (
             "Der 8%-Vergleichs-NAV dient nur der Vergleichbarkeit zwischen Assets. Native TRS-Diskontsätze bleiben separat sichtbar. "
-            "Eine spätere Portfolio-Aggregation darf erst nach bestandener Abdeckungs- und Completeness-Prüfung erfolgen."
+            "Kalibrierungsabweichung ≤5% = Gut, >5–10% = Eingeschränkt/Warnung, >10% = keine NAV-Freigabe. "
+            "Eine spätere Portfolio-Aggregation darf erst nach bestandener Kalibrierungs-, Abdeckungs- und Completeness-Prüfung erfolgen."
         ),
     }
 
@@ -8756,7 +8841,7 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.15 trennt Asset-NAV-Normalisierung Phase 2, Portfolio-Completeness-Gate, Portfolio-Abdeckungslogik, technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.15.1 trennt Asset-NAV-Normalisierung Phase 2 inklusive Kalibrierungs-Qualitätsgate, Portfolio-Completeness-Gate, Portfolio-Abdeckungslogik, technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
             "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
             "Ertragskraft, Reserve-/Asset-Kontrolle, Run-rate-Mine-NAV und das "
             "formale Life-of-Mine-Freigabe-Gate. Ein Guidance-Jahr ersetzt kein "
@@ -9515,7 +9600,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_asset_nav_phase2_v215_20260906"
+CACHE_VERSION = "m6_mining_asset_nav_quality_v2151_20260906"
 
 @st.cache_data(
     ttl=900,
@@ -12334,7 +12419,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.15 – Asset-NAV Phase 2 + Portfolio-Completeness-Gate + LOM/NAV Phase 1")
+                    st.caption("Bergbau-Schutzmodell V2.15.1 – Asset-NAV Phase 2 + Kalibrierungs-Qualitätsgate + Portfolio-Completeness-Gate + LOM/NAV Phase 1")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -12836,7 +12921,7 @@ if selected_symbol:
                         structural_fallback = checks.get("structural_break_fallback", {})
                         if structural_fallback.get("applicable", False):
                             st.write(
-                                "**Structural-Break-Fallback V2.13.1 (unverändert innerhalb V2.15):** "
+                                "**Structural-Break-Fallback V2.13.1 (unverändert innerhalb V2.15.1):** "
                                 f"{structural_fallback.get('status', 'Noch offen')}"
                             )
                             fb1, fb2 = st.columns(2)
@@ -13008,7 +13093,7 @@ if selected_symbol:
 
                             core_lom = asset_nav_control.get("core_asset_lom_structure") or {}
                             if core_lom.get("available"):
-                                st.markdown("**Portfolio-LOM-Abdeckungsstruktur (V2.15):**")
+                                st.markdown("**Portfolio-LOM-Abdeckungsstruktur (V2.15.1):**")
                                 cov1, cov2, cov3 = st.columns(3)
                                 with cov1:
                                     st.metric("Gesamtportfolio-Reserven", f"{safe_float(core_lom.get('total_reserves_moz')) or 0.0:.1f} Mio. oz")
@@ -13034,7 +13119,7 @@ if selected_symbol:
 
                                 completeness_gate = core_lom.get("portfolio_completeness_gate") or {}
                                 if completeness_gate.get("available"):
-                                    st.markdown("**Portfolio-Completeness-Gate (V2.14.2 innerhalb V2.15):**")
+                                    st.markdown("**Portfolio-Completeness-Gate (V2.14.2 innerhalb V2.15.1):**")
                                     block_map = {b.get("key"): b for b in completeness_gate.get("blocks", [])}
                                     pc1, pc2, pc3 = st.columns(3)
                                     for col, key in [
@@ -13070,7 +13155,7 @@ if selected_symbol:
 
                                 phase1 = core_lom.get("technical_lom_phase1") or {}
                                 if phase1.get("available"):
-                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – Teilmodul V2.14.1 innerhalb V2.15:**")
+                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – Teilmodul V2.14.1 innerhalb V2.15.1:**")
                                     st.write(f"**Status:** {phase1.get('status', '–')}")
                                     p1c1, p1c2, p1c3, p1c4 = st.columns(4)
                                     with p1c1:
@@ -13147,14 +13232,16 @@ if selected_symbol:
 
                                 phase2 = core_lom.get("asset_nav_phase2") or {}
                                 if phase2.get("available"):
-                                    st.markdown("**Asset-NAV-Normalisierung Phase 2 – V2.15:**")
+                                    st.markdown("**Asset-NAV-Normalisierung Phase 2 – V2.15.1 Kalibrierungs-Qualitätsgate:**")
                                     st.write(f"**Status:** {phase2.get('status', '–')}")
-                                    p2a, p2b, p2c = st.columns(3)
+                                    p2a, p2b, p2c, p2d = st.columns(4)
                                     with p2a:
-                                        st.metric("TRS-Assets", f"{int(phase2.get('normalized_asset_count') or 0)}/{int(phase2.get('asset_count') or 0)} normalisiert")
+                                        st.metric("TRS-Assets berechnet", f"{int(phase2.get('calculated_asset_count') or 0)}/{int(phase2.get('asset_count') or 0)}")
                                     with p2b:
-                                        st.metric("Vergleichs-Diskontsatz", f"{safe_float(phase2.get('common_discount_rate_pct')) or 0.0:.1f} %")
+                                        st.metric("Für NAV freigegeben", f"{int(phase2.get('nav_released_asset_count') or 0)}/{int(phase2.get('asset_count') or 0)}")
                                     with p2c:
+                                        st.metric("Vergleichs-Diskontsatz", f"{safe_float(phase2.get('common_discount_rate_pct')) or 0.0:.1f} %")
+                                    with p2d:
                                         st.metric("Portfolio-Aggregation", "Gesperrt")
                                     st.caption(phase2.get("note") or "")
 
@@ -13178,6 +13265,22 @@ if selected_symbol:
                                             delta = safe_float(nav_asset.get("delta_vs_native_owned_pct"))
                                             st.metric("Preisnormalisierung vs. nativ", f"{delta:+.1f} %" if delta is not None else "–")
 
+                                        q1, q2, q3 = st.columns(3)
+                                        with q1:
+                                            raw_npv = safe_float(nav_asset.get("raw_rounded_series_npv_musd"))
+                                            st.metric("Rekonstruierter NPV · unkalibriert", f"{(raw_npv or 0.0)/1000.0:.2f} Mrd. USD" if raw_npv is not None else "–")
+                                        with q2:
+                                            raw_diff = safe_float(nav_asset.get("raw_vs_official_npv_pct"))
+                                            st.metric("Rekonstruiert vs. offiziell", f"{raw_diff:+.1f} %" if raw_diff is not None else "–")
+                                        with q3:
+                                            cal_gap = safe_float(nav_asset.get("calibration_adjustment_pct"))
+                                            st.metric("Kalibrierungsabweichung", f"{cal_gap:.1f} % · {nav_asset.get('calibration_quality', '–')}" if cal_gap is not None else "–")
+                                        st.write(
+                                            f"**NAV-Qualitätsfreigabe:** "
+                                            f"{'Freigegeben' if nav_asset.get('nav_released') else 'Gesperrt'}"
+                                        )
+                                        st.caption(nav_asset.get("calibration_quality_note") or "")
+
                                         metal_parts = []
                                         for metal in nav_asset.get("commodity_details", []):
                                             base = safe_float(metal.get("trs_price"))
@@ -13198,10 +13301,13 @@ if selected_symbol:
                                             st.caption(" · ".join(metal_parts))
                                         cal = safe_float(nav_asset.get("annual_cashflow_calibration_factor"))
                                         st.caption(
-                                            f"Annualisierte TRS-FCFs wegen Tabellenrundung auf den veröffentlichten nativen NPV kalibriert"
+                                            "Annualisierte TRS-FCFs werden auf den veröffentlichten nativen NPV kalibriert; die Abweichung wird "
+                                            "separat als Qualitätsmerkmal geprüft und nicht pauschal nur mit Tabellenrundung erklärt"
                                             + (f" (Faktor {cal:.3f}). " if cal is not None else ". ")
                                             + f"Phase-2-Konfidenz: {nav_asset.get('confidence', '–')}."
                                         )
+                                        if nav_asset.get("sensitivity_warning"):
+                                            st.warning(nav_asset.get("sensitivity_note") or "Hohe NAV-Preissensitivität erkannt.")
                                         st.caption(nav_asset.get("source_note") or "")
                                         st.caption(nav_asset.get("method_note") or "")
                                         if nav_asset.get("blockers"):
