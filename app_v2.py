@@ -4679,9 +4679,9 @@ def get_special_control(company_type, symbol):
                 "Life-of-Mine-Profil & NAV-Freigabe-Gate",
                 "Allgemeiner Primärrohstoff-Router"
             ],
-            "status": "Router aktiv – V2.8 Primärrohstoff-Router + V2.7 LOM-Gate",
+            "status": "Router aktiv – V2.9 Betriebsdaten + Primärrohstoff-Router + LOM-Gate",
             "note": (
-                "V2.8 ergänzt das Bergbaumodell um einen konservativen allgemeinen "
+                "V2.9 ergänzt das Bergbaumodell um einen konservativen allgemeinen "
                 "Primärrohstoff-Router für eindeutige Branchen wie Gold, Silber und "
                 "Kupfer. Unspezifische Mischbranchen bleiben gesperrt. Das bestehende "
                 "V2.7-Life-of-Mine-Gate bleibt unverändert aktiv. "
@@ -5209,6 +5209,66 @@ def get_verified_mining_snapshot(symbol):
 
     symbol_text = str(symbol or "").upper()
 
+    if symbol_text == "NEM":
+        # Newmont Q2 2026 / unchanged FY2026 guidance, published 23 Jul 2026.
+        # Guidance metrics are company-reported +/-5%; low/high bounds below are
+        # derived only from that explicit tolerance for internal midpoint/status
+        # calculations and are not independent forecasts.
+        return {
+            "company": "Newmont Corporation",
+            "published_date": "23.07.2026",
+            "as_of_date": "30.06.2026",
+            "valid_until": "31.10.2026",
+            "source_name": "Newmont Q2 2026 Results / FY2026 Guidance",
+            "source_note": (
+                "Offizielle Newmont-Q2-2026-Daten. Newmont bestätigte die bereits "
+                "veröffentlichte 2026-Guidance von 5,26 Mio. zurechenbaren Goldunzen "
+                "(±5 %) und Gold By-Product AISC von 1.680 USD/oz (±5 %). Q2-Gold-AISC "
+                "lag bei 1.621 USD/oz. Die Guidance basiert auf Unternehmensannahmen "
+                "einschließlich eines hohen Goldpreisumfelds; deshalb bleibt sie eine "
+                "aktuelle Kostenbasis und kein Life-of-Mine-Kostenprofil."
+            ),
+            "production_guidance_label": "2026 Gold-Produktions-Guidance",
+            "production_guidance_unit": "Mio. oz",
+            "production_guidance_display": "5.26 Mio. oz (±5 %)",
+            "previous_production_guidance_display": "5.26 Mio. oz (±5 %)",
+            "production_guidance_current_low": 4.997,
+            "production_guidance_current_high": 5.523,
+            "production_guidance_previous_low": 4.997,
+            "production_guidance_previous_high": 5.523,
+            "q2_primary_production": 1.3,
+            "q2_primary_production_unit": "Mio. oz",
+            "aisc_guidance_label": "2026 Gold-AISC-Guidance",
+            "aisc_unit": "USD/oz",
+            "aisc_guidance_display": "1,680 USD/oz (±5 %)",
+            "previous_aisc_guidance_display": "1,680 USD/oz (±5 %)",
+            "actual_aisc_label": "Q2 Gold AISC",
+            "actual_aisc_display": "1,621 USD/oz",
+            "commodity_aisc_guidance_current_low": 1596.0,
+            "commodity_aisc_guidance_current_high": 1764.0,
+            "commodity_aisc_guidance_previous_low": 1596.0,
+            "commodity_aisc_guidance_previous_high": 1764.0,
+            "q2_commodity_aisc": 1621.0,
+            "commodity_cost_basis_price_assumption": 4500.0,
+            "commodity_cost_basis_note": (
+                "Newmonts 2026-Kostenguidance basiert u. a. auf einer Goldpreisannahme "
+                "von 4.500 USD/oz. Höhere Goldpreise erhöhen Royalties und Produktionssteuern. "
+                "Die AISC-Basis von 1.680 USD/oz wird deshalb gegenüber dem normalisierten "
+                "Goldpreis nur als konservative Run-rate-Kontrolle verwendet, nicht als "
+                "preisunabhängiges Life-of-Mine-Kostenprofil."
+            ),
+            "gold_byproduct_cas_guidance": 1055.0,
+            "q2_gold_byproduct_cas": 1043.0,
+            "sustaining_capital_guidance_musd": 1950.0,
+            "development_capital_guidance_musd": 1400.0,
+            "guidance_comment": (
+                "Full-Year-Guidance gegenüber Februar unverändert. Newmont erwartet "
+                "rund 51 % der 2026-Goldproduktion im zweiten Halbjahr. Die aktuelle "
+                "AISC-Guidance enthält Sustaining Capital und By-Product-Effekte und "
+                "wird nur als verifizierte Run-rate-Kostenbasis verwendet."
+            ),
+        }
+
     if symbol_text != "HL":
         return None
 
@@ -5293,11 +5353,28 @@ def get_verified_mining_snapshot(symbol):
     }
 
 
+def _snapshot_first(snapshot, *keys):
+    for key in keys:
+        if key in (snapshot or {}):
+            value = (snapshot or {}).get(key)
+            if value is not None:
+                return value
+    return None
+
+
 def _mining_production_guidance_status(snapshot):
-    current_low = safe_float(snapshot.get("production_guidance_current_low_moz"))
-    current_high = safe_float(snapshot.get("production_guidance_current_high_moz"))
-    previous_low = safe_float(snapshot.get("production_guidance_previous_low_moz"))
-    previous_high = safe_float(snapshot.get("production_guidance_previous_high_moz"))
+    current_low = safe_float(_snapshot_first(
+        snapshot, "production_guidance_current_low", "production_guidance_current_low_moz"
+    ))
+    current_high = safe_float(_snapshot_first(
+        snapshot, "production_guidance_current_high", "production_guidance_current_high_moz"
+    ))
+    previous_low = safe_float(_snapshot_first(
+        snapshot, "production_guidance_previous_low", "production_guidance_previous_low_moz"
+    ))
+    previous_high = safe_float(_snapshot_first(
+        snapshot, "production_guidance_previous_high", "production_guidance_previous_high_moz"
+    ))
 
     if None in [current_low, current_high, previous_low, previous_high]:
         return "Daten unzureichend", None
@@ -5311,7 +5388,7 @@ def _mining_production_guidance_status(snapshot):
 
     if change_pct >= 2.0:
         status = "Stark"
-    elif change_pct >= 0.0:
+    elif change_pct >= 0.5:
         status = "Positiv"
     elif change_pct >= -5.0:
         status = "Stabil"
@@ -5322,10 +5399,18 @@ def _mining_production_guidance_status(snapshot):
 
 
 def _mining_aisc_guidance_status(snapshot):
-    current_low = safe_float(snapshot.get("silver_aisc_guidance_current_low"))
-    current_high = safe_float(snapshot.get("silver_aisc_guidance_current_high"))
-    previous_low = safe_float(snapshot.get("silver_aisc_guidance_previous_low"))
-    previous_high = safe_float(snapshot.get("silver_aisc_guidance_previous_high"))
+    current_low = safe_float(_snapshot_first(
+        snapshot, "commodity_aisc_guidance_current_low", "silver_aisc_guidance_current_low"
+    ))
+    current_high = safe_float(_snapshot_first(
+        snapshot, "commodity_aisc_guidance_current_high", "silver_aisc_guidance_current_high"
+    ))
+    previous_low = safe_float(_snapshot_first(
+        snapshot, "commodity_aisc_guidance_previous_low", "silver_aisc_guidance_previous_low"
+    ))
+    previous_high = safe_float(_snapshot_first(
+        snapshot, "commodity_aisc_guidance_previous_high", "silver_aisc_guidance_previous_high"
+    ))
 
     if None in [current_low, current_high, previous_low, previous_high]:
         return "Daten unzureichend", None
@@ -5340,9 +5425,9 @@ def _mining_aisc_guidance_status(snapshot):
 
     if improvement_pct >= 10.0:
         status = "Stark verbessert"
-    elif improvement_pct >= 0.0:
+    elif improvement_pct >= 2.0:
         status = "Verbessert"
-    elif improvement_pct >= -10.0:
+    elif improvement_pct >= -5.0:
         status = "Stabil"
     else:
         status = "Schwach"
@@ -5351,8 +5436,12 @@ def _mining_aisc_guidance_status(snapshot):
 
 
 def _mining_actual_aisc_status(snapshot):
-    actual = safe_float(snapshot.get("q2_silver_aisc"))
-    guidance_high = safe_float(snapshot.get("silver_aisc_guidance_current_high"))
+    actual = safe_float(_snapshot_first(
+        snapshot, "q2_commodity_aisc", "q2_silver_aisc"
+    ))
+    guidance_high = safe_float(_snapshot_first(
+        snapshot, "commodity_aisc_guidance_current_high", "silver_aisc_guidance_current_high"
+    ))
 
     if actual is None or guidance_high is None or guidance_high <= 0:
         return "Daten unzureichend"
@@ -5392,7 +5481,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
                 "Hecla wird wegen der gemischten Yahoo-Branche ausdrücklich primär "
                 "dem Silberpreis zugeordnet. Gold, Blei und Zink bleiben zusätzliche "
                 "Exposures und werden nicht als separate Primärrohstoffe in diese "
-                "V2.8-Kontrolle hineingeschätzt."
+                "V2.9-Kontrolle hineingeschätzt."
             ),
         },
     }
@@ -5430,7 +5519,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
         "route_source": "Allgemeiner Branchen-Router",
         "routing_basis": f"Yahoo-Branche: {industry_text}",
         "mapping_note": (
-            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.8 "
+            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.9 "
             f"automatisch dem Primärrohstoff {base['commodity_name']} zugeordnet. "
             "Unspezifische oder gemischte Bergbau-Branchen werden weiterhin nicht "
             "automatisch geroutet."
@@ -5637,6 +5726,8 @@ def build_mining_commodity_cycle(symbol, snapshot, cache_version, industry=None)
         "mapping_note": route.get("mapping_note"),
         "route_source": route.get("route_source"),
         "routing_basis": route.get("routing_basis"),
+        "cost_basis_price_assumption": safe_float((snapshot or {}).get("commodity_cost_basis_price_assumption")),
+        "cost_basis_note": (snapshot or {}).get("commodity_cost_basis_note"),
         "required": True,
         "aisc_midpoint": None,
         "normalized_margin_per_oz": None,
@@ -5771,7 +5862,13 @@ def build_mining_earnings_translation(
     }
 
     if not isinstance(commodity_cycle, dict) or not commodity_cycle.get("available", False):
-        result["reason"] = "Rohstoffpreis-/Margenzyklus ist nicht belastbar verfügbar."
+        if isinstance(commodity_cycle, dict) and commodity_cycle.get("price_cycle_available", False):
+            result["reason"] = (
+                "Rohstoffpreiszyklus belastbar verfügbar; Margenzyklus mangels "
+                "verifizierter AISC-/Kostenbasis noch nicht belastbar."
+            )
+        else:
+            result["reason"] = "Rohstoffpreis-/Margenzyklus ist nicht belastbar verfügbar."
         return result
 
     normalized_margin = safe_float(commodity_cycle.get("normalized_margin_per_oz"))
@@ -6802,7 +6899,7 @@ def build_mining_special_control(
     industry=None,
 ):
     """
-    Conservative Mining V2.8.
+    Conservative Mining V2.9.
 
     Financial-cycle checks are calculated from already-loaded company data.
     Production guidance and AISC/unit-cost data are used only when a dated,
@@ -6932,7 +7029,7 @@ def build_mining_special_control(
         and operating_status not in ["Daten fehlen", "Daten unzureichend", "Daten veraltet"]
     )
 
-    # Mining V2.8 price-cycle normalization. Price history is loaded dynamically
+    # Mining V2.9 price-cycle normalization. Price history is loaded dynamically
     # from either an explicitly verified company route or an exact, unambiguous
     # industry route. The normalized commodity margin is a control input, not a
     # direct one-for-one price-to-EPS conversion factor.
@@ -7069,7 +7166,7 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.8 trennt Primärrohstoff-Routing, Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.9 trennt Primärrohstoff-Routing, Finanzzyklus, operative "
             "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
             "Ertragskraft, Reserve-/Asset-Kontrolle, Run-rate-Mine-NAV und das "
             "formale Life-of-Mine-Freigabe-Gate. Ein Guidance-Jahr ersetzt kein "
@@ -7800,7 +7897,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_commodity_router_v28_20260906"
+CACHE_VERSION = "m6_mining_newmont_ops_v29_20260906"
 
 @st.cache_data(
     ttl=900,
@@ -10570,7 +10667,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.8 – Primärrohstoff-Router + V2.7 LOM-Gate")
+                    st.caption("Bergbau-Schutzmodell V2.9 – Betriebsdaten + Primärrohstoff-Router + LOM-Gate")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -10660,28 +10757,51 @@ if selected_symbol:
                             op1, op2 = st.columns(2)
 
                             with op1:
-                                current_low = mining_snapshot.get(
-                                    "production_guidance_current_low_moz"
+                                current_low = _snapshot_first(
+                                    mining_snapshot,
+                                    "production_guidance_current_low",
+                                    "production_guidance_current_low_moz",
                                 )
-                                current_high = mining_snapshot.get(
-                                    "production_guidance_current_high_moz"
+                                current_high = _snapshot_first(
+                                    mining_snapshot,
+                                    "production_guidance_current_high",
+                                    "production_guidance_current_high_moz",
                                 )
-                                previous_low = mining_snapshot.get(
-                                    "production_guidance_previous_low_moz"
+                                previous_low = _snapshot_first(
+                                    mining_snapshot,
+                                    "production_guidance_previous_low",
+                                    "production_guidance_previous_low_moz",
                                 )
-                                previous_high = mining_snapshot.get(
-                                    "production_guidance_previous_high_moz"
+                                previous_high = _snapshot_first(
+                                    mining_snapshot,
+                                    "production_guidance_previous_high",
+                                    "production_guidance_previous_high_moz",
+                                )
+                                prod_label = mining_snapshot.get(
+                                    "production_guidance_label",
+                                    "2026 Silber-Produktions-Guidance",
+                                )
+                                prod_unit = mining_snapshot.get(
+                                    "production_guidance_unit", "Mio. oz"
+                                )
+                                prod_display = mining_snapshot.get("production_guidance_display")
+                                prev_prod_display = mining_snapshot.get(
+                                    "previous_production_guidance_display"
                                 )
 
-                                if current_low is not None and current_high is not None:
+                                if prod_display:
+                                    st.metric(prod_label, prod_display)
+                                elif current_low is not None and current_high is not None:
                                     st.metric(
-                                        "2026 Silber-Produktions-Guidance",
-                                        f"{current_low:.1f} – {current_high:.1f} Mio. oz"
+                                        prod_label,
+                                        f"{current_low:.1f} – {current_high:.1f} {prod_unit}"
                                     )
-                                if previous_low is not None and previous_high is not None:
+                                if prev_prod_display:
+                                    st.write(f"**Vorherige Guidance:** {prev_prod_display}")
+                                elif previous_low is not None and previous_high is not None:
                                     st.write(
                                         "**Vorherige Guidance:** "
-                                        f"{previous_low:.1f} – {previous_high:.1f} Mio. oz"
+                                        f"{previous_low:.1f} – {previous_high:.1f} {prod_unit}"
                                     )
                                 if operating.get("production_change_pct") is not None:
                                     st.write(
@@ -10694,38 +10814,63 @@ if selected_symbol:
                                 )
 
                             with op2:
-                                aisc_low = mining_snapshot.get(
-                                    "silver_aisc_guidance_current_low"
+                                aisc_low = _snapshot_first(
+                                    mining_snapshot,
+                                    "commodity_aisc_guidance_current_low",
+                                    "silver_aisc_guidance_current_low",
                                 )
-                                aisc_high = mining_snapshot.get(
-                                    "silver_aisc_guidance_current_high"
+                                aisc_high = _snapshot_first(
+                                    mining_snapshot,
+                                    "commodity_aisc_guidance_current_high",
+                                    "silver_aisc_guidance_current_high",
                                 )
-                                aisc_prev_low = mining_snapshot.get(
-                                    "silver_aisc_guidance_previous_low"
+                                aisc_prev_low = _snapshot_first(
+                                    mining_snapshot,
+                                    "commodity_aisc_guidance_previous_low",
+                                    "silver_aisc_guidance_previous_low",
                                 )
-                                aisc_prev_high = mining_snapshot.get(
-                                    "silver_aisc_guidance_previous_high"
+                                aisc_prev_high = _snapshot_first(
+                                    mining_snapshot,
+                                    "commodity_aisc_guidance_previous_high",
+                                    "silver_aisc_guidance_previous_high",
                                 )
-                                q2_aisc = mining_snapshot.get("q2_silver_aisc")
+                                q2_aisc = _snapshot_first(
+                                    mining_snapshot, "q2_commodity_aisc", "q2_silver_aisc"
+                                )
+                                aisc_label = mining_snapshot.get(
+                                    "aisc_guidance_label", "2026 Silver-AISC-Guidance"
+                                )
+                                aisc_unit = mining_snapshot.get("aisc_unit", "USD/oz")
+                                aisc_display = mining_snapshot.get("aisc_guidance_display")
+                                prev_aisc_display = mining_snapshot.get(
+                                    "previous_aisc_guidance_display"
+                                )
+                                actual_label = mining_snapshot.get(
+                                    "actual_aisc_label", "Q2 Silver AISC"
+                                )
+                                actual_display = mining_snapshot.get("actual_aisc_display")
 
-                                if aisc_low is not None and aisc_high is not None:
+                                if aisc_display:
+                                    st.metric(aisc_label, aisc_display)
+                                elif aisc_low is not None and aisc_high is not None:
                                     st.metric(
-                                        "2026 Silver-AISC-Guidance",
-                                        f"{aisc_low:.2f} – {aisc_high:.2f} USD/oz"
+                                        aisc_label,
+                                        f"{aisc_low:.2f} – {aisc_high:.2f} {aisc_unit}"
                                     )
-                                if aisc_prev_low is not None and aisc_prev_high is not None:
+                                if prev_aisc_display:
+                                    st.write(f"**Vorherige AISC-Guidance:** {prev_aisc_display}")
+                                elif aisc_prev_low is not None and aisc_prev_high is not None:
                                     st.write(
                                         "**Vorherige AISC-Guidance:** "
-                                        f"{aisc_prev_low:.2f} – {aisc_prev_high:.2f} USD/oz"
+                                        f"{aisc_prev_low:.2f} – {aisc_prev_high:.2f} {aisc_unit}"
                                     )
-                                if q2_aisc is not None:
-                                    st.write(
-                                        "**Q2 Silver AISC:** "
-                                        f"{q2_aisc:.2f} USD/oz"
-                                    )
+                                if actual_display:
+                                    st.write(f"**{actual_label}:** {actual_display}")
+                                elif q2_aisc is not None:
+                                    st.write(f"**{actual_label}:** {q2_aisc:.2f} {aisc_unit}")
                                 if operating.get("aisc_improvement_pct") is not None:
                                     st.write(
-                                        "**AISC-Guidance Verbesserung:** "
+                                        "**AISC-Guidance Veränderung ggü. vorher:** "
                                         f"{operating['aisc_improvement_pct']:+.1f} %"
                                     )
                                 st.write(
@@ -10819,6 +10964,8 @@ if selected_symbol:
                                         "**Normalisierte Margentragfähigkeit:** "
                                         f"{commodity_cycle.get('margin_resilience_status', '–')}"
                                     )
+                                    if commodity_cycle.get("cost_basis_note"):
+                                        st.caption(commodity_cycle.get("cost_basis_note"))
                                 else:
                                     st.warning(
                                         "Preiszyklus verfügbar, aber die verifizierte "
