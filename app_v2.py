@@ -2175,6 +2175,168 @@ def normalize_eps(
 
 
 # =========================================================
+# Versicherungs-Sondermodell V1 – Datenbasis / Plausibilitätscheck
+# =========================================================
+
+def build_insurance_special_model(
+    company_type,
+    info,
+    price,
+    currency_context
+):
+    """
+    Conservative insurer-specific data block.
+
+    It does not create a new score, valuation multiple or fair value.
+    It only prepares insurer-relevant Yahoo fields and makes the
+    GBp/GBP unit handling explicit for per-share ratios.
+    Core earnings and solvency/capital ratios are not estimated.
+    """
+    type_name = str(
+        company_type.get("type", "")
+    ).lower()
+
+    if "versicherung" not in type_name:
+        return {
+            "applicable": False
+        }
+
+    quote_price = safe_float(price)
+    quote_to_financial = safe_float(
+        currency_context.get(
+            "quote_to_financial_factor",
+            1.0
+        )
+    )
+
+    if quote_to_financial is None:
+        quote_to_financial = 1.0
+
+    price_financial = (
+        quote_price * quote_to_financial
+        if quote_price is not None
+        else None
+    )
+
+    book_value = safe_float(
+        info.get("bookValue")
+    )
+    roe = safe_float(
+        info.get("returnOnEquity")
+    )
+    trailing_eps = safe_float(
+        info.get("trailingEps")
+    )
+    forward_eps = safe_float(
+        info.get("forwardEps")
+    )
+    dividend_yield = safe_float(
+        info.get("dividendYield")
+    )
+    payout_ratio = safe_float(
+        info.get("payoutRatio")
+    )
+    yahoo_price_to_book = safe_float(
+        info.get("priceToBook")
+    )
+
+    calculated_price_to_book = None
+    if (
+        price_financial is not None
+        and price_financial > 0
+        and book_value is not None
+        and book_value > 0
+    ):
+        calculated_price_to_book = (
+            price_financial / book_value
+        )
+
+    calculated_forward_pe = None
+    if (
+        price_financial is not None
+        and price_financial > 0
+        and forward_eps is not None
+        and forward_eps > 0
+    ):
+        calculated_forward_pe = (
+            price_financial / forward_eps
+        )
+
+    calculated_trailing_pe = None
+    if (
+        price_financial is not None
+        and price_financial > 0
+        and trailing_eps is not None
+        and trailing_eps > 0
+    ):
+        calculated_trailing_pe = (
+            price_financial / trailing_eps
+        )
+
+    pb_consistency_note = None
+    if (
+        calculated_price_to_book is not None
+        and yahoo_price_to_book is not None
+        and yahoo_price_to_book > 0
+    ):
+        pb_deviation = abs(
+            calculated_price_to_book
+            / yahoo_price_to_book
+            - 1.0
+        )
+
+        if pb_deviation > 0.20:
+            pb_consistency_note = (
+                "Das aus Kurs und Buchwert je Aktie berechnete KBV "
+                "weicht um mehr als 20 % vom Yahoo-KBV ab. Der Wert "
+                "wird deshalb nur als Plausibilitätscheck angezeigt "
+                "und nicht automatisch für eine Bewertung verwendet."
+            )
+
+    anchor_values = [
+        roe,
+        book_value,
+        calculated_price_to_book,
+        calculated_forward_pe
+    ]
+    available_anchors = sum(
+        value is not None
+        for value in anchor_values
+    )
+
+    readiness = (
+        "Teilweise"
+        if available_anchors >= 3
+        else "Unvollständig"
+    )
+
+    return {
+        "applicable": True,
+        "price_financial": price_financial,
+        "book_value_per_share": book_value,
+        "roe": roe,
+        "dividend_yield": dividend_yield,
+        "payout_ratio": payout_ratio,
+        "calculated_price_to_book": calculated_price_to_book,
+        "yahoo_price_to_book": yahoo_price_to_book,
+        "calculated_forward_pe": calculated_forward_pe,
+        "calculated_trailing_pe": calculated_trailing_pe,
+        "pb_consistency_note": pb_consistency_note,
+        "readiness": readiness,
+        "core_earnings_available": False,
+        "solvency_capital_available": False,
+        "note": (
+            "Versicherungs-Sondermodell V1 ist ein reiner Daten- und "
+            "Plausibilitätsblock. Core Earnings und Solvency-/Kapitalquote "
+            "werden in der aktuellen Datenquelle nicht separat geladen und "
+            "deshalb nicht geschätzt oder durch andere Kennzahlen ersetzt. "
+            "Noch keine Versicherungspunkte, kein Bewertungs-Multiple und "
+            "kein Fair Value."
+        )
+    }
+
+
+# =========================================================
 # Modul 6 – Schritt 1: Bewertungs-Korridor & Fundamental-Multiple
 # =========================================================
 
@@ -2925,6 +3087,29 @@ def get_special_control(company_type, symbol):
             )
         }
 
+    if "versicherung" in type_name:
+        return {
+            "required": True,
+            "control_key": "insurance_core_capital",
+            "control_name": (
+                "Versicherung / Core-Earnings- & Kapitalprüfung"
+            ),
+            "planned_checks": [
+                "Core Earnings",
+                "ROE",
+                "Buchwert / KBV",
+                "Solvency- / Kapitalquote",
+                "Ausschüttungsquote"
+            ],
+            "status": "Router aktiv – V1 Datenbasis vorhanden",
+            "note": (
+                "V1 lädt nur belastbare Basiskennzahlen aus der aktuellen "
+                "Datenquelle. Core Earnings und Solvency-/Kapitalquote "
+                "werden nicht geschätzt. Das Sondermodell verändert noch "
+                "keinen Score und kein Bewertungs-Multiple."
+            )
+        }
+
     return {
         "required": False,
         "control_key": None,
@@ -2943,7 +3128,7 @@ def get_special_control(company_type, symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1"
+CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1"
 
 @st.cache_data(
     ttl=900,
@@ -3075,6 +3260,13 @@ def load_stock(search_text, cache_version):
         historical.get("fcf", [])
     )
 
+    insurance_special_model = build_insurance_special_model(
+        company_type,
+        info,
+        price,
+        currency_context
+    )
+
     fundamental_multiple = calculate_fundamental_multiple(
         company_type,
         growth_score,
@@ -3160,6 +3352,7 @@ def load_stock(search_text, cache_version):
         "profitability_score": profitability_score,
         "fcf_score": fcf_score,
         "balance_score": balance_score,
+        "insurance_special_model": insurance_special_model,
         "fundamental_multiple": fundamental_multiple,
         "peer_group": peer_group,
         "peer_check": peer_check,
@@ -4170,6 +4363,156 @@ if search_text:
                     "Banken, Versicherungen, REIT/Immobilien "
                     "und Autohersteller benötigen Sondermodelle."
                 )
+
+                insurance_model = data.get(
+                    "insurance_special_model",
+                    {"applicable": False}
+                )
+
+                if insurance_model.get("applicable"):
+
+                    st.divider()
+
+                    st.subheader(
+                        "🛡️ Versicherungs-Sondermodell V1 – Datenbasis"
+                    )
+
+                    st.info(
+                        "Versicherungsmodell erkannt. In V1 werden nur "
+                        "versicherungstypische Basiskennzahlen und "
+                        "Einheiten plausibilisiert; es wird noch keine "
+                        "Versicherungsbewertung erzeugt."
+                    )
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+
+                        if insurance_model["roe"] is not None:
+                            st.metric(
+                                "ROE",
+                                f"{insurance_model['roe'] * 100:.1f} %"
+                            )
+                        else:
+                            st.metric(
+                                "ROE",
+                                "–"
+                            )
+
+                        if insurance_model[
+                            "book_value_per_share"
+                        ] is not None:
+                            st.metric(
+                                "Buchwert je Aktie",
+                                format_eps(
+                                    insurance_model[
+                                        "book_value_per_share"
+                                    ],
+                                    financial_currency
+                                )
+                            )
+                        else:
+                            st.metric(
+                                "Buchwert je Aktie",
+                                "–"
+                            )
+
+                        if insurance_model[
+                            "calculated_price_to_book"
+                        ] is not None:
+                            st.metric(
+                                "KBV aus Kurs / Buchwert",
+                                f"{insurance_model['calculated_price_to_book']:.2f}×"
+                            )
+                        else:
+                            st.metric(
+                                "KBV aus Kurs / Buchwert",
+                                "–"
+                            )
+
+                    with col2:
+
+                        if insurance_model[
+                            "calculated_forward_pe"
+                        ] is not None:
+                            st.metric(
+                                "Forward-KGV (nur Referenz)",
+                                f"{insurance_model['calculated_forward_pe']:.2f}×"
+                            )
+                        else:
+                            st.metric(
+                                "Forward-KGV (nur Referenz)",
+                                "–"
+                            )
+
+                        if insurance_model[
+                            "dividend_yield"
+                        ] is not None:
+                            st.metric(
+                                "Dividendenrendite",
+                                f"{insurance_model['dividend_yield'] * 100:.2f} %"
+                            )
+                        else:
+                            st.metric(
+                                "Dividendenrendite",
+                                "–"
+                            )
+
+                        if insurance_model[
+                            "payout_ratio"
+                        ] is not None:
+                            st.metric(
+                                "Ausschüttungsquote",
+                                f"{insurance_model['payout_ratio'] * 100:.1f} %"
+                            )
+                        else:
+                            st.metric(
+                                "Ausschüttungsquote",
+                                "–"
+                            )
+
+                    if data[
+                        "currency_context"
+                    ].get("mixed_units"):
+                        price_financial = insurance_model.get(
+                            "price_financial"
+                        )
+                        if price_financial is not None:
+                            st.write(
+                                "**Kurs für fundamentale Verhältniskennzahlen:** "
+                                f"{price_financial:,.4f} {financial_currency} "
+                                "(explizit aus der Pence-Notierung umgerechnet)"
+                            )
+
+                    st.write(
+                        "**Core Earnings:** – "
+                        "(nicht separat verfügbar; wird nicht durch "
+                        "Nettogewinn oder Standard-EPS ersetzt)"
+                    )
+
+                    st.write(
+                        "**Solvency- / Kapitalquote:** – "
+                        "(in der aktuellen Datenquelle nicht separat "
+                        "verfügbar; wird nicht geschätzt)"
+                    )
+
+                    st.write(
+                        "**Datenreife Sondermodell:** "
+                        f"{insurance_model['readiness']}"
+                    )
+
+                    if insurance_model.get(
+                        "pb_consistency_note"
+                    ):
+                        st.warning(
+                            insurance_model[
+                                "pb_consistency_note"
+                            ]
+                        )
+
+                    st.caption(
+                        insurance_model["note"]
+                    )
 
                 st.divider()
 
