@@ -11,8 +11,8 @@ st.set_page_config(
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
-    "Modul 1 + 2 + 3 + 4 + 5 – Suche, Datenbasis, "
-    "Unternehmenstyp, EPS-Normalisierung, Multiple Score & Bewertungs-Korridor"
+    "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
+    "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
 
 
@@ -1223,7 +1223,7 @@ def classify_company(name, symbol, sector, industry):
         return {
             "type": "Defense / stark wachsend",
             "method": (
-                "Forward EPS + KGV + "
+                "Normalisiertes EPS + KGV + "
                 "Auftrags-/Visibilitätskontrolle"
             ),
             "confidence_cap": "Mittel bis Hoch"
@@ -1251,7 +1251,7 @@ def classify_company(name, symbol, sector, industry):
         return {
             "type": "Defense / stark wachsend",
             "method": (
-                "Forward EPS + KGV + "
+                "Normalisiertes EPS + KGV + "
                 "Auftrags-/Visibilitätskontrolle"
             ),
             "confidence_cap": "Mittel bis Hoch"
@@ -1285,7 +1285,7 @@ def classify_company(name, symbol, sector, industry):
         return {
             "type": "Halbleiterausrüstung / Lithografie",
             "method": (
-                "Forward EPS + KGV + "
+                "Normalisiertes EPS + KGV + "
                 "Auftrags-/Visibilitätskontrolle"
             ),
             "confidence_cap": "Mittel bis Hoch"
@@ -3824,7 +3824,7 @@ def get_valuation_corridor(company_type):
             "defense / stark wachsend",
             18.0,
             30.0,
-            "Forward-KGV"
+            "KGV auf normalisiertem EPS"
         ),
         (
             "etablierte software / technologie",
@@ -4681,6 +4681,617 @@ def get_special_control(company_type, symbol):
 
 
 # =========================================================
+# Modul 6 – Schritt 3B: Defense-Auftrags- & Visibilitätskontrolle
+# =========================================================
+
+def get_verified_defense_snapshot(symbol):
+    """
+    Curated, explicitly dated official-data snapshot for Defense V1.
+
+    V1 deliberately does not scrape investor-relations pages at runtime.
+    Only values that were verified from an official company publication are
+    stored. The snapshot expires at the next scheduled reporting date so a
+    stale special-control dataset cannot silently release a Fair Value.
+    """
+
+    symbol_text = str(symbol or "").upper()
+
+    if symbol_text not in ["RHM.DE", "RHM.F", "RNMBY", "RNMBF"]:
+        return None
+
+    return {
+        "company": "Rheinmetall AG",
+        "published_date": "06.08.2026",
+        "as_of_date": "30.06.2026",
+        "valid_until": "05.11.2026",
+        "source_name": "Rheinmetall Q2/H1 2026",
+        "source_note": (
+            "Offizielle Rheinmetall-H1/Q2-2026-Daten. "
+            "Backlog enthält feste Aufträge plus erwartete Abrufe aus "
+            "bestehenden Rahmenverträgen."
+        ),
+        "backlog_current": 80.467e9,
+        "backlog_previous": 55.972e9,
+        "fixed_order_backlog_current": 56.342e9,
+        "fixed_order_backlog_previous": 32.266e9,
+        "frame_backlog_current": 24.126e9,
+        "revenue_guidance_low": 13.7e9,
+        "revenue_guidance_high": 14.2e9,
+        # Rheinmetall reported "above 3". 3.0 is stored only as a
+        # conservative lower bound; the display retains the > qualifier.
+        "book_to_bill_lower_bound": 3.0,
+        "book_to_bill_is_lower_bound": True,
+        "book_to_bill_period": "Q2 2026",
+        "near_term_fixed_coverage_pct": 90.0,
+        "near_term_horizon": "<2,5 Jahre",
+        "current_margin": 15.0,
+        "comparable_previous_margin": 12.1,
+        "latest_quarter_margin": 17.1,
+        "previous_full_year_margin": 18.5,
+        "guidance_margin": 19.0,
+    }
+
+
+def _defense_backlog_status(growth_pct):
+    if growth_pct is None:
+        return "Daten unzureichend"
+    if growth_pct >= 15.0:
+        return "Stark"
+    if growth_pct >= 0.0:
+        return "Positiv"
+    if growth_pct > -10.0:
+        return "Leicht rückläufig"
+    return "Schwach"
+
+
+def _defense_coverage_status(value):
+    if value is None:
+        return "Daten unzureichend"
+    if value >= 3.0:
+        return "Sehr stark"
+    if value >= 2.0:
+        return "Stark"
+    if value >= 1.0:
+        return "Ausreichend"
+    return "Schwach"
+
+
+def _defense_fixed_orders_status(share_pct):
+    if share_pct is None:
+        return "Daten unzureichend"
+    if share_pct >= 70.0:
+        return "Sehr stark"
+    if share_pct >= 60.0:
+        return "Stark"
+    if share_pct >= 50.0:
+        return "Ausreichend"
+    return "Schwach"
+
+
+def _defense_book_to_bill_status(value):
+    if value is None:
+        return "Daten unzureichend"
+    if value >= 1.5:
+        return "Sehr stark"
+    if value >= 1.2:
+        return "Stark"
+    if value >= 1.0:
+        return "Ausreichend"
+    return "Schwach"
+
+
+def _defense_near_term_status(value):
+    if value is None:
+        return "Daten unzureichend"
+    if value >= 80.0:
+        return "Sehr stark"
+    if value >= 65.0:
+        return "Stark"
+    if value >= 50.0:
+        return "Ausreichend"
+    return "Schwach"
+
+
+def evaluate_defense_margin_trend(
+    current_margin=None,
+    comparable_previous_margin=None,
+    latest_quarter_margin=None,
+    previous_full_year_margin=None,
+    guidance_margin=None,
+):
+    result = {
+        "current_margin": safe_float(current_margin),
+        "previous_margin": safe_float(comparable_previous_margin),
+        "margin_change_pp": None,
+        "latest_quarter_margin": safe_float(latest_quarter_margin),
+        "previous_full_year_margin": safe_float(previous_full_year_margin),
+        "guidance_margin": safe_float(guidance_margin),
+        "guidance_change_pp": None,
+        "historical_trend": "Daten unzureichend",
+        "guidance_trend": "Daten unzureichend",
+        "overall_status": "Daten unzureichend",
+    }
+
+    current = result["current_margin"]
+    previous = result["previous_margin"]
+
+    if current is not None and previous is not None:
+        change = current - previous
+        result["margin_change_pp"] = change
+
+        if change >= 2.0:
+            result["historical_trend"] = "Sehr stark"
+        elif change >= 0.5:
+            result["historical_trend"] = "Stark"
+        elif change > -0.5:
+            result["historical_trend"] = "Stabil"
+        elif change > -2.0:
+            result["historical_trend"] = "Leicht rückläufig"
+        else:
+            result["historical_trend"] = "Schwach"
+
+    guidance = result["guidance_margin"]
+    previous_full_year = result["previous_full_year_margin"]
+
+    if guidance is not None and previous_full_year is not None:
+        change = guidance - previous_full_year
+        result["guidance_change_pp"] = change
+
+        if change >= 1.0:
+            result["guidance_trend"] = "Steigend"
+        elif change >= -0.5:
+            result["guidance_trend"] = "Stabil bis steigend"
+        elif change > -1.5:
+            result["guidance_trend"] = "Leicht rückläufig"
+        else:
+            result["guidance_trend"] = "Schwach"
+
+    hist = result["historical_trend"]
+    guide = result["guidance_trend"]
+
+    if hist == "Sehr stark" and guide in ["Steigend", "Stabil bis steigend"]:
+        result["overall_status"] = "Sehr stark"
+    elif hist in ["Sehr stark", "Stark"] and guide != "Schwach":
+        result["overall_status"] = "Stark"
+    elif hist == "Stabil" and guide in ["Steigend", "Stabil bis steigend"]:
+        result["overall_status"] = "Ausreichend"
+    elif hist in ["Leicht rückläufig", "Schwach"]:
+        result["overall_status"] = "Schwach"
+
+    return result
+
+
+def build_defense_special_control(base_control, company_type, symbol):
+    """Enrich the 3A router result with Defense step 3B when verified data exist."""
+
+    control = dict(base_control or {})
+    control.setdefault("router_status", control.get("status"))
+    control.setdefault("router_note", control.get("note"))
+
+    if control.get("control_key") != "defense_order_visibility":
+        control.setdefault("implemented", False)
+        control.setdefault("released", False)
+        return control
+
+    snapshot = get_verified_defense_snapshot(symbol)
+
+    if snapshot is None:
+        control.update({
+            "implemented": False,
+            "released": False,
+            "confidence_cap": "Niedrig",
+            "step3b_status": "Schritt 3B Daten fehlen",
+            "note": (
+                "Die Defense-Logik ist fachlich implementiert, aber für diese "
+                "Aktie liegt noch kein verifizierter offizieller Spezialdaten-"
+                "Snapshot vor. Es wird nichts geschätzt; Fair Value bleibt gesperrt."
+            ),
+        })
+        return control
+
+    try:
+        valid_until = datetime.strptime(
+            snapshot["valid_until"], "%d.%m.%Y"
+        ).date()
+        snapshot_fresh = datetime.now().date() <= valid_until
+    except Exception:
+        snapshot_fresh = False
+
+    backlog_current = safe_float(snapshot.get("backlog_current"))
+    backlog_previous = safe_float(snapshot.get("backlog_previous"))
+    revenue_low = safe_float(snapshot.get("revenue_guidance_low"))
+    revenue_high = safe_float(snapshot.get("revenue_guidance_high"))
+
+    backlog_growth_pct = None
+    if backlog_current is not None and backlog_previous not in [None, 0]:
+        backlog_growth_pct = (backlog_current / backlog_previous - 1.0) * 100.0
+
+    revenue_base = None
+    if revenue_low is not None and revenue_high is not None:
+        revenue_base = (revenue_low + revenue_high) / 2.0
+
+    revenue_coverage = None
+    if backlog_current is not None and revenue_base not in [None, 0]:
+        revenue_coverage = backlog_current / revenue_base
+
+    fixed_current = safe_float(snapshot.get("fixed_order_backlog_current"))
+    fixed_previous = safe_float(snapshot.get("fixed_order_backlog_previous"))
+
+    fixed_share_pct = None
+    if fixed_current is not None and backlog_current not in [None, 0]:
+        fixed_share_pct = fixed_current / backlog_current * 100.0
+
+    fixed_previous_share_pct = None
+    if fixed_previous is not None and backlog_previous not in [None, 0]:
+        fixed_previous_share_pct = fixed_previous / backlog_previous * 100.0
+
+    fixed_share_change_pp = None
+    if fixed_share_pct is not None and fixed_previous_share_pct is not None:
+        fixed_share_change_pp = fixed_share_pct - fixed_previous_share_pct
+
+    book_to_bill = safe_float(snapshot.get("book_to_bill_lower_bound"))
+    near_term_coverage = safe_float(snapshot.get("near_term_fixed_coverage_pct"))
+
+    margin = evaluate_defense_margin_trend(
+        snapshot.get("current_margin"),
+        snapshot.get("comparable_previous_margin"),
+        snapshot.get("latest_quarter_margin"),
+        snapshot.get("previous_full_year_margin"),
+        snapshot.get("guidance_margin"),
+    )
+
+    checks = {
+        "backlog": {
+            "value": backlog_current,
+            "previous": backlog_previous,
+            "growth_pct": backlog_growth_pct,
+            "status": _defense_backlog_status(backlog_growth_pct),
+        },
+        "revenue_coverage": {
+            "value": revenue_coverage,
+            "revenue_base": revenue_base,
+            "status": _defense_coverage_status(revenue_coverage),
+        },
+        "fixed_orders": {
+            "value": fixed_current,
+            "share_pct": fixed_share_pct,
+            "previous_share_pct": fixed_previous_share_pct,
+            "share_change_pp": fixed_share_change_pp,
+            "status": _defense_fixed_orders_status(fixed_share_pct),
+        },
+        "book_to_bill": {
+            "value": book_to_bill,
+            "is_lower_bound": bool(snapshot.get("book_to_bill_is_lower_bound")),
+            "period": snapshot.get("book_to_bill_period"),
+            "status": _defense_book_to_bill_status(book_to_bill),
+        },
+        "near_term_fixed_coverage": {
+            "value_pct": near_term_coverage,
+            "horizon": snapshot.get("near_term_horizon"),
+            "status": _defense_near_term_status(near_term_coverage),
+        },
+        "margin_trend": margin,
+    }
+
+    core_statuses = [
+        checks["backlog"]["status"],
+        checks["revenue_coverage"]["status"],
+        checks["fixed_orders"]["status"],
+        checks["book_to_bill"]["status"],
+        checks["margin_trend"]["overall_status"],
+    ]
+
+    insufficient_count = core_statuses.count("Daten unzureichend")
+    weak_count = core_statuses.count("Schwach")
+    strong_count = sum(
+        status in ["Stark", "Sehr stark", "Positiv"]
+        for status in core_statuses
+    )
+
+    if not snapshot_fresh:
+        overall_status = "Daten veraltet"
+        released = False
+        confidence_cap = "Niedrig"
+    elif insufficient_count >= 2:
+        overall_status = "Nicht freigegeben"
+        released = False
+        confidence_cap = "Niedrig"
+    elif weak_count >= 1:
+        overall_status = "Warnung"
+        released = True
+        confidence_cap = "Mittel"
+    elif strong_count >= 4:
+        overall_status = "Stark"
+        released = True
+        confidence_cap = "Hoch"
+    else:
+        overall_status = "Ausreichend"
+        released = True
+        confidence_cap = "Mittel"
+
+    control.update({
+        "implemented": True,
+        "released": released,
+        "confidence_cap": confidence_cap,
+        "step3b_status": (
+            "Schritt 3B vollständig – Fair Value freigegeben"
+            if released
+            else "Schritt 3B nicht freigegeben"
+        ),
+        "overall_status": overall_status,
+        "snapshot_fresh": snapshot_fresh,
+        "snapshot": snapshot,
+        "checks": checks,
+        "note": (
+            "Die Defense-Spezialkontrolle prüft Backlog, Revenue Coverage, "
+            "Fixed Orders, Book-to-Bill und Margentrend. Sie verändert den "
+            "100-Punkte-Multiple-Score nicht."
+        ),
+    })
+
+    return control
+
+
+# =========================================================
+# Modul 6 – Bewertungssicherheit & Bewertungszonen
+# =========================================================
+
+def _confidence_rank_value(level):
+    mapping = {
+        "Niedrig": 1,
+        "Niedrig bis Mittel": 2,
+        "Mittel": 2,
+        "Mittel bis Hoch": 3,
+        "Hoch": 3,
+    }
+    return mapping.get(str(level or "").strip())
+
+
+def calculate_valuation_confidence(
+    company_type,
+    eps_normalization,
+    peer_check,
+    special_control,
+    fair_value,
+):
+    result = {
+        "available": False,
+        "level": None,
+        "components": {},
+        "limiting_factor": None,
+        "note": None,
+    }
+
+    if not isinstance(fair_value, dict) or not fair_value.get("available"):
+        result["note"] = "Ohne berechenbaren Fair Value keine Bewertungssicherheit."
+        return result
+
+    components = {}
+
+    company_cap_raw = (company_type or {}).get("confidence_cap")
+    company_rank = _confidence_rank_value(company_cap_raw)
+    if company_rank is not None:
+        components["Unternehmenstyp / Methode"] = (company_rank, company_cap_raw)
+
+    eps_level = (eps_normalization or {}).get("confidence")
+    eps_rank = _confidence_rank_value(eps_level)
+    if eps_rank is not None:
+        components["EPS-Normalisierung"] = (eps_rank, eps_level)
+
+    if isinstance(peer_check, dict) and peer_check.get("method_supported"):
+        usable_peers = int(peer_check.get("usable_count") or 0)
+        peer_level = "Hoch" if peer_check.get("applied") and usable_peers >= 3 else "Mittel"
+        components["Peer-Check"] = (_confidence_rank_value(peer_level), peer_level)
+
+    if isinstance(special_control, dict) and special_control.get("required"):
+        special_level = special_control.get("confidence_cap") or "Niedrig"
+        special_rank = _confidence_rank_value(special_level)
+        if special_rank is not None:
+            components["Spezialkontrolle"] = (special_rank, special_level)
+
+    if not components:
+        result["note"] = "Keine belastbaren Sicherheitskomponenten verfügbar."
+        return result
+
+    min_rank = min(value[0] for value in components.values())
+    final_level = {1: "Niedrig", 2: "Mittel", 3: "Hoch"}[min_rank]
+    limiting = [
+        name for name, value in components.items()
+        if value[0] == min_rank
+    ]
+
+    result.update({
+        "available": True,
+        "level": final_level,
+        "components": {
+            name: display for name, (_, display) in components.items()
+        },
+        "limiting_factor": ", ".join(limiting),
+        "note": (
+            "Die endgültige Bewertungssicherheit entspricht der schwächsten "
+            "relevanten Sicherheitsstufe. Eine spätere Kontrolle kann eine "
+            "frühere Unsicherheit nicht hochstufen."
+        ),
+    })
+    return result
+
+
+def get_zone_thresholds(confidence):
+    if confidence == "Hoch":
+        return {"fair_band": 0.075, "strong_threshold": 0.15}
+    if confidence == "Mittel":
+        return {"fair_band": 0.10, "strong_threshold": 0.20}
+    if confidence == "Niedrig":
+        return {"fair_band": 0.15, "strong_threshold": 0.25}
+    return None
+
+
+def calculate_valuation_zone(current_price, fair_value, valuation_confidence):
+    result = {
+        "available": False,
+        "zone": None,
+        "price_vs_fair_value_pct": None,
+        "fair_lower": None,
+        "fair_upper": None,
+        "strong_undervaluation_limit": None,
+        "strong_overvaluation_limit": None,
+        "note": None,
+    }
+
+    price = safe_float(current_price)
+    fair = safe_float((fair_value or {}).get("fair_value_quote"))
+    confidence = (valuation_confidence or {}).get("level")
+    thresholds = get_zone_thresholds(confidence)
+
+    if price is None or fair is None or price <= 0 or fair <= 0 or thresholds is None:
+        result["note"] = "Bewertungszone derzeit nicht belastbar berechenbar."
+        return result
+
+    fair_band = thresholds["fair_band"]
+    strong = thresholds["strong_threshold"]
+    distance_pct = (price / fair - 1.0) * 100.0
+
+    strong_low = fair * (1.0 - strong)
+    fair_low = fair * (1.0 - fair_band)
+    fair_high = fair * (1.0 + fair_band)
+    strong_high = fair * (1.0 + strong)
+
+    if price <= strong_low:
+        zone = "Stark unterbewertet"
+    elif price < fair_low:
+        zone = "Unterbewertet"
+    elif price <= fair_high:
+        zone = "Fair bewertet"
+    elif price < strong_high:
+        zone = "Überbewertet"
+    else:
+        zone = "Stark überbewertet"
+
+    result.update({
+        "available": True,
+        "zone": zone,
+        "price_vs_fair_value_pct": distance_pct,
+        "fair_lower": fair_low,
+        "fair_upper": fair_high,
+        "strong_undervaluation_limit": strong_low,
+        "strong_overvaluation_limit": strong_high,
+        "note": (
+            "Die Zonenbreite hängt von der Bewertungssicherheit ab. "
+            "Die Bewertungszone ist noch kein Handlungssignal."
+        ),
+    })
+    return result
+
+
+# =========================================================
+# Modul 7 – Signal-Engine V1
+# =========================================================
+
+def get_fundamental_strength(multiple_score):
+    score = safe_float(multiple_score)
+    if score is None:
+        return "Nicht bestimmbar"
+    if score >= 70.0:
+        return "Stark"
+    if score >= 50.0:
+        return "Ausreichend"
+    return "Schwach"
+
+
+def generate_new_buy_signal(valuation_zone, valuation_confidence, multiple_score):
+    zone = (valuation_zone or {}).get("zone")
+    confidence = (valuation_confidence or {}).get("level")
+    fundamental = get_fundamental_strength(multiple_score)
+
+    result = {
+        "available": False,
+        "signal": None,
+        "fundamental_strength": fundamental,
+        "reason": None,
+    }
+
+    if not zone or not confidence:
+        result["reason"] = "Ohne belastbare Bewertungszone kein Neukauf-Signal."
+        return result
+
+    result["available"] = True
+
+    if confidence == "Niedrig":
+        if zone in ["Stark unterbewertet", "Unterbewertet"]:
+            result.update({
+                "signal": "Beobachten",
+                "reason": "Bewertung günstig, Bewertungssicherheit aber niedrig.",
+            })
+        else:
+            result.update({
+                "signal": "Kein Kauf",
+                "reason": "Bewertungssicherheit für einen Neukauf zu niedrig.",
+            })
+        return result
+
+    if zone == "Stark unterbewertet":
+        if fundamental == "Stark":
+            result.update({"signal": "Starker Kauf", "reason": "Deutliche Unterbewertung bei starker fundamentaler Basis."})
+        elif fundamental == "Ausreichend":
+            result.update({"signal": "Kauf", "reason": "Deutliche Unterbewertung bei ausreichender fundamentaler Basis."})
+        else:
+            result.update({"signal": "Beobachten", "reason": "Bewertung attraktiv, fundamentale Basis jedoch schwach."})
+    elif zone == "Unterbewertet":
+        if fundamental in ["Stark", "Ausreichend"]:
+            result.update({"signal": "Kauf", "reason": "Ausreichender Abschlag zum Fair Value."})
+        else:
+            result.update({"signal": "Beobachten", "reason": "Unterbewertung vorhanden, fundamentale Basis jedoch schwach."})
+    elif zone == "Fair bewertet":
+        result.update({"signal": "Abwarten", "reason": "Kein ausreichender Bewertungsabschlag für einen Neukauf."})
+    else:
+        result.update({"signal": "Kein Kauf", "reason": "Kurs liegt oberhalb des angemessenen Bewertungsbereichs."})
+
+    return result
+
+
+def generate_holding_signal(valuation_zone, valuation_confidence, multiple_score):
+    zone = (valuation_zone or {}).get("zone")
+    confidence = (valuation_confidence or {}).get("level")
+    fundamental = get_fundamental_strength(multiple_score)
+
+    result = {
+        "available": False,
+        "signal": None,
+        "fundamental_strength": fundamental,
+        "reason": None,
+    }
+
+    if not zone or not confidence:
+        result["reason"] = "Ohne belastbare Bewertungszone kein Bestands-Signal."
+        return result
+
+    result["available"] = True
+
+    if zone in ["Stark unterbewertet", "Unterbewertet"]:
+        if fundamental in ["Stark", "Ausreichend"] and confidence in ["Hoch", "Mittel"]:
+            result.update({"signal": "Nachkaufen", "reason": "Unterbewertung bei ausreichender fundamentaler Basis und Bewertungssicherheit."})
+        else:
+            result.update({"signal": "Halten", "reason": "Bewertung attraktiv, aber Qualität oder Sicherheit begrenzen einen Nachkauf."})
+    elif zone == "Fair bewertet":
+        if fundamental == "Schwach":
+            result.update({"signal": "Überprüfen", "reason": "Bewertung fair, fundamentale Basis jedoch schwach."})
+        else:
+            result.update({"signal": "Halten", "reason": "Aktie liegt innerhalb des angemessenen Bewertungsbereichs."})
+    elif zone == "Überbewertet":
+        if fundamental == "Schwach":
+            result.update({"signal": "Reduzieren", "reason": "Überbewertung trifft auf schwache fundamentale Basis."})
+        else:
+            result.update({"signal": "Halten / nicht nachkaufen", "reason": "Moderate Überbewertung, aber noch kein zwingender Verkaufsfall."})
+    elif zone == "Stark überbewertet":
+        if fundamental == "Schwach":
+            result.update({"signal": "Verkaufen", "reason": "Deutliche Überbewertung bei schwacher fundamentaler Basis."})
+        else:
+            result.update({"signal": "Reduzieren", "reason": "Aktie liegt deutlich über dem errechneten Fair Value."})
+
+    return result
+
+
+# =========================================================
 # Modul 6 – Fair Value V1
 # =========================================================
 
@@ -4700,8 +5311,9 @@ def calculate_fair_value_v1(
     - Uses the peer-controlled multiple only when the peer check actually
       applied a valid adjustment; otherwise the fundamental multiple remains
       the valuation basis.
-    - Any company with a required special control stays blocked until that
-      special control is implemented and explicitly released in a later step.
+    - A required special control blocks the valuation until it is explicitly
+      implemented and released. A released control never changes the score;
+      it only permits the already-defined valuation chain to continue.
     - GBp/GBP is aligned explicitly with 1 GBP = 100 GBp. Other unexpected
       currency mismatches are blocked instead of silently converted.
     - No confidence rating and no action signal are produced here.
@@ -4739,6 +5351,7 @@ def calculate_fair_value_v1(
     if (
         isinstance(special_control, dict)
         and special_control.get("required")
+        and not special_control.get("released", False)
     ):
         control_name = special_control.get(
             "control_name"
@@ -4896,8 +5509,9 @@ def calculate_fair_value_v1(
         "potential_pct": potential_pct,
         "note": (
             "Fair Value V1 = normalisiertes EPS × verwendetes Multiple. "
-            "Der Wert ist eine reine Bewertungsrechnung. Bewertungssicherheit "
-            "und Kauf-/Verkaufssignal werden bewusst noch nicht abgeleitet."
+            "Der Wert ist eine reine Bewertungsrechnung. Bewertungssicherheit, "
+            "Bewertungszone und Signal werden in separaten nachfolgenden "
+            "Schritten abgeleitet."
         )
     })
 
@@ -4908,7 +5522,7 @@ def calculate_fair_value_v1(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1_ing_primary_priority_v2_midstream_v1_generic_router_v1_auto_v1_reit_v1_reit_eps_note_v1_fair_value_v1_defense_eps_2575_v1"
+CACHE_VERSION = "m6_defense_3b_fair_value_zones_signals_v1_rhm_frankfurt"
 
 @st.cache_data(
     ttl=900,
@@ -5105,6 +5719,12 @@ def load_stock(search_text, cache_version):
         symbol
     )
 
+    special_control = build_defense_special_control(
+        special_control,
+        company_type,
+        symbol
+    )
+
     fair_value = calculate_fair_value_v1(
         eps_normalization,
         fundamental_multiple,
@@ -5112,6 +5732,32 @@ def load_stock(search_text, cache_version):
         special_control,
         price,
         currency_context
+    )
+
+    valuation_confidence = calculate_valuation_confidence(
+        company_type,
+        eps_normalization,
+        peer_check,
+        special_control,
+        fair_value
+    )
+
+    valuation_zone = calculate_valuation_zone(
+        price,
+        fair_value,
+        valuation_confidence
+    )
+
+    new_buy_signal = generate_new_buy_signal(
+        valuation_zone,
+        valuation_confidence,
+        fundamental_multiple.get("score")
+    )
+
+    holding_signal = generate_holding_signal(
+        valuation_zone,
+        valuation_confidence,
+        fundamental_multiple.get("score")
     )
 
     return {
@@ -5178,7 +5824,11 @@ def load_stock(search_text, cache_version):
         "peer_group": peer_group,
         "peer_check": peer_check,
         "special_control": special_control,
-        "fair_value": fair_value
+        "fair_value": fair_value,
+        "valuation_confidence": valuation_confidence,
+        "valuation_zone": valuation_zone,
+        "new_buy_signal": new_buy_signal,
+        "holding_signal": holding_signal
     }
 
 
@@ -7301,7 +7951,7 @@ if selected_symbol:
 
                     st.write(
                         "**Status:** "
-                        f"{special_control['status']}"
+                        f"{special_control.get('router_status', special_control.get('status'))}"
                     )
 
                     planned_checks = special_control[
@@ -7321,9 +7971,10 @@ if selected_symbol:
                             )
 
                     st.info(
-                        special_control[
-                            "note"
-                        ]
+                        special_control.get(
+                            "router_note",
+                            special_control.get("note")
+                        )
                     )
 
                 else:
@@ -7341,10 +7992,10 @@ if selected_symbol:
                     )
 
                 st.caption(
-                    "Schritt 3A ist nur ein Router. "
-                    "Er lädt noch keine Spezialkennzahlen "
-                    "und verändert weder Multiple Score "
-                    "noch Fundamental-/Peer-Multiple."
+                    "Schritt 3A ist ausschließlich der Router. "
+                    "Die eigentliche Spezialprüfung erfolgt – sofern bereits "
+                    "implementiert – getrennt in Schritt 3B und verändert weder "
+                    "Multiple Score noch Fundamental-/Peer-Multiple."
                 )
 
                 st.caption(
@@ -7352,6 +8003,174 @@ if selected_symbol:
                     "nachfolgenden Fair-Value-Schritt, solange sie noch "
                     "nicht vollständig implementiert und freigegeben sind."
                 )
+
+                if special_control.get(
+                    "control_key"
+                ) == "defense_order_visibility":
+
+                    st.divider()
+
+                    st.subheader(
+                        "🛡️ Modul 6 – Schritt 3B: "
+                        "Defense-Auftrags- & Visibilitätskontrolle"
+                    )
+
+                    if special_control.get("implemented"):
+                        snapshot = special_control.get("snapshot", {})
+                        checks = special_control.get("checks", {})
+
+                        st.write(
+                            "**Datenstand:** "
+                            f"{text_or_dash(snapshot.get('as_of_date'))} "
+                            f"(veröffentlicht {text_or_dash(snapshot.get('published_date'))})"
+                        )
+
+                        backlog = checks.get("backlog", {})
+                        coverage = checks.get("revenue_coverage", {})
+                        fixed_orders = checks.get("fixed_orders", {})
+                        book_to_bill = checks.get("book_to_bill", {})
+                        near_term = checks.get("near_term_fixed_coverage", {})
+                        margin_trend = checks.get("margin_trend", {})
+
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            st.metric(
+                                "Backlog",
+                                format_money(
+                                    backlog.get("value"),
+                                    financial_currency
+                                )
+                            )
+
+                            if backlog.get("growth_pct") is not None:
+                                st.metric(
+                                    "Backlog-Wachstum",
+                                    f"{backlog['growth_pct']:+.1f} %"
+                                )
+
+                            st.write(
+                                "**Backlog-Status:** "
+                                f"{backlog.get('status', '–')}"
+                            )
+
+                            if coverage.get("value") is not None:
+                                st.metric(
+                                    "Revenue Coverage",
+                                    f"{coverage['value']:.2f}×"
+                                )
+
+                            st.write(
+                                "**Coverage-Status:** "
+                                f"{coverage.get('status', '–')}"
+                            )
+
+                            st.metric(
+                                "Fester Auftragsbestand",
+                                format_money(
+                                    fixed_orders.get("value"),
+                                    financial_currency
+                                )
+                            )
+
+                            if fixed_orders.get("share_pct") is not None:
+                                st.write(
+                                    "**Anteil feste Aufträge am Backlog:** "
+                                    f"{fixed_orders['share_pct']:.1f} %"
+                                )
+
+                            if fixed_orders.get("share_change_pp") is not None:
+                                st.write(
+                                    "**Veränderung ggü. Vorjahr:** "
+                                    f"{fixed_orders['share_change_pp']:+.1f} Prozentpunkte"
+                                )
+
+                            st.write(
+                                "**Fixed-Orders-Status:** "
+                                f"{fixed_orders.get('status', '–')}"
+                            )
+
+                        with col2:
+                            btb_value = book_to_bill.get("value")
+                            if btb_value is not None:
+                                btb_prefix = ">" if book_to_bill.get("is_lower_bound") else ""
+                                st.metric(
+                                    "Book-to-Bill",
+                                    f"{btb_prefix}{btb_value:.1f}×"
+                                )
+
+                            st.write(
+                                "**Book-to-Bill-Status:** "
+                                f"{book_to_bill.get('status', '–')}"
+                            )
+
+                            if near_term.get("value_pct") is not None:
+                                st.metric(
+                                    "Kurzfristig feste Abdeckung",
+                                    f"{near_term['value_pct']:.0f} %"
+                                )
+
+                            st.write(
+                                "**Horizont:** "
+                                f"{text_or_dash(near_term.get('horizon'))}"
+                            )
+
+                            if margin_trend.get("current_margin") is not None:
+                                st.metric(
+                                    "Operative Marge H1",
+                                    f"{margin_trend['current_margin']:.1f} %"
+                                )
+
+                            if margin_trend.get("margin_change_pp") is not None:
+                                st.write(
+                                    "**Margenveränderung ggü. H1 Vorjahr:** "
+                                    f"{margin_trend['margin_change_pp']:+.1f} Prozentpunkte"
+                                )
+
+                            if margin_trend.get("latest_quarter_margin") is not None:
+                                st.write(
+                                    "**Q2-Marge:** "
+                                    f"{margin_trend['latest_quarter_margin']:.1f} %"
+                                )
+
+                            if margin_trend.get("guidance_margin") is not None:
+                                st.write(
+                                    "**Guidance Jahresmarge:** "
+                                    f"ca. {margin_trend['guidance_margin']:.1f} %"
+                                )
+
+                            st.write(
+                                "**Margentrend:** "
+                                f"{margin_trend.get('overall_status', '–')}"
+                            )
+
+                        st.info(
+                            snapshot.get("source_note")
+                        )
+
+                        if special_control.get("released"):
+                            st.success(
+                                "Defense-Visibilität: "
+                                f"**{special_control.get('overall_status', 'Freigegeben')}** – "
+                                "Spezialkontrolle bestanden. Fair Value freigegeben."
+                            )
+                        else:
+                            st.warning(
+                                "Defense-Spezialkontrolle nicht freigegeben. "
+                                "Der Fair Value bleibt gesperrt."
+                            )
+
+                    else:
+                        st.info(
+                            special_control.get("note")
+                        )
+
+                    st.caption(
+                        "Backlog und feste Aufträge werden bewusst getrennt. "
+                        "Book-to-Bill verändert den 100-Punkte-Multiple-Score nicht. "
+                        "Verifizierte Spezialdaten werden nach ihrem Gültigkeitsdatum "
+                        "nicht stillschweigend weiterverwendet."
+                    )
 
                 st.divider()
 
@@ -7422,7 +8241,7 @@ if selected_symbol:
                         "potential_pct"
                     ] is not None:
                         st.metric(
-                            "Abstand zum Fair Value",
+                            "Fair-Value-Potenzial",
                             f"{fair_value['potential_pct']:+.1f} %"
                         )
 
@@ -7440,11 +8259,154 @@ if selected_symbol:
                     fair_value["note"]
                 )
 
-                st.caption(
-                    "Noch keine Bewertungssicherheit und kein "
-                    "Kauf-/Verkaufssignal. Diese beiden Ebenen werden "
-                    "bewusst separat aufgebaut."
+                valuation_confidence = data.get(
+                    "valuation_confidence",
+                    {}
                 )
+
+                if valuation_confidence.get("available"):
+                    st.write(
+                        "**Bewertungssicherheit:** "
+                        f"{valuation_confidence.get('level')}"
+                    )
+
+                    if valuation_confidence.get("limiting_factor"):
+                        st.write(
+                            "**Begrenzender Faktor:** "
+                            f"{valuation_confidence['limiting_factor']}"
+                        )
+
+                    eps_confidence_note = data.get(
+                        "eps_normalization", {}
+                    ).get("confidence_note")
+
+                    if eps_confidence_note:
+                        st.warning(eps_confidence_note)
+
+                    st.caption(
+                        valuation_confidence.get("note")
+                    )
+
+                valuation_zone = data.get(
+                    "valuation_zone",
+                    {}
+                )
+
+                st.divider()
+
+                st.subheader(
+                    "🎯 Modul 6 – Bewertungszonen V1"
+                )
+
+                if valuation_zone.get("available"):
+                    st.metric(
+                        "Aktuelle Bewertungszone",
+                        valuation_zone.get("zone")
+                    )
+
+                    if valuation_zone.get("price_vs_fair_value_pct") is not None:
+                        st.write(
+                            "**Kursabstand zum Fair Value:** "
+                            f"{valuation_zone['price_vs_fair_value_pct']:+.1f} %"
+                        )
+
+                    st.write(
+                        "**Stark unterbewertet:** ≤ "
+                        f"{valuation_zone['strong_undervaluation_limit']:.2f} "
+                        f"{fair_value.get('quote_currency', currency)}"
+                    )
+
+                    st.write(
+                        "**Unterbewertet:** "
+                        f"{valuation_zone['strong_undervaluation_limit']:.2f} – "
+                        f"{valuation_zone['fair_lower']:.2f} "
+                        f"{fair_value.get('quote_currency', currency)}"
+                    )
+
+                    st.write(
+                        "**Fair bewertet:** "
+                        f"{valuation_zone['fair_lower']:.2f} – "
+                        f"{valuation_zone['fair_upper']:.2f} "
+                        f"{fair_value.get('quote_currency', currency)}"
+                    )
+
+                    st.write(
+                        "**Überbewertet:** "
+                        f"{valuation_zone['fair_upper']:.2f} – "
+                        f"{valuation_zone['strong_overvaluation_limit']:.2f} "
+                        f"{fair_value.get('quote_currency', currency)}"
+                    )
+
+                    st.write(
+                        "**Stark überbewertet:** ≥ "
+                        f"{valuation_zone['strong_overvaluation_limit']:.2f} "
+                        f"{fair_value.get('quote_currency', currency)}"
+                    )
+
+                    st.caption(
+                        valuation_zone.get("note")
+                    )
+
+                else:
+                    st.info(
+                        valuation_zone.get(
+                            "note",
+                            "Bewertungszonen noch nicht verfügbar."
+                        )
+                    )
+
+                st.divider()
+
+                st.subheader(
+                    "🚦 Modul 7 – Signal-Engine V1"
+                )
+
+                new_buy_signal = data.get(
+                    "new_buy_signal",
+                    {}
+                )
+                holding_signal = data.get(
+                    "holding_signal",
+                    {}
+                )
+
+                if new_buy_signal.get("available"):
+                    st.write(
+                        "**Fundamentale Basis:** "
+                        f"{text_or_dash(new_buy_signal.get('fundamental_strength'))} "
+                        f"({text_or_dash(data.get('fundamental_multiple', {}).get('score'))}/100)"
+                    )
+
+                    st.metric(
+                        "🛒 Neukauf-Signal",
+                        new_buy_signal.get("signal")
+                    )
+                    st.caption(
+                        new_buy_signal.get("reason")
+                    )
+
+                    st.metric(
+                        "📦 Falls bereits im Depot",
+                        holding_signal.get("signal")
+                    )
+                    st.caption(
+                        holding_signal.get("reason")
+                    )
+
+                    st.info(
+                        "Das Bestands-Signal gilt nur, wenn die Aktie tatsächlich "
+                        "im Depot vorhanden ist. Depotgewicht, Einstandskurs, "
+                        "Klumpenrisiko und persönliches Risikobudget werden hier "
+                        "noch nicht berücksichtigt."
+                    )
+
+                else:
+                    st.info(
+                        new_buy_signal.get(
+                            "reason",
+                            "Noch kein belastbares Handlungssignal."
+                        )
+                    )
 
                 st.divider()
 
