@@ -4674,7 +4674,7 @@ def get_special_control(company_type, symbol):
                 "Produktions-/Kostenvisibilität",
                 "Rohstoffpreis-/Preiszyklus-Normalisierung"
             ],
-            "status": "Router aktiv – V2.1 Finanzzyklus, Betrieb & Preiszyklus-Schutz",
+            "status": "Router aktiv – V2.2 Finanzzyklus, Betrieb & Preiszyklus-Hard-Gate",
             "note": (
                 "V2.1 prüft Mehrjahres-Gewinnbasis, FCF-Stabilität, Bilanz und "
                 "verifizierte Produktions-/Kostenkennzahlen. Für eine belastbare "
@@ -5899,6 +5899,25 @@ def calculate_fair_value_v1(
         "quote_currency"
     )
 
+    # Mining V2.2 hard safety gate. This is intentionally independent of the
+    # special-control release flag so that stale cache/state can never release
+    # a mining Fair Value before commodity-price / margin-cycle normalization.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "mining_cycle_quality"
+    ):
+        commodity_cycle = (special_control.get("checks") or {}).get(
+            "commodity_price_cycle", {}
+        )
+        if not commodity_cycle.get("available", False):
+            result["note"] = (
+                "Fair Value V1 gesperrt: Bei Bergbauunternehmen fehlt die belastbare "
+                "Rohstoffpreis-/Margenzyklus-Normalisierung. Produktions- und AISC-"
+                "Daten allein reichen nicht für eine Fair-Value-Freigabe. Die "
+                "Bergbau-Hard-Gate-Sperre ist aktiv."
+            )
+            return result
+
     if (
         isinstance(special_control, dict)
         and special_control.get("required")
@@ -6219,7 +6238,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_operating_control_v2_20260906"
+CACHE_VERSION = "m6_mining_pricecycle_hardguard_v22_20260906"
 
 @st.cache_data(
     ttl=900,
@@ -8981,6 +9000,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
+                    st.caption("Bergbau-Schutzmodell V2.2 – Preiszyklus-Hard-Gate aktiv")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
