@@ -1675,6 +1675,24 @@ def find_stock(search_text):
                 "Aktiengesellschaft in München"
             ),
             "exchange": "GER"
+        },
+        "ING": {
+            "symbol": "INGA.AS",
+            "quoteType": "EQUITY",
+            "longname": "ING Groep N.V.",
+            "exchange": "AMS"
+        },
+        "ING GROEP": {
+            "symbol": "INGA.AS",
+            "quoteType": "EQUITY",
+            "longname": "ING Groep N.V.",
+            "exchange": "AMS"
+        },
+        "ING GROEP N.V.": {
+            "symbol": "INGA.AS",
+            "quoteType": "EQUITY",
+            "longname": "ING Groep N.V.",
+            "exchange": "AMS"
         }
     }
 
@@ -1895,6 +1913,19 @@ def search_stock_suggestions(search_text):
             "longname": "Microsoft Corporation",
             "exchange": "NMS",
             "exchDisp": "NASDAQ",
+            "_preferred": True,
+        },
+        {
+            "aliases": [
+                "ING",
+                "ING GROEP",
+                "ING GROEP N.V.",
+            ],
+            "symbol": "INGA.AS",
+            "quoteType": "EQUITY",
+            "longname": "ING Groep N.V.",
+            "exchange": "AMS",
+            "exchDisp": "Amsterdam",
             "_preferred": True,
         },
     ]
@@ -3947,7 +3978,7 @@ def get_special_control(company_type, symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1"
+CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1_ing_primary_v1"
 
 @st.cache_data(
     ttl=900,
