@@ -133,9 +133,9 @@ def build_currency_context(quote_currency):
                 "Britische Pence-Notierung erkannt: Der Aktienkurs wird "
                 "in GBp (Pence) geführt, während EPS und die fundamentalen "
                 "Finanzkennzahlen in GBP (Pfund Sterling) beschriftet werden. "
-                "Die Rohwerte werden in den aktuellen Modulen nicht stillschweigend "
-                "umgerechnet. Für einen späteren Fair-Value/Kurs-Vergleich muss "
-                "die Einheit ausdrücklich angeglichen werden (1 GBP = 100 GBp)."
+                "Die Rohwerte werden in den Datenmodulen nicht stillschweigend "
+                "umgerechnet. Für den Fair-Value/Kurs-Vergleich wird die Einheit "
+                "ausdrücklich angeglichen (1 GBP = 100 GBp)."
             )
         }
 
@@ -4047,8 +4047,9 @@ def calculate_fundamental_multiple(
         "note": (
             "Das Fundamental-Multiple wird linear innerhalb "
             "des unternehmenstypischen Korridors aus dem "
-            "Multiple Score abgeleitet. Noch kein Peer-Check "
-            "und noch kein Fair Value."
+            "Multiple Score abgeleitet. Der Peer-Check bleibt "
+            "ein separater Realitätscheck; der Fair Value wird "
+            "erst im nachfolgenden Fair-Value-Schritt berechnet."
         )
     }
 
@@ -4673,10 +4674,234 @@ def get_special_control(company_type, symbol):
 
 
 # =========================================================
+# Modul 6 – Fair Value V1
+# =========================================================
+
+def calculate_fair_value_v1(
+    eps_normalization,
+    fundamental_multiple,
+    peer_check,
+    special_control,
+    current_price,
+    currency_context
+):
+    """
+    Conservative Fair Value V1 for already-supported normal company types.
+
+    Rules:
+    - Requires a positive normalized EPS and a valid fundamental multiple.
+    - Uses the peer-controlled multiple only when the peer check actually
+      applied a valid adjustment; otherwise the fundamental multiple remains
+      the valuation basis.
+    - Any company with a required special control stays blocked until that
+      special control is implemented and explicitly released in a later step.
+    - GBp/GBP is aligned explicitly with 1 GBP = 100 GBp. Other unexpected
+      currency mismatches are blocked instead of silently converted.
+    - No confidence rating and no action signal are produced here.
+    """
+
+    result = {
+        "available": False,
+        "normalized_eps": None,
+        "used_multiple": None,
+        "multiple_source": None,
+        "fair_value_financial": None,
+        "fair_value_quote": None,
+        "financial_currency": None,
+        "quote_currency": None,
+        "current_price": safe_float(current_price),
+        "potential_pct": None,
+        "unit_conversion_applied": False,
+        "unit_note": None,
+        "note": None
+    }
+
+    context = (
+        currency_context
+        if isinstance(currency_context, dict)
+        else {}
+    )
+
+    result["financial_currency"] = context.get(
+        "financial_currency"
+    )
+    result["quote_currency"] = context.get(
+        "quote_currency"
+    )
+
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("required")
+    ):
+        control_name = special_control.get(
+            "control_name"
+        ) or "Spezialkontrolle"
+
+        result["note"] = (
+            "Fair Value V1 gesperrt: Für diesen Unternehmenstyp ist die "
+            f"Spezialkontrolle „{control_name}“ erforderlich. Solange diese "
+            "Kontrolle nicht fachlich vollständig implementiert und "
+            "freigegeben ist, wird kein Fair Value erzeugt."
+        )
+        return result
+
+    if not isinstance(fundamental_multiple, dict):
+        result["note"] = (
+            "Fair Value V1 nicht berechenbar: Kein belastbares "
+            "Fundamental-Multiple verfügbar."
+        )
+        return result
+
+    if not fundamental_multiple.get("available"):
+        result["note"] = (
+            "Fair Value V1 nicht berechenbar: Das Fundamental-Multiple "
+            "ist noch nicht belastbar verfügbar. Fehlende Komponenten "
+            "werden nicht ergänzt oder hochgerechnet."
+        )
+        return result
+
+    normalized_eps = safe_float(
+        (eps_normalization or {}).get(
+            "normalized_eps"
+        )
+    )
+
+    if normalized_eps is None or normalized_eps <= 0:
+        result["note"] = (
+            "Fair Value V1 gesperrt: Es liegt keine positive und "
+            "verwertbare normalisierte Gewinnbasis vor."
+        )
+        return result
+
+    base_multiple = safe_float(
+        fundamental_multiple.get("multiple")
+    )
+
+    if base_multiple is None or base_multiple <= 0:
+        result["note"] = (
+            "Fair Value V1 nicht berechenbar: Das Fundamental-Multiple "
+            "ist nicht positiv bzw. nicht plausibel verfügbar."
+        )
+        return result
+
+    used_multiple = base_multiple
+    multiple_source = "Fundamental-Multiple"
+
+    if isinstance(peer_check, dict):
+        peer_multiple = safe_float(
+            peer_check.get("adjusted_multiple")
+        )
+
+        if (
+            peer_check.get("method_supported")
+            and peer_check.get("applied")
+            and peer_multiple is not None
+            and peer_multiple > 0
+        ):
+            used_multiple = peer_multiple
+            multiple_source = "Peer-kontrolliertes Multiple"
+
+    fair_value_financial = (
+        normalized_eps * used_multiple
+    )
+
+    if fair_value_financial <= 0:
+        result["note"] = (
+            "Fair Value V1 nicht berechenbar: Die resultierende "
+            "Bewertung ist nicht positiv."
+        )
+        return result
+
+    quote_currency = str(
+        context.get("quote_currency") or ""
+    ).strip()
+    financial_currency = str(
+        context.get("financial_currency") or ""
+    ).strip()
+
+    if not quote_currency or not financial_currency:
+        result["note"] = (
+            "Fair Value V1 gesperrt: Die Währungseinheiten sind nicht "
+            "ausreichend eindeutig verfügbar. Es wird keine Einheit geraten."
+        )
+        return result
+
+    if context.get("mixed_units"):
+        factor = safe_float(
+            context.get("financial_to_quote_factor")
+        )
+
+        if not (
+            financial_currency == "GBP"
+            and quote_currency == "GBp"
+            and factor == 100.0
+        ):
+            result["note"] = (
+                "Fair Value V1 gesperrt: Eine gemischte Währungseinheit "
+                "wurde erkannt, aber die Umrechnung ist nicht eindeutig "
+                "als GBP → GBp hinterlegt."
+            )
+            return result
+
+        fair_value_quote = (
+            fair_value_financial * factor
+        )
+
+        result["unit_conversion_applied"] = True
+        result["unit_note"] = (
+            "Einheitenangleichung ausdrücklich angewendet: Der Fair Value "
+            "wird zunächst aus EPS in GBP berechnet und anschließend mit "
+            "1 GBP = 100 GBp in die Kurs-Einheit GBp umgerechnet."
+        )
+
+    else:
+        if quote_currency != financial_currency:
+            result["note"] = (
+                "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen "
+                "voneinander ab und es ist keine ausdrücklich hinterlegte "
+                "Umrechnung verfügbar."
+            )
+            return result
+
+        fair_value_quote = fair_value_financial
+
+    current_price_value = safe_float(
+        current_price
+    )
+
+    potential_pct = None
+    if (
+        current_price_value is not None
+        and current_price_value > 0
+    ):
+        potential_pct = (
+            fair_value_quote / current_price_value
+            - 1.0
+        ) * 100.0
+
+    result.update({
+        "available": True,
+        "normalized_eps": normalized_eps,
+        "used_multiple": used_multiple,
+        "multiple_source": multiple_source,
+        "fair_value_financial": fair_value_financial,
+        "fair_value_quote": fair_value_quote,
+        "potential_pct": potential_pct,
+        "note": (
+            "Fair Value V1 = normalisiertes EPS × verwendetes Multiple. "
+            "Der Wert ist eine reine Bewertungsrechnung. Bewertungssicherheit "
+            "und Kauf-/Verkaufssignal werden bewusst noch nicht abgeleitet."
+        )
+    })
+
+    return result
+
+
+# =========================================================
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1_ing_primary_priority_v2_midstream_v1_generic_router_v1_auto_v1_reit_v1_reit_eps_note_v1"
+CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1_ing_primary_priority_v2_midstream_v1_generic_router_v1_auto_v1_reit_v1_reit_eps_note_v1_fair_value_v1"
 
 @st.cache_data(
     ttl=900,
@@ -4873,6 +5098,15 @@ def load_stock(search_text, cache_version):
         symbol
     )
 
+    fair_value = calculate_fair_value_v1(
+        eps_normalization,
+        fundamental_multiple,
+        peer_check,
+        special_control,
+        price,
+        currency_context
+    )
+
     return {
         "name": name,
         "symbol": symbol,
@@ -4936,7 +5170,8 @@ def load_stock(search_text, cache_version):
         "fundamental_multiple": fundamental_multiple,
         "peer_group": peer_group,
         "peer_check": peer_check,
-        "special_control": special_control
+        "special_control": special_control,
+        "fair_value": fair_value
     }
 
 
@@ -6848,8 +7083,8 @@ if selected_symbol:
 
                 st.caption(
                     "Schritt 1 berechnet ausschließlich das "
-                    "Fundamental-Multiple. Peer-Check, Fair Value "
-                    "und Handlungssignal folgen erst später."
+                    "Fundamental-Multiple. Peer-Check und Fair Value "
+                    "werden in getrennten nachfolgenden Schritten geprüft."
                 )
 
                 st.divider()
@@ -7033,8 +7268,8 @@ if selected_symbol:
                 )
 
                 st.caption(
-                    "Noch kein Fair Value und noch kein "
-                    "Kauf-/Verkaufssignal."
+                    "Der Peer-Check erzeugt selbst noch keinen Fair Value. "
+                    "Die eigentliche Fair-Value-Rechnung folgt separat."
                 )
 
                 st.divider()
@@ -7106,8 +7341,102 @@ if selected_symbol:
                 )
 
                 st.caption(
-                    "Noch kein Fair Value und noch kein "
-                    "Kauf-/Verkaufssignal."
+                    "Erforderliche Spezialkontrollen sperren den "
+                    "nachfolgenden Fair-Value-Schritt, solange sie noch "
+                    "nicht vollständig implementiert und freigegeben sind."
+                )
+
+                st.divider()
+
+                st.subheader(
+                    "💰 Modul 6 – Fair Value V1"
+                )
+
+                fair_value = data[
+                    "fair_value"
+                ]
+
+                if fair_value["available"]:
+
+                    st.write(
+                        "**Bewertungsformel:** "
+                        "Normalisiertes EPS × verwendetes Multiple"
+                    )
+
+                    st.write(
+                        "**Normalisiertes EPS:** "
+                        f"{format_eps(
+                            fair_value['normalized_eps'],
+                            fair_value['financial_currency']
+                        )}"
+                    )
+
+                    st.write(
+                        "**Verwendetes Multiple:** "
+                        f"{fair_value['used_multiple']:.2f}×"
+                    )
+
+                    st.write(
+                        "**Multiple-Quelle:** "
+                        f"{fair_value['multiple_source']}"
+                    )
+
+                    if fair_value.get(
+                        "unit_conversion_applied"
+                    ):
+                        st.write(
+                            "**Fair Value vor Einheitenangleichung:** "
+                            f"{fair_value['fair_value_financial']:.2f} "
+                            f"{fair_value['financial_currency']}"
+                        )
+
+                        st.info(
+                            fair_value["unit_note"]
+                        )
+
+                    st.metric(
+                        "Fair Value V1",
+                        (
+                            f"{fair_value['fair_value_quote']:.2f} "
+                            f"{fair_value['quote_currency']}"
+                        )
+                    )
+
+                    if fair_value[
+                        "current_price"
+                    ] is not None:
+                        st.write(
+                            "**Aktueller Kurs:** "
+                            f"{fair_value['current_price']:.2f} "
+                            f"{fair_value['quote_currency']}"
+                        )
+
+                    if fair_value[
+                        "potential_pct"
+                    ] is not None:
+                        st.metric(
+                            "Abstand zum Fair Value",
+                            f"{fair_value['potential_pct']:+.1f} %"
+                        )
+
+                    st.success(
+                        "Fair Value V1 wurde aus der bereits geprüften "
+                        "Gewinnbasis und dem verwendeten Multiple berechnet."
+                    )
+
+                else:
+                    st.info(
+                        "Fair Value V1 noch nicht berechenbar."
+                    )
+
+                st.caption(
+                    fair_value["note"]
+                )
+
+                st.caption(
+                    "Noch keine Bewertungssicherheit und kein "
+                    "Kauf-/Verkaufssignal. Diese beiden Ebenen werden "
+                    "bewusst separat aufgebaut."
                 )
 
                 st.divider()
