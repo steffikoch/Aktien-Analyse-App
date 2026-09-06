@@ -1815,6 +1815,226 @@ def find_stock(search_text):
 
 
 # =========================================================
+# Aktiensuche – Vorschläge / Autocomplete
+# =========================================================
+
+@st.cache_data(
+    ttl=900,
+    show_spinner=False
+)
+def search_stock_suggestions(search_text):
+    """
+    Lightweight search for the selection window.
+
+    Only Yahoo search results are loaded here. Full company/financial data
+    are requested only after the user explicitly selects a stock.
+    """
+    query = str(search_text or "").strip()
+
+    if len(query) < 2:
+        return []
+
+    query_upper = query.upper()
+    normalized_query = " ".join(query_upper.split())
+
+    suggestions = []
+
+    # Known main listings are injected as suggestions when the typed text
+    # already clearly points toward the company. This preserves our tested
+    # primary-listing routing without auto-loading the analysis.
+    preferred_aliases = [
+        {
+            "aliases": ["AXA", "AXA SA"],
+            "symbol": "CS.PA",
+            "quoteType": "EQUITY",
+            "longname": "AXA SA",
+            "exchange": "PAR",
+            "exchDisp": "Paris",
+            "_preferred": True,
+        },
+        {
+            "aliases": [
+                "MUNICH RE",
+                "MUNICHRE",
+                "MÜNCHENER RÜCK",
+                "MUENCHENER RUECK",
+                "MÜNCHENER RÜCKVERSICHERUNG",
+                "MUENCHENER RUECKVERSICHERUNG",
+            ],
+            "symbol": "MUV2.DE",
+            "quoteType": "EQUITY",
+            "longname": (
+                "Münchener Rückversicherungs-Gesellschaft "
+                "Aktiengesellschaft in München"
+            ),
+            "exchange": "GER",
+            "exchDisp": "XETRA",
+            "_preferred": True,
+        },
+        {
+            "aliases": [
+                "TSMC",
+                "TAIWAN SEMICONDUCTOR",
+                "TAIWAN SEMICONDUCTOR MANUFACTURING",
+                "TAIWAN SEMICONDUCTOR MANUFACTURING COMPANY",
+            ],
+            "symbol": "2330.TW",
+            "quoteType": "EQUITY",
+            "longname": "Taiwan Semiconductor Manufacturing Company Limited",
+            "exchange": "TAI",
+            "exchDisp": "Taiwan",
+            "_preferred": True,
+        },
+    ]
+
+    for preferred in preferred_aliases:
+        matches_alias = any(
+            alias.startswith(normalized_query)
+            or normalized_query.startswith(alias)
+            for alias in preferred["aliases"]
+        )
+
+        if matches_alias:
+            suggestions.append(
+                {
+                    key: value
+                    for key, value in preferred.items()
+                    if key != "aliases"
+                }
+            )
+
+    try:
+        search = yf.Search(
+            query,
+            max_results=15,
+            news_count=0
+        )
+        quotes = search.quotes or []
+    except Exception:
+        quotes = []
+
+    equities = [
+        item for item in quotes
+        if str(item.get("quoteType", "")).upper() == "EQUITY"
+    ]
+
+    for item in equities:
+        row = dict(item)
+        row["_preferred"] = False
+        suggestions.append(row)
+
+    preferred_exchange_order = {
+        "NMS": 100,
+        "NGM": 95,
+        "NCM": 90,
+        "NYQ": 100,
+        "ASE": 85,
+        "GER": 90,
+        "FRA": 85,
+        "LSE": 90,
+        "AMS": 90,
+        "PAR": 90,
+        "MIL": 90,
+        "STO": 90,
+        "CPH": 90,
+        "OSL": 90,
+        "HEL": 90,
+        "SWX": 90,
+        "TAI": 100,
+        "HKG": 95,
+        "JPX": 95,
+        "TOR": 95,
+        "ASX": 95,
+        "SAO": 40,
+    }
+
+    secondary_suffixes = [
+        ".F", ".BE", ".MU", ".DU", ".HM", ".HA", ".SG",
+        ".VI", ".MX", ".SA"
+    ]
+
+    def suggestion_score(item):
+        symbol = str(item.get("symbol", "")).upper()
+        exchange = str(item.get("exchange", "")).upper()
+        name = str(
+            item.get("longname")
+            or item.get("shortname")
+            or ""
+        ).upper()
+
+        score = preferred_exchange_order.get(exchange, 50)
+
+        if item.get("_preferred"):
+            score += 1000
+
+        if symbol == query_upper:
+            score += 500
+        elif symbol.startswith(query_upper):
+            score += 80
+
+        if name.startswith(query_upper):
+            score += 100
+        elif normalized_query and normalized_query in name:
+            score += 60
+
+        query_words = [
+            word for word in normalized_query.split()
+            if len(word) >= 2
+        ]
+        score += sum(
+            12 for word in query_words
+            if word in name
+        )
+
+        if any(
+            symbol.endswith(suffix)
+            for suffix in secondary_suffixes
+        ):
+            score -= 25
+
+        return score
+
+    # Highest-quality result wins for duplicate symbols.
+    by_symbol = {}
+    for item in suggestions:
+        symbol = str(item.get("symbol", "")).upper().strip()
+        if not symbol:
+            continue
+
+        if (
+            symbol not in by_symbol
+            or suggestion_score(item) > suggestion_score(by_symbol[symbol])
+        ):
+            by_symbol[symbol] = item
+
+    ranked = sorted(
+        by_symbol.values(),
+        key=suggestion_score,
+        reverse=True
+    )
+
+    clean_results = []
+    for item in ranked[:8]:
+        clean_results.append({
+            "symbol": str(item.get("symbol", "")).upper(),
+            "name": (
+                item.get("longname")
+                or item.get("shortname")
+                or item.get("symbol")
+                or "Unbekannt"
+            ),
+            "exchange": (
+                item.get("exchDisp")
+                or item.get("exchange")
+                or "–"
+            ),
+            "currency": item.get("currency"),
+        })
+
+    return clean_results
+
+
+# =========================================================
 # Historische Daten
 # =========================================================
 
@@ -3421,7 +3641,7 @@ def get_special_control(company_type, symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1"
+CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_v1"
 
 @st.cache_data(
     ttl=900,
@@ -3732,22 +3952,72 @@ def historical_table(historical, currency):
 search_text = st.text_input(
     "Aktie suchen",
     placeholder=(
-        "z. B. Microsoft, MSFT, Volkswagen, "
-        "Allianz oder ALB"
+        "Ab 2 Zeichen suchen, z. B. Mi, AX, Rh, TSMC oder MSFT"
     )
 ).strip()
 
+selected_symbol = None
 
 if search_text:
+    if len(search_text) < 2:
+        st.caption(
+            "Bitte mindestens 2 Zeichen eingeben. "
+            "Danach öffnet sich automatisch die Aktienauswahl."
+        )
+    else:
+        with st.spinner("Passende Aktien werden gesucht..."):
+            suggestions = search_stock_suggestions(
+                search_text
+            )
+
+        if suggestions:
+            suggestion_map = {
+                item["symbol"]: item
+                for item in suggestions
+            }
+
+            def suggestion_label(symbol):
+                item = suggestion_map[symbol]
+                parts = [
+                    str(item["name"]),
+                    str(item["symbol"]),
+                    str(item["exchange"]),
+                ]
+
+                if item.get("currency"):
+                    parts.append(str(item["currency"]))
+
+                return " · ".join(parts)
+
+            selected_symbol = st.selectbox(
+                "Treffer auswählen",
+                options=list(suggestion_map.keys()),
+                index=None,
+                placeholder="Aktie auswählen …",
+                format_func=suggestion_label
+            )
+
+            st.caption(
+                "Die vollständigen Finanzdaten werden erst nach deiner "
+                "Auswahl geladen. So wird kein erster Suchtreffer "
+                "automatisch als richtige Aktie angenommen."
+            )
+        else:
+            st.warning(
+                "Keine passende Aktie in der automatischen Suche gefunden."
+            )
+
+
+if selected_symbol:
 
     with st.spinner(
-        "Aktie wird gesucht und Daten werden geladen..."
+        "Finanzdaten werden geladen und Analyse wird berechnet..."
     ):
 
         try:
 
             data = load_stock(
-                search_text,
+                selected_symbol,
                 CACHE_VERSION
             )
 
@@ -3787,7 +4057,7 @@ if search_text:
                     st.info(
                         f"„{search_text}“ → "
                         f"{data['symbol']} "
-                        f"automatisch erkannt"
+                        f"aus Auswahl übernommen"
                     )
 
                 col1, col2 = st.columns(2)
