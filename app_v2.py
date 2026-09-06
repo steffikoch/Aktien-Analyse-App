@@ -2449,11 +2449,18 @@ def normalize_eps(
             earnings_growth
         )
 
+        classification_strong_growth = (
+            "defense / stark wachsend" in type_name
+        )
+
         strong_growth = (
-            rev_growth is not None
-            and earn_growth is not None
-            and rev_growth >= 0.15
-            and earn_growth >= 0.15
+            classification_strong_growth
+            or (
+                rev_growth is not None
+                and earn_growth is not None
+                and rev_growth >= 0.15
+                and earn_growth >= 0.15
+            )
         )
 
         normal_growth = (
@@ -4901,7 +4908,7 @@ def calculate_fair_value_v1(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1_ing_primary_priority_v2_midstream_v1_generic_router_v1_auto_v1_reit_v1_reit_eps_note_v1_fair_value_v1"
+CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1_ing_primary_priority_v2_midstream_v1_generic_router_v1_auto_v1_reit_v1_reit_eps_note_v1_fair_value_v1_defense_eps_2575_v1"
 
 @st.cache_data(
     ttl=900,
