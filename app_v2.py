@@ -4672,16 +4672,17 @@ def get_special_control(company_type, symbol):
                 "FCF-Stabilität",
                 "Bilanzpuffer",
                 "Produktions-/Kostenvisibilität",
-                "Rohstoffpreis-/Preiszyklus-Normalisierung"
+                "Rohstoffpreis-/Preiszyklus-Normalisierung",
+                "Überleitung Preiszyklus → normalisierte Ertragskraft"
             ],
-            "status": "Router aktiv – V2.2 Finanzzyklus, Betrieb & Preiszyklus-Hard-Gate",
+            "status": "Router aktiv – V2.3 Preiszyklus-Normalisierung",
             "note": (
-                "V2.1 prüft Mehrjahres-Gewinnbasis, FCF-Stabilität, Bilanz und "
-                "verifizierte Produktions-/Kostenkennzahlen. Für eine belastbare "
-                "Bergbau-Bewertung reicht das allein jedoch nicht: Der zugrunde "
-                "liegende Rohstoffpreis- und Margenzyklus muss zusätzlich normalisiert "
-                "werden. Bis diese Preiszyklus-Logik implementiert ist, bleibt der "
-                "Fair Value gesperrt."
+                "V2.3 prüft Mehrjahres-Gewinnbasis, FCF-Stabilität, Bilanz, "
+                "verifizierte Produktions-/Kostenkennzahlen und einen dynamisch "
+                "normalisierten Rohstoffpreiszyklus. Der Preiszyklus allein wird "
+                "noch nicht direkt in EPS oder FCF umgerechnet. Bis diese "
+                "Bewertungsüberleitung fachlich freigegeben ist, bleibt der Fair "
+                "Value gesperrt."
             )
         }
 
@@ -5310,6 +5311,290 @@ def _mining_actual_aisc_status(snapshot):
     return "Schwach"
 
 
+
+def get_verified_mining_commodity_route(symbol):
+    """
+    Explicit primary-commodity mapping for miners.
+
+    A commodity is never inferred from a generic industry label because many
+    miners have mixed metal exposure. A route is added only after the primary
+    commodity has been verified for the company.
+    """
+    symbol_text = str(symbol or "").upper()
+
+    routes = {
+        "HL": {
+            "commodity_name": "Silber",
+            "commodity_symbol": "SI=F",
+            "unit": "USD/oz",
+            "normalization_years": 5,
+            "current_window_days": 60,
+            "mapping_note": (
+                "Hecla wird für die Preiszyklus-Kontrolle primär dem Silberpreis "
+                "zugeordnet. Gold, Blei und Zink bleiben zusätzliche Exposures und "
+                "werden nicht als separate Primärrohstoffe in diese V2.3-Kontrolle "
+                "hineingeschätzt."
+            ),
+        },
+    }
+    return routes.get(symbol_text)
+
+
+def _evaluate_mining_commodity_history(
+    history,
+    normalization_years=5,
+    current_window_days=60,
+):
+    """Pure price-cycle evaluation so the calculation can be unit-tested."""
+    result = {
+        "available": False,
+        "annual_averages": [],
+        "years_used": [],
+        "normalized_price": None,
+        "current_reference_price": None,
+        "latest_price": None,
+        "ytd_average_price": None,
+        "premium_to_normalized_pct": None,
+        "price_cycle_status": "Daten unzureichend",
+        "method": (
+            "Median der Jahresdurchschnittspreise der letzten vollständigen "
+            f"{normalization_years} Kalenderjahre"
+        ),
+        "current_reference_method": (
+            f"Median der letzten {current_window_days} Handelstage"
+        ),
+        "reason": None,
+    }
+
+    if history is None or getattr(history, "empty", True) or "Close" not in history:
+        result["reason"] = "Keine belastbare Rohstoffpreis-Historie verfügbar."
+        return result
+
+    try:
+        close = pd.to_numeric(history["Close"], errors="coerce").dropna()
+        close = close[close > 0]
+    except Exception:
+        close = pd.Series(dtype=float)
+
+    if close.empty:
+        result["reason"] = "Keine positiven Schlusskurse verfügbar."
+        return result
+
+    try:
+        years = pd.to_datetime(close.index).year
+    except Exception:
+        result["reason"] = "Rohstoffpreis-Zeitachse nicht auswertbar."
+        return result
+
+    price_frame = pd.DataFrame({"close": close.values, "year": years})
+    current_year = datetime.now().year
+
+    complete = price_frame[price_frame["year"] < current_year]
+    available_years = sorted(int(y) for y in complete["year"].unique())
+    selected_years = available_years[-int(normalization_years):]
+
+    # Require at least four complete calendar years. With five years we use the
+    # full intended method; four years are tolerated as a degraded fallback.
+    if len(selected_years) < 4:
+        result["reason"] = (
+            "Weniger als vier vollständige Kalenderjahre Rohstoffpreisdaten vorhanden."
+        )
+        return result
+
+    annual_averages = []
+    for year in selected_years:
+        year_values = complete.loc[complete["year"] == year, "close"]
+        if year_values.empty:
+            continue
+        annual_averages.append({
+            "year": int(year),
+            "average": float(year_values.mean()),
+        })
+
+    if len(annual_averages) < 4:
+        result["reason"] = "Jahresdurchschnittspreise nicht ausreichend berechenbar."
+        return result
+
+    normalized_price = float(pd.Series(
+        [item["average"] for item in annual_averages]
+    ).median())
+
+    window = close.tail(max(20, int(current_window_days)))
+    current_reference = float(window.median()) if not window.empty else None
+    latest_price = float(close.iloc[-1])
+
+    current_year_mask = price_frame["year"] == current_year
+    ytd_values = price_frame.loc[current_year_mask, "close"]
+    ytd_average = float(ytd_values.mean()) if not ytd_values.empty else None
+
+    premium_pct = None
+    if normalized_price > 0 and current_reference is not None:
+        premium_pct = (current_reference / normalized_price - 1.0) * 100.0
+
+    if premium_pct is None:
+        price_status = "Daten unzureichend"
+    elif premium_pct >= 75.0:
+        price_status = "Extremes Peak-Niveau"
+    elif premium_pct >= 40.0:
+        price_status = "Peak-Niveau"
+    elif premium_pct >= 20.0:
+        price_status = "Erhöht"
+    elif premium_pct > -20.0:
+        price_status = "Nahe Zyklusnormal"
+    else:
+        price_status = "Unter Zyklusnormal"
+
+    result.update({
+        "available": True,
+        "annual_averages": annual_averages,
+        "years_used": [item["year"] for item in annual_averages],
+        "normalized_price": normalized_price,
+        "current_reference_price": current_reference,
+        "latest_price": latest_price,
+        "ytd_average_price": ytd_average,
+        "premium_to_normalized_pct": premium_pct,
+        "price_cycle_status": price_status,
+        "reason": None,
+    })
+    return result
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_mining_commodity_price_cycle(
+    commodity_symbol,
+    cache_version,
+    normalization_years=5,
+    current_window_days=60,
+):
+    """Load commodity history from Yahoo and evaluate the cycle conservatively."""
+    _ = cache_version
+    try:
+        commodity_ticker = yf.Ticker(str(commodity_symbol))
+        history = commodity_ticker.history(
+            period="10y",
+            interval="1d",
+            auto_adjust=False,
+        )
+    except Exception:
+        history = pd.DataFrame()
+
+    return _evaluate_mining_commodity_history(
+        history,
+        normalization_years=normalization_years,
+        current_window_days=current_window_days,
+    )
+
+
+def build_mining_commodity_cycle(symbol, snapshot, cache_version):
+    """
+    Combine dynamic commodity-price normalization with verified mine cost data.
+
+    V2.3 deliberately stops before translating this margin proxy into EPS/FCF.
+    That translation is a separate valuation step because by-product credits,
+    other metals, taxes, sustaining capex and mine mix must not be collapsed into
+    one unverified linear factor.
+    """
+    route = get_verified_mining_commodity_route(symbol)
+    if route is None:
+        return {
+            "available": False,
+            "status": "Keine verifizierte Primärrohstoff-Zuordnung",
+            "required": True,
+            "reason": (
+                "Für diese Bergbau-Aktie ist noch kein verifizierter Primärrohstoff "
+                "für die Preiszyklus-Normalisierung hinterlegt."
+            ),
+        }
+
+    price_cycle = load_mining_commodity_price_cycle(
+        route["commodity_symbol"],
+        cache_version,
+        normalization_years=route.get("normalization_years", 5),
+        current_window_days=route.get("current_window_days", 60),
+    )
+
+    result = {
+        **price_cycle,
+        "commodity_name": route["commodity_name"],
+        "commodity_symbol": route["commodity_symbol"],
+        "unit": route["unit"],
+        "mapping_note": route.get("mapping_note"),
+        "required": True,
+        "aisc_midpoint": None,
+        "normalized_margin_per_oz": None,
+        "current_margin_per_oz": None,
+        "normalized_margin_pct": None,
+        "margin_resilience_status": "Daten unzureichend",
+    }
+
+    if not price_cycle.get("available", False):
+        result["status"] = "Preiszyklus-Daten unzureichend"
+        return result
+
+    current_low = safe_float((snapshot or {}).get("silver_aisc_guidance_current_low"))
+    current_high = safe_float((snapshot or {}).get("silver_aisc_guidance_current_high"))
+    if current_low is None or current_high is None or current_low <= 0 or current_high <= 0:
+        result["available"] = False
+        result["status"] = "Preiszyklus vorhanden, AISC-Basis fehlt"
+        result["reason"] = (
+            "Der Rohstoffpreis ist normalisierbar, aber die verifizierte aktuelle "
+            "AISC-/Stückkostenbasis fehlt."
+        )
+        return result
+
+    aisc_midpoint = (current_low + current_high) / 2.0
+    normalized_price = safe_float(price_cycle.get("normalized_price"))
+    current_reference = safe_float(price_cycle.get("current_reference_price"))
+
+    normalized_margin = (
+        normalized_price - aisc_midpoint
+        if normalized_price is not None
+        else None
+    )
+    current_margin = (
+        current_reference - aisc_midpoint
+        if current_reference is not None
+        else None
+    )
+
+    normalized_margin_pct = None
+    if normalized_price is not None and normalized_price > 0 and normalized_margin is not None:
+        normalized_margin_pct = normalized_margin / normalized_price * 100.0
+
+    if normalized_margin is None or normalized_margin_pct is None:
+        margin_status = "Daten unzureichend"
+    elif normalized_margin <= 0:
+        margin_status = "Nicht tragfähig"
+    elif normalized_margin_pct >= 40.0:
+        margin_status = "Sehr stark"
+    elif normalized_margin_pct >= 25.0:
+        margin_status = "Stark"
+    elif normalized_margin_pct >= 10.0:
+        margin_status = "Ausreichend"
+    else:
+        margin_status = "Dünn"
+
+    price_status = price_cycle.get("price_cycle_status") or "Daten unzureichend"
+    if margin_status == "Nicht tragfähig":
+        overall = "Normalisierte Marge nicht tragfähig"
+    elif price_status in ["Extremes Peak-Niveau", "Peak-Niveau"]:
+        overall = f"Normalisiert – aktueller Preis auf {price_status}"
+    else:
+        overall = f"Normalisiert – {price_status}"
+
+    result.update({
+        "available": True,
+        "status": overall,
+        "aisc_midpoint": aisc_midpoint,
+        "normalized_margin_per_oz": normalized_margin,
+        "current_margin_per_oz": current_margin,
+        "normalized_margin_pct": normalized_margin_pct,
+        "margin_resilience_status": margin_status,
+        "reason": None,
+    })
+    return result
+
+
 def build_mining_special_control(
     base_control,
     company_type,
@@ -5324,7 +5609,7 @@ def build_mining_special_control(
     roe,
 ):
     """
-    Conservative Mining V2.
+    Conservative Mining V2.3.
 
     Financial-cycle checks are calculated from already-loaded company data.
     Production guidance and AISC/unit-cost data are used only when a dated,
@@ -5454,13 +5739,25 @@ def build_mining_special_control(
         and operating_status not in ["Daten fehlen", "Daten unzureichend", "Daten veraltet"]
     )
 
-    # Mining V2.1 safety guard:
-    # Production/AISC visibility is necessary but not sufficient for valuation.
-    # A miner's earnings and FCF are highly dependent on commodity prices. Until
-    # a verified commodity-price / margin-cycle normalization is implemented, the
-    # special control must NOT release a KGV-based Fair Value.
-    commodity_price_cycle_available = False
-    commodity_price_cycle_status = "Noch nicht implementiert"
+    # Mining V2.3 price-cycle normalization. Price history is loaded dynamically
+    # only for an explicitly verified primary commodity mapping. The resulting
+    # normalized commodity margin is a control input, not yet a direct EPS/FCF
+    # conversion factor.
+    commodity_price_cycle = build_mining_commodity_cycle(
+        symbol,
+        snapshot,
+        CACHE_VERSION,
+    )
+    commodity_price_cycle_available = commodity_price_cycle.get("available", False)
+    commodity_price_cycle_status = commodity_price_cycle.get(
+        "status", "Daten unzureichend"
+    )
+
+    # Separate hard gate: translating normalized commodity economics into
+    # company-level earnings/FCF requires a validated methodology that accounts
+    # for mine mix, by-product credits, other metals, taxes and sustaining capex.
+    earnings_translation_available = False
+    earnings_translation_status = "Noch nicht fachlich implementiert"
 
     if not financial_checks_usable:
         released = False
@@ -5480,7 +5777,11 @@ def build_mining_special_control(
         confidence_cap = "Niedrig"
     elif not commodity_price_cycle_available:
         released = False
-        overall_status = "Rohstoffpreis-Zyklus noch nicht normalisiert"
+        overall_status = "Rohstoffpreis-Zyklus nicht belastbar verfügbar"
+        confidence_cap = "Niedrig"
+    elif not earnings_translation_available:
+        released = False
+        overall_status = "Preiszyklus normalisiert – Bewertungsüberleitung noch offen"
         confidence_cap = "Niedrig"
     elif peak_risk:
         released = True
@@ -5541,19 +5842,21 @@ def build_mining_special_control(
                 "aisc_improvement_pct": aisc_improvement_pct,
                 "actual_aisc_status": actual_aisc_status,
             },
-            "commodity_price_cycle": {
-                "available": commodity_price_cycle_available,
-                "status": commodity_price_cycle_status,
+            "commodity_price_cycle": commodity_price_cycle,
+            "commodity_earnings_translation": {
+                "available": earnings_translation_available,
+                "status": earnings_translation_status,
                 "required": True,
             },
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.1 trennt Finanzzyklus, operative "
-            "Minenvisibilität und Rohstoffpreiszyklus. Produktions-Guidance und AISC "
-            "werden nur aus einem verifizierten, datierten Snapshot verwendet. "
-            "Solange der Rohstoffpreis-/Margenzyklus nicht belastbar normalisiert ist, "
-            "wird kein Fair Value freigegeben. Der 100-Punkte-Multiple-Score bleibt "
-            "davon unverändert."
+            "Die Bergbau-Spezialkontrolle V2.3 trennt Finanzzyklus, operative "
+            "Minenvisibilität, dynamische Rohstoffpreis-Normalisierung und die "
+            "spätere Bewertungsüberleitung. Produktions-Guidance und AISC werden "
+            "nur aus einem verifizierten, datierten Snapshot verwendet. Ein "
+            "normalisierter Rohstoffpreis wird nicht ungeprüft linear in EPS oder "
+            "FCF umgerechnet. Bis diese Überleitung fachlich freigegeben ist, bleibt "
+            "der Fair Value gesperrt. Der 100-Punkte-Multiple-Score bleibt unverändert."
         ),
     })
 
@@ -5899,7 +6202,7 @@ def calculate_fair_value_v1(
         "quote_currency"
     )
 
-    # Mining V2.2 hard safety gate. This is intentionally independent of the
+    # Mining V2.3 hard safety gate. This is intentionally independent of the
     # special-control release flag so that stale cache/state can never release
     # a mining Fair Value before commodity-price / margin-cycle normalization.
     if (
@@ -5909,12 +6212,22 @@ def calculate_fair_value_v1(
         commodity_cycle = (special_control.get("checks") or {}).get(
             "commodity_price_cycle", {}
         )
+        earnings_translation = (special_control.get("checks") or {}).get(
+            "commodity_earnings_translation", {}
+        )
         if not commodity_cycle.get("available", False):
             result["note"] = (
-                "Fair Value V1 gesperrt: Bei Bergbauunternehmen fehlt die belastbare "
-                "Rohstoffpreis-/Margenzyklus-Normalisierung. Produktions- und AISC-"
-                "Daten allein reichen nicht für eine Fair-Value-Freigabe. Die "
-                "Bergbau-Hard-Gate-Sperre ist aktiv."
+                "Fair Value V1 gesperrt: Bei Bergbauunternehmen ist die belastbare "
+                "Rohstoffpreis-/Margenzyklus-Normalisierung nicht vollständig "
+                "verfügbar. Die Bergbau-Hard-Gate-Sperre ist aktiv."
+            )
+            return result
+        if not earnings_translation.get("available", False):
+            result["note"] = (
+                "Fair Value V1 gesperrt: Der Rohstoffpreis-/Margenzyklus ist zwar "
+                "normalisiert, aber die fachlich belastbare Überleitung in "
+                "normalisierte Unternehmensgewinne bzw. Free Cashflows fehlt noch. "
+                "Eine lineare Preis-zu-EPS-Umrechnung wird bewusst nicht geschätzt."
             )
             return result
 
@@ -6238,7 +6551,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_pricecycle_hardguard_v22_20260906"
+CACHE_VERSION = "m6_mining_pricecycle_normalization_v23_20260906"
 
 @st.cache_data(
     ttl=900,
@@ -9000,7 +9313,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.2 – Preiszyklus-Hard-Gate aktiv")
+                    st.caption("Bergbau-Schutzmodell V2.3 – dynamische Preiszyklus-Normalisierung")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -9178,13 +9491,98 @@ if selected_symbol:
                             "**Rohstoffpreis-/Preiszyklus-Normalisierung:** "
                             f"{commodity_cycle.get('status', 'Daten fehlen')}"
                         )
-                        if not commodity_cycle.get("available", False):
+
+                        if commodity_cycle.get("available", False):
+                            commodity_name = commodity_cycle.get("commodity_name", "Rohstoff")
+                            commodity_symbol = commodity_cycle.get("commodity_symbol", "–")
+                            unit = commodity_cycle.get("unit", "")
+                            st.write(
+                                f"**Primärrohstoff:** {commodity_name} ({commodity_symbol})"
+                            )
+                            st.caption(commodity_cycle.get("mapping_note"))
+
+                            pc1, pc2 = st.columns(2)
+                            with pc1:
+                                normalized_price = commodity_cycle.get("normalized_price")
+                                current_reference = commodity_cycle.get("current_reference_price")
+                                if normalized_price is not None:
+                                    st.metric(
+                                        "Normalisierter Rohstoffpreis",
+                                        f"{normalized_price:.2f} {unit}"
+                                    )
+                                if current_reference is not None:
+                                    st.metric(
+                                        "Aktuelle Preisreferenz",
+                                        f"{current_reference:.2f} {unit}"
+                                    )
+                                premium = commodity_cycle.get("premium_to_normalized_pct")
+                                if premium is not None:
+                                    st.write(
+                                        "**Abstand zum Zyklusnormal:** "
+                                        f"{premium:+.1f} %"
+                                    )
+                                st.write(
+                                    "**Preiszyklus-Status:** "
+                                    f"{commodity_cycle.get('price_cycle_status', '–')}"
+                                )
+
+                            with pc2:
+                                aisc_mid = commodity_cycle.get("aisc_midpoint")
+                                norm_margin = commodity_cycle.get("normalized_margin_per_oz")
+                                current_margin = commodity_cycle.get("current_margin_per_oz")
+                                if aisc_mid is not None:
+                                    st.metric(
+                                        "AISC-Mittelpunkt",
+                                        f"{aisc_mid:.2f} USD/oz"
+                                    )
+                                if norm_margin is not None:
+                                    st.metric(
+                                        "Normalisierte Margin-Reserve",
+                                        f"{norm_margin:.2f} USD/oz"
+                                    )
+                                if current_margin is not None:
+                                    st.write(
+                                        "**Aktuelle Margin-Reserve:** "
+                                        f"{current_margin:.2f} USD/oz"
+                                    )
+                                st.write(
+                                    "**Normalisierte Margentragfähigkeit:** "
+                                    f"{commodity_cycle.get('margin_resilience_status', '–')}"
+                                )
+
+                            annual = commodity_cycle.get("annual_averages") or []
+                            if annual:
+                                annual_text = " · ".join(
+                                    f"{item['year']}: {item['average']:.2f}"
+                                    for item in annual
+                                )
+                                st.caption(
+                                    f"Jahresdurchschnittspreise ({unit}): {annual_text}. "
+                                    f"Methode: {commodity_cycle.get('method', '–')}."
+                                )
+                        else:
                             st.warning(
-                                "Für Bergbauunternehmen reichen Produktions- und "
-                                "Kostenkennzahlen allein nicht für einen belastbaren "
-                                "Fair Value. Der zugrunde liegende Rohstoffpreis- und "
-                                "Margenzyklus muss zuerst normalisiert werden. Bis dahin "
-                                "bleibt der Fair Value gesperrt."
+                                "Die Rohstoffpreis-Normalisierung konnte nicht belastbar "
+                                "berechnet werden. Ohne diese Ebene bleibt der Fair Value "
+                                "gesperrt."
+                            )
+                            if commodity_cycle.get("reason"):
+                                st.caption(commodity_cycle.get("reason"))
+
+                        earnings_translation = checks.get(
+                            "commodity_earnings_translation", {}
+                        )
+                        st.write(
+                            "**Überleitung Preiszyklus → normalisierte Ertragskraft:** "
+                            f"{earnings_translation.get('status', 'Noch offen')}"
+                        )
+                        if not earnings_translation.get("available", False):
+                            st.warning(
+                                "Der normalisierte Rohstoffpreis wird bewusst noch nicht "
+                                "linear in EPS oder FCF umgerechnet. Mine-Mix, Nebenprodukt-"
+                                "gutschriften, andere Metalle, Steuern und Sustaining CapEx "
+                                "müssen dafür fachlich sauber berücksichtigt werden. Der "
+                                "Fair Value bleibt bis dahin gesperrt."
                             )
 
                         if special_control.get("released"):
