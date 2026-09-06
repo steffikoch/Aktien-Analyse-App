@@ -3863,6 +3863,12 @@ def get_valuation_corridor(company_type):
             "Normalisiertes KGV"
         ),
         (
+            "standard-unternehmen",
+            12.0,
+            24.0,
+            "KGV auf normalisiertem EPS"
+        ),
+        (
             "pharma",
             13.0,
             19.0,
@@ -3872,15 +3878,25 @@ def get_valuation_corridor(company_type):
 
     for key, lower, upper, method in corridors:
         if key in type_name:
+            if key == "standard-unternehmen":
+                note = (
+                    "Der Standard-Korridor ist bewusst konservativ. "
+                    "Die FCF-Kontrolle ist bereits im 100-Punkte-Multiple-"
+                    "Score enthalten und wird nicht ein zweites Mal als "
+                    "separate Multiple-Anpassung angerechnet."
+                )
+            else:
+                note = (
+                    "Der Bewertungs-Korridor wird durch den "
+                    "Unternehmenstyp bestimmt."
+                )
+
             return {
                 "available": True,
                 "lower": lower,
                 "upper": upper,
                 "method": method,
-                "note": (
-                    "Der Bewertungs-Korridor wird durch den "
-                    "Unternehmenstyp bestimmt."
-                )
+                "note": note
             }
 
     special_or_unresolved_terms = [
@@ -3890,7 +3906,6 @@ def get_valuation_corridor(company_type):
         "immobilien",
         "biotechnologie",
         "untertyp noch nicht eindeutig",
-        "standard-unternehmen",
         "versorger",
         "midstream",
         "early-stage mining",
@@ -4195,6 +4210,20 @@ def get_peer_group(company_type, symbol):
                 )
             }
 
+    if "standard-unternehmen" in type_name:
+        return {
+            "available": False,
+            "peers": [],
+            "count": 0,
+            "note": (
+                "Standard-Unternehmen bilden keine homogene Peer-Gruppe. "
+                "Deshalb wird ohne branchenspezifische Zuordnung keine "
+                "automatische Peer-Anpassung erzwungen. Das Fundamental-"
+                "Multiple bleibt unverändert und kann als Fair-Value-Basis "
+                "verwendet werden."
+            )
+        }
+
     return {
         "available": False,
         "peers": [],
@@ -4230,7 +4259,6 @@ def peer_forward_pe_is_supported(company_type):
         "immobilien",
         "biotechnologie",
         "untertyp noch nicht eindeutig",
-        "standard-unternehmen",
         "early-stage",
         "projektentwicklung",
         "photonik",
@@ -4312,9 +4340,21 @@ def calculate_peer_check(
     }
 
     if not peer_group.get("available"):
-        result["note"] = (
-            "Keine automatische Peer-Gruppe verfügbar."
-        )
+        type_name = str(
+            company_type.get("type", "")
+        ).lower()
+
+        if "standard-unternehmen" in type_name:
+            result["note"] = (
+                "Kein automatischer Peer-Check für den Sammeltyp "
+                "Standard-Unternehmen. Der Peer-Check ist hier optional "
+                "und blockiert den Fair Value nicht; verwendet wird das "
+                "unveränderte Fundamental-Multiple."
+            )
+        else:
+            result["note"] = (
+                "Keine automatische Peer-Gruppe verfügbar."
+            )
         return result
 
     if not peer_forward_pe_is_supported(company_type):
@@ -5267,6 +5307,29 @@ def generate_holding_signal(valuation_zone, valuation_confidence, multiple_score
 
     result["available"] = True
 
+    # Niedrige Bewertungssicherheit darf keine harte Bestandsaktion
+    # wie Reduzieren oder Verkaufen auslösen. In diesem Fall bleibt
+    # die Bewertung ein Prüfhinweis, bis die Gewinnbasis belastbarer ist.
+    if confidence == "Niedrig":
+        if fundamental == "Schwach":
+            result.update({
+                "signal": "Überprüfen",
+                "reason": (
+                    "Bewertungssicherheit niedrig und fundamentale Basis "
+                    "schwach. Keine harte Verkaufsentscheidung allein aus "
+                    "dem unsicheren Fair Value ableiten."
+                ),
+            })
+        else:
+            result.update({
+                "signal": "Halten / nicht nachkaufen",
+                "reason": (
+                    "Bewertungssicherheit niedrig. Der Fair Value reicht "
+                    "nicht für ein belastbares Reduzieren-/Verkaufen-Signal."
+                ),
+            })
+        return result
+
     if zone in ["Stark unterbewertet", "Unterbewertet"]:
         if fundamental in ["Stark", "Ausreichend"] and confidence in ["Hoch", "Mittel"]:
             result.update({"signal": "Nachkaufen", "reason": "Unterbewertung bei ausreichender fundamentaler Basis und Bewertungssicherheit."})
@@ -5522,7 +5585,7 @@ def calculate_fair_value_v1(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_defense_3b_fair_value_zones_signals_v1_rhm_frankfurt"
+CACHE_VERSION = "m6_standard_company_v1_20260906"
 
 @st.cache_data(
     ttl=900,
