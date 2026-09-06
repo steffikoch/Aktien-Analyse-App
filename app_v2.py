@@ -322,7 +322,8 @@ def build_eps_result(
     confidence,
     cycle_basis,
     trailing_eps,
-    forward_eps
+    forward_eps,
+    metadata=None
 ):
     adjusted_confidence, confidence_note, deviation = (
         apply_eps_confidence_brake(
@@ -332,7 +333,7 @@ def build_eps_result(
         )
     )
 
-    return {
+    result = {
         "normalized_eps": normalized_eps,
         "method": method,
         "confidence": adjusted_confidence,
@@ -340,6 +341,11 @@ def build_eps_result(
         "confidence_note": confidence_note,
         "ttm_forward_deviation": deviation
     }
+
+    if isinstance(metadata, dict):
+        result.update(metadata)
+
+    return result
 
 
 def has_usable_positive_earnings_basis(
@@ -2340,6 +2346,67 @@ def build_historical_data(ticker):
 
 
 # =========================================================
+# Structural-Break-Kontrolle für zyklische EPS-Historien
+# =========================================================
+
+VERIFIED_STRUCTURAL_BREAKS = {
+    # Newmont completed the Newcrest acquisition on 06.11.2023. The 2023
+    # fiscal year is therefore a transition year and older years describe a
+    # materially different portfolio. Only full years from 2024 onward are
+    # eligible for a post-break cyclical EPS history.
+    "NEM": {
+        "event_name": "Newcrest-Übernahme",
+        "event_date": "06.11.2023",
+        "break_year": 2023,
+        "first_full_comparable_year": 2024,
+        "minimum_full_post_break_years": 3,
+        "source_name": "Newmont – Abschluss der Newcrest-Übernahme",
+        "source_note": (
+            "Newmont schloss die Übernahme von Newcrest am 06.11.2023 ab. "
+            "2023 gilt deshalb als Übergangsjahr; frühere Geschäftsjahre "
+            "werden für die zyklische EPS-Normalisierung des heutigen "
+            "Konzerns nicht gleichgewichtet weiterverwendet."
+        ),
+    },
+}
+
+
+def resolve_structural_break(symbol, company_type):
+    """Return only explicitly verified material structural breaks.
+
+    V2.12 deliberately does not infer M&A, spin-offs or portfolio changes from
+    Yahoo ratios. Unknown companies receive no structural-break adjustment.
+    """
+    type_name = str((company_type or {}).get("type", "")).lower()
+    if "zyklisch" not in type_name:
+        return {"active": False}
+
+    symbol_text = str(symbol or "").upper().strip()
+    event = VERIFIED_STRUCTURAL_BREAKS.get(symbol_text)
+    if not isinstance(event, dict):
+        return {"active": False}
+
+    return {"active": True, **event}
+
+
+def _eps_history_rows(historical_eps):
+    rows = []
+    for item in historical_eps or []:
+        if not isinstance(item, dict):
+            continue
+        value = safe_float(item.get("value"))
+        date_value = item.get("date")
+        year = getattr(date_value, "year", None)
+        if value is None or year is None:
+            continue
+        rows.append({
+            "year": int(year),
+            "value": value,
+        })
+    return rows
+
+
+# =========================================================
 # EPS normalisieren
 # =========================================================
 
@@ -2349,22 +2416,15 @@ def normalize_eps(
     forward_eps,
     historical_eps,
     revenue_growth,
-    earnings_growth
+    earnings_growth,
+    structural_break=None
 ):
 
     trailing = safe_float(trailing_eps)
     forward = safe_float(forward_eps)
 
-    history = [
-        safe_float(item["value"])
-        for item in historical_eps
-    ]
-
-    history = [
-        value
-        for value in history
-        if value is not None
-    ]
+    history_rows = _eps_history_rows(historical_eps)
+    history = [row["value"] for row in history_rows]
 
     type_name = str(
         company_type.get("type", "")
@@ -2388,6 +2448,73 @@ def normalize_eps(
         )
 
     if "zyklisch" in type_name:
+
+        break_control = (
+            structural_break
+            if isinstance(structural_break, dict)
+            else {"active": False}
+        )
+        structural_metadata = {
+            "structural_break": break_control,
+            "structural_break_active": bool(break_control.get("active", False)),
+            "normalization_blocked_by_structural_break": False,
+            "comparable_full_years": [],
+            "excluded_history_years": [],
+            "comparable_full_years_count": 0,
+            "minimum_full_post_break_years": None,
+            "diagnostic_post_break_cycle_basis": None,
+        }
+
+        if break_control.get("active", False):
+            first_year = int(break_control.get("first_full_comparable_year") or 0)
+            minimum_years = int(break_control.get("minimum_full_post_break_years") or 3)
+
+            comparable_rows = [
+                row for row in history_rows
+                if row["year"] >= first_year
+            ]
+            excluded_rows = [
+                row for row in history_rows
+                if row["year"] < first_year
+            ]
+
+            history = [row["value"] for row in comparable_rows]
+            comparable_years = sorted({row["year"] for row in comparable_rows}, reverse=True)
+            excluded_years = sorted({row["year"] for row in excluded_rows}, reverse=True)
+
+            diagnostic_basis = None
+            if len(history) >= 2:
+                diagnostic_series = pd.Series(history)
+                diagnostic_basis = float(
+                    0.60 * diagnostic_series.median()
+                    + 0.40 * diagnostic_series.mean()
+                )
+
+            structural_metadata.update({
+                "comparable_full_years": comparable_years,
+                "excluded_history_years": excluded_years,
+                "comparable_full_years_count": len(comparable_years),
+                "minimum_full_post_break_years": minimum_years,
+                "diagnostic_post_break_cycle_basis": diagnostic_basis,
+            })
+
+            if len(comparable_years) < minimum_years:
+                structural_metadata["normalization_blocked_by_structural_break"] = True
+                method = (
+                    f"Structural-Break-Kontrolle: {break_control.get('event_name', 'wesentlicher Strukturbruch')} "
+                    f"am {break_control.get('event_date', '–')}; nur {len(comparable_years)} vollständig "
+                    f"vergleichbare Geschäftsjahre nach dem Strukturbruch, benötigt werden mindestens "
+                    f"{minimum_years}. Keine Zyklus-EPS-Bewertungsbasis freigegeben."
+                )
+                return build_eps_result(
+                    None,
+                    method,
+                    "Niedrig",
+                    None,
+                    trailing,
+                    forward,
+                    structural_metadata
+                )
 
         if len(history) >= 3:
 
@@ -2457,13 +2584,17 @@ def normalize_eps(
                     "und 40 % Durchschnitt"
                 )
 
+            if structural_metadata.get("structural_break_active"):
+                method = "Strukturbruch-bereinigt: " + method
+
             return build_eps_result(
                 normalized,
                 method,
                 "Mittel",
                 cycle_basis,
                 trailing,
-                forward
+                forward,
+                structural_metadata
             )
 
         if trailing is not None and forward is not None:
@@ -2482,7 +2613,8 @@ def normalize_eps(
                 "Niedrig",
                 None,
                 trailing,
-                forward
+                forward,
+                structural_metadata
             )
 
         normalized = (
@@ -2500,7 +2632,8 @@ def normalize_eps(
             "Niedrig",
             None,
             trailing,
-            forward
+            forward,
+            structural_metadata
         )
 
     if (
@@ -4668,6 +4801,7 @@ def get_special_control(company_type, symbol):
             ),
             "planned_checks": [
                 "Mehrjahres-/Zyklus-EPS",
+                "Structural-Break-Kontrolle der EPS-Historie",
                 "Peak-Cycle-Abstand",
                 "FCF-Stabilität",
                 "Bilanzpuffer",
@@ -4679,9 +4813,9 @@ def get_special_control(company_type, symbol):
                 "Life-of-Mine-Profil & NAV-Freigabe-Gate",
                 "Allgemeiner Primärrohstoff-Router"
             ],
-            "status": "Router aktiv – V2.11 Kernasset-LOM-Struktur + Reserve/NAV-Snapshot + Betriebsdaten + LOM-Gate",
+            "status": "Router aktiv – V2.12 Structural-Break + Kernasset-LOM-Struktur + LOM-Gate",
             "note": (
-                "V2.11 ergänzt das Bergbaumodell um einen verifizierten Reserve-/NAV-Snapshot und einen konservativen allgemeinen "
+                "V2.12 ergänzt das Bergbaumodell um eine Structural-Break-Kontrolle für zyklische EPS-Historien sowie einen verifizierten Reserve-/NAV-Snapshot und einen konservativen allgemeinen "
                 "Primärrohstoff-Router für eindeutige Branchen wie Gold, Silber und "
                 "Kupfer. Unspezifische Mischbranchen bleiben gesperrt. Das bestehende "
                 "V2.7-Life-of-Mine-Gate bleibt unverändert aktiv. "
@@ -5875,6 +6009,19 @@ def build_mining_earnings_translation(
     current_margin = safe_float(commodity_cycle.get("current_margin_per_oz"))
     ttm_eps = safe_float(trailing_eps)
     cycle_eps = safe_float((eps_normalization or {}).get("normalized_eps"))
+
+    if (eps_normalization or {}).get("normalization_blocked_by_structural_break"):
+        break_info = (eps_normalization or {}).get("structural_break") or {}
+        comparable_count = int((eps_normalization or {}).get("comparable_full_years_count") or 0)
+        minimum_count = int((eps_normalization or {}).get("minimum_full_post_break_years") or 3)
+        result["status"] = "Ertragskraft nicht freigegeben – Structural-Break-Historie zu kurz"
+        result["reason"] = (
+            f"{break_info.get('event_name', 'Wesentlicher Strukturbruch')} am "
+            f"{break_info.get('event_date', '–')}: nur {comparable_count} vollständig "
+            f"vergleichbare Geschäftsjahre danach; benötigt werden mindestens {minimum_count}. "
+            "Die frühere Konzernhistorie wird nicht als gleichartige Zyklus-EPS-Basis weiterverwendet."
+        )
+        return result
 
     if (
         normalized_margin is None or current_margin is None
@@ -7169,6 +7316,10 @@ def build_mining_special_control(
 
     cycle_basis = safe_float((eps_normalization or {}).get("cycle_basis"))
     normalized_eps = safe_float((eps_normalization or {}).get("normalized_eps"))
+    structural_break_info = (eps_normalization or {}).get("structural_break") or {}
+    structural_break_blocked = bool(
+        (eps_normalization or {}).get("normalization_blocked_by_structural_break")
+    )
     ttm_eps = safe_float(trailing_eps)
     fwd_eps = safe_float(forward_eps)
 
@@ -7176,7 +7327,9 @@ def build_mining_special_control(
     if cycle_basis is not None and cycle_basis > 0 and ttm_eps is not None:
         ttm_to_cycle = ttm_eps / cycle_basis
 
-    if len(eps_history) < 3 or cycle_basis is None or cycle_basis <= 0:
+    if structural_break_blocked:
+        eps_status = "Structural-Break – Zyklus-EPS gesperrt"
+    elif len(eps_history) < 3 or cycle_basis is None or cycle_basis <= 0:
         eps_status = "Daten unzureichend"
     elif ttm_to_cycle is None:
         eps_status = "Zyklus-Basis vorhanden"
@@ -7261,7 +7414,8 @@ def build_mining_special_control(
             operating_status = "Ausreichend"
 
     financial_checks_usable = (
-        eps_status != "Daten unzureichend"
+        not structural_break_blocked
+        and eps_status != "Daten unzureichend"
         and fcf_status != "Daten unzureichend"
         and balance_status != "Daten unzureichend"
     )
@@ -7322,7 +7476,11 @@ def build_mining_special_control(
     )
     asset_nav_available = asset_nav_control.get("available", False)
 
-    if not financial_checks_usable:
+    if structural_break_blocked:
+        released = False
+        overall_status = "Structural-Break-Kontrolle – Zyklus-EPS noch nicht freigegeben"
+        confidence_cap = "Niedrig"
+    elif not financial_checks_usable:
         released = False
         overall_status = "Finanzzyklus-Daten unzureichend"
         confidence_cap = "Niedrig"
@@ -7384,6 +7542,13 @@ def build_mining_special_control(
                 "forward_eps": fwd_eps,
                 "ttm_to_cycle_ratio": ttm_to_cycle,
                 "status": eps_status,
+                "structural_break": structural_break_info,
+                "structural_break_blocked": structural_break_blocked,
+                "comparable_full_years": (eps_normalization or {}).get("comparable_full_years", []),
+                "excluded_history_years": (eps_normalization or {}).get("excluded_history_years", []),
+                "comparable_full_years_count": (eps_normalization or {}).get("comparable_full_years_count", 0),
+                "minimum_full_post_break_years": (eps_normalization or {}).get("minimum_full_post_break_years"),
+                "diagnostic_post_break_cycle_basis": (eps_normalization or {}).get("diagnostic_post_break_cycle_basis"),
             },
             "fcf_stability": {
                 "history_count": len(fcf_history),
@@ -7416,7 +7581,7 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.11 trennt Kernasset-LOM-Struktur, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.12 trennt Structural-Break-Kontrolle, Kernasset-LOM-Struktur, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
             "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
             "Ertragskraft, Reserve-/Asset-Kontrolle, Run-rate-Mine-NAV und das "
             "formale Life-of-Mine-Freigabe-Gate. Ein Guidance-Jahr ersetzt kein "
@@ -7774,6 +7939,21 @@ def calculate_fair_value_v1(
         isinstance(special_control, dict)
         and special_control.get("control_key") == "mining_cycle_quality"
     ):
+        cycle_check = (special_control.get("checks") or {}).get("cycle_eps", {})
+        if cycle_check.get("structural_break_blocked"):
+            break_info = cycle_check.get("structural_break") or {}
+            comparable_count = int(cycle_check.get("comparable_full_years_count") or 0)
+            minimum_count = int(cycle_check.get("minimum_full_post_break_years") or 3)
+            result["note"] = (
+                "Fair Value V1 gesperrt: Structural-Break-Kontrolle nicht bestanden. "
+                f"{break_info.get('event_name', 'Wesentlicher Strukturbruch')} am "
+                f"{break_info.get('event_date', '–')}; danach liegen erst {comparable_count} "
+                f"vollständig vergleichbare Geschäftsjahre vor, benötigt werden mindestens "
+                f"{minimum_count}. Vor-Strukturbruch-Jahre werden nicht als gleichartige "
+                "Zyklus-EPS-Basis verwendet."
+            )
+            return result
+
         commodity_cycle = (special_control.get("checks") or {}).get(
             "commodity_price_cycle", {}
         )
@@ -8155,7 +8335,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_newmont_core_lom_v211_20260906"
+CACHE_VERSION = "m6_mining_structural_break_v212_20260906"
 
 @st.cache_data(
     ttl=900,
@@ -8305,13 +8485,19 @@ def load_stock(search_text, cache_version):
         )
     )
 
+    structural_break = resolve_structural_break(
+        fundamental_symbol,
+        company_type
+    )
+
     eps_normalization = normalize_eps(
         company_type,
         trailing_eps,
         forward_eps,
         historical["eps"],
         revenue_growth,
-        earnings_growth
+        earnings_growth,
+        structural_break=structural_break
     )
 
     growth_score = calculate_growth_score(
@@ -8534,6 +8720,7 @@ def load_stock(search_text, cache_version):
 
         "company_type": company_type,
         "historical": historical,
+        "structural_break": structural_break,
         "eps_normalization": eps_normalization,
         "growth_score": growth_score,
         "profitability_score": profitability_score,
@@ -9122,6 +9309,42 @@ if selected_symbol:
                     st.warning(
                         eps_result["confidence_note"]
                     )
+
+                if eps_result.get("structural_break_active"):
+                    break_info = eps_result.get("structural_break") or {}
+                    st.warning(
+                        "**Structural-Break-Kontrolle aktiv:** "
+                        f"{break_info.get('event_name', 'wesentlicher Strukturbruch')} "
+                        f"am {break_info.get('event_date', '–')}."
+                    )
+                    st.write(
+                        "**Vollständig vergleichbare Jahre nach Strukturbruch:** "
+                        + (
+                            ", ".join(str(y) for y in eps_result.get("comparable_full_years", []))
+                            or "keine"
+                        )
+                    )
+                    st.write(
+                        "**Aus der Zyklus-Normalisierung ausgeschlossene Jahre:** "
+                        + (
+                            ", ".join(str(y) for y in eps_result.get("excluded_history_years", []))
+                            or "keine"
+                        )
+                    )
+                    if eps_result.get("diagnostic_post_break_cycle_basis") is not None:
+                        st.write(
+                            "**Post-Break-EPS-Diagnose (nicht freigegebene Bewertungsbasis):** "
+                            f"{format_eps(eps_result.get('diagnostic_post_break_cycle_basis'), financial_currency)}"
+                        )
+                    if eps_result.get("normalization_blocked_by_structural_break"):
+                        st.error(
+                            "Zyklus-EPS nicht freigegeben: "
+                            f"{eps_result.get('comparable_full_years_count', 0)} vollständige "
+                            "Vergleichsjahre nach dem Strukturbruch; benötigt werden mindestens "
+                            f"{eps_result.get('minimum_full_post_break_years') or 3}."
+                        )
+                    if break_info.get("source_note"):
+                        st.caption(break_info.get("source_note"))
 
                 if (
                     eps_result["cycle_basis"]
@@ -10925,7 +11148,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.11 – Kernasset-LOM-Struktur + Reserve/NAV-Snapshot + LOM-Gate")
+                    st.caption("Bergbau-Schutzmodell V2.12 – Structural-Break + Kernasset-LOM-Struktur + LOM-Gate")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -10947,9 +11170,36 @@ if selected_symbol:
                                 )
                             )
                             st.write(
-                                "**Verfügbare EPS-Historie:** "
+                                "**Verfügbare EPS-Historie gesamt:** "
                                 f"{cycle_eps.get('history_count', 0)} Jahre"
                             )
+                            if cycle_eps.get("structural_break_blocked"):
+                                break_info = cycle_eps.get("structural_break") or {}
+                                st.warning(
+                                    "Structural-Break aktiv: "
+                                    f"{break_info.get('event_name', 'wesentlicher Strukturbruch')} "
+                                    f"({break_info.get('event_date', '–')})."
+                                )
+                                st.write(
+                                    "**Vergleichbare vollständige Post-Break-Jahre:** "
+                                    + (
+                                        ", ".join(str(y) for y in cycle_eps.get("comparable_full_years", []))
+                                        or "keine"
+                                    )
+                                )
+                                st.write(
+                                    "**Ausgeschlossen:** "
+                                    + (
+                                        ", ".join(str(y) for y in cycle_eps.get("excluded_history_years", []))
+                                        or "keine"
+                                    )
+                                )
+                                if cycle_eps.get("diagnostic_post_break_cycle_basis") is not None:
+                                    st.write(
+                                        "**Post-Break-Diagnose-EPS:** "
+                                        f"{format_eps(cycle_eps.get('diagnostic_post_break_cycle_basis'), financial_currency)} "
+                                        "(nur Diagnose, keine Bewertungsbasis)"
+                                    )
                             if cycle_eps.get("ttm_to_cycle_ratio") is not None:
                                 st.metric(
                                     "TTM-EPS / Zyklus-Basis",
