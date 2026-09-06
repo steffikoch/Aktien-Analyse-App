@@ -4671,15 +4671,17 @@ def get_special_control(company_type, symbol):
                 "Peak-Cycle-Abstand",
                 "FCF-Stabilität",
                 "Bilanzpuffer",
-                "Produktions-/Kostenvisibilität"
+                "Produktions-/Kostenvisibilität",
+                "Rohstoffpreis-/Preiszyklus-Normalisierung"
             ],
-            "status": "Router aktiv – V2 Finanzzyklus- und Betriebsdaten",
+            "status": "Router aktiv – V2.1 Finanzzyklus, Betrieb & Preiszyklus-Schutz",
             "note": (
-                "V2 prüft Mehrjahres-Gewinnbasis, FCF-Stabilität und Bilanz. "
-                "Produktions-Guidance sowie AISC/Stückkosten werden nicht aus "
-                "Yahoo-Kennzahlen geschätzt. Liegt ein verifizierter, datierter "
-                "Unternehmens-Snapshot vor, wird er in Schritt 3B integriert; "
-                "ohne belastbare operative Minendaten bleibt der Fair Value gesperrt."
+                "V2.1 prüft Mehrjahres-Gewinnbasis, FCF-Stabilität, Bilanz und "
+                "verifizierte Produktions-/Kostenkennzahlen. Für eine belastbare "
+                "Bergbau-Bewertung reicht das allein jedoch nicht: Der zugrunde "
+                "liegende Rohstoffpreis- und Margenzyklus muss zusätzlich normalisiert "
+                "werden. Bis diese Preiszyklus-Logik implementiert ist, bleibt der "
+                "Fair Value gesperrt."
             )
         }
 
@@ -5452,6 +5454,14 @@ def build_mining_special_control(
         and operating_status not in ["Daten fehlen", "Daten unzureichend", "Daten veraltet"]
     )
 
+    # Mining V2.1 safety guard:
+    # Production/AISC visibility is necessary but not sufficient for valuation.
+    # A miner's earnings and FCF are highly dependent on commodity prices. Until
+    # a verified commodity-price / margin-cycle normalization is implemented, the
+    # special control must NOT release a KGV-based Fair Value.
+    commodity_price_cycle_available = False
+    commodity_price_cycle_status = "Noch nicht implementiert"
+
     if not financial_checks_usable:
         released = False
         overall_status = "Finanzzyklus-Daten unzureichend"
@@ -5467,6 +5477,10 @@ def build_mining_special_control(
     elif operating_status == "Schwach":
         released = False
         overall_status = "Operative Warnung"
+        confidence_cap = "Niedrig"
+    elif not commodity_price_cycle_available:
+        released = False
+        overall_status = "Rohstoffpreis-Zyklus noch nicht normalisiert"
         confidence_cap = "Niedrig"
     elif peak_risk:
         released = True
@@ -5527,13 +5541,19 @@ def build_mining_special_control(
                 "aisc_improvement_pct": aisc_improvement_pct,
                 "actual_aisc_status": actual_aisc_status,
             },
+            "commodity_price_cycle": {
+                "available": commodity_price_cycle_available,
+                "status": commodity_price_cycle_status,
+                "required": True,
+            },
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2 trennt Finanzzyklus und operative "
-            "Minenvisibilität. Produktions-Guidance und AISC werden nur aus einem "
-            "verifizierten, datierten Snapshot verwendet. Peak-Cycle-Risiko verändert "
-            "den 100-Punkte-Multiple-Score nicht, begrenzt die Bewertungssicherheit "
-            "aber auf Niedrig."
+            "Die Bergbau-Spezialkontrolle V2.1 trennt Finanzzyklus, operative "
+            "Minenvisibilität und Rohstoffpreiszyklus. Produktions-Guidance und AISC "
+            "werden nur aus einem verifizierten, datierten Snapshot verwendet. "
+            "Solange der Rohstoffpreis-/Margenzyklus nicht belastbar normalisiert ist, "
+            "wird kein Fair Value freigegeben. Der 100-Punkte-Multiple-Score bleibt "
+            "davon unverändert."
         ),
     })
 
@@ -9131,6 +9151,20 @@ if selected_symbol:
                                 "Für diese Bergbau-Aktie liegt noch kein verifizierter "
                                 "operativer Snapshot mit Produktions-Guidance und AISC/"
                                 "Stückkosten vor. Es wird nichts aus Yahoo geschätzt."
+                            )
+
+                        commodity_cycle = checks.get("commodity_price_cycle", {})
+                        st.write(
+                            "**Rohstoffpreis-/Preiszyklus-Normalisierung:** "
+                            f"{commodity_cycle.get('status', 'Daten fehlen')}"
+                        )
+                        if not commodity_cycle.get("available", False):
+                            st.warning(
+                                "Für Bergbauunternehmen reichen Produktions- und "
+                                "Kostenkennzahlen allein nicht für einen belastbaren "
+                                "Fair Value. Der zugrunde liegende Rohstoffpreis- und "
+                                "Margenzyklus muss zuerst normalisiert werden. Bis dahin "
+                                "bleibt der Fair Value gesperrt."
                             )
 
                         if special_control.get("released"):
