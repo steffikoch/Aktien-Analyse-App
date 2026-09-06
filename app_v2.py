@@ -4679,9 +4679,9 @@ def get_special_control(company_type, symbol):
                 "Life-of-Mine-Profil & NAV-Freigabe-Gate",
                 "Allgemeiner Primärrohstoff-Router"
             ],
-            "status": "Router aktiv – V2.10 Reserve/NAV-Snapshot + Betriebsdaten + Primärrohstoff-Router + LOM-Gate",
+            "status": "Router aktiv – V2.11 Kernasset-LOM-Struktur + Reserve/NAV-Snapshot + Betriebsdaten + LOM-Gate",
             "note": (
-                "V2.10 ergänzt das Bergbaumodell um einen verifizierten Reserve-/NAV-Snapshot und einen konservativen allgemeinen "
+                "V2.11 ergänzt das Bergbaumodell um einen verifizierten Reserve-/NAV-Snapshot und einen konservativen allgemeinen "
                 "Primärrohstoff-Router für eindeutige Branchen wie Gold, Silber und "
                 "Kupfer. Unspezifische Mischbranchen bleiben gesperrt. Das bestehende "
                 "V2.7-Life-of-Mine-Gate bleibt unverändert aktiv. "
@@ -5481,7 +5481,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
                 "Hecla wird wegen der gemischten Yahoo-Branche ausdrücklich primär "
                 "dem Silberpreis zugeordnet. Gold, Blei und Zink bleiben zusätzliche "
                 "Exposures und werden nicht als separate Primärrohstoffe in diese "
-                "V2.10-Kontrolle hineingeschätzt."
+                "V2.11-Kontrolle hineingeschätzt."
             ),
         },
     }
@@ -5519,7 +5519,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
         "route_source": "Allgemeiner Branchen-Router",
         "routing_basis": f"Yahoo-Branche: {industry_text}",
         "mapping_note": (
-            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.10 "
+            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.11 "
             f"automatisch dem Primärrohstoff {base['commodity_name']} zugeordnet. "
             "Unspezifische oder gemischte Bergbau-Branchen werden weiterhin nicht "
             "automatisch geroutet."
@@ -6007,7 +6007,7 @@ def build_mining_earnings_translation(
 
 def get_verified_mining_asset_snapshot(symbol):
     """
-    Curated reserve / mine-life / technical-NAV reference data for Mining V2.10.
+    Curated reserve / mine-life / technical-NAV reference data for Mining V2.11.
 
     Company reserve snapshots are kept separate from technical NAV anchors. A
     current reserve statement can therefore be displayed without promoting an
@@ -6070,9 +6070,10 @@ def get_verified_mining_asset_snapshot(symbol):
                 "Gesamtreserven / Jahresguidance bleibt nur eine Portfolio-"
                 "Kontrollrechnung und ist kein mine-spezifisches Life-of-Mine-Profil."
             ),
+            "core_asset_lom_structure": get_verified_newmont_core_asset_lom_structure(),
             "technical_nav_references": [],
             "technical_nav_note": (
-                "V2.10 integriert bewusst noch keinen aktuellen mine-spezifischen "
+                "V2.11 integriert bewusst noch keinen aktuellen mine-spezifischen "
                 "Newmont-NAV. Ohne aktuelle technische LOM-Produktions-, Kosten-, "
                 "Sustaining-CapEx- und Steuerprofile wird kein synthetischer NAV gebaut."
             ),
@@ -6114,7 +6115,7 @@ def get_verified_mining_asset_snapshot(symbol):
         "reserve_price_basis_lead": 0.90,
         "reserve_price_basis_zinc": 1.15,
         # No copper reserve-price basis is published for the core silver reserve
-        # set used here. V2.10 therefore gives copper by-product credits no value
+        # set used here. V2.11 therefore gives copper by-product credits no value
         # in the normalized run-rate NAV instead of inventing a price.
         "reserve_price_basis_copper": None,
         "reserve_mine_life_years": {
@@ -6265,18 +6266,18 @@ def build_mining_normalized_mine_nav_v26(
         if symbol_text == "NEM" and asset_snapshot:
             result["status"] = "Portfolio-Reservebasis verfügbar – mine-spezifischer LOM-NAV noch offen"
             result["reason"] = (
-                "Newmonts 2025er Goldreserven sind verifiziert, aber V2.10 besitzt "
+                "Newmonts 2025er Goldreserven sind verifiziert, aber V2.11 besitzt "
                 "noch keine aktuellen mine-spezifischen Life-of-Mine-Produktions-, "
                 "Kosten-, Sustaining-CapEx- und Steuerprofile für einen belastbaren "
                 "Portfolio-NAV. Es wird kein synthetischer Mine-NAV geschätzt."
             )
             result["method_note"] = (
-                "V2.10 trennt den aktuellen Reserve-Snapshot strikt vom Mine-NAV. "
+                "V2.11 trennt den aktuellen Reserve-Snapshot strikt vom Mine-NAV. "
                 "Ein Portfolio-Guidance-Jahr ersetzt keine mine-spezifischen LOM-"
                 "Cashflows."
             )
         else:
-            result["reason"] = "Kein verifizierter V2.10-Mine-NAV-Datensatz verfügbar."
+            result["reason"] = "Kein verifizierter V2.11-Mine-NAV-Datensatz verfügbar."
         return result
 
     silver_price = safe_float((commodity_cycle or {}).get("normalized_price"))
@@ -6703,6 +6704,77 @@ def build_mining_lom_release_gate_v27(
     return result
 
 
+
+def get_verified_newmont_core_asset_lom_structure():
+    """Verified Newmont V2.11 LOM evidence map; not a synthetic NAV."""
+    total_reserves = 118.2
+    long_life_reserves = 85.7
+    managed_run_rate_reserves = 71.5
+    nonmanaged_jv_reserves = 25.6
+    development_project_reserves = 21.0
+    return {
+        "available": True,
+        "as_of_date": "23.07.2026",
+        "reserve_as_of_date": "31.12.2025",
+        "source_name": "Newmont 2025 Reserves + 2026 Site Guidance",
+        "source_note": (
+            "V2.11 trennt drei Ebenen: offizielle Reserve-Langlebigkeit, aktuelle 2026 "
+            "Run-rate-Produktion/AISC und echte mine-spezifische Life-of-Mine-Produktions-, "
+            "Kosten-, CapEx- und Steuerprofile. Nur die dritte Ebene kann später ein LOM-NAV-Gate freigeben."
+        ),
+        "total_reserves_moz": total_reserves,
+        "long_life_reserves_moz": long_life_reserves,
+        "long_life_reserve_coverage_pct": long_life_reserves / total_reserves * 100.0,
+        "managed_run_rate_reserves_moz": managed_run_rate_reserves,
+        "managed_run_rate_coverage_pct": managed_run_rate_reserves / total_reserves * 100.0,
+        "full_lom_profile_coverage_pct": 0.0,
+        "nonmanaged_jv_reserves_moz": nonmanaged_jv_reserves,
+        "nonmanaged_jv_coverage_pct": nonmanaged_jv_reserves / total_reserves * 100.0,
+        "development_project_reserves_moz": development_project_reserves,
+        "development_project_coverage_pct": development_project_reserves / total_reserves * 100.0,
+        "managed_core_assets": [
+            {"asset":"Lihir","reserve_moz":16.0,"production_2026_koz":560,"aisc_2026_usd_oz":1765,
+             "reserve_life_evidence":"≥10 Jahre; Nearshore Barrier verlängert Minenleben über 2040",
+             "lom_profile_status":"Teilweise belegt – kein vollständiger aktueller LOM-Kosten-/CapEx-Pfad"},
+            {"asset":"Cadia","reserve_moz":13.5,"production_2026_koz":270,"aisc_2026_usd_oz":1575,
+             "reserve_life_evidence":"≥10 Jahre; Panel-Caves/Tailings-Investitionen stützen langfristige Fortführung",
+             "lom_profile_status":"Teilweise belegt – aktuelles Run-rate-Profil, kein vollständiger LOM-Kostenpfad"},
+            {"asset":"Boddington","reserve_moz":10.2,"production_2026_koz":580,"aisc_2026_usd_oz":1630,
+             "reserve_life_evidence":"≥10 Jahre; Tailings-Ausbau unterstützt künftiges Minenleben",
+             "lom_profile_status":"Teilweise belegt – kein vollständiger aktueller LOM-Kosten-/CapEx-Pfad"},
+            {"asset":"Ahafo Complex","reserve_moz":8.8,"production_2026_koz":755,"aisc_2026_usd_oz":None,
+             "reserve_life_evidence":"Ahafo North ≥10 Jahre; Ahafo South separat zu modellieren",
+             "lom_profile_status":"Gemischtes Teilprofil – North/South besitzen unterschiedliche Kostenprofile",
+             "note":"2026 Guidance: Ahafo South 440 koz / 2.160 USD AISC; Ahafo North 315 koz / 1.285 USD AISC."},
+            {"asset":"Tanami","reserve_moz":5.3,"production_2026_koz":365,"aisc_2026_usd_oz":2145,
+             "reserve_life_evidence":"≥10 Jahre; Expansion 2 verlängert Minenleben über 2040",
+             "lom_profile_status":"Teilweise belegt – Expansionspfad bekannt, vollständiger LOM-Kostenpfad fehlt"},
+            {"asset":"Merian","reserve_moz":4.5,"production_2026_koz":225,"aisc_2026_usd_oz":1800,
+             "reserve_life_evidence":"≥10 Jahre Reserveleben",
+             "lom_profile_status":"Teilweise belegt – aktuelles Run-rate-Profil, kein vollständiger LOM-Kostenpfad"},
+            {"asset":"Cerro Negro","reserve_moz":3.0,"production_2026_koz":220,"aisc_2026_usd_oz":1960,
+             "reserve_life_evidence":"≥10 Jahre; 2026 Investitionen für Minenlebensverlängerung",
+             "lom_profile_status":"Teilweise belegt – aktuelles Run-rate-Profil, vollständiger LOM-Pfad fehlt"},
+            {"asset":"Brucejack","reserve_moz":2.9,"production_2026_koz":260,"aisc_2026_usd_oz":2085,
+             "reserve_life_evidence":"≥10 Jahre Reserveleben",
+             "lom_profile_status":"Teilweise belegt – aktuelles Run-rate-Profil, kein vollständiger LOM-Kostenpfad"},
+        ],
+        "nonmanaged_long_life_assets": [
+            {"asset":"Nevada Gold Mines (38,5 %)","reserve_moz":17.4,"reserve_life_evidence":"≥10 Jahre"},
+            {"asset":"Pueblo Viejo (40 %)","reserve_moz":8.2,"reserve_life_evidence":"≥10 Jahre"},
+        ],
+        "development_projects": [
+            {"asset":"Norte Abierto","reserve_moz":10.8},
+            {"asset":"Wafi-Golpu","reserve_moz":5.1},
+            {"asset":"NuevaUnión","reserve_moz":5.1},
+        ],
+        "full_lom_release_ready": False,
+        "reason": (
+            "Reserve-Langlebigkeit ist für einen großen Teil des Portfolios belegt, aber aktuelle vollständige "
+            "mine-spezifische LOM-Produktions-, Kosten-, Sustaining-CapEx- und Steuerpfade sind noch nicht integriert."
+        ),
+    }
+
 def build_mining_asset_nav_control(
     symbol,
     commodity_cycle,
@@ -6732,8 +6804,10 @@ def build_mining_asset_nav_control(
         "total_core_silver_reserves_moz": None,
         "production_guidance_mid_moz": None,
         "reserve_coverage_years": None,
+        "portfolio_reserve_coverage_status": "Daten unzureichend",
         "company_average_reserve_mine_life_years": None,
         "mine_life_status": "Daten unzureichend",
+        "core_asset_lom_structure": {},
         "technical_nav_available": False,
         "technical_nav_reference_fresh": False,
         "technical_nav_sum_musd": None,
@@ -6817,21 +6891,46 @@ def build_mining_asset_nav_control(
             reserve_coverage = reserves_moz / production_mid
     result["production_guidance_mid_moz"] = production_mid
     result["reserve_coverage_years"] = reserve_coverage
+    if reserve_coverage is None:
+        portfolio_reserve_coverage_status = "Daten unzureichend"
+    elif reserve_coverage >= 15.0:
+        portfolio_reserve_coverage_status = "Sehr stark"
+    elif reserve_coverage >= 10.0:
+        portfolio_reserve_coverage_status = "Stark"
+    elif reserve_coverage >= 7.0:
+        portfolio_reserve_coverage_status = "Ausreichend"
+    else:
+        portfolio_reserve_coverage_status = "Kurz"
+    result["portfolio_reserve_coverage_status"] = portfolio_reserve_coverage_status
+
+    core_asset_lom_structure = snapshot.get("core_asset_lom_structure") or {}
+    result["core_asset_lom_structure"] = core_asset_lom_structure
 
     company_mine_life = safe_float(snapshot.get("company_average_reserve_mine_life_years"))
     result["company_average_reserve_mine_life_years"] = company_mine_life
 
-    life_values = [value for value in [reserve_coverage, company_mine_life] if value is not None]
-    if not life_values:
-        mine_life_status = "Daten unzureichend"
-    elif min(life_values) >= 10.0:
-        mine_life_status = "Sehr stark"
-    elif min(life_values) >= 7.0:
-        mine_life_status = "Stark"
-    elif min(life_values) >= 5.0:
-        mine_life_status = "Ausreichend"
+    symbol_text = str(symbol or "").upper()
+    if symbol_text == "NEM" and core_asset_lom_structure:
+        full_lom_pct = safe_float(core_asset_lom_structure.get("full_lom_profile_coverage_pct"))
+        long_life_pct = safe_float(core_asset_lom_structure.get("long_life_reserve_coverage_pct"))
+        if full_lom_pct is not None and full_lom_pct >= 90.0:
+            mine_life_status = "LOM weitgehend verifiziert"
+        elif long_life_pct is not None and long_life_pct >= 70.0:
+            mine_life_status = "Reserve-Langlebigkeit stark – mine-spezifische LOM-Profile noch unvollständig"
+        else:
+            mine_life_status = "Mine-spezifische LOM-Abdeckung noch nicht ausreichend verifiziert"
     else:
-        mine_life_status = "Kurz"
+        life_values = [value for value in [reserve_coverage, company_mine_life] if value is not None]
+        if not life_values:
+            mine_life_status = "Daten unzureichend"
+        elif min(life_values) >= 10.0:
+            mine_life_status = "Sehr stark"
+        elif min(life_values) >= 7.0:
+            mine_life_status = "Stark"
+        elif min(life_values) >= 5.0:
+            mine_life_status = "Ausreichend"
+        else:
+            mine_life_status = "Kurz"
     result["mine_life_status"] = mine_life_status
 
     nav_details = []
@@ -6936,7 +7035,11 @@ def build_mining_asset_nav_control(
     result["earnings_nav_convergence_status"] = convergence
 
     reserve_ok = reserve_fresh and price_alignment_status in ["Sehr stark", "Stark", "Ausreichend"]
-    life_ok = mine_life_status in ["Sehr stark", "Stark", "Ausreichend"]
+    if str(symbol or "").upper() == "NEM" and core_asset_lom_structure:
+        full_lom_pct = safe_float(core_asset_lom_structure.get("full_lom_profile_coverage_pct"))
+        life_ok = full_lom_pct is not None and full_lom_pct >= 90.0
+    else:
+        life_ok = mine_life_status in ["Sehr stark", "Stark", "Ausreichend"]
     nav_current_ok = result["technical_nav_available"] and nav_reference_fresh
     convergence_ok = convergence in ["Stark konvergent", "Ausreichend konvergent"]
 
@@ -6952,8 +7055,16 @@ def build_mining_asset_nav_control(
             "liegt zu weit vom normalisierten Rohstoffpreis entfernt."
         )
     elif not life_ok:
-        status = "Minenlebensdauer zu kurz oder unklar"
-        reason = "Die Reserve-Lebensdauer reicht nicht für eine robuste Asset-Bewertung."
+        if str(symbol or "").upper() == "NEM" and core_asset_lom_structure:
+            status = "Portfolio-Reservebasis stark – mine-spezifische LOM-Abdeckung noch unvollständig"
+            reason = (
+                "Die Portfolio-Reserveabdeckung ist stark und Newmont weist für viele Kernassets mindestens zehn Jahre "
+                "Reserveleben aus. Für eine NAV-Freigabe fehlen jedoch noch aktuelle vollständige mine-spezifische "
+                "LOM-Produktions-, Kosten-, Sustaining-CapEx- und Steuerpfade."
+            )
+        else:
+            status = "Minenlebensdauer zu kurz oder unklar"
+            reason = "Die Reserve-Lebensdauer reicht nicht für eine robuste Asset-Bewertung."
     elif not normalized_nav_partial_ok:
         if str(symbol or "").upper() == "NEM":
             status = "Reservebasis stark – aktueller Mine-NAV/LOM noch offen"
@@ -7038,7 +7149,7 @@ def build_mining_special_control(
     industry=None,
 ):
     """
-    Conservative Mining V2.10.
+    Conservative Mining V2.11.
 
     Financial-cycle checks are calculated from already-loaded company data.
     Production guidance and AISC/unit-cost data are used only when a dated,
@@ -7168,7 +7279,7 @@ def build_mining_special_control(
         and operating_status not in ["Daten fehlen", "Daten unzureichend", "Daten veraltet"]
     )
 
-    # Mining V2.10 price-cycle normalization. Price history is loaded dynamically
+    # Mining V2.11 price-cycle normalization. Price history is loaded dynamically
     # from either an explicitly verified company route or an exact, unambiguous
     # industry route. The normalized commodity margin is a control input, not a
     # direct one-for-one price-to-EPS conversion factor.
@@ -7305,7 +7416,7 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.10 trennt Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.11 trennt Kernasset-LOM-Struktur, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
             "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
             "Ertragskraft, Reserve-/Asset-Kontrolle, Run-rate-Mine-NAV und das "
             "formale Life-of-Mine-Freigabe-Gate. Ein Guidance-Jahr ersetzt kein "
@@ -7656,7 +7767,7 @@ def calculate_fair_value_v1(
         "quote_currency"
     )
 
-    # Mining V2.10 hard safety gate. This is intentionally independent of the
+    # Mining V2.11 hard safety gate. This is intentionally independent of the
     # special-control release flag so that stale cache/state can never release
     # a mining Fair Value before commodity-price / margin-cycle normalization.
     if (
@@ -8044,7 +8155,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_newmont_reserve_v210_20260906"
+CACHE_VERSION = "m6_mining_newmont_core_lom_v211_20260906"
 
 @st.cache_data(
     ttl=900,
@@ -10814,7 +10925,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.10 – Reserve/NAV-Snapshot + transparente Ertragskraft-Sperre + LOM-Gate")
+                    st.caption("Bergbau-Schutzmodell V2.11 – Kernasset-LOM-Struktur + Reserve/NAV-Snapshot + LOM-Gate")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -11200,7 +11311,7 @@ if selected_symbol:
                                 "normalisierte FCF je Aktie die Richtung stützt."
                             )
                         else:
-                            # V2.10: Auch bei gesperrter Ertragskraft die Diagnosewerte
+                            # V2.11: Auch bei gesperrter Ertragskraft die Diagnosewerte
                             # transparent zeigen. Die Freigabelogik selbst bleibt unverändert.
                             diag1, diag2 = st.columns(2)
                             with diag1:
@@ -11296,8 +11407,12 @@ if selected_symbol:
                                         f"{asset_nav_control['reserve_coverage_years']:.1f} Jahre "
                                         "(Portfolio-Kontrollrechnung, kein mine-spezifisches LOM-Profil)"
                                     )
+                                    st.write(
+                                        "**Portfolio-Reserveabdeckung:** "
+                                        f"{asset_nav_control.get('portfolio_reserve_coverage_status', '–')}"
+                                    )
                                 st.write(
-                                    "**Minenlebensdauer-Status:** "
+                                    "**Mine-spezifische LOM-Abdeckung:** "
                                     f"{asset_nav_control.get('mine_life_status', '–')}"
                                 )
                                 if asset_snapshot.get("mine_life_note"):
@@ -11342,6 +11457,64 @@ if selected_symbol:
                                 st.caption(f"{commodity_label}reserven nach Asset: " + reserve_text)
                             if asset_snapshot.get("reserve_source_note"):
                                 st.info(asset_snapshot.get("reserve_source_note"))
+
+                            core_lom = asset_nav_control.get("core_asset_lom_structure") or {}
+                            if core_lom.get("available"):
+                                st.markdown("**Kernasset-LOM-Struktur V2.11:**")
+                                kc1, kc2, kc3 = st.columns(3)
+                                with kc1:
+                                    st.metric("Reserven mit offizieller 10+-Jahre-Langlebigkeit", f"{core_lom.get('long_life_reserve_coverage_pct', 0.0):.1f} %")
+                                with kc2:
+                                    st.metric("Aktuelle Site-Run-rate-Abdeckung", f"{core_lom.get('managed_run_rate_coverage_pct', 0.0):.1f} %")
+                                with kc3:
+                                    st.metric("Vollständige aktuelle LOM-Profil-Abdeckung", f"{core_lom.get('full_lom_profile_coverage_pct', 0.0):.1f} %")
+
+                                st.write(
+                                    f"**Nicht gemanagte JV-Reserven:** {core_lom.get('nonmanaged_jv_coverage_pct', 0.0):.1f} % · "
+                                    f"**Entwicklungs-/Projektreserven:** {core_lom.get('development_project_coverage_pct', 0.0):.1f} %"
+                                )
+                                st.caption(core_lom.get("source_note") or "")
+
+                                for asset in core_lom.get("managed_core_assets", []):
+                                    reserve_moz = safe_float(asset.get("reserve_moz")) or 0.0
+                                    reserve_share = reserve_moz / max(safe_float(core_lom.get("total_reserves_moz")) or 1.0, 1e-9) * 100.0
+                                    line = (
+                                        f"• **{asset.get('asset')}** – Reserve {reserve_moz:.1f} Mio. oz ({reserve_share:.1f} %) · "
+                                        f"2026 Produktion {safe_float(asset.get('production_2026_koz')) or 0:,.0f} koz"
+                                    )
+                                    aisc = safe_float(asset.get("aisc_2026_usd_oz"))
+                                    if aisc is not None:
+                                        line += f" · AISC {aisc:,.0f} USD/oz"
+                                    st.write(line)
+                                    st.caption(
+                                        f"Reserve-/Langlebigkeitsnachweis: {asset.get('reserve_life_evidence', '–')} · "
+                                        f"LOM-Status: {asset.get('lom_profile_status', '–')}"
+                                    )
+                                    if asset.get("note"):
+                                        st.caption(asset.get("note"))
+
+                                jv_names = ", ".join(
+                                    f"{x.get('asset')} ({safe_float(x.get('reserve_moz')) or 0.0:.1f} Mio. oz)"
+                                    for x in core_lom.get("nonmanaged_long_life_assets", [])
+                                )
+                                if jv_names:
+                                    st.write(f"**Nicht gemanagte Long-Life-JVs:** {jv_names}")
+                                    st.caption("Diese Reserven zählen zur Reservebasis, benötigen für einen NAV aber separate JV-LOM-Daten.")
+
+                                project_names = ", ".join(
+                                    f"{x.get('asset')} ({safe_float(x.get('reserve_moz')) or 0.0:.1f} Mio. oz)"
+                                    for x in core_lom.get("development_projects", [])
+                                )
+                                if project_names:
+                                    st.write(f"**Entwicklungs-/Projektreserven:** {project_names}")
+                                    st.caption("Projektreserven werden nicht mit einem laufenden Produktions-AISC-Profil bewertet.")
+
+                                st.warning(
+                                    "LOM-Freigabe weiterhin gesperrt: Die offizielle Reserve-Langlebigkeit ist stark, aber vollständige aktuelle "
+                                    "mine-spezifische Produktions-, Kosten-, Sustaining-CapEx- und Steuerpfade decken noch nicht mindestens 90 % "
+                                    "der Kernreserven ab."
+                                )
+
                             if asset_snapshot.get("technical_nav_note"):
                                 st.warning(asset_snapshot.get("technical_nav_note"))
 
@@ -11400,7 +11573,7 @@ if selected_symbol:
                         normalized_mine_nav = asset_nav_control.get("normalized_mine_nav") or {}
                         if normalized_mine_nav:
                             st.write(
-                                "**Normalisierter Mine-NAV V2.10 (Run-rate DCF-Kontrolle):** "
+                                "**Normalisierter Mine-NAV V2.11 (Run-rate DCF-Kontrolle):** "
                                 f"{normalized_mine_nav.get('status', '–')}"
                             )
                             nav_method1, nav_method2 = st.columns(2)
