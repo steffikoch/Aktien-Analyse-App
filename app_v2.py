@@ -105,6 +105,51 @@ def safe_float(value):
         return None
 
 
+def build_currency_context(quote_currency):
+    """
+    Separate quote currency from financial-statement currency.
+
+    Yahoo can quote UK shares in pence (GBp/GBX) while EPS and
+    fundamental financial values are reported in pounds sterling (GBP).
+    The current modules only label these units separately; no silent
+    multiplication or division is performed.
+    """
+    raw_currency = str(quote_currency or "").strip()
+
+    is_gbp_pence_quote = (
+        raw_currency == "GBp"
+        or raw_currency.upper() == "GBX"
+    )
+
+    if is_gbp_pence_quote:
+        return {
+            "quote_currency": "GBp",
+            "financial_currency": "GBP",
+            "valuation_currency": "GBP",
+            "mixed_units": True,
+            "financial_to_quote_factor": 100.0,
+            "quote_to_financial_factor": 0.01,
+            "note": (
+                "Britische Pence-Notierung erkannt: Der Aktienkurs wird "
+                "in GBp (Pence) geführt, während EPS und die fundamentalen "
+                "Finanzkennzahlen in GBP (Pfund Sterling) beschriftet werden. "
+                "Die Rohwerte werden in den aktuellen Modulen nicht stillschweigend "
+                "umgerechnet. Für einen späteren Fair-Value/Kurs-Vergleich muss "
+                "die Einheit ausdrücklich angeglichen werden (1 GBP = 100 GBp)."
+            )
+        }
+
+    return {
+        "quote_currency": quote_currency,
+        "financial_currency": quote_currency,
+        "valuation_currency": quote_currency,
+        "mixed_units": False,
+        "financial_to_quote_factor": 1.0,
+        "quote_to_financial_factor": 1.0,
+        "note": None
+    }
+
+
 def sanitize_profit_margin(
     raw_margin,
     net_income,
@@ -2898,7 +2943,7 @@ def get_special_control(company_type, symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1"
+CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1"
 
 @st.cache_data(
     ttl=900,
@@ -2920,6 +2965,10 @@ def load_stock(search_text, cache_version):
 
     ticker = yf.Ticker(symbol)
     info = ticker.info or {}
+
+    currency_context = build_currency_context(
+        info.get("currency")
+    )
 
     name = (
         info.get("longName")
@@ -3077,7 +3126,9 @@ def load_stock(search_text, cache_version):
         ),
 
         "price": price,
-        "currency": info.get("currency"),
+        "currency": currency_context["quote_currency"],
+        "financial_currency": currency_context["financial_currency"],
+        "currency_context": currency_context,
 
         "sector": info.get("sector"),
         "industry": info.get("industry"),
@@ -3227,6 +3278,18 @@ if search_text:
                     data["currency"]
                 )
 
+                financial_currency = text_or_dash(
+                    data.get(
+                        "financial_currency",
+                        data["currency"]
+                    )
+                )
+
+                currency_context = data.get(
+                    "currency_context",
+                    {}
+                )
+
                 st.success("Aktie gefunden")
 
                 st.header(data["name"])
@@ -3274,6 +3337,11 @@ if search_text:
                     st.write(
                         f"**Branche:** "
                         f"{text_or_dash(data['industry'])}"
+                    )
+
+                if currency_context.get("mixed_units"):
+                    st.warning(
+                        currency_context.get("note")
                     )
 
                 st.divider()
@@ -3334,7 +3402,7 @@ if search_text:
                         "Marktkapitalisierung",
                         format_money(
                             data["market_cap"],
-                            currency
+                            financial_currency
                         )
                     )
 
@@ -3342,7 +3410,7 @@ if search_text:
                         "EPS aktuell (TTM)",
                         format_eps(
                             data["trailing_eps"],
-                            currency
+                            financial_currency
                         )
                     )
 
@@ -3350,7 +3418,7 @@ if search_text:
                         "EPS erwartet (Forward)",
                         format_eps(
                             data["forward_eps"],
-                            currency
+                            financial_currency
                         )
                     )
 
@@ -3358,7 +3426,7 @@ if search_text:
                         "Umsatz",
                         format_money(
                             data["revenue"],
-                            currency
+                            financial_currency
                         )
                     )
 
@@ -3368,7 +3436,7 @@ if search_text:
                         "Nettogewinn",
                         format_money(
                             data["net_income"],
-                            currency
+                            financial_currency
                         )
                     )
 
@@ -3376,7 +3444,7 @@ if search_text:
                         "Free Cashflow",
                         format_money(
                             data["free_cashflow"],
-                            currency
+                            financial_currency
                         )
                     )
 
@@ -3384,7 +3452,7 @@ if search_text:
                         "Liquide Mittel",
                         format_money(
                             data["cash"],
-                            currency
+                            financial_currency
                         )
                     )
 
@@ -3392,7 +3460,7 @@ if search_text:
                         "Gesamtschulden",
                         format_money(
                             data["debt"],
-                            currency
+                            financial_currency
                         )
                     )
 
@@ -3517,7 +3585,7 @@ if search_text:
 
                 history_df = historical_table(
                     historical,
-                    currency
+                    financial_currency
                 )
 
                 if not history_df.empty:
@@ -3555,7 +3623,7 @@ if search_text:
                         "Normalisiertes EPS",
                         format_eps(
                             normalized_eps,
-                            currency
+                            financial_currency
                         )
                     )
 
@@ -3611,7 +3679,7 @@ if search_text:
                         "Forward-Anpassung:** "
                         f"{format_eps(
                             eps_result['cycle_basis'],
-                            currency
+                            financial_currency
                         )}"
                     )
 
@@ -3984,7 +4052,7 @@ if search_text:
                         "**Nettoschulden:** "
                         f"{format_money(
                             balance_result['net_debt'],
-                            currency
+                            financial_currency
                         )}"
                     )
 
