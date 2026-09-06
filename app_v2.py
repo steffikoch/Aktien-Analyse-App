@@ -4676,7 +4676,7 @@ def get_special_control(company_type, symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1_ing_primary_priority_v2_midstream_v1_generic_router_v1_auto_v1_reit_v1"
+CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1_ing_primary_priority_v2_midstream_v1_generic_router_v1_auto_v1_reit_v1_reit_eps_note_v1"
 
 @st.cache_data(
     ttl=900,
@@ -5506,11 +5506,18 @@ if selected_symbol:
                         )}"
                     )
 
-                st.caption(
-                    "Dieser Wert ist noch kein Fair Value. "
-                    "Er bildet nur die Gewinnbasis für die "
-                    "spätere Bewertung."
-                )
+                if company_type.get("type") == "REIT / Immobilien":
+                    st.caption(
+                        "Das normalisierte EPS wird bei REITs nur "
+                        "als Kontext angezeigt. Für die spätere "
+                        "Bewertung sind FFO/AFFO maßgeblich."
+                    )
+                else:
+                    st.caption(
+                        "Dieser Wert ist noch kein Fair Value. "
+                        "Er bildet nur die Gewinnbasis für die "
+                        "spätere Bewertung."
+                    )
 
                 st.divider()
 
