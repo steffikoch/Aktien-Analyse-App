@@ -3168,6 +3168,184 @@ def build_bank_special_model(
 
 
 # =========================================================
+# Midstream-Sondermodell V1 – Datenbasis / Plausibilitätscheck
+# =========================================================
+
+def build_midstream_special_model(
+    company_type,
+    info,
+    price,
+    currency_context
+):
+    """
+    Conservative midstream-specific data block.
+
+    It does not create a score, valuation multiple or fair value.
+    It only prepares EV/EBITDA and leverage references from Yahoo
+    and keeps distributable cash flow separate from standard FCF.
+    Distributable cash flow is not estimated from FCF or OCF.
+    """
+    type_name = str(
+        company_type.get("type", "")
+    ).lower()
+
+    if "midstream" not in type_name:
+        return {
+            "applicable": False
+        }
+
+    enterprise_value = safe_float(
+        info.get("enterpriseValue")
+    )
+    ebitda = safe_float(
+        info.get("ebitda")
+    )
+    yahoo_ev_to_ebitda = safe_float(
+        info.get("enterpriseToEbitda")
+    )
+    total_cash = safe_float(
+        info.get("totalCash")
+    )
+    total_debt = safe_float(
+        info.get("totalDebt")
+    )
+    operating_cashflow = safe_float(
+        info.get("operatingCashflow")
+    )
+    free_cashflow_reference = safe_float(
+        info.get("freeCashflow")
+    )
+
+    # -----------------------------------------------------
+    # EV/EBITDA: nur anzeigen, wenn die selbst berechnete
+    # Kennzahl und Yahoo-enterpriseToEbitda ausreichend
+    # gut zusammenpassen. So vermeiden wir Einheitenfehler.
+    # -----------------------------------------------------
+    calculated_ev_to_ebitda = None
+    if (
+        enterprise_value is not None
+        and enterprise_value > 0
+        and ebitda is not None
+        and ebitda > 0
+    ):
+        calculated_ev_to_ebitda = (
+            enterprise_value / ebitda
+        )
+
+    ev_to_ebitda_display = None
+    ev_to_ebitda_status = "unverified"
+    ev_to_ebitda_note = None
+
+    if calculated_ev_to_ebitda is None:
+        ev_to_ebitda_note = (
+            "EV/EBITDA konnte aus Enterprise Value und EBITDA nicht "
+            "belastbar berechnet werden. Es wird kein Wert geschätzt."
+        )
+
+    elif (
+        yahoo_ev_to_ebitda is not None
+        and yahoo_ev_to_ebitda > 0
+    ):
+        ev_deviation = abs(
+            calculated_ev_to_ebitda
+            / yahoo_ev_to_ebitda
+            - 1.0
+        )
+
+        if ev_deviation <= 0.20:
+            ev_to_ebitda_display = calculated_ev_to_ebitda
+            ev_to_ebitda_status = "plausible"
+            ev_to_ebitda_note = (
+                "EV/EBITDA-Plausibilitätscheck bestanden: Die aus "
+                "Enterprise Value und EBITDA berechnete Kennzahl liegt "
+                "innerhalb von 20 % des separat gemeldeten Yahoo-"
+                "enterpriseToEbitda. Der Wert bleibt eine reine "
+                "Datenbasis und erzeugt noch keine Bewertung."
+            )
+        else:
+            ev_to_ebitda_status = "conflict"
+            ev_to_ebitda_note = (
+                "⚠️ EV/EBITDA nicht belastbar: Die selbst berechnete "
+                "Kennzahl weicht um mehr als 20 % vom separat gemeldeten "
+                "Yahoo-enterpriseToEbitda ab. Deshalb wird EV/EBITDA "
+                "nicht als belastbare Referenz angezeigt."
+            )
+
+    else:
+        ev_to_ebitda_note = (
+            "EV/EBITDA konnte zwar aus Enterprise Value und EBITDA "
+            "berechnet werden, aber ein separater Yahoo-Anker fehlt. "
+            "Der Wert wird deshalb nicht als belastbar angezeigt."
+        )
+
+    # -----------------------------------------------------
+    # Verschuldung: Midstream wird über EBITDA statt über
+    # normalen FCF betrachtet. Die Kennzahl bleibt in V1
+    # reine Datenbasis und erhält keine Punkte.
+    # -----------------------------------------------------
+    net_debt = None
+    if (
+        total_debt is not None
+        and total_cash is not None
+    ):
+        net_debt = total_debt - total_cash
+
+    net_debt_to_ebitda = None
+    if (
+        net_debt is not None
+        and net_debt > 0
+        and ebitda is not None
+        and ebitda > 0
+    ):
+        net_debt_to_ebitda = (
+            net_debt / ebitda
+        )
+
+    available_anchors = sum(
+        value is not None
+        for value in [
+            ev_to_ebitda_display,
+            net_debt_to_ebitda,
+            operating_cashflow
+        ]
+    )
+
+    readiness = (
+        "Teilweise"
+        if available_anchors >= 2
+        else "Unvollständig"
+    )
+
+    return {
+        "applicable": True,
+        "enterprise_value": enterprise_value,
+        "ebitda": ebitda,
+        "calculated_ev_to_ebitda": calculated_ev_to_ebitda,
+        "display_ev_to_ebitda": ev_to_ebitda_display,
+        "yahoo_ev_to_ebitda": yahoo_ev_to_ebitda,
+        "ev_to_ebitda_status": ev_to_ebitda_status,
+        "ev_to_ebitda_note": ev_to_ebitda_note,
+        "total_cash": total_cash,
+        "total_debt": total_debt,
+        "net_debt": net_debt,
+        "net_debt_to_ebitda": net_debt_to_ebitda,
+        "operating_cashflow": operating_cashflow,
+        "free_cashflow_reference": free_cashflow_reference,
+        "distributable_cashflow_available": False,
+        "readiness": readiness,
+        "note": (
+            "Midstream-Sondermodell V1 bleibt ein reiner Daten- und "
+            "Plausibilitätsblock. EV/EBITDA und Netto-Schulden/EBITDA "
+            "werden nur als Referenz gezeigt. Distributable Cash Flow "
+            "wird in der aktuellen Datenquelle nicht separat belastbar "
+            "geladen und deshalb nicht aus Yahoo-Free-Cashflow oder "
+            "Operating Cashflow abgeleitet. Noch keine Midstream-Punkte, "
+            "kein Bewertungs-Multiple und kein Fair Value."
+        )
+    }
+
+
+# =========================================================
 # Modul 6 – Schritt 1: Bewertungs-Korridor & Fundamental-Multiple
 # =========================================================
 
@@ -3918,6 +4096,29 @@ def get_special_control(company_type, symbol):
             )
         }
 
+    if "midstream" in type_name:
+        return {
+            "required": True,
+            "control_key": "midstream_cashflow_leverage",
+            "control_name": (
+                "Midstream / Cashflow-, EV/EBITDA- & Verschuldungsprüfung"
+            ),
+            "planned_checks": [
+                "EV / EBITDA",
+                "Distributable Cash Flow",
+                "Netto-Schulden / EBITDA",
+                "Ausschüttungsdeckung"
+            ],
+            "status": "Router aktiv – V1 Datenbasis vorhanden",
+            "note": (
+                "V1 lädt nur belastbare Midstream-Basiskennzahlen aus der "
+                "aktuellen Datenquelle. Distributable Cash Flow und "
+                "Ausschüttungsdeckung werden nicht aus Standard-FCF oder "
+                "anderen Kennzahlen geschätzt. Das Sondermodell verändert "
+                "noch keinen Score und kein Bewertungs-Multiple."
+            )
+        }
+
     if "bank" in type_name:
         return {
             "required": True,
@@ -3982,7 +4183,7 @@ def get_special_control(company_type, symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1_ing_primary_priority_v2"
+CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1_gbp_units_v1_insurance_v1_safety_v1_primary_routing_v1_autocomplete_sort_v2_bank_v1_ing_primary_priority_v2_midstream_v1"
 
 @st.cache_data(
     ttl=900,
@@ -4128,6 +4329,13 @@ def load_stock(search_text, cache_version):
         currency_context
     )
 
+    midstream_special_model = build_midstream_special_model(
+        company_type,
+        info,
+        price,
+        currency_context
+    )
+
     fundamental_multiple = calculate_fundamental_multiple(
         company_type,
         growth_score,
@@ -4215,6 +4423,7 @@ def load_stock(search_text, cache_version):
         "balance_score": balance_score,
         "insurance_special_model": insurance_special_model,
         "bank_special_model": bank_special_model,
+        "midstream_special_model": midstream_special_model,
         "fundamental_multiple": fundamental_multiple,
         "peer_group": peer_group,
         "peer_check": peer_check,
@@ -5272,8 +5481,9 @@ if selected_symbol:
                 st.caption(
                     "Bilanzpunkte: Netto-Cash 15/15; "
                     "sonst Bewertung über Netto-Schulden/FCF. "
-                    "Banken, Versicherungen, REIT/Immobilien "
-                    "und Autohersteller benötigen Sondermodelle."
+                    "Banken, Versicherungen, REIT/Immobilien, "
+                    "Autohersteller und Midstream-Unternehmen benötigen "
+                    "Sondermodelle."
                 )
 
                 insurance_model = data.get(
@@ -5605,6 +5815,128 @@ if selected_symbol:
 
                     st.caption(
                         bank_model["note"]
+                    )
+
+                midstream_model = data.get(
+                    "midstream_special_model",
+                    {"applicable": False}
+                )
+
+                if midstream_model.get("applicable"):
+
+                    st.divider()
+
+                    st.subheader(
+                        "🛢️ Midstream-Sondermodell V1 – Datenbasis"
+                    )
+
+                    st.info(
+                        "Midstream-Modell erkannt. In V1 werden nur "
+                        "EV/EBITDA-, Cashflow- und Verschuldungsdaten "
+                        "plausibilisiert; es wird noch keine "
+                        "Midstream-Bewertung erzeugt."
+                    )
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+
+                        st.metric(
+                            "EBITDA",
+                            format_money(
+                                midstream_model["ebitda"],
+                                financial_currency
+                            )
+                        )
+
+                        st.metric(
+                            "Enterprise Value",
+                            format_money(
+                                midstream_model["enterprise_value"],
+                                financial_currency
+                            )
+                        )
+
+                        if midstream_model[
+                            "display_ev_to_ebitda"
+                        ] is not None:
+                            st.metric(
+                                "EV / EBITDA (nur Referenz)",
+                                f"{midstream_model['display_ev_to_ebitda']:.2f}×"
+                            )
+                        else:
+                            st.metric(
+                                "EV / EBITDA (nur Referenz)",
+                                "–"
+                            )
+
+                    with col2:
+
+                        st.metric(
+                            "Nettoschulden",
+                            format_money(
+                                midstream_model["net_debt"],
+                                financial_currency
+                            )
+                        )
+
+                        if midstream_model[
+                            "net_debt_to_ebitda"
+                        ] is not None:
+                            st.metric(
+                                "Netto-Schulden / EBITDA",
+                                f"{midstream_model['net_debt_to_ebitda']:.2f}×"
+                            )
+                        else:
+                            st.metric(
+                                "Netto-Schulden / EBITDA",
+                                "–"
+                            )
+
+                        st.metric(
+                            "Operating Cashflow (nur Kontext)",
+                            format_money(
+                                midstream_model["operating_cashflow"],
+                                financial_currency
+                            )
+                        )
+
+                    st.write(
+                        "**Distributable Cash Flow:** – "
+                        "(nicht separat belastbar verfügbar; Yahoo-Free-"
+                        "Cashflow und Operating Cashflow werden nicht als "
+                        "Ersatz verwendet)"
+                    )
+
+                    if midstream_model.get(
+                        "free_cashflow_reference"
+                    ) is not None:
+                        st.write(
+                            "**Yahoo-Free-Cashflow nur als Rohdaten-Referenz:** "
+                            f"{format_money(
+                                midstream_model['free_cashflow_reference'],
+                                financial_currency
+                            )}"
+                        )
+
+                    st.write(
+                        "**Datenreife Sondermodell:** "
+                        f"{midstream_model['readiness']}"
+                    )
+
+                    if midstream_model.get(
+                        "ev_to_ebitda_note"
+                    ):
+                        ev_note = midstream_model[
+                            "ev_to_ebitda_note"
+                        ]
+                        if ev_note.startswith("⚠️"):
+                            st.warning(ev_note)
+                        else:
+                            st.caption(ev_note)
+
+                    st.caption(
+                        midstream_model["note"]
                     )
 
                 st.divider()
