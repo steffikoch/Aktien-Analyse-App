@@ -4813,14 +4813,17 @@ def get_special_control(company_type, symbol):
                 "Normalisierter Mine-NAV (Run-rate DCF / LOM-Kontrolle)",
                 "Life-of-Mine-Profil & NAV-Freigabe-Gate",
                 "Portfolio-Abdeckungslogik (Gesamt / gemanagt operativ / NAV-fähig)",
+                "Portfolio-Completeness-Gate (Managed Operations / JVs / Entwicklungsprojekte)",
                 "Allgemeiner Primärrohstoff-Router"
             ],
-            "status": "Router aktiv – V2.14.1 Portfolio-Abdeckung + LOM/NAV Phase 1 + Structural-Break-Fallback + LOM-Gate",
+            "status": "Router aktiv – V2.14.2 Portfolio-Completeness-Gate + Portfolio-Abdeckung + LOM/NAV Phase 1 + Structural-Break-Fallback",
             "note": (
-                "V2.14.1 ergänzt das Bergbaumodell um eine feste Portfolio-Abdeckungslogik und eine technische LOM/NAV-Phase-1-Prüfung für aktuelle S-K-1300-Minenberichte. Das 90-%-Gate verwendet alle gemanagten operativen Reserven als Nenner und nicht mehr eine frei gewählte Kernasset-Liste. Zusätzlich bleiben der streng abgesicherte Structural-Break-Fallback, der verifizierte Reserve-/NAV-Snapshot und der konservative allgemeine "
+                "V2.14.2 ergänzt das Bergbaumodell um ein unternehmensweites Portfolio-Completeness-Gate, eine feste Portfolio-Abdeckungslogik und eine technische LOM/NAV-Phase-1-Prüfung für aktuelle S-K-1300-Minenberichte. Das 90-%-Gate verwendet alle gemanagten operativen Reserven als Nenner und nicht mehr eine frei gewählte Kernasset-Liste. Zusätzlich bleiben der streng abgesicherte Structural-Break-Fallback, der verifizierte Reserve-/NAV-Snapshot und der konservative allgemeine "
                 "Primärrohstoff-Router für eindeutige Branchen wie Gold, Silber und "
                 "Kupfer. Unspezifische Mischbranchen bleiben gesperrt. Das bestehende "
-                "V2.7-Life-of-Mine-Gate bleibt unverändert aktiv. "
+                "V2.7-Life-of-Mine-Gate bleibt unverändert aktiv. Zusätzlich darf ein später bestandener "
+                "Managed-Operations-Gate den Gesamt-Fair-Value nicht allein freigeben: Nicht gemanagte JVs und "
+                "Entwicklungsprojekte benötigen jeweils einen belastbaren Wert oder einen ausdrücklich konservativen Nullansatz. "
                 "Das Gate verlangt weiterhin eine hohe Reserveabdeckung, aktuelle technische "
                 "Minenpläne und belastbare "
                 "mine-spezifische LOM-Kosten-/CapEx-Profile. Ein einzelnes "
@@ -6526,7 +6529,7 @@ def get_verified_mining_asset_snapshot(symbol):
             "core_asset_lom_structure": get_verified_newmont_core_asset_lom_structure(),
             "technical_nav_references": [],
             "technical_nav_note": (
-                "V2.14.1 hat für Lihir, Cadia, Boddington und den Ahafo Complex aktuelle "
+                "V2.14.2 übernimmt für Lihir, Cadia, Boddington und den Ahafo Complex die in Phase 1 verifizierten aktuellen "
                 "S-K-1300-Technical-Report-Summaries mit LOM-Cashflows verifiziert. "
                 "Phase 1 prüft nur die NAV-Eignung der einzelnen Assets; die veröffentlichten "
                 "NPVs werden noch nicht zu einem Newmont-Gesamt-NAV addiert. Für die übrigen "
@@ -6722,7 +6725,7 @@ def build_mining_normalized_mine_nav_v26(
         if symbol_text == "NEM" and asset_snapshot:
             result["status"] = "Phase-1-NAV-Kandidaten verfügbar – Portfolio-NAV noch gesperrt"
             result["reason"] = (
-                "V2.14.1 hat aktuelle S-K-1300-LOM-Datensätze für Lihir, Cadia, Boddington und den Ahafo Complex "
+                "V2.14.2 übernimmt aktuelle S-K-1300-LOM-Datensätze für Lihir, Cadia, Boddington und den Ahafo Complex "
                 "verifiziert. Diese Assets dürfen in einer späteren Phase einzeln normalisiert werden. Die aktuelle "
                 "Abdeckung liegt jedoch unter dem 90-%-Gate der gesamten gemanagten operativen Reservebasis; deshalb wird noch kein "
                 "Newmont-Portfolio-NAV gerechnet und kein synthetischer Ersatz für fehlende Assets geschätzt."
@@ -7280,7 +7283,7 @@ def get_verified_newmont_technical_lom_phase1():
         "published_date": "19.02.2026",
         "source_name": "Newmont 2025 Form 10-K – S-K 1300 TRS Exhibits 96.1–96.4 + 2026 Managed Portfolio Guidance",
         "source_note": (
-            "V2.14.1 verwendet als bindenden Nenner alle zurechenbaren Goldreserven des gemanagten operativen "
+            "V2.14.2 verwendet weiterhin als bindenden Managed-Operations-Nenner alle zurechenbaren Goldreserven des gemanagten operativen "
             "Portfolios: 71,5 Mio. oz. Newmont führt 2026 zwölf gemanagte Operations; Ahafo North und Ahafo South "
             "werden in der Reserve-/TRS-Abdeckung als Ahafo Complex zusammengefasst, sodass elf Reserve-Assetgruppen "
             "entstehen. Die vier aktuellen TRS für Boddington, Cadia, Lihir und Ahafo decken 48,5 Mio. oz ab. "
@@ -7323,8 +7326,138 @@ def get_verified_newmont_technical_lom_phase1():
         ),
     }
 
+
+def build_newmont_portfolio_completeness_gate(
+    total_reserves_moz,
+    managed_operating_reserves_moz,
+    nonmanaged_jv_reserves_moz,
+    development_project_reserves_moz,
+    technical_lom_phase1,
+):
+    """
+    V2.14.2 enterprise-level portfolio completeness gate for Newmont.
+
+    This gate is deliberately separate from the managed-operations 90 % LOM
+    coverage gate. A company Fair Value may only be released when every
+    material portfolio block is either supported by an explicit valuation path
+    or has been explicitly assigned a conservative zero value. No block is
+    automatically set to zero.
+    """
+    total = float(total_reserves_moz or 0.0)
+    managed = float(managed_operating_reserves_moz or 0.0)
+    jv = float(nonmanaged_jv_reserves_moz or 0.0)
+    development = float(development_project_reserves_moz or 0.0)
+    phase1 = technical_lom_phase1 if isinstance(technical_lom_phase1, dict) else {}
+
+    managed_coverage_pct = float(phase1.get("nav_eligible_managed_operating_coverage_pct") or 0.0)
+    managed_required_pct = float(phase1.get("required_managed_operating_coverage_pct") or 90.0)
+    managed_lom_coverage_ok = bool(phase1.get("coverage_ok", False))
+
+    def share(value):
+        return value / total * 100.0 if total > 0 else 0.0
+
+    # V2.14.2 has not yet built normalized block values. These flags are
+    # intentionally False. Future NAV/project modules must switch them only
+    # after their own hard gates pass.
+    managed_value_available = False
+    jv_value_available = False
+    development_value_available = False
+
+    # Zero values must be an explicit conservative policy choice. V2.14.2 does
+    # not silently discard any material block.
+    managed_zero_explicit = False
+    jv_zero_explicit = False
+    development_zero_explicit = False
+
+    blocks = [
+        {
+            "key": "managed_operations",
+            "label": "Managed Operations",
+            "reserves_moz": managed,
+            "reserve_share_pct": share(managed),
+            "material": True,
+            "valuation_available": managed_value_available,
+            "conservative_zero_explicit": managed_zero_explicit,
+            "lom_coverage_ok": managed_lom_coverage_ok,
+            "completion_status": (
+                "Bewertungsblock noch offen – LOM-Abdeckung unter 90 %"
+                if not managed_lom_coverage_ok
+                else "LOM-Abdeckung ausreichend – normalisierter Managed-Operations-NAV noch nicht freigegeben"
+            ),
+            "detail": (
+                f"NAV-fähige LOM-Abdeckung {managed_coverage_pct:.1f} %; "
+                f"erforderlich mindestens {managed_required_pct:.0f} %."
+            ),
+        },
+        {
+            "key": "nonmanaged_jvs",
+            "label": "Nicht gemanagte JVs",
+            "reserves_moz": jv,
+            "reserve_share_pct": share(jv),
+            "material": True,
+            "valuation_available": jv_value_available,
+            "conservative_zero_explicit": jv_zero_explicit,
+            "lom_coverage_ok": False,
+            "completion_status": "Separater JV-NAV/LOM-Bewertungsblock fehlt",
+            "detail": "Nevada Gold Mines und Pueblo Viejo dürfen nicht automatisch im Unternehmenswert verschwinden.",
+        },
+        {
+            "key": "development_projects",
+            "label": "Entwicklungsprojekte",
+            "reserves_moz": development,
+            "reserve_share_pct": share(development),
+            "material": True,
+            "valuation_available": development_value_available,
+            "conservative_zero_explicit": development_zero_explicit,
+            "lom_coverage_ok": False,
+            "completion_status": "Separater Projektwert-/Entwicklungsstatus-Block fehlt",
+            "detail": "Norte Abierto, Wafi-Golpu und NuevaUnión benötigen einen eigenen Projektwert- oder expliziten Nullansatz.",
+        },
+    ]
+
+    for block in blocks:
+        block["complete"] = bool(
+            block.get("valuation_available") or block.get("conservative_zero_explicit")
+        )
+
+    material_blocks = [b for b in blocks if b.get("material")]
+    completed_material_blocks = [b for b in material_blocks if b.get("complete")]
+    released = len(material_blocks) > 0 and len(completed_material_blocks) == len(material_blocks)
+    open_blocks = [b["label"] for b in material_blocks if not b.get("complete")]
+
+    reason = None
+    if not released:
+        reason = (
+            "Portfolio-Completeness-Gate nicht freigegeben: Materielle Unternehmensblöcke sind noch nicht "
+            "vollständig bewertet oder ausdrücklich konservativ mit 0 angesetzt. Offen: "
+            + ", ".join(open_blocks)
+            + ". Ein bestandener 90-%-LOM-Gate der Managed Operations allein darf keinen Newmont-Gesamt-Fair-Value freigeben."
+        )
+
+    return {
+        "available": True,
+        "released": released,
+        "status": "Portfolio vollständig behandelt" if released else "Portfolio unvollständig – Gesamt-Fair-Value gesperrt",
+        "total_reserves_moz": total,
+        "blocks": blocks,
+        "material_block_count": len(material_blocks),
+        "completed_material_block_count": len(completed_material_blocks),
+        "open_material_blocks": open_blocks,
+        "automatic_zeroing_allowed": False,
+        "explicit_zero_required": True,
+        "managed_operations_lom_coverage_pct": managed_coverage_pct,
+        "managed_operations_lom_required_pct": managed_required_pct,
+        "managed_operations_lom_coverage_ok": managed_lom_coverage_ok,
+        "reason": reason,
+        "note": (
+            "V2.14.2 trennt die Freigabe des Gesamtunternehmens von der LOM-Abdeckung der Managed Operations. "
+            "Nicht gemanagte JVs und Entwicklungsprojekte sind eigene materielle Bewertungsblöcke. "
+            "Kein Block wird automatisch mit 0 bewertet; ein Nullansatz muss ausdrücklich konservativ gesetzt werden."
+        ),
+    }
+
 def get_verified_newmont_core_asset_lom_structure():
-    """Verified Newmont V2.14.1 portfolio LOM evidence map; not a synthetic NAV."""
+    """Verified Newmont V2.14.2 portfolio LOM evidence map with completeness gate; not a synthetic NAV."""
     total_reserves = 118.2
     long_life_reserves = 85.7
     managed_operating_reserves = 71.5
@@ -7332,6 +7465,13 @@ def get_verified_newmont_core_asset_lom_structure():
     development_project_reserves = 21.0
     phase1 = get_verified_newmont_technical_lom_phase1()
     nav_eligible_reserves = phase1.get("verified_trs_reserves_moz", 0.0)
+    portfolio_completeness_gate = build_newmont_portfolio_completeness_gate(
+        total_reserves,
+        managed_operating_reserves,
+        nonmanaged_jv_reserves,
+        development_project_reserves,
+        phase1,
+    )
 
     managed_operating_assets = [
         {"asset":"Lihir","reserve_moz":16.0,"production_2026_koz":560,"aisc_2026_usd_oz":1765,
@@ -7377,7 +7517,7 @@ def get_verified_newmont_core_asset_lom_structure():
         "reserve_as_of_date": "31.12.2025",
         "source_name": "Newmont 2025 Reserves + 2026 Managed Portfolio Guidance + 2025 S-K 1300 TRS",
         "source_note": (
-            "V2.14.1 trennt die NAV-Abdeckung nach festen Portfolio-Schichten. Die gemanagte operative Reservebasis "
+            "V2.14.2 trennt die NAV-Abdeckung nach festen Portfolio-Schichten und ergänzt ein separates Gesamtunternehmens-Completeness-Gate. Die gemanagte operative Reservebasis "
             "umfasst alle 2026 als Managed Portfolio geführten Gold-Operations mit zurechenbaren Reserven, nicht nur "
             "eine ausgewählte Kernasset-Liste. Das 90-%-Gate wird ausschließlich gegen diese 71,5 Mio. oz gemessen. "
             "Nicht gemanagte JVs und Entwicklungsprojekte bleiben separate Bewertungsblöcke."
@@ -7399,6 +7539,7 @@ def get_verified_newmont_core_asset_lom_structure():
         "nonmanaged_jv_coverage_pct": nonmanaged_jv_reserves / total_reserves * 100.0,
         "development_project_reserves_moz": development_project_reserves,
         "development_project_coverage_pct": development_project_reserves / total_reserves * 100.0,
+        "portfolio_completeness_gate": portfolio_completeness_gate,
         "managed_operating_assets": managed_operating_assets,
         # Legacy key now points to the full managed operating reserve universe so
         # no downstream display can silently omit Peñasquito, Red Chris or Yanacocha.
@@ -7412,8 +7553,10 @@ def get_verified_newmont_core_asset_lom_structure():
             {"asset":"Wafi-Golpu","reserve_moz":5.1},
             {"asset":"NuevaUnión","reserve_moz":5.1},
         ],
-        "full_lom_release_ready": False,
-        "reason": phase1.get("reason"),
+        "full_lom_release_ready": bool(
+            phase1.get("coverage_ok", False) and portfolio_completeness_gate.get("released", False)
+        ),
+        "reason": portfolio_completeness_gate.get("reason") or phase1.get("reason"),
     }
 
 def build_mining_asset_nav_control(
@@ -7450,6 +7593,7 @@ def build_mining_asset_nav_control(
         "mine_life_status": "Daten unzureichend",
         "core_asset_lom_structure": {},
         "technical_lom_phase1": {},
+        "portfolio_completeness_gate": {},
         "technical_nav_available": False,
         "technical_nav_reference_fresh": False,
         "technical_nav_sum_musd": None,
@@ -7549,6 +7693,8 @@ def build_mining_asset_nav_control(
     result["core_asset_lom_structure"] = core_asset_lom_structure
     technical_lom_phase1 = core_asset_lom_structure.get("technical_lom_phase1") or {}
     result["technical_lom_phase1"] = technical_lom_phase1
+    portfolio_completeness_gate = core_asset_lom_structure.get("portfolio_completeness_gate") or {}
+    result["portfolio_completeness_gate"] = portfolio_completeness_gate
 
     company_mine_life = safe_float(snapshot.get("company_average_reserve_mine_life_years"))
     result["company_average_reserve_mine_life_years"] = company_mine_life
@@ -7689,6 +7835,11 @@ def build_mining_asset_nav_control(
         life_ok = mine_life_status in ["Sehr stark", "Stark", "Ausreichend"]
     nav_current_ok = result["technical_nav_available"] and nav_reference_fresh
     convergence_ok = convergence in ["Stark konvergent", "Ausreichend konvergent"]
+    portfolio_completeness_ok = (
+        portfolio_completeness_gate.get("released", False)
+        if str(symbol or "").upper() == "NEM"
+        else True
+    )
 
     normalized_nav_partial_ok = (result.get("normalized_mine_nav") or {}).get(
         "partial_available", False
@@ -7727,6 +7878,11 @@ def build_mining_asset_nav_control(
         else:
             status = "Minenlebensdauer zu kurz oder unklar"
             reason = "Die Reserve-Lebensdauer reicht nicht für eine robuste Asset-Bewertung."
+    elif not portfolio_completeness_ok:
+        status = "Portfolio-Completeness-Gate nicht freigegeben"
+        reason = portfolio_completeness_gate.get("reason") or (
+            "Mindestens ein materieller Newmont-Portfolio-Block ist noch weder belastbar bewertet noch ausdrücklich konservativ mit 0 angesetzt."
+        )
     elif not normalized_nav_partial_ok:
         if str(symbol or "").upper() == "NEM":
             status = "Reservebasis stark – aktueller Mine-NAV/LOM noch offen"
@@ -7778,6 +7934,7 @@ def build_mining_asset_nav_control(
     available = (
         reserve_ok
         and life_ok
+        and portfolio_completeness_ok
         and normalized_nav_partial_ok
         and lom_gate_ok
         and nav_current_ok
@@ -8190,7 +8347,7 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.14.1 trennt Portfolio-Abdeckungslogik, technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.14.2 trennt Portfolio-Completeness-Gate, Portfolio-Abdeckungslogik, technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
             "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
             "Ertragskraft, Reserve-/Asset-Kontrolle, Run-rate-Mine-NAV und das "
             "formale Life-of-Mine-Freigabe-Gate. Ein Guidance-Jahr ersetzt kein "
@@ -8949,7 +9106,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_portfolio_coverage_v2141_20260906"
+CACHE_VERSION = "m6_mining_portfolio_completeness_v2142_20260906"
 
 @st.cache_data(
     ttl=900,
@@ -11768,7 +11925,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.14.1 – Portfolio-Abdeckung + LOM/NAV Phase 1 + Structural-Break-Fallback + LOM-Gate")
+                    st.caption("Bergbau-Schutzmodell V2.14.2 – Portfolio-Completeness-Gate + Portfolio-Abdeckung + LOM/NAV Phase 1")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -12243,9 +12400,15 @@ if selected_symbol:
                                         "Normalisierter FCF je Aktie (Kontrolle)",
                                         f"{earnings_translation['normalized_fcf_per_share']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
                                     )
+                                regular_cycle_blocked = bool((checks.get("cycle_eps") or {}).get("structural_break_blocked"))
+                                fcf_support_display = (
+                                    "Für reguläre Zyklus-EPS-Überleitung nicht anwendbar"
+                                    if regular_cycle_blocked
+                                    else earnings_translation.get("fcf_support_status", "–")
+                                )
                                 st.write(
                                     "**FCF-Unterstützung:** "
-                                    f"{earnings_translation.get('fcf_support_status', '–')}"
+                                    f"{fcf_support_display}"
                                 )
                                 if earnings_translation.get("fcf_support_ratio") is not None:
                                     st.write(
@@ -12264,7 +12427,7 @@ if selected_symbol:
                         structural_fallback = checks.get("structural_break_fallback", {})
                         if structural_fallback.get("applicable", False):
                             st.write(
-                                "**Structural-Break-Fallback V2.13.1 (unverändert innerhalb V2.14.1):** "
+                                "**Structural-Break-Fallback V2.13.1 (unverändert innerhalb V2.14.2):** "
                                 f"{structural_fallback.get('status', 'Noch offen')}"
                             )
                             fb1, fb2 = st.columns(2)
@@ -12436,7 +12599,7 @@ if selected_symbol:
 
                             core_lom = asset_nav_control.get("core_asset_lom_structure") or {}
                             if core_lom.get("available"):
-                                st.markdown("**Portfolio-LOM-Abdeckungsstruktur (V2.14.1):**")
+                                st.markdown("**Portfolio-LOM-Abdeckungsstruktur (V2.14.2):**")
                                 cov1, cov2, cov3 = st.columns(3)
                                 with cov1:
                                     st.metric("Gesamtportfolio-Reserven", f"{safe_float(core_lom.get('total_reserves_moz')) or 0.0:.1f} Mio. oz")
@@ -12460,9 +12623,45 @@ if selected_symbol:
                                 )
                                 st.caption(core_lom.get("source_note") or "")
 
+                                completeness_gate = core_lom.get("portfolio_completeness_gate") or {}
+                                if completeness_gate.get("available"):
+                                    st.markdown("**Portfolio-Completeness-Gate (V2.14.2):**")
+                                    block_map = {b.get("key"): b for b in completeness_gate.get("blocks", [])}
+                                    pc1, pc2, pc3 = st.columns(3)
+                                    for col, key in [
+                                        (pc1, "managed_operations"),
+                                        (pc2, "nonmanaged_jvs"),
+                                        (pc3, "development_projects"),
+                                    ]:
+                                        block = block_map.get(key, {})
+                                        with col:
+                                            st.metric(
+                                                block.get("label", key),
+                                                f"{safe_float(block.get('reserve_share_pct')) or 0.0:.1f} % der Reserven",
+                                            )
+                                            st.caption(block.get("completion_status", "Noch offen"))
+                                            if block.get("detail"):
+                                                st.caption(block.get("detail"))
+                                            st.caption(
+                                                "Konservativer Nullansatz: "
+                                                + ("Ja – ausdrücklich gesetzt" if block.get("conservative_zero_explicit") else "Nein")
+                                            )
+                                    st.write(
+                                        "**Materielle Portfolio-Blöcke vollständig behandelt:** "
+                                        f"{int(completeness_gate.get('completed_material_block_count') or 0)}/"
+                                        f"{int(completeness_gate.get('material_block_count') or 0)}"
+                                    )
+                                    st.caption(
+                                        "Ein bestandener Managed-Operations-LOM-Gate reicht allein nicht für den Newmont-Gesamt-Fair-Value. "
+                                        "JVs und Entwicklungsprojekte müssen separat bewertet oder ausdrücklich konservativ mit 0 angesetzt werden. "
+                                        "Automatische Nullansätze sind nicht zulässig."
+                                    )
+                                    if not completeness_gate.get("released", False):
+                                        st.warning(completeness_gate.get("reason") or "Portfolio-Completeness-Gate nicht freigegeben.")
+
                                 phase1 = core_lom.get("technical_lom_phase1") or {}
                                 if phase1.get("available"):
-                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – V2.14.1:**")
+                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – Teilmodul V2.14.1 innerhalb V2.14.2:**")
                                     st.write(f"**Status:** {phase1.get('status', '–')}")
                                     p1c1, p1c2, p1c3, p1c4 = st.columns(4)
                                     with p1c1:
