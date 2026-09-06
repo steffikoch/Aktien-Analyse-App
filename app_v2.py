@@ -4673,12 +4673,13 @@ def get_special_control(company_type, symbol):
                 "Bilanzpuffer",
                 "Produktions-/Kostenvisibilität"
             ],
-            "status": "Router aktiv – V1 Finanzzyklusdaten vorhanden",
+            "status": "Router aktiv – V2 Finanzzyklus- und Betriebsdaten",
             "note": (
-                "V1 prüft die vorhandene Mehrjahres-Gewinnbasis, FCF-Stabilität "
-                "und Bilanz. Produktions-Guidance, AISC bzw. Stückkosten werden "
-                "nicht aus Yahoo-Kennzahlen geschätzt. Solange diese operativen "
-                "Minendaten nicht verifiziert vorliegen, bleibt der Fair Value gesperrt."
+                "V2 prüft Mehrjahres-Gewinnbasis, FCF-Stabilität und Bilanz. "
+                "Produktions-Guidance sowie AISC/Stückkosten werden nicht aus "
+                "Yahoo-Kennzahlen geschätzt. Liegt ein verifizierter, datierter "
+                "Unternehmens-Snapshot vor, wird er in Schritt 3B integriert; "
+                "ohne belastbare operative Minendaten bleibt der Fair Value gesperrt."
             )
         }
 
@@ -5171,7 +5172,7 @@ def build_defense_special_control(base_control, company_type, symbol):
 
 
 # =========================================================
-# Modul 6 – Schritt 3B: Bergbau-/Rohstoff-Zykluskontrolle V1
+# Modul 6 – Schritt 3B: Bergbau-/Rohstoff-Zykluskontrolle V2
 # =========================================================
 
 def _extract_numeric_history(items):
@@ -5186,9 +5187,131 @@ def _extract_numeric_history(items):
     return values
 
 
+def get_verified_mining_snapshot(symbol):
+    """
+    Curated, explicitly dated official-data snapshots for Mining V2.
+
+    Operating mine KPIs are never inferred from Yahoo summary data. A snapshot
+    is added only after production/cost guidance was verified from an official
+    company publication or filing. The refresh deadline is an internal safety
+    deadline so stale operating guidance cannot silently release a Fair Value.
+    """
+
+    symbol_text = str(symbol or "").upper()
+
+    if symbol_text != "HL":
+        return None
+
+    return {
+        "company": "Hecla Mining Company",
+        "published_date": "04.08.2026",
+        "as_of_date": "30.06.2026",
+        "valid_until": "15.11.2026",
+        "source_name": "Hecla Q2 2026 Results / SEC Exhibit 99.1",
+        "source_note": (
+            "Offizielle Hecla-Q2-2026-Daten. Die AISC-Werte verstehen sich "
+            "nach Nebenproduktgutschriften. Die konsolidierte Silver-AISC-"
+            "Guidance umfasst Greens Creek und Lucky Friday; Keno Hill ist "
+            "weiterhin vor kommerzieller Produktion und deshalb darin nicht enthalten."
+        ),
+        "production_guidance_current_low_moz": 15.1,
+        "production_guidance_current_high_moz": 16.1,
+        "production_guidance_previous_low_moz": 15.1,
+        "production_guidance_previous_high_moz": 16.5,
+        "q2_silver_production_moz": 4.2,
+        "silver_aisc_guidance_current_low": 12.50,
+        "silver_aisc_guidance_current_high": 13.50,
+        "silver_aisc_guidance_previous_low": 15.00,
+        "silver_aisc_guidance_previous_high": 16.25,
+        "q2_silver_aisc": 6.07,
+        "greens_creek_guidance_low_moz": 8.0,
+        "greens_creek_guidance_high_moz": 8.3,
+        "lucky_friday_guidance_low_moz": 4.9,
+        "lucky_friday_guidance_high_moz": 5.2,
+        "keno_hill_guidance_low_moz": 2.2,
+        "keno_hill_guidance_high_moz": 2.6,
+        "guidance_comment": (
+            "Gesamt-Silberproduktion: obere Bandbreite leicht gesenkt. "
+            "Greens Creek angehoben, Lucky Friday gestrafft/verbessert, "
+            "Keno Hill reduziert. Kosten-Guidance deutlich verbessert."
+        ),
+    }
+
+
+def _mining_production_guidance_status(snapshot):
+    current_low = safe_float(snapshot.get("production_guidance_current_low_moz"))
+    current_high = safe_float(snapshot.get("production_guidance_current_high_moz"))
+    previous_low = safe_float(snapshot.get("production_guidance_previous_low_moz"))
+    previous_high = safe_float(snapshot.get("production_guidance_previous_high_moz"))
+
+    if None in [current_low, current_high, previous_low, previous_high]:
+        return "Daten unzureichend", None
+
+    previous_mid = (previous_low + previous_high) / 2.0
+    current_mid = (current_low + current_high) / 2.0
+    if previous_mid <= 0:
+        return "Daten unzureichend", None
+
+    change_pct = (current_mid / previous_mid - 1.0) * 100.0
+
+    if change_pct >= 2.0:
+        status = "Stark"
+    elif change_pct >= 0.0:
+        status = "Positiv"
+    elif change_pct >= -5.0:
+        status = "Stabil"
+    else:
+        status = "Schwach"
+
+    return status, change_pct
+
+
+def _mining_aisc_guidance_status(snapshot):
+    current_low = safe_float(snapshot.get("silver_aisc_guidance_current_low"))
+    current_high = safe_float(snapshot.get("silver_aisc_guidance_current_high"))
+    previous_low = safe_float(snapshot.get("silver_aisc_guidance_previous_low"))
+    previous_high = safe_float(snapshot.get("silver_aisc_guidance_previous_high"))
+
+    if None in [current_low, current_high, previous_low, previous_high]:
+        return "Daten unzureichend", None
+
+    previous_mid = (previous_low + previous_high) / 2.0
+    current_mid = (current_low + current_high) / 2.0
+    if previous_mid <= 0:
+        return "Daten unzureichend", None
+
+    # Lower AISC is better; positive improvement_pct therefore means improvement.
+    improvement_pct = (previous_mid - current_mid) / previous_mid * 100.0
+
+    if improvement_pct >= 10.0:
+        status = "Stark verbessert"
+    elif improvement_pct >= 0.0:
+        status = "Verbessert"
+    elif improvement_pct >= -10.0:
+        status = "Stabil"
+    else:
+        status = "Schwach"
+
+    return status, improvement_pct
+
+
+def _mining_actual_aisc_status(snapshot):
+    actual = safe_float(snapshot.get("q2_silver_aisc"))
+    guidance_high = safe_float(snapshot.get("silver_aisc_guidance_current_high"))
+
+    if actual is None or guidance_high is None or guidance_high <= 0:
+        return "Daten unzureichend"
+    if actual <= guidance_high:
+        return "Stark"
+    if actual <= guidance_high * 1.10:
+        return "Ausreichend"
+    return "Schwach"
+
+
 def build_mining_special_control(
     base_control,
     company_type,
+    symbol,
     eps_normalization,
     trailing_eps,
     forward_eps,
@@ -5199,11 +5322,12 @@ def build_mining_special_control(
     roe,
 ):
     """
-    Conservative Mining V1.
+    Conservative Mining V2.
 
     Financial-cycle checks are calculated from already-loaded company data.
-    Operating mine KPIs (production guidance, AISC/unit costs) are critical
-    for release and are deliberately NOT inferred from Yahoo summary fields.
+    Production guidance and AISC/unit-cost data are used only when a dated,
+    verified operating snapshot exists. Peak-cycle risk does not change the
+    100-point Multiple Score; it caps valuation confidence instead.
     """
 
     control = dict(base_control or {})
@@ -5276,9 +5400,38 @@ def build_mining_special_control(
     else:
         profitability_status = "Ausreichend"
 
-    # Critical operational mining data are intentionally not inferred.
-    operating_data_status = "Daten fehlen"
-    operating_data_available = False
+    snapshot = get_verified_mining_snapshot(symbol)
+    snapshot_fresh = False
+    production_status = "Daten fehlen"
+    production_change_pct = None
+    aisc_status = "Daten fehlen"
+    aisc_improvement_pct = None
+    actual_aisc_status = "Daten fehlen"
+    operating_status = "Daten fehlen"
+
+    if snapshot is not None:
+        try:
+            valid_until = datetime.strptime(
+                snapshot["valid_until"], "%d.%m.%Y"
+            ).date()
+            snapshot_fresh = datetime.now().date() <= valid_until
+        except Exception:
+            snapshot_fresh = False
+
+        production_status, production_change_pct = _mining_production_guidance_status(snapshot)
+        aisc_status, aisc_improvement_pct = _mining_aisc_guidance_status(snapshot)
+        actual_aisc_status = _mining_actual_aisc_status(snapshot)
+
+        if not snapshot_fresh:
+            operating_status = "Daten veraltet"
+        elif "Daten unzureichend" in [production_status, aisc_status, actual_aisc_status]:
+            operating_status = "Daten unzureichend"
+        elif "Schwach" in [production_status, aisc_status, actual_aisc_status]:
+            operating_status = "Schwach"
+        elif aisc_status == "Stark verbessert" and production_status in ["Stark", "Positiv", "Stabil"]:
+            operating_status = "Stark"
+        else:
+            operating_status = "Ausreichend"
 
     financial_checks_usable = (
         eps_status != "Daten unzureichend"
@@ -5293,23 +5446,51 @@ def build_mining_special_control(
         or profitability_status == "Schwach"
     )
 
-    # V1 is deliberately NOT released without verified mine-operating KPIs.
-    released = False
+    operating_data_available = (
+        snapshot is not None
+        and snapshot_fresh
+        and operating_status not in ["Daten fehlen", "Daten unzureichend", "Daten veraltet"]
+    )
+
     if not financial_checks_usable:
+        released = False
         overall_status = "Finanzzyklus-Daten unzureichend"
+        confidence_cap = "Niedrig"
     elif weak_financial_check:
+        released = False
         overall_status = "Finanzielle Warnung"
+        confidence_cap = "Niedrig"
+    elif not operating_data_available:
+        released = False
+        overall_status = "Operative Minendaten fehlen oder sind veraltet"
+        confidence_cap = "Niedrig"
+    elif operating_status == "Schwach":
+        released = False
+        overall_status = "Operative Warnung"
+        confidence_cap = "Niedrig"
     elif peak_risk:
-        overall_status = "Peak-Cycle-Risiko erkannt"
+        released = True
+        overall_status = "Freigegeben mit Peak-Cycle-Warnung"
+        confidence_cap = "Niedrig"
     else:
-        overall_status = "Finanzzyklus geprüft – operative Minendaten fehlen"
+        released = True
+        overall_status = "Ausreichend"
+        confidence_cap = "Mittel"
 
     control.update({
         "implemented": True,
         "released": released,
-        "confidence_cap": "Niedrig",
-        "step3b_status": "Schritt 3B V1 aktiv – Fair Value noch gesperrt",
+        "confidence_cap": confidence_cap,
+        "step3b_status": (
+            "Schritt 3B vollständig – Fair Value mit Zykluswarnung freigegeben"
+            if released and peak_risk
+            else "Schritt 3B vollständig – Fair Value freigegeben"
+            if released
+            else "Schritt 3B nicht freigegeben"
+        ),
         "overall_status": overall_status,
+        "snapshot_fresh": snapshot_fresh,
+        "snapshot": snapshot,
         "checks": {
             "cycle_eps": {
                 "history_count": len(eps_history),
@@ -5339,18 +5520,20 @@ def build_mining_special_control(
             },
             "operating_mine_data": {
                 "available": operating_data_available,
-                "production_guidance": None,
-                "unit_cost_or_aisc": None,
-                "status": operating_data_status,
+                "status": operating_status,
+                "production_status": production_status,
+                "production_change_pct": production_change_pct,
+                "aisc_status": aisc_status,
+                "aisc_improvement_pct": aisc_improvement_pct,
+                "actual_aisc_status": actual_aisc_status,
             },
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V1 prüft Zyklus-EPS, Peak-Cycle-Risiko, "
-            "FCF-Stabilität und Bilanzpuffer. Produktions-Guidance sowie AISC/"
-            "Stückkosten sind für eine belastbare Freigabe kritisch und werden "
-            "nicht aus ungeeigneten Standarddaten geschätzt. Deshalb bleibt der "
-            "Fair Value in V1 gesperrt, bis diese operativen Minendaten verifiziert "
-            "integriert sind. Der 100-Punkte-Multiple-Score wird nicht verändert."
+            "Die Bergbau-Spezialkontrolle V2 trennt Finanzzyklus und operative "
+            "Minenvisibilität. Produktions-Guidance und AISC werden nur aus einem "
+            "verifizierten, datierten Snapshot verwendet. Peak-Cycle-Risiko verändert "
+            "den 100-Punkte-Multiple-Score nicht, begrenzt die Bewertungssicherheit "
+            "aber auf Niedrig."
         ),
     })
 
@@ -6016,7 +6199,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_cycle_control_v1_20260906"
+CACHE_VERSION = "m6_mining_operating_control_v2_20260906"
 
 @st.cache_data(
     ttl=900,
@@ -6276,6 +6459,7 @@ def load_stock(search_text, cache_version):
     special_control = build_mining_special_control(
         special_control,
         company_type,
+        symbol,
         eps_normalization,
         trailing_eps,
         forward_eps,
@@ -8785,6 +8969,7 @@ if selected_symbol:
                         balance_buffer = checks.get("balance_buffer", {})
                         profitability = checks.get("profitability", {})
                         operating = checks.get("operating_mine_data", {})
+                        mining_snapshot = special_control.get("snapshot") or {}
 
                         col1, col2 = st.columns(2)
 
@@ -8854,18 +9039,121 @@ if selected_symbol:
                                 "**Produktions-/Kostenvisibilität:** "
                                 f"{operating.get('status', '–')}"
                             )
-                            st.caption(
-                                "Benötigt werden verifizierte operative Minendaten, "
-                                "z. B. Produktions-Guidance sowie AISC/Stückkosten. "
-                                "Diese Werte werden nicht aus Yahoo geschätzt."
+
+                        if mining_snapshot:
+                            st.write(
+                                "**Datenstand operative Minenkennzahlen:** "
+                                f"{mining_snapshot.get('as_of_date', '–')} "
+                                f"(veröffentlicht {mining_snapshot.get('published_date', '–')})"
                             )
 
-                        st.warning(
-                            "Bergbau-Spezialkontrolle: "
-                            f"**{special_control.get('overall_status', 'Nicht freigegeben')}**. "
-                            "Der Fair Value bleibt gesperrt, bis die kritischen "
-                            "operativen Minendaten belastbar integriert sind."
-                        )
+                            op1, op2 = st.columns(2)
+
+                            with op1:
+                                current_low = mining_snapshot.get(
+                                    "production_guidance_current_low_moz"
+                                )
+                                current_high = mining_snapshot.get(
+                                    "production_guidance_current_high_moz"
+                                )
+                                previous_low = mining_snapshot.get(
+                                    "production_guidance_previous_low_moz"
+                                )
+                                previous_high = mining_snapshot.get(
+                                    "production_guidance_previous_high_moz"
+                                )
+
+                                if current_low is not None and current_high is not None:
+                                    st.metric(
+                                        "2026 Silber-Produktions-Guidance",
+                                        f"{current_low:.1f} – {current_high:.1f} Mio. oz"
+                                    )
+                                if previous_low is not None and previous_high is not None:
+                                    st.write(
+                                        "**Vorherige Guidance:** "
+                                        f"{previous_low:.1f} – {previous_high:.1f} Mio. oz"
+                                    )
+                                if operating.get("production_change_pct") is not None:
+                                    st.write(
+                                        "**Guidance-Mittelpunkt Veränderung:** "
+                                        f"{operating['production_change_pct']:+.1f} %"
+                                    )
+                                st.write(
+                                    "**Produktionsstatus:** "
+                                    f"{operating.get('production_status', '–')}"
+                                )
+
+                            with op2:
+                                aisc_low = mining_snapshot.get(
+                                    "silver_aisc_guidance_current_low"
+                                )
+                                aisc_high = mining_snapshot.get(
+                                    "silver_aisc_guidance_current_high"
+                                )
+                                aisc_prev_low = mining_snapshot.get(
+                                    "silver_aisc_guidance_previous_low"
+                                )
+                                aisc_prev_high = mining_snapshot.get(
+                                    "silver_aisc_guidance_previous_high"
+                                )
+                                q2_aisc = mining_snapshot.get("q2_silver_aisc")
+
+                                if aisc_low is not None and aisc_high is not None:
+                                    st.metric(
+                                        "2026 Silver-AISC-Guidance",
+                                        f"{aisc_low:.2f} – {aisc_high:.2f} USD/oz"
+                                    )
+                                if aisc_prev_low is not None and aisc_prev_high is not None:
+                                    st.write(
+                                        "**Vorherige AISC-Guidance:** "
+                                        f"{aisc_prev_low:.2f} – {aisc_prev_high:.2f} USD/oz"
+                                    )
+                                if q2_aisc is not None:
+                                    st.write(
+                                        "**Q2 Silver AISC:** "
+                                        f"{q2_aisc:.2f} USD/oz"
+                                    )
+                                if operating.get("aisc_improvement_pct") is not None:
+                                    st.write(
+                                        "**AISC-Guidance Verbesserung:** "
+                                        f"{operating['aisc_improvement_pct']:+.1f} %"
+                                    )
+                                st.write(
+                                    "**Kostenstatus:** "
+                                    f"{operating.get('aisc_status', '–')}"
+                                )
+
+                            st.info(mining_snapshot.get("source_note"))
+                            if mining_snapshot.get("guidance_comment"):
+                                st.caption(mining_snapshot.get("guidance_comment"))
+                        else:
+                            st.caption(
+                                "Für diese Bergbau-Aktie liegt noch kein verifizierter "
+                                "operativer Snapshot mit Produktions-Guidance und AISC/"
+                                "Stückkosten vor. Es wird nichts aus Yahoo geschätzt."
+                            )
+
+                        if special_control.get("released"):
+                            if cycle_eps.get("status") == "Peak-Risiko":
+                                st.warning(
+                                    "Bergbau-Spezialkontrolle: "
+                                    f"**{special_control.get('overall_status', 'Freigegeben')}**. "
+                                    "Der Fair Value darf berechnet werden, die "
+                                    "Bewertungssicherheit wird wegen des Peak-Cycle-"
+                                    "Risikos jedoch auf Niedrig begrenzt."
+                                )
+                            else:
+                                st.success(
+                                    "Bergbau-Spezialkontrolle: "
+                                    f"**{special_control.get('overall_status', 'Freigegeben')}** – "
+                                    "Fair Value freigegeben."
+                                )
+                        else:
+                            st.warning(
+                                "Bergbau-Spezialkontrolle: "
+                                f"**{special_control.get('overall_status', 'Nicht freigegeben')}**. "
+                                "Der Fair Value bleibt gesperrt."
+                            )
 
                         st.caption(special_control.get("note"))
                     else:
