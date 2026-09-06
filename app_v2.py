@@ -773,11 +773,19 @@ def calculate_fcf_score(
     else:
         confidence = "Niedrig"
 
-    status = "normal"
-    note = (
-        "Aktuelle FCF-Marge bestimmt die Ausgangspunkte. "
-        "Die Mehrjahreswerte dienen als Stabilitäts- und Trendkontrolle."
-    )
+    if fcf_margin < 0:
+        status = "negative"
+        note = (
+            "⚠️ Aktueller Free Cashflow ist negativ. "
+            "Die FCF-Punkte bleiben ausschließlich von der aktuellen "
+            "FCF-Marge abhängig; historische Werte erhöhen den Score nicht."
+        )
+    else:
+        status = "normal"
+        note = (
+            "Aktuelle FCF-Marge bestimmt die Ausgangspunkte. "
+            "Die Mehrjahreswerte dienen als Stabilitäts- und Trendkontrolle."
+        )
 
     type_name = str(company_type.get("type", "")).lower()
     is_cyclical = (
@@ -2890,7 +2898,7 @@ def get_special_control(company_type, symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "classifier_refinement_v1_safety_v1"
+CACHE_VERSION = "classifier_refinement_v1_safety_v1_fcf_ui_v1"
 
 @st.cache_data(
     ttl=900,
@@ -3850,7 +3858,7 @@ if search_text:
 
                     st.write(
                         "**Aktuelle FCF-Marge:** "
-                        f"{fcf_result['fcf_margin'] * 100:.1f} %"
+                        f"{fcf_result['fcf_margin'] * 100:.2f} %"
                     )
 
                     st.write(
@@ -3880,6 +3888,14 @@ if search_text:
 
                         st.info(
                             "↗️ FCF-Erholung erkannt"
+                        )
+
+                    elif fcf_result[
+                        "status"
+                    ] == "negative":
+
+                        st.warning(
+                            "⚠️ Negativer Free Cashflow erkannt"
                         )
 
                     else:
