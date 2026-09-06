@@ -4814,9 +4814,9 @@ def get_special_control(company_type, symbol):
                 "Life-of-Mine-Profil & NAV-Freigabe-Gate",
                 "Allgemeiner Primärrohstoff-Router"
             ],
-            "status": "Router aktiv – V2.13 Structural-Break-Fallback + Kernasset-LOM-Struktur + LOM-Gate",
+            "status": "Router aktiv – V2.13.1 Structural-Break-Fallback + Kernasset-LOM-Struktur + LOM-Gate",
             "note": (
-                "V2.13 ergänzt das Bergbaumodell um einen streng abgesicherten Structural-Break-Fallback für zyklische EPS-Historien sowie einen verifizierten Reserve-/NAV-Snapshot und einen konservativen allgemeinen "
+                "V2.13.1 ergänzt das Bergbaumodell um einen streng abgesicherten Structural-Break-Fallback für zyklische EPS-Historien sowie einen verifizierten Reserve-/NAV-Snapshot und einen konservativen allgemeinen "
                 "Primärrohstoff-Router für eindeutige Branchen wie Gold, Silber und "
                 "Kupfer. Unspezifische Mischbranchen bleiben gesperrt. Das bestehende "
                 "V2.7-Life-of-Mine-Gate bleibt unverändert aktiv. "
@@ -5332,6 +5332,21 @@ def _extract_numeric_history(items):
     return values
 
 
+def _extract_dated_numeric_history(items):
+    """Return year/value rows without inventing dates for undated history."""
+    rows = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        value = safe_float(item.get("value"))
+        date_value = item.get("date")
+        year = getattr(date_value, "year", None)
+        if value is None or year is None:
+            continue
+        rows.append({"year": int(year), "value": value})
+    return rows
+
+
 def get_verified_mining_snapshot(symbol):
     """
     Curated, explicitly dated official-data snapshots for Mining V2.
@@ -5616,7 +5631,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
                 "Hecla wird wegen der gemischten Yahoo-Branche ausdrücklich primär "
                 "dem Silberpreis zugeordnet. Gold, Blei und Zink bleiben zusätzliche "
                 "Exposures und werden nicht als separate Primärrohstoffe in diese "
-                "V2.13-Kontrolle hineingeschätzt."
+                "V2.13.1-Kontrolle hineingeschätzt."
             ),
         },
     }
@@ -5654,7 +5669,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
         "route_source": "Allgemeiner Branchen-Router",
         "routing_basis": f"Yahoo-Branche: {industry_text}",
         "mapping_note": (
-            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.13 "
+            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.13.1 "
             f"automatisch dem Primärrohstoff {base['commodity_name']} zugeordnet. "
             "Unspezifische oder gemischte Bergbau-Branchen werden weiterhin nicht "
             "automatisch geroutet."
@@ -5969,19 +5984,25 @@ def build_mining_structural_break_fallback(
     actual_aisc_status,
     fcf_status,
     balance_status,
+    fcf_history_supports_fallback=None,
+    fcf_post_break_years_count=None,
+    fcf_post_break_positive_years=None,
+    fcf_post_break_negative_years=None,
 ):
     """Conservative earnings fallback for post-M&A cyclic miners.
 
-    V2.13 never relaxes the minimum post-break history rule. This alternative
+    V2.13.1 never relaxes the minimum post-break history rule. This alternative
     route exists only when the normal cyclical EPS history is blocked by an
     explicitly verified structural break. It down-normalizes current TTM EPS
-    and current FCF/share with the same verified commodity-margin factor, then
-    requires the two independently reported company measures to converge.
+    with the verified commodity-margin factor. Current FCF/share is an
+    accounting cash-conversion cross-check; a scaled FCF/share may be displayed
+    on the same normalized basis, but because it uses the *same* margin factor
+    it is explicitly not treated as an independent normalization path.
 
     Production guidance is a mandatory run-rate anchor. It is used to show the
     normalized primary-commodity margin pool, not to manufacture revenue, EPS
-    or a mine NAV. The fallback is therefore an earnings *bridge*, while the
-    separate LOM/NAV hard gate remains fully binding.
+    or a mine NAV. The fallback remains only a low-confidence plausibility
+    bridge; the separate LOM/NAV hard gate remains fully binding.
     """
     result = {
         "applicable": False,
@@ -6001,9 +6022,18 @@ def build_mining_structural_break_fallback(
         "margin_adjusted_ttm_eps": None,
         "current_fcf_per_share": None,
         "normalized_fcf_per_share": None,
-        "eps_fcf_convergence_pct": None,
-        "eps_fcf_convergence_status": "Daten unzureichend",
-        "fcf_to_eps_ratio": None,
+        "eps_fcf_convergence_pct": None,  # legacy alias; see cash_conversion_gap_pct
+        "eps_fcf_convergence_status": "Daten unzureichend",  # legacy alias
+        "fcf_to_eps_ratio": None,  # legacy alias; same as current_fcf_to_ttm_eps_ratio
+        "cash_conversion_gap_pct": None,
+        "cash_conversion_status": "Daten unzureichend",
+        "current_fcf_to_ttm_eps_ratio": None,
+        "fcf_scaled_with_same_margin_factor": True,
+        "fcf_scaling_is_independent": False,
+        "fcf_post_break_years_count": fcf_post_break_years_count,
+        "fcf_post_break_positive_years": fcf_post_break_positive_years,
+        "fcf_post_break_negative_years": fcf_post_break_negative_years,
+        "fcf_history_supports_fallback": fcf_history_supports_fallback,
         "valuation_earnings_per_share": None,
         "valuation_basis_label": None,
         "shares_basis": None,
@@ -6072,7 +6102,15 @@ def build_mining_structural_break_fallback(
         result["reason"] = "Die aktuell gemeldeten Stückkosten stützen die Guidance nicht ausreichend."
         return result
 
-    if fcf_status not in ["Stark", "Ausreichend"]:
+    if fcf_history_supports_fallback is False:
+        result["status"] = "Fallback gesperrt – Post-Break-FCF stützt nicht"
+        result["reason"] = (
+            f"FCF-Kontrolle nach Strukturbruch ist {fcf_status}. Für den Fallback "
+            "werden mindestens zwei vollständig vergleichbare Post-Break-Jahre mit "
+            "positivem FCF und ohne negatives Vergleichsjahr verlangt."
+        )
+        return result
+    if fcf_history_supports_fallback is None and fcf_status not in ["Stark", "Ausreichend"]:
         result["status"] = "Fallback gesperrt – FCF-Historie nicht belastbar"
         result["reason"] = f"FCF-Stabilität ist {fcf_status}."
         return result
@@ -6104,7 +6142,7 @@ def build_mining_structural_break_fallback(
 
     raw_factor = normalized_margin / current_margin
     result["raw_margin_factor"] = raw_factor
-    # V2.13 is deliberately a down-normalization fallback. It never boosts a
+    # V2.13.1 is deliberately a down-normalization fallback. It never boosts a
     # post-break miner above current earnings when the normalized commodity
     # margin is higher than the current margin.
     if raw_factor <= 0 or raw_factor > 1.0:
@@ -6135,7 +6173,7 @@ def build_mining_structural_break_fallback(
     if shares is None or shares <= 0:
         result["status"] = "Fallback gesperrt – Aktienzahl fehlt"
         result["reason"] = (
-            "Für die unabhängige FCF-je-Aktie-Kontrolle ist keine belastbare Aktienzahl verfügbar."
+            "Für die FCF-je-Aktie-Cash-Conversion-Kontrolle ist keine belastbare Aktienzahl verfügbar."
         )
         return result
 
@@ -6149,40 +6187,50 @@ def build_mining_structural_break_fallback(
     })
 
     if margin_adjusted_eps <= 0 or normalized_fcf_ps <= 0:
-        result["status"] = "Fallback gesperrt – EPS/FCF-Normalisierung nicht positiv"
-        result["reason"] = "Margenadjustiertes TTM-EPS und normalisierter FCF je Aktie müssen positiv sein."
+        result["status"] = "Fallback gesperrt – Ertrags-/Cash-Conversion-Basis nicht positiv"
+        result["reason"] = "Margenadjustiertes TTM-EPS und aktueller FCF je Aktie müssen positiv sein."
         return result
 
-    denominator = max((abs(margin_adjusted_eps) + abs(normalized_fcf_ps)) / 2.0, 0.10)
-    convergence_pct = abs(margin_adjusted_eps - normalized_fcf_ps) / denominator * 100.0
-    fcf_to_eps = normalized_fcf_ps / margin_adjusted_eps
+    # Both normalized views use the same commodity-margin factor. Their gap is
+    # therefore mathematically the same as the current FCF/share vs. TTM-EPS
+    # cash-conversion gap. V2.13.1 labels it accordingly and never calls it an
+    # independent convergence path.
+    denominator = max((abs(ttm_eps) + abs(current_fcf_ps)) / 2.0, 0.10)
+    cash_conversion_gap = abs(ttm_eps - current_fcf_ps) / denominator * 100.0
+    current_fcf_to_eps = current_fcf_ps / ttm_eps
 
-    if convergence_pct <= 15.0:
-        convergence_status = "Stark konvergent"
-    elif convergence_pct <= 25.0:
-        convergence_status = "Ausreichend konvergent"
+    if cash_conversion_gap <= 15.0:
+        cash_conversion_status = "Stark stützend"
+    elif cash_conversion_gap <= 25.0:
+        cash_conversion_status = "Stützend"
     else:
-        convergence_status = "Nicht konvergent"
+        cash_conversion_status = "Nicht stützend"
 
     result.update({
-        "eps_fcf_convergence_pct": convergence_pct,
-        "eps_fcf_convergence_status": convergence_status,
-        "fcf_to_eps_ratio": fcf_to_eps,
+        "cash_conversion_gap_pct": cash_conversion_gap,
+        "cash_conversion_status": cash_conversion_status,
+        "current_fcf_to_ttm_eps_ratio": current_fcf_to_eps,
+        # Backward-compatible aliases for any downstream code. UI no longer
+        # presents these as independent EPS/FCF convergence.
+        "eps_fcf_convergence_pct": cash_conversion_gap,
+        "eps_fcf_convergence_status": cash_conversion_status,
+        "fcf_to_eps_ratio": current_fcf_to_eps,
     })
 
-    if convergence_pct > 25.0:
-        result["status"] = "Fallback gesperrt – EPS/FCF-Wege divergieren"
+    if cash_conversion_gap > 25.0:
+        result["status"] = "Fallback gesperrt – Cash-Conversion stützt nicht"
         result["reason"] = (
-            f"Margenadjustiertes TTM-EPS ({margin_adjusted_eps:.2f}) und normalisierter FCF je Aktie "
-            f"({normalized_fcf_ps:.2f}) weichen um {convergence_pct:.1f} % voneinander ab; "
-            "Freigabegrenze ≤ 25 %."
+            f"Aktueller FCF je Aktie ({current_fcf_ps:.2f}) und TTM-EPS ({ttm_eps:.2f}) "
+            f"weichen in der Cash-Conversion-Kontrolle um {cash_conversion_gap:.1f} % voneinander ab; "
+            "Plausibilitätsgrenze ≤ 25 %. Der skalierte FCF nutzt denselben Margenfaktor "
+            "und ist kein unabhängiger Normalisierungsweg."
         )
         return result
 
-    if not (0.50 <= fcf_to_eps <= 1.50):
-        result["status"] = "Fallback gesperrt – FCF/EPS-Plausibilität außerhalb Band"
+    if not (0.50 <= current_fcf_to_eps <= 1.50):
+        result["status"] = "Fallback gesperrt – Cash-Conversion außerhalb Band"
         result["reason"] = (
-            f"Normalisierter FCF/EPS-Quotient {fcf_to_eps:.2f}× liegt außerhalb des "
+            f"Aktueller FCF je Aktie / TTM-EPS = {current_fcf_to_eps:.2f}× liegt außerhalb des "
             "konservativen Plausibilitätsbands von 0,50× bis 1,50×."
         )
         return result
@@ -6192,16 +6240,19 @@ def build_mining_structural_break_fallback(
     # accounting EPS from cash flow.
     result.update({
         "available": True,
-        "status": "Fallback-Ertragsbasis freigegeben – EPS/FCF konvergent",
+        "status": "Fallback-Plausibilitätsanker freigegeben – Cash-Conversion stützt",
         "confidence": "Niedrig",
         "valuation_earnings_per_share": margin_adjusted_eps,
         "valuation_basis_label": "Margenadjustiertes TTM-EPS (diagnostischer Structural-Break-Fallback)",
         "reason": (
-            "Die reguläre Zyklus-EPS-Historie bleibt gesperrt. Der Fallback gibt nur eine "
-            "niedrig-konfidente alternative Ertragsbasis frei, weil normalisierte Rohstoffmarge, "
-            "aktuelle Produktion/Kosten und normalisierter FCF je Aktie gemeinsam plausibel sind. "
-            "Die Basis ist nur ein Plausibilitätsanker; sie erzeugt kein KGV-Multiple und keinen Fair Value. "
-            "Das separate Life-of-Mine-/NAV-Gate bleibt unverändert bindend."
+            "Die reguläre Zyklus-EPS-Historie bleibt gesperrt. Der Fallback gibt nur einen "
+            "niedrig-konfidenten Plausibilitätsanker frei: normalisierte Rohstoffmarge und "
+            "aktuelle Produktion/Kosten erlauben eine konservative Down-Normalisierung des TTM-EPS. "
+            "Der aktuelle FCF stützt die Cash-Conversion und die vollständig vergleichbaren Post-Break-"
+            "FCF-Jahre sind positiv. Der auf dieselbe Basis skalierte FCF je Aktie verwendet jedoch "
+            "denselben Margenfaktor und ist ausdrücklich kein unabhängiger Normalisierungsweg. "
+            "Der Anker erzeugt weder KGV-Multiple noch Fair Value; das separate Life-of-Mine-/NAV-Gate "
+            "bleibt unverändert bindend."
         ),
     })
     return result
@@ -7594,10 +7645,44 @@ def build_mining_special_control(
     else:
         eps_status = "Peak-Risiko"
 
-    positive_fcf_years = sum(1 for value in fcf_history if value > 0)
-    negative_fcf_years = sum(1 for value in fcf_history if value < 0)
+    # V2.13.1: FCF history follows the same comparability boundary as EPS.
+    # Pre-break / transition-year cash flows remain visible as history, but do
+    # not support a "strong" stability label for the post-M&A company.
+    fcf_history_rows = _extract_dated_numeric_history((historical or {}).get("fcf", []))
+    positive_fcf_years_all = sum(1 for value in fcf_history if value > 0)
+    negative_fcf_years_all = sum(1 for value in fcf_history if value < 0)
 
-    if len(fcf_history) < 3:
+    post_break_fcf_rows = list(fcf_history_rows)
+    excluded_fcf_rows = []
+    fcf_structural_break_active = bool(structural_break_info.get("active", False))
+    if fcf_structural_break_active:
+        first_full_year = int(structural_break_info.get("first_full_comparable_year") or 0)
+        post_break_fcf_rows = [row for row in fcf_history_rows if row["year"] >= first_full_year]
+        excluded_fcf_rows = [row for row in fcf_history_rows if row["year"] < first_full_year]
+
+    post_break_fcf_values = [row["value"] for row in post_break_fcf_rows]
+    positive_fcf_years = sum(1 for value in post_break_fcf_values if value > 0)
+    negative_fcf_years = sum(1 for value in post_break_fcf_values if value < 0)
+    post_break_fcf_years = sorted({row["year"] for row in post_break_fcf_rows}, reverse=True)
+    excluded_fcf_years = sorted({row["year"] for row in excluded_fcf_rows}, reverse=True)
+    minimum_post_break_years = int(
+        structural_break_info.get("minimum_full_post_break_years") or 3
+    ) if fcf_structural_break_active else 3
+
+    if fcf_structural_break_active and len(post_break_fcf_values) < minimum_post_break_years:
+        if (
+            len(post_break_fcf_values) >= 2
+            and positive_fcf_years == len(post_break_fcf_values)
+            and negative_fcf_years == 0
+        ):
+            fcf_status = "Post-Break positiv – Historie zu kurz"
+        elif positive_fcf_years >= 1 and negative_fcf_years >= 1:
+            fcf_status = "Post-Break gemischt – Historie zu kurz"
+        elif negative_fcf_years > 0:
+            fcf_status = "Post-Break schwach – Historie zu kurz"
+        else:
+            fcf_status = "Post-Break-Daten unzureichend"
+    elif len(post_break_fcf_values) < 3:
         fcf_status = "Daten unzureichend"
     elif negative_fcf_years == 0 and positive_fcf_years >= 3:
         fcf_status = "Stark"
@@ -7607,6 +7692,15 @@ def build_mining_special_control(
         fcf_status = "Zyklisch"
     else:
         fcf_status = "Schwach"
+
+    if fcf_structural_break_active:
+        fcf_history_supports_fallback = (
+            len(post_break_fcf_values) >= 2
+            and positive_fcf_years == len(post_break_fcf_values)
+            and negative_fcf_years == 0
+        )
+    else:
+        fcf_history_supports_fallback = fcf_status in ["Stark", "Ausreichend"]
 
     balance_status_raw = (balance_score or {}).get("status")
     net_debt_to_fcf = safe_float((balance_score or {}).get("net_debt_to_fcf"))
@@ -7716,9 +7810,9 @@ def build_mining_special_control(
     earnings_translation_available = earnings_translation.get("available", False)
     earnings_translation_status = earnings_translation.get("status", "Daten unzureichend")
 
-    # Mining V2.13: when a verified structural break blocks the regular cycle-EPS
+    # Mining V2.13.1: when a verified structural break blocks the regular cycle-EPS
     # history, a separate low-confidence fallback may down-normalize current EPS
-    # and FCF using the verified commodity margin. It never relaxes the 3-year rule.
+    # using the verified commodity margin while FCF remains a cash-conversion control. It never relaxes the 3-year rule.
     structural_break_fallback = build_mining_structural_break_fallback(
         commodity_price_cycle,
         eps_normalization,
@@ -7733,10 +7827,14 @@ def build_mining_special_control(
         actual_aisc_status,
         fcf_status,
         balance_status,
+        fcf_history_supports_fallback=fcf_history_supports_fallback,
+        fcf_post_break_years_count=len(post_break_fcf_values),
+        fcf_post_break_positive_years=positive_fcf_years,
+        fcf_post_break_negative_years=negative_fcf_years,
     )
     structural_break_fallback_available = structural_break_fallback.get("available", False)
 
-    # V2.13 deliberately does not convert the fallback into a KGV valuation basis.
+    # V2.13.1 deliberately does not convert the fallback into a KGV valuation basis.
     # It is an earnings plausibility bridge only. A later mine-NAV/LOM valuation
     # must remain independent and may use the fallback only as a cross-check.
 
@@ -7759,7 +7857,7 @@ def build_mining_special_control(
         overall_status = "Structural-Break-Kontrolle – Fallback-Ertragsbasis nicht freigegeben"
         confidence_cap = "Niedrig"
     elif structural_break_blocked and structural_break_fallback_available:
-        # The normal cycle-EPS path remains blocked. V2.13 may plausibilize a
+        # The normal cycle-EPS path remains blocked. V2.13.1 may plausibilize a
         # separate low-confidence earnings fallback, but it does not turn that
         # bridge into a KGV/Fair-Value release. LOM/NAV remains a separate path.
         released = False
@@ -7844,8 +7942,16 @@ def build_mining_special_control(
             },
             "fcf_stability": {
                 "history_count": len(fcf_history),
+                "all_history_positive_years": positive_fcf_years_all,
+                "all_history_negative_years": negative_fcf_years_all,
                 "positive_years": positive_fcf_years,
                 "negative_years": negative_fcf_years,
+                "structural_break_active": fcf_structural_break_active,
+                "comparable_post_break_years": post_break_fcf_years,
+                "excluded_history_years": excluded_fcf_years,
+                "post_break_history_count": len(post_break_fcf_values),
+                "minimum_post_break_years": minimum_post_break_years,
+                "supports_structural_break_fallback": fcf_history_supports_fallback,
                 "score_status": (fcf_score or {}).get("status"),
                 "status": fcf_status,
             },
@@ -7874,7 +7980,7 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.13 trennt Structural-Break-Kontrolle, Structural-Break-Fallback, Kernasset-LOM-Struktur, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.13.1 trennt Structural-Break-Kontrolle, Structural-Break-Fallback, Kernasset-LOM-Struktur, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
             "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
             "Ertragskraft, Reserve-/Asset-Kontrolle, Run-rate-Mine-NAV und das "
             "formale Life-of-Mine-Freigabe-Gate. Ein Guidance-Jahr ersetzt kein "
@@ -8633,7 +8739,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_structural_break_fallback_v213_20260906"
+CACHE_VERSION = "m6_mining_structural_break_fcf_v2131_20260906"
 
 @st.cache_data(
     ttl=900,
@@ -11452,7 +11558,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.13 – Structural-Break-Fallback + Kernasset-LOM-Struktur + LOM-Gate")
+                    st.caption("Bergbau-Schutzmodell V2.13.1 – Structural-Break-Fallback + Kernasset-LOM-Struktur + LOM-Gate")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -11518,11 +11624,42 @@ if selected_symbol:
                                 "**FCF-Stabilität:** "
                                 f"{fcf_stability.get('status', '–')}"
                             )
-                            st.write(
-                                "Positive / negative FCF-Jahre: "
-                                f"{fcf_stability.get('positive_years', 0)} / "
-                                f"{fcf_stability.get('negative_years', 0)}"
-                            )
+                            if fcf_stability.get("structural_break_active", False):
+                                st.write(
+                                    "**Vergleichbare Post-Break-FCF-Jahre:** "
+                                    + (
+                                        ", ".join(
+                                            str(y) for y in fcf_stability.get("comparable_post_break_years", [])
+                                        )
+                                        or "keine"
+                                    )
+                                )
+                                st.write(
+                                    "Post-Break positive / negative FCF-Jahre: "
+                                    f"{fcf_stability.get('positive_years', 0)} / "
+                                    f"{fcf_stability.get('negative_years', 0)}"
+                                )
+                                st.write(
+                                    "**Ältere/Übergangs-FCF-Jahre:** "
+                                    + (
+                                        ", ".join(
+                                            str(y) for y in fcf_stability.get("excluded_history_years", [])
+                                        )
+                                        or "keine"
+                                    )
+                                    + " (nur historische Information)"
+                                )
+                                st.caption(
+                                    "Vor-Strukturbruch-FCFs werden nicht für die Stabilitätsfreigabe des heutigen "
+                                    "Konzerns gleichgewichtet. Zwei positive Post-Break-Jahre können den Fallback "
+                                    "stützen, reichen aber noch nicht für das Prädikat ‚Stark‘."
+                                )
+                            else:
+                                st.write(
+                                    "Positive / negative FCF-Jahre: "
+                                    f"{fcf_stability.get('positive_years', 0)} / "
+                                    f"{fcf_stability.get('negative_years', 0)}"
+                                )
 
                         with col2:
                             st.write(
@@ -11917,7 +12054,7 @@ if selected_symbol:
                         structural_fallback = checks.get("structural_break_fallback", {})
                         if structural_fallback.get("applicable", False):
                             st.write(
-                                "**Structural-Break-Fallback V2.13:** "
+                                "**Structural-Break-Fallback V2.13.1:** "
                                 f"{structural_fallback.get('status', 'Noch offen')}"
                             )
                             fb1, fb2 = st.columns(2)
@@ -11943,22 +12080,32 @@ if selected_symbol:
                                         f"{structural_fallback['margin_adjusted_ttm_eps']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
                                     )
                             with fb2:
+                                if structural_fallback.get("current_fcf_per_share") is not None:
+                                    st.metric(
+                                        "Aktueller FCF je Aktie (Cash-Conversion)",
+                                        f"{structural_fallback['current_fcf_per_share']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                    )
                                 if structural_fallback.get("normalized_fcf_per_share") is not None:
                                     st.metric(
-                                        "Normalisierter FCF je Aktie (Fallback-Kontrolle)",
+                                        "Mit gleichem Faktor skalierter FCF je Aktie",
                                         f"{structural_fallback['normalized_fcf_per_share']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
                                     )
-                                if structural_fallback.get("eps_fcf_convergence_pct") is not None:
+                                if structural_fallback.get("cash_conversion_gap_pct") is not None:
                                     st.write(
-                                        "**EPS-/FCF-Abweichung:** "
-                                        f"{structural_fallback['eps_fcf_convergence_pct']:.1f} % "
-                                        f"({structural_fallback.get('eps_fcf_convergence_status', '–')})"
+                                        "**Cash-Conversion-Abweichung (TTM-EPS vs. aktueller FCF/Aktie):** "
+                                        f"{structural_fallback['cash_conversion_gap_pct']:.1f} % "
+                                        f"({structural_fallback.get('cash_conversion_status', '–')})"
                                     )
-                                if structural_fallback.get("fcf_to_eps_ratio") is not None:
+                                if structural_fallback.get("current_fcf_to_ttm_eps_ratio") is not None:
                                     st.write(
-                                        "**Normalisierter FCF / Fallback-EPS:** "
-                                        f"{structural_fallback['fcf_to_eps_ratio']:.2f}×"
+                                        "**Aktueller FCF/Aktie / TTM-EPS:** "
+                                        f"{structural_fallback['current_fcf_to_ttm_eps_ratio']:.2f}×"
                                     )
+                                st.caption(
+                                    "Der skalierte FCF je Aktie verwendet denselben Rohstoffmargenfaktor wie das "
+                                    "Fallback-EPS. Er ist deshalb keine unabhängige zweite Normalisierung, sondern "
+                                    "nur die normalisierte Darstellung der aktuellen Cash-Conversion."
+                                )
                                 if structural_fallback.get("valuation_earnings_per_share") is not None:
                                     st.metric(
                                         "Alternative Ertragsbasis je Aktie",
@@ -11966,10 +12113,10 @@ if selected_symbol:
                                     )
                             if structural_fallback.get("available", False):
                                 st.success(
-                                    "Fallback-Hard-Gate bestanden: Die reguläre 3-Jahres-Zyklus-EPS-Regel "
-                                    "bleibt gesperrt. Eine separate niedrig-konfidente Ertragsbasis ist nur "
-                                    "als Plausibilitätsanker durch Rohstoffmarge, Produktion/Kosten und FCF freigegeben; "
-                                    "sie erzeugt weder KGV-Multiple noch Fair Value."
+                                    "Fallback-Plausibilitätsgate bestanden: Die reguläre 3-Jahres-Zyklus-EPS-Regel "
+                                    "bleibt gesperrt. Der Anker wird durch normalisierte Rohstoffmarge, Produktion/Kosten, "
+                                    "positive Post-Break-FCF-Jahre und aktuelle Cash-Conversion gestützt. Der FCF ist "
+                                    "kein unabhängiger Normalisierungsweg; es entstehen weder KGV-Multiple noch Fair Value."
                                 )
                             else:
                                 st.warning(
@@ -12079,7 +12226,7 @@ if selected_symbol:
 
                             core_lom = asset_nav_control.get("core_asset_lom_structure") or {}
                             if core_lom.get("available"):
-                                st.markdown("**Kernasset-LOM-Struktur (Teilmodul V2.11 innerhalb V2.13):**")
+                                st.markdown("**Kernasset-LOM-Struktur (Teilmodul V2.11 innerhalb V2.13.1):**")
                                 kc1, kc2, kc3 = st.columns(3)
                                 with kc1:
                                     st.metric("Reserven mit offizieller 10+-Jahre-Langlebigkeit", f"{core_lom.get('long_life_reserve_coverage_pct', 0.0):.1f} %")
@@ -12192,7 +12339,7 @@ if selected_symbol:
                         normalized_mine_nav = asset_nav_control.get("normalized_mine_nav") or {}
                         if normalized_mine_nav:
                             st.write(
-                                "**Normalisierter Mine-NAV (LOM-Teilmodul innerhalb V2.13; Run-rate DCF-Kontrolle):** "
+                                "**Normalisierter Mine-NAV (LOM-Teilmodul innerhalb V2.13.1; Run-rate DCF-Kontrolle):** "
                                 f"{normalized_mine_nav.get('status', '–')}"
                             )
                             nav_method1, nav_method2 = st.columns(2)
