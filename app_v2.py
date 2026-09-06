@@ -4471,9 +4471,9 @@ def get_special_control(company_type, symbol):
             ],
             "status": "Router aktiv",
             "note": (
-                "Die eigentliche Auftrags-/Visibilitätslogik "
-                "wird erst im nächsten Schritt implementiert. "
-                "Es werden noch keine Spezialdaten geladen."
+                "Die eigentliche Auftrags-/Visibilitätsprüfung erfolgt "
+                "im nachfolgenden Schritt 3B. Dort werden ausschließlich "
+                "verifizierte Spezialdaten verwendet."
             )
         }
 
@@ -8065,12 +8065,16 @@ if selected_symbol:
                                 f"{coverage.get('status', '–')}"
                             )
 
+                            fixed_orders_value = format_money(
+                                fixed_orders.get("value"),
+                                financial_currency
+                            )
+                            if fixed_orders_value != "–":
+                                fixed_orders_value = f"≈ {fixed_orders_value}"
+
                             st.metric(
                                 "Fester Auftragsbestand",
-                                format_money(
-                                    fixed_orders.get("value"),
-                                    financial_currency
-                                )
+                                fixed_orders_value
                             )
 
                             if fixed_orders.get("share_pct") is not None:
@@ -8241,7 +8245,7 @@ if selected_symbol:
                         "potential_pct"
                     ] is not None:
                         st.metric(
-                            "Fair-Value-Potenzial",
+                            "Upside bis Fair Value",
                             f"{fair_value['potential_pct']:+.1f} %"
                         )
 
@@ -8305,9 +8309,25 @@ if selected_symbol:
                     )
 
                     if valuation_zone.get("price_vs_fair_value_pct") is not None:
+                        price_distance = valuation_zone[
+                            "price_vs_fair_value_pct"
+                        ]
+                        if price_distance < 0:
+                            distance_label = (
+                                "Aktueller Kursabschlag zum Fair Value"
+                            )
+                            distance_text = f"{abs(price_distance):.1f} %"
+                        elif price_distance > 0:
+                            distance_label = (
+                                "Aktueller Kursaufschlag zum Fair Value"
+                            )
+                            distance_text = f"{price_distance:.1f} %"
+                        else:
+                            distance_label = "Abstand zum Fair Value"
+                            distance_text = "0.0 %"
+
                         st.write(
-                            "**Kursabstand zum Fair Value:** "
-                            f"{valuation_zone['price_vs_fair_value_pct']:+.1f} %"
+                            f"**{distance_label}:** {distance_text}"
                         )
 
                     st.write(
