@@ -4674,15 +4674,18 @@ def get_special_control(company_type, symbol):
                 "Produktions-/Kostenvisibilität",
                 "Rohstoffpreis-/Preiszyklus-Normalisierung",
                 "Überleitung Preiszyklus → normalisierte Ertragskraft",
-                "Reserve-/Minenlebensdauer- & NAV-Kontrolle"
+                "Reserve-/Minenlebensdauer- & NAV-Kontrolle",
+                "Normalisierter Mine-NAV (Run-rate DCF / LOM-Kontrolle)"
             ],
-            "status": "Router aktiv – V2.5 Reserve-, Minenleben- & NAV-Kontrolle",
+            "status": "Router aktiv – V2.6 normalisierter Mine-NAV",
             "note": (
-                "V2.5 ergänzt die Ertragskraft-Überleitung um verifizierte "
-                "Reserven, Reserve-Minenlebensdauer und einen unabhängigen "
-                "technischen NAV-Referenzanker. Alte technische Mine-NPVs "
-                "werden sichtbar als Referenz geführt, dürfen aber keinen "
-                "aktuellen Fair Value freigeben."
+                "V2.6 ergänzt Reserve- und NAV-Kontrolle um einen unabhängig "
+                "berechneten normalisierten Mine-NAV-Kontrollwert. Verwendet "
+                "werden verifizierte 2026 Produktions-/AISC-Reconciliation, "
+                "2025 Reservepreise und Reserve-Minenleben. Ein einzelnes "
+                "Guidance-Jahr wird jedoch nicht als Life-of-Mine-Kostenprofil "
+                "ausgegeben; bei unvollständiger LOM-Abdeckung bleibt der Fair "
+                "Value gesperrt."
             )
         }
 
@@ -5233,6 +5236,51 @@ def get_verified_mining_snapshot(symbol):
         "lucky_friday_guidance_high_moz": 5.2,
         "keno_hill_guidance_low_moz": 2.2,
         "keno_hill_guidance_high_moz": 2.6,
+        # Q2-2026 guidance reconciliation used by Mining V2.6. Values are
+        # company-published guidance inputs, not inferred from Yahoo data.
+        "nav_model_discount_rate_pct": 5.0,
+        "ytd_income_tax_provision_musd": 69.667,
+        "ytd_income_from_continuing_operations_musd": 282.529,
+        "guidance_metal_price_assumptions": {
+            "gold": 4000.0,
+            "zinc": 1.40,
+            "lead": 0.85,
+            "copper": 4.00,
+        },
+        "mine_nav_run_rate_inputs": {
+            "Greens Creek": {
+                "production_low_moz": 8.0,
+                "production_high_moz": 8.3,
+                "aisc_before_byproduct_musd": 293.8,
+                "sustaining_capex_musd": 63.0,
+                "byproduct_credits_musd": {
+                    "zinc": 102.3,
+                    "gold": 201.3,
+                    "lead": 25.4,
+                    "copper": 1.6,
+                },
+            },
+            "Lucky Friday": {
+                "production_low_moz": 4.9,
+                "production_high_moz": 5.2,
+                "aisc_before_byproduct_musd": 218.2,
+                "sustaining_capex_musd": 80.0,
+                "byproduct_credits_musd": {
+                    "zinc": 38.9,
+                    "gold": 0.0,
+                    "lead": 51.1,
+                    "copper": 0.0,
+                },
+            },
+            "Keno Hill": {
+                "production_low_moz": 2.2,
+                "production_high_moz": 2.6,
+                "precommercial": True,
+                "growth_capex_musd": 63.0,
+                "aisc_before_byproduct_musd": None,
+                "byproduct_credits_musd": {},
+            },
+        },
         "guidance_comment": (
             "Gesamt-Silberproduktion: obere Bandbreite leicht gesenkt. "
             "Greens Creek angehoben, Lucky Friday gestrafft/verbessert, "
@@ -5795,6 +5843,15 @@ def get_verified_mining_asset_snapshot(symbol):
         "reserve_price_basis_gold": 2100.0,
         "reserve_price_basis_lead": 0.90,
         "reserve_price_basis_zinc": 1.15,
+        # No copper reserve-price basis is published for the core silver reserve
+        # set used here. V2.6 therefore gives copper by-product credits no value
+        # in the normalized run-rate NAV instead of inventing a price.
+        "reserve_price_basis_copper": None,
+        "reserve_mine_life_years": {
+            "Greens Creek": 12.0,
+            "Lucky Friday": 15.0,
+            "Keno Hill": 13.0,
+        },
         "company_average_reserve_mine_life_years": 13.3,
         "mine_life_source_date": "Mai 2026",
         "mine_life_note": (
@@ -5882,6 +5939,281 @@ def _linear_interpolate_no_extrapolation(x, points):
     return None
 
 
+
+def _mining_annuity_factor(years, discount_rate):
+    years = safe_float(years)
+    discount_rate = safe_float(discount_rate)
+    if years is None or years <= 0 or discount_rate is None or discount_rate < 0:
+        return None
+    if discount_rate == 0:
+        return years
+    return (1.0 - (1.0 + discount_rate) ** (-years)) / discount_rate
+
+
+def build_mining_normalized_mine_nav_v26(
+    symbol,
+    commodity_cycle,
+    operating_snapshot,
+    asset_snapshot,
+    technical_nav_details=None,
+):
+    """
+    Mining V2.6 independent normalized mine-NAV control.
+
+    This is deliberately a run-rate reserve DCF, not a substitute for a current
+    Life-of-Mine technical model. It uses current verified production guidance,
+    the company's AISC-before-by-product reconciliation, current reserve mine
+    lives and reserve metal-price assumptions. By-product credits are scaled to
+    the reserve-price basis. Missing price bases receive zero credit.
+
+    Final NAV release requires full core-mine coverage and a long-term cost
+    profile. Keno Hill remains pre-commercial in the Q2-2026 guidance and has no
+    comparable AISC reconciliation, so V2.6 is a diagnostic/control value only.
+    """
+    result = {
+        "available": False,
+        "partial_available": False,
+        "status": "Daten unzureichend",
+        "reason": None,
+        "discount_rate_pct": None,
+        "effective_tax_rate_pct": None,
+        "normalized_silver_price": None,
+        "normalized_byproduct_prices": {},
+        "mine_details": [],
+        "commercial_nav_sum_musd": None,
+        "commercial_reserve_coverage_pct": None,
+        "all_core_mines_covered": False,
+        "long_term_cost_profile_available": False,
+        "method_note": (
+            "Run-rate DCF auf verifizierter 2026 Guidance. Kein Terminalwert, "
+            "keine Resources, keine Explorationsoptionen und keine erfundene "
+            "Keno-AISC. Ein Guidance-Jahr ist kein Life-of-Mine-Kostenprofil."
+        ),
+    }
+
+    if str(symbol or "").upper() != "HL" or not operating_snapshot or not asset_snapshot:
+        result["reason"] = "Kein verifizierter V2.6-Mine-NAV-Datensatz verfügbar."
+        return result
+
+    silver_price = safe_float((commodity_cycle or {}).get("normalized_price"))
+    if silver_price is None or silver_price <= 0:
+        result["reason"] = "Normalisierter Silberpreis fehlt."
+        return result
+    result["normalized_silver_price"] = silver_price
+
+    discount_pct = safe_float(operating_snapshot.get("nav_model_discount_rate_pct"))
+    if discount_pct is None or discount_pct < 0:
+        result["reason"] = "Verifizierter NAV-Diskontsatz fehlt."
+        return result
+    discount_rate = discount_pct / 100.0
+    result["discount_rate_pct"] = discount_pct
+
+    tax_provision = safe_float(operating_snapshot.get("ytd_income_tax_provision_musd"))
+    income_after_tax = safe_float(
+        operating_snapshot.get("ytd_income_from_continuing_operations_musd")
+    )
+    effective_tax_rate = None
+    if (
+        tax_provision is not None
+        and tax_provision >= 0
+        and income_after_tax is not None
+        and income_after_tax > 0
+    ):
+        pretax = tax_provision + income_after_tax
+        if pretax > 0:
+            effective_tax_rate = min(max(tax_provision / pretax, 0.0), 0.50)
+    result["effective_tax_rate_pct"] = (
+        effective_tax_rate * 100.0 if effective_tax_rate is not None else None
+    )
+
+    normalized_prices = {
+        "gold": safe_float(asset_snapshot.get("reserve_price_basis_gold")),
+        "lead": safe_float(asset_snapshot.get("reserve_price_basis_lead")),
+        "zinc": safe_float(asset_snapshot.get("reserve_price_basis_zinc")),
+        "copper": safe_float(asset_snapshot.get("reserve_price_basis_copper")),
+    }
+    result["normalized_byproduct_prices"] = normalized_prices
+    guidance_prices = operating_snapshot.get("guidance_metal_price_assumptions") or {}
+    inputs = operating_snapshot.get("mine_nav_run_rate_inputs") or {}
+    mine_lives = asset_snapshot.get("reserve_mine_life_years") or {}
+    reserves = asset_snapshot.get("silver_reserves_moz") or {}
+
+    technical_by_asset = {
+        str(item.get("asset")): item
+        for item in (technical_nav_details or [])
+        if isinstance(item, dict) and item.get("asset")
+    }
+
+    details = []
+    nav_sum = 0.0
+    commercial_reserves = 0.0
+    calculated_mines = 0
+
+    for asset in ["Greens Creek", "Lucky Friday", "Keno Hill"]:
+        mine_input = inputs.get(asset) or {}
+        reserve_moz = safe_float(reserves.get(asset))
+        life_years = safe_float(mine_lives.get(asset))
+        prod_low = safe_float(mine_input.get("production_low_moz"))
+        prod_high = safe_float(mine_input.get("production_high_moz"))
+        prod_mid = (
+            (prod_low + prod_high) / 2.0
+            if prod_low is not None and prod_high is not None and prod_low > 0 and prod_high > 0
+            else None
+        )
+        detail = {
+            "asset": asset,
+            "reserve_moz": reserve_moz,
+            "mine_life_years": life_years,
+            "production_mid_moz": prod_mid,
+            "precommercial": bool(mine_input.get("precommercial")),
+            "aisc_before_byproduct_musd": safe_float(
+                mine_input.get("aisc_before_byproduct_musd")
+            ),
+            "normalized_byproduct_credit_musd": None,
+            "excluded_byproduct_credit_musd": 0.0,
+            "normalized_aisc_after_byproduct_per_oz": None,
+            "normalized_margin_per_oz": None,
+            "annual_pretax_reserve_cash_musd": None,
+            "annual_after_tax_reserve_cash_musd": None,
+            "run_rate_nav_musd": None,
+            "technical_reference_musd": None,
+            "run_rate_vs_technical_gap_pct": None,
+            "status": "Nicht berechenbar",
+            "note": None,
+        }
+
+        if detail["precommercial"]:
+            detail["status"] = "Pre-commercial – kein vergleichbares AISC-Profil"
+            detail["note"] = (
+                "Keno Hill ist in der Q2-2026-Guidance weiterhin vor kommerzieller "
+                "Produktion und wird aus der AISC-Reconciliation ausgeschlossen. "
+                "V2.6 erfindet deshalb keine Life-of-Mine-Kosten."
+            )
+            tech = technical_by_asset.get(asset) or {}
+            detail["technical_reference_musd"] = safe_float(
+                tech.get("normalized_sensitivity_npv_musd")
+            )
+            details.append(detail)
+            continue
+
+        aisc_before = detail["aisc_before_byproduct_musd"]
+        if (
+            prod_mid is None or prod_mid <= 0 or life_years is None or life_years <= 0
+            or aisc_before is None or aisc_before <= 0
+        ):
+            detail["note"] = "Produktions-, Kosten- oder Minenlebensdaten fehlen."
+            details.append(detail)
+            continue
+
+        normalized_credit = 0.0
+        excluded_credit = 0.0
+        for metal, credit in (mine_input.get("byproduct_credits_musd") or {}).items():
+            credit = safe_float(credit)
+            if credit is None or credit <= 0:
+                continue
+            guidance_price = safe_float(guidance_prices.get(metal))
+            normalized_price = safe_float(normalized_prices.get(metal))
+            if guidance_price is None or guidance_price <= 0 or normalized_price is None or normalized_price <= 0:
+                excluded_credit += credit
+                continue
+            normalized_credit += credit * (normalized_price / guidance_price)
+
+        detail["normalized_byproduct_credit_musd"] = normalized_credit
+        detail["excluded_byproduct_credit_musd"] = excluded_credit
+        normalized_aisc_musd = aisc_before - normalized_credit
+        normalized_aisc_per_oz = normalized_aisc_musd / prod_mid
+        normalized_margin_per_oz = silver_price - normalized_aisc_per_oz
+        annual_pretax = normalized_margin_per_oz * prod_mid
+
+        # No tax benefit is assumed for a negative mine run-rate.
+        if annual_pretax > 0 and effective_tax_rate is not None:
+            annual_after_tax = annual_pretax * (1.0 - effective_tax_rate)
+        else:
+            annual_after_tax = annual_pretax
+
+        annuity_factor = _mining_annuity_factor(life_years, discount_rate)
+        run_rate_nav = annual_after_tax * annuity_factor if annuity_factor is not None else None
+
+        detail.update({
+            "normalized_aisc_after_byproduct_per_oz": normalized_aisc_per_oz,
+            "normalized_margin_per_oz": normalized_margin_per_oz,
+            "annual_pretax_reserve_cash_musd": annual_pretax,
+            "annual_after_tax_reserve_cash_musd": annual_after_tax,
+            "run_rate_nav_musd": run_rate_nav,
+        })
+
+        tech = technical_by_asset.get(asset) or {}
+        tech_value = safe_float(tech.get("normalized_sensitivity_npv_musd"))
+        detail["technical_reference_musd"] = tech_value
+        if run_rate_nav is not None and run_rate_nav > 0 and tech_value is not None and tech_value > 0:
+            midpoint = (run_rate_nav + tech_value) / 2.0
+            detail["run_rate_vs_technical_gap_pct"] = (
+                abs(run_rate_nav - tech_value) / midpoint * 100.0 if midpoint > 0 else None
+            )
+
+        if run_rate_nav is None:
+            detail["status"] = "Nicht berechenbar"
+        elif normalized_margin_per_oz <= 0:
+            detail["status"] = "2026 Run-rate unter Zykluspreis nicht tragfähig"
+            detail["note"] = (
+                "Die aktuelle Jahres-Guidance ergibt am normalisierten Metallpreis "
+                "keine positive Reserve-Cash-Marge. Das ist ein Warnsignal gegen "
+                "die Verwendung eines einzelnen Guidance-Jahres als LOM-Profil."
+            )
+        else:
+            gap = detail.get("run_rate_vs_technical_gap_pct")
+            if gap is not None and gap <= 35.0:
+                detail["status"] = "Run-rate plausibel"
+            elif gap is not None:
+                detail["status"] = "Run-rate / technischer NAV divergieren"
+            else:
+                detail["status"] = "Run-rate berechnet – Referenzvergleich begrenzt"
+
+        if run_rate_nav is not None:
+            nav_sum += run_rate_nav
+            calculated_mines += 1
+            if reserve_moz is not None and reserve_moz > 0:
+                commercial_reserves += reserve_moz
+        details.append(detail)
+
+    total_reserves = safe_float(asset_snapshot.get("total_core_silver_reserves_moz"))
+    coverage_pct = None
+    if total_reserves is not None and total_reserves > 0:
+        coverage_pct = commercial_reserves / total_reserves * 100.0
+
+    result.update({
+        "mine_details": details,
+        "partial_available": calculated_mines >= 2,
+        "commercial_nav_sum_musd": nav_sum if calculated_mines else None,
+        "commercial_reserve_coverage_pct": coverage_pct,
+        "all_core_mines_covered": calculated_mines >= 3,
+    })
+
+    # V2.6 deliberately does not claim a full current NAV. A current annual AISC
+    # reconciliation cannot replace mine-by-mine Life-of-Mine costs, and Keno
+    # Hill still lacks a comparable commercial AISC profile.
+    if calculated_mines < 2:
+        result["status"] = "Normalisierter Mine-NAV nicht ausreichend berechenbar"
+        result["reason"] = "Zu wenige Kernminen besitzen vergleichbare verifizierte Run-rate-Daten."
+    elif not result["all_core_mines_covered"]:
+        result["status"] = "Teil-NAV verfügbar – Keno/LOM-Kostenprofil noch offen"
+        result["reason"] = (
+            "Für Greens Creek und Lucky Friday ist ein normalisierter Run-rate-DCF "
+            "berechenbar. Keno Hill besitzt noch kein vergleichbares kommerzielles "
+            "AISC-Profil; außerdem ist 2026-Guidance kein Life-of-Mine-Kostenplan. "
+            "Der Wert bleibt deshalb Kontrollgröße und darf keinen finalen Fair "
+            "Value freigeben."
+        )
+    else:
+        result["status"] = "Run-rate NAV berechnet – LOM-Kostenprofil noch zu bestätigen"
+        result["reason"] = (
+            "Alle Kernminen sind rechnerisch abgedeckt, aber ein einzelnes "
+            "Guidance-Jahr ersetzt noch kein belastbares Life-of-Mine-Kostenprofil."
+        )
+
+    return result
+
+
 def build_mining_asset_nav_control(
     symbol,
     commodity_cycle,
@@ -5891,10 +6223,11 @@ def build_mining_asset_nav_control(
     operating_snapshot,
 ):
     """
-    Mining V2.5 reserve / mine-life / technical-NAV plausibility control.
+    Mining V2.6 reserve / mine-life / technical-NAV + run-rate NAV control.
 
     Important: technical-report NPVs are not presented as current company NAV.
-    They are independent asset anchors only. V2.5 blocks final Fair Value when
+    They are independent asset anchors only. V2.6 also builds an independent
+    normalized run-rate mine NAV and blocks final Fair Value when
     the technical mine plans are too old or when earnings value and the asset
     anchor diverge materially.
     """
@@ -5920,6 +6253,7 @@ def build_mining_asset_nav_control(
         "earnings_nav_gap_pct": None,
         "earnings_nav_convergence_status": "Daten unzureichend",
         "nav_details": [],
+        "normalized_mine_nav": {},
         "snapshot": None,
         "reason": None,
     }
@@ -6034,6 +6368,15 @@ def build_mining_asset_nav_control(
     if result["technical_nav_available"]:
         result["technical_nav_sum_musd"] = technical_nav_sum
 
+    normalized_mine_nav = build_mining_normalized_mine_nav_v26(
+        symbol,
+        commodity_cycle,
+        operating_snapshot,
+        snapshot,
+        nav_details,
+    )
+    result["normalized_mine_nav"] = normalized_mine_nav
+
     net_debt = safe_float((balance_score or {}).get("net_debt"))
     equity_nav_anchor_musd = None
     if result["technical_nav_available"] and net_debt is not None:
@@ -6082,6 +6425,14 @@ def build_mining_asset_nav_control(
     elif not life_ok:
         status = "Minenlebensdauer zu kurz oder unklar"
         reason = "Die Reserve-Lebensdauer reicht nicht für eine robuste Asset-Bewertung."
+    elif not (result.get("normalized_mine_nav") or {}).get("available", False):
+        status = (result.get("normalized_mine_nav") or {}).get(
+            "status", "Normalisierter Mine-NAV nicht freigegeben"
+        )
+        reason = (result.get("normalized_mine_nav") or {}).get("reason") or (
+            "Der selbst berechnete normalisierte Mine-NAV ist noch nicht als "
+            "vollständiges Life-of-Mine-Modell freigegeben."
+        )
     elif not result["technical_nav_available"]:
         status = "Technischer NAV-Anker nicht vollständig verfügbar"
         reason = (
@@ -6106,7 +6457,10 @@ def build_mining_asset_nav_control(
         status = "Reserve/NAV-Kontrolle freigegeben"
         reason = None
 
-    available = reserve_ok and life_ok and nav_current_ok and convergence_ok
+    normalized_nav_ok = (result.get("normalized_mine_nav") or {}).get("available", False)
+    available = (
+        reserve_ok and life_ok and normalized_nav_ok and nav_current_ok and convergence_ok
+    )
     result.update({
         "available": available,
         "reference_only": not available,
@@ -6134,7 +6488,7 @@ def build_mining_special_control(
     fundamental_multiple=None,
 ):
     """
-    Conservative Mining V2.5.
+    Conservative Mining V2.6.
 
     Financial-cycle checks are calculated from already-loaded company data.
     Production guidance and AISC/unit-cost data are used only when a dated,
@@ -6278,7 +6632,7 @@ def build_mining_special_control(
         "status", "Daten unzureichend"
     )
 
-    # Mining V2.5: independent earnings-power bridge. The bridge can become
+    # Mining V2.6: independent earnings-power bridge. The bridge can become
     # available only when cycle-normalized EPS and commodity-margin-adjusted TTM
     # EPS converge and normalized FCF/share provides a positive cash cross-check.
     earnings_translation = build_mining_earnings_translation(
@@ -6292,9 +6646,9 @@ def build_mining_special_control(
     earnings_translation_available = earnings_translation.get("available", False)
     earnings_translation_status = earnings_translation.get("status", "Daten unzureichend")
 
-    # Mining V2.5: reserve / mine-life / independent technical-NAV anchor.
+    # Mining V2.6: reserve / mine-life / normalized run-rate NAV / technical anchor.
     # Current reserve data may be fresh while the incorporated S-K 1300 mine
-    # plans are older. In that case V2.5 shows the technical NAV as a reference
+    # plans are older. In that case V2.6 shows the technical NAV as a reference
     # but deliberately does not release a final Fair Value.
     asset_nav_control = build_mining_asset_nav_control(
         symbol,
@@ -6400,13 +6754,13 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.5 trennt Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.6 trennt Finanzzyklus, operative "
             "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
-            "Ertragskraft und Reserve-/Asset-Kontrolle. Reservebasis und "
-            "Minenlebensdauer werden mit einem unabhängigen technischen NAV-"
-            "Referenzanker abgeglichen. Veraltete technische Mine-Pläne bleiben "
-            "nur Referenz und können keinen aktuellen Fair Value freigeben. "
-            "Der 100-Punkte-Multiple-Score bleibt unverändert."
+            "Ertragskraft, Reserve-/Asset-Kontrolle und einen unabhängig "
+            "berechneten Run-rate-Mine-NAV. Ein Guidance-Jahr ersetzt kein "
+            "Life-of-Mine-Kostenprofil; Keno Hill wird ohne kommerzielles AISC "
+            "nicht geschätzt. Veraltete technische Mine-Pläne bleiben nur "
+            "Referenz. Der 100-Punkte-Multiple-Score bleibt unverändert."
         ),
     })
 
@@ -9885,7 +10239,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.5 – Ertragskraft + Reserve/NAV-Kontrolle")
+                    st.caption("Bergbau-Schutzmodell V2.6 – normalisierter Mine-NAV + Reserve/NAV-Kontrolle")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -10330,6 +10684,100 @@ if selected_symbol:
                                 "veröffentlichten S-K-1300-Metallpreis-Sensitivitäten. "
                                 "Es wird nicht außerhalb der offiziellen Sensitivitätsbereiche extrapoliert."
                             )
+
+                        normalized_mine_nav = asset_nav_control.get("normalized_mine_nav") or {}
+                        if normalized_mine_nav:
+                            st.write(
+                                "**Normalisierter Mine-NAV V2.6 (Run-rate DCF):** "
+                                f"{normalized_mine_nav.get('status', '–')}"
+                            )
+                            nav_method1, nav_method2 = st.columns(2)
+                            with nav_method1:
+                                if normalized_mine_nav.get("discount_rate_pct") is not None:
+                                    st.metric(
+                                        "DCF-Diskontsatz",
+                                        f"{normalized_mine_nav['discount_rate_pct']:.1f} %"
+                                    )
+                                if normalized_mine_nav.get("effective_tax_rate_pct") is not None:
+                                    st.metric(
+                                        "YTD-Steuerquote als Kontroll-Haircut",
+                                        f"{normalized_mine_nav['effective_tax_rate_pct']:.1f} %"
+                                    )
+                            with nav_method2:
+                                if normalized_mine_nav.get("commercial_nav_sum_musd") is not None:
+                                    st.metric(
+                                        "Run-rate Mine-NAV – berechenbare Kernminen",
+                                        f"{normalized_mine_nav['commercial_nav_sum_musd'] / 1000.0:.2f} Mrd. USD"
+                                    )
+                                if normalized_mine_nav.get("commercial_reserve_coverage_pct") is not None:
+                                    st.metric(
+                                        "Reserveabdeckung des Run-rate NAV",
+                                        f"{normalized_mine_nav['commercial_reserve_coverage_pct']:.1f} %"
+                                    )
+
+                            bp = normalized_mine_nav.get("normalized_byproduct_prices") or {}
+                            bp_text = []
+                            for metal, label, unit in [
+                                ("gold", "Gold", "USD/oz"),
+                                ("lead", "Blei", "USD/lb"),
+                                ("zinc", "Zink", "USD/lb"),
+                            ]:
+                                value = safe_float(bp.get(metal))
+                                if value is not None:
+                                    bp_text.append(f"{label}: {value:.2f} {unit}")
+                            if bp_text:
+                                st.caption(
+                                    "Normalisierte Nebenmetallpreise aus der aktuellen Reservebasis: "
+                                    + " · ".join(bp_text)
+                                )
+
+                            for mine in normalized_mine_nav.get("mine_details", []):
+                                st.write(f"**{mine.get('asset', 'Mine')}** – {mine.get('status', '–')}")
+                                mc1, mc2, mc3 = st.columns(3)
+                                with mc1:
+                                    if mine.get("production_mid_moz") is not None:
+                                        st.metric(
+                                            "Produktion (Guidance-Mitte)",
+                                            f"{mine['production_mid_moz']:.2f} Mio. oz"
+                                        )
+                                    if mine.get("mine_life_years") is not None:
+                                        st.write(f"Minenleben: {mine['mine_life_years']:.1f} Jahre")
+                                with mc2:
+                                    if mine.get("normalized_aisc_after_byproduct_per_oz") is not None:
+                                        st.metric(
+                                            "Normalisiertes AISC-Äquivalent",
+                                            f"{mine['normalized_aisc_after_byproduct_per_oz']:.2f} USD/oz"
+                                        )
+                                    if mine.get("normalized_margin_per_oz") is not None:
+                                        st.write(
+                                            f"Normalisierte Margin: {mine['normalized_margin_per_oz']:.2f} USD/oz"
+                                        )
+                                with mc3:
+                                    if mine.get("run_rate_nav_musd") is not None:
+                                        st.metric(
+                                            "Run-rate DCF",
+                                            f"{mine['run_rate_nav_musd']:,.0f} Mio. USD"
+                                        )
+                                    if mine.get("technical_reference_musd") is not None:
+                                        st.write(
+                                            f"Technischer Referenz-NPV: {mine['technical_reference_musd']:,.0f} Mio. USD"
+                                        )
+                                if mine.get("excluded_byproduct_credit_musd"):
+                                    st.caption(
+                                        "Nicht normalisierbare Nebenproduktgutschriften wurden konservativ "
+                                        f"mit 0 angesetzt: {mine['excluded_byproduct_credit_musd']:.1f} Mio. USD."
+                                    )
+                                if mine.get("run_rate_vs_technical_gap_pct") is not None:
+                                    st.caption(
+                                        "Abweichung Run-rate DCF / technischer Referenz-NPV: "
+                                        f"{mine['run_rate_vs_technical_gap_pct']:.1f} %"
+                                    )
+                                if mine.get("note"):
+                                    st.caption(mine.get("note"))
+
+                            st.info(normalized_mine_nav.get("method_note"))
+                            if normalized_mine_nav.get("reason"):
+                                st.warning(normalized_mine_nav.get("reason"))
 
                         if not asset_nav_control.get("available", False):
                             st.warning(
