@@ -4820,12 +4820,12 @@ def get_special_control(company_type, symbol):
                 "Managed-Operations Source Coverage Map (offene Assets / Quellenalter / Sondermodelle)",
                 "Peñasquito Multi-Metal Source & Normalization Gate (Gold / Silber / Blei / Zink / Silver Stream)",
                 "Peñasquito Annualized Cashflow Data Recovery Gate (4 fehlende Jahresprofile / Current-vs.-Historical-Quellen)",
-                "Tanami Current Source & LOM Roll-forward Gate (Expansion 2 / 2026 Run-rate / annualisierte LOM- & Closure-Daten)",
+                "Tanami Current Source & LOM Roll-forward + Cashflow/Closure Source Recovery Gate (Expansion 2 / 2026 Run-rate / annualisierte LOM- & Closure-Daten)",
                 "Allgemeiner Primärrohstoff-Router"
             ],
-            "status": "Router aktiv – V2.19 Tanami Current Source & LOM Roll-forward + V2.18.5 Peñasquito Recovery + V2.16 Portfolio-Aggregation",
+            "status": "Router aktiv – V2.19.1 Tanami Cashflow/Closure Source Recovery + V2.18.5 Peñasquito Recovery + V2.16 Portfolio-Aggregation",
             "note": (
-                "V2.19 ergänzt die Quellenprüfung um ein separates Tanami Current Source & LOM Roll-forward Gate. Für Tanami werden aktuelle FY25-Reserven, die heutige Mine-Life-/Expansion-2-Struktur, Projektzeitplan/-kosten sowie die 2026 Site-Run-rate verifiziert. Der historische 2018 Technical Report bleibt nur Referenzanker; fehlende annualisierte LOM-Cashflows und Closure-Zeitpfade werden nicht fortgeschrieben. V2.18.5 ergänzt das Peñasquito-Multi-Metal-Modell um ein Annualized-Cashflow-Data-Recovery-Gate. Nach der V2.18.4 Source-Availability-Prüfung werden die vier vollständig fehlenden Jahresprofile (payable Metallproduktion, Opex, Sustaining CapEx und Closure-Tail) gezielt gegen aktuelle öffentliche Quellen und den historischen 2023-TRS als nicht-current Referenz geprüft. Aktuelle Quellen liefern weiterhin keinen vollständigen 2026–2033-Jahresdatensatz; historische Cashflow-Shapes werden nicht skaliert oder fortgeschrieben. Die aktuelle LOM-Struktur bleibt getrennt vom annualisierten Current-Cashflow und Closure-Tail. V2.18.2 bleibt als separate Silver-Stream-Preisbrücke aktiv. Die Brücke wird nur bei verfügbarer 4/4-Metallnormalisierung freigegeben; 25 % der vertraglich gestreamten payable/delivered Silberbasis werden separat mit dem Wheaton-Lieferpreis statt mit dem vollen Silbermarktpreis behandelt. Der 2023-TRS bleibt Economic-Analysis-Referenzanker; die aktuelle LOM-Struktur per 31.12.2025 ist verifiziert, aber annualisierter 2026–2033-Current-Cashflow und aktueller Closure-Tail bleiben vor jedem NAV Pflicht. V2.17.1 ergänzt weiterhin die Managed-Operations Source Coverage Map für die sieben noch offenen Reserve-Assetgruppen. Die V2.16 Discount-Rate-&-Portfolio-Aggregation-Policy bleibt unverändert aktiv. Asset-spezifische offizielle TRS-After-Tax-Diskontsätze dürfen für einen heterogenen Sum-of-the-Parts-Ansatz beibehalten werden, sofern Bewertungsstichtag, Währung, Eigentumsanteil und Rohstoffpreis-Normalisierung konsistent sind. Die 8-%-Re-Diskontierung bleibt eine separate Vergleichsschicht und ist nicht mehr das bindende 90-%-Portfolio-Gate. Das Cashflow-Horizon-/Closure-Tail-Gate bleibt für echte Re-Diskontierungen aktiv. Zusätzlich bleiben Portfolio-Completeness, Structural-Break-Fallback, Reserve-/NAV-Snapshot und der konservative allgemeine "
+                "V2.19.1 ergänzt die Tanami-Prüfung um ein Cashflow-/Closure-Source-Recovery-Gate. Der verifizierte öffentliche Current-Source-Set wird getrennt danach geprüft, ob ein vollständiger annualisierter LOM-Cashflow und ein mine-spezifischer annualisierter Closure-/Reclamation-Tail tatsächlich wiedergewonnen werden können. Corporate Guidance, 2026 Site-Run-rate, der 2028–2032 Produktions-/Effizienzrahmen und aktuelle Mine-Life-Angaben bleiben nur Anker; Portfolio-Reclamation-Zahlen oder Tanami-Exploration-Closure-Unterlagen dürfen die operative Tanami-Mine nicht synthetisch ersetzen. Für Tanami werden weiterhin aktuelle FY25-Reserven, die heutige Mine-Life-/Expansion-2-Struktur, Projektzeitplan/-kosten sowie die 2026 Site-Run-rate verifiziert. Der historische 2018 Technical Report bleibt nur Referenzanker; fehlende annualisierte LOM-Cashflows und Closure-Zeitpfade werden nicht fortgeschrieben. V2.18.5 ergänzt das Peñasquito-Multi-Metal-Modell um ein Annualized-Cashflow-Data-Recovery-Gate. Nach der V2.18.4 Source-Availability-Prüfung werden die vier vollständig fehlenden Jahresprofile (payable Metallproduktion, Opex, Sustaining CapEx und Closure-Tail) gezielt gegen aktuelle öffentliche Quellen und den historischen 2023-TRS als nicht-current Referenz geprüft. Aktuelle Quellen liefern weiterhin keinen vollständigen 2026–2033-Jahresdatensatz; historische Cashflow-Shapes werden nicht skaliert oder fortgeschrieben. Die aktuelle LOM-Struktur bleibt getrennt vom annualisierten Current-Cashflow und Closure-Tail. V2.18.2 bleibt als separate Silver-Stream-Preisbrücke aktiv. Die Brücke wird nur bei verfügbarer 4/4-Metallnormalisierung freigegeben; 25 % der vertraglich gestreamten payable/delivered Silberbasis werden separat mit dem Wheaton-Lieferpreis statt mit dem vollen Silbermarktpreis behandelt. Der 2023-TRS bleibt Economic-Analysis-Referenzanker; die aktuelle LOM-Struktur per 31.12.2025 ist verifiziert, aber annualisierter 2026–2033-Current-Cashflow und aktueller Closure-Tail bleiben vor jedem NAV Pflicht. V2.17.1 ergänzt weiterhin die Managed-Operations Source Coverage Map für die sieben noch offenen Reserve-Assetgruppen. Die V2.16 Discount-Rate-&-Portfolio-Aggregation-Policy bleibt unverändert aktiv. Asset-spezifische offizielle TRS-After-Tax-Diskontsätze dürfen für einen heterogenen Sum-of-the-Parts-Ansatz beibehalten werden, sofern Bewertungsstichtag, Währung, Eigentumsanteil und Rohstoffpreis-Normalisierung konsistent sind. Die 8-%-Re-Diskontierung bleibt eine separate Vergleichsschicht und ist nicht mehr das bindende 90-%-Portfolio-Gate. Das Cashflow-Horizon-/Closure-Tail-Gate bleibt für echte Re-Diskontierungen aktiv. Zusätzlich bleiben Portfolio-Completeness, Structural-Break-Fallback, Reserve-/NAV-Snapshot und der konservative allgemeine "
                 "Primärrohstoff-Router für eindeutige Branchen wie Gold, Silber und "
                 "Kupfer. Unspezifische Mischbranchen bleiben gesperrt. Das bestehende "
                 "V2.7-Life-of-Mine-Gate bleibt unverändert aktiv. Zusätzlich darf ein später bestandener "
@@ -5680,7 +5680,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
         "route_source": "Allgemeiner Branchen-Router",
         "routing_basis": f"Yahoo-Branche: {industry_text}",
         "mapping_note": (
-            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.19 "
+            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.19.1 "
             f"automatisch dem Primärrohstoff {base['commodity_name']} zugeordnet. "
             "Unspezifische oder gemischte Bergbau-Branchen werden weiterhin nicht "
             "automatisch geroutet."
@@ -6714,7 +6714,7 @@ def get_verified_mining_asset_snapshot(symbol):
             "core_asset_lom_structure": get_verified_newmont_core_asset_lom_structure(),
             "technical_nav_references": [],
             "technical_nav_note": (
-                "V2.19 behält für Lihir, Cadia, Boddington und den Ahafo Complex die in Phase 1 verifizierten aktuellen "
+                "V2.19.1 behält für Lihir, Cadia, Boddington und den Ahafo Complex die in Phase 1 verifizierten aktuellen "
                 "S-K-1300-Technical-Report-Summaries mit LOM-Cashflows. "
                 "Phase 1 prüft die TRS-Eignung; Phase 2 normalisiert die vier Assets einzeln. V2.16 trennt weiterhin native Asset-NAVs, eine "
                 "Portfolio-Aggregationsschicht mit den offiziellen asset-spezifischen TRS-Raten und die separate 8-%-Vergleichsschicht. "
@@ -7762,9 +7762,129 @@ def get_verified_penasquito_current_lom_rollforward():
 
 
 
+
+def get_verified_newmont_tanami_cashflow_closure_source_recovery_gate():
+    """
+    V2.19.1 Tanami Cashflow / Closure Source Recovery Gate.
+
+    Source-availability audit only. It checks whether the currently verified
+    public source set is sufficient to recover (a) a complete annualized
+    Tanami LOM operating/economic cashflow and (b) a mine-specific annualized
+    closure/reclamation tail. Partial corporate anchors never become synthetic
+    yearly cashflows. Portfolio-wide reclamation figures and Tanami Exploration
+    Project closure material are explicitly not substituted for the operating
+    Tanami mine.
+    """
+    sources = [
+        {
+            "source": "Newmont 2025 Form 10-K",
+            "date": "19.02.2026",
+            "scope": "Current corporate / project disclosure",
+            "annualized_lom": False,
+            "closure_tail": False,
+            "usable_anchor": True,
+            "finding": (
+                "Bestätigt Tanami Expansion 2, Long-Life-/Mine-Life-Struktur und Projektkontext. "
+                "Kein vollständiger jahresweiser Tanami-Produktions-/Opex-/CapEx-/Steuer-Cashflow bis 2040+ "
+                "und kein mine-spezifischer annualisierter Closure-Tail im verifizierten öffentlichen Set."
+            ),
+        },
+        {
+            "source": "Newmont FY2025 Results / 2026 Guidance",
+            "date": "19.02.2026",
+            "scope": "Current guidance",
+            "annualized_lom": False,
+            "closure_tail": False,
+            "usable_anchor": True,
+            "finding": (
+                "Liefert 2026 Site-Guidance sowie H2-2027-TE2-Timing und einen 2028–2032 Produktions-/Effizienzrahmen. "
+                "Diese Angaben sind keine vollständigen Jahrescashflows für das Restminenleben."
+            ),
+        },
+        {
+            "source": "Newmont Q2 2026 Results",
+            "date": "23.07.2026",
+            "scope": "Current quarterly / seasonality update",
+            "annualized_lom": False,
+            "closure_tail": False,
+            "usable_anchor": True,
+            "finding": (
+                "Bestätigt 2026 Guidance/Seasonality und laufende Tanami-Investitionen, veröffentlicht aber keinen "
+                "annualisierten 2027–2040+-LOM-Cashflow und keinen Tanami-spezifischen Closure-Zeitpfad."
+            ),
+        },
+        {
+            "source": "Newmont Tanami Operations & Projects",
+            "date": "Current 2026 page",
+            "scope": "Current mine / project profile",
+            "annualized_lom": False,
+            "closure_tail": False,
+            "usable_anchor": True,
+            "finding": (
+                "Bestätigt 100-%-Eigentum, FY25-Reserven, Mine Life 2040+ sowie TE2-Kapazität und den "
+                "2028–2032 Produktionsanstieg. Kein vollständiger Economic-Cashflow oder annualisierter Closure-Tail."
+            ),
+        },
+        {
+            "source": "Northern Territory – Operating Mines / Mining Developments",
+            "date": "01.09.2026 / current",
+            "scope": "Independent current mine-life cross-check",
+            "annualized_lom": False,
+            "closure_tail": False,
+            "usable_anchor": True,
+            "finding": (
+                "Unabhängiger Current-Check bestätigt Tanami als laufende Goldmine mit Mine Life 2040+. "
+                "Die Regierungsübersicht enthält keinen mine-spezifischen annualisierten Economic-Cashflow oder Closure-Tail."
+            ),
+        },
+        {
+            "source": "NT DME – Tanami Exploration Project closure/reclamation reports",
+            "date": "2023 public environmental set",
+            "scope": "Exploration project – scope mismatch",
+            "annualized_lom": False,
+            "closure_tail": False,
+            "usable_anchor": False,
+            "finding": (
+                "Öffentliche Closure-/Reclamation-Unterlagen betreffen das Tanami Exploration Project. "
+                "Sie werden nicht als Closure-Cashflow der operativen Tanami-Mine / Callie-Granites-Struktur verwendet."
+            ),
+        },
+    ]
+    annualized_hits = [r for r in sources if r.get("annualized_lom")]
+    closure_hits = [r for r in sources if r.get("closure_tail")]
+    usable_anchors = [r for r in sources if r.get("usable_anchor")]
+    return {
+        "available": True,
+        "version": "V2.19.1",
+        "asset": "Tanami",
+        "source_count": len(sources),
+        "usable_current_anchor_count": len(usable_anchors),
+        "annualized_lom_source_count": len(annualized_hits),
+        "closure_tail_source_count": len(closure_hits),
+        "annualized_lom_recovered": bool(annualized_hits),
+        "closure_tail_recovered": bool(closure_hits),
+        "recovery_complete": bool(annualized_hits and closure_hits),
+        "sources": sources,
+        "status": (
+            "Current-Source-Recovery geprüft – 0/2 Freigabeblöcke wiedergewonnen; "
+            "annualisierter LOM-Cashflow und mine-spezifischer Closure-Tail bleiben offen"
+        ),
+        "reason": (
+            "Der verifizierte öffentliche Current-Source-Set liefert mehrere belastbare Betriebs-, Projekt- und Mine-Life-Anker, "
+            "aber keinen vollständigen jahresweisen Tanami-Economic-Cashflow bis 2040+ und keinen mine-spezifischen "
+            "annualisierten Closure-/Reclamation-Zeitpfad. Portfolioweite Newmont-Reclamation-Zahlen sind nicht Tanami-spezifisch. "
+            "Öffentliche NT-Closure-Unterlagen zum Tanami Exploration Project haben einen anderen Scope und werden nicht übertragen. "
+            "Daher bleibt die Source Recovery konservativ bei 0/2 und erhöht die NAV-Abdeckung nicht."
+        ),
+        "next_requirements": [
+            "Aktuellen annualisierten Tanami-LOM-Cashflow bzw. einen current financial/technical model source mit Jahresprofilen für Produktion, Opex, CapEx und Steuern/Royalties beschaffen.",
+            "Mine-spezifischen annualisierten Closure-/Reclamation-Zeitpfad der operativen Tanami-Mine auf aktuellem Bewertungsstichtag beschaffen.",
+        ],
+    }
+
 def get_verified_newmont_tanami_current_lom_gate():
     """
-    V2.19 Tanami Current Source & LOM Roll-forward Gate.
+    V2.19.1 Tanami Current Source & LOM Roll-forward Gate.
 
     This module does not calculate a NAV. It reconciles the historical 2018
     Tanami technical anchor with current Newmont disclosures for FY25 reserves,
@@ -7834,9 +7954,10 @@ def get_verified_newmont_tanami_current_lom_gate():
     ]
     current_count = sum(1 for b in blocks if b.get("current_verified"))
     blocked = [b for b in blocks if not b.get("current_verified")]
+    recovery_gate = get_verified_newmont_tanami_cashflow_closure_source_recovery_gate()
     return {
         "available": True,
-        "version": "V2.19",
+        "version": "V2.19.1",
         "asset": "Tanami",
         "as_of_date": "31.12.2025 / 2026 Guidance",
         "published_date": "19.02.2026",
@@ -7862,10 +7983,11 @@ def get_verified_newmont_tanami_current_lom_gate():
         "source_block_count": len(blocks),
         "current_verified_count": current_count,
         "blocked_count": len(blocked),
+        "cashflow_closure_source_recovery_gate": recovery_gate,
         "current_lom_structure_ready": True,
-        "annualized_lom_cashflow_ready": False,
-        "closure_tail_ready": False,
-        "phase2_ready": False,
+        "annualized_lom_cashflow_ready": bool(recovery_gate.get("annualized_lom_recovered")),
+        "closure_tail_ready": bool(recovery_gate.get("closure_tail_recovered")),
+        "phase2_ready": bool(recovery_gate.get("recovery_complete")),
         "nav_released": False,
         "status": (
             "Current Mine-Life/Expansion-2-Struktur + 2026 Run-rate verifiziert – "
@@ -7916,7 +8038,7 @@ def get_verified_newmont_managed_source_coverage_map():
             "phase2_ready": False,
             "next_requirement": "Annualisierten LOM-Produktions-/Opex-/CapEx-Pfad + aktuellen Closure-Tail beschaffen",
             "note": (
-                "V2.19 verifiziert die heutige Tanami-Struktur: FY25 Reserven 5,3 Mio. oz, Mine-Life über 2040, Expansion 2 "
+                "V2.19.1 verifiziert die heutige Tanami-Struktur: FY25 Reserven 5,3 Mio. oz, Mine-Life über 2040, Expansion 2 "
                 "mit 1.460-m-Schacht, 3,3 Mt/a, H2-2027-Ziel und aktuellem 1,7–1,8-Mrd.-USD-Projektrahmen sowie die 2026 Site-Run-rate. "
                 "Der 2018-Bericht bleibt dennoch nur Referenzanker, weil ein vollständiger annualisierter Current-LOM-Cashflow und "
                 "ein aktueller Closure-/Reclamation-Zeitpfad fehlen. Die Phase-2-/SOTP-Abdeckung steigt nicht."
@@ -8080,7 +8202,7 @@ def get_verified_newmont_managed_source_coverage_map():
         "special_model_reserves_moz": special_reserves,
         "assets": rows,
         "reason": (
-            "Die Quellenlandkarte bleibt konservativ. V2.19 ergänzt Tanami um einen aktuellen Corporate Mine-Life-/Expansion-2-Roll-forward, der ausdrücklich kein Voll-TRS und kein Phase-2-Cashflow ist. Peñasquito besitzt seit V2.18.4 eine aktuelle QP-freigegebene LOM-Struktur "
+            "Die Quellenlandkarte bleibt konservativ. V2.19.1 ergänzt Tanami um einen aktuellen Corporate Mine-Life-/Expansion-2-Roll-forward, der ausdrücklich kein Voll-TRS und kein Phase-2-Cashflow ist. Peñasquito besitzt seit V2.18.4 eine aktuelle QP-freigegebene LOM-Struktur "
             "per 31.12.2025. V2.18.5 hat zusätzlich die vier vollständig fehlenden Current-Jahresprofile nachrecherchiert; 0/4 wurden "
             "belastbar wiedergewonnen. Vollständiger annualisierter Current-Cashflow und aktueller annualisierter Closure-Tail fehlen "
             "weiterhin. Deshalb erhöht auch der Recovery-Check die Phase-2-/SOTP-Abdeckung nicht."
@@ -10461,7 +10583,7 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.19 ergänzt das Tanami Current Source & LOM Roll-forward Gate und behält das Peñasquito Annualized-Cashflow-Data-Recovery-Gate auf Basis des V2.18.4 Current-Cashflow-Source-Availability-Gates sowie des Current-LOM-/Cashflow-Roll-forward-Gates auf Basis des Multi-Metal- und Silver-Stream-Gates sowie die V2.17.1 Managed-Operations Source Coverage Map und trennt weiterhin Discount-Rate-&-Portfolio-Aggregation-Policy, Quality-aware Coverage Propagation, Asset-NAV-Normalisierung Phase 2 inklusive Cashflow-Horizon-&-Closure-Tail-Gate, Portfolio-Completeness-Gate, Portfolio-Abdeckungslogik, technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.19.1 ergänzt das Tanami Cashflow-/Closure-Source-Recovery-Gate auf Basis des Current Source & LOM Roll-forward Gates und behält das Peñasquito Annualized-Cashflow-Data-Recovery-Gate auf Basis des V2.18.4 Current-Cashflow-Source-Availability-Gates sowie des Current-LOM-/Cashflow-Roll-forward-Gates auf Basis des Multi-Metal- und Silver-Stream-Gates sowie die V2.17.1 Managed-Operations Source Coverage Map und trennt weiterhin Discount-Rate-&-Portfolio-Aggregation-Policy, Quality-aware Coverage Propagation, Asset-NAV-Normalisierung Phase 2 inklusive Cashflow-Horizon-&-Closure-Tail-Gate, Portfolio-Completeness-Gate, Portfolio-Abdeckungslogik, technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
             "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
             "Ertragskraft, Reserve-/Asset-Kontrolle, Run-rate-Mine-NAV und das "
             "formale Life-of-Mine-Freigabe-Gate. Ein Guidance-Jahr ersetzt kein "
@@ -11220,7 +11342,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_tanami_current_source_lom_v219_20260907"
+CACHE_VERSION = "m6_mining_tanami_cashflow_closure_recovery_v2191_20260907"
 
 @st.cache_data(
     ttl=900,
@@ -14039,7 +14161,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.19 – Tanami Current Source & LOM Roll-forward + Peñasquito Recovery + V2.16 Portfolio-Aggregation")
+                    st.caption("Bergbau-Schutzmodell V2.19.1 – Tanami Cashflow/Closure Source Recovery + Peñasquito Recovery + V2.16 Portfolio-Aggregation")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -14541,7 +14663,7 @@ if selected_symbol:
                         structural_fallback = checks.get("structural_break_fallback", {})
                         if structural_fallback.get("applicable", False):
                             st.write(
-                                "**Structural-Break-Fallback V2.13.1 (unverändert innerhalb V2.19):** "
+                                "**Structural-Break-Fallback V2.13.1 (unverändert innerhalb V2.19.1):** "
                                 f"{structural_fallback.get('status', 'Noch offen')}"
                             )
                             fb1, fb2 = st.columns(2)
@@ -14713,7 +14835,7 @@ if selected_symbol:
 
                             core_lom = asset_nav_control.get("core_asset_lom_structure") or {}
                             if core_lom.get("available"):
-                                st.markdown("**Portfolio-LOM-Abdeckungsstruktur (V2.19):**")
+                                st.markdown("**Portfolio-LOM-Abdeckungsstruktur (V2.19.1):**")
                                 cov1, cov2, cov3 = st.columns(3)
                                 with cov1:
                                     st.metric("Gesamtportfolio-Reserven", f"{safe_float(core_lom.get('total_reserves_moz')) or 0.0:.1f} Mio. oz")
@@ -14746,7 +14868,7 @@ if selected_symbol:
 
                                 completeness_gate = core_lom.get("portfolio_completeness_gate") or {}
                                 if completeness_gate.get("available"):
-                                    st.markdown("**Portfolio-Completeness-Gate (V2.14.2 innerhalb V2.19):**")
+                                    st.markdown("**Portfolio-Completeness-Gate (V2.14.2 innerhalb V2.19.1):**")
                                     block_map = {b.get("key"): b for b in completeness_gate.get("blocks", [])}
                                     pc1, pc2, pc3 = st.columns(3)
                                     for col, key in [
@@ -14782,7 +14904,7 @@ if selected_symbol:
 
                                 phase1 = core_lom.get("technical_lom_phase1") or {}
                                 if phase1.get("available"):
-                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – Teilmodul V2.14.1 innerhalb V2.19:**")
+                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – Teilmodul V2.14.1 innerhalb V2.19.1:**")
                                     st.write(f"**Status:** {phase1.get('status', '–')}")
                                     p1c1, p1c2, p1c3, p1c4 = st.columns(4)
                                     with p1c1:
@@ -14856,7 +14978,7 @@ if selected_symbol:
 
                                     source_map = phase1.get("managed_source_coverage_map") or {}
                                     if source_map.get("available"):
-                                        st.markdown("**V2.17.1 Source Coverage Map + V2.19 Tanami Current-Source-Upgrade + V2.18.5 Peñasquito Recovery:**")
+                                        st.markdown("**V2.17.1 Source Coverage Map + V2.19.1 Tanami Current-Source-Upgrade + V2.18.5 Peñasquito Recovery:**")
                                         st.write(f"**Status:** {source_map.get('status', '–')}")
                                         sm1, sm2, sm3, sm4 = st.columns(4)
                                         with sm1:
@@ -14895,7 +15017,7 @@ if selected_symbol:
                                         tanami_overlay_reserves = safe_float(source_map.get('current_corporate_lom_overlay_reserves_moz')) or 0.0
                                         if tanami_overlay_count:
                                             st.caption(
-                                                f"V2.19 Tanami-Upgrade: {tanami_overlay_count}/{int(source_map.get('open_asset_count') or 0)} Asset mit aktuellem Corporate "
+                                                f"V2.19.1 Tanami-Upgrade: {tanami_overlay_count}/{int(source_map.get('open_asset_count') or 0)} Asset mit aktuellem Corporate "
                                                 f"Mine-Life-/Expansion-2-Roll-forward ({tanami_overlay_reserves:.1f} Mio. oz; Tanami). Kein Voll-TRS, kein annualisierter LOM-Cashflow, keine NAV-Abdeckung."
                                             )
                                         st.caption(source_map.get("current_source_basis") or "")
@@ -14920,7 +15042,7 @@ if selected_symbol:
 
                                         tanami_gate = source_map.get("tanami_current_lom_gate") or get_verified_newmont_tanami_current_lom_gate()
                                         if tanami_gate.get("available"):
-                                            st.markdown("**V2.19 – Tanami Current Source & LOM Roll-forward Gate:**")
+                                            st.markdown("**V2.19.1 – Tanami Current Source & LOM Roll-forward + Source Recovery Gate:**")
                                             st.write(f"**Status:** {tanami_gate.get('status', '–')}")
                                             tg1, tg2, tg3, tg4 = st.columns(4)
                                             with tg1:
@@ -14951,12 +15073,40 @@ if selected_symbol:
                                                 st.write(f"• **{block.get('block', '–')}** – **{block.get('status', '–')}**")
                                                 st.caption(block.get("evidence") or "")
                                                 st.caption("Quelle: " + str(block.get("source") or "–"))
+
+                                            recovery = tanami_gate.get("cashflow_closure_source_recovery_gate") or get_verified_newmont_tanami_cashflow_closure_source_recovery_gate()
+                                            if recovery.get("available"):
+                                                st.markdown("**V2.19.1 – Tanami Cashflow / Closure Source Recovery:**")
+                                                st.write(f"**Status:** {recovery.get('status', '–')}")
+                                                tr1, tr2, tr3, tr4 = st.columns(4)
+                                                with tr1:
+                                                    st.metric("Geprüfte Quellenfamilien", str(int(recovery.get('source_count') or 0)))
+                                                with tr2:
+                                                    st.metric("Current-Anker nutzbar", f"{int(recovery.get('usable_current_anchor_count') or 0)}/{int(recovery.get('source_count') or 0)}")
+                                                with tr3:
+                                                    st.metric("Annualisierter LOM-CF", "Freigegeben" if recovery.get('annualized_lom_recovered') else "Nicht wiedergewonnen")
+                                                with tr4:
+                                                    st.metric("Closure-Tail", "Freigegeben" if recovery.get('closure_tail_recovered') else "Nicht wiedergewonnen")
+                                                for src in recovery.get("sources", []):
+                                                    status_bits = []
+                                                    if src.get("annualized_lom"):
+                                                        status_bits.append("LOM-CF")
+                                                    if src.get("closure_tail"):
+                                                        status_bits.append("Closure")
+                                                    if src.get("usable_anchor") and not status_bits:
+                                                        status_bits.append("Anker")
+                                                    if not src.get("usable_anchor"):
+                                                        status_bits.append("Scope-Mismatch")
+                                                    st.write(f"• **{src.get('source', '–')}** – {' / '.join(status_bits) if status_bits else 'keine Freigabe'}")
+                                                    st.caption(f"{src.get('date', '–')} · {src.get('scope', '–')} · {src.get('finding', '')}")
+                                                st.info(recovery.get("reason") or "")
+
                                             st.warning(tanami_gate.get("reason") or "")
                                             st.write("**Freigabe-Gates:**")
                                             st.write("• Current Mine-Life-/Expansion-2-Struktur: **freigegeben**")
                                             st.write("• 2026 Site-Run-rate: **freigegeben**")
-                                            st.write("• Annualisierter LOM-Cashflow 2027–2040+: **gesperrt**")
-                                            st.write("• Closure-/Reclamation-Tail: **gesperrt**")
+                                            st.write("• Annualisierter LOM-Cashflow 2027–2040+: **freigegeben**" if tanami_gate.get("annualized_lom_cashflow_ready") else "• Annualisierter LOM-Cashflow 2027–2040+: **gesperrt**")
+                                            st.write("• Closure-/Reclamation-Tail: **freigegeben**" if tanami_gate.get("closure_tail_ready") else "• Closure-/Reclamation-Tail: **gesperrt**")
                                             st.error("Tanami Phase 2 / NAV: Gesperrt")
                                             for req in tanami_gate.get("next_requirements", []):
                                                 st.caption(f"• {req}")
@@ -15232,7 +15382,7 @@ if selected_symbol:
 
                                 phase2 = core_lom.get("asset_nav_phase2") or {}
                                 if phase2.get("available"):
-                                    st.markdown("**Asset-NAV-Normalisierung Phase 2 – V2.16 Policy innerhalb V2.19:**")
+                                    st.markdown("**Asset-NAV-Normalisierung Phase 2 – V2.16 Policy innerhalb V2.19.1:**")
                                     st.write(f"**Status:** {phase2.get('status', '–')}")
                                     p2a, p2b, p2c, p2d = st.columns(4)
                                     with p2a:
