@@ -4820,9 +4820,9 @@ def get_special_control(company_type, symbol):
                 "Managed-Operations Source Coverage Map (offene Assets / Quellenalter / Sondermodelle)",
                 "Allgemeiner Primärrohstoff-Router"
             ],
-            "status": "Router aktiv – V2.17 Managed-Operations Source Coverage Map + V2.16 Discount-Rate/Portfolio-Aggregation",
+            "status": "Router aktiv – V2.17.1 Managed-Operations Source Coverage Map + V2.16 Discount-Rate/Portfolio-Aggregation",
             "note": (
-                "V2.17 ergänzt das Bergbaumodell um eine Managed-Operations Source Coverage Map für die sieben noch offenen Reserve-Assetgruppen. Die V2.16 Discount-Rate-&-Portfolio-Aggregation-Policy bleibt unverändert aktiv. Asset-spezifische offizielle TRS-After-Tax-Diskontsätze dürfen für einen heterogenen Sum-of-the-Parts-Ansatz beibehalten werden, sofern Bewertungsstichtag, Währung, Eigentumsanteil und Rohstoffpreis-Normalisierung konsistent sind. Die 8-%-Re-Diskontierung bleibt eine separate Vergleichsschicht und ist nicht mehr das bindende 90-%-Portfolio-Gate. Das Cashflow-Horizon-/Closure-Tail-Gate bleibt für echte Re-Diskontierungen aktiv. Zusätzlich bleiben Portfolio-Completeness, Structural-Break-Fallback, Reserve-/NAV-Snapshot und der konservative allgemeine "
+                "V2.17.1 ergänzt das Bergbaumodell um eine Managed-Operations Source Coverage Map für die sieben noch offenen Reserve-Assetgruppen. Die V2.16 Discount-Rate-&-Portfolio-Aggregation-Policy bleibt unverändert aktiv. Asset-spezifische offizielle TRS-After-Tax-Diskontsätze dürfen für einen heterogenen Sum-of-the-Parts-Ansatz beibehalten werden, sofern Bewertungsstichtag, Währung, Eigentumsanteil und Rohstoffpreis-Normalisierung konsistent sind. Die 8-%-Re-Diskontierung bleibt eine separate Vergleichsschicht und ist nicht mehr das bindende 90-%-Portfolio-Gate. Das Cashflow-Horizon-/Closure-Tail-Gate bleibt für echte Re-Diskontierungen aktiv. Zusätzlich bleiben Portfolio-Completeness, Structural-Break-Fallback, Reserve-/NAV-Snapshot und der konservative allgemeine "
                 "Primärrohstoff-Router für eindeutige Branchen wie Gold, Silber und "
                 "Kupfer. Unspezifische Mischbranchen bleiben gesperrt. Das bestehende "
                 "V2.7-Life-of-Mine-Gate bleibt unverändert aktiv. Zusätzlich darf ein später bestandener "
@@ -5677,7 +5677,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
         "route_source": "Allgemeiner Branchen-Router",
         "routing_basis": f"Yahoo-Branche: {industry_text}",
         "mapping_note": (
-            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.16 "
+            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.17.1 "
             f"automatisch dem Primärrohstoff {base['commodity_name']} zugeordnet. "
             "Unspezifische oder gemischte Bergbau-Branchen werden weiterhin nicht "
             "automatisch geroutet."
@@ -6533,7 +6533,7 @@ def get_verified_mining_asset_snapshot(symbol):
             "core_asset_lom_structure": get_verified_newmont_core_asset_lom_structure(),
             "technical_nav_references": [],
             "technical_nav_note": (
-                "V2.17 behält für Lihir, Cadia, Boddington und den Ahafo Complex die in Phase 1 verifizierten aktuellen "
+                "V2.17.1 behält für Lihir, Cadia, Boddington und den Ahafo Complex die in Phase 1 verifizierten aktuellen "
                 "S-K-1300-Technical-Report-Summaries mit LOM-Cashflows. "
                 "Phase 1 prüft die TRS-Eignung; Phase 2 normalisiert die vier Assets einzeln. V2.16 trennt weiterhin native Asset-NAVs, eine "
                 "Portfolio-Aggregationsschicht mit den offiziellen asset-spezifischen TRS-Raten und die separate 8-%-Vergleichsschicht. "
@@ -7172,7 +7172,7 @@ def build_mining_lom_release_gate_v27(
 
 def get_verified_newmont_managed_source_coverage_map():
     """
-    V2.17 source-coverage audit for the seven Newmont managed operating reserve
+    V2.17.1 source-coverage audit for the seven Newmont managed operating reserve
     groups that are still outside the current 2025 S-K 1300 Phase-1 set.
 
     This module classifies source quality only. It does not create, roll forward,
@@ -7208,7 +7208,7 @@ def get_verified_newmont_managed_source_coverage_map():
             "current_corporate_data": True,
             "current_full_trs": False,
             "historical_technical_anchor": False,
-            "latest_technical_source": "Kein verifizierter vollständiger aktueller/historischer LOM-TRS in der V2.17-Quellenprüfung",
+            "latest_technical_source": "Kein verifizierter vollständiger aktueller/historischer LOM-TRS in der V2.17.1-Quellenprüfung",
             "technical_effective_date": None,
             "source_class": "C – aktuelle Unternehmensdaten, kein Voll-LOM-Bericht",
             "complexity": "Gold-Tagebau; Newmont 75 %, Reserven bereits zurechenbar",
@@ -7291,9 +7291,11 @@ def get_verified_newmont_managed_source_coverage_map():
             "phase2_ready": False,
             "next_requirement": "Aktuelle Feasibility-/LOM-Basis und klare Trennung Betrieb vs. Block Cave",
             "note": (
-                "Der 2021-Bericht/PFS ist ein historischer Referenzanker. Die heutige 70-%-Beteiligung, "
-                "laufende Open-Pit-/Stockpile-Produktion und das Block-Cave-Projekt benötigen einen "
-                "aktuellen gemeinsamen Bewertungsstichtag und Multi-Metal-Ansatz."
+                "Der 2021-Bericht/PFS ist ein historischer Referenzanker. Die 3,6 Mio. oz in der Newmont-Reservebasis "
+                "sind bereits zurechenbare Reserven; der 70-%-Eigentumsanteil darf bei der Reserveabdeckung nicht "
+                "nochmals angewendet werden. Für eine spätere Bewertung von 100-%-Projekt-Cashflows bleibt der "
+                "Eigentumsanteil dagegen separat relevant. Laufende Open-Pit-/Stockpile-Produktion und das "
+                "Block-Cave-Projekt benötigen außerdem einen aktuellen gemeinsamen Bewertungsstichtag und Multi-Metal-Ansatz."
             ),
         },
         {
@@ -7329,7 +7331,7 @@ def get_verified_newmont_managed_source_coverage_map():
 
     return {
         "available": True,
-        "version": "V2.17",
+        "version": "V2.17.1",
         "status": "7 offene Managed-Assetgruppen klassifiziert – noch kein zusätzliches Phase-2-Asset freigegeben",
         "as_of_date": "07.09.2026",
         "current_source_basis": "Newmont 2025 Form 10-K + 2025 Reserves + 2026 Guidance + verifizierte historische technische Berichte",
@@ -7345,7 +7347,7 @@ def get_verified_newmont_managed_source_coverage_map():
         "special_model_reserves_moz": special_reserves,
         "assets": rows,
         "reason": (
-            "V2.17 erweitert nur die Quellenlandkarte. Keines der sieben offenen Assets wird allein wegen eines "
+            "V2.17.1 erweitert nur die Quellenlandkarte. Keines der sieben offenen Assets wird allein wegen eines "
             "historischen Technical Reports oder aktueller Guidance in die Phase-2-/SOTP-Abdeckung aufgenommen. "
             "Historische Berichte sind Referenzanker; aktuelle LOM-/Kosten-/CapEx-/Closure-Daten bleiben Pflicht."
         ),
@@ -9383,7 +9385,7 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.17 ergänzt die Managed-Operations Source Coverage Map und trennt weiterhin Discount-Rate-&-Portfolio-Aggregation-Policy, Quality-aware Coverage Propagation, Asset-NAV-Normalisierung Phase 2 inklusive Cashflow-Horizon-&-Closure-Tail-Gate, Portfolio-Completeness-Gate, Portfolio-Abdeckungslogik, technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.17.1 ergänzt die Managed-Operations Source Coverage Map und trennt weiterhin Discount-Rate-&-Portfolio-Aggregation-Policy, Quality-aware Coverage Propagation, Asset-NAV-Normalisierung Phase 2 inklusive Cashflow-Horizon-&-Closure-Tail-Gate, Portfolio-Completeness-Gate, Portfolio-Abdeckungslogik, technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
             "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
             "Ertragskraft, Reserve-/Asset-Kontrolle, Run-rate-Mine-NAV und das "
             "formale Life-of-Mine-Freigabe-Gate. Ein Guidance-Jahr ersetzt kein "
@@ -10142,7 +10144,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_managed_source_coverage_v217_20260907"
+CACHE_VERSION = "m6_mining_managed_source_coverage_v2171_20260907"
 
 @st.cache_data(
     ttl=900,
@@ -12961,7 +12963,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.17 – Managed-Operations Source Coverage Map + V2.16 Portfolio-Aggregation")
+                    st.caption("Bergbau-Schutzmodell V2.17.1 – Managed-Operations Source Coverage Map + V2.16 Portfolio-Aggregation")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -13463,7 +13465,7 @@ if selected_symbol:
                         structural_fallback = checks.get("structural_break_fallback", {})
                         if structural_fallback.get("applicable", False):
                             st.write(
-                                "**Structural-Break-Fallback V2.13.1 (unverändert innerhalb V2.17):** "
+                                "**Structural-Break-Fallback V2.13.1 (unverändert innerhalb V2.17.1):** "
                                 f"{structural_fallback.get('status', 'Noch offen')}"
                             )
                             fb1, fb2 = st.columns(2)
@@ -13635,7 +13637,7 @@ if selected_symbol:
 
                             core_lom = asset_nav_control.get("core_asset_lom_structure") or {}
                             if core_lom.get("available"):
-                                st.markdown("**Portfolio-LOM-Abdeckungsstruktur (V2.17):**")
+                                st.markdown("**Portfolio-LOM-Abdeckungsstruktur (V2.17.1):**")
                                 cov1, cov2, cov3 = st.columns(3)
                                 with cov1:
                                     st.metric("Gesamtportfolio-Reserven", f"{safe_float(core_lom.get('total_reserves_moz')) or 0.0:.1f} Mio. oz")
@@ -13668,7 +13670,7 @@ if selected_symbol:
 
                                 completeness_gate = core_lom.get("portfolio_completeness_gate") or {}
                                 if completeness_gate.get("available"):
-                                    st.markdown("**Portfolio-Completeness-Gate (V2.14.2 innerhalb V2.17):**")
+                                    st.markdown("**Portfolio-Completeness-Gate (V2.14.2 innerhalb V2.17.1):**")
                                     block_map = {b.get("key"): b for b in completeness_gate.get("blocks", [])}
                                     pc1, pc2, pc3 = st.columns(3)
                                     for col, key in [
@@ -13704,7 +13706,7 @@ if selected_symbol:
 
                                 phase1 = core_lom.get("technical_lom_phase1") or {}
                                 if phase1.get("available"):
-                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – Teilmodul V2.14.1 innerhalb V2.17:**")
+                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – Teilmodul V2.14.1 innerhalb V2.17.1:**")
                                     st.write(f"**Status:** {phase1.get('status', '–')}")
                                     p1c1, p1c2, p1c3, p1c4 = st.columns(4)
                                     with p1c1:
@@ -13778,7 +13780,7 @@ if selected_symbol:
 
                                     source_map = phase1.get("managed_source_coverage_map") or {}
                                     if source_map.get("available"):
-                                        st.markdown("**V2.17 – Managed-Operations Source Coverage Map:**")
+                                        st.markdown("**V2.17.1 – Managed-Operations Source Coverage Map:**")
                                         st.write(f"**Status:** {source_map.get('status', '–')}")
                                         sm1, sm2, sm3, sm4 = st.columns(4)
                                         with sm1:
@@ -13824,14 +13826,14 @@ if selected_symbol:
                                             if src.get("note"):
                                                 st.caption(src.get("note"))
 
-                                        st.info(source_map.get("reason") or "V2.17 ist ausschließlich eine Quellenklassifizierung.")
+                                        st.info(source_map.get("reason") or "V2.17.1 ist ausschließlich eine Quellenklassifizierung.")
 
                                     if not phase1.get("coverage_ok", False):
                                         st.warning(phase1.get("reason") or "Phase-1-Abdeckung unter Freigabegrenze.")
 
                                 phase2 = core_lom.get("asset_nav_phase2") or {}
                                 if phase2.get("available"):
-                                    st.markdown("**Asset-NAV-Normalisierung Phase 2 – V2.16 Policy innerhalb V2.17:**")
+                                    st.markdown("**Asset-NAV-Normalisierung Phase 2 – V2.16 Policy innerhalb V2.17.1:**")
                                     st.write(f"**Status:** {phase2.get('status', '–')}")
                                     p2a, p2b, p2c, p2d = st.columns(4)
                                     with p2a:
