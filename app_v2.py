@@ -4821,9 +4821,9 @@ def get_special_control(company_type, symbol):
                 "Peñasquito Multi-Metal Source & Normalization Gate (Gold / Silber / Blei / Zink / Silver Stream)",
                 "Allgemeiner Primärrohstoff-Router"
             ],
-            "status": "Router aktiv – V2.18.3 Peñasquito Current-LOM/Cashflow Roll-forward + V2.18.2 Silver-Stream Bridge + V2.16 Portfolio-Aggregation",
+            "status": "Router aktiv – V2.18.4 Peñasquito Current Cashflow Source Availability + Current-LOM Roll-forward + V2.16 Portfolio-Aggregation",
             "note": (
-                "V2.18.3 ergänzt das Peñasquito-Multi-Metal-Modell um ein Current-LOM-/Cashflow-Roll-forward-Gate auf Basis einer QP-freigegebenen technischen Offenlegung per 31.12.2025. Die aktuelle LOM-Struktur wird getrennt vom noch fehlenden annualisierten Current-Cashflow und Closure-Tail geprüft. V2.18.2 bleibt als separate Silver-Stream-Preisbrücke aktiv. Die Brücke wird nur bei verfügbarer 4/4-Metallnormalisierung freigegeben; 25 % der vertraglich gestreamten payable/delivered Silberbasis werden separat mit dem Wheaton-Lieferpreis statt mit dem vollen Silbermarktpreis behandelt. Der 2023-TRS bleibt Economic-Analysis-Referenzanker; die aktuelle LOM-Struktur per 31.12.2025 ist verifiziert, aber annualisierter 2026–2033-Current-Cashflow und aktueller Closure-Tail bleiben vor jedem NAV Pflicht. V2.17.1 ergänzt weiterhin die Managed-Operations Source Coverage Map für die sieben noch offenen Reserve-Assetgruppen. Die V2.16 Discount-Rate-&-Portfolio-Aggregation-Policy bleibt unverändert aktiv. Asset-spezifische offizielle TRS-After-Tax-Diskontsätze dürfen für einen heterogenen Sum-of-the-Parts-Ansatz beibehalten werden, sofern Bewertungsstichtag, Währung, Eigentumsanteil und Rohstoffpreis-Normalisierung konsistent sind. Die 8-%-Re-Diskontierung bleibt eine separate Vergleichsschicht und ist nicht mehr das bindende 90-%-Portfolio-Gate. Das Cashflow-Horizon-/Closure-Tail-Gate bleibt für echte Re-Diskontierungen aktiv. Zusätzlich bleiben Portfolio-Completeness, Structural-Break-Fallback, Reserve-/NAV-Snapshot und der konservative allgemeine "
+                "V2.18.4 ergänzt das Peñasquito-Multi-Metal-Modell um ein Current-Cashflow-Source-Availability-Gate. Die QP-freigegebene technische Offenlegung per 31.12.2025 wird blockweise darauf geprüft, ob annualisierte 2026–2033 Produktions-, Payability-, Opex-, CapEx-, Steuer- und Closure-Daten tatsächlich vorliegen. Die aktuelle LOM-Struktur bleibt getrennt vom annualisierten Current-Cashflow und Closure-Tail. V2.18.2 bleibt als separate Silver-Stream-Preisbrücke aktiv. Die Brücke wird nur bei verfügbarer 4/4-Metallnormalisierung freigegeben; 25 % der vertraglich gestreamten payable/delivered Silberbasis werden separat mit dem Wheaton-Lieferpreis statt mit dem vollen Silbermarktpreis behandelt. Der 2023-TRS bleibt Economic-Analysis-Referenzanker; die aktuelle LOM-Struktur per 31.12.2025 ist verifiziert, aber annualisierter 2026–2033-Current-Cashflow und aktueller Closure-Tail bleiben vor jedem NAV Pflicht. V2.17.1 ergänzt weiterhin die Managed-Operations Source Coverage Map für die sieben noch offenen Reserve-Assetgruppen. Die V2.16 Discount-Rate-&-Portfolio-Aggregation-Policy bleibt unverändert aktiv. Asset-spezifische offizielle TRS-After-Tax-Diskontsätze dürfen für einen heterogenen Sum-of-the-Parts-Ansatz beibehalten werden, sofern Bewertungsstichtag, Währung, Eigentumsanteil und Rohstoffpreis-Normalisierung konsistent sind. Die 8-%-Re-Diskontierung bleibt eine separate Vergleichsschicht und ist nicht mehr das bindende 90-%-Portfolio-Gate. Das Cashflow-Horizon-/Closure-Tail-Gate bleibt für echte Re-Diskontierungen aktiv. Zusätzlich bleiben Portfolio-Completeness, Structural-Break-Fallback, Reserve-/NAV-Snapshot und der konservative allgemeine "
                 "Primärrohstoff-Router für eindeutige Branchen wie Gold, Silber und "
                 "Kupfer. Unspezifische Mischbranchen bleiben gesperrt. Das bestehende "
                 "V2.7-Life-of-Mine-Gate bleibt unverändert aktiv. Zusätzlich darf ein später bestandener "
@@ -5678,7 +5678,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
         "route_source": "Allgemeiner Branchen-Router",
         "routing_basis": f"Yahoo-Branche: {industry_text}",
         "mapping_note": (
-            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.18.3 "
+            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.18.4 "
             f"automatisch dem Primärrohstoff {base['commodity_name']} zugeordnet. "
             "Unspezifische oder gemischte Bergbau-Branchen werden weiterhin nicht "
             "automatisch geroutet."
@@ -6712,7 +6712,7 @@ def get_verified_mining_asset_snapshot(symbol):
             "core_asset_lom_structure": get_verified_newmont_core_asset_lom_structure(),
             "technical_nav_references": [],
             "technical_nav_note": (
-                "V2.18.3 behält für Lihir, Cadia, Boddington und den Ahafo Complex die in Phase 1 verifizierten aktuellen "
+                "V2.18.4 behält für Lihir, Cadia, Boddington und den Ahafo Complex die in Phase 1 verifizierten aktuellen "
                 "S-K-1300-Technical-Report-Summaries mit LOM-Cashflows. "
                 "Phase 1 prüft die TRS-Eignung; Phase 2 normalisiert die vier Assets einzeln. V2.16 trennt weiterhin native Asset-NAVs, eine "
                 "Portfolio-Aggregationsschicht mit den offiziellen asset-spezifischen TRS-Raten und die separate 8-%-Vergleichsschicht. "
@@ -7350,9 +7350,126 @@ def build_mining_lom_release_gate_v27(
 
 
 
+def get_verified_penasquito_current_cashflow_source_availability():
+    """
+    V2.18.4 Peñasquito Current Cashflow Source Availability Gate.
+
+    Audits whether the current 31.12.2025 technical disclosure contains enough
+    *annualized* source detail to build a 2026-2033 operating cashflow without
+    interpolating, scaling, or redistributing aggregate LOM values. The 2023
+    S-K 1300 annual cashflow remains a historical reference only and does not
+    count as a current source because the 2025 LOM structure and 2026 guidance
+    materially changed.
+    """
+    rows = [
+        {
+            "block": "Jährlicher Mine-/Mill-Schedule 2026–2033",
+            "status": "Teilweise",
+            "annual_complete": False,
+            "evidence": (
+                "Aktuelle Quelle nennt Restminenleben bis partiell 2033, Peñasco-Phasen 7–9, nominal 117 Mt/a Mining "
+                "bis Ende 2028 und 35 Mt/a Milling bis 2028; ein jahresweiser 2026–2033 Mine-/Mill-Schedule fehlt."
+            ),
+            "required": "Jahreswerte für Materialbewegung, Erzverarbeitung, Grade/Stockpile-Mix 2026–2033.",
+        },
+        {
+            "block": "Jährliche payable Metallproduktion 2026–2033",
+            "status": "Fehlt",
+            "annual_complete": False,
+            "evidence": (
+                "2026 Guidance ist verfügbar und historische payable Gold-/Silberproduktion bis 2025 ist veröffentlicht; "
+                "eine vollständige jährliche 2026–2033 payable Produktion für Gold, Silber, Blei und Zink fehlt."
+            ),
+            "required": "Jahresweise payable/delivered Metallmengen für alle vier materiellen Metalle.",
+        },
+        {
+            "block": "Recoveries / Payability / Concentrate Terms",
+            "status": "Teilweise",
+            "annual_complete": False,
+            "evidence": (
+                "LOM-Recoveries von 61% Gold, 82% Silber, 75% Blei und 83% Zink sind aktuell. Langfristige Blei-/Zink-"
+                "Konzentratverträge werden qualitativ bestätigt und der 25%-Silver-Stream ist separat modelliert. "
+                "Jahresweise Payability-, TC/RC-/Penalty- und Konzentratparameter sind jedoch nicht veröffentlicht."
+            ),
+            "required": "Aktuelle payable- und smelter-term Cashflow-Parameter je Jahr oder eine current financial model source.",
+        },
+        {
+            "block": "Jährliche Operating Costs 2026–2033",
+            "status": "Fehlt",
+            "annual_complete": False,
+            "evidence": (
+                "Current LOM-Opex ist mit 5,2 Mrd. USD sowie unit-cost Ankern veröffentlicht, aber nicht jahresweise verteilt."
+            ),
+            "required": "Jährliche Mining-/Processing-/G&A-Cash-Opex 2026–2033.",
+        },
+        {
+            "block": "Jährliche Sustaining CapEx 2026–2033",
+            "status": "Fehlt",
+            "annual_complete": False,
+            "evidence": (
+                "Current LOM-CapEx ist mit 0,5 Mrd. USD nach Mining/Process/G&A zusammengefasst, aber ohne Jahresprofil."
+            ),
+            "required": "Jährlicher Sustaining-/Mine-development-/Process-/G&A-CapEx 2026–2033.",
+        },
+        {
+            "block": "Steuern / Royalties / Gebühren",
+            "status": "Teilweise",
+            "annual_complete": False,
+            "evidence": (
+                "Aktuell bestätigt sind 2% NSR an Royal Gold, 7,5% mexikanische Mining Royalty auf EBITDA und 0,5% "
+                "Environmental Erosion Fee auf Precious-Metal-Umsätze. Ein vollständiger current annual tax cashflow "
+                "einschließlich Corporate Income Tax und Bemessungsgrundlagen ist nicht veröffentlicht."
+            ),
+            "required": "Vollständige current Steuer-/Royalty-Brücke und jahresweise steuerliche Cashflow-Basis.",
+        },
+        {
+            "block": "Closure / Reclamation Tail nach 2033",
+            "status": "Fehlt",
+            "annual_complete": False,
+            "evidence": (
+                "Ein aktualisierter Closure-/Reclamation-Plan existiert, aber die 2025er Offenlegung veröffentlicht keinen "
+                "jahresweisen Current-Closure-Cashflow. Der 2023-TRS-Tail 2033–2073 darf wegen des nun partiellen "
+                "Betriebsjahres 2033 nicht unverändert übernommen werden."
+            ),
+            "required": "Aktueller annualisierter Closure-/Reclamation-Zeitpfad nach dem partiellen Betriebsjahr 2033.",
+        },
+    ]
+
+    complete = sum(1 for r in rows if r["annual_complete"])
+    partial = sum(1 for r in rows if r["status"] == "Teilweise")
+    missing = sum(1 for r in rows if r["status"] == "Fehlt")
+    total = len(rows)
+
+    return {
+        "available": True,
+        "version": "V2.18.4",
+        "source_as_of_date": "31.12.2025",
+        "source_name": "Wheaton Precious Metals 2025 Annual Information Form – Peñasquito current technical disclosure",
+        "legacy_reference": "Newmont 2023 Peñasquito S-K 1300 TRS Table 19-2 – historischer Jahrescashflow, nicht current",
+        "block_count": total,
+        "annual_complete_count": complete,
+        "partial_count": partial,
+        "missing_count": missing,
+        "annual_cashflow_source_ready": False,
+        "rows": rows,
+        "status": "Quellenlage geprüft – kein current annualisierter 2026–2033 Cashflow freigabefähig",
+        "reason": (
+            "Die aktuelle 2025er technische Offenlegung ist ausreichend für LOM-Struktur, Recoveries und aggregierte "
+            "Kosten-/CapEx-Kontrollen, aber nicht für einen jahresweisen 2026–2033 Free-Cashflow. Von sieben benötigten "
+            f"Cashflow-Blöcken sind {complete} vollständig annualisiert, {partial} nur teilweise aktuell und {missing} ohne "
+            "current Jahresprofil. Aggregate LOM-Werte werden nicht linear verteilt und der 2023-TRS-Jahrescashflow wird "
+            "wegen des geänderten Minenplans nicht skaliert oder fortgeschrieben."
+        ),
+        "next_requirement": (
+            "Eine current Quelle mit jahresweisen 2026–2033 Produktions-/Payability-/Opex-/CapEx-/Steuer-Cashflows oder "
+            "ein gleichwertiges aktuelles Financial-Model-/TRS-Update beschaffen; Closure-Tail separat annualisieren."
+        ),
+    }
+
+
 def get_verified_penasquito_current_lom_rollforward():
     """
-    V2.18.3 current Peñasquito LOM / cashflow roll-forward gate.
+    V2.18.4 current Peñasquito LOM / cashflow roll-forward + source-availability gate.
 
     The current technical LOM structure is sourced from Wheaton Precious Metals'
     2025 Annual Information Form. Wheaton treats Peñasquito as a material mining
@@ -7364,6 +7481,7 @@ def get_verified_penasquito_current_lom_rollforward():
     closure tail. Therefore it can release the LOM-structure gate, but not the
     cashflow/NAV gate.
     """
+    cashflow_source_gate = get_verified_penasquito_current_cashflow_source_availability()
     lb_per_metric_tonne = 2204.62262185
 
     # 2023 TRS Table 19-2 scheduled recovered production for calendar 2026.
@@ -7429,13 +7547,14 @@ def get_verified_penasquito_current_lom_rollforward():
 
     return {
         "available": True,
-        "version": "V2.18.3",
+        "version": "V2.18.4",
         "source_as_of_date": "31.12.2025",
         "source_name": "Wheaton Precious Metals 2025 Annual Information Form – Peñasquito technical disclosure",
         "source_quality": "QP-freigegebene aktuelle technische LOM-Offenlegung; kein eigenständiger Newmont-S-K-1300-Voll-TRS",
         "source_basis": "2023 Newmont Peñasquito S-K 1300 TRS + Newmont 2025 Form 10-K + aktuelle Betriebs-/Reserveinformationen",
         "lom_structure_ready": True,
-        "annual_cashflow_ready": False,
+        "annual_cashflow_ready": bool(cashflow_source_gate.get("annual_cashflow_source_ready")),
+        "cashflow_source_gate": cashflow_source_gate,
         "rollforward_ready": False,
         "closure_rollforward_ready": False,
         "remaining_mine_life_years": 9.0,
@@ -7460,17 +7579,18 @@ def get_verified_penasquito_current_lom_rollforward():
         "old_trs_closure_end_year": 2073,
         "current_closure_schedule_available": False,
         "status": (
-            "Aktuelle LOM-Struktur verifiziert – annualisierter 2026–2033-Cashflow und aktueller Closure-Tail fehlen"
+            "Aktuelle LOM-Struktur verifiziert – Cashflow-Quellenlage geprüft; annualisierter 2026–2033-Cashflow nicht freigabefähig, Closure-Tail offen"
         ),
         "reason": (
             "Die 2025er technische Offenlegung aktualisiert die LOM-Struktur substanziell: Restminenleben neun Jahre mit "
             "partiellem Endjahr 2033, nur Peñasco aktiv, verbleibende Phasen 7–9 sowie aktuelle LOM-Kosten- und "
-            "CapEx-Summen. Sie veröffentlicht jedoch keinen vollständigen annualisierten 2026–2033-Cashflow. Zudem endet "
+            "CapEx-Summen. V2.18.4 prüft zusätzlich die Current-Cashflow-Quellenlage blockweise. Es fehlt weiterhin ein "
+            "vollständiger annualisierter 2026–2033-Cashflow; aggregierte LOM-Werte werden nicht linear verteilt. Zudem endet "
             "der aktuelle Betrieb nun teilweise 2033, während der 2023-TRS Closure bereits ab 2033 ansetzte. Deshalb dürfen "
             "die alten Jahrescashflows und der alte Closure-Tail nicht unverändert fortgeschrieben werden."
         ),
         "next_requirements": [
-            "Current annualisierten 2026–2033 Produktions-/Payability-/Umsatz-/CAS-/CapEx-/Steuer-Cashflow beschaffen; keine lineare Skalierung der 2023-TRS-Jahre.",
+            cashflow_source_gate.get("next_requirement") or "Current annualisierten 2026–2033 Cashflow beschaffen; keine lineare Skalierung der 2023-TRS-Jahre.",
             "Aktuellen Closure-/Reclamation-Zeitpfad nach dem partiellen Betriebsjahr 2033 beschaffen; 2033–2073 aus dem 2023-TRS nicht unverändert übernehmen.",
         ],
     }
@@ -7579,7 +7699,7 @@ def get_verified_newmont_managed_source_coverage_map():
             "phase2_ready": False,
             "next_requirement": "Annualisierten 2026–2033-Cashflow + aktuellen Closure-Tail beschaffen",
             "note": (
-                "V2.18.3 verifiziert eine aktuelle LOM-Struktur per 31.12.2025: neun Jahre Restminenleben, partielles "
+                "V2.18.4 verifiziert eine aktuelle LOM-Struktur per 31.12.2025: neun Jahre Restminenleben, partielles "
                 "Endjahr 2033, Peñasco-Phasen 7–9 sowie aktuelle LOM-Kosten-/CapEx-Summen. Die Offenlegung ist QP-freigegeben, "
                 "aber kein eigenständiger Newmont-S-K-1300-Voll-TRS und enthält keinen vollständigen annualisierten 2026–2033-"
                 "Cashflow. Deshalb bleibt Peñasquito außerhalb der Phase-2-/SOTP-Abdeckung."
@@ -7659,7 +7779,7 @@ def get_verified_newmont_managed_source_coverage_map():
         "special_model_reserves_moz": special_reserves,
         "assets": rows,
         "reason": (
-            "Die Quellenlandkarte bleibt konservativ. Peñasquito besitzt in V2.18.3 zusätzlich eine aktuelle QP-freigegebene "
+            "Die Quellenlandkarte bleibt konservativ. Peñasquito besitzt in V2.18.4 zusätzlich eine aktuelle QP-freigegebene "
             "LOM-Struktur per 31.12.2025, aber keinen vollständigen annualisierten Current-Cashflow und keinen aktuellen "
             "annualisierten Closure-Tail. Deshalb erhöht auch dieser Source-Upgrade die Phase-2-/SOTP-Abdeckung noch nicht."
         ),
@@ -7669,7 +7789,7 @@ def get_verified_newmont_managed_source_coverage_map():
 
 def build_newmont_penasquito_multimetal_gate(cache_version):
     """
-    V2.18.3 Peñasquito multi-metal, silver-stream, and current LOM/cashflow roll-forward gate.
+    V2.18.4 Peñasquito multi-metal, silver-stream, and current LOM/cashflow roll-forward gate.
 
     This is deliberately NOT an Asset-NAV calculation. It verifies the 2023
     S-K 1300 economic structure, compares it with the attributable 2025 reserve
@@ -7885,11 +8005,14 @@ def build_newmont_penasquito_multimetal_gate(cache_version):
     current_lom = get_verified_penasquito_current_lom_rollforward()
     current_lom_structure_ready = bool(current_lom.get("lom_structure_ready"))
     current_cashflow_ready = bool(current_lom.get("annual_cashflow_ready"))
+    cashflow_source_gate = current_lom.get("cashflow_source_gate") or {}
+    cashflow_source_audited = bool(cashflow_source_gate.get("available"))
 
     if all_material_metals_normalized and stream_bridge_ready and current_lom_structure_ready:
         gate_status = (
             "Multi-Metal-Struktur verifiziert – 4/4 Metalle dynamisch normalisierbar; Silver-Stream-Preisbrücke freigegeben; "
-            "aktuelle 2025-LOM-Struktur verifiziert; annualisierter Current-Cashflow + Closure-Tail offen; kein NAV"
+            "aktuelle 2025-LOM-Struktur verifiziert; Current-Cashflow-Quellenlage geprüft, aber nicht annualisiert freigabefähig; "
+            "Closure-Tail offen; kein NAV"
         )
     elif all_material_metals_normalized and stream_bridge_ready:
         gate_status = (
@@ -7915,7 +8038,7 @@ def build_newmont_penasquito_multimetal_gate(cache_version):
 
     return {
         "available": True,
-        "version": "V2.18.3",
+        "version": "V2.18.4",
         "status": gate_status,
         "asset": "Peñasquito",
         "ownership_pct": 100.0,
@@ -7939,6 +8062,8 @@ def build_newmont_penasquito_multimetal_gate(cache_version):
         "silver_stream_current_payment_usd_oz": silver_stream_current_payment_usd_oz,
         "silver_stream_bridge": silver_stream_bridge,
         "current_lom_rollforward": current_lom,
+        "cashflow_source_gate": cashflow_source_gate,
+        "cashflow_source_audited": cashflow_source_audited,
         "lom_structure_rollforward_ready": current_lom_structure_ready,
         "annual_cashflow_rollforward_ready": current_cashflow_ready,
         "silver_stream_note": (
@@ -7985,11 +8110,12 @@ def build_newmont_penasquito_multimetal_gate(cache_version):
         "nav_released": False,
         "next_requirements": next_requirements,
         "reason": (
-            "Der 2023-TRS bleibt der vollständige Economic-Analysis-Referenzanker. V2.18.3 ergänzt nun einen QP-freigegebenen "
+            "Der 2023-TRS bleibt der vollständige Economic-Analysis-Referenzanker. V2.18.4 ergänzt nun einen QP-freigegebenen "
             "Current-LOM-Roll-forward per 31.12.2025: Restminenleben neun Jahre, partielles Endjahr 2033, Peñasco-Phasen "
             "7–9 sowie aktuelle LOM-Kosten-/CapEx-Summen. Alle vier materiellen Metalle und die Silver-Stream-Preisbrücke "
-            "sind ebenfalls freigegeben. Es fehlt aber weiterhin ein vollständiger annualisierter 2026–2033-Cashflow und "
-            "ein aktueller annualisierter Closure-Tail. Deshalb wird weiterhin kein Peñasquito-NAV und keine zusätzliche "
+            "sind ebenfalls freigegeben. V2.18.4 hat die Current-Cashflow-Quellenlage blockweise geprüft; sie reicht nicht "
+            "für einen vollständigen annualisierten 2026–2033-Cashflow. Zusätzlich fehlt ein aktueller annualisierter "
+            "Closure-Tail. Deshalb wird weiterhin kein Peñasquito-NAV und keine zusätzliche "
             "SOTP-Abdeckung freigegeben."
         ),
     }
@@ -10026,7 +10152,7 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.18.3 ergänzt das Peñasquito Current-LOM-/Cashflow-Roll-forward-Gate auf Basis des Multi-Metal- und Silver-Stream-Gates sowie die V2.17.1 Managed-Operations Source Coverage Map und trennt weiterhin Discount-Rate-&-Portfolio-Aggregation-Policy, Quality-aware Coverage Propagation, Asset-NAV-Normalisierung Phase 2 inklusive Cashflow-Horizon-&-Closure-Tail-Gate, Portfolio-Completeness-Gate, Portfolio-Abdeckungslogik, technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.18.4 ergänzt das Peñasquito Current-Cashflow-Source-Availability-Gate sowie das Current-LOM-/Cashflow-Roll-forward-Gate auf Basis des Multi-Metal- und Silver-Stream-Gates sowie die V2.17.1 Managed-Operations Source Coverage Map und trennt weiterhin Discount-Rate-&-Portfolio-Aggregation-Policy, Quality-aware Coverage Propagation, Asset-NAV-Normalisierung Phase 2 inklusive Cashflow-Horizon-&-Closure-Tail-Gate, Portfolio-Completeness-Gate, Portfolio-Abdeckungslogik, technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
             "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
             "Ertragskraft, Reserve-/Asset-Kontrolle, Run-rate-Mine-NAV und das "
             "formale Life-of-Mine-Freigabe-Gate. Ein Guidance-Jahr ersetzt kein "
@@ -10785,7 +10911,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_penasquito_current_lom_v2183_20260907"
+CACHE_VERSION = "m6_mining_penasquito_cashflow_source_v2184_20260907"
 
 @st.cache_data(
     ttl=900,
@@ -13604,7 +13730,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.18.3 – Peñasquito Current LOM/Cashflow + Silver-Stream Bridge + V2.16 Portfolio-Aggregation")
+                    st.caption("Bergbau-Schutzmodell V2.18.4 – Peñasquito Cashflow Source Availability + Current LOM + V2.16 Portfolio-Aggregation")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -14106,7 +14232,7 @@ if selected_symbol:
                         structural_fallback = checks.get("structural_break_fallback", {})
                         if structural_fallback.get("applicable", False):
                             st.write(
-                                "**Structural-Break-Fallback V2.13.1 (unverändert innerhalb V2.18.3):** "
+                                "**Structural-Break-Fallback V2.13.1 (unverändert innerhalb V2.18.4):** "
                                 f"{structural_fallback.get('status', 'Noch offen')}"
                             )
                             fb1, fb2 = st.columns(2)
@@ -14278,7 +14404,7 @@ if selected_symbol:
 
                             core_lom = asset_nav_control.get("core_asset_lom_structure") or {}
                             if core_lom.get("available"):
-                                st.markdown("**Portfolio-LOM-Abdeckungsstruktur (V2.18.3):**")
+                                st.markdown("**Portfolio-LOM-Abdeckungsstruktur (V2.18.4):**")
                                 cov1, cov2, cov3 = st.columns(3)
                                 with cov1:
                                     st.metric("Gesamtportfolio-Reserven", f"{safe_float(core_lom.get('total_reserves_moz')) or 0.0:.1f} Mio. oz")
@@ -14311,7 +14437,7 @@ if selected_symbol:
 
                                 completeness_gate = core_lom.get("portfolio_completeness_gate") or {}
                                 if completeness_gate.get("available"):
-                                    st.markdown("**Portfolio-Completeness-Gate (V2.14.2 innerhalb V2.18.3):**")
+                                    st.markdown("**Portfolio-Completeness-Gate (V2.14.2 innerhalb V2.18.4):**")
                                     block_map = {b.get("key"): b for b in completeness_gate.get("blocks", [])}
                                     pc1, pc2, pc3 = st.columns(3)
                                     for col, key in [
@@ -14347,7 +14473,7 @@ if selected_symbol:
 
                                 phase1 = core_lom.get("technical_lom_phase1") or {}
                                 if phase1.get("available"):
-                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – Teilmodul V2.14.1 innerhalb V2.18.3:**")
+                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – Teilmodul V2.14.1 innerhalb V2.18.4:**")
                                     st.write(f"**Status:** {phase1.get('status', '–')}")
                                     p1c1, p1c2, p1c3, p1c4 = st.columns(4)
                                     with p1c1:
@@ -14421,7 +14547,7 @@ if selected_symbol:
 
                                     source_map = phase1.get("managed_source_coverage_map") or {}
                                     if source_map.get("available"):
-                                        st.markdown("**V2.17.1 Source Coverage Map + V2.18.3 Peñasquito Source-Upgrade:**")
+                                        st.markdown("**V2.17.1 Source Coverage Map + V2.18.4 Peñasquito Source-Upgrade:**")
                                         st.write(f"**Status:** {source_map.get('status', '–')}")
                                         sm1, sm2, sm3, sm4 = st.columns(4)
                                         with sm1:
@@ -14453,7 +14579,7 @@ if selected_symbol:
                                         current_lom_reserves = safe_float(source_map.get('current_technical_lom_reserves_moz')) or 0.0
                                         if current_lom_count:
                                             st.caption(
-                                                f"V2.18.3 Source-Upgrade: {current_lom_count}/{int(source_map.get('open_asset_count') or 0)} Asset mit aktueller technischer "
+                                                f"V2.18.4 Source-Upgrade: {current_lom_count}/{int(source_map.get('open_asset_count') or 0)} Asset mit aktueller technischer "
                                                 f"LOM-Struktur ({current_lom_reserves:.1f} Mio. oz; Peñasquito), aber noch ohne vollständigen annualisierten Current-Cashflow."
                                             )
                                         st.caption(source_map.get("current_source_basis") or "")
@@ -14478,7 +14604,7 @@ if selected_symbol:
 
                                         penasquito_gate = build_newmont_penasquito_multimetal_gate(CACHE_VERSION)
                                         if penasquito_gate.get("available"):
-                                            st.markdown("**V2.18.3 – Peñasquito Multi-Metal + Current LOM/Cashflow Gate:**")
+                                            st.markdown("**V2.18.4 – Peñasquito Multi-Metal + Current LOM/Cashflow Gate:**")
                                             st.write(f"**Status:** {penasquito_gate.get('status', '–')}")
                                             pg1, pg2, pg3, pg4 = st.columns(4)
                                             with pg1:
@@ -14600,7 +14726,7 @@ if selected_symbol:
 
                                             current_lom = penasquito_gate.get("current_lom_rollforward") or {}
                                             if current_lom.get("available"):
-                                                st.markdown("**V2.18.3 – Current LOM / Cashflow Roll-forward Gate:**")
+                                                st.markdown("**V2.18.4 – Current LOM / Cashflow Roll-forward Gate:**")
                                                 cl1, cl2, cl3, cl4 = st.columns(4)
                                                 with cl1:
                                                     st.metric("Current-LOM-Datenstand", current_lom.get("source_as_of_date") or "–")
@@ -14647,6 +14773,28 @@ if selected_symbol:
                                                             f"• {row.get('label')}: 2023-TRS-Plan für 2026 {oldv:.1f} {unit} → aktuelle 2026-Guidance {guide:.1f} {unit} "
                                                             f"({diff:+.1f} %); Q2-YTD {ytd:.1f} {unit} = {progress:.1f} % der Jahresguidance."
                                                         )
+                                                cashflow_sources = current_lom.get("cashflow_source_gate") or {}
+                                                if cashflow_sources.get("available"):
+                                                    st.markdown("**V2.18.4 – Current Cashflow Source Availability Gate:**")
+                                                    cs1, cs2, cs3, cs4 = st.columns(4)
+                                                    with cs1:
+                                                        st.metric("Cashflow-Blöcke", f"{int(cashflow_sources.get('block_count') or 0)}")
+                                                    with cs2:
+                                                        st.metric("Vollständig annualisiert", f"{int(cashflow_sources.get('annual_complete_count') or 0)}/{int(cashflow_sources.get('block_count') or 0)}")
+                                                    with cs3:
+                                                        st.metric("Teilweise aktuell", f"{int(cashflow_sources.get('partial_count') or 0)}/{int(cashflow_sources.get('block_count') or 0)}")
+                                                    with cs4:
+                                                        st.metric("Fehlendes Jahresprofil", f"{int(cashflow_sources.get('missing_count') or 0)}/{int(cashflow_sources.get('block_count') or 0)}")
+                                                    st.write(f"**Status:** {cashflow_sources.get('status', '–')}")
+                                                    for srcrow in cashflow_sources.get("rows", []):
+                                                        status_label = srcrow.get("status") or "–"
+                                                        st.write(f"• **{srcrow.get('block', '–')}** – **{status_label}**")
+                                                        st.caption(srcrow.get("evidence") or "")
+                                                        st.caption("Nötig für Freigabe: " + str(srcrow.get("required") or "–"))
+                                                    st.warning(cashflow_sources.get("reason") or "")
+                                                    st.caption("Quelle: " + str(cashflow_sources.get("source_name") or "–"))
+                                                    st.caption("Historische Referenz (nicht current): " + str(cashflow_sources.get("legacy_reference") or "–"))
+
                                                 st.warning(current_lom.get("reason") or "")
                                                 st.caption("Quelle: " + str(current_lom.get("source_name") or "–") + " · " + str(current_lom.get("source_quality") or ""))
 
@@ -14656,10 +14804,18 @@ if selected_symbol:
                                                 st.write("• 2025 Current-LOM-Struktur-Roll-forward: **freigegeben**")
                                             else:
                                                 st.write("• 2025 Current-LOM-Struktur-Roll-forward: **offen**")
+                                            if penasquito_gate.get("cashflow_source_audited"):
+                                                source_gate = penasquito_gate.get("cashflow_source_gate") or {}
+                                                if source_gate.get("annual_cashflow_source_ready"):
+                                                    st.write("• Current-Cashflow-Quellenlage: **freigegeben**")
+                                                else:
+                                                    st.write("• Current-Cashflow-Quellenlage: **geprüft · nicht freigabefähig**")
+                                            else:
+                                                st.write("• Current-Cashflow-Quellenlage: **offen**")
                                             if penasquito_gate.get("annual_cashflow_rollforward_ready"):
                                                 st.write("• Annualisierter 2026–2033-Cashflow-Roll-forward: **freigegeben**")
                                             else:
-                                                st.write("• Annualisierter 2026–2033-Cashflow-Roll-forward: **offen**")
+                                                st.write("• Annualisierter 2026–2033-Cashflow-Roll-forward: **gesperrt**")
                                             if penasquito_gate.get("lead_zinc_normalization_ready"):
                                                 st.write("• Blei-/Zink-Zyklusnormalisierung: **freigegeben**")
                                             else:
@@ -14679,7 +14835,7 @@ if selected_symbol:
 
                                 phase2 = core_lom.get("asset_nav_phase2") or {}
                                 if phase2.get("available"):
-                                    st.markdown("**Asset-NAV-Normalisierung Phase 2 – V2.16 Policy innerhalb V2.18.3:**")
+                                    st.markdown("**Asset-NAV-Normalisierung Phase 2 – V2.16 Policy innerhalb V2.18.4:**")
                                     st.write(f"**Status:** {phase2.get('status', '–')}")
                                     p2a, p2b, p2c, p2d = st.columns(4)
                                     with p2a:
