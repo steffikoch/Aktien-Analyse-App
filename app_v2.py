@@ -4821,9 +4821,9 @@ def get_special_control(company_type, symbol):
                 "Peñasquito Multi-Metal Source & Normalization Gate (Gold / Silber / Blei / Zink / Silver Stream)",
                 "Allgemeiner Primärrohstoff-Router"
             ],
-            "status": "Router aktiv – V2.18.1 Peñasquito Multi-Metal Gate + V2.17.1 Source Coverage + V2.16 Discount-Rate/Portfolio-Aggregation",
+            "status": "Router aktiv – V2.18.2 Peñasquito Silver-Stream Price Bridge + V2.17.1 Source Coverage + V2.16 Discount-Rate/Portfolio-Aggregation",
             "note": (
-                "V2.18.1 ergänzt das Bergbaumodell um ein Peñasquito Multi-Metal Source & Normalization Gate für Gold, Silber, Blei und Zink. Der 2023-TRS wird nur als Referenzanker verwendet; ein 2025/2026-Roll-forward, vollständige Preisnormalisierung aller materiellen Metalle und die Silver-Stream-Brücke bleiben vor jedem NAV Pflicht. V2.17.1 ergänzt weiterhin die Managed-Operations Source Coverage Map für die sieben noch offenen Reserve-Assetgruppen. Die V2.16 Discount-Rate-&-Portfolio-Aggregation-Policy bleibt unverändert aktiv. Asset-spezifische offizielle TRS-After-Tax-Diskontsätze dürfen für einen heterogenen Sum-of-the-Parts-Ansatz beibehalten werden, sofern Bewertungsstichtag, Währung, Eigentumsanteil und Rohstoffpreis-Normalisierung konsistent sind. Die 8-%-Re-Diskontierung bleibt eine separate Vergleichsschicht und ist nicht mehr das bindende 90-%-Portfolio-Gate. Das Cashflow-Horizon-/Closure-Tail-Gate bleibt für echte Re-Diskontierungen aktiv. Zusätzlich bleiben Portfolio-Completeness, Structural-Break-Fallback, Reserve-/NAV-Snapshot und der konservative allgemeine "
+                "V2.18.2 ergänzt das Peñasquito-Multi-Metal-Modell um eine separate Silver-Stream-Preisbrücke. Die Brücke wird nur bei verfügbarer 4/4-Metallnormalisierung freigegeben; 25 % der vertraglich gestreamten payable/delivered Silberbasis werden separat mit dem Wheaton-Lieferpreis statt mit dem vollen Silbermarktpreis behandelt. Der 2023-TRS bleibt Referenzanker; 2025/2026-LOM-/Cashflow- und Closure-Tail-Roll-forward bleiben vor jedem NAV Pflicht. V2.17.1 ergänzt weiterhin die Managed-Operations Source Coverage Map für die sieben noch offenen Reserve-Assetgruppen. Die V2.16 Discount-Rate-&-Portfolio-Aggregation-Policy bleibt unverändert aktiv. Asset-spezifische offizielle TRS-After-Tax-Diskontsätze dürfen für einen heterogenen Sum-of-the-Parts-Ansatz beibehalten werden, sofern Bewertungsstichtag, Währung, Eigentumsanteil und Rohstoffpreis-Normalisierung konsistent sind. Die 8-%-Re-Diskontierung bleibt eine separate Vergleichsschicht und ist nicht mehr das bindende 90-%-Portfolio-Gate. Das Cashflow-Horizon-/Closure-Tail-Gate bleibt für echte Re-Diskontierungen aktiv. Zusätzlich bleiben Portfolio-Completeness, Structural-Break-Fallback, Reserve-/NAV-Snapshot und der konservative allgemeine "
                 "Primärrohstoff-Router für eindeutige Branchen wie Gold, Silber und "
                 "Kupfer. Unspezifische Mischbranchen bleiben gesperrt. Das bestehende "
                 "V2.7-Life-of-Mine-Gate bleibt unverändert aktiv. Zusätzlich darf ein später bestandener "
@@ -5678,7 +5678,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
         "route_source": "Allgemeiner Branchen-Router",
         "routing_basis": f"Yahoo-Branche: {industry_text}",
         "mapping_note": (
-            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.18.1 "
+            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.18.2 "
             f"automatisch dem Primärrohstoff {base['commodity_name']} zugeordnet. "
             "Unspezifische oder gemischte Bergbau-Branchen werden weiterhin nicht "
             "automatisch geroutet."
@@ -6712,7 +6712,7 @@ def get_verified_mining_asset_snapshot(symbol):
             "core_asset_lom_structure": get_verified_newmont_core_asset_lom_structure(),
             "technical_nav_references": [],
             "technical_nav_note": (
-                "V2.18.1 behält für Lihir, Cadia, Boddington und den Ahafo Complex die in Phase 1 verifizierten aktuellen "
+                "V2.18.2 behält für Lihir, Cadia, Boddington und den Ahafo Complex die in Phase 1 verifizierten aktuellen "
                 "S-K-1300-Technical-Report-Summaries mit LOM-Cashflows. "
                 "Phase 1 prüft die TRS-Eignung; Phase 2 normalisiert die vier Assets einzeln. V2.16 trennt weiterhin native Asset-NAVs, eine "
                 "Portfolio-Aggregationsschicht mit den offiziellen asset-spezifischen TRS-Raten und die separate 8-%-Vergleichsschicht. "
@@ -7536,7 +7536,7 @@ def get_verified_newmont_managed_source_coverage_map():
 
 def build_newmont_penasquito_multimetal_gate(cache_version):
     """
-    V2.18.1 Peñasquito multi-metal source and normalization gate.
+    V2.18.2 Peñasquito multi-metal source, normalization and silver-stream price bridge.
 
     This is deliberately NOT an Asset-NAV calculation. It verifies the 2023
     S-K 1300 economic structure, compares it with the attributable 2025 reserve
@@ -7681,13 +7681,103 @@ def build_newmont_penasquito_multimetal_gate(cache_version):
         for metal in ("lead", "zinc")
     )
 
+    # V2.18.2 Silver-Stream Price Bridge. Peñasquito sells 25% of payable
+    # silver to Wheaton for the lesser of market price and the inflation-adjusted
+    # contractual delivery payment. Wheaton's current Peñasquito disclosure and
+    # 2025 annual results report a delivery payment of USD 4.56/oz. This bridge
+    # adjusts only the silver-price reference; it is NOT a mine revenue or NAV
+    # calculation and does not invent future CPI escalators or annual silver output.
+    silver_stream_current_payment_usd_oz = 4.56
+    silver_stream_contract_base_payment_usd_oz = 3.90
+    silver_stream_pct = 25.0
+    silver_unstreamed_pct = 100.0 - silver_stream_pct
+    silver_row = next((r for r in metal_rows if r.get("metal") == "silver"), None) or {}
+    silver_normalized_price = safe_float(silver_row.get("normalized_price"))
+    silver_current_reference = safe_float(silver_row.get("current_reference_price"))
+    silver_guidance_price = safe_float(guidance_2026_prices.get("silver"))
+
+    def _stream_blended_price(market_price):
+        market_price = safe_float(market_price)
+        if market_price is None or market_price <= 0:
+            return None, None, None, None
+        streamed_payment = min(market_price, silver_stream_current_payment_usd_oz)
+        blended = (silver_unstreamed_pct / 100.0) * market_price + (silver_stream_pct / 100.0) * streamed_payment
+        haircut_usd = market_price - blended
+        haircut_pct = haircut_usd / market_price * 100.0 if market_price else None
+        return streamed_payment, blended, haircut_usd, haircut_pct
+
+    norm_stream_payment, norm_blended, norm_haircut_usd, norm_haircut_pct = _stream_blended_price(silver_normalized_price)
+    current_stream_payment, current_blended, current_haircut_usd, current_haircut_pct = _stream_blended_price(silver_current_reference)
+    guidance_stream_payment, guidance_blended, guidance_haircut_usd, guidance_haircut_pct = _stream_blended_price(silver_guidance_price)
+    stream_bridge_ready = bool(
+        all_material_metals_normalized
+        and silver_normalized_price is not None
+        and norm_blended is not None
+        and silver_stream_current_payment_usd_oz > 0
+    )
+
+    silver_stream_bridge = {
+        "ready": stream_bridge_ready,
+        "stream_pct": silver_stream_pct,
+        "unstreamed_pct": silver_unstreamed_pct,
+        "contract_base_payment_usd_oz": silver_stream_contract_base_payment_usd_oz,
+        "current_delivery_payment_usd_oz": silver_stream_current_payment_usd_oz,
+        "payment_reference_period": "2025/2026",
+        "payment_source": "Wheaton Precious Metals – Peñasquito stream disclosure / 2025 annual results",
+        "contract_rule": "25 % der Silberproduktion; Lieferpreis = niedrigerer Wert aus Marktpreis und inflationsindexiertem Vertragswert",
+        "annual_inflation_cap_pct": 1.65,
+        "normalized_market_price_usd_oz": silver_normalized_price,
+        "normalized_stream_payment_usd_oz": norm_stream_payment,
+        "normalized_blended_price_usd_oz": norm_blended,
+        "normalized_stream_haircut_usd_oz": norm_haircut_usd,
+        "normalized_stream_haircut_pct": norm_haircut_pct,
+        "current_market_reference_usd_oz": silver_current_reference,
+        "current_stream_payment_usd_oz": current_stream_payment,
+        "current_blended_price_usd_oz": current_blended,
+        "current_stream_haircut_usd_oz": current_haircut_usd,
+        "current_stream_haircut_pct": current_haircut_pct,
+        "guidance_market_assumption_usd_oz": silver_guidance_price,
+        "guidance_stream_payment_usd_oz": guidance_stream_payment,
+        "guidance_blended_price_usd_oz": guidance_blended,
+        "guidance_stream_haircut_usd_oz": guidance_haircut_usd,
+        "guidance_stream_haircut_pct": guidance_haircut_pct,
+        "note": (
+            "Die Preisbrücke bewertet nur die Silberpreis-Ebene der payable/delivered Silberbasis: 75 % bleiben zum jeweiligen Markt-/"
+            "Zykluspreis, 25 % werden mit dem niedrigeren Wert aus Marktpreis und dem aktuell verifizierten Wheaton-"
+            "Lieferpreis von 4,56 USD/oz angesetzt. Die Brücke ist kein Umsatz-, FCF- oder NAV-Modell; Payability, "
+            "Treatment/Refining Charges, Royalty, Steuern, jährliche Produktion und künftige CPI-Anpassungen werden hier nicht erfunden."
+        ),
+    }
+
+    if all_material_metals_normalized and stream_bridge_ready:
+        gate_status = (
+            "Multi-Metal-Struktur verifiziert – 4/4 Metalle dynamisch normalisierbar; Silver-Stream-Preisbrücke freigegeben; "
+            "2025/2026-Roll-forward + Closure-Tail offen; kein NAV"
+        )
+    elif all_material_metals_normalized:
+        gate_status = (
+            "Multi-Metal-Struktur verifiziert – 4/4 Metalle dynamisch normalisierbar; Silver-Stream-Preisbrücke nicht freigegeben; "
+            "2025/2026-Roll-forward + Closure-Tail offen; kein NAV"
+        )
+    else:
+        gate_status = (
+            f"Multi-Metal-Struktur verifiziert – {len(normalized_material_rows)}/{len(material_rows)} materielle Metalle dynamisch normalisierbar; "
+            "Silver-Stream-Preisbrücke gesperrt; kein NAV"
+        )
+
+    next_requirements = [
+        "Aktuellen 2025/2026-LOM-/Cashflow-Roll-forward ab 01.01.2026 beschaffen; die 2024/2025-Jahre des 2023-TRS sind bereits Vergangenheit.",
+        "Closure-Tail 2033–2073 beim Roll-forward zeitlich erhalten; fehlende Jahreswerte nicht synthetisch verteilen.",
+    ]
+    if not all_material_metals_normalized:
+        next_requirements.insert(0, "Fehlende dynamische Preisnormalisierung der materiellen Metalle vervollständigen.")
+    if not stream_bridge_ready:
+        next_requirements.insert(1 if not all_material_metals_normalized else 0, "Silver-Stream-Preisbrücke nur mit validierter Silbernormalisierung und verifiziertem Vertrags-/Lieferpreis freigeben.")
+
     return {
         "available": True,
-        "version": "V2.18.1",
-        "status": (
-            "Multi-Metal-Struktur verifiziert – 4/4 Metalle dynamisch normalisierbar; "
-            "2025/2026-Roll-forward + Silver-Stream-Brücke + Closure-Tail offen; kein NAV"
-        ),
+        "version": "V2.18.2",
+        "status": gate_status,
         "asset": "Peñasquito",
         "ownership_pct": 100.0,
         "trs_effective_date": "31.12.2023",
@@ -7705,13 +7795,15 @@ def build_newmont_penasquito_multimetal_gate(cache_version):
         "trs_cas_musd": 7500.0,
         "trs_tax_federal_pct": 30.0,
         "trs_mining_tax_pct": 7.5,
-        "silver_stream_pct": 25.0,
-        "silver_stream_contract_base_payment_usd_oz": 3.90,
+        "silver_stream_pct": silver_stream_pct,
+        "silver_stream_contract_base_payment_usd_oz": silver_stream_contract_base_payment_usd_oz,
+        "silver_stream_current_payment_usd_oz": silver_stream_current_payment_usd_oz,
+        "silver_stream_bridge": silver_stream_bridge,
         "silver_stream_note": (
             "25 % der Silberproduktion sind über die Lebensdauer der Mine an Wheaton gestreamt. "
-            "Newmont erhält je gelieferter Unze den niedrigeren Betrag aus dem vertraglichen, seit 2011 "
-            "inflationsindexierten Basispreis und dem Marktpreis. Deshalb dürfen 25 % des Silbers nicht "
-            "einfach mit dem normalen Silberpreis bewertet werden."
+            "Der Vertrag verwendet den niedrigeren Wert aus Marktpreis und inflationsindexiertem Vertragswert; "
+            "für 2025/2026 ist ein Lieferpreis von 4,56 USD/oz verifiziert. V2.18.2 trennt deshalb auf der payable/delivered "
+            "Silberbasis den 75-%-Marktpreisanteil vom 25-%-Stream-Anteil, statt die gesamte Silberbasis zum vollen Marktpreis zu bewerten."
         ),
         "reserve_2025_note": (
             "2025-Reserven sind bereits Newmont-zurechenbar (100-%-Asset). Änderungen gegenüber 2023 "
@@ -7742,24 +7834,20 @@ def build_newmont_penasquito_multimetal_gate(cache_version):
         "rollforward_required": True,
         "rollforward_ready": False,
         "stream_bridge_required": True,
-        "stream_bridge_ready": False,
+        "stream_bridge_ready": stream_bridge_ready,
         "closure_rollforward_required": True,
         "closure_rollforward_ready": False,
         "phase2_ready": False,
         "nav_released": False,
-        "next_requirements": [
-            "Aktuellen 2025/2026-LOM-/Cashflow-Roll-forward ab 01.01.2026 beschaffen; die 2024/2025-Jahre des 2023-TRS sind bereits Vergangenheit.",
-            "Silver-Stream-Ökonomie separat modellieren; 25 % der Silberproduktion dürfen nicht zum vollen normalisierten Silberpreis angesetzt werden.",
-            "Closure-Tail 2033–2073 beim Roll-forward zeitlich erhalten; fehlende Jahreswerte nicht synthetisch verteilen.",
-        ],
+        "next_requirements": next_requirements,
         "reason": (
             "Der 2023-TRS ist ein belastbarer Multi-Metal-Referenzanker, aber keine aktuelle 2026-NAV-Basis. "
-            "Die 2025-Reservebasis ist bei allen vier Metallen deutlich kleiner als 2023, während die annualisierte "
-            "TRS-Cashflow-Tabelle 2024 beginnt. Gold und Silber können im bestehenden Modell dynamisch normalisiert "
-            "werden. Blei und Zink werden in V2.18.1 über die IMF-Primary-Commodity-Price-Serien via FRED "
-            "mit derselben 5-Jahres-Medianlogik normalisiert. Zusätzlich verändert der 25-%-Silver-Stream die "
-            "Silberökonomie. Daher wird trotz 4/4 Preisnormalisierung weiterhin kein Preisbridge-NAV und keine "
-            "zusätzliche SOTP-Abdeckung freigegeben."
+            "Alle vier materiellen Metalle sind dynamisch normalisiert. V2.18.2 modelliert zusätzlich die 25-%-"
+            "Silver-Stream-Preisbrücke separat: 75 % der Silberunzen bleiben zum Markt-/Zykluspreis, 25 % erhalten "
+            "nur den niedrigeren Wert aus Marktpreis und aktuell verifiziertem Wheaton-Lieferpreis. Die Stream-"
+            "Preisbrücke ist damit freigegeben, aber sie ersetzt weder einen aktuellen 2025/2026-LOM-/Cashflow-"
+            "Roll-forward noch den zeitlich vollständigen Closure-Tail. Daher wird weiterhin kein Peñasquito-NAV "
+            "und keine zusätzliche SOTP-Abdeckung freigegeben."
         ),
     }
 
@@ -9795,7 +9883,7 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.18.1 ergänzt das Peñasquito Multi-Metal Source & Normalization Gate sowie die V2.17.1 Managed-Operations Source Coverage Map und trennt weiterhin Discount-Rate-&-Portfolio-Aggregation-Policy, Quality-aware Coverage Propagation, Asset-NAV-Normalisierung Phase 2 inklusive Cashflow-Horizon-&-Closure-Tail-Gate, Portfolio-Completeness-Gate, Portfolio-Abdeckungslogik, technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.18.2 ergänzt die Peñasquito Silver-Stream-Preisbrücke auf Basis des Multi-Metal-Gates sowie die V2.17.1 Managed-Operations Source Coverage Map und trennt weiterhin Discount-Rate-&-Portfolio-Aggregation-Policy, Quality-aware Coverage Propagation, Asset-NAV-Normalisierung Phase 2 inklusive Cashflow-Horizon-&-Closure-Tail-Gate, Portfolio-Completeness-Gate, Portfolio-Abdeckungslogik, technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
             "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
             "Ertragskraft, Reserve-/Asset-Kontrolle, Run-rate-Mine-NAV und das "
             "formale Life-of-Mine-Freigabe-Gate. Ein Guidance-Jahr ersetzt kein "
@@ -10554,7 +10642,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_penasquito_leadzinc_v2181_20260907"
+CACHE_VERSION = "m6_mining_penasquito_silverstream_v2182_20260907"
 
 @st.cache_data(
     ttl=900,
@@ -13373,7 +13461,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.18.1 – Peñasquito Multi-Metal Gate + V2.17.1 Source Coverage + V2.16 Portfolio-Aggregation")
+                    st.caption("Bergbau-Schutzmodell V2.18.2 – Peñasquito Silver-Stream Bridge + V2.17.1 Source Coverage + V2.16 Portfolio-Aggregation")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -13875,7 +13963,7 @@ if selected_symbol:
                         structural_fallback = checks.get("structural_break_fallback", {})
                         if structural_fallback.get("applicable", False):
                             st.write(
-                                "**Structural-Break-Fallback V2.13.1 (unverändert innerhalb V2.18.1):** "
+                                "**Structural-Break-Fallback V2.13.1 (unverändert innerhalb V2.18.2):** "
                                 f"{structural_fallback.get('status', 'Noch offen')}"
                             )
                             fb1, fb2 = st.columns(2)
@@ -14047,7 +14135,7 @@ if selected_symbol:
 
                             core_lom = asset_nav_control.get("core_asset_lom_structure") or {}
                             if core_lom.get("available"):
-                                st.markdown("**Portfolio-LOM-Abdeckungsstruktur (V2.18.1):**")
+                                st.markdown("**Portfolio-LOM-Abdeckungsstruktur (V2.18.2):**")
                                 cov1, cov2, cov3 = st.columns(3)
                                 with cov1:
                                     st.metric("Gesamtportfolio-Reserven", f"{safe_float(core_lom.get('total_reserves_moz')) or 0.0:.1f} Mio. oz")
@@ -14080,7 +14168,7 @@ if selected_symbol:
 
                                 completeness_gate = core_lom.get("portfolio_completeness_gate") or {}
                                 if completeness_gate.get("available"):
-                                    st.markdown("**Portfolio-Completeness-Gate (V2.14.2 innerhalb V2.18.1):**")
+                                    st.markdown("**Portfolio-Completeness-Gate (V2.14.2 innerhalb V2.18.2):**")
                                     block_map = {b.get("key"): b for b in completeness_gate.get("blocks", [])}
                                     pc1, pc2, pc3 = st.columns(3)
                                     for col, key in [
@@ -14116,7 +14204,7 @@ if selected_symbol:
 
                                 phase1 = core_lom.get("technical_lom_phase1") or {}
                                 if phase1.get("available"):
-                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – Teilmodul V2.14.1 innerhalb V2.18.1:**")
+                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – Teilmodul V2.14.1 innerhalb V2.18.2:**")
                                     st.write(f"**Status:** {phase1.get('status', '–')}")
                                     p1c1, p1c2, p1c3, p1c4 = st.columns(4)
                                     with p1c1:
@@ -14240,7 +14328,7 @@ if selected_symbol:
 
                                         penasquito_gate = build_newmont_penasquito_multimetal_gate(CACHE_VERSION)
                                         if penasquito_gate.get("available"):
-                                            st.markdown("**V2.18.1 – Peñasquito Multi-Metal Source & Normalization Gate:**")
+                                            st.markdown("**V2.18.2 – Peñasquito Multi-Metal + Silver-Stream Price Bridge:**")
                                             st.write(f"**Status:** {penasquito_gate.get('status', '–')}")
                                             pg1, pg2, pg3, pg4 = st.columns(4)
                                             with pg1:
@@ -14318,6 +14406,48 @@ if selected_symbol:
                                             if penasquito_gate.get("base_metal_source_note"):
                                                 st.caption(penasquito_gate.get("base_metal_source_note"))
                                             st.warning(penasquito_gate.get("silver_stream_note") or "")
+
+                                            stream_bridge = penasquito_gate.get("silver_stream_bridge") or {}
+                                            if stream_bridge.get("ready"):
+                                                st.markdown("**V2.18.2 – Silver-Stream Price Bridge:**")
+                                                sb1, sb2, sb3, sb4 = st.columns(4)
+                                                with sb1:
+                                                    val = safe_float(stream_bridge.get("normalized_market_price_usd_oz"))
+                                                    st.metric("Silber-Zyklusnormal · Markt", f"{val:.2f} USD/oz" if val is not None else "–")
+                                                with sb2:
+                                                    val = safe_float(stream_bridge.get("current_delivery_payment_usd_oz"))
+                                                    st.metric("Wheaton-Lieferpreis", f"{val:.2f} USD/oz" if val is not None else "–")
+                                                with sb3:
+                                                    val = safe_float(stream_bridge.get("normalized_blended_price_usd_oz"))
+                                                    st.metric("Stream-adjustierter Zykluspreis", f"{val:.2f} USD/oz" if val is not None else "–")
+                                                with sb4:
+                                                    val = safe_float(stream_bridge.get("normalized_stream_haircut_pct"))
+                                                    st.metric("Stream-Haircut vs. Markt", f"-{val:.1f} %" if val is not None else "–")
+                                                st.caption(
+                                                    f"Preisbrücke auf payable/delivered Silberbasis: {safe_float(stream_bridge.get('unstreamed_pct')) or 0.0:.0f} % zum Marktpreis + "
+                                                    f"{safe_float(stream_bridge.get('stream_pct')) or 0.0:.0f} % Stream zum niedrigeren Vertrags-/Marktpreis. "
+                                                    f"Originale Vertragsbasis {safe_float(stream_bridge.get('contract_base_payment_usd_oz')) or 0.0:.2f} USD/oz; "
+                                                    f"aktuell verifizierter Lieferpreis {safe_float(stream_bridge.get('current_delivery_payment_usd_oz')) or 0.0:.2f} USD/oz; "
+                                                    f"jährliche Inflationsanpassung laut Newmont bis {safe_float(stream_bridge.get('annual_inflation_cap_pct')) or 0.0:.2f} %."
+                                                )
+                                                current_ref = safe_float(stream_bridge.get("current_market_reference_usd_oz"))
+                                                current_blended = safe_float(stream_bridge.get("current_blended_price_usd_oz"))
+                                                current_haircut = safe_float(stream_bridge.get("current_stream_haircut_pct"))
+                                                if current_ref is not None and current_blended is not None and current_haircut is not None:
+                                                    st.caption(
+                                                        f"Aktuelle Silber-Referenz: {current_ref:.2f} USD/oz → stream-adjustierte Preisreferenz "
+                                                        f"{current_blended:.2f} USD/oz (Haircut {current_haircut:.1f} %)."
+                                                    )
+                                                guide_ref = safe_float(stream_bridge.get("guidance_market_assumption_usd_oz"))
+                                                guide_blended = safe_float(stream_bridge.get("guidance_blended_price_usd_oz"))
+                                                if guide_ref is not None and guide_blended is not None:
+                                                    st.caption(
+                                                        f"2026 Guidance-Silberpreis-Annahme: {guide_ref:.2f} USD/oz → reine Stream-Preisbrücke "
+                                                        f"{guide_blended:.2f} USD/oz. Das ist keine Umsatz- oder NAV-Prognose."
+                                                    )
+                                                st.caption(stream_bridge.get("note") or "")
+                                                st.caption("Quelle Vertrags-/Lieferpreis: " + str(stream_bridge.get("payment_source") or "–"))
+
                                             st.caption(penasquito_gate.get("reserve_2025_note") or "")
                                             st.write("**Freigabe-Gates:**")
                                             st.write("• 2025/2026 LOM-/Cashflow-Roll-forward: **offen**")
@@ -14325,7 +14455,10 @@ if selected_symbol:
                                                 st.write("• Blei-/Zink-Zyklusnormalisierung: **freigegeben**")
                                             else:
                                                 st.write("• Blei-/Zink-Zyklusnormalisierung: **offen**")
-                                            st.write("• Silver-Stream-Preisbrücke: **offen**")
+                                            if penasquito_gate.get("stream_bridge_ready"):
+                                                st.write("• Silver-Stream-Preisbrücke: **freigegeben**")
+                                            else:
+                                                st.write("• Silver-Stream-Preisbrücke: **offen**")
                                             st.write("• Closure-Tail-Roll-forward: **offen**")
                                             st.error("Peñasquito Phase 2 / NAV: Gesperrt")
                                             for req in penasquito_gate.get("next_requirements", []):
@@ -14337,7 +14470,7 @@ if selected_symbol:
 
                                 phase2 = core_lom.get("asset_nav_phase2") or {}
                                 if phase2.get("available"):
-                                    st.markdown("**Asset-NAV-Normalisierung Phase 2 – V2.16 Policy innerhalb V2.18.1:**")
+                                    st.markdown("**Asset-NAV-Normalisierung Phase 2 – V2.16 Policy innerhalb V2.18.2:**")
                                     st.write(f"**Status:** {phase2.get('status', '–')}")
                                     p2a, p2b, p2c, p2d = st.columns(4)
                                     with p2a:
