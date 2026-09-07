@@ -4821,9 +4821,9 @@ def get_special_control(company_type, symbol):
                 "Peñasquito Multi-Metal Source & Normalization Gate (Gold / Silber / Blei / Zink / Silver Stream)",
                 "Allgemeiner Primärrohstoff-Router"
             ],
-            "status": "Router aktiv – V2.18 Peñasquito Multi-Metal Gate + V2.17.1 Source Coverage + V2.16 Discount-Rate/Portfolio-Aggregation",
+            "status": "Router aktiv – V2.18.1 Peñasquito Multi-Metal Gate + V2.17.1 Source Coverage + V2.16 Discount-Rate/Portfolio-Aggregation",
             "note": (
-                "V2.18 ergänzt das Bergbaumodell um ein Peñasquito Multi-Metal Source & Normalization Gate für Gold, Silber, Blei und Zink. Der 2023-TRS wird nur als Referenzanker verwendet; ein 2025/2026-Roll-forward, vollständige Preisnormalisierung aller materiellen Metalle und die Silver-Stream-Brücke bleiben vor jedem NAV Pflicht. V2.17.1 ergänzt weiterhin die Managed-Operations Source Coverage Map für die sieben noch offenen Reserve-Assetgruppen. Die V2.16 Discount-Rate-&-Portfolio-Aggregation-Policy bleibt unverändert aktiv. Asset-spezifische offizielle TRS-After-Tax-Diskontsätze dürfen für einen heterogenen Sum-of-the-Parts-Ansatz beibehalten werden, sofern Bewertungsstichtag, Währung, Eigentumsanteil und Rohstoffpreis-Normalisierung konsistent sind. Die 8-%-Re-Diskontierung bleibt eine separate Vergleichsschicht und ist nicht mehr das bindende 90-%-Portfolio-Gate. Das Cashflow-Horizon-/Closure-Tail-Gate bleibt für echte Re-Diskontierungen aktiv. Zusätzlich bleiben Portfolio-Completeness, Structural-Break-Fallback, Reserve-/NAV-Snapshot und der konservative allgemeine "
+                "V2.18.1 ergänzt das Bergbaumodell um ein Peñasquito Multi-Metal Source & Normalization Gate für Gold, Silber, Blei und Zink. Der 2023-TRS wird nur als Referenzanker verwendet; ein 2025/2026-Roll-forward, vollständige Preisnormalisierung aller materiellen Metalle und die Silver-Stream-Brücke bleiben vor jedem NAV Pflicht. V2.17.1 ergänzt weiterhin die Managed-Operations Source Coverage Map für die sieben noch offenen Reserve-Assetgruppen. Die V2.16 Discount-Rate-&-Portfolio-Aggregation-Policy bleibt unverändert aktiv. Asset-spezifische offizielle TRS-After-Tax-Diskontsätze dürfen für einen heterogenen Sum-of-the-Parts-Ansatz beibehalten werden, sofern Bewertungsstichtag, Währung, Eigentumsanteil und Rohstoffpreis-Normalisierung konsistent sind. Die 8-%-Re-Diskontierung bleibt eine separate Vergleichsschicht und ist nicht mehr das bindende 90-%-Portfolio-Gate. Das Cashflow-Horizon-/Closure-Tail-Gate bleibt für echte Re-Diskontierungen aktiv. Zusätzlich bleiben Portfolio-Completeness, Structural-Break-Fallback, Reserve-/NAV-Snapshot und der konservative allgemeine "
                 "Primärrohstoff-Router für eindeutige Branchen wie Gold, Silber und "
                 "Kupfer. Unspezifische Mischbranchen bleiben gesperrt. Das bestehende "
                 "V2.7-Life-of-Mine-Gate bleibt unverändert aktiv. Zusätzlich darf ein später bestandener "
@@ -5678,7 +5678,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
         "route_source": "Allgemeiner Branchen-Router",
         "routing_basis": f"Yahoo-Branche: {industry_text}",
         "mapping_note": (
-            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.18 "
+            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.18.1 "
             f"automatisch dem Primärrohstoff {base['commodity_name']} zugeordnet. "
             "Unspezifische oder gemischte Bergbau-Branchen werden weiterhin nicht "
             "automatisch geroutet."
@@ -5829,6 +5829,184 @@ def load_mining_commodity_price_cycle(
         normalization_years=normalization_years,
         current_window_days=current_window_days,
     )
+
+
+
+
+def _evaluate_fred_base_metal_cycle(
+    annual_history,
+    monthly_history,
+    normalization_years=5,
+    current_window_months=3,
+    lb_per_metric_tonne=2204.62262185,
+):
+    """Pure IMF/FRED base-metal cycle evaluator (USD/metric tonne -> USD/lb).
+
+    The normalization basis is deliberately identical in spirit to the mining
+    commodity model: median of the annual average prices of the last five
+    complete calendar years. FRED's annual IMF series already reports those
+    period-average annual benchmark prices. The current reference is the median
+    of the latest three monthly IMF benchmark observations, avoiding a noisy
+    single-month comparison.
+    """
+    result = {
+        "available": False,
+        "annual_averages": [],
+        "years_used": [],
+        "normalized_price": None,
+        "current_reference_price": None,
+        "latest_price": None,
+        "premium_to_normalized_pct": None,
+        "price_cycle_status": "Daten unzureichend",
+        "method": (
+            "Median der IMF/FRED-Jahresdurchschnittspreise der letzten vollständigen "
+            f"{int(normalization_years)} Kalenderjahre"
+        ),
+        "current_reference_method": (
+            f"Median der letzten {int(current_window_months)} monatlichen IMF/FRED-Benchmarkpreise"
+        ),
+        "source_name": "International Monetary Fund – Primary Commodity Prices via FRED",
+        "source_unit_raw": "USD je metrische Tonne",
+        "unit": "USD/lb",
+        "reason": None,
+    }
+
+    if annual_history is None or getattr(annual_history, "empty", True):
+        result["reason"] = "Keine belastbare jährliche IMF/FRED-Preisreihe verfügbar."
+        return result
+    if monthly_history is None or getattr(monthly_history, "empty", True):
+        result["reason"] = "Keine belastbare monatliche IMF/FRED-Preisreihe verfügbar."
+        return result
+
+    def _normalize_frame(frame):
+        df = frame.copy()
+        # Accept loader-normalized DATE/VALUE columns or raw FRED CSV shapes.
+        cols = {str(c).upper(): c for c in df.columns}
+        date_col = cols.get("DATE") or cols.get("OBSERVATION_DATE")
+        value_col = cols.get("VALUE")
+        if value_col is None:
+            candidates = [c for c in df.columns if c != date_col]
+            value_col = candidates[0] if candidates else None
+        if date_col is None or value_col is None:
+            return pd.DataFrame(columns=["date", "value"])
+        out = pd.DataFrame({
+            "date": pd.to_datetime(df[date_col], errors="coerce"),
+            "value": pd.to_numeric(df[value_col], errors="coerce"),
+        }).dropna()
+        out = out[out["value"] > 0].sort_values("date")
+        return out
+
+    annual = _normalize_frame(annual_history)
+    monthly = _normalize_frame(monthly_history)
+    if annual.empty or monthly.empty:
+        result["reason"] = "IMF/FRED-Preisreihe konnte nicht ausgewertet werden."
+        return result
+
+    current_year = datetime.now().year
+    annual = annual[annual["date"].dt.year < current_year].copy()
+    annual["year"] = annual["date"].dt.year.astype(int)
+    annual = annual.drop_duplicates(subset=["year"], keep="last")
+    selected = annual.tail(int(normalization_years))
+
+    # Unlike the Yahoo daily fallback, the base-metal gate requires all five
+    # complete annual IMF observations. No degraded four-year substitute.
+    if len(selected) < int(normalization_years):
+        result["reason"] = (
+            f"Weniger als {int(normalization_years)} vollständige IMF/FRED-Jahreswerte vorhanden."
+        )
+        return result
+
+    annual_averages = []
+    for row in selected.itertuples(index=False):
+        usd_lb = float(row.value) / float(lb_per_metric_tonne)
+        annual_averages.append({"year": int(row.year), "average": usd_lb})
+
+    normalized_price = float(pd.Series([x["average"] for x in annual_averages]).median())
+
+    monthly_window = monthly.tail(max(1, int(current_window_months)))
+    if len(monthly_window) < int(current_window_months):
+        result["reason"] = "Zu wenige aktuelle monatliche IMF/FRED-Beobachtungen vorhanden."
+        return result
+
+    # Staleness guard: monthly benchmark series may lag publication, but a
+    # value older than ~6 months is no longer a current cycle reference.
+    latest_date = pd.Timestamp(monthly_window["date"].iloc[-1])
+    now_ts = pd.Timestamp(datetime.now().date())
+    if (now_ts - latest_date).days > 185:
+        result["reason"] = "Monatliche IMF/FRED-Preisreihe ist für eine aktuelle Zyklusreferenz zu alt."
+        return result
+
+    monthly_usd_lb = monthly_window["value"].astype(float) / float(lb_per_metric_tonne)
+    current_reference = float(monthly_usd_lb.median())
+    latest_price = float(monthly_usd_lb.iloc[-1])
+    premium_pct = (current_reference / normalized_price - 1.0) * 100.0 if normalized_price > 0 else None
+
+    if premium_pct is None:
+        price_status = "Daten unzureichend"
+    elif premium_pct >= 75.0:
+        price_status = "Extremes Peak-Niveau"
+    elif premium_pct >= 40.0:
+        price_status = "Peak-Niveau"
+    elif premium_pct >= 20.0:
+        price_status = "Erhöht"
+    elif premium_pct > -20.0:
+        price_status = "Nahe Zyklusnormal"
+    else:
+        price_status = "Unter Zyklusnormal"
+
+    result.update({
+        "available": True,
+        "annual_averages": annual_averages,
+        "years_used": [x["year"] for x in annual_averages],
+        "normalized_price": normalized_price,
+        "current_reference_price": current_reference,
+        "latest_price": latest_price,
+        "premium_to_normalized_pct": premium_pct,
+        "price_cycle_status": price_status,
+        "latest_observation_date": latest_date.strftime("%Y-%m-%d"),
+        "reason": None,
+    })
+    return result
+
+
+@st.cache_data(ttl=21600, show_spinner=False)
+def load_fred_base_metal_cycle(
+    annual_series_id,
+    monthly_series_id,
+    cache_version,
+    normalization_years=5,
+    current_window_months=3,
+):
+    """Load IMF benchmark base-metal prices from FRED and fail closed."""
+    _ = cache_version
+
+    def _load(series_id):
+        url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
+        try:
+            frame = pd.read_csv(url)
+        except Exception:
+            return pd.DataFrame()
+        if frame is None or frame.empty:
+            return pd.DataFrame()
+        date_col = "DATE" if "DATE" in frame.columns else ("observation_date" if "observation_date" in frame.columns else None)
+        value_col = series_id if series_id in frame.columns else None
+        if date_col is None or value_col is None:
+            return pd.DataFrame()
+        return frame[[date_col, value_col]].rename(columns={date_col: "DATE", value_col: "VALUE"})
+
+    annual = _load(str(annual_series_id))
+    monthly = _load(str(monthly_series_id))
+    result = _evaluate_fred_base_metal_cycle(
+        annual,
+        monthly,
+        normalization_years=normalization_years,
+        current_window_months=current_window_months,
+    )
+    result["annual_series_id"] = str(annual_series_id)
+    result["monthly_series_id"] = str(monthly_series_id)
+    result["source_url_annual"] = f"https://fred.stlouisfed.org/series/{annual_series_id}"
+    result["source_url_monthly"] = f"https://fred.stlouisfed.org/series/{monthly_series_id}"
+    return result
 
 
 def build_mining_commodity_cycle(symbol, snapshot, cache_version, industry=None):
@@ -6534,7 +6712,7 @@ def get_verified_mining_asset_snapshot(symbol):
             "core_asset_lom_structure": get_verified_newmont_core_asset_lom_structure(),
             "technical_nav_references": [],
             "technical_nav_note": (
-                "V2.18 behält für Lihir, Cadia, Boddington und den Ahafo Complex die in Phase 1 verifizierten aktuellen "
+                "V2.18.1 behält für Lihir, Cadia, Boddington und den Ahafo Complex die in Phase 1 verifizierten aktuellen "
                 "S-K-1300-Technical-Report-Summaries mit LOM-Cashflows. "
                 "Phase 1 prüft die TRS-Eignung; Phase 2 normalisiert die vier Assets einzeln. V2.16 trennt weiterhin native Asset-NAVs, eine "
                 "Portfolio-Aggregationsschicht mit den offiziellen asset-spezifischen TRS-Raten und die separate 8-%-Vergleichsschicht. "
@@ -7358,7 +7536,7 @@ def get_verified_newmont_managed_source_coverage_map():
 
 def build_newmont_penasquito_multimetal_gate(cache_version):
     """
-    V2.18 Peñasquito multi-metal source and normalization gate.
+    V2.18.1 Peñasquito multi-metal source and normalization gate.
 
     This is deliberately NOT an Asset-NAV calculation. It verifies the 2023
     S-K 1300 economic structure, compares it with the attributable 2025 reserve
@@ -7374,6 +7552,14 @@ def build_newmont_penasquito_multimetal_gate(cache_version):
         silver_cycle = load_mining_commodity_price_cycle("SI=F", cache_version, 5, 60)
     except Exception:
         silver_cycle = {"available": False, "reason": "Silber-Zeitreihe nicht verfügbar."}
+    try:
+        lead_cycle = load_fred_base_metal_cycle("PLEADUSDA", "PLEADUSDM", cache_version, 5, 3)
+    except Exception:
+        lead_cycle = {"available": False, "reason": "Blei-IMF/FRED-Zeitreihe nicht verfügbar."}
+    try:
+        zinc_cycle = load_fred_base_metal_cycle("PZINCUSDA", "PZINCUSDM", cache_version, 5, 3)
+    except Exception:
+        zinc_cycle = {"available": False, "reason": "Zink-IMF/FRED-Zeitreihe nicht verfügbar."}
 
     # 2023 TRS economic-analysis basis (100% project basis; effective 31.12.2023).
     trs_recovered = {
@@ -7433,12 +7619,12 @@ def build_newmont_penasquito_multimetal_gate(cache_version):
     labels = {"gold": "Gold", "silver": "Silber", "lead": "Blei", "zinc": "Zink"}
     units = {"gold": "USD/oz", "silver": "USD/oz", "lead": "USD/lb", "zinc": "USD/lb"}
     reserve_units = {"gold": "Moz", "silver": "Moz", "lead": "Blb", "zinc": "Blb"}
-    cycles = {"gold": gold_cycle, "silver": silver_cycle}
+    cycles = {"gold": gold_cycle, "silver": silver_cycle, "lead": lead_cycle, "zinc": zinc_cycle}
 
     metal_rows = []
     for metal in ("gold", "silver", "lead", "zinc"):
         cycle = cycles.get(metal) or {}
-        dynamic_available = bool(cycle.get("available")) if metal in cycles else False
+        dynamic_available = bool(cycle.get("available"))
         normalized_price = safe_float(cycle.get("normalized_price")) if dynamic_available else None
         current_reference = safe_float(cycle.get("current_reference_price")) if dynamic_available else None
         trs_gap = None
@@ -7476,19 +7662,31 @@ def build_newmont_penasquito_multimetal_gate(cache_version):
             "gross_reference_share_pct": gross_share,
             "material": gross_share >= 5.0,
             "cycle_method": cycle.get("method") if dynamic_available else None,
-            "cycle_reason": cycle.get("reason") if not dynamic_available and metal in cycles else None,
+            "cycle_reason": cycle.get("reason") if not dynamic_available else None,
+            "cycle_source_name": cycle.get("source_name"),
+            "cycle_annual_series_id": cycle.get("annual_series_id"),
+            "cycle_monthly_series_id": cycle.get("monthly_series_id"),
+            "cycle_annual_averages": cycle.get("annual_averages") or [],
+            "cycle_current_reference_method": cycle.get("current_reference_method"),
+            "cycle_price_status": cycle.get("price_cycle_status"),
+            "cycle_premium_to_normalized_pct": cycle.get("premium_to_normalized_pct"),
+            "cycle_latest_observation_date": cycle.get("latest_observation_date"),
         })
 
     material_rows = [r for r in metal_rows if r.get("material")]
     normalized_material_rows = [r for r in material_rows if r.get("dynamic_normalizer_available")]
     all_material_metals_normalized = len(material_rows) > 0 and len(normalized_material_rows) == len(material_rows)
+    lead_zinc_normalized = all(
+        bool(next((r.get("dynamic_normalizer_available") for r in material_rows if r.get("metal") == metal), False))
+        for metal in ("lead", "zinc")
+    )
 
     return {
         "available": True,
-        "version": "V2.18",
+        "version": "V2.18.1",
         "status": (
-            "Multi-Metal-Struktur verifiziert – Gold/Silber normalisierbar; "
-            "Blei/Zink + 2025/2026-Roll-forward + Silver-Stream-Brücke offen; kein NAV"
+            "Multi-Metal-Struktur verifiziert – 4/4 Metalle dynamisch normalisierbar; "
+            "2025/2026-Roll-forward + Silver-Stream-Brücke + Closure-Tail offen; kein NAV"
         ),
         "asset": "Peñasquito",
         "ownership_pct": 100.0,
@@ -7529,6 +7727,12 @@ def build_newmont_penasquito_multimetal_gate(cache_version):
         "material_metal_count": len(material_rows),
         "normalized_material_metal_count": len(normalized_material_rows),
         "all_material_metals_normalized": all_material_metals_normalized,
+        "lead_zinc_normalization_ready": lead_zinc_normalized,
+        "base_metal_source_note": (
+            "Blei und Zink: IMF Primary Commodity Prices via FRED. Annual series PLEADUSDA/PZINCUSDA "
+            "für die 5 vollständigen Kalenderjahre; monthly series PLEADUSDM/PZINCUSDM für die aktuelle "
+            "3-Monats-Referenz. Rohdaten USD/metrische Tonne werden mit 2.204,62262185 lb/t in USD/lb umgerechnet."
+        ),
         "gross_reference_total_musd": gross_total,
         "gross_reference_note": (
             "Unadjustierte recovered-metal Bruttoreferenz ausschließlich zur Materialitätsprüfung. "
@@ -7545,7 +7749,6 @@ def build_newmont_penasquito_multimetal_gate(cache_version):
         "nav_released": False,
         "next_requirements": [
             "Aktuellen 2025/2026-LOM-/Cashflow-Roll-forward ab 01.01.2026 beschaffen; die 2024/2025-Jahre des 2023-TRS sind bereits Vergangenheit.",
-            "Validierte dynamische Preisnormalisierung für Blei und Zink ergänzen; Reserve-/Guidance-Preise sind nur Anker, kein Zyklusnormal.",
             "Silver-Stream-Ökonomie separat modellieren; 25 % der Silberproduktion dürfen nicht zum vollen normalisierten Silberpreis angesetzt werden.",
             "Closure-Tail 2033–2073 beim Roll-forward zeitlich erhalten; fehlende Jahreswerte nicht synthetisch verteilen.",
         ],
@@ -7553,8 +7756,10 @@ def build_newmont_penasquito_multimetal_gate(cache_version):
             "Der 2023-TRS ist ein belastbarer Multi-Metal-Referenzanker, aber keine aktuelle 2026-NAV-Basis. "
             "Die 2025-Reservebasis ist bei allen vier Metallen deutlich kleiner als 2023, während die annualisierte "
             "TRS-Cashflow-Tabelle 2024 beginnt. Gold und Silber können im bestehenden Modell dynamisch normalisiert "
-            "werden; für Blei und Zink ist noch keine validierte Marktserie freigegeben. Zusätzlich verändert der "
-            "25-%-Silver-Stream die Silberökonomie. Daher wird kein Preisbridge-NAV und keine zusätzliche SOTP-Abdeckung freigegeben."
+            "werden. Blei und Zink werden in V2.18.1 über die IMF-Primary-Commodity-Price-Serien via FRED "
+            "mit derselben 5-Jahres-Medianlogik normalisiert. Zusätzlich verändert der 25-%-Silver-Stream die "
+            "Silberökonomie. Daher wird trotz 4/4 Preisnormalisierung weiterhin kein Preisbridge-NAV und keine "
+            "zusätzliche SOTP-Abdeckung freigegeben."
         ),
     }
 
@@ -9590,7 +9795,7 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.18 ergänzt das Peñasquito Multi-Metal Source & Normalization Gate sowie die V2.17.1 Managed-Operations Source Coverage Map und trennt weiterhin Discount-Rate-&-Portfolio-Aggregation-Policy, Quality-aware Coverage Propagation, Asset-NAV-Normalisierung Phase 2 inklusive Cashflow-Horizon-&-Closure-Tail-Gate, Portfolio-Completeness-Gate, Portfolio-Abdeckungslogik, technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.18.1 ergänzt das Peñasquito Multi-Metal Source & Normalization Gate sowie die V2.17.1 Managed-Operations Source Coverage Map und trennt weiterhin Discount-Rate-&-Portfolio-Aggregation-Policy, Quality-aware Coverage Propagation, Asset-NAV-Normalisierung Phase 2 inklusive Cashflow-Horizon-&-Closure-Tail-Gate, Portfolio-Completeness-Gate, Portfolio-Abdeckungslogik, technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
             "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
             "Ertragskraft, Reserve-/Asset-Kontrolle, Run-rate-Mine-NAV und das "
             "formale Life-of-Mine-Freigabe-Gate. Ein Guidance-Jahr ersetzt kein "
@@ -10349,7 +10554,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_penasquito_multimetal_v218_20260907"
+CACHE_VERSION = "m6_mining_penasquito_leadzinc_v2181_20260907"
 
 @st.cache_data(
     ttl=900,
@@ -13168,7 +13373,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.18 – Peñasquito Multi-Metal Gate + V2.17.1 Source Coverage + V2.16 Portfolio-Aggregation")
+                    st.caption("Bergbau-Schutzmodell V2.18.1 – Peñasquito Multi-Metal Gate + V2.17.1 Source Coverage + V2.16 Portfolio-Aggregation")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -13670,7 +13875,7 @@ if selected_symbol:
                         structural_fallback = checks.get("structural_break_fallback", {})
                         if structural_fallback.get("applicable", False):
                             st.write(
-                                "**Structural-Break-Fallback V2.13.1 (unverändert innerhalb V2.18):** "
+                                "**Structural-Break-Fallback V2.13.1 (unverändert innerhalb V2.18.1):** "
                                 f"{structural_fallback.get('status', 'Noch offen')}"
                             )
                             fb1, fb2 = st.columns(2)
@@ -13842,7 +14047,7 @@ if selected_symbol:
 
                             core_lom = asset_nav_control.get("core_asset_lom_structure") or {}
                             if core_lom.get("available"):
-                                st.markdown("**Portfolio-LOM-Abdeckungsstruktur (V2.18):**")
+                                st.markdown("**Portfolio-LOM-Abdeckungsstruktur (V2.18.1):**")
                                 cov1, cov2, cov3 = st.columns(3)
                                 with cov1:
                                     st.metric("Gesamtportfolio-Reserven", f"{safe_float(core_lom.get('total_reserves_moz')) or 0.0:.1f} Mio. oz")
@@ -13875,7 +14080,7 @@ if selected_symbol:
 
                                 completeness_gate = core_lom.get("portfolio_completeness_gate") or {}
                                 if completeness_gate.get("available"):
-                                    st.markdown("**Portfolio-Completeness-Gate (V2.14.2 innerhalb V2.18):**")
+                                    st.markdown("**Portfolio-Completeness-Gate (V2.14.2 innerhalb V2.18.1):**")
                                     block_map = {b.get("key"): b for b in completeness_gate.get("blocks", [])}
                                     pc1, pc2, pc3 = st.columns(3)
                                     for col, key in [
@@ -13911,7 +14116,7 @@ if selected_symbol:
 
                                 phase1 = core_lom.get("technical_lom_phase1") or {}
                                 if phase1.get("available"):
-                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – Teilmodul V2.14.1 innerhalb V2.18:**")
+                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – Teilmodul V2.14.1 innerhalb V2.18.1:**")
                                     st.write(f"**Status:** {phase1.get('status', '–')}")
                                     p1c1, p1c2, p1c3, p1c4 = st.columns(4)
                                     with p1c1:
@@ -14035,7 +14240,7 @@ if selected_symbol:
 
                                         penasquito_gate = build_newmont_penasquito_multimetal_gate(CACHE_VERSION)
                                         if penasquito_gate.get("available"):
-                                            st.markdown("**V2.18 – Peñasquito Multi-Metal Source & Normalization Gate:**")
+                                            st.markdown("**V2.18.1 – Peñasquito Multi-Metal Source & Normalization Gate:**")
                                             st.write(f"**Status:** {penasquito_gate.get('status', '–')}")
                                             pg1, pg2, pg3, pg4 = st.columns(4)
                                             with pg1:
@@ -14085,12 +14290,41 @@ if selected_symbol:
                                                     st.caption(
                                                         f"Zyklusnormal vs. TRS-Preis: {trs_gap:+.1f} % · Zyklusnormal vs. 2025-Reservepreis: {reserve_gap:+.1f} %."
                                                     )
+                                                if metal.get("metal") in {"lead", "zinc"}:
+                                                    current_ref = safe_float(metal.get("current_reference_price"))
+                                                    cycle_premium = safe_float(metal.get("cycle_premium_to_normalized_pct"))
+                                                    if current_ref is not None and cycle_premium is not None:
+                                                        st.caption(
+                                                            f"Aktuelle 3-Monats-Referenz: {current_ref:.2f} {metal.get('unit')} · "
+                                                            f"{cycle_premium:+.1f} % vs. Zyklusnormal · {metal.get('cycle_price_status') or '–'}."
+                                                        )
+                                                    annuals = metal.get("cycle_annual_averages") or []
+                                                    if annuals:
+                                                        annual_text = " · ".join(
+                                                            f"{int(item.get('year'))}: {safe_float(item.get('average')):.2f}"
+                                                            for item in annuals
+                                                            if safe_float(item.get('average')) is not None
+                                                        )
+                                                        st.caption(f"5-Jahres-Jahrespreise ({metal.get('unit')}): {annual_text}.")
+                                                    source_name = metal.get("cycle_source_name")
+                                                    annual_id = metal.get("cycle_annual_series_id")
+                                                    monthly_id = metal.get("cycle_monthly_series_id")
+                                                    if source_name:
+                                                        st.caption(
+                                                            f"Quelle: {source_name} · FRED {annual_id}/{monthly_id} · "
+                                                            f"letzte Monatsbeobachtung {metal.get('cycle_latest_observation_date') or '–'}."
+                                                        )
 
+                                            if penasquito_gate.get("base_metal_source_note"):
+                                                st.caption(penasquito_gate.get("base_metal_source_note"))
                                             st.warning(penasquito_gate.get("silver_stream_note") or "")
                                             st.caption(penasquito_gate.get("reserve_2025_note") or "")
                                             st.write("**Freigabe-Gates:**")
                                             st.write("• 2025/2026 LOM-/Cashflow-Roll-forward: **offen**")
-                                            st.write("• Blei-/Zink-Zyklusnormalisierung: **offen**")
+                                            if penasquito_gate.get("lead_zinc_normalization_ready"):
+                                                st.write("• Blei-/Zink-Zyklusnormalisierung: **freigegeben**")
+                                            else:
+                                                st.write("• Blei-/Zink-Zyklusnormalisierung: **offen**")
                                             st.write("• Silver-Stream-Preisbrücke: **offen**")
                                             st.write("• Closure-Tail-Roll-forward: **offen**")
                                             st.error("Peñasquito Phase 2 / NAV: Gesperrt")
@@ -14103,7 +14337,7 @@ if selected_symbol:
 
                                 phase2 = core_lom.get("asset_nav_phase2") or {}
                                 if phase2.get("available"):
-                                    st.markdown("**Asset-NAV-Normalisierung Phase 2 – V2.16 Policy innerhalb V2.18:**")
+                                    st.markdown("**Asset-NAV-Normalisierung Phase 2 – V2.16 Policy innerhalb V2.18.1:**")
                                     st.write(f"**Status:** {phase2.get('status', '–')}")
                                     p2a, p2b, p2c, p2d = st.columns(4)
                                     with p2a:
