@@ -17,6 +17,8 @@ st.caption(
 )
 
 
+# V2.20.1: EPS-Divergenz-Gate auf Basis der vollständigen V2.20-Version.
+
 # =========================================================
 # Hilfsfunktionen
 # =========================================================
@@ -265,7 +267,8 @@ def apply_eps_confidence_brake(
 ):
     """
     Reduce EPS-normalization confidence when positive TTM and forward EPS
-    diverge strongly. The EPS calculation itself is not changed.
+    diverge strongly. Weight changes are handled separately by the
+    V2.20.1 EPS-Divergence Gate.
     """
     trailing = safe_float(trailing_eps)
     forward = safe_float(forward_eps)
@@ -310,11 +313,90 @@ def apply_eps_confidence_brake(
     note = (
         "TTM-EPS und Forward-EPS weichen um "
         f"{deviation * 100:.1f} % voneinander ab. "
-        "Die EPS-Berechnung bleibt unverändert; "
-        f"die angezeigte Sicherheit wird höchstens als {confidence_cap} eingestuft."
+        f"Die angezeigte Sicherheit wird höchstens als {confidence_cap} eingestuft."
     )
 
     return confidence, note, deviation
+
+
+def apply_eps_divergence_gate(
+    base_trailing_weight,
+    base_forward_weight,
+    trailing_eps,
+    forward_eps
+):
+    """
+    V2.20.1 – EPS-Divergence Gate for non-cyclical EPS normalization.
+
+    The normal growth-based weighting remains valid while TTM and forward EPS
+    are close. With larger positive-EPS divergence the model automatically
+    reduces reliance on the forward estimate:
+
+    - deviation <= 25 %: keep the normal base weighting
+    - >25 % to 50 %: 50 % TTM / 50 % Forward
+    - >50 % to 100 %: 60 % TTM / 40 % Forward
+    - >100 %: 70 % TTM / 30 % Forward
+
+    No estimate is invented when one EPS value is missing or non-positive.
+    """
+    trailing = safe_float(trailing_eps)
+    forward = safe_float(forward_eps)
+
+    if (
+        trailing is None
+        or forward is None
+        or trailing <= 0
+        or forward <= 0
+    ):
+        return {
+            "trailing_weight": base_trailing_weight,
+            "forward_weight": base_forward_weight,
+            "deviation": None,
+            "active": False,
+            "band": None,
+            "note": None
+        }
+
+    deviation = abs(forward / trailing - 1.0)
+
+    if deviation <= 0.25:
+        return {
+            "trailing_weight": base_trailing_weight,
+            "forward_weight": base_forward_weight,
+            "deviation": deviation,
+            "active": False,
+            "band": "bis 25 %",
+            "note": None
+        }
+
+    if deviation <= 0.50:
+        trailing_weight = 0.50
+        forward_weight = 0.50
+        band = ">25 % bis 50 %"
+    elif deviation <= 1.00:
+        trailing_weight = 0.60
+        forward_weight = 0.40
+        band = ">50 % bis 100 %"
+    else:
+        trailing_weight = 0.70
+        forward_weight = 0.30
+        band = ">100 %"
+
+    note = (
+        "EPS-Divergenz-Gate aktiv: TTM-EPS und Forward-EPS weichen um "
+        f"{deviation * 100:.1f} % voneinander ab. Deshalb wird die "
+        f"Gewichtung auf {trailing_weight * 100:.0f} % TTM-EPS und "
+        f"{forward_weight * 100:.0f} % Forward-EPS begrenzt."
+    )
+
+    return {
+        "trailing_weight": trailing_weight,
+        "forward_weight": forward_weight,
+        "deviation": deviation,
+        "active": True,
+        "band": band,
+        "note": note
+    }
 
 
 def build_eps_result(
@@ -2707,6 +2789,32 @@ def normalize_eps(
                 "bei stabilem Unternehmen"
             )
 
+        base_trailing_weight = trailing_weight
+        base_forward_weight = forward_weight
+        base_method = method
+
+        divergence_gate = apply_eps_divergence_gate(
+            base_trailing_weight,
+            base_forward_weight,
+            trailing,
+            forward
+        )
+
+        trailing_weight = divergence_gate[
+            "trailing_weight"
+        ]
+        forward_weight = divergence_gate[
+            "forward_weight"
+        ]
+
+        if divergence_gate.get("active"):
+            method = (
+                f"{trailing_weight * 100:.0f} % TTM-EPS + "
+                f"{forward_weight * 100:.0f} % Forward-EPS "
+                "durch EPS-Divergenz-Gate; "
+                f"Ausgangsmethode: {base_method}"
+            )
+
         normalized = (
             trailing_weight * trailing +
             forward_weight * forward
@@ -2717,13 +2825,24 @@ def normalize_eps(
         else:
             confidence = "Mittel"
 
+        divergence_metadata = {
+            "eps_divergence_gate_active": divergence_gate.get("active", False),
+            "eps_divergence_band": divergence_gate.get("band"),
+            "eps_divergence_note": divergence_gate.get("note"),
+            "eps_base_trailing_weight": base_trailing_weight,
+            "eps_base_forward_weight": base_forward_weight,
+            "eps_used_trailing_weight": trailing_weight,
+            "eps_used_forward_weight": forward_weight
+        }
+
         return build_eps_result(
             normalized,
             method,
             confidence,
             None,
             trailing,
-            forward
+            forward,
+            divergence_metadata
         )
 
     if forward is not None and forward > 0:
@@ -4821,11 +4940,12 @@ def get_special_control(company_type, symbol):
                 "Peñasquito Multi-Metal Source & Normalization Gate (Gold / Silber / Blei / Zink / Silver Stream)",
                 "Peñasquito Annualized Cashflow Data Recovery Gate (4 fehlende Jahresprofile / Current-vs.-Historical-Quellen)",
                 "Tanami Current Source & LOM Roll-forward + Cashflow/Closure Source Recovery Gate (Expansion 2 / 2026 Run-rate / annualisierte LOM- & Closure-Daten)",
+                "Merian Current Source & LOM Roll-forward Gate (FY25 Reserven / Mine-Life / 2026 Run-rate / annualisierte LOM- & Closure-Daten)",
                 "Allgemeiner Primärrohstoff-Router"
             ],
-            "status": "Router aktiv – V2.19.1 Tanami Cashflow/Closure Source Recovery + V2.18.5 Peñasquito Recovery + V2.16 Portfolio-Aggregation",
+            "status": "Router aktiv – V2.20 Merian Current Source/LOM Roll-forward + V2.19.1 Tanami Recovery + V2.18.5 Peñasquito Recovery + V2.16 Portfolio-Aggregation",
             "note": (
-                "V2.19.1 ergänzt die Tanami-Prüfung um ein Cashflow-/Closure-Source-Recovery-Gate. Der verifizierte öffentliche Current-Source-Set wird getrennt danach geprüft, ob ein vollständiger annualisierter LOM-Cashflow und ein mine-spezifischer annualisierter Closure-/Reclamation-Tail tatsächlich wiedergewonnen werden können. Corporate Guidance, 2026 Site-Run-rate, der 2028–2032 Produktions-/Effizienzrahmen und aktuelle Mine-Life-Angaben bleiben nur Anker; Portfolio-Reclamation-Zahlen oder Tanami-Exploration-Closure-Unterlagen dürfen die operative Tanami-Mine nicht synthetisch ersetzen. Für Tanami werden weiterhin aktuelle FY25-Reserven, die heutige Mine-Life-/Expansion-2-Struktur, Projektzeitplan/-kosten sowie die 2026 Site-Run-rate verifiziert. Der historische 2018 Technical Report bleibt nur Referenzanker; fehlende annualisierte LOM-Cashflows und Closure-Zeitpfade werden nicht fortgeschrieben. V2.18.5 ergänzt das Peñasquito-Multi-Metal-Modell um ein Annualized-Cashflow-Data-Recovery-Gate. Nach der V2.18.4 Source-Availability-Prüfung werden die vier vollständig fehlenden Jahresprofile (payable Metallproduktion, Opex, Sustaining CapEx und Closure-Tail) gezielt gegen aktuelle öffentliche Quellen und den historischen 2023-TRS als nicht-current Referenz geprüft. Aktuelle Quellen liefern weiterhin keinen vollständigen 2026–2033-Jahresdatensatz; historische Cashflow-Shapes werden nicht skaliert oder fortgeschrieben. Die aktuelle LOM-Struktur bleibt getrennt vom annualisierten Current-Cashflow und Closure-Tail. V2.18.2 bleibt als separate Silver-Stream-Preisbrücke aktiv. Die Brücke wird nur bei verfügbarer 4/4-Metallnormalisierung freigegeben; 25 % der vertraglich gestreamten payable/delivered Silberbasis werden separat mit dem Wheaton-Lieferpreis statt mit dem vollen Silbermarktpreis behandelt. Der 2023-TRS bleibt Economic-Analysis-Referenzanker; die aktuelle LOM-Struktur per 31.12.2025 ist verifiziert, aber annualisierter 2026–2033-Current-Cashflow und aktueller Closure-Tail bleiben vor jedem NAV Pflicht. V2.17.1 ergänzt weiterhin die Managed-Operations Source Coverage Map für die sieben noch offenen Reserve-Assetgruppen. Die V2.16 Discount-Rate-&-Portfolio-Aggregation-Policy bleibt unverändert aktiv. Asset-spezifische offizielle TRS-After-Tax-Diskontsätze dürfen für einen heterogenen Sum-of-the-Parts-Ansatz beibehalten werden, sofern Bewertungsstichtag, Währung, Eigentumsanteil und Rohstoffpreis-Normalisierung konsistent sind. Die 8-%-Re-Diskontierung bleibt eine separate Vergleichsschicht und ist nicht mehr das bindende 90-%-Portfolio-Gate. Das Cashflow-Horizon-/Closure-Tail-Gate bleibt für echte Re-Diskontierungen aktiv. Zusätzlich bleiben Portfolio-Completeness, Structural-Break-Fallback, Reserve-/NAV-Snapshot und der konservative allgemeine "
+                "V2.20 ergänzt Merian um ein Current-Source-/LOM-Roll-forward-Gate: FY25 Reserven/Eigentum, aktuelles Reserveleben, 2026 Site-Run-rate, Betriebs-/TSF-Kontext und ein 2025 Economic Run-rate-Anker werden verifiziert; annualisierter LOM-Cashflow und mine-spezifischer Closure-Tail bleiben Pflicht und werden nicht geschätzt. V2.19.1 ergänzt die Tanami-Prüfung um ein Cashflow-/Closure-Source-Recovery-Gate. Der verifizierte öffentliche Current-Source-Set wird getrennt danach geprüft, ob ein vollständiger annualisierter LOM-Cashflow und ein mine-spezifischer annualisierter Closure-/Reclamation-Tail tatsächlich wiedergewonnen werden können. Corporate Guidance, 2026 Site-Run-rate, der 2028–2032 Produktions-/Effizienzrahmen und aktuelle Mine-Life-Angaben bleiben nur Anker; Portfolio-Reclamation-Zahlen oder Tanami-Exploration-Closure-Unterlagen dürfen die operative Tanami-Mine nicht synthetisch ersetzen. Für Tanami werden weiterhin aktuelle FY25-Reserven, die heutige Mine-Life-/Expansion-2-Struktur, Projektzeitplan/-kosten sowie die 2026 Site-Run-rate verifiziert. Der historische 2018 Technical Report bleibt nur Referenzanker; fehlende annualisierte LOM-Cashflows und Closure-Zeitpfade werden nicht fortgeschrieben. V2.18.5 ergänzt das Peñasquito-Multi-Metal-Modell um ein Annualized-Cashflow-Data-Recovery-Gate. Nach der V2.18.4 Source-Availability-Prüfung werden die vier vollständig fehlenden Jahresprofile (payable Metallproduktion, Opex, Sustaining CapEx und Closure-Tail) gezielt gegen aktuelle öffentliche Quellen und den historischen 2023-TRS als nicht-current Referenz geprüft. Aktuelle Quellen liefern weiterhin keinen vollständigen 2026–2033-Jahresdatensatz; historische Cashflow-Shapes werden nicht skaliert oder fortgeschrieben. Die aktuelle LOM-Struktur bleibt getrennt vom annualisierten Current-Cashflow und Closure-Tail. V2.18.2 bleibt als separate Silver-Stream-Preisbrücke aktiv. Die Brücke wird nur bei verfügbarer 4/4-Metallnormalisierung freigegeben; 25 % der vertraglich gestreamten payable/delivered Silberbasis werden separat mit dem Wheaton-Lieferpreis statt mit dem vollen Silbermarktpreis behandelt. Der 2023-TRS bleibt Economic-Analysis-Referenzanker; die aktuelle LOM-Struktur per 31.12.2025 ist verifiziert, aber annualisierter 2026–2033-Current-Cashflow und aktueller Closure-Tail bleiben vor jedem NAV Pflicht. V2.17.1 ergänzt weiterhin die Managed-Operations Source Coverage Map für die sieben noch offenen Reserve-Assetgruppen. Die V2.16 Discount-Rate-&-Portfolio-Aggregation-Policy bleibt unverändert aktiv. Asset-spezifische offizielle TRS-After-Tax-Diskontsätze dürfen für einen heterogenen Sum-of-the-Parts-Ansatz beibehalten werden, sofern Bewertungsstichtag, Währung, Eigentumsanteil und Rohstoffpreis-Normalisierung konsistent sind. Die 8-%-Re-Diskontierung bleibt eine separate Vergleichsschicht und ist nicht mehr das bindende 90-%-Portfolio-Gate. Das Cashflow-Horizon-/Closure-Tail-Gate bleibt für echte Re-Diskontierungen aktiv. Zusätzlich bleiben Portfolio-Completeness, Structural-Break-Fallback, Reserve-/NAV-Snapshot und der konservative allgemeine "
                 "Primärrohstoff-Router für eindeutige Branchen wie Gold, Silber und "
                 "Kupfer. Unspezifische Mischbranchen bleiben gesperrt. Das bestehende "
                 "V2.7-Life-of-Mine-Gate bleibt unverändert aktiv. Zusätzlich darf ein später bestandener "
@@ -5680,7 +5800,7 @@ def get_verified_mining_commodity_route(symbol, industry=None):
         "route_source": "Allgemeiner Branchen-Router",
         "routing_basis": f"Yahoo-Branche: {industry_text}",
         "mapping_note": (
-            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.19.1 "
+            f"Die eindeutige Yahoo-Branche „{industry_text}“ wird in V2.20 "
             f"automatisch dem Primärrohstoff {base['commodity_name']} zugeordnet. "
             "Unspezifische oder gemischte Bergbau-Branchen werden weiterhin nicht "
             "automatisch geroutet."
@@ -6714,7 +6834,7 @@ def get_verified_mining_asset_snapshot(symbol):
             "core_asset_lom_structure": get_verified_newmont_core_asset_lom_structure(),
             "technical_nav_references": [],
             "technical_nav_note": (
-                "V2.19.1 behält für Lihir, Cadia, Boddington und den Ahafo Complex die in Phase 1 verifizierten aktuellen "
+                "V2.20 behält für Lihir, Cadia, Boddington und den Ahafo Complex die in Phase 1 verifizierten aktuellen "
                 "S-K-1300-Technical-Report-Summaries mit LOM-Cashflows. "
                 "Phase 1 prüft die TRS-Eignung; Phase 2 normalisiert die vier Assets einzeln. V2.16 trennt weiterhin native Asset-NAVs, eine "
                 "Portfolio-Aggregationsschicht mit den offiziellen asset-spezifischen TRS-Raten und die separate 8-%-Vergleichsschicht. "
@@ -8011,6 +8131,145 @@ def get_verified_newmont_tanami_current_lom_gate():
     }
 
 
+
+def get_verified_newmont_merian_current_lom_gate():
+    """
+    V2.20 Merian Current Source & LOM Roll-forward Gate.
+
+    This module verifies the current Merian operating structure from Newmont's
+    FY2025/2026 public disclosures. It deliberately does not create an Asset-NAV:
+    attributable reserves, ownership, current production/cost guidance, mine-life
+    anchors and current operating/TSF context are useful source controls, but they
+    do not replace a current annualized LOM production/Opex/CapEx/tax schedule or
+    a mine-specific annualized closure/reclamation tail.
+    """
+    blocks = [
+        {
+            "block": "FY25 Reservebasis & Eigentum",
+            "status": "Freigegeben",
+            "current_verified": True,
+            "evidence": (
+                "FY25 Goldreserven 4,5 Mio. zurechenbare oz. Newmont betreibt Merian und hält 75 %; "
+                "die 4,5 Mio. oz sind bereits zurechenbar und dürfen für die Reserveabdeckung nicht nochmals mit 75 % multipliziert werden."
+            ),
+            "source": "Newmont 2025 Form 10-K + FY2025 Reserves / Merian Operations & Projects",
+        },
+        {
+            "block": "Mine-Life / Langfriststruktur",
+            "status": "Freigegeben",
+            "current_verified": True,
+            "evidence": (
+                "Newmont weist Merian in der FY25-Reservebasis als Betrieb mit mindestens zehn Jahren Gold-Reserveleben aus. "
+                "Eine aktuelle Newmont-Nachhaltigkeitsoffenlegung nennt einen Betriebs-/Planungshorizont bis etwa 2040. "
+                "Das ist ein Mine-Life-Anker, kein annualisierter LOM-Cashflow."
+            ),
+            "source": "Newmont FY2025 Reserves + Newmont Sustainability / Merian disclosure",
+        },
+        {
+            "block": "2026 Site-Run-rate",
+            "status": "Freigegeben",
+            "current_verified": True,
+            "evidence": (
+                "2026 Guidance: 225 koz Gold, CAS 1.480 USD/oz und AISC 1.800 USD/oz. "
+                "Newmont erwartet höhere Feed-Grades aus der beschleunigten Merian-2-Phase-3-Minenfolge."
+            ),
+            "source": "Newmont FY2025 Results / 2026 Site Guidance",
+        },
+        {
+            "block": "Aktueller Betriebs-/TSF-Kontext",
+            "status": "Freigegeben",
+            "current_verified": True,
+            "evidence": (
+                "Aktuelle Newmont-Unterlagen bestätigen den laufenden Tagebaubetrieb mit Merian 1/2, Maraba und Kupari sowie "
+                "die geplante zusätzliche Tailings-Infrastruktur zur Unterstützung des weiteren Betriebs. "
+                "Aus dieser Infrastrukturinformation wird kein Cashflow konstruiert."
+            ),
+            "source": "Newmont 2025 Form 10-K + Merian Operations & Projects / aktuelle Umwelt- und Sozialoffenlegung",
+        },
+        {
+            "block": "2025 Economic Run-rate-Anker",
+            "status": "Freigegeben",
+            "current_verified": True,
+            "evidence": (
+                "Newmont berichtet für Merian 2025 rund 237 koz Produktion, 846 Mio. USD Umsatz, "
+                "290 Mio. USD Ergebnis vor Steuern und 127 Mio. USD Taxes borne. Diese Werte sind nur Current-Run-rate-/Plausibilitätsanker."
+            ),
+            "source": "Newmont 2025 Taxes and Royalties Contribution Report",
+        },
+        {
+            "block": "Annualisierter LOM-Produktions-/Opex-/CapEx-/Steuerpfad",
+            "status": "Offen",
+            "current_verified": False,
+            "evidence": (
+                "Die verifizierten aktuellen Quellen veröffentlichen keinen vollständigen jahresweisen Merian-LOM-Cashflow bis zum Minenende. "
+                "2026 Guidance, Reserveleben, Exploration und TSF-Planung werden nicht synthetisch in Jahrescashflows umgerechnet."
+            ),
+            "source": "Aktuelle Newmont-Unternehmensoffenlegung",
+        },
+        {
+            "block": "Closure / Reclamation Tail",
+            "status": "Offen",
+            "current_verified": False,
+            "evidence": (
+                "Kein aktueller mine-spezifischer annualisierter Closure-/Reclamation-Zeitpfad mit Jahrescashflows auf dem FY25/2026-Bewertungsstichtag "
+                "ist im verifizierten öffentlichen Set vorhanden. Umwelt-/TSF-Dokumente werden nicht als Economic-Closure-Cashflow substituiert."
+            ),
+            "source": "Aktuelle Newmont-Unternehmens- und Umwelt-/Sozialoffenlegung",
+        },
+    ]
+    current_count = sum(1 for b in blocks if b.get("current_verified"))
+    blocked = [b for b in blocks if not b.get("current_verified")]
+    return {
+        "available": True,
+        "version": "V2.20",
+        "asset": "Merian",
+        "as_of_date": "31.12.2025 / 2026 Guidance",
+        "published_date": "19.02.2026 + aktuelle 2026 Unternehmensquellen",
+        "ownership_pct": 75.0,
+        "reserve_moz": 4.5,
+        "reserve_is_attributable": True,
+        "mine_life_status": "≥10 Jahre; Planungshorizont ~2040",
+        "guidance_2026": {
+            "production_koz": 225.0,
+            "cas_usd_oz": 1480.0,
+            "aisc_usd_oz": 1800.0,
+        },
+        "economic_anchor_2025": {
+            "production_koz": 237.0,
+            "revenue_musd": 846.0,
+            "pretax_profit_musd": 290.0,
+            "taxes_borne_musd": 127.0,
+        },
+        "source_blocks": blocks,
+        "source_block_count": len(blocks),
+        "current_verified_count": current_count,
+        "blocked_count": len(blocked),
+        "current_source_structure_ready": True,
+        "annualized_lom_cashflow_ready": False,
+        "closure_tail_ready": False,
+        "phase2_ready": False,
+        "status": (
+            "Current-Source-Struktur verifiziert – Reserve/Eigentum, Mine-Life, 2026 Run-rate und Betriebsanker aktuell; "
+            "annualisierter LOM-Cashflow + Closure-Tail offen; kein NAV"
+        ),
+        "reason": (
+            "Merian ist current deutlich besser verankert als eine reine Guidance-Zeile: FY25-Reserven/Eigentum, aktuelles Reserveleben, "
+            "2026 Produktion/Kosten, Betriebs-/TSF-Kontext und 2025 Economic Run-rate sind verifiziert. Für Phase 2 fehlen dennoch die "
+            "jahresweisen LOM-Mengen, Opex, Sustaining/Development CapEx, Steuern/Royalties und ein annualisierter mine-spezifischer Closure-Tail. "
+            "Diese fehlenden Pfade werden nicht aus Run-rate-Werten oder historischen/Umweltdokumenten geschätzt."
+        ),
+        "next_requirements": [
+            "Aktuellen annualisierten Merian-LOM-Minen-/Produktionsplan mit Jahresprofilen bis zum Minenende beschaffen.",
+            "Jahresweise Opex-, Sustaining-/Development-CapEx- sowie Steuer-/Royalty-Cashflows beschaffen.",
+            "Mine-spezifischen annualisierten Closure-/Reclamation-Zeitpfad auf aktuellem Bewertungsstichtag beschaffen.",
+        ],
+        "source_note": (
+            "Aktuelle Basis: Newmont 2025 Form 10-K, FY2025 Reserves, FY2025 Results/2026 Guidance, Merian Operations & Projects, "
+            "aktuelle Newmont Nachhaltigkeits-/HRIA-Offenlegung und 2025 Taxes and Royalties Contribution Report. "
+            "Kein synthetischer Roll-forward und kein Fair Value."
+        ),
+    }
+
 def get_verified_newmont_managed_source_coverage_map():
     """
     V2.17.1 source-coverage audit for the seven Newmont managed operating reserve
@@ -8050,17 +8309,19 @@ def get_verified_newmont_managed_source_coverage_map():
             "ownership_pct": 75.0,
             "current_corporate_data": True,
             "current_full_trs": False,
+            "current_corporate_lom_overlay": True,
             "historical_technical_anchor": False,
-            "latest_technical_source": "Kein verifizierter vollständiger aktueller/historischer LOM-TRS in der V2.17.1-Quellenprüfung",
-            "technical_effective_date": None,
-            "source_class": "C – aktuelle Unternehmensdaten, kein Voll-LOM-Bericht",
+            "latest_technical_source": "Newmont FY25/2026 Current Source & LOM Roll-forward (kein Voll-TRS)",
+            "technical_effective_date": "31.12.2025 / 19.02.2026 + aktuelle 2026 Unternehmensquellen",
+            "source_class": "C+ – aktuelle Reserve-/Mine-Life-/Run-rate-Struktur; kein annualisierter Voll-LOM-Cashflow",
             "complexity": "Gold-Tagebau; Newmont 75 %, Reserven bereits zurechenbar",
             "phase2_ready": False,
-            "next_requirement": "Belastbaren LOM-Minenplan mit Kosten, CapEx, Steuer/Royalty und Closure beschaffen",
+            "next_requirement": "Annualisierten LOM-Produktions-/Opex-/CapEx-/Steuerpfad + aktuellen Closure-Tail beschaffen",
             "note": (
-                "2025 Form 10-K und 2026 Guidance sind aktuell, ersetzen aber keinen vollständigen "
-                "Minen-Cashflow. Die 4,5 Mio. oz sind bereits zurechenbare Reserven; 75 % Eigentum "
-                "darf bei der Reserveabdeckung nicht nochmals angewendet werden."
+                "V2.20 verifiziert FY25 Reserven/Eigentum, ≥10 Jahre Reserveleben bzw. einen langfristigen Planungshorizont, "
+                "2026 Site-Run-rate, aktuellen Betriebs-/TSF-Kontext und einen 2025 Economic Run-rate-Anker. "
+                "Ein vollständiger annualisierter Current-LOM-Cashflow und mine-spezifischer Closure-Tail fehlen weiterhin. "
+                "Die 4,5 Mio. oz sind bereits zurechenbare Reserven; 75 % Eigentum darf bei der Reserveabdeckung nicht nochmals angewendet werden."
             ),
         },
         {
@@ -8181,10 +8442,10 @@ def get_verified_newmont_managed_source_coverage_map():
 
     return {
         "available": True,
-        "version": "V2.17.1",
-        "status": "7 offene Managed-Assetgruppen klassifiziert – Tanami Current-Roll-forward ergänzt; noch kein zusätzliches Phase-2-Asset freigegeben",
+        "version": "V2.20",
+        "status": "7 offene Managed-Assetgruppen klassifiziert – Tanami + Merian Current-Roll-forwards ergänzt; noch kein zusätzliches Phase-2-Asset freigegeben",
         "as_of_date": "07.09.2026",
-        "current_source_basis": "Newmont 2025 Form 10-K + FY2025 Results/2026 Guidance + Tanami Operations & Projects + verifizierte historische technische Berichte + Peñasquito 2025 QP-freigegebener LOM-Roll-forward (Wheaton AIF)",
+        "current_source_basis": "Newmont 2025 Form 10-K + FY2025 Reserves/Results/2026 Guidance + Tanami & Merian Operations/Current Disclosures + verifizierte historische technische Berichte + Peñasquito 2025 QP-freigegebener LOM-Roll-forward (Wheaton AIF)",
         "open_asset_count": len(rows),
         "open_reserves_moz": open_reserves,
         "current_full_trs_asset_count": len(current_full_rows),
@@ -8194,6 +8455,7 @@ def get_verified_newmont_managed_source_coverage_map():
         "current_corporate_lom_overlay_asset_count": len(current_corporate_lom_rows),
         "current_corporate_lom_overlay_reserves_moz": current_corporate_lom_reserves,
         "tanami_current_lom_gate": get_verified_newmont_tanami_current_lom_gate(),
+        "merian_current_lom_gate": get_verified_newmont_merian_current_lom_gate(),
         "historical_anchor_asset_count": len(historical_rows),
         "historical_anchor_reserves_moz": historical_reserves,
         "historical_anchor_open_coverage_pct": (historical_reserves / open_reserves * 100.0 if open_reserves else 0.0),
@@ -8202,7 +8464,7 @@ def get_verified_newmont_managed_source_coverage_map():
         "special_model_reserves_moz": special_reserves,
         "assets": rows,
         "reason": (
-            "Die Quellenlandkarte bleibt konservativ. V2.19.1 ergänzt Tanami um einen aktuellen Corporate Mine-Life-/Expansion-2-Roll-forward, der ausdrücklich kein Voll-TRS und kein Phase-2-Cashflow ist. Peñasquito besitzt seit V2.18.4 eine aktuelle QP-freigegebene LOM-Struktur "
+            "Die Quellenlandkarte bleibt konservativ. V2.20 ergänzt Merian um einen aktuellen Reserve-/Mine-Life-/Run-rate-Roll-forward; V2.19.1 hält Tanami mit dem Corporate Mine-Life-/Expansion-2-Roll-forward aktuell. Beide sind ausdrücklich kein Voll-TRS und kein Phase-2-Cashflow. Peñasquito besitzt seit V2.18.4 eine aktuelle QP-freigegebene LOM-Struktur "
             "per 31.12.2025. V2.18.5 hat zusätzlich die vier vollständig fehlenden Current-Jahresprofile nachrecherchiert; 0/4 wurden "
             "belastbar wiedergewonnen. Vollständiger annualisierter Current-Cashflow und aktueller annualisierter Closure-Tail fehlen "
             "weiterhin. Deshalb erhöht auch der Recovery-Check die Phase-2-/SOTP-Abdeckung nicht."
@@ -10583,7 +10845,7 @@ def build_mining_special_control(
             "mining_asset_nav_control": asset_nav_control,
         },
         "note": (
-            "Die Bergbau-Spezialkontrolle V2.19.1 ergänzt das Tanami Cashflow-/Closure-Source-Recovery-Gate auf Basis des Current Source & LOM Roll-forward Gates und behält das Peñasquito Annualized-Cashflow-Data-Recovery-Gate auf Basis des V2.18.4 Current-Cashflow-Source-Availability-Gates sowie des Current-LOM-/Cashflow-Roll-forward-Gates auf Basis des Multi-Metal- und Silver-Stream-Gates sowie die V2.17.1 Managed-Operations Source Coverage Map und trennt weiterhin Discount-Rate-&-Portfolio-Aggregation-Policy, Quality-aware Coverage Propagation, Asset-NAV-Normalisierung Phase 2 inklusive Cashflow-Horizon-&-Closure-Tail-Gate, Portfolio-Completeness-Gate, Portfolio-Abdeckungslogik, technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
+            "Die Bergbau-Spezialkontrolle V2.20 ergänzt das Merian Current-Source-/LOM-Roll-forward-Gate, behält das Tanami Cashflow-/Closure-Source-Recovery-Gate auf Basis des Current Source & LOM Roll-forward Gates und behält das Peñasquito Annualized-Cashflow-Data-Recovery-Gate auf Basis des V2.18.4 Current-Cashflow-Source-Availability-Gates sowie des Current-LOM-/Cashflow-Roll-forward-Gates auf Basis des Multi-Metal- und Silver-Stream-Gates sowie die V2.17.1 Managed-Operations Source Coverage Map und trennt weiterhin Discount-Rate-&-Portfolio-Aggregation-Policy, Quality-aware Coverage Propagation, Asset-NAV-Normalisierung Phase 2 inklusive Cashflow-Horizon-&-Closure-Tail-Gate, Portfolio-Completeness-Gate, Portfolio-Abdeckungslogik, technische LOM/NAV-Phase 1, Structural-Break-Kontrolle, Structural-Break-Fallback, Reserve-/NAV-Snapshot, Primärrohstoff-Routing, Finanzzyklus, operative "
             "Minenvisibilität, Rohstoffpreis-Normalisierung, nachhaltige "
             "Ertragskraft, Reserve-/Asset-Kontrolle, Run-rate-Mine-NAV und das "
             "formale Life-of-Mine-Freigabe-Gate. Ein Guidance-Jahr ersetzt kein "
@@ -11342,7 +11604,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_tanami_cashflow_closure_recovery_v2191_20260907"
+CACHE_VERSION = "m6_mining_merian_current_lom_v220_20260907"
 
 @st.cache_data(
     ttl=900,
@@ -12310,6 +12572,11 @@ if selected_symbol:
                     st.error(
                         "EPS-Normalisierung: "
                         "**Niedrige Sicherheit**"
+                    )
+
+                if eps_result.get("eps_divergence_note"):
+                    st.warning(
+                        eps_result["eps_divergence_note"]
                     )
 
                 if eps_result.get("confidence_note"):
@@ -14161,7 +14428,7 @@ if selected_symbol:
                         "⛏️ Modul 6 – Schritt 3B: "
                         "Bergbau-/Rohstoff-Zykluskontrolle"
                     )
-                    st.caption("Bergbau-Schutzmodell V2.19.1 – Tanami Cashflow/Closure Source Recovery + Peñasquito Recovery + V2.16 Portfolio-Aggregation")
+                    st.caption("Bergbau-Schutzmodell V2.20 – Merian Current Source/LOM Roll-forward + Tanami Recovery + Peñasquito Recovery + V2.16 Portfolio-Aggregation")
 
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
@@ -14835,7 +15102,7 @@ if selected_symbol:
 
                             core_lom = asset_nav_control.get("core_asset_lom_structure") or {}
                             if core_lom.get("available"):
-                                st.markdown("**Portfolio-LOM-Abdeckungsstruktur (V2.19.1):**")
+                                st.markdown("**Portfolio-LOM-Abdeckungsstruktur (V2.20):**")
                                 cov1, cov2, cov3 = st.columns(3)
                                 with cov1:
                                     st.metric("Gesamtportfolio-Reserven", f"{safe_float(core_lom.get('total_reserves_moz')) or 0.0:.1f} Mio. oz")
@@ -14868,7 +15135,7 @@ if selected_symbol:
 
                                 completeness_gate = core_lom.get("portfolio_completeness_gate") or {}
                                 if completeness_gate.get("available"):
-                                    st.markdown("**Portfolio-Completeness-Gate (V2.14.2 innerhalb V2.19.1):**")
+                                    st.markdown("**Portfolio-Completeness-Gate (V2.14.2 innerhalb V2.20):**")
                                     block_map = {b.get("key"): b for b in completeness_gate.get("blocks", [])}
                                     pc1, pc2, pc3 = st.columns(3)
                                     for col, key in [
@@ -14904,7 +15171,7 @@ if selected_symbol:
 
                                 phase1 = core_lom.get("technical_lom_phase1") or {}
                                 if phase1.get("available"):
-                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – Teilmodul V2.14.1 innerhalb V2.19.1:**")
+                                    st.markdown("**Technische LOM/NAV-Prüfung Phase 1 – Teilmodul V2.14.1 innerhalb V2.20:**")
                                     st.write(f"**Status:** {phase1.get('status', '–')}")
                                     p1c1, p1c2, p1c3, p1c4 = st.columns(4)
                                     with p1c1:
@@ -14978,7 +15245,7 @@ if selected_symbol:
 
                                     source_map = phase1.get("managed_source_coverage_map") or {}
                                     if source_map.get("available"):
-                                        st.markdown("**V2.17.1 Source Coverage Map + V2.19.1 Tanami Current-Source-Upgrade + V2.18.5 Peñasquito Recovery:**")
+                                        st.markdown("**V2.20 Source Coverage Map + Merian/Tanami Current-Source-Upgrades + V2.18.5 Peñasquito Recovery:**")
                                         st.write(f"**Status:** {source_map.get('status', '–')}")
                                         sm1, sm2, sm3, sm4 = st.columns(4)
                                         with sm1:
@@ -15017,8 +15284,8 @@ if selected_symbol:
                                         tanami_overlay_reserves = safe_float(source_map.get('current_corporate_lom_overlay_reserves_moz')) or 0.0
                                         if tanami_overlay_count:
                                             st.caption(
-                                                f"V2.19.1 Tanami-Upgrade: {tanami_overlay_count}/{int(source_map.get('open_asset_count') or 0)} Asset mit aktuellem Corporate "
-                                                f"Mine-Life-/Expansion-2-Roll-forward ({tanami_overlay_reserves:.1f} Mio. oz; Tanami). Kein Voll-TRS, kein annualisierter LOM-Cashflow, keine NAV-Abdeckung."
+                                                f"V2.20 Current-LOM-Overlay: {tanami_overlay_count}/{int(source_map.get('open_asset_count') or 0)} Assets mit aktuellem Corporate "
+                                                f"Mine-Life-/Run-rate-Roll-forward ({tanami_overlay_reserves:.1f} Mio. oz; Tanami + Merian). Kein Voll-TRS, kein annualisierter LOM-Cashflow, keine NAV-Abdeckung."
                                             )
                                         st.caption(source_map.get("current_source_basis") or "")
 
@@ -15111,6 +15378,49 @@ if selected_symbol:
                                             for req in tanami_gate.get("next_requirements", []):
                                                 st.caption(f"• {req}")
                                             st.info(tanami_gate.get("source_note") or "")
+
+                                        merian_gate = source_map.get("merian_current_lom_gate") or get_verified_newmont_merian_current_lom_gate()
+                                        if merian_gate.get("available"):
+                                            st.markdown("**V2.20 – Merian Current Source & LOM Roll-forward Gate:**")
+                                            st.write(f"**Status:** {merian_gate.get('status', '–')}")
+                                            mg1, mg2, mg3, mg4 = st.columns(4)
+                                            with mg1:
+                                                st.metric("FY25 Reserven", f"{safe_float(merian_gate.get('reserve_moz')) or 0.0:.1f} Mio. oz")
+                                            with mg2:
+                                                st.metric("Current-Quellenblöcke", f"{int(merian_gate.get('current_verified_count') or 0)}/{int(merian_gate.get('source_block_count') or 0)}")
+                                            with mg3:
+                                                st.metric("Mine Life", str(merian_gate.get('mine_life_status') or '–'))
+                                            with mg4:
+                                                st.metric("Phase 2 / NAV", "Gesperrt")
+
+                                            mguide = merian_gate.get("guidance_2026") or {}
+                                            st.caption(
+                                                f"2026 Site-Run-rate: {safe_float(mguide.get('production_koz')) or 0.0:.0f} koz · "
+                                                f"CAS {safe_float(mguide.get('cas_usd_oz')) or 0.0:,.0f} USD/oz · "
+                                                f"AISC {safe_float(mguide.get('aisc_usd_oz')) or 0.0:,.0f} USD/oz. "
+                                                "FY25-Reserven sind bereits zurechenbar; 75 % Eigentum nicht nochmals auf die Reserveabdeckung anwenden."
+                                            )
+                                            econ = merian_gate.get("economic_anchor_2025") or {}
+                                            st.caption(
+                                                f"2025 Economic Run-rate-Anker: {safe_float(econ.get('production_koz')) or 0.0:.0f} koz · "
+                                                f"Umsatz {safe_float(econ.get('revenue_musd')) or 0.0:.0f} Mio. USD · "
+                                                f"Ergebnis vor Steuern {safe_float(econ.get('pretax_profit_musd')) or 0.0:.0f} Mio. USD · "
+                                                f"Taxes borne {safe_float(econ.get('taxes_borne_musd')) or 0.0:.0f} Mio. USD. Nur Plausibilitäts-/Run-rate-Anker."
+                                            )
+                                            for block in merian_gate.get("source_blocks", []):
+                                                st.write(f"• **{block.get('block', '–')}** – **{block.get('status', '–')}**")
+                                                st.caption(block.get("evidence") or "")
+                                                st.caption("Quelle: " + str(block.get("source") or "–"))
+
+                                            st.warning(merian_gate.get("reason") or "")
+                                            st.write("**Freigabe-Gates:**")
+                                            st.write("• Current Reserve-/Mine-Life-/Run-rate-Struktur: **freigegeben**")
+                                            st.write("• Annualisierter LOM-Cashflow: **gesperrt**")
+                                            st.write("• Closure-/Reclamation-Tail: **gesperrt**")
+                                            st.error("Merian Phase 2 / NAV: Gesperrt")
+                                            for req in merian_gate.get("next_requirements", []):
+                                                st.caption(f"• {req}")
+                                            st.info(merian_gate.get("source_note") or "")
 
                                         penasquito_gate = build_newmont_penasquito_multimetal_gate(CACHE_VERSION)
                                         if penasquito_gate.get("available"):
@@ -15382,7 +15692,7 @@ if selected_symbol:
 
                                 phase2 = core_lom.get("asset_nav_phase2") or {}
                                 if phase2.get("available"):
-                                    st.markdown("**Asset-NAV-Normalisierung Phase 2 – V2.16 Policy innerhalb V2.19.1:**")
+                                    st.markdown("**Asset-NAV-Normalisierung Phase 2 – V2.16 Policy innerhalb V2.20:**")
                                     st.write(f"**Status:** {phase2.get('status', '–')}")
                                     p2a, p2b, p2c, p2d = st.columns(4)
                                     with p2a:
