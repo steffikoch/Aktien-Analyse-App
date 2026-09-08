@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.20: Historical Source Recovery – direkte Unternehmens-Sitemap-/IR-Archiv-Recovery vor Web-Fallback.
+# V2.20.21: Company IR First / Primärquellen-Router – Unternehmenswebseite und Investor Relations vor SEC/Web/Yahoo.
 
 # =========================================================
 # Hilfsfunktionen
@@ -1581,22 +1581,389 @@ def _historical_row_from_candidate(item, company_domain, company_name, year, dea
     }
 
 
+
+
+# =========================================================
+# V2.20.21 – Company IR First / Primärquellen-Router
+# =========================================================
+
+IR_ROUTER_SEED_PATHS = [
+    "",
+    "/investors",
+    "/investor-relations",
+    "/investorrelations",
+    "/investors/financials",
+    "/investors/financial-results",
+    "/investors/quarterly-results",
+    "/investors/annual-reports",
+    "/investors/reports-and-filings",
+    "/newsroom",
+    "/newsroom/press-releases",
+    "/press-releases",
+    "/news",
+]
+
+IR_ROUTER_HUB_TERMS = [
+    "investor relations", "investors", "financial results", "financials",
+    "quarterly results", "annual reports", "annual report", "reports and filings",
+    "earnings", "results", "financial releases", "press releases", "newsroom",
+    "financial information", "sec filings", "regulatory filings",
+]
+
+IR_ROUTER_ARCHIVE_TERMS = [
+    "financial releases", "press releases", "newsroom", "earnings releases",
+    "financial results", "quarterly results", "results archive", "news releases",
+]
+
+
+def _router_root(company_domain):
+    if not company_domain:
+        return None
+    return f"https://{company_domain}" if company_domain.startswith("www.") else f"https://www.{company_domain}"
+
+
+def _router_link_score(url, anchor=""):
+    hay = _clean_text(f"{anchor} {unquote(url or '')}").lower()
+    if not hay:
+        return -100
+    score = 0
+    weights = {
+        "investor relations": 90,
+        "/investors": 65,
+        "annual reports": 85,
+        "annual report": 70,
+        "financial releases": 95,
+        "financial results": 90,
+        "quarterly results": 70,
+        "earnings": 65,
+        "reports and filings": 75,
+        "sec filings": 60,
+        "press releases": 55,
+        "newsroom": 45,
+        "financials": 50,
+    }
+    for key, points in weights.items():
+        if key in hay:
+            score += points
+    if any(x in hay for x in ["career", "supplier", "product", "privacy", "cookie", "sustainability"]):
+        score -= 60
+    if re.search(r"\.(?:jpg|jpeg|png|gif|svg|css|js)(?:$|\?)", hay):
+        score -= 100
+    return score
+
+
+def _router_doc_score(url, title, year):
+    """Rank official-company links for a requested fiscal year."""
+    hay = _clean_text(f"{title or ''} {unquote(url or '')}").lower()
+    y = str(int(year))
+    if y not in hay:
+        return -1000
+    score = 20
+    if re.search(rf"\bfull[-\s]?year\s+{re.escape(y)}\b", hay):
+        score += 150
+    if re.search(rf"\breports?\s+(?:full[-\s]?year\s+)?{re.escape(y)}\s+(?:results|earnings)\b", hay):
+        score += 150
+    if re.search(rf"\b{re.escape(y)}\s+(?:full[-\s]?year|annual)\s+(?:results|earnings)\b", hay):
+        score += 135
+    if "annual report" in hay and y in hay:
+        score += 90
+    if any(x in hay for x in ["results", "earnings", "financial release", "annual"]):
+        score += 35
+    if any(x in hay for x in ["adjusted eps", "gaap eps", "non-comparable", "noncomparable"]):
+        score += 20
+    if re.search(r"\b(?:first|second|third)\s+quarter\b|\bq[123]\b", hay) and "full year" not in hay:
+        score -= 100
+    if any(x in hay for x in ["dividend", "tender offer", "sustainability", "career", "product"]):
+        score -= 50
+    return score
+
+
+def _router_page_role(url, title="", text=""):
+    hay = _clean_text(f"{title} {unquote(url or '')} {(text or '')[:6000]}").lower()
+    if any(x in hay for x in ["annual reports", "annual report archive", "previous annual reports"]):
+        return "Jahresberichte"
+    if any(x in hay for x in ["financial releases", "earnings releases", "financial results", "quarterly results"]):
+        return "Finanzergebnisse/Archiv"
+    if any(x in hay for x in ["press releases", "newsroom", "news releases"]):
+        return "News-/Presse-Archiv"
+    if any(x in hay for x in ["investor relations", "/investors", "investors "]):
+        return "Investor Relations"
+    return "Unternehmensseite"
+
+
+def _router_extract_links(html, base_url, company_domain):
+    rows = []
+    if not html:
+        return rows
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+        for a in soup.find_all("a", href=True):
+            href = urljoin(base_url, a.get("href"))
+            if _normalize_host(href) != company_domain:
+                continue
+            anchor = _clean_text(a.get_text(" ", strip=True))
+            if not href.startswith(("http://", "https://")):
+                continue
+            rows.append({
+                "title": anchor or _historical_title_hint_from_url(href),
+                "url": href,
+                "snippet": anchor,
+                "search_source": "Company IR Router",
+                "link_score": _router_link_score(href, anchor),
+            })
+    except Exception:
+        return []
+    unique = {}
+    for row in rows:
+        old = unique.get(row["url"])
+        if old is None or row.get("link_score", 0) > old.get("link_score", 0):
+            unique[row["url"]] = row
+    return list(unique.values())
+
+
+def _router_year_filter_variants(url, year):
+    """Small set of common official-archive GET variants; never leaves the company domain."""
+    url = _clean_text(url)
+    if not url:
+        return []
+    sep = "&" if "?" in url else "?"
+    variants = [f"{url}{sep}year={int(year)}"]
+    low = url.lower()
+    if "press" in low or "news" in low or "release" in low:
+        if "category=" not in low:
+            variants.insert(0, f"{url}{sep}category=Financial+Releases&year={int(year)}")
+            variants.append(f"{url}{sep}category=financial+releases&year={int(year)}")
+    return list(dict.fromkeys(variants))[:3]
+
+
+def _discover_company_ir_router(
+    company_domain,
+    company_name,
+    target_years=None,
+    deadline=None,
+    max_hubs=6,
+):
+    """
+    General company-first source router.
+
+    It starts on the issuer's own website, discovers Investor Relations and
+    official financial/news archives, and builds same-domain document
+    candidates by fiscal year. Only after this router fails should SEC/web/Yahoo
+    discovery be needed. The router is deliberately bounded and cached through
+    its caller's research cache.
+    """
+    years = []
+    for y in target_years or []:
+        try:
+            years.append(int(y))
+        except Exception:
+            pass
+    years = list(dict.fromkeys(years))
+    result = {
+        "available": False,
+        "company_domain": company_domain,
+        "entrypoints": [],
+        "archives": [],
+        "annual_report_pages": [],
+        "documents_by_year": {y: [] for y in years},
+        "pages_loaded": 0,
+        "official_link_count": 0,
+        "strategy": "Unternehmenswebseite → Investor Relations → Finanz-/Ergebnisarchive → Berichte",
+    }
+    if not company_domain or not _research_budget_ok(deadline, reserve=2.0):
+        return result
+
+    root = _router_root(company_domain)
+    seed_urls = [urljoin(root + "/", p.lstrip("/")) for p in IR_ROUTER_SEED_PATHS]
+    fetched = set()
+    discovered = {}
+    archive_pages = []
+    annual_pages = []
+    all_links = {}
+
+    def register_links(html, base_url):
+        for row in _router_extract_links(html, base_url, company_domain):
+            old = all_links.get(row["url"])
+            if old is None or row.get("link_score", 0) > old.get("link_score", 0):
+                all_links[row["url"]] = row
+
+    # First load the homepage. It usually reveals the canonical IR URL and
+    # avoids guessing provider-specific paths.
+    if _research_budget_ok(deadline, reserve=2.0):
+        html, final_url = _fetch_html(seed_urls[0], timeout=2.2, deadline=deadline)
+        if html:
+            result["pages_loaded"] += 1
+            fetched.add(final_url or seed_urls[0])
+            register_links(html, final_url or seed_urls[0])
+            discovered[final_url or seed_urls[0]] = {
+                "title": f"{company_name} – Unternehmensseite",
+                "url": final_url or seed_urls[0],
+                "role": "Unternehmensseite",
+            }
+
+    # Mix links actually discovered from the homepage with a few conventional
+    # same-domain paths. Real discovered IR links receive priority.
+    homepage_hubs = sorted(
+        [r for r in all_links.values() if r.get("link_score", 0) >= 45],
+        key=lambda r: r.get("link_score", 0),
+        reverse=True,
+    )
+    conventional = [
+        {"title": _historical_title_hint_from_url(u), "url": u, "link_score": _router_link_score(u, "")}
+        for u in seed_urls[1:]
+    ]
+    queue = []
+    seen_queue = set()
+    for row in homepage_hubs + conventional:
+        url = row.get("url")
+        if not url or url in seen_queue or _normalize_host(url) != company_domain:
+            continue
+        seen_queue.add(url)
+        queue.append(row)
+    queue.sort(key=lambda r: r.get("link_score", 0), reverse=True)
+
+    # One bounded IR/navigation layer.
+    for row in queue[:max_hubs]:
+        if not _research_budget_ok(deadline, reserve=2.0):
+            break
+        url = row["url"]
+        if url in fetched:
+            continue
+        html, final_url = _fetch_html(url, timeout=2.2, deadline=deadline)
+        if not html:
+            continue
+        final_url = final_url or url
+        fetched.add(final_url)
+        result["pages_loaded"] += 1
+        page_text = _html_to_text(html)
+        role = _router_page_role(final_url, row.get("title", ""), page_text)
+        discovered[final_url] = {
+            "title": row.get("title") or _historical_title_hint_from_url(final_url),
+            "url": final_url,
+            "role": role,
+        }
+        if role in {"Finanzergebnisse/Archiv", "News-/Presse-Archiv"}:
+            archive_pages.append(final_url)
+        if role == "Jahresberichte":
+            annual_pages.append(final_url)
+        register_links(html, final_url)
+
+    # Second-level IR/financial links are often where Annual Reports or
+    # Financial Releases live. Load only the strongest few.
+    second_level = sorted(
+        [
+            r for r in all_links.values()
+            if r.get("url") not in fetched and r.get("link_score", 0) >= 75
+        ],
+        key=lambda r: r.get("link_score", 0),
+        reverse=True,
+    )
+    for row in second_level[:3]:
+        if not _research_budget_ok(deadline, reserve=1.8):
+            break
+        html, final_url = _fetch_html(row["url"], timeout=2.1, deadline=deadline)
+        if not html:
+            continue
+        final_url = final_url or row["url"]
+        fetched.add(final_url)
+        result["pages_loaded"] += 1
+        page_text = _html_to_text(html)
+        role = _router_page_role(final_url, row.get("title", ""), page_text)
+        discovered[final_url] = {
+            "title": row.get("title") or _historical_title_hint_from_url(final_url),
+            "url": final_url,
+            "role": role,
+        }
+        if role in {"Finanzergebnisse/Archiv", "News-/Presse-Archiv"}:
+            archive_pages.append(final_url)
+        if role == "Jahresberichte":
+            annual_pages.append(final_url)
+        register_links(html, final_url)
+
+    # Build FY candidates from every official link already exposed by the
+    # issuer. This is the preferred path and costs no search-engine request.
+    for year in years:
+        candidates = []
+        for row in all_links.values():
+            score = _router_doc_score(row.get("url"), row.get("title"), year)
+            if score <= 0:
+                continue
+            item = dict(row)
+            item["historical_candidate_score"] = score
+            item["historical_recovery_method"] = "Company IR Router"
+            candidates.append(item)
+        candidates.sort(key=lambda r: r.get("historical_candidate_score", 0), reverse=True)
+        result["documents_by_year"][year] = candidates[:8]
+
+    # If an older year is still absent, ask the issuer's own archive for that
+    # year using a small set of common GET filters. This is still first-party
+    # navigation, not a general web search.
+    # A linked Annual Report PDF is useful primary-source evidence, but the
+    # HTML result release is usually the better EPS-bridge source. Therefore an
+    # annual-report-only hit does not suppress archive-year recovery.
+    def has_result_release(year):
+        for candidate in result["documents_by_year"].get(year, []):
+            url_low = _clean_text(candidate.get("url")).lower()
+            score = float(candidate.get("historical_candidate_score") or 0)
+            if score >= 200 and not re.search(r"\.pdf(?:$|\?)", url_low):
+                return True
+        return False
+
+    missing_years = [y for y in years if not has_result_release(y)]
+    archive_pages = list(dict.fromkeys(archive_pages))
+    for year in missing_years:
+        if not _research_budget_ok(deadline, reserve=1.5):
+            break
+        for archive_url in archive_pages[:2]:
+            if has_result_release(year):
+                break
+            for filtered_url in _router_year_filter_variants(archive_url, year)[:2]:
+                if not _research_budget_ok(deadline, reserve=1.3):
+                    break
+                html, final_url = _fetch_html(filtered_url, timeout=2.0, deadline=deadline)
+                if not html:
+                    continue
+                result["pages_loaded"] += 1
+                register_links(html, final_url or filtered_url)
+                candidates = []
+                for row in all_links.values():
+                    score = _router_doc_score(row.get("url"), row.get("title"), year)
+                    if score <= 0:
+                        continue
+                    item = dict(row)
+                    item["historical_candidate_score"] = score
+                    item["historical_recovery_method"] = "Company IR Router – Jahresfilter"
+                    candidates.append(item)
+                candidates.sort(key=lambda r: r.get("historical_candidate_score", 0), reverse=True)
+                result["documents_by_year"][year] = candidates[:8]
+                if has_result_release(year):
+                    break
+
+    result["entrypoints"] = list(discovered.values())[:12]
+    result["archives"] = list(dict.fromkeys(archive_pages))[:6]
+    result["annual_report_pages"] = list(dict.fromkeys(annual_pages))[:4]
+    result["official_link_count"] = len(all_links)
+    result["available"] = bool(result["entrypoints"] or any(result["documents_by_year"].values()))
+    return result
+
 def _discover_historical_full_year_bridges(
     company_domain,
     company_name,
     current_fy,
     deadline=None,
     years_back=HISTORICAL_RECURRENCE_YEARS,
+    ir_router=None,
 ):
     """
-    V2.20.20 Historical Source Recovery.
+    V2.20.21 Company-IR-first historical recovery.
 
-    Recovery order for older FY bridges:
-      1) company sitemap / historical IR archive URLs,
-      2) exact same-domain web discovery as a bounded fallback.
+    Recovery order:
+      1) issuer website / Investor Relations / official financial archive,
+      2) issuer sitemap,
+      3) exact same-domain web discovery,
+      4) caller may use SEC or other fallback later.
 
-    Only period-validated same-company full-year bridges are accepted. This
-    remains diagnostic and never writes adjusted EPS into the valuation model.
+    Only period-validated same-company full-year EPS bridges are accepted.
     """
     if not company_domain or current_fy is None:
         return [], []
@@ -1606,59 +1973,75 @@ def _discover_historical_full_year_bridges(
     attempted = []
     seen_urls = set()
 
-    # One sitemap inventory can recover several historical years with a single
-    # primary-source discovery step, which is much cheaper than repeated broad
-    # web searches.
-    sitemap_candidates, _ = _historical_sitemap_candidates(
-        company_domain,
-        target_years,
-        deadline=deadline,
-        per_year=5,
-    )
+    router = ir_router if isinstance(ir_router, dict) else None
+    if not router:
+        router = _discover_company_ir_router(
+            company_domain,
+            company_name,
+            target_years=target_years,
+            deadline=deadline,
+            max_hubs=5,
+        )
+
+    # Sitemap stays as a secondary same-company recovery route.
+    sitemap_candidates = {int(y): [] for y in target_years}
+    if _research_budget_ok(deadline, reserve=2.0):
+        sitemap_candidates, _ = _historical_sitemap_candidates(
+            company_domain,
+            target_years,
+            deadline=deadline,
+            per_year=4,
+        )
 
     for year in target_years:
-        if not _research_budget_ok(deadline, reserve=1.3):
+        if not _research_budget_ok(deadline, reserve=1.1):
             break
         attempted.append(year)
         year_found = None
 
-        # 1) Direct company sitemap / IR-archive candidates.
-        for item in sitemap_candidates.get(year, []):
-            if not _research_budget_ok(deadline, reserve=0.9):
+        # 1) Company IR Router / official archive.
+        router_candidates = ((router or {}).get("documents_by_year") or {}).get(year, [])
+        for item in router_candidates[:6]:
+            if not _research_budget_ok(deadline, reserve=0.8):
                 break
             url = _clean_text(item.get("url"))
             if not url or url in seen_urls:
                 continue
             seen_urls.add(url)
             row = _historical_row_from_candidate(
-                item,
-                company_domain,
-                company_name,
-                year,
-                deadline=deadline,
+                item, company_domain, company_name, year, deadline=deadline
             )
             if row:
+                row["historical_recovery_method"] = item.get("historical_recovery_method") or "Company IR Router"
                 year_found = row
                 break
 
-        # 2) Exact same-domain web fallback only when the company's own sitemap
-        # did not yield a validated bridge for this year.
-        if year_found is None and _research_budget_ok(deadline, reserve=1.7):
+        # 2) Company sitemap / IR URLs.
+        if year_found is None:
+            for item in sitemap_candidates.get(year, []):
+                if not _research_budget_ok(deadline, reserve=0.8):
+                    break
+                url = _clean_text(item.get("url"))
+                if not url or url in seen_urls:
+                    continue
+                seen_urls.add(url)
+                row = _historical_row_from_candidate(
+                    item, company_domain, company_name, year, deadline=deadline
+                )
+                if row:
+                    year_found = row
+                    break
+
+        # 3) Exact same-domain search only after the issuer's own navigation
+        # paths fail. One precise query per missing year keeps the time bounded.
+        if year_found is None and _research_budget_ok(deadline, reserve=1.4):
             query = (
                 f'site:{company_domain} "{company_name}" '
-                f'"full year {year}" "adjusted net earnings"'
+                f'"full year {year}" "adjusted EPS"'
             )
-            candidates = _duckduckgo_html_search(query, max_results=5, deadline=deadline)
-            # A second phrasing is useful for issuers that title releases as
-            # "Reports 2024 Results" rather than "Full Year 2024".
-            if not candidates and _research_budget_ok(deadline, reserve=1.4):
-                candidates = _duckduckgo_html_search(
-                    f'site:{company_domain} "{company_name}" "Reports {year} Results" "adjusted EPS"',
-                    max_results=5,
-                    deadline=deadline,
-                )
+            candidates = _duckduckgo_html_search(query, max_results=4, deadline=deadline)
             for item in candidates:
-                if not _research_budget_ok(deadline, reserve=0.8):
+                if not _research_budget_ok(deadline, reserve=0.7):
                     break
                 url = _clean_text(item.get("url"))
                 if not url or url in seen_urls or _normalize_host(url) != company_domain:
@@ -1667,11 +2050,7 @@ def _discover_historical_full_year_bridges(
                 item = dict(item)
                 item["historical_recovery_method"] = "Web-Fallback auf Unternehmensdomain"
                 row = _historical_row_from_candidate(
-                    item,
-                    company_domain,
-                    company_name,
-                    year,
-                    deadline=deadline,
+                    item, company_domain, company_name, year, deadline=deadline
                 )
                 if row:
                     year_found = row
@@ -1796,7 +2175,7 @@ def _build_historical_recurrence_summary(
         status = "Historische Mehrjahresprüfung noch unvollständig"
         summary = (
             "Es konnte noch kein älteres Volljahr mit einer validierten EPS-Brücke geladen werden – auch nicht über "
-            "die direkte Unternehmens-Sitemap-/IR-Archiv-Recovery. Die aktuelle Bereinigung bleibt deshalb ohne automatische Normalisierungsfreigabe."
+            "den Company-IR-First-Router, offizielle Finanzarchive und die Sitemap-Recovery. Die aktuelle Bereinigung bleibt deshalb ohne automatische Normalisierungsfreigabe."
         )
         recurrence_class = "unvollstaendig"
 
@@ -1848,7 +2227,7 @@ def _request_headers(sec=False):
         # SEC asks automated clients to identify themselves. No personal user
         # information is sent; this is a generic application identifier.
         return {
-            "User-Agent": "AktienAnalyseV2/2.20.14 research-client",
+            "User-Agent": "AktienAnalyseV2/2.20.21 research-client",
             "Accept-Encoding": "gzip, deflate",
             "Host": "www.sec.gov",
         }
@@ -2181,7 +2560,7 @@ def _discover_sec_primary_pages(symbol, max_filings=3, deadline=None):
         r = requests.get(
             f"https://data.sec.gov/submissions/CIK{cik10}.json",
             headers={
-                "User-Agent": "AktienAnalyseV2/2.20.19 research-client",
+                "User-Agent": "AktienAnalyseV2/2.20.21 research-client",
                 "Accept-Encoding": "gzip, deflate",
             },
             timeout=(min(1.8, effective_timeout), effective_timeout),
@@ -2239,10 +2618,10 @@ def research_special_event_online(
     symbol,
     company_name,
     website=None,
-    cache_version="v22020",
+    cache_version="v22021",
 ):
     """
-    V2.20.20: bounded research with direct historical company-source recovery before web fallback.
+    V2.20.21: Company-IR-first research. The issuer website/IR archive is routed before SEC, web search and Yahoo.
 
     Source priority remains company/IR -> SEC -> web -> Yahoo. Unrelated search
     results are rejected before they can become evidence. A quantitative EPS
@@ -2257,25 +2636,41 @@ def research_special_event_online(
     company_name = _clean_text(company_name) or symbol
     company_domain = _extract_company_domain(website)
     target_year = datetime.now().year - 1
+    router_years = [target_year - i for i in range(0, HISTORICAL_RECURRENCE_YEARS + 1)]
+
+    # V2.20.21: discover the issuer's own Investor-Relations structure first.
+    ir_router = _discover_company_ir_router(
+        company_domain,
+        company_name,
+        target_years=router_years,
+        deadline=deadline,
+        max_hubs=6,
+    )
 
     raw_results = []
 
-    # 1) Company / IR direct fast path.
-    raw_results.extend(
-        _discover_company_primary_pages(
-            company_domain,
-            company_name,
-            max_pages=5,
-            deadline=deadline,
+    # 1) Company / IR router. Prefer official full-year result candidates.
+    for item in ((ir_router.get("documents_by_year") or {}).get(target_year, []) if isinstance(ir_router, dict) else [])[:4]:
+        raw_results.append(item)
+
+    # Existing bounded direct crawl is retained only as a first-party fallback
+    # when the router did not expose enough official documents.
+    if len(raw_results) < 2 and _research_budget_ok(deadline, reserve=4.0):
+        raw_results.extend(
+            _discover_company_primary_pages(
+                company_domain,
+                company_name,
+                max_pages=3,
+                deadline=deadline,
+            )
         )
-    )
 
     # 2) SEC direct corroboration for US tickers while budget remains.
-    if _research_budget_ok(deadline, reserve=4.0):
+    if len(raw_results) < 3 and _research_budget_ok(deadline, reserve=4.0):
         raw_results.extend(
             _discover_sec_primary_pages(
                 symbol,
-                max_filings=3,
+                max_filings=2,
                 deadline=deadline,
             )
         )
@@ -2291,7 +2686,7 @@ def research_special_event_online(
         f'"{company_name}" {symbol} "{target_year}" "GAAP EPS" "adjusted EPS" impairment restructuring spin-off divestiture'
     )
 
-    if _research_budget_ok(deadline, reserve=3.5):
+    if len(raw_results) < 4 and _research_budget_ok(deadline, reserve=3.5):
         for query in queries[:2]:
             if not _research_budget_ok(deadline, reserve=3.0):
                 break
@@ -2485,6 +2880,7 @@ def research_special_event_online(
                 best_bridge_year,
                 deadline=deadline,
                 years_back=HISTORICAL_RECURRENCE_YEARS,
+                ir_router=ir_router,
             )
         )
 
@@ -2587,7 +2983,17 @@ def research_special_event_online(
         "next_step": next_step,
         "company_domain": company_domain,
         "queries_run": len(queries),
-        "source_order": "Unternehmen/IR → SEC → Websuche → Yahoo",
+        "source_order": "Unternehmenswebseite/IR → offizielle Finanz-/Ergebnisarchive → SEC → Websuche/Yahoo-Fallback",
+        "ir_router": {
+            "available": bool((ir_router or {}).get("available")),
+            "entrypoint_count": len((ir_router or {}).get("entrypoints") or []),
+            "archive_count": len((ir_router or {}).get("archives") or []),
+            "annual_report_page_count": len((ir_router or {}).get("annual_report_pages") or []),
+            "official_link_count": (ir_router or {}).get("official_link_count", 0),
+            "pages_loaded": (ir_router or {}).get("pages_loaded", 0),
+            "strategy": (ir_router or {}).get("strategy"),
+            "entrypoints": (ir_router or {}).get("entrypoints") or [],
+        },
         "research_duration_seconds": elapsed,
         "time_limit_seconds": RESEARCH_TIME_LIMIT_SECONDS,
         "time_limit_reached": time_limit_reached,
@@ -14948,7 +15354,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_historical_source_recovery_v22020_20260908"
+CACHE_VERSION = "m6_company_ir_first_router_v22021_20260908"
 
 @st.cache_data(
     ttl=900,
@@ -16205,6 +16611,19 @@ if selected_symbol:
                     if research.get("source_order"):
                         st.caption("Quellen-Priorität: " + text_or_dash(research.get("source_order")))
 
+                    ir_router_ui = research.get("ir_router") or {}
+                    if ir_router_ui.get("available"):
+                        st.info(
+                            "🏢 **Primärquellen-Router aktiv:** Unternehmenswebseite und Investor Relations "
+                            "werden vor SEC, allgemeiner Websuche und Yahoo geprüft."
+                        )
+                        st.caption(
+                            f"IR-/Finanz-Einstiegspunkte: {ir_router_ui.get('entrypoint_count', 0)} · "
+                            f"offizielle Archive: {ir_router_ui.get('archive_count', 0)} · "
+                            f"Jahresbericht-Bereiche: {ir_router_ui.get('annual_report_page_count', 0)} · "
+                            f"offizielle Links erkannt: {ir_router_ui.get('official_link_count', 0)}"
+                        )
+
                     duration = safe_float(research.get("research_duration_seconds"))
                     limit_seconds = safe_float(research.get("time_limit_seconds"))
                     if duration is not None:
@@ -16442,7 +16861,7 @@ if selected_symbol:
 
                     if research.get("quantitative_eps_bridge_found"):
                         st.info(
-                            "Eine quantitative EPS-Brücke wurde nach V2.20.20-Regeln periodenvalidiert, über Unternehmens-Sitemap/IR-Archiv historisch recovered und auf Wiederholung geprüft. "
+                            "Eine quantitative EPS-Brücke wurde nach V2.20.21-Regeln periodenvalidiert. Der Primärquellen-Router prüft zuerst Unternehmenswebseite/Investor Relations und offizielle Finanzarchive; erst danach folgen SEC/Web/Yahoo-Fallbacks. "
                             "Sie wird weiterhin **nicht automatisch als bereinigtes EPS übernommen**."
                         )
 
