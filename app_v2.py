@@ -399,6 +399,193 @@ def apply_eps_divergence_gate(
     }
 
 
+def evaluate_cycle_eps_comparability_gate(
+    company_type,
+    cycle_basis,
+    trailing_eps,
+    forward_eps
+):
+    """
+    V2.20.10 – Comparability gate for cyclical auto suppliers.
+
+    A historical cycle EPS can become misleading after major one-offs or
+    structural changes. For auto suppliers, block KGV/Fair-Value use when
+    BOTH of the following are true:
+
+    - Forward EPS differs by more than 100 % from the historical cycle basis.
+    - TTM and Forward EPS differ by at least 150 %.
+
+    The already calculated normalized EPS remains visible as a diagnostic
+    value, but it is not released as a valuation basis. No adjusted earnings
+    are invented.
+    """
+    type_name = str((company_type or {}).get("type", "")).lower()
+
+    if "autozulieferer" not in type_name:
+        return {
+            "active": False,
+            "blocked": False,
+            "cycle_forward_deviation": None,
+            "ttm_forward_deviation": None,
+            "note": None,
+        }
+
+    cycle = safe_float(cycle_basis)
+    trailing = safe_float(trailing_eps)
+    forward = safe_float(forward_eps)
+
+    if (
+        cycle is None
+        or trailing is None
+        or forward is None
+        or cycle <= 0
+        or trailing <= 0
+        or forward <= 0
+    ):
+        return {
+            "active": False,
+            "blocked": False,
+            "cycle_forward_deviation": None,
+            "ttm_forward_deviation": None,
+            "note": None,
+        }
+
+    cycle_forward_deviation = abs(forward / cycle - 1.0)
+    ttm_forward_deviation = abs(forward / trailing - 1.0)
+
+    blocked = (
+        cycle_forward_deviation > 1.00
+        and ttm_forward_deviation >= 1.50
+    )
+
+    if not blocked:
+        return {
+            "active": False,
+            "blocked": False,
+            "cycle_forward_deviation": cycle_forward_deviation,
+            "ttm_forward_deviation": ttm_forward_deviation,
+            "note": None,
+        }
+
+    note = (
+        "Zyklus-EPS-Vergleichbarkeits-Gate aktiv: Forward-EPS und historische "
+        f"Zyklus-Basis weichen um {cycle_forward_deviation * 100:.1f} % voneinander ab; "
+        f"TTM-EPS und Forward-EPS um {ttm_forward_deviation * 100:.1f} %. "
+        "Die historische EPS-Basis kann durch Sondereffekte oder Strukturänderungen "
+        "verzerrt sein. Der berechnete normalisierte EPS-Wert bleibt nur ein "
+        "Diagnosewert; KGV-Multiple und Fair Value werden bis zur "
+        "Vergleichbarkeitsprüfung gesperrt."
+    )
+
+    return {
+        "active": True,
+        "blocked": True,
+        "cycle_forward_deviation": cycle_forward_deviation,
+        "ttm_forward_deviation": ttm_forward_deviation,
+        "note": note,
+    }
+
+
+
+def build_special_event_warning(eps_normalization):
+    """
+    V2.20.11 – Sonderereignis-Warnampel für normale Nutzer.
+
+    Die Ampel übersetzt technische EPS-/Vergleichbarkeits-Signale in eine
+    einfache Handlungsebene:
+
+    - Grün: keine wesentliche Sonderauffälligkeit aus der EPS-Prüfung.
+    - Gelb: auffällige Abweichung, Bewertung bleibt aber nutzbar; erhöhte
+      Vorsicht, noch keine zwingende externe Sonderrecherche.
+    - Rot: Bewertungsbasis ist nicht ausreichend vergleichbar; Fair Value
+      bleibt gesperrt und eine gezielte Geschäftsbericht-/IR-/Internetprüfung
+      ist erforderlich, bevor die Bewertung wieder freigegeben werden darf.
+
+    Es werden keine Ursachen erfunden. Die Ampel sagt nur, *dass* eine
+    Sonderprüfung nötig ist, nicht *warum* die Abweichung entstanden ist.
+    """
+    eps = eps_normalization if isinstance(eps_normalization, dict) else {}
+
+    comparability_blocked = bool(
+        eps.get("cycle_eps_comparability_blocked")
+        or eps.get("normalization_blocked_by_structural_break")
+        or eps.get("valuation_blocked")
+    )
+
+    if comparability_blocked:
+        reasons = []
+        if eps.get("cycle_eps_comparability_blocked"):
+            reasons.append(
+                "historische Zyklus-Basis und aktuelle/erwartete Gewinne sind nicht ausreichend vergleichbar"
+            )
+        if eps.get("normalization_blocked_by_structural_break"):
+            reasons.append(
+                "nach einem bestätigten Strukturbruch liegen noch zu wenige vollständig vergleichbare Jahre vor"
+            )
+
+        reason_text = "; ".join(reasons) or (
+            "die EPS-Bewertungsbasis ist für einen belastbaren Fair Value nicht freigegeben"
+        )
+
+        return {
+            "level": "Rot",
+            "icon": "🔴",
+            "title": "Sonderprüfung erforderlich",
+            "requires_research": True,
+            "valuation_usable": False,
+            "reason": reason_text + ".",
+            "action": (
+                "Gezielt Geschäftsbericht, Investor-Relations-Mitteilungen und seriöse aktuelle Quellen "
+                "auf mögliche Sondereffekte oder Strukturänderungen prüfen (z. B. Abspaltung, Übernahme, "
+                "Verkauf, Restrukturierung, Impairment/Abschreibung oder außergewöhnliche Einmalposten). "
+                "Bis die Ursache und Vergleichbarkeit geklärt sind, bleibt der Fair Value gesperrt."
+            ),
+        }
+
+    ttm_forward_deviation = safe_float(eps.get("ttm_forward_deviation"))
+    cycle_forward_deviation = safe_float(eps.get("cycle_forward_deviation"))
+    structural_break_active = bool(eps.get("structural_break_active"))
+    eps_divergence_active = bool(eps.get("eps_divergence_note"))
+
+    yellow_reasons = []
+    if structural_break_active:
+        yellow_reasons.append("bestätigte Strukturänderung wird bereits berücksichtigt")
+    if ttm_forward_deviation is not None and ttm_forward_deviation >= 0.50:
+        yellow_reasons.append(
+            f"TTM- und Forward-EPS weichen um {ttm_forward_deviation * 100:.1f} % voneinander ab"
+        )
+    elif eps_divergence_active:
+        yellow_reasons.append("starke TTM-/Forward-EPS-Abweichung wurde erkannt")
+    if cycle_forward_deviation is not None and cycle_forward_deviation >= 0.50:
+        yellow_reasons.append(
+            f"Forward-EPS und Zyklus-Basis weichen um {cycle_forward_deviation * 100:.1f} % voneinander ab"
+        )
+
+    if yellow_reasons:
+        return {
+            "level": "Gelb",
+            "icon": "🟡",
+            "title": "Auffälligkeit erkannt – Bewertung weiter nutzbar",
+            "requires_research": False,
+            "valuation_usable": True,
+            "reason": "; ".join(yellow_reasons) + ".",
+            "action": (
+                "Die App hat die Unsicherheit bereits konservativ berücksichtigt. Eine Sonderrecherche ist "
+                "nicht zwingend, solange kein rotes Gate ausgelöst wird; die Bewertung sollte aber mit der "
+                "angezeigten Sicherheitsstufe verwendet werden."
+            ),
+        }
+
+    return {
+        "level": "Grün",
+        "icon": "🟢",
+        "title": "Keine wesentliche Sonderauffälligkeit erkannt",
+        "requires_research": False,
+        "valuation_usable": True,
+        "reason": "Die EPS-/Vergleichbarkeitsprüfung zeigt derzeit keinen materiellen Sonderfall.",
+        "action": "Normale Bewertungslogik kann ohne zusätzliche Sonderrecherche weiterlaufen.",
+    }
+
 def build_eps_result(
     normalized_eps,
     method,
@@ -438,6 +625,9 @@ def has_usable_positive_earnings_basis(
         eps_normalization,
         dict
     ):
+        return False
+
+    if bool(eps_normalization.get("valuation_blocked", False)):
         return False
 
     normalized_eps = safe_float(
@@ -2712,14 +2902,34 @@ def normalize_eps(
             if structural_metadata.get("structural_break_active"):
                 method = "Strukturbruch-bereinigt: " + method
 
+            comparability_gate = evaluate_cycle_eps_comparability_gate(
+                company_type,
+                cycle_basis,
+                trailing,
+                forward
+            )
+
+            cycle_metadata = dict(structural_metadata)
+            cycle_metadata.update({
+                "cycle_eps_comparability_gate_active": bool(comparability_gate.get("active", False)),
+                "cycle_eps_comparability_blocked": bool(comparability_gate.get("blocked", False)),
+                "cycle_forward_deviation": comparability_gate.get("cycle_forward_deviation"),
+                "cycle_comparability_ttm_forward_deviation": comparability_gate.get("ttm_forward_deviation"),
+                "cycle_eps_comparability_note": comparability_gate.get("note"),
+                "valuation_blocked": bool(comparability_gate.get("blocked", False)),
+            })
+
+            if comparability_gate.get("blocked"):
+                method = method + "; Vergleichbarkeits-Gate: nur Diagnosewert"
+
             return build_eps_result(
                 normalized,
                 method,
-                "Mittel",
+                "Niedrig" if comparability_gate.get("blocked") else "Mittel",
                 cycle_basis,
                 trailing,
                 forward,
-                structural_metadata
+                cycle_metadata
             )
 
         if trailing is not None and forward is not None:
@@ -4389,18 +4599,32 @@ def calculate_fundamental_multiple(
         "kgv" in method_name
         and not earnings_basis_usable
     ):
-        blocked_corridor = {
-            "available": False,
-            "lower": None,
-            "upper": None,
-            "method": None,
-            "note": (
+        if (
+            isinstance(eps_normalization, dict)
+            and eps_normalization.get("cycle_eps_comparability_blocked")
+        ):
+            blocked_note = (
+                "KGV-Bewertung gesperrt: Das Zyklus-EPS-Vergleichbarkeits-Gate "
+                "ist aktiv. Historische Zyklus-Basis, TTM-EPS und Forward-EPS "
+                "sind nicht ausreichend vergleichbar. Der angezeigte "
+                "normalisierte EPS-Wert ist nur ein Diagnosewert; "
+                "KGV-Korridor und Fundamental-Multiple bleiben gesperrt."
+            )
+        else:
+            blocked_note = (
                 "KGV-Bewertung gesperrt: Es liegt keine "
                 "positive und verwertbare normalisierte "
                 "Gewinnbasis vor. Deshalb werden weder "
                 "KGV-Korridor noch Fundamental-Multiple "
                 "berechnet."
             )
+
+        blocked_corridor = {
+            "available": False,
+            "lower": None,
+            "upper": None,
+            "method": None,
+            "note": blocked_note
         }
 
         return {
@@ -12654,7 +12878,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_autozulieferer_peercheck_v2209_20260908"
+CACHE_VERSION = "m6_sonderereignis_warnampel_v22011_20260908"
 
 @st.cache_data(
     ttl=900,
@@ -12998,6 +13222,11 @@ def load_stock(search_text, cache_version):
         industry=fundamental_info.get("industry"),
     )
 
+    special_event_warning = build_special_event_warning(
+        eps_normalization
+    )
+
+
     fair_value = calculate_fair_value_v1(
         eps_normalization,
         fundamental_multiple,
@@ -13122,6 +13351,7 @@ def load_stock(search_text, cache_version):
         "historical": historical,
         "structural_break": structural_break,
         "eps_normalization": eps_normalization,
+        "special_event_warning": special_event_warning,
         "growth_score": growth_score,
         "profitability_score": profitability_score,
         "fcf_score": fcf_score,
@@ -13736,6 +13966,16 @@ if selected_symbol:
                         eps_result["confidence_note"]
                     )
 
+                if eps_result.get("cycle_eps_comparability_blocked"):
+                    st.error(
+                        eps_result.get("cycle_eps_comparability_note")
+                        or (
+                            "Zyklus-EPS-Vergleichbarkeits-Gate aktiv. "
+                            "Der normalisierte EPS-Wert ist nur ein Diagnosewert; "
+                            "KGV und Fair Value bleiben gesperrt."
+                        )
+                    )
+
                 if eps_result.get("structural_break_active"):
                     break_info = eps_result.get("structural_break") or {}
                     st.warning(
@@ -13798,12 +14038,52 @@ if selected_symbol:
                         "nicht freigegeben. Ein möglicher Bergbau-Fallback wird erst in Modul 6 "
                         "Schritt 3B separat geprüft."
                     )
+                elif eps_result.get("cycle_eps_comparability_blocked"):
+                    st.caption(
+                        "Der angezeigte normalisierte EPS-Wert dient ausschließlich der Diagnose. "
+                        "Er ist nicht als Bewertungsbasis freigegeben; KGV-Korridor, "
+                        "Fundamental-Multiple und Fair Value bleiben gesperrt."
+                    )
                 else:
                     st.caption(
                         "Dieser Wert ist noch kein Fair Value. "
                         "Er bildet nur die Gewinnbasis für die "
                         "spätere Bewertung."
                     )
+
+                st.divider()
+
+                st.subheader("🚦 Sonderereignis-Warnampel")
+
+                event_warning = data.get("special_event_warning", {})
+                event_level = event_warning.get("level")
+                event_title = event_warning.get("title") or "Status nicht verfügbar"
+                event_icon = event_warning.get("icon") or "⚪"
+
+                if event_level == "Rot":
+                    st.error(f"**{event_icon} ROT – {event_title}**")
+                elif event_level == "Gelb":
+                    st.warning(f"**{event_icon} GELB – {event_title}**")
+                elif event_level == "Grün":
+                    st.success(f"**{event_icon} GRÜN – {event_title}**")
+                else:
+                    st.info(f"**{event_icon} {event_title}**")
+
+                if event_warning.get("reason"):
+                    st.write(event_warning.get("reason"))
+
+                if event_warning.get("requires_research"):
+                    st.error(
+                        "**Was du als Nutzer tun musst:** Nicht selbst aus den Zahlen raten. "
+                        "Hier ist eine gezielte Internet-/Berichtsprüfung erforderlich."
+                    )
+                    st.write("**Nächster Schritt:** " + text_or_dash(event_warning.get("action")))
+                    st.caption(
+                        "Solange die Sonderursache nicht geklärt ist, soll aus dem Diagnosewert "
+                        "kein Kauf-, Nachkauf-, Reduzieren- oder Verkaufsschluss gezogen werden."
+                    )
+                else:
+                    st.write("**Nächster Schritt:** " + text_or_dash(event_warning.get("action")))
 
                 st.divider()
 
