@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.17: Periodenvalidierung + Jahrespriorität für Sonderereignis-EPS-Brücken auf Basis V2.20.16.
+# V2.20.18: Wiederkehrbarkeits-Prüfung der Bereinigungen auf Basis V2.20.17.
 
 # =========================================================
 # Hilfsfunktionen
@@ -1091,6 +1091,259 @@ def _extract_eps_bridge_values(text, title=None):
     return candidates[0]
 
 
+
+# =========================================================
+# V2.20.18 – Bereinigungs-/Wiederkehrbarkeits-Prüfung
+# =========================================================
+
+ADJUSTMENT_REVIEW_RULES = [
+    {
+        "label": "Impairment / Wertminderung",
+        "patterns": ["impairment charges", "impairment charge", "asset impairment", "goodwill impairment"],
+        "bucket": "Wiederkehrungsrisiko offen",
+        "severity": 3,
+        "note": (
+            "Wertminderungen sind häufig ereignisbezogen und nicht zahlungswirksam, können bei "
+            "zyklischen oder sich wandelnden Geschäften aber auch in mehreren Jahren auftreten. "
+            "Sie werden deshalb nicht automatisch vollständig normalisiert."
+        ),
+    },
+    {
+        "label": "Restrukturierung",
+        "patterns": ["restructuring expense", "restructuring charge", "restructuring costs", "restructuring cost"],
+        "bucket": "Wiederkehrungsrisiko erhöht",
+        "severity": 4,
+        "note": (
+            "Restrukturierungen können sich über mehrere Jahre erstrecken oder wiederholt auftreten. "
+            "Der Posten ist ohne Mehrjahresprüfung nicht automatisch bereinigungsfähig."
+        ),
+    },
+    {
+        "label": "Beschleunigte Abschreibung",
+        "patterns": ["accelerated depreciation"],
+        "bucket": "Wiederkehrungsrisiko offen",
+        "severity": 3,
+        "note": (
+            "Beschleunigte Abschreibungen können mit Werksschließungen oder Technologie-/Produktwechseln "
+            "zusammenhängen. Der konkrete Anlass und die Laufzeit müssen geprüft werden."
+        ),
+    },
+    {
+        "label": "Geschäfts-/Standortausstieg",
+        "patterns": ["costs to exit", "exit costs", "business exit", "exit of our"],
+        "bucket": "Ereignisbezogen – plausibel einmalig",
+        "severity": 2,
+        "note": (
+            "Ausstiegskosten sind typischerweise an eine konkrete Maßnahme gebunden, dürfen aber erst nach "
+            "Bestätigung des abgeschlossenen Ereignisses als einmalig behandelt werden."
+        ),
+    },
+    {
+        "label": "Spin-off / Abspaltung",
+        "patterns": ["spin-off related", "spin off related", "spin-off", "spinoff", "separation related"],
+        "bucket": "Strukturereignis – plausibel einmalig",
+        "severity": 2,
+        "note": (
+            "Spin-off-bezogene Posten sind an eine Strukturänderung gebunden. Gleichzeitig kann die "
+            "historische Gewinnreihe vor/nach der Abspaltung nicht direkt vergleichbar sein."
+        ),
+    },
+    {
+        "label": "Übernahme-/M&A-Kosten",
+        "patterns": ["merger and acquisition expense", "merger, acquisition", "acquisition expense", "acquisition costs"],
+        "bucket": "Transaktionsbezogen – Wiederholung möglich",
+        "severity": 3,
+        "note": (
+            "Transaktionskosten sind pro Deal ereignisbezogen, können bei regelmäßig akquirierenden "
+            "Unternehmen aber wiederkehren. Daher keine automatische Vollbereinigung."
+        ),
+    },
+    {
+        "label": "Verkauf / Desinvestition",
+        "patterns": ["divestiture expense", "loss on sale of businesses", "loss on sale of assets", "sale of businesses", "divestiture"],
+        "bucket": "Strukturereignis – plausibel einmalig",
+        "severity": 2,
+        "note": (
+            "Verkaufs-/Desinvestitionsposten sind meist an eine konkrete Transaktion gebunden. "
+            "Die Vergleichbarkeit der historischen Geschäftsbasis muss trotzdem separat geprüft werden."
+        ),
+    },
+    {
+        "label": "Rechts-/Vergleichszahlung",
+        "patterns": ["legal settlement", "settlement expense", "litigation charge"],
+        "bucket": "Ereignisbezogen – Einmaligkeit prüfen",
+        "severity": 2,
+        "note": (
+            "Ein konkreter Rechtsvergleich kann einmalig sein; wiederkehrende Rechtskosten dürfen dagegen "
+            "nicht pauschal herausgerechnet werden."
+        ),
+    },
+    {
+        "label": "Managementwechsel",
+        "patterns": ["ceo transition compensation", "chief executive officer transition", "executive transition compensation"],
+        "bucket": "Ereignisbezogen – plausibel einmalig",
+        "severity": 1,
+        "note": "Vergütung aus einem konkreten Managementwechsel ist typischerweise ereignisbezogen.",
+    },
+    {
+        "label": "Spezifischer Write-off",
+        "patterns": ["write-off", "write off", "write-down", "write down"],
+        "bucket": "Ereignisbezogen – Einmaligkeit prüfen",
+        "severity": 2,
+        "note": (
+            "Ein spezifischer Abschreibungs-/Write-off-Posten kann einmalig sein. Bei ähnlichen Posten in "
+            "mehreren Jahren besteht jedoch Wiederholungsrisiko."
+        ),
+    },
+    {
+        "label": "Steueranpassung",
+        "patterns": ["tax adjustments", "tax adjustment", "discrete tax", "tax charge", "tax benefit"],
+        "bucket": "Unklar – Einzelprüfung nötig",
+        "severity": 4,
+        "note": (
+            "Steueranpassungen können einmalig oder strukturell sein. Ohne genaue Ursache wird der Posten "
+            "nicht als bereinigungsfähig eingestuft."
+        ),
+    },
+    {
+        "label": "Versicherungs-/Marktwert-Gegenposten",
+        "patterns": ["insurance recovery", "unrealized gain", "unrealised gain", "equity securities"],
+        "bucket": "Nicht operativ – Richtung prüfen",
+        "severity": 3,
+        "note": (
+            "Nicht operative Gewinne/Erstattungen können die GAAP-Zahl erhöhen und werden in einer "
+            "Reconciliation ggf. wieder abgezogen. Vor Normalisierung muss das Vorzeichen geprüft werden."
+        ),
+    },
+    {
+        "label": "Sonstige nicht vergleichbare Posten",
+        "patterns": ["other non-comparable items", "other noncomparable items"],
+        "bucket": "Unklar – Einzelprüfung nötig",
+        "severity": 5,
+        "note": (
+            "Ein Sammelposten ist ohne Aufschlüsselung nicht belastbar. Er darf nicht automatisch als "
+            "einmalig behandelt werden."
+        ),
+    },
+]
+
+
+def _adjustment_context_is_concrete(text, match_start, match_end):
+    """Reject pure non-GAAP definitions; require a concrete amount/action/period/table context."""
+    t = _clean_text(text)
+    context = t[max(0, match_start - 260):min(len(t), match_end + 420)]
+    low = context.lower()
+
+    definition_only = any(x in low for x in [
+        "defines adjusted", "defined as", "adjusted to eliminate", "non-gaap financial measures",
+        "may include", "can include", "for comparison with", "most directly comparable",
+    ])
+    concrete = any(x in low for x in [
+        "recorded", "recognized", "incurred", "included", "excluded", "non-comparable items:",
+        "noncomparable items:", "net losses per diluted share", "net gains per diluted share",
+        "year ended", "twelve months ended", "three months ended",
+    ])
+    has_money = bool(re.search(r"(?:\$|€|£)\s*\(?-?\d", context))
+    has_number_row = bool(re.search(r"\b\(?-?\d+(?:\.\d+)?\)?\s+\(?-?\d+(?:\.\d+)?\)?\b", context))
+    has_period = bool(re.search(r"\b(?:20\d{2}|q[1-4]|full[-\s]?year|fiscal year|twelve months)\b", context, re.I))
+
+    if definition_only and not (concrete and (has_money or has_number_row or has_period)):
+        return False
+    return bool(concrete or has_money or (has_number_row and has_period))
+
+
+def _build_adjustment_recurrence_review(text, bridge_values=None):
+    """
+    Conservative diagnostic review of the adjustment types behind an adjusted-EPS bridge.
+
+    V2.20.18 never releases valuation and never adds an adjustment to EPS. It only tells the
+    user which categories look transaction/event-related and which still have meaningful
+    recurrence risk.
+    """
+    t = _clean_text(text)
+    bridge = bridge_values if isinstance(bridge_values, dict) else {}
+    period = bridge.get("period")
+    if not t or not bridge:
+        return None
+
+    components = []
+    seen_labels = set()
+    for rule in ADJUSTMENT_REVIEW_RULES:
+        matched_context = None
+        for pattern in rule["patterns"]:
+            for m in re.finditer(re.escape(pattern), t, flags=re.I):
+                if _adjustment_context_is_concrete(t, m.start(), m.end()):
+                    matched_context = t[max(0, m.start() - 150):min(len(t), m.end() + 260)]
+                    break
+            if matched_context:
+                break
+        if not matched_context or rule["label"] in seen_labels:
+            continue
+        seen_labels.add(rule["label"])
+        components.append({
+            "label": rule["label"],
+            "bucket": rule["bucket"],
+            "severity": rule["severity"],
+            "note": rule["note"],
+            "evidence_excerpt": _clean_text(matched_context)[:420],
+        })
+
+    gaap = safe_float(bridge.get("gaap_eps"))
+    adjusted = safe_float(bridge.get("adjusted_eps"))
+    noncomp = safe_float(bridge.get("noncomparable_per_share"))
+    gap = (adjusted - gaap) if gaap is not None and adjusted is not None else None
+    total_reconciled = False
+    if gap is not None and noncomp is not None:
+        total_reconciled = abs(gap - noncomp) <= max(0.03, abs(noncomp) * 0.03)
+
+    risk_components = [c for c in components if c["severity"] >= 3]
+    unclear_components = [c for c in components if "Unklar" in c["bucket"]]
+    event_components = [c for c in components if c["severity"] <= 2]
+
+    if not components:
+        status = "Einzelbereinigungen noch nicht ausreichend aufgeschlüsselt"
+        level = "Rot"
+        summary = (
+            "Die Gesamt-EPS-Brücke ist vorhanden, aber die einzelnen Bereinigungsposten konnten aus der "
+            "geladenen Quelle nicht zuverlässig als konkrete Ereignisse extrahiert werden."
+        )
+    elif risk_components or unclear_components:
+        status = "Bereinigungen teilweise erklärt – Wiederkehrungsrisiko offen"
+        level = "Gelb"
+        summary = (
+            "Konkrete Bereinigungskategorien wurden erkannt. Mindestens ein Posten kann jedoch wiederkehren "
+            "oder ist nicht eindeutig als einmalig belegbar. Deshalb bleibt die Gewinnnormalisierung gesperrt."
+        )
+    else:
+        status = "Bereinigungen ereignisbezogen – Mehrjahresbestätigung noch offen"
+        level = "Gelb"
+        summary = (
+            "Die erkannten Posten wirken überwiegend an konkrete Ereignisse gebunden. Eine automatische "
+            "Vollbereinigung erfolgt trotzdem erst nach einer Mehrjahres-/Wiederholungsprüfung."
+        )
+
+    return {
+        "period": period,
+        "status": status,
+        "status_level": level,
+        "summary": summary,
+        "components": components,
+        "component_count": len(components),
+        "event_related_count": len(event_components),
+        "recurrence_risk_count": len(risk_components),
+        "unclear_count": len(unclear_components),
+        "bridge_gap": gap,
+        "noncomparable_per_share": noncomp,
+        "total_bridge_reconciled": total_reconciled,
+        "normalization_release": False,
+        "next_step": (
+            "Für die risikobehafteten bzw. unklaren Kategorien wird als nächstes geprüft, ob vergleichbare "
+            "Bereinigungen bereits in früheren Jahren aufgetreten sind. Erst danach kann entschieden werden, "
+            "welcher Teil der Brücke für eine normalisierte Gewinnbasis zulässig ist."
+        ),
+    }
+
+
 def _has_quantitative_eps_bridge(text, title=None):
     """True only for a V2.20.17-validated bridge; never imports adjusted EPS into valuation."""
     return _extract_eps_bridge_values(text, title=title) is not None
@@ -1450,7 +1703,7 @@ def _discover_sec_primary_pages(symbol, max_filings=3, deadline=None):
         r = requests.get(
             f"https://data.sec.gov/submissions/CIK{cik10}.json",
             headers={
-                "User-Agent": "AktienAnalyseV2/2.20.17 research-client",
+                "User-Agent": "AktienAnalyseV2/2.20.18 research-client",
                 "Accept-Encoding": "gzip, deflate",
             },
             timeout=(min(1.8, effective_timeout), effective_timeout),
@@ -1508,15 +1761,15 @@ def research_special_event_online(
     symbol,
     company_name,
     website=None,
-    cache_version="v22017",
+    cache_version="v22018",
 ):
     """
-    V2.20.17: bounded research with period validation, completed-full-year priority and entity filtering.
+    V2.20.18: bounded research with period validation plus conservative adjustment-recurrence review.
 
     Source priority remains company/IR -> SEC -> web -> Yahoo. Unrelated search
     results are rejected before they can become evidence. A quantitative EPS
     bridge is accepted only when GAAP EPS and adjusted EPS are explicitly
-    labelled for the same period; comparison-period wording cannot override the report period, and percentages can never be parsed as EPS.
+    labelled for the same period; comparison-period wording cannot override the report period, percentages can never be parsed as EPS, and detected adjustments are reviewed for recurrence risk without releasing valuation.
     """
     _ = cache_version
     started = time.monotonic()
@@ -1622,6 +1875,11 @@ def research_special_event_online(
         event_types = _classify_special_event_evidence(combined)
         bridge_values = _extract_eps_bridge_values(combined, title=item.get("title"))
         quantitative_bridge = bridge_values is not None
+        adjustment_review = (
+            _build_adjustment_recurrence_review(combined, bridge_values)
+            if quantitative_bridge
+            else None
+        )
 
         if not event_types and not quantitative_bridge:
             # Broad keyword matches can still have helped discovery, but pure
@@ -1640,6 +1898,7 @@ def research_special_event_online(
             "event_types": event_types,
             "quantitative_eps_bridge": quantitative_bridge,
             "eps_bridge_values": bridge_values,
+            "adjustment_recurrence_review": adjustment_review,
             "bridge_score": (bridge_values or {}).get("bridge_score", 0),
             "search_source": item.get("search_source"),
             "entity_match": True,
@@ -1724,6 +1983,11 @@ def research_special_event_online(
     validated_primary_bridge_found = bool(primary_bridge_rows)
     best_bridge_row = primary_bridge_rows[0] if primary_bridge_rows else (validated_bridge_rows[0] if validated_bridge_rows else None)
     best_bridge = best_bridge_row.get("eps_bridge_values") if best_bridge_row else None
+    best_adjustment_review = (
+        best_bridge_row.get("adjustment_recurrence_review")
+        if best_bridge_row
+        else None
+    )
 
     # Keep additional validated bridges visible as corroboration. Deduplicate
     # identical source/period/value tuples.
@@ -1752,12 +2016,14 @@ def research_special_event_online(
             break
 
     if validated_primary_bridge_found and best_bridge:
-        next_step = (
-            "Eine Primärquelle enthält eine periodenvalidierte GAAP-/bereinigte-EPS-Brücke. "
-            "Für Zyklusvergleiche wird ein vollständiges Geschäftsjahr gegenüber einem Einzelquartal priorisiert. "
-            "Die Werte werden nur diagnostisch angezeigt. Als nächstes muss geprüft werden, welche "
-            "Bereinigungen tatsächlich nicht wiederkehrend und für die Gewinnnormalisierung zulässig sind."
-        )
+        if best_adjustment_review and best_adjustment_review.get("components"):
+            next_step = best_adjustment_review.get("next_step")
+        else:
+            next_step = (
+                "Eine Primärquelle enthält eine periodenvalidierte GAAP-/bereinigte-EPS-Brücke. "
+                "Die Einzelbereinigungen konnten noch nicht ausreichend belastbar klassifiziert werden. "
+                "Fair Value bleibt gesperrt."
+            )
     elif validated_bridge_found:
         next_step = (
             "Eine quantitative EPS-Brücke wurde in einer passenden Quelle validiert, aber ein gleichwertiger "
@@ -1793,6 +2059,7 @@ def research_special_event_online(
         "eps_bridge_values": best_bridge,
         "eps_bridge_source_title": best_bridge_row.get("title") if best_bridge_row else None,
         "eps_bridge_source_url": best_bridge_row.get("url") if best_bridge_row else None,
+        "adjustment_recurrence_review": best_adjustment_review,
         "supporting_eps_bridges": supporting_bridge_rows,
         "bridge_priority_rule": "Volljahr → Quartal → Guidance/sonstige",
         "rejected_entity_count": rejected_entity_count,
@@ -14162,7 +14429,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_eps_bridge_period_validation_v22017_20260908"
+CACHE_VERSION = "m6_adjustment_recurrence_review_v22018_20260908"
 
 @st.cache_data(
     ttl=900,
@@ -15466,6 +15733,52 @@ if selected_symbol:
                                 )
 
 
+                    adjustment_review = research.get("adjustment_recurrence_review") or {}
+                    if adjustment_review:
+                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.18**")
+                        review_level = adjustment_review.get("status_level")
+                        review_status = text_or_dash(adjustment_review.get("status"))
+                        if review_level == "Rot":
+                            st.error("**🔴 " + review_status + "**")
+                        else:
+                            st.warning("**🟡 " + review_status + "**")
+                        st.write(text_or_dash(adjustment_review.get("summary")))
+
+                        gap = safe_float(adjustment_review.get("bridge_gap"))
+                        noncomp = safe_float(adjustment_review.get("noncomparable_per_share"))
+                        if gap is not None:
+                            line = f"**Gesamtdifferenz GAAP → bereinigt:** {gap:.2f} je Aktie"
+                            if noncomp is not None:
+                                line += f" · ausgewiesene Non-Comparable-Posten: {noncomp:.2f} je Aktie"
+                            st.write(line)
+                            if adjustment_review.get("total_bridge_reconciled"):
+                                st.success("✓ Die Gesamtbrücke ist rechnerisch konsistent.")
+
+                        components = adjustment_review.get("components") or []
+                        if components:
+                            st.write("**Erkannte Bereinigungskategorien:**")
+                            for comp in components[:10]:
+                                st.write(
+                                    f"• **{text_or_dash(comp.get('label'))}** – "
+                                    f"{text_or_dash(comp.get('bucket'))}"
+                                )
+                                st.caption(text_or_dash(comp.get("note")))
+                        else:
+                            st.info(
+                                "Die Quelle enthält die Gesamt-EPS-Brücke, aber keine ausreichend "
+                                "sicher extrahierbare Einzelaufschlüsselung."
+                            )
+
+                        st.error(
+                            "**Automatische EPS-Normalisierungsfreigabe: NEIN.** Kein erkannter "
+                            "Bereinigungsposten wird in V2.20.18 automatisch zum Bewertungs-EPS addiert."
+                        )
+                        st.caption(
+                            "Nächster Prüfschritt: "
+                            + text_or_dash(adjustment_review.get("next_step"))
+                        )
+
+
                     supporting_bridges = research.get("supporting_eps_bridges") or []
                     if supporting_bridges:
                         st.write("**Weitere validierte Brücken (Zusatzbelege):**")
@@ -15531,13 +15844,13 @@ if selected_symbol:
 
                     if research.get("quantitative_eps_bridge_found"):
                         st.info(
-                            "Eine quantitative EPS-Brücke wurde nach V2.20.17-Regeln periodenvalidiert. "
+                            "Eine quantitative EPS-Brücke wurde nach V2.20.18-Regeln periodenvalidiert und auf Bereinigungskategorien geprüft. "
                             "Sie wird weiterhin **nicht automatisch als bereinigtes EPS übernommen**."
                         )
 
                     st.error(
-                        "**Freigabestatus: GESPERRT.** Die automatische Recherche darf in "
-                        "V2.20.17 den Fair Value noch nicht selbst entsperren."
+                        "**Freigabestatus: GESPERRT.** Die Wiederkehrbarkeits-Prüfung darf in "
+                        "V2.20.18 den Fair Value noch nicht selbst entsperren."
                     )
                     st.write("**Nächster Schritt:** " + text_or_dash(research.get("next_step")))
 
