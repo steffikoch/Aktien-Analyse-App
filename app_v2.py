@@ -489,7 +489,7 @@ def evaluate_cycle_eps_comparability_gate(
 
 def build_special_event_warning(eps_normalization):
     """
-    V2.20.11 – Sonderereignis-Warnampel für normale Nutzer.
+    V2.20.12 – Sonderereignis-Warnampel mit End-to-End-Nutzerführung.
 
     Die Ampel übersetzt technische EPS-/Vergleichbarkeits-Signale in eine
     einfache Handlungsebene:
@@ -11368,7 +11368,26 @@ def get_fundamental_strength(multiple_score):
     return "Schwach"
 
 
-def generate_new_buy_signal(valuation_zone, valuation_confidence, multiple_score):
+def _special_event_signal_block(special_event_warning):
+    warning = special_event_warning if isinstance(special_event_warning, dict) else {}
+    level = str(warning.get("level") or "").strip().lower()
+    requires_research = bool(warning.get("requires_research"))
+    valuation_usable = warning.get("valuation_usable")
+
+    blocked = (
+        level == "rot"
+        or (requires_research and valuation_usable is False)
+    )
+
+    return blocked, warning
+
+
+def generate_new_buy_signal(
+    valuation_zone,
+    valuation_confidence,
+    multiple_score,
+    special_event_warning=None
+):
     zone = (valuation_zone or {}).get("zone")
     confidence = (valuation_confidence or {}).get("level")
     fundamental = get_fundamental_strength(multiple_score)
@@ -11378,7 +11397,26 @@ def generate_new_buy_signal(valuation_zone, valuation_confidence, multiple_score
         "signal": None,
         "fundamental_strength": fundamental,
         "reason": None,
+        "special_event_blocked": False,
     }
+
+    special_blocked, warning = _special_event_signal_block(
+        special_event_warning
+    )
+
+    if special_blocked:
+        result.update({
+            "available": False,
+            "signal": "Kein Handlungssignal – Sonderprüfung offen",
+            "special_event_blocked": True,
+            "reason": (
+                "Weder kaufen noch nachkaufen, solange die Sonderursache und "
+                "die Vergleichbarkeit der Gewinnbasis nicht geklärt sind. "
+                "Der Fair Value ist gesperrt."
+            ),
+            "next_step": warning.get("action"),
+        })
+        return result
 
     if not zone or not confidence:
         result["reason"] = "Ohne belastbare Bewertungszone kein Neukauf-Signal."
@@ -11419,7 +11457,12 @@ def generate_new_buy_signal(valuation_zone, valuation_confidence, multiple_score
     return result
 
 
-def generate_holding_signal(valuation_zone, valuation_confidence, multiple_score):
+def generate_holding_signal(
+    valuation_zone,
+    valuation_confidence,
+    multiple_score,
+    special_event_warning=None
+):
     zone = (valuation_zone or {}).get("zone")
     confidence = (valuation_confidence or {}).get("level")
     fundamental = get_fundamental_strength(multiple_score)
@@ -11429,7 +11472,26 @@ def generate_holding_signal(valuation_zone, valuation_confidence, multiple_score
         "signal": None,
         "fundamental_strength": fundamental,
         "reason": None,
+        "special_event_blocked": False,
     }
+
+    special_blocked, warning = _special_event_signal_block(
+        special_event_warning
+    )
+
+    if special_blocked:
+        result.update({
+            "available": False,
+            "signal": "Kein Handlungssignal – Sonderprüfung offen",
+            "special_event_blocked": True,
+            "reason": (
+                "Weder halten/nachkaufen noch reduzieren/verkaufen allein aus "
+                "dem Diagnosewert ableiten. Erst Sonderursache und "
+                "Gewinnvergleichbarkeit klären."
+            ),
+            "next_step": warning.get("action"),
+        })
+        return result
 
     if not zone or not confidence:
         result["reason"] = "Ohne belastbare Bewertungszone kein Bestands-Signal."
@@ -12878,7 +12940,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_sonderereignis_warnampel_v22011_20260908"
+CACHE_VERSION = "m6_sonderereignis_warnampel_e2e_v22012_20260908"
 
 @st.cache_data(
     ttl=900,
@@ -13253,13 +13315,15 @@ def load_stock(search_text, cache_version):
     new_buy_signal = generate_new_buy_signal(
         valuation_zone,
         valuation_confidence,
-        fundamental_multiple.get("score")
+        fundamental_multiple.get("score"),
+        special_event_warning=special_event_warning
     )
 
     holding_signal = generate_holding_signal(
         valuation_zone,
         valuation_confidence,
-        fundamental_multiple.get("score")
+        fundamental_multiple.get("score"),
+        special_event_warning=special_event_warning
     )
 
     return {
@@ -15619,8 +15683,42 @@ if selected_symbol:
                 special_control = data[
                     "special_control"
                 ]
+                event_warning = data.get(
+                    "special_event_warning",
+                    {}
+                )
+                special_event_red = (
+                    str(event_warning.get("level") or "").lower() == "rot"
+                    or bool(event_warning.get("requires_research"))
+                    and event_warning.get("valuation_usable") is False
+                )
 
-                if special_control[
+                if special_event_red:
+                    st.error(
+                        "**Sonderereignis-Prüfung durch Warnampel ausgelöst – "
+                        "Vergleichbarkeit muss geklärt werden.**"
+                    )
+                    st.write(
+                        "**Status:** Sonderereignis-Gate aktiv · "
+                        "Fair Value und Handlungssignale gesperrt"
+                    )
+                    st.info(
+                        event_warning.get(
+                            "action",
+                            "Gezielte Geschäftsbericht-/IR-/Internetprüfung erforderlich."
+                        )
+                    )
+
+                    if special_control["required"]:
+                        st.warning(
+                            "Zusätzlich ist für diesen Unternehmenstyp die reguläre "
+                            f"Spezialkontrolle **{special_control['control_name']}** vorgesehen."
+                        )
+                        st.write(
+                            "**Status der regulären Spezialkontrolle:** "
+                            f"{special_control.get('router_status', special_control.get('status'))}"
+                        )
+                elif special_control[
                     "required"
                 ]:
 
@@ -15671,18 +15769,25 @@ if selected_symbol:
                         ]
                     )
 
-                st.caption(
-                    "Schritt 3A ist ausschließlich der Router. "
-                    "Die eigentliche Spezialprüfung erfolgt – sofern bereits "
-                    "implementiert – getrennt in Schritt 3B und verändert weder "
-                    "Multiple Score noch Fundamental-/Peer-Multiple."
-                )
+                if special_event_red:
+                    st.caption(
+                        "Die Sonderereignis-Warnampel wirkt hier als vorgeschaltete "
+                        "Bewertungssperre. Erst nach Klärung der Ursache darf die "
+                        "Vergleichbarkeit wieder freigegeben werden."
+                    )
+                else:
+                    st.caption(
+                        "Schritt 3A ist ausschließlich der Router. "
+                        "Die eigentliche Spezialprüfung erfolgt – sofern bereits "
+                        "implementiert – getrennt in Schritt 3B und verändert weder "
+                        "Multiple Score noch Fundamental-/Peer-Multiple."
+                    )
 
-                st.caption(
-                    "Erforderliche Spezialkontrollen sperren den "
-                    "nachfolgenden Fair-Value-Schritt, solange sie noch "
-                    "nicht vollständig implementiert und freigegeben sind."
-                )
+                    st.caption(
+                        "Erforderliche Spezialkontrollen sperren den "
+                        "nachfolgenden Fair-Value-Schritt, solange sie noch "
+                        "nicht vollständig implementiert und freigegeben sind."
+                    )
 
                 if special_control.get(
                     "control_key"
@@ -17828,7 +17933,28 @@ if selected_symbol:
                     {}
                 )
 
-                if new_buy_signal.get("available"):
+                if new_buy_signal.get("special_event_blocked"):
+                    st.error(
+                        "**🔴 Kein Handlungssignal – Sonderprüfung offen**"
+                    )
+                    st.write(
+                        "Weder **kaufen**, **nachkaufen**, **reduzieren** noch "
+                        "**verkaufen**, bis die Ursache der Auffälligkeit und die "
+                        "Vergleichbarkeit der Gewinnbasis geklärt wurden."
+                    )
+                    st.caption(
+                        new_buy_signal.get(
+                            "reason",
+                            "Fair Value und Handlungssignale bleiben gesperrt."
+                        )
+                    )
+                    if new_buy_signal.get("next_step"):
+                        st.info(
+                            "**Nächster Schritt:** "
+                            + str(new_buy_signal.get("next_step"))
+                        )
+
+                elif new_buy_signal.get("available"):
                     st.write(
                         "**Fundamentale Basis:** "
                         f"{text_or_dash(new_buy_signal.get('fundamental_strength'))} "
