@@ -4514,6 +4514,16 @@ def get_peer_group(company_type, symbol):
             ]
         ),
         (
+            "autozulieferer / zyklisch",
+            [
+                ("APTV", "Aptiv"),
+                ("BWA", "BorgWarner"),
+                ("LEA", "Lear Corporation"),
+                ("MGA", "Magna International"),
+                ("ADNT", "Adient"),
+            ]
+        ),
+        (
             "autohersteller / zyklisch",
             [
                 ("BMW.DE", "BMW"),
@@ -4578,11 +4588,19 @@ def get_peer_group(company_type, symbol):
                 "peers": filtered,
                 "count": len(filtered),
                 "note": (
-                    "Peer-Gruppe automatisch aus dem "
-                    "Unternehmenstyp ausgewählt. In Schritt 2A "
-                    "werden noch keine Peer-Kennzahlen geladen "
-                    "und das Fundamental-Multiple bleibt "
-                    "unverändert."
+                    (
+                        "Autozulieferer-Peer-Gruppe automatisch ausgewählt. "
+                        "Die Peers dienen später als vorsichtiger Forward-KGV-"
+                        "Realitätscheck; die zyklus-normalisierte EPS-Basis "
+                        "der analysierten Aktie wird dadurch nicht ersetzt."
+                    )
+                    if key == "autozulieferer / zyklisch"
+                    else (
+                        "Peer-Gruppe automatisch aus dem Unternehmenstyp "
+                        "ausgewählt. In Schritt 2A werden noch keine Peer-"
+                        "Kennzahlen geladen und das Fundamental-Multiple "
+                        "bleibt unverändert."
+                    )
                 )
             }
 
@@ -4620,7 +4638,14 @@ def peer_forward_pe_is_supported(company_type):
         company_type.get("type", "")
     ).lower()
 
-    # Für zyklische Unternehmen ist ein einfaches aktuelles
+    # Autozulieferer erhalten bewusst einen eng begrenzten Forward-KGV-
+    # Realitätscheck. Die eigentliche Gewinnbasis der Aktie bleibt
+    # zyklus-normalisiert; der Peer-Median darf das Multiple nur um
+    # maximal ±5 % bewegen und ersetzt die Zyklus-Normalisierung nicht.
+    if "autozulieferer / zyklisch" in type_name:
+        return True
+
+    # Für andere zyklische Unternehmen ist ein einfaches aktuelles
     # Forward-KGV als Peer-Maßstab nicht belastbar genug.
     unsupported_terms = [
         "zyklisch",
@@ -4651,20 +4676,56 @@ def peer_forward_pe_is_supported(company_type):
 
 @st.cache_data(ttl=900)
 def load_peer_forward_pe(peer_symbol, cache_version):
+    """Load a directly reported Yahoo Forward-P/E with safe recovery.
+
+    Primary source is ticker.info. If quoteSummary/info is incomplete, the
+    Yahoo valuation-measures table is used as a second *reported* source.
+    No peer multiple is estimated from unrelated accounting figures.
+    """
 
     try:
         peer_ticker = yf.Ticker(peer_symbol)
-        peer_info = peer_ticker.info or {}
-
-        forward_pe = peer_info.get("forwardPE")
-
-        if forward_pe is None:
-            forward_pe = peer_info.get("forwardPe")
 
         try:
-            forward_pe = float(forward_pe)
-        except (TypeError, ValueError):
-            forward_pe = None
+            peer_info = peer_ticker.info or {}
+        except Exception:
+            peer_info = {}
+
+        forward_pe = safe_float(
+            peer_info.get("forwardPE")
+        )
+
+        if forward_pe is None:
+            forward_pe = safe_float(
+                peer_info.get("forwardPe")
+            )
+
+        source = "Yahoo quoteSummary/info"
+
+        if forward_pe is None:
+            try:
+                valuation = _ticker_frame(
+                    peer_ticker,
+                    ["valuation"],
+                    method_calls=[
+                        (
+                            "get_valuation_measures",
+                            {"freq": "trailing", "periods": 0}
+                        )
+                    ],
+                )
+                forward_pe = _valuation_measure_value(
+                    valuation,
+                    [
+                        "Forward P/E",
+                        "Forward PE",
+                        "ForwardPE",
+                        "Forward Price/Earnings",
+                    ],
+                )
+                source = "Yahoo Valuation Measures"
+            except Exception:
+                forward_pe = None
 
         if (
             forward_pe is None
@@ -4674,6 +4735,7 @@ def load_peer_forward_pe(peer_symbol, cache_version):
             return {
                 "usable": False,
                 "forward_pe": None,
+                "source": None,
                 "reason": (
                     "Kein plausibles positives "
                     "Forward-KGV verfügbar."
@@ -4682,7 +4744,8 @@ def load_peer_forward_pe(peer_symbol, cache_version):
 
         return {
             "usable": True,
-            "forward_pe": forward_pe,
+            "forward_pe": float(forward_pe),
+            "source": source,
             "reason": None
         }
 
@@ -4690,6 +4753,7 @@ def load_peer_forward_pe(peer_symbol, cache_version):
         return {
             "usable": False,
             "forward_pe": None,
+            "source": None,
             "reason": (
                 "Peer-Daten konnten nicht zuverlässig "
                 "geladen werden."
@@ -4765,6 +4829,7 @@ def calculate_peer_check(
             "name": peer["name"],
             "usable": peer_data["usable"],
             "forward_pe": peer_data["forward_pe"],
+            "source": peer_data.get("source"),
             "reason": peer_data["reason"]
         }
 
@@ -4844,6 +4909,14 @@ def calculate_peer_check(
             "Der Abstand zum Peer-Median ist größer als "
             "5 %. Die automatische Peer-Anpassung wird "
             "deshalb strikt auf maximal ±5 % begrenzt."
+        )
+
+    if "autozulieferer / zyklisch" in str(company_type.get("type", "")).lower():
+        result["note"] += (
+            " Bei Autozulieferern dient das Forward-KGV nur als externer "
+            "Realitätscheck. Die zyklus-normalisierte EPS-Basis bleibt "
+            "unverändert; der Peer-Check kontrolliert ausschließlich das "
+            "Multiple innerhalb der ±5-%-Grenze."
         )
 
     return result
@@ -12581,7 +12654,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_autozulieferer_zyklisch_v2208_20260908"
+CACHE_VERSION = "m6_autozulieferer_peercheck_v2209_20260908"
 
 @st.cache_data(
     ttl=900,
@@ -15154,10 +15227,16 @@ if selected_symbol:
 
                         if row["usable"]:
 
+                            source_text = (
+                                f" · {row['source']}"
+                                if row.get("source")
+                                else ""
+                            )
                             st.write(
                                 f"• {row['name']} "
                                 f"({row['symbol']}): "
                                 f"{row['forward_pe']:.2f}×"
+                                f"{source_text}"
                             )
 
                         else:
