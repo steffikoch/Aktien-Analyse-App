@@ -2,7 +2,12 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import math
+import re
 from datetime import datetime
+from urllib.parse import urlparse, parse_qs, unquote
+
+import requests
+from bs4 import BeautifulSoup
 
 st.set_page_config(
     page_title="Aktien-Analyse V2",
@@ -584,6 +589,408 @@ def build_special_event_warning(eps_normalization):
         "valuation_usable": True,
         "reason": "Die EPS-/Vergleichbarkeitsprüfung zeigt derzeit keinen materiellen Sonderfall.",
         "action": "Normale Bewertungslogik kann ohne zusätzliche Sonderrecherche weiterlaufen.",
+    }
+
+
+# =========================================================
+# V2.20.13 – Automatische Sonderereignis-Recherche
+# =========================================================
+
+SPECIAL_EVENT_KEYWORDS = {
+    "Abspaltung / Spin-off": [
+        "spin-off", "spinoff", "spin off", "separation", "demerger",
+        "abspaltung", "abgespalten",
+    ],
+    "Restrukturierung": [
+        "restructuring", "restructure", "restructur", "reorganization",
+        "reorganisation", "cost reduction", "cost-reduction",
+        "restrukturierung", "restruktur",
+    ],
+    "Impairment / Abschreibung": [
+        "impairment", "write-down", "writedown", "write off", "write-off",
+        "non-cash charge", "noncash charge", "abschreibung", "wertminderung",
+    ],
+    "Übernahme / Akquisition": [
+        "acquisition", "acquire", "acquired", "merger", "business combination",
+        "übernahme", "akquisition", "fusion",
+    ],
+    "Verkauf / Desinvestition": [
+        "divestiture", "divestment", "disposed", "disposal", "sale of business",
+        "discontinued operations", "verkauf", "desinvestition",
+    ],
+    "Einmal-/Sonderposten": [
+        "one-time", "one time", "non-recurring", "nonrecurring", "special charge",
+        "exceptional item", "adjusted eps", "adjusted earnings", "adjusted net income",
+        "reported eps", "gaap eps", "sonderposten", "einmaleffekt",
+    ],
+    "Steuer-/Rechtseffekt": [
+        "tax benefit", "tax charge", "tax settlement", "litigation", "legal settlement",
+        "steuerertrag", "steueraufwand", "rechtsstreit", "vergleichszahlung",
+    ],
+}
+
+TRUSTED_SECONDARY_DOMAINS = {
+    "reuters.com", "apnews.com", "bloomberg.com", "wsj.com", "ft.com",
+    "marketwatch.com", "morningstar.com", "finance.yahoo.com",
+}
+
+
+def _clean_text(value):
+    return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def _extract_company_domain(website):
+    raw = _clean_text(website)
+    if not raw:
+        return None
+    try:
+        parsed = urlparse(raw if "://" in raw else "https://" + raw)
+        host = (parsed.netloc or "").lower().split(":")[0]
+        if host.startswith("www."):
+            host = host[4:]
+        return host or None
+    except Exception:
+        return None
+
+
+def _unwrap_duckduckgo_url(href):
+    href = _clean_text(href)
+    if not href:
+        return None
+    if href.startswith("//"):
+        href = "https:" + href
+    try:
+        parsed = urlparse(href)
+        if "duckduckgo.com" in (parsed.netloc or "").lower():
+            target = parse_qs(parsed.query).get("uddg", [None])[0]
+            if target:
+                return unquote(target)
+    except Exception:
+        pass
+    return href if href.startswith(("http://", "https://")) else None
+
+
+def _source_category(url, company_domain=None):
+    try:
+        host = (urlparse(url).netloc or "").lower().split(":")[0]
+        if host.startswith("www."):
+            host = host[4:]
+    except Exception:
+        host = ""
+
+    if host == "sec.gov" or host.endswith(".sec.gov"):
+        return "Regulatorisch / SEC", True
+
+    if company_domain and (host == company_domain or host.endswith("." + company_domain)):
+        return "Unternehmen / Investor Relations", True
+
+    if any(host == d or host.endswith("." + d) for d in TRUSTED_SECONDARY_DOMAINS):
+        return "Seriöse Sekundärquelle", False
+
+    return "Weitere Webquelle", False
+
+
+def _classify_special_event_text(text):
+    haystack = _clean_text(text).lower()
+    labels = []
+    for label, keywords in SPECIAL_EVENT_KEYWORDS.items():
+        if any(keyword in haystack for keyword in keywords):
+            labels.append(label)
+    return labels
+
+
+def _has_quantitative_eps_bridge(text):
+    """
+    Conservative diagnostic only: identifies whether a source appears to
+    discuss both reported/GAAP and adjusted EPS. It never imports an adjusted
+    EPS into the valuation automatically.
+    """
+    t = _clean_text(text).lower()
+    eps_present = "eps" in t or "earnings per share" in t
+    adjusted_present = any(x in t for x in [
+        "adjusted eps", "adjusted diluted eps", "adjusted earnings per share",
+        "adjusted earnings", "bereinigtes eps", "bereinigter gewinn",
+    ])
+    reported_present = any(x in t for x in [
+        "gaap", "reported eps", "reported diluted eps", "diluted eps",
+        "reported earnings per share", "ausgewiesenes eps",
+    ])
+    number_present = bool(re.search(r"(?:\$|€|£)?\s*\d+[\.,]\d+", t))
+    return bool(eps_present and adjusted_present and reported_present and number_present)
+
+
+def _duckduckgo_html_search(query, max_results=6):
+    results = []
+    try:
+        response = requests.get(
+            "https://html.duckduckgo.com/html/",
+            params={"q": query},
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/126.0 Safari/537.36"
+                )
+            },
+            timeout=8,
+        )
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        for result in soup.select(".result"):
+            link = result.select_one("a.result__a")
+            if link is None:
+                continue
+            url = _unwrap_duckduckgo_url(link.get("href"))
+            if not url:
+                continue
+            snippet_node = result.select_one(".result__snippet")
+            results.append({
+                "title": _clean_text(link.get_text(" ", strip=True)),
+                "url": url,
+                "snippet": _clean_text(
+                    snippet_node.get_text(" ", strip=True) if snippet_node else ""
+                ),
+                "search_source": "DuckDuckGo",
+            })
+            if len(results) >= max_results:
+                break
+    except Exception:
+        pass
+    return results
+
+
+def _yahoo_news_search(query, max_results=6):
+    results = []
+    try:
+        response = requests.get(
+            "https://query1.finance.yahoo.com/v1/finance/search",
+            params={
+                "q": query,
+                "quotesCount": 0,
+                "newsCount": max_results,
+                "enableFuzzyQuery": "false",
+            },
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=8,
+        )
+        response.raise_for_status()
+        payload = response.json() if response.content else {}
+        for item in payload.get("news") or []:
+            url = item.get("link")
+            title = item.get("title")
+            if not url or not title:
+                continue
+            results.append({
+                "title": _clean_text(title),
+                "url": _clean_text(url),
+                "snippet": _clean_text(item.get("summary") or item.get("publisher")),
+                "search_source": "Yahoo Finance Search",
+            })
+            if len(results) >= max_results:
+                break
+    except Exception:
+        pass
+    return results
+
+
+def _fetch_source_text(url):
+    try:
+        response = requests.get(
+            url,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/126.0 Safari/537.36"
+                )
+            },
+            timeout=8,
+            allow_redirects=True,
+        )
+        response.raise_for_status()
+        content_type = (response.headers.get("Content-Type") or "").lower()
+        if "html" not in content_type and "text" not in content_type:
+            return ""
+        # Avoid parsing unexpectedly huge pages.
+        html = response.text[:2_000_000]
+        soup = BeautifulSoup(html, "html.parser")
+        for node in soup(["script", "style", "noscript", "svg"]):
+            node.decompose()
+        return _clean_text(soup.get_text(" ", strip=True))[:180_000]
+    except Exception:
+        return ""
+
+
+@st.cache_data(ttl=21600, show_spinner=False)
+def research_special_event_online(
+    symbol,
+    company_name,
+    website=None,
+    cache_version="v22013",
+):
+    """
+    Automatically gather web evidence when the red special-event gate fires.
+
+    Safety principle: this module researches and classifies evidence, but it
+    does NOT overwrite reported EPS, invent adjusted EPS, or release the Fair
+    Value gate. A later validation module must decide whether a quantitatively
+    reconciled adjusted earnings basis is acceptable.
+    """
+    _ = cache_version
+    symbol = _clean_text(symbol).upper()
+    company_name = _clean_text(company_name) or symbol
+    company_domain = _extract_company_domain(website)
+
+    queries = [
+        f'"{company_name}" {symbol} spin-off spinoff restructuring impairment adjusted EPS',
+        f'"{company_name}" {symbol} investor relations results adjusted earnings impairment restructuring',
+        f'"{company_name}" {symbol} divestiture acquisition discontinued operations one-time charge',
+        f'"{company_name}" {symbol} site:sec.gov 10-K 10-Q impairment restructuring spin-off',
+    ]
+    if company_domain:
+        queries.insert(
+            0,
+            f'"{company_name}" site:{company_domain} adjusted EPS impairment restructuring spin-off results',
+        )
+
+    raw_results = []
+    for query in queries:
+        raw_results.extend(_duckduckgo_html_search(query, max_results=5))
+
+    # Yahoo Finance search is a fallback if generic HTML search is blocked or
+    # returns very little. It is not treated as a primary source merely because
+    # Yahoo surfaced it.
+    if len(raw_results) < 5:
+        for query in queries[:3]:
+            raw_results.extend(_yahoo_news_search(query, max_results=5))
+
+    deduped = []
+    seen_urls = set()
+    for item in raw_results:
+        url = _clean_text(item.get("url"))
+        if not url or url in seen_urls:
+            continue
+        seen_urls.add(url)
+        deduped.append(item)
+        if len(deduped) >= 16:
+            break
+
+    evidence = []
+    for idx, item in enumerate(deduped):
+        url = item.get("url")
+        category, primary = _source_category(url, company_domain)
+
+        # Fetch only a limited number of pages per run. Search snippets remain
+        # useful for discovery, but only successfully fetched source text is
+        # counted as a stronger document-level confirmation.
+        page_text = _fetch_source_text(url) if idx < 10 else ""
+        combined = " ".join([
+            item.get("title") or "",
+            item.get("snippet") or "",
+            page_text[:120_000],
+        ])
+        event_types = _classify_special_event_text(combined)
+        quantitative_bridge = _has_quantitative_eps_bridge(combined)
+
+        if not event_types and not quantitative_bridge:
+            continue
+
+        evidence.append({
+            "title": item.get("title") or url,
+            "url": url,
+            "snippet": item.get("snippet") or "",
+            "source_category": category,
+            "primary_source": primary,
+            "document_loaded": bool(page_text),
+            "event_types": event_types,
+            "quantitative_eps_bridge": quantitative_bridge,
+            "search_source": item.get("search_source"),
+        })
+
+    cause_counts = {}
+    for row in evidence:
+        for label in row.get("event_types") or []:
+            cause_counts[label] = cause_counts.get(label, 0) + 1
+
+    causes = [
+        {"label": label, "mentions": count}
+        for label, count in sorted(
+            cause_counts.items(), key=lambda pair: (-pair[1], pair[0])
+        )
+    ]
+
+    primary_rows = [
+        row for row in evidence
+        if row.get("primary_source") and row.get("document_loaded")
+    ]
+    document_rows = [row for row in evidence if row.get("document_loaded")]
+    quantitative_rows = [
+        row for row in evidence
+        if row.get("quantitative_eps_bridge") and row.get("document_loaded")
+    ]
+
+    if primary_rows:
+        status = "Primär-/Regulierungsbelege gefunden"
+        status_level = "Gelb"
+        summary = (
+            "Die automatische Recherche hat mindestens eine geladene Unternehmens-/IR- "
+            "oder Regulierungsquelle mit Hinweisen auf ein Sonderereignis gefunden."
+        )
+    elif document_rows:
+        status = "Web-Hinweise gefunden – Primärbeleg noch offen"
+        status_level = "Gelb"
+        summary = (
+            "Es wurden geladene Webquellen mit möglichen Sonderursachen gefunden, aber "
+            "noch kein belastbarer Primär-/Regulierungsbeleg bestätigt."
+        )
+    elif evidence:
+        status = "Suchhinweise gefunden – Dokumente nicht belastbar geladen"
+        status_level = "Rot"
+        summary = (
+            "Die Suche hat passende Hinweise geliefert, die zugrunde liegenden Dokumente "
+            "konnten jedoch nicht belastbar geladen werden."
+        )
+    else:
+        status = "Ursache automatisch nicht geklärt"
+        status_level = "Rot"
+        summary = (
+            "Die automatische Internetrecherche konnte keine belastbare Sonderursache "
+            "finden. Die Bewertung bleibt deshalb vollständig gesperrt."
+        )
+
+    quantitative_bridge_found = bool(quantitative_rows)
+    if quantitative_bridge_found:
+        next_step = (
+            "Mindestens eine Quelle enthält offenbar eine quantitative Brücke zwischen "
+            "ausgewiesenem/GAAP- und bereinigtem EPS. V2.20.13 übernimmt diese Werte "
+            "bewusst noch nicht in die Bewertung; zuerst muss die Brücke fachlich validiert werden."
+        )
+    elif primary_rows:
+        next_step = (
+            "Die wahrscheinliche Sonderursache ist belegt, aber ihre quantitative EPS-Wirkung "
+            "ist noch nicht ausreichend reconciliert. Fair Value bleibt gesperrt."
+        )
+    else:
+        next_step = (
+            "Primär-/IR-/Regulierungsquelle bzw. eine quantitative EPS-Brücke fehlt. "
+            "Fair Value bleibt gesperrt."
+        )
+
+    return {
+        "available": bool(evidence),
+        "status": status,
+        "status_level": status_level,
+        "summary": summary,
+        "causes": causes,
+        "evidence": evidence[:10],
+        "primary_evidence_count": len(primary_rows),
+        "loaded_document_count": len(document_rows),
+        "quantitative_eps_bridge_found": quantitative_bridge_found,
+        "quantitative_eps_bridge_count": len(quantitative_rows),
+        "valuation_release": False,
+        "next_step": next_step,
+        "company_domain": company_domain,
+        "queries_run": len(queries),
     }
 
 def build_eps_result(
@@ -12940,7 +13347,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_sonderereignis_warnampel_e2e_v22012_20260908"
+CACHE_VERSION = "m6_sonderereignis_auto_research_v22013_20260908"
 
 @st.cache_data(
     ttl=900,
@@ -13367,6 +13774,10 @@ def load_stock(search_text, cache_version):
         "industry": (
             fundamental_info.get("industry")
             or quote_info.get("industry")
+        ),
+        "website": (
+            fundamental_info.get("website")
+            or quote_info.get("website")
         ),
 
         "market_cap": fundamental_info.get("marketCap"),
@@ -14139,13 +14550,99 @@ if selected_symbol:
                 if event_warning.get("requires_research"):
                     st.error(
                         "**Was du als Nutzer tun musst:** Nicht selbst aus den Zahlen raten. "
-                        "Hier ist eine gezielte Internet-/Berichtsprüfung erforderlich."
+                        "Die App startet jetzt automatisch eine gezielte Internet-/Berichtsprüfung."
                     )
-                    st.write("**Nächster Schritt:** " + text_or_dash(event_warning.get("action")))
+                    st.write("**Bewertungsschutz:** " + text_or_dash(event_warning.get("action")))
                     st.caption(
                         "Solange die Sonderursache nicht geklärt ist, soll aus dem Diagnosewert "
                         "kein Kauf-, Nachkauf-, Reduzieren- oder Verkaufsschluss gezogen werden."
                     )
+
+                    st.subheader("🌐 Automatische Sonderereignis-Recherche")
+                    with st.spinner(
+                        "Geschäftsbericht-/IR-/SEC-/Webquellen werden gezielt geprüft …"
+                    ):
+                        research = research_special_event_online(
+                            data.get("fundamental_symbol") or data.get("symbol"),
+                            data.get("name"),
+                            data.get("website"),
+                            CACHE_VERSION,
+                        )
+
+                    research_level = research.get("status_level")
+                    if research_level == "Gelb":
+                        st.warning("**🟡 " + text_or_dash(research.get("status")) + "**")
+                    else:
+                        st.error("**🔴 " + text_or_dash(research.get("status")) + "**")
+
+                    st.write(text_or_dash(research.get("summary")))
+
+                    causes = research.get("causes") or []
+                    if causes:
+                        st.write("**Gefundene mögliche Ursachen:**")
+                        for cause in causes[:7]:
+                            st.write(
+                                f"• {cause.get('label')} "
+                                f"({cause.get('mentions', 0)} Quellenhinweise)"
+                            )
+                    else:
+                        st.write("**Gefundene mögliche Ursachen:** keine belastbar klassifizierbar")
+
+                    st.write(
+                        "**Primär-/Regulierungsbelege geladen:** "
+                        f"{research.get('primary_evidence_count', 0)}"
+                    )
+                    st.write(
+                        "**Quantitative GAAP-/bereinigte-EPS-Brücke erkannt:** "
+                        + (
+                            "Ja"
+                            if research.get("quantitative_eps_bridge_found")
+                            else "Nein"
+                        )
+                    )
+
+                    evidence_rows = research.get("evidence") or []
+                    if evidence_rows:
+                        st.write("**Quellen:**")
+                        for idx, row in enumerate(evidence_rows[:6], start=1):
+                            labels = ", ".join(row.get("event_types") or []) or "EPS-Sondereffekt"
+                            badge = (
+                                "Primär-/Regulierungsquelle"
+                                if row.get("primary_source")
+                                else row.get("source_category")
+                            )
+                            load_note = (
+                                "Dokument geladen"
+                                if row.get("document_loaded")
+                                else "nur Suchhinweis"
+                            )
+                            st.markdown(
+                                f"**{idx}. {text_or_dash(row.get('title'))}**  "
+                                f"\n{badge} · {load_note} · {labels}"
+                            )
+                            if row.get("snippet"):
+                                st.caption(_clean_text(row.get("snippet"))[:500])
+                            url = row.get("url")
+                            if url:
+                                st.markdown(f"[Quelle öffnen]({url})")
+                    else:
+                        st.info(
+                            "Keine belastbare Quelle automatisch gefunden. "
+                            "Die Sperre bleibt unverändert aktiv."
+                        )
+
+                    if research.get("quantitative_eps_bridge_found"):
+                        st.info(
+                            "Eine quantitative EPS-Brücke wurde als Hinweis erkannt. "
+                            "Sie wird in V2.20.13 noch **nicht automatisch als bereinigtes EPS übernommen**."
+                        )
+
+                    st.error(
+                        "**Freigabestatus: GESPERRT.** Die automatische Recherche darf in "
+                        "V2.20.13 den Fair Value noch nicht selbst entsperren."
+                    )
+                    st.write("**Nächster Schritt:** " + text_or_dash(research.get("next_step")))
+
                 else:
                     st.write("**Nächster Schritt:** " + text_or_dash(event_warning.get("action")))
 
