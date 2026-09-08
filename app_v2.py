@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.26: IR Year Navigator – Financial-Releases-Archiv gezielt nach Geschäftsjahren navigieren.
+# V2.20.27: Adjustment Component Analysis – wiederkehrende vs. außergewöhnliche Bereinigungskomponenten.
 
 # =========================================================
 # Hilfsfunktionen
@@ -1160,7 +1160,7 @@ ADJUSTMENT_REVIEW_RULES = [
     },
     {
         "label": "Verkauf / Desinvestition",
-        "patterns": ["divestiture expense", "loss on sale of businesses", "loss on sale of assets", "sale of businesses", "divestiture"],
+        "patterns": ["divestiture expense", "loss on sale of businesses", "loss on sale of assets", "gain on sale of businesses", "gain on sale of assets", "sale of businesses", "divestiture"],
         "bucket": "Strukturereignis – plausibel einmalig",
         "severity": 2,
         "note": (
@@ -1206,6 +1206,46 @@ ADJUSTMENT_REVIEW_RULES = [
         ),
     },
     {
+        "label": "Intangible-Amortisation",
+        "patterns": ["intangible asset amortization", "amortization of intangible assets", "intangible amortization"],
+        "bucket": "Strukturell / wiederkehrend",
+        "severity": 5,
+        "note": (
+            "Die Amortisation erworbener immaterieller Vermögenswerte kann über viele Jahre planmäßig wiederkehren. "
+            "Sie wird deshalb nicht automatisch vollständig aus einem Bewertungs-EPS herausgerechnet."
+        ),
+    },
+    {
+        "label": "Änderung Bilanzierungsmethode",
+        "patterns": ["change in accounting method", "accounting method change", "change in accounting principle"],
+        "bucket": "Ereignisbezogen – Einmaligkeit prüfen",
+        "severity": 2,
+        "note": (
+            "Eine konkrete Bilanzierungsumstellung kann einmalig sein. Vor einer Normalisierung muss aber geprüft "
+            "werden, ob sie nur den Übergang betrifft oder dauerhaft die Vergleichbarkeit verändert."
+        ),
+    },
+    {
+        "label": "Schuldentilgung / Debt Extinguishment",
+        "patterns": ["gain on debt extinguishment", "loss on debt extinguishment", "debt extinguishment"],
+        "bucket": "Finanzierungsereignis – Einmaligkeit prüfen",
+        "severity": 2,
+        "note": (
+            "Gewinne oder Verluste aus einer konkreten Schuldentilgung sind häufig transaktionsbezogen. Bei regelmäßigem "
+            "Refinanzierungsmanagement können sie jedoch erneut auftreten."
+        ),
+    },
+    {
+        "label": "Pensions-/Versorgungseffekt",
+        "patterns": ["pension settlement", "pension adjustment", "pension expense", "postretirement"],
+        "bucket": "Wiederkehrungsrisiko offen",
+        "severity": 3,
+        "note": (
+            "Pensions- und Versorgungseffekte können markt- oder ereignisbedingt sein und in mehreren Jahren auftreten. "
+            "Sie werden ohne Mehrjahresnachweis nicht vollständig normalisiert."
+        ),
+    },
+    {
         "label": "Versicherungs-/Marktwert-Gegenposten",
         "patterns": ["insurance recovery", "unrealized gain", "unrealised gain", "equity securities"],
         "bucket": "Nicht operativ – Richtung prüfen",
@@ -1226,6 +1266,247 @@ ADJUSTMENT_REVIEW_RULES = [
         ),
     },
 ]
+
+
+
+def _parse_accounting_cell(value):
+    """Parse a small accounting-table cell; dashes/percentages/currency-only cells are ignored."""
+    raw = _clean_text(value)
+    if not raw or raw in {"—", "–", "-", "$", "€", "£", "n/a", "N/A"}:
+        return None
+    if "%" in raw:
+        return None
+    raw = raw.replace("$", "").replace("€", "").replace("£", "").replace(",", "").strip()
+    neg = raw.startswith("(") and raw.endswith(")")
+    if neg:
+        raw = raw[1:-1].strip()
+    # Keep this deliberately strict so dates, years and prose are not accepted.
+    if not re.fullmatch(r"-?\d+(?:\.\d+)?", raw):
+        return None
+    try:
+        val = float(raw)
+    except Exception:
+        return None
+    return -abs(val) if neg else val
+
+
+def _html_table_grid(table):
+    """Expand a HTML table into a rectangular text grid while honoring basic colspan/rowspan."""
+    rows = []
+    pending = {}  # col -> [remaining_rows, text]
+    max_cols = 0
+    for tr in table.find_all("tr"):
+        row = []
+        col = 0
+        cells = tr.find_all(["th", "td"], recursive=False)
+        if not cells:
+            cells = tr.find_all(["th", "td"])
+        for cell in cells:
+            while col in pending:
+                remaining, value = pending[col]
+                row.append(value)
+                if remaining <= 1:
+                    pending.pop(col, None)
+                else:
+                    pending[col] = [remaining - 1, value]
+                col += 1
+            value = _clean_text(cell.get_text(" ", strip=True))
+            try:
+                colspan = max(1, int(cell.get("colspan") or 1))
+            except Exception:
+                colspan = 1
+            try:
+                rowspan = max(1, int(cell.get("rowspan") or 1))
+            except Exception:
+                rowspan = 1
+            for offset in range(colspan):
+                row.append(value)
+                if rowspan > 1:
+                    pending[col + offset] = [rowspan - 1, value]
+            col += colspan
+        while col in pending:
+            remaining, value = pending[col]
+            row.append(value)
+            if remaining <= 1:
+                pending.pop(col, None)
+            else:
+                pending[col] = [remaining - 1, value]
+            col += 1
+        max_cols = max(max_cols, len(row))
+        rows.append(row)
+    for row in rows:
+        row.extend([""] * (max_cols - len(row)))
+    return rows
+
+
+def _match_adjustment_rule(row_label):
+    low = _clean_text(row_label).lower()
+    if not low:
+        return None
+    for rule in ADJUSTMENT_REVIEW_RULES:
+        for pattern in rule.get("patterns") or []:
+            if pattern.lower() in low:
+                return rule
+    return None
+
+
+def _extract_adjustment_components_from_html(html, target_year=None):
+    """
+    V2.20.27 structured reconciliation parser.
+
+    It only accepts rows from tables that look like GAAP-to-adjusted EPS reconciliations.
+    A component is attached to a fiscal year only when the table has a target-year
+    full-year/year-ended column and that row has a non-zero numeric value in that column.
+    This prevents a row that is non-zero only in the comparative year from being counted
+    as a current-year adjustment.
+    """
+    if not html or target_year is None:
+        return []
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:
+        return []
+
+    target_year = int(target_year)
+    best_components = []
+    best_score = -1
+
+    for table in soup.find_all("table"):
+        table_text = _clean_text(table.get_text(" ", strip=True))
+        low_table = table_text.lower()
+        if "adjusted" not in low_table or "earnings per diluted share" not in low_table:
+            continue
+        if "non-comparable" not in low_table and "noncomparable" not in low_table:
+            continue
+
+        grid = _html_table_grid(table)
+        if len(grid) < 3:
+            continue
+
+        # Header rows end when the first obvious EPS/reconciliation data label appears.
+        data_start = None
+        for i, row in enumerate(grid):
+            label = _clean_text(row[0] if row else "").lower()
+            joined = _clean_text(" ".join(row)).lower()
+            if any(k in label for k in [
+                "earnings per diluted share", "loss per diluted share",
+                "restructuring", "impairment", "merger", "acquisition", "divestiture",
+            ]) or ("per diluted share" in joined and any(_parse_accounting_cell(x) is not None for x in row[1:])):
+                data_start = i
+                break
+        if data_start is None or data_start <= 0:
+            continue
+
+        header_rows = grid[:data_start]
+        col_count = max(len(r) for r in grid)
+        headers = []
+        for col in range(col_count):
+            parts = []
+            for hr in header_rows:
+                if col >= len(hr):
+                    continue
+                val = _clean_text(hr[col])
+                if val and val not in parts:
+                    parts.append(val)
+            headers.append(" | ".join(parts))
+
+        year_cols = []
+        for col, header in enumerate(headers):
+            if col == 0:
+                continue
+            h = header.lower()
+            if str(target_year) not in h:
+                continue
+            full_year_signal = any(x in h for x in [
+                "year ended", "twelve months", "full year", "fiscal year", "year-end",
+            ])
+            quarterly_signal = any(x in h for x in [
+                "three months", "quarter", "six months", "nine months",
+            ])
+            score = 20 + (80 if full_year_signal else 0) - (50 if quarterly_signal and not full_year_signal else 0)
+            year_cols.append((score, col, header))
+
+        if not year_cols:
+            # Some simple annual tables only expose the year itself in the header.
+            for col, header in enumerate(headers):
+                if col and re.search(rf"\b{target_year}\b", header):
+                    year_cols.append((10, col, header))
+        if not year_cols:
+            continue
+
+        max_col_score = max(s for s, _, _ in year_cols)
+        target_cols = [c for s, c, _ in year_cols if s == max_col_score]
+
+        components = []
+        for row in grid[data_start:]:
+            if not row:
+                continue
+            # A row label can span one or more left-most cells before numeric columns.
+            label_parts = []
+            first_numeric_col = None
+            for c, cell in enumerate(row):
+                if c > 0 and _parse_accounting_cell(cell) is not None:
+                    first_numeric_col = c
+                    break
+                if cell and (c == 0 or not re.fullmatch(r"[$€£—–-]+", cell)):
+                    label_parts.append(cell)
+            label = _clean_text(" ".join(dict.fromkeys(label_parts)))
+            rule = _match_adjustment_rule(label)
+            if not rule:
+                continue
+
+            values = []
+            for col in target_cols:
+                current_val = None
+                if col < len(row):
+                    current_val = _parse_accounting_cell(row[col])
+                    if current_val is not None:
+                        values.append(current_val)
+                # Currency symbols are sometimes split into a separate cell. Only
+                # inspect the right neighbor when the target cell itself is not numeric;
+                # otherwise that neighbor can be the comparative-year column.
+                if (
+                    current_val is None
+                    and col + 1 < len(row)
+                    and col + 1 < len(headers)
+                    and str(target_year) in headers[col + 1]
+                ):
+                    neighbor_val = _parse_accounting_cell(row[col + 1])
+                    if neighbor_val is not None:
+                        values.append(neighbor_val)
+            # Remove impossible "year" values accidentally picked from malformed tables.
+            values = [v for v in values if abs(v) < 100]
+            if not values:
+                continue
+            # Prefer the smallest-magnitude non-zero candidate; EPS bridge rows are per-share values.
+            nonzero = [v for v in values if abs(v) > 1e-9]
+            if not nonzero:
+                continue
+            value = sorted(nonzero, key=lambda x: abs(x))[0]
+            components.append({
+                "label": rule["label"],
+                "bucket": rule["bucket"],
+                "severity": rule["severity"],
+                "note": rule["note"],
+                "reported_eps_effect": value,
+                "evidence_excerpt": label[:420],
+                "evidence_type": "strukturierte EPS-Reconciliation-Tabelle",
+                "structured": True,
+            })
+
+        # Deduplicate labels and favor the table with the strongest set of components.
+        unique = {}
+        for comp in components:
+            label = comp.get("label")
+            if label and label not in unique:
+                unique[label] = comp
+        components = list(unique.values())
+        table_score = len(components) * 10 + max_col_score
+        if table_score > best_score:
+            best_score = table_score
+            best_components = components
+
+    return best_components
 
 
 def _adjustment_context_is_concrete(text, match_start, match_end):
@@ -1252,7 +1533,7 @@ def _adjustment_context_is_concrete(text, match_start, match_end):
     return bool(concrete or has_money or (has_number_row and has_period))
 
 
-def _build_adjustment_recurrence_review(text, bridge_values=None):
+def _build_adjustment_recurrence_review(text, bridge_values=None, structured_components=None):
     """
     Conservative diagnostic review of the adjustment types behind an adjusted-EPS bridge.
 
@@ -1268,12 +1549,25 @@ def _build_adjustment_recurrence_review(text, bridge_values=None):
 
     components = []
     seen_labels = set()
+
+    # V2.20.27: structured reconciliation-table rows win because they are tied
+    # to the target fiscal-year column. Text scanning remains a conservative
+    # fallback for issuers whose HTML table structure cannot be parsed.
+    for comp in (structured_components or []):
+        label = _clean_text(comp.get("label"))
+        if not label or label in seen_labels:
+            continue
+        seen_labels.add(label)
+        components.append(dict(comp))
+
     for rule in ADJUSTMENT_REVIEW_RULES:
+        if rule["label"] in seen_labels:
+            continue
         matched_context = None
         for pattern in rule["patterns"]:
             for m in re.finditer(re.escape(pattern), t, flags=re.I):
                 if _adjustment_context_is_concrete(t, m.start(), m.end()):
-                    matched_context = t[max(0, m.start() - 150):min(len(t), m.end() + 260)]
+                    matched_context = t[max(0, m.start() - 240):min(len(t), m.end() + 520)]
                     break
             if matched_context:
                 break
@@ -1286,6 +1580,8 @@ def _build_adjustment_recurrence_review(text, bridge_values=None):
             "severity": rule["severity"],
             "note": rule["note"],
             "evidence_excerpt": _clean_text(matched_context)[:420],
+            "evidence_type": "Text-/Tabellenkontext",
+            "structured": False,
         })
 
     gaap = safe_float(bridge.get("gaap_eps"))
@@ -1295,6 +1591,18 @@ def _build_adjustment_recurrence_review(text, bridge_values=None):
     total_reconciled = False
     if gap is not None and noncomp is not None:
         total_reconciled = abs(gap - noncomp) <= max(0.03, abs(noncomp) * 0.03)
+
+    structured_values = [
+        safe_float(c.get("reported_eps_effect"))
+        for c in components
+        if c.get("structured") and safe_float(c.get("reported_eps_effect")) is not None
+    ]
+    structured_component_sum = sum(structured_values) if structured_values else None
+    structured_sum_reconciles = False
+    if gap is not None and structured_component_sum is not None:
+        # Issuers often show expense/loss rows with negative signs while the
+        # GAAP->Adjusted bridge gap is positive. Compare absolute economic effect.
+        structured_sum_reconciles = abs(abs(structured_component_sum) - abs(gap)) <= max(0.05, abs(gap) * 0.08)
 
     risk_components = [c for c in components if c["severity"] >= 3]
     unclear_components = [c for c in components if "Unklar" in c["bucket"]]
@@ -1335,6 +1643,9 @@ def _build_adjustment_recurrence_review(text, bridge_values=None):
         "bridge_gap": gap,
         "noncomparable_per_share": noncomp,
         "total_bridge_reconciled": total_reconciled,
+        "structured_component_sum": structured_component_sum,
+        "structured_sum_reconciles": structured_sum_reconciles,
+        "structured_component_count": len(structured_values),
         "normalization_release": False,
         "next_step": (
             "Für die risikobehafteten bzw. unklaren Kategorien wird als nächstes geprüft, ob vergleichbare "
@@ -1543,9 +1854,16 @@ def _historical_row_from_candidate(item, company_domain, company_name, year, dea
     if not _research_budget_ok(deadline, reserve=0.7):
         return None
 
-    page_text = item.get("preloaded_text") or _fetch_source_text(
-        url, deadline=deadline, timeout=2.5
-    )
+    page_html = item.get("preloaded_html") or ""
+    page_text = item.get("preloaded_text") or ""
+    if not page_text:
+        page_html, _ = _fetch_html(
+            url,
+            timeout=2.5,
+            sec="sec.gov" in _normalize_host(url),
+            deadline=deadline,
+        )
+        page_text = _html_to_text(page_html)
     if not page_text:
         return None
 
@@ -1575,7 +1893,9 @@ def _historical_row_from_candidate(item, company_domain, company_name, year, dea
         "primary_source": True,
         "eps_bridge_values": bridge,
         "adjustment_recurrence_review": _build_adjustment_recurrence_review(
-            combined, bridge
+            combined,
+            bridge,
+            structured_components=_extract_adjustment_components_from_html(page_html, int(year)),
         ),
         "historical_recovery_method": item.get("historical_recovery_method") or item.get("search_source") or "Unternehmensquelle",
     }
@@ -1794,15 +2114,33 @@ def _router_financial_release_filter_url(url):
 
 
 def _router_archive_visible_years(rows):
-    """Extract publication/title years visible on one archive index page."""
+    """V2.20.27: show only publication/result years, not guidance years embedded in headlines."""
     years = set()
     for row in rows or []:
-        hay = _clean_text(f"{row.get('title','')} {unquote(row.get('url',''))}")
-        for token in re.findall(r"\b(20\d{2})\b", hay):
+        title = _clean_text(row.get("title"))
+        url = unquote(_clean_text(row.get("url")))
+
+        # Publication year from a dated release URL is the strongest signal.
+        m = re.search(r"/(20\d{2})/[01]\d/[0-3]\d/", url)
+        if m:
             try:
-                years.add(int(token))
+                years.add(int(m.group(1)))
             except Exception:
                 pass
+
+        # Also accept an explicit fiscal-result year in the title, but ignore
+        # forward guidance/launch years such as "2027 guidance" or "launch 2027".
+        patterns = [
+            r"\bfull[-\s]?year\s+(20\d{2})\b",
+            r"\breports?\s+(20\d{2})\s+(?:full[-\s]?year\s+)?results\b",
+            r"\b(20\d{2})\s+(?:full[-\s]?year|annual)\s+results\b",
+        ]
+        for pat in patterns:
+            for hit in re.findall(pat, title, flags=re.I):
+                try:
+                    years.add(int(hit))
+                except Exception:
+                    pass
     return sorted(years, reverse=True)
 
 
@@ -2765,6 +3103,206 @@ def _build_historical_recurrence_summary(
         ),
     }
 
+
+
+# =========================================================
+# V2.20.27 – Adjustment Component Analysis
+# =========================================================
+
+def _build_adjustment_component_analysis(historical_review):
+    """
+    Classify individual reconciliation categories across validated full years.
+
+    The component analysis is intentionally diagnostic. It distinguishes
+    recurring/structural adjustments from plausible one-off candidates, but it
+    never creates an adjusted valuation EPS and never releases Fair Value.
+    """
+    review = historical_review if isinstance(historical_review, dict) else {}
+    rows = review.get("rows") or []
+    if not rows:
+        return None
+
+    current_year = None
+    for row in rows:
+        if row.get("is_current"):
+            current_year = row.get("year")
+            break
+    if current_year is None and rows:
+        current_year = max([r.get("year") for r in rows if r.get("year") is not None] or [None])
+
+    by_label = {}
+    for row in rows:
+        year = row.get("year")
+        if year is None:
+            continue
+        for comp in row.get("components") or []:
+            label = _clean_text(comp.get("label"))
+            if not label:
+                continue
+            rec = by_label.setdefault(label, {
+                "label": label,
+                "years": set(),
+                "severity": 0,
+                "buckets": set(),
+                "notes": [],
+                "effects_by_year": {},
+                "structured_years": set(),
+            })
+            rec["years"].add(int(year))
+            rec["severity"] = max(rec["severity"], int(comp.get("severity") or 0))
+            bucket = _clean_text(comp.get("bucket"))
+            if bucket:
+                rec["buckets"].add(bucket)
+            note = _clean_text(comp.get("note"))
+            if note and note not in rec["notes"]:
+                rec["notes"].append(note)
+            effect = safe_float(comp.get("reported_eps_effect"))
+            if effect is not None:
+                rec["effects_by_year"][int(year)] = effect
+            if comp.get("structured"):
+                rec["structured_years"].add(int(year))
+
+    components = []
+    for label, rec in by_label.items():
+        years = sorted(rec["years"], reverse=True)
+        year_count = len(years)
+        severity = rec["severity"]
+        label_low = label.lower()
+        buckets = sorted(rec["buckets"])
+
+        unresolved = (
+            "sonstige" in label_low
+            or any("unklar" in b.lower() for b in buckets)
+        )
+        structured_year_count = len(rec["structured_years"])
+        explicit_structural_bucket = any("strukturell / wiederkehrend" in b.lower() for b in buckets)
+        structurally_recurring = structured_year_count >= 2 or explicit_structural_bucket
+        recurrence_hint = year_count >= 2 and not structurally_recurring
+
+        if unresolved:
+            classification = "Unaufgeschlüsselt / nicht automatisch normalisierbar"
+            treatment = "GESPERRT"
+            rationale = (
+                "Ein Sammel-/unklarer Posten ist nicht belastbar genug, um ihn als einmalig zu behandeln."
+            )
+            class_rank = 5
+        elif structurally_recurring:
+            classification = "Wiederkehrend / strukturell"
+            treatment = "NICHT VOLL NORMALISIERBAR"
+            rationale = (
+                f"Die Kategorie wurde periodenspezifisch in {max(structured_year_count, year_count if explicit_structural_bucket else 0)} "
+                "Volljahr(en) bzw. als strukturell wiederkehrend erkannt. Wiederholte Bereinigungen dürfen nicht "
+                "vollständig als einmalig herausgerechnet werden."
+            )
+            class_rank = 4
+        elif recurrence_hint:
+            classification = "Mehrjahres-Hinweis – Periodenzuordnung teilweise unstrukturiert"
+            treatment = "NICHT AUTOMATISCH NORMALISIERBAR"
+            rationale = (
+                f"Die Kategorie taucht in {year_count} Jahresquellen auf, ist aber nicht in mindestens zwei Jahren "
+                "periodenspezifisch aus einer strukturierten Reconciliation-Tabelle bestätigt. Sie bleibt deshalb gesperrt."
+            )
+            class_rank = 3
+        elif severity <= 2:
+            classification = "Außergewöhnlicher Einzelereignis-Kandidat"
+            treatment = "POTENZIELL NORMALISIERBAR – Betrag validieren"
+            rationale = (
+                "Die Kategorie wurde bislang nur in einem Volljahr erkannt und wirkt ereignisbezogen. "
+                "Sie bleibt trotzdem ohne automatische EPS-Übernahme."
+            )
+            class_rank = 1
+        else:
+            classification = "Einmal beobachtet – Wiederkehrungsrisiko offen"
+            treatment = "NICHT AUTOMATISCH NORMALISIERBAR"
+            rationale = (
+                "Die Kategorie wurde nur einmal erkannt, trägt aber ein erhöhtes Wiederkehrungs-/Strukturrisiko."
+            )
+            class_rank = 2
+
+        components.append({
+            "label": label,
+            "years": years,
+            "year_count": year_count,
+            "severity": severity,
+            "buckets": buckets,
+            "classification": classification,
+            "treatment": treatment,
+            "rationale": rationale,
+            "effects_by_year": dict(sorted(rec["effects_by_year"].items(), reverse=True)),
+            "current_year_effect": rec["effects_by_year"].get(int(current_year)) if current_year is not None else None,
+            "structured_years": sorted(rec["structured_years"], reverse=True),
+            "structured_year_count": structured_year_count,
+            "evidence_strength": (
+                "periodenspezifisch strukturiert" if structured_year_count >= 1
+                else "Text-/Tabellenkontext"
+            ),
+            "class_rank": class_rank,
+        })
+
+    components.sort(key=lambda c: (-c["class_rank"], -c["year_count"], c["label"]))
+    recurring = [c for c in components if c["classification"] == "Wiederkehrend / strukturell"]
+    recurrence_hints = [c for c in components if c["classification"].startswith("Mehrjahres-Hinweis")]
+    unresolved = [c for c in components if c["treatment"] == "GESPERRT"]
+    oneoff_candidates = [c for c in components if c["classification"] == "Außergewöhnlicher Einzelereignis-Kandidat"]
+
+    current_row = next((r for r in rows if r.get("is_current")), rows[0] if rows else {})
+    current_gap = safe_float(current_row.get("gap"))
+    current_structured_effects = [
+        safe_float(c.get("current_year_effect"))
+        for c in components
+        if safe_float(c.get("current_year_effect")) is not None
+    ]
+    current_structured_coverage = None
+    if current_gap is not None and current_gap != 0 and current_structured_effects:
+        current_structured_coverage = min(2.0, abs(sum(current_structured_effects)) / abs(current_gap))
+
+    if recurring or unresolved:
+        level = "Rot"
+        status = "Adjusted-EPS-Brücke enthält wiederkehrende bzw. unklare Komponenten"
+        summary = (
+            "Die Mehrjahresanalyse zeigt, dass mindestens ein Teil der Bereinigungen strukturell/wiederkehrend "
+            "oder nicht ausreichend aufgeschlüsselt ist. Das vollständig bereinigte EPS ist deshalb keine "
+            "automatisch zulässige Bewertungsbasis."
+        )
+    elif components:
+        level = "Gelb"
+        status = "Komponenten überwiegend ereignisbezogen – quantitative Freigabe noch offen"
+        summary = (
+            "Die erkannten Komponenten wirken überwiegend einzelereignisbezogen. Vor einer Bewertungsfreigabe "
+            "müssen die Beträge und ihre Periodenzuordnung jedoch vollständig validiert werden."
+        )
+    else:
+        level = "Rot"
+        status = "Einzelkomponenten nicht belastbar extrahiert"
+        summary = (
+            "Die Gesamtbrücken sind validiert, aber die einzelnen Bereinigungskomponenten konnten nicht "
+            "ausreichend sicher aufgeschlüsselt werden."
+        )
+
+    return {
+        "status_level": level,
+        "status": status,
+        "summary": summary,
+        "current_year": current_year,
+        "current_gap": current_gap,
+        "components": components,
+        "component_count": len(components),
+        "recurring_component_count": len(recurring),
+        "recurrence_hint_count": len(recurrence_hints),
+        "unresolved_component_count": len(unresolved),
+        "oneoff_candidate_count": len(oneoff_candidates),
+        "current_structured_coverage": current_structured_coverage,
+        "normalization_release": False,
+        "valuation_release": False,
+        "adjusted_eps_direct_use_allowed": False,
+        "next_step": (
+            "Nur klar abgegrenzte Einzelereignis-Komponenten dürfen später in einen konservativen "
+            "Normalisierungs-Korridor einfließen. Wiederkehrende, strukturelle und unklare Posten bleiben "
+            "aus der automatischen Vollbereinigung ausgeschlossen."
+        ),
+    }
+
+
 def _has_quantitative_eps_bridge(text, title=None):
     """True only for a V2.20.17-validated bridge; never imports adjusted EPS into valuation."""
     return _extract_eps_bridge_values(text, title=title) is not None
@@ -2791,7 +3329,7 @@ def _request_headers(sec=False):
         # SEC asks automated clients to identify themselves. No personal user
         # information is sent; this is a generic application identifier.
         return {
-            "User-Agent": "AktienAnalyseV2/2.20.25 research-client",
+            "User-Agent": "AktienAnalyseV2/2.20.27 research-client",
             "Accept-Encoding": "gzip, deflate",
             "Host": "www.sec.gov",
         }
@@ -3104,6 +3642,7 @@ def _discover_company_primary_pages(company_domain, company_name, max_pages=5, d
                 "snippet": text[:450],
                 "search_source": "Direkt-Crawl Unternehmen",
                 "preloaded_text": text,
+                "preloaded_html": html,
                 "link_score": 65 if bridge_values else 40,
             })
 
@@ -3142,9 +3681,16 @@ def _discover_company_primary_pages(company_domain, company_name, max_pages=5, d
     for item in ranked:
         if len(output) >= max_pages or not _research_budget_ok(deadline, reserve=1.0):
             break
-        page_text = item.get("preloaded_text") or _fetch_source_text(
-            item.get("url"), deadline=deadline, timeout=2.8
-        )
+        page_html = item.get("preloaded_html") or ""
+        page_text = item.get("preloaded_text") or ""
+        if not page_text:
+            page_html, _ = _fetch_html(
+                item.get("url"),
+                timeout=2.8,
+                sec="sec.gov" in _normalize_host(item.get("url")),
+                deadline=deadline,
+            )
+            page_text = _html_to_text(page_html)
         if not page_text:
             continue
         combined = " ".join([item.get("title") or "", item.get("snippet") or "", page_text])
@@ -3153,6 +3699,8 @@ def _discover_company_primary_pages(company_domain, company_name, max_pages=5, d
             continue
         row = dict(item)
         row["preloaded_text"] = page_text
+        if page_html:
+            row["preloaded_html"] = page_html
         output.append(row)
 
         if bridge_values and _clean_text(bridge_values.get("period")).upper() == f"FY {target_year}":
@@ -3201,7 +3749,7 @@ def _discover_sec_primary_pages(symbol, max_filings=3, deadline=None):
         r = requests.get(
             f"https://data.sec.gov/submissions/CIK{cik10}.json",
             headers={
-                "User-Agent": "AktienAnalyseV2/2.20.25 research-client",
+                "User-Agent": "AktienAnalyseV2/2.20.27 research-client",
                 "Accept-Encoding": "gzip, deflate",
             },
             timeout=(min(1.8, effective_timeout), effective_timeout),
@@ -3259,10 +3807,10 @@ def research_special_event_online(
     symbol,
     company_name,
     website=None,
-    cache_version="v22026",
+    cache_version="v22027",
 ):
     """
-    V2.20.26: IR-Year-Navigator research. The issuer website/IR archive is routed before SEC, web search and Yahoo.
+    V2.20.27: IR-Year-Navigator plus Adjustment Component Analysis research. The issuer website/IR archive is routed before SEC, web search and Yahoo.
 
     Source priority remains company/IR -> SEC -> web -> Yahoo. Unrelated search
     results are rejected before they can become evidence. A quantitative EPS
@@ -3361,15 +3909,24 @@ def research_special_event_online(
     for item in deduped:
         url = item.get("url")
         category, primary = _source_category(url, company_domain)
+        page_html = item.get("preloaded_html") or ""
         page_text = item.get("preloaded_text") or ""
 
-        # Load at most six additional documents.
+        # Load at most four additional documents. V2.20.27 keeps the HTML for
+        # structured GAAP-to-adjusted reconciliation-table parsing, so there is
+        # no second network request for the component analysis.
         if (
             not page_text
             and document_fetches < 4
             and _research_budget_ok(deadline, reserve=0.8)
         ):
-            page_text = _fetch_source_text(url, deadline=deadline, timeout=2.6)
+            page_html, _ = _fetch_html(
+                url,
+                timeout=2.6,
+                sec="sec.gov" in _normalize_host(url),
+                deadline=deadline,
+            )
+            page_text = _html_to_text(page_html)
             document_fetches += 1
 
         if not _source_matches_company(
@@ -3391,8 +3948,18 @@ def research_special_event_online(
         event_types = _classify_special_event_evidence(combined)
         bridge_values = _extract_eps_bridge_values(combined, title=item.get("title"))
         quantitative_bridge = bridge_values is not None
+        bridge_year = _fy_year_from_period((bridge_values or {}).get("period")) if quantitative_bridge else None
+        structured_components = (
+            _extract_adjustment_components_from_html(page_html, bridge_year)
+            if quantitative_bridge and bridge_year is not None and page_html
+            else []
+        )
         adjustment_review = (
-            _build_adjustment_recurrence_review(combined, bridge_values)
+            _build_adjustment_recurrence_review(
+                combined,
+                bridge_values,
+                structured_components=structured_components,
+            )
             if quantitative_bridge
             else None
         )
@@ -3539,6 +4106,13 @@ def research_special_event_online(
         else None
     )
 
+    # V2.20.27: once the annual bridge history is validated, classify the
+    # individual reconciliation components across years. This is still a hard
+    # diagnostic gate: no replacement EPS and no Fair-Value release.
+    adjustment_component_analysis = _build_adjustment_component_analysis(
+        historical_recurrence_review
+    ) if historical_recurrence_review else None
+
     # Recalculate elapsed time after the bounded historical look-back.
     elapsed = time.monotonic() - started
     time_limit_reached = elapsed >= (RESEARCH_TIME_LIMIT_SECONDS - 0.3)
@@ -3570,7 +4144,9 @@ def research_special_event_online(
             break
 
     if validated_primary_bridge_found and best_bridge:
-        if historical_recurrence_review:
+        if adjustment_component_analysis:
+            next_step = adjustment_component_analysis.get("next_step")
+        elif historical_recurrence_review:
             next_step = historical_recurrence_review.get("next_step")
         elif best_adjustment_review and best_adjustment_review.get("components"):
             next_step = best_adjustment_review.get("next_step")
@@ -3617,6 +4193,7 @@ def research_special_event_online(
         "eps_bridge_source_url": best_bridge_row.get("url") if best_bridge_row else None,
         "adjustment_recurrence_review": best_adjustment_review,
         "historical_recurrence_review": historical_recurrence_review,
+        "adjustment_component_analysis": adjustment_component_analysis,
         "historical_eps_bridges": historical_bridge_rows,
         "supporting_eps_bridges": supporting_bridge_rows,
         "bridge_priority_rule": "Volljahr → Quartal → Guidance/sonstige",
@@ -3626,7 +4203,7 @@ def research_special_event_online(
         "next_step": next_step,
         "company_domain": company_domain,
         "queries_run": len(queries),
-        "source_order": "Unternehmenswebseite/IR → kanonischer Archivindex → Financial-Releases-Year-Navigator → gezielte Jahresdokumente → SEC/Web-Fallback",
+        "source_order": "Unternehmenswebseite/IR → IR-Year-Navigator → Jahresbrücken → Adjustment-Component-Analyse → SEC/Web-Fallback",
         "ir_router": {
             "available": bool((ir_router or {}).get("available")),
             "entrypoint_count": len((ir_router or {}).get("entrypoints") or []),
@@ -16019,7 +16596,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_ir_year_navigator_v22026_20260908"
+CACHE_VERSION = "m6_adjustment_component_analysis_v22027_20260908"
 
 @st.cache_data(
     ttl=900,
@@ -17279,7 +17856,7 @@ if selected_symbol:
                     ir_router_ui = research.get("ir_router") or {}
                     if ir_router_ui.get("available"):
                         st.info(
-                            "🏢 **IR Year Navigator V2.20.26 aktiv:** Unternehmens-/IR-Seiten werden zuerst geprüft. "
+                            "🏢 **IR Year Navigator V2.20.27 aktiv:** Unternehmens-/IR-Seiten werden zuerst geprüft. "
                             "Der kanonische Release-Archivindex wird als Parent validiert; für die historische Suche wird anschließend bevorzugt "
                             "das unternehmenseigene Financial-Releases-Archiv gezielt weitergeblättert. Sobald alle Zieljahre gefunden sind, "
                             "stoppt die Navigation. Detailseiten und Annual-Report-/Filings-Bereiche bleiben getrennt."
@@ -17408,7 +17985,7 @@ if selected_symbol:
 
                     adjustment_review = research.get("adjustment_recurrence_review") or {}
                     if adjustment_review:
-                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.26**")
+                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.27**")
                         review_level = adjustment_review.get("status_level")
                         review_status = text_or_dash(adjustment_review.get("status"))
                         if review_level == "Rot":
@@ -17444,7 +18021,7 @@ if selected_symbol:
 
                         st.error(
                             "**Automatische EPS-Normalisierungsfreigabe: NEIN.** Kein erkannter "
-                            "Bereinigungsposten wird in V2.20.26 automatisch zum Bewertungs-EPS addiert."
+                            "Bereinigungsposten wird in V2.20.27 automatisch zum Bewertungs-EPS addiert."
                         )
                         st.caption(
                             "Nächster Prüfschritt: "
@@ -17454,7 +18031,7 @@ if selected_symbol:
 
                     historical_review = research.get("historical_recurrence_review") or {}
                     if historical_review:
-                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.26**")
+                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.27**")
                         hist_level = historical_review.get("status_level")
                         hist_status = text_or_dash(historical_review.get("status"))
                         if hist_level == "Rot":
@@ -17531,6 +18108,68 @@ if selected_symbol:
                         )
 
 
+                    component_analysis = research.get("adjustment_component_analysis") or {}
+                    if component_analysis:
+                        st.write("**🧩 Adjustment Component Analysis V2.20.27**")
+                        comp_level = component_analysis.get("status_level")
+                        comp_status = text_or_dash(component_analysis.get("status"))
+                        if comp_level == "Rot":
+                            st.error("**🔴 " + comp_status + "**")
+                        else:
+                            st.warning("**🟡 " + comp_status + "**")
+                        st.write(text_or_dash(component_analysis.get("summary")))
+
+                        comp_rows = component_analysis.get("components") or []
+                        if comp_rows:
+                            st.write("**Komponenten-Matrix über die validierten Volljahre:**")
+                            for comp in comp_rows[:12]:
+                                years = ", ".join(str(y) for y in comp.get("years") or []) or "–"
+                                line = (
+                                    f"• **{text_or_dash(comp.get('label'))}** – "
+                                    f"{text_or_dash(comp.get('classification'))} · Jahre: {years}"
+                                )
+                                current_effect = safe_float(comp.get("current_year_effect"))
+                                if current_effect is not None:
+                                    line += f" · aktueller Tabellen-EPS-Effekt {current_effect:+.2f}"
+                                st.write(line)
+                                st.caption(
+                                    "Behandlung: " + text_or_dash(comp.get("treatment"))
+                                    + " · Evidenz: " + text_or_dash(comp.get("evidence_strength"))
+                                    + " · " + text_or_dash(comp.get("rationale"))
+                                )
+                        else:
+                            st.info(
+                                "Die Volljahresbrücken sind vorhanden, aber es konnten noch keine "
+                                "Einzelkomponenten belastbar über mehrere Jahre zugeordnet werden."
+                            )
+
+                        coverage = safe_float(component_analysis.get("current_structured_coverage"))
+                        if coverage is not None:
+                            st.caption(
+                                f"Strukturiert extrahierte Komponenten decken rechnerisch ungefähr "
+                                f"{coverage * 100:.0f} % der aktuellen GAAP-/Adjusted-Differenz ab. "
+                                "Der Wert dient nur als Extraktionskontrolle, nicht als Normalisierungsquote."
+                            )
+
+                        recurring_count = int(component_analysis.get("recurring_component_count") or 0)
+                        recurrence_hint_count = int(component_analysis.get("recurrence_hint_count") or 0)
+                        unresolved_count = int(component_analysis.get("unresolved_component_count") or 0)
+                        oneoff_count = int(component_analysis.get("oneoff_candidate_count") or 0)
+                        st.write(
+                            f"**Komponenten-Fazit:** {recurring_count} periodenspezifisch wiederkehrend/strukturell · "
+                            f"{recurrence_hint_count} Mehrjahres-Hinweis(e) · {unresolved_count} unklar/gesperrt · "
+                            f"{oneoff_count} außergewöhnliche Einzelereignis-Kandidat(en)."
+                        )
+                        st.error(
+                            "**Direkte Übernahme des Adjusted EPS: NEIN.** Wiederkehrende, strukturelle oder "
+                            "unklare Komponenten dürfen nicht vollständig als einmalig herausgerechnet werden."
+                        )
+                        st.caption(
+                            "Nächster Prüfschritt: "
+                            + text_or_dash(component_analysis.get("next_step"))
+                        )
+
+
                     supporting_bridges = research.get("supporting_eps_bridges") or []
                     if supporting_bridges:
                         st.write("**Weitere validierte Brücken (Zusatzbelege):**")
@@ -17596,13 +18235,13 @@ if selected_symbol:
 
                     if research.get("quantitative_eps_bridge_found"):
                         st.info(
-                            "Eine quantitative EPS-Brücke wurde nach V2.20.26-Regeln periodenvalidiert. Der IR-Year-Navigator validiert zuerst den kanonischen offiziellen Release-Archivindex und navigiert danach bevorzugt durch das unternehmenseigene Financial-Releases-Archiv, bis die benötigten Volljahre gefunden sind oder das Zeitbudget endet. Nur die stärksten Jahresdokumente werden anschließend geladen; Detailseiten bleiben als Archive gesperrt und Annual-Report-/Filings-Bereiche getrennt. "
+                            "Eine quantitative EPS-Brücke wurde nach V2.20.27-Regeln periodenvalidiert, historisch auf Wiederholung geprüft und anschließend in einzelne Bereinigungskomponenten zerlegt. Der IR-Year-Navigator validiert zuerst den kanonischen offiziellen Release-Archivindex und navigiert danach bevorzugt durch das unternehmenseigene Financial-Releases-Archiv, bis die benötigten Volljahre gefunden sind oder das Zeitbudget endet. Strukturierte Reconciliation-Tabellen werden periodenspezifisch ausgewertet; Detailseiten bleiben als Archive gesperrt und Annual-Report-/Filings-Bereiche getrennt. "
                             "Sie wird weiterhin **nicht automatisch als bereinigtes EPS übernommen**."
                         )
 
                     st.error(
-                        "**Freigabestatus: GESPERRT.** Die historische Wiederkehrbarkeits-Prüfung darf in "
-                        "V2.20.26 den Fair Value noch nicht selbst entsperren."
+                        "**Freigabestatus: GESPERRT.** Die Komponenten-/Wiederkehrbarkeits-Prüfung darf in "
+                        "V2.20.27 den Fair Value noch nicht selbst entsperren."
                     )
                     st.write("**Nächster Schritt:** " + text_or_dash(research.get("next_step")))
 
