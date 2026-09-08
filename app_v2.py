@@ -17,7 +17,7 @@ st.caption(
 )
 
 
-# V2.20.1: EPS-Divergenz-Gate auf Basis der vollständigen V2.20-Version.
+# V2.20.2: EPS-Divergenz-Gate + robuster Yahoo-Datenabruf auf Basis V2.20.
 
 # =========================================================
 # Hilfsfunktionen
@@ -11518,6 +11518,205 @@ def resolve_fundamental_symbol(selected_symbol, company_name=None):
     ttl=3600,
     show_spinner=False
 )
+
+def _fast_info_value(fast_info, *names):
+    """Read one value from yfinance FastInfo without assuming one API shape."""
+    if fast_info is None:
+        return None
+
+    for name in names:
+        try:
+            value = getattr(fast_info, name)
+            if value is not None:
+                return value
+        except Exception:
+            pass
+
+        try:
+            value = fast_info.get(name)
+            if value is not None:
+                return value
+        except Exception:
+            pass
+
+        try:
+            value = fast_info[name]
+            if value is not None:
+                return value
+        except Exception:
+            pass
+
+    return None
+
+
+def _info_payload_score(info):
+    """Small completeness score used only to decide whether one retry is useful."""
+    if not isinstance(info, dict):
+        return 0
+
+    keys = [
+        "currency",
+        "sector",
+        "industry",
+        "marketCap",
+        "trailingEps",
+        "forwardEps",
+        "totalRevenue",
+        "netIncomeToCommon"
+    ]
+
+    return sum(
+        1
+        for key in keys
+        if info.get(key) is not None
+    )
+
+
+def load_yahoo_info_resilient(symbol, ticker=None):
+    """
+    V2.20.2 – resilient Yahoo/yfinance info loading.
+
+    One incomplete Yahoo quote-summary response must not immediately poison the
+    15-minute Streamlit cache. The function therefore performs at most one
+    fresh retry and then fills only quote-level fields that FastInfo/history
+    can verify. Missing fundamentals are never invented.
+    """
+    primary_ticker = ticker or yf.Ticker(symbol)
+    candidates = [primary_ticker]
+
+    # A fresh Ticker object can recover from a one-off cookie/crumb/session
+    # problem inside yfinance. Keep the retry count deliberately small to
+    # avoid causing rate-limit pressure.
+    try:
+        candidates.append(yf.Ticker(symbol))
+    except Exception:
+        pass
+
+    merged = {}
+    first_score = None
+    retry_used = False
+
+    for index, candidate in enumerate(candidates[:2]):
+        payload = {}
+
+        try:
+            get_info = getattr(candidate, "get_info", None)
+            if callable(get_info):
+                value = get_info()
+                if isinstance(value, dict):
+                    payload = value
+            else:
+                value = candidate.info
+                if isinstance(value, dict):
+                    payload = value
+        except Exception:
+            try:
+                value = candidate.info
+                if isinstance(value, dict):
+                    payload = value
+            except Exception:
+                payload = {}
+
+        if index == 0:
+            first_score = _info_payload_score(payload)
+
+        for key, value in payload.items():
+            if value is not None and merged.get(key) is None:
+                merged[key] = value
+
+        if _info_payload_score(merged) >= 5:
+            break
+
+        if index == 0:
+            retry_used = True
+
+    fast_info_used = False
+
+    try:
+        fast_info = primary_ticker.fast_info
+    except Exception:
+        fast_info = None
+
+    fast_map = {
+        "currentPrice": ("last_price", "lastPrice"),
+        "regularMarketPrice": ("last_price", "lastPrice"),
+        "previousClose": ("previous_close", "previousClose", "regularMarketPreviousClose"),
+        "currency": ("currency",),
+        "exchange": ("exchange",),
+        "marketCap": ("market_cap", "marketCap"),
+        "sharesOutstanding": ("shares", "shares_outstanding", "sharesOutstanding"),
+        "quoteType": ("quote_type", "quoteType")
+    }
+
+    for target_key, source_names in fast_map.items():
+        if merged.get(target_key) is None:
+            value = _fast_info_value(
+                fast_info,
+                *source_names
+            )
+            if value is not None:
+                merged[target_key] = value
+                fast_info_used = True
+
+    history_used = False
+
+    if (
+        merged.get("currentPrice") is None
+        and merged.get("regularMarketPrice") is None
+        and merged.get("previousClose") is None
+    ):
+        try:
+            history = primary_ticker.history(
+                period="5d",
+                auto_adjust=False
+            )
+            if (
+                history is not None
+                and not history.empty
+                and "Close" in history
+            ):
+                closes = history["Close"].dropna()
+                if not closes.empty:
+                    close_value = safe_float(
+                        closes.iloc[-1]
+                    )
+                    if close_value is not None:
+                        merged["regularMarketPrice"] = close_value
+                        history_used = True
+        except Exception:
+            pass
+
+    final_score = _info_payload_score(merged)
+    incomplete = final_score < 5
+
+    if incomplete:
+        note = (
+            "Yahoo/yfinance hat aktuell nur einen Teil der Fundamentaldaten "
+            "geliefert. Die App hat einen frischen Abruf sowie sichere "
+            "Quote-Fallbacks versucht. Weiter fehlende Werte werden nicht "
+            "geschätzt; davon abhängige Bewertungsschritte bleiben gesperrt."
+        )
+    elif retry_used or fast_info_used or history_used or (first_score is not None and first_score < final_score):
+        note = (
+            "Yahoo-Daten-Recovery aktiv: Ein unvollständiger Erstabruf wurde "
+            "durch einen frischen Yahoo/yfinance-Abruf bzw. sichere "
+            "Quote-Fallbacks ergänzt."
+        )
+    else:
+        note = None
+
+    return {
+        "info": merged,
+        "incomplete": incomplete,
+        "note": note,
+        "retry_used": retry_used,
+        "fast_info_used": fast_info_used,
+        "history_used": history_used,
+        "first_score": first_score,
+        "final_score": final_score
+    }
+
+
 def load_fx_conversion(
     from_currency,
     to_currency,
@@ -11604,7 +11803,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_mining_merian_current_lom_v220_20260907"
+CACHE_VERSION = "m6_eps_divergence_yahoo_recovery_v2202_20260908"
 
 @st.cache_data(
     ttl=900,
@@ -11628,7 +11827,11 @@ def load_stock(search_text, cache_version):
     # 1. Trading/quote source: exactly the selected listing.
     # -----------------------------------------------------
     quote_ticker = yf.Ticker(symbol)
-    quote_info = quote_ticker.info or {}
+    quote_recovery = load_yahoo_info_resilient(
+        symbol,
+        quote_ticker
+    )
+    quote_info = quote_recovery.get("info") or {}
 
     name = (
         quote_info.get("longName")
@@ -11659,9 +11862,14 @@ def load_stock(search_text, cache_version):
     if fundamental_symbol == symbol:
         fundamental_ticker = quote_ticker
         fundamental_info = quote_info
+        fundamental_recovery = quote_recovery
     else:
         fundamental_ticker = yf.Ticker(fundamental_symbol)
-        fundamental_info = fundamental_ticker.info or {}
+        fundamental_recovery = load_yahoo_info_resilient(
+            fundamental_symbol,
+            fundamental_ticker
+        )
+        fundamental_info = fundamental_recovery.get("info") or {}
 
         # Hard safety fallback: if the routed source does not return usable
         # company data, keep the selected listing instead of mixing blanks.
@@ -11669,6 +11877,7 @@ def load_stock(search_text, cache_version):
             fundamental_symbol = symbol
             fundamental_ticker = quote_ticker
             fundamental_info = quote_info
+            fundamental_recovery = quote_recovery
             fundamental_route = {
                 "symbol": symbol,
                 "separate_source": False,
@@ -11987,6 +12196,15 @@ def load_stock(search_text, cache_version):
 
         "earnings_timestamp": earnings_timestamp,
 
+        "data_recovery_note": (
+            fundamental_recovery.get("note")
+            or quote_recovery.get("note")
+        ),
+        "data_recovery_incomplete": bool(
+            fundamental_recovery.get("incomplete")
+            or quote_recovery.get("incomplete")
+        ),
+
         "company_type": company_type,
         "historical": historical,
         "structural_break": structural_break,
@@ -12149,6 +12367,17 @@ if search_text:
 
 if selected_symbol:
 
+    if st.button(
+        "🔄 Yahoo-Daten neu laden",
+        help=(
+            "Leert den 15-Minuten-Daten-Cache und lädt die ausgewählte "
+            "Aktie erneut. Sinnvoll, wenn Yahoo vorübergehend nur "
+            "unvollständige Daten geliefert hat."
+        )
+    ):
+        st.cache_data.clear()
+        st.rerun()
+
     with st.spinner(
         "Finanzdaten werden geladen und Analyse wird berechnet..."
     ):
@@ -12243,6 +12472,16 @@ if selected_symbol:
                         f"Fundamentaldaten von {data['fundamental_symbol']} "
                         f"({text_or_dash(data.get('fundamental_exchange_name'))})."
                     )
+
+                if data.get("data_recovery_note"):
+                    if data.get("data_recovery_incomplete"):
+                        st.warning(
+                            data["data_recovery_note"]
+                        )
+                    else:
+                        st.info(
+                            data["data_recovery_note"]
+                        )
 
                 if currency_context.get("mixed_units"):
                     if currency_context.get("conversion_available"):
