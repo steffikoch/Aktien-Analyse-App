@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.19: Historische Wiederkehrbarkeits-Prüfung über mehrere Volljahre auf Basis V2.20.18.
+# V2.20.20: Historical Source Recovery – direkte Unternehmens-Sitemap-/IR-Archiv-Recovery vor Web-Fallback.
 
 # =========================================================
 # Hilfsfunktionen
@@ -1376,6 +1376,211 @@ def _bridge_has_material_adjustment(bridge):
     return gap > threshold
 
 
+def _parse_sitemap_locs(xml_text):
+    """Return <loc> entries from a sitemap or sitemap index without assuming one XML namespace."""
+    xml_text = str(xml_text or "")
+    if not xml_text.strip():
+        return []
+    out = []
+    try:
+        root = ET.fromstring(xml_text)
+        for node in root.iter():
+            tag = str(node.tag or "").lower()
+            if tag.endswith("}loc") or tag == "loc":
+                value = _clean_text(node.text)
+                if value.startswith(("http://", "https://")):
+                    out.append(value)
+    except Exception:
+        # Fail-soft fallback for slightly malformed XML.
+        for m in re.finditer(r"<loc[^>]*>(.*?)</loc>", xml_text, flags=re.I | re.S):
+            value = _clean_text(re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", m.group(1), flags=re.S))
+            if value.startswith(("http://", "https://")):
+                out.append(value)
+    return list(dict.fromkeys(out))
+
+
+def _historical_title_hint_from_url(url):
+    """Turn a press-release slug into a title-like hint for period validation."""
+    try:
+        path = unquote(urlparse(url).path or "")
+        slug = path.rstrip("/").split("/")[-1]
+    except Exception:
+        slug = _clean_text(url)
+    slug = re.sub(r"[-_]+", " ", slug)
+    return _clean_text(slug)
+
+
+def _historical_candidate_score(url, year):
+    """Score same-company URLs for a requested FY; exact full-year result slugs dominate."""
+    raw = unquote(_clean_text(url)).lower()
+    words = re.sub(r"[-_/]+", " ", raw)
+    y = str(int(year))
+    score = 0
+
+    # The target fiscal year must actually appear in the URL/slug. Publication
+    # year alone is not enough because annual results are often released in Y+1.
+    if y not in words:
+        return -1000
+    score += 18
+
+    if re.search(rf"\bfull\s+year\s+{re.escape(y)}\b", words):
+        score += 120
+    if re.search(rf"\breports?\s+(?:full\s+year\s+)?{re.escape(y)}\s+results\b", words):
+        score += 120
+    if re.search(rf"\b{re.escape(y)}\s+(?:full\s+year|annual)\s+results\b", words):
+        score += 100
+    if any(k in words for k in ["annual results", "year end results", "full year", "earnings"]):
+        score += 35
+    if "results" in words:
+        score += 20
+    if any(k in words for k in ["press release", "press releases", "newsroom", "investor"]):
+        score += 10
+
+    # A pure quarterly release is not the desired historical cycle anchor.
+    if re.search(r"\b(?:first|second|third)\s+quarter\b|\bq[123]\b", words) and "full year" not in words:
+        score -= 80
+    if any(k in words for k in ["career", "privacy", "sustainability", "product", "supplier"]):
+        score -= 30
+    return score
+
+
+def _discover_company_sitemap_inventory(company_domain, deadline=None, max_child_sitemaps=4):
+    """
+    V2.20.20 primary-source recovery.
+
+    Read the company's own sitemap before using a general search engine. A
+    sitemap is especially useful for older press releases that are no longer on
+    the first newsroom page. Only same-domain URLs are returned.
+    """
+    if not company_domain or not _research_budget_ok(deadline, reserve=1.2):
+        return [], []
+
+    root = f"https://www.{company_domain}"
+    sitemap_seeds = [
+        urljoin(root + "/", "sitemap.xml"),
+        urljoin(root + "/", "sitemap_index.xml"),
+        urljoin(root + "/", "sitemap-index.xml"),
+    ]
+    tried = []
+    direct_urls = []
+    child_sitemaps = []
+
+    for seed in sitemap_seeds:
+        if not _research_budget_ok(deadline, reserve=1.0):
+            break
+        tried.append(seed)
+        xml_text, final_url = _fetch_html(seed, timeout=2.2, deadline=deadline)
+        if not xml_text:
+            continue
+        locs = _parse_sitemap_locs(xml_text)
+        if not locs:
+            continue
+        for loc in locs:
+            host = _normalize_host(loc)
+            if host != company_domain:
+                continue
+            if re.search(r"(?:\.xml|\.xml\.gz)(?:$|\?)", loc, flags=re.I):
+                child_sitemaps.append(loc)
+            else:
+                direct_urls.append(loc)
+        # A valid root sitemap is enough; do not burn budget on alternate names.
+        if direct_urls or child_sitemaps:
+            break
+
+    if child_sitemaps and _research_budget_ok(deadline, reserve=1.0):
+        def child_score(url):
+            hay = url.lower()
+            score = 0
+            for kw in ["press", "news", "investor", "page", "content", "post"]:
+                if kw in hay:
+                    score += 10
+            return score
+
+        for child in sorted(dict.fromkeys(child_sitemaps), key=child_score, reverse=True)[:max_child_sitemaps]:
+            if not _research_budget_ok(deadline, reserve=0.8):
+                break
+            tried.append(child)
+            xml_text, _ = _fetch_html(child, timeout=2.2, deadline=deadline)
+            if not xml_text:
+                continue
+            for loc in _parse_sitemap_locs(xml_text):
+                if _normalize_host(loc) == company_domain and not re.search(r"\.xml(?:$|\?)", loc, flags=re.I):
+                    direct_urls.append(loc)
+
+    return list(dict.fromkeys(direct_urls))[:30000], tried
+
+
+def _historical_sitemap_candidates(company_domain, target_years, deadline=None, per_year=5):
+    urls, sitemap_sources = _discover_company_sitemap_inventory(
+        company_domain,
+        deadline=deadline,
+        max_child_sitemaps=4,
+    )
+    by_year = {int(y): [] for y in target_years}
+    for url in urls:
+        for year in target_years:
+            score = _historical_candidate_score(url, year)
+            if score <= 0:
+                continue
+            by_year[int(year)].append({
+                "title": _historical_title_hint_from_url(url),
+                "url": url,
+                "snippet": "Unternehmens-Sitemap / historisches IR-Archiv",
+                "search_source": "Unternehmens-Sitemap",
+                "historical_recovery_method": "Unternehmens-Sitemap/IR-Archiv",
+                "historical_candidate_score": score,
+            })
+    for year in by_year:
+        by_year[year].sort(key=lambda x: x.get("historical_candidate_score", 0), reverse=True)
+        by_year[year] = by_year[year][:int(per_year)]
+    return by_year, sitemap_sources
+
+
+def _historical_row_from_candidate(item, company_domain, company_name, year, deadline=None):
+    url = _clean_text(item.get("url"))
+    if not url or _normalize_host(url) != company_domain:
+        return None
+    if not _research_budget_ok(deadline, reserve=0.7):
+        return None
+
+    page_text = item.get("preloaded_text") or _fetch_source_text(
+        url, deadline=deadline, timeout=2.5
+    )
+    if not page_text:
+        return None
+
+    title = item.get("title") or _historical_title_hint_from_url(url)
+    combined = " ".join([
+        title,
+        item.get("snippet") or "",
+        page_text[:140_000],
+    ])
+    if not _source_matches_company(
+        item,
+        page_text,
+        company_name,
+        "",
+        company_domain,
+        True,
+    ):
+        return None
+    bridge = _extract_eps_bridge_values(combined, title=title)
+    if not bridge or _fy_year_from_period(bridge.get("period")) != int(year):
+        return None
+
+    return {
+        "year": int(year),
+        "title": title or url,
+        "url": url,
+        "primary_source": True,
+        "eps_bridge_values": bridge,
+        "adjustment_recurrence_review": _build_adjustment_recurrence_review(
+            combined, bridge
+        ),
+        "historical_recovery_method": item.get("historical_recovery_method") or item.get("search_source") or "Unternehmensquelle",
+    }
+
+
 def _discover_historical_full_year_bridges(
     company_domain,
     company_name,
@@ -1384,12 +1589,14 @@ def _discover_historical_full_year_bridges(
     years_back=HISTORICAL_RECURRENCE_YEARS,
 ):
     """
-    Search a small number of older company/IR full-year releases and accept only
-    V2.20.17-period-validated FY bridges for the requested year.
+    V2.20.20 Historical Source Recovery.
 
-    This remains a diagnostic source-recovery step. It never writes an adjusted
-    EPS into the valuation model and it stops immediately when the global
-    research time budget is low.
+    Recovery order for older FY bridges:
+      1) company sitemap / historical IR archive URLs,
+      2) exact same-domain web discovery as a bounded fallback.
+
+    Only period-validated same-company full-year bridges are accepted. This
+    remains diagnostic and never writes adjusted EPS into the valuation model.
     """
     if not company_domain or current_fy is None:
         return [], []
@@ -1399,63 +1606,81 @@ def _discover_historical_full_year_bridges(
     attempted = []
     seen_urls = set()
 
+    # One sitemap inventory can recover several historical years with a single
+    # primary-source discovery step, which is much cheaper than repeated broad
+    # web searches.
+    sitemap_candidates, _ = _historical_sitemap_candidates(
+        company_domain,
+        target_years,
+        deadline=deadline,
+        per_year=5,
+    )
+
     for year in target_years:
-        if not _research_budget_ok(deadline, reserve=2.2):
+        if not _research_budget_ok(deadline, reserve=1.3):
             break
         attempted.append(year)
-
-        queries = [
-            f'"{company_name}" site:{company_domain} "{year}" "adjusted EPS" "GAAP"',
-            f'"{company_name}" site:{company_domain} "full year {year}" "adjusted EPS"',
-        ]
         year_found = None
 
-        for query in queries:
-            if not _research_budget_ok(deadline, reserve=1.8):
+        # 1) Direct company sitemap / IR-archive candidates.
+        for item in sitemap_candidates.get(year, []):
+            if not _research_budget_ok(deadline, reserve=0.9):
                 break
-            candidates = _duckduckgo_html_search(query, max_results=4, deadline=deadline)
+            url = _clean_text(item.get("url"))
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            row = _historical_row_from_candidate(
+                item,
+                company_domain,
+                company_name,
+                year,
+                deadline=deadline,
+            )
+            if row:
+                year_found = row
+                break
+
+        # 2) Exact same-domain web fallback only when the company's own sitemap
+        # did not yield a validated bridge for this year.
+        if year_found is None and _research_budget_ok(deadline, reserve=1.7):
+            query = (
+                f'site:{company_domain} "{company_name}" '
+                f'"full year {year}" "adjusted net earnings"'
+            )
+            candidates = _duckduckgo_html_search(query, max_results=5, deadline=deadline)
+            # A second phrasing is useful for issuers that title releases as
+            # "Reports 2024 Results" rather than "Full Year 2024".
+            if not candidates and _research_budget_ok(deadline, reserve=1.4):
+                candidates = _duckduckgo_html_search(
+                    f'site:{company_domain} "{company_name}" "Reports {year} Results" "adjusted EPS"',
+                    max_results=5,
+                    deadline=deadline,
+                )
             for item in candidates:
-                if not _research_budget_ok(deadline, reserve=1.0):
+                if not _research_budget_ok(deadline, reserve=0.8):
                     break
                 url = _clean_text(item.get("url"))
-                if not url or url in seen_urls:
-                    continue
-                if _normalize_host(url) != company_domain:
+                if not url or url in seen_urls or _normalize_host(url) != company_domain:
                     continue
                 seen_urls.add(url)
-
-                page_text = _fetch_source_text(url, deadline=deadline, timeout=2.4)
-                if not page_text:
-                    continue
-
-                combined = " ".join([
-                    item.get("title") or "",
-                    item.get("snippet") or "",
-                    page_text[:140_000],
-                ])
-                bridge = _extract_eps_bridge_values(combined, title=item.get("title"))
-                if not bridge or _fy_year_from_period(bridge.get("period")) != year:
-                    continue
-
-                year_found = {
-                    "year": year,
-                    "title": item.get("title") or url,
-                    "url": url,
-                    "primary_source": True,
-                    "eps_bridge_values": bridge,
-                    "adjustment_recurrence_review": _build_adjustment_recurrence_review(
-                        combined, bridge
-                    ),
-                }
-                break
-            if year_found:
-                break
+                item = dict(item)
+                item["historical_recovery_method"] = "Web-Fallback auf Unternehmensdomain"
+                row = _historical_row_from_candidate(
+                    item,
+                    company_domain,
+                    company_name,
+                    year,
+                    deadline=deadline,
+                )
+                if row:
+                    year_found = row
+                    break
 
         if year_found:
             found.append(year_found)
 
     return found, attempted
-
 
 def _build_historical_recurrence_summary(
     current_bridge,
@@ -1487,6 +1712,7 @@ def _build_historical_recurrence_summary(
             "material_adjustment": _bridge_has_material_adjustment(current_bridge),
             "source_title": None,
             "source_url": None,
+            "source_method": "Aktuelle Primärquelle",
             "components": (current_adjustment_review or {}).get("components") or [],
             "is_current": True,
         })
@@ -1509,6 +1735,7 @@ def _build_historical_recurrence_summary(
             "material_adjustment": _bridge_has_material_adjustment(bridge),
             "source_title": item.get("title"),
             "source_url": item.get("url"),
+            "source_method": item.get("historical_recovery_method"),
             "components": review.get("components") or [],
             "is_current": False,
         })
@@ -1568,8 +1795,8 @@ def _build_historical_recurrence_summary(
         level = "Gelb"
         status = "Historische Mehrjahresprüfung noch unvollständig"
         summary = (
-            "Es konnte noch kein älteres Volljahr mit einer validierten EPS-Brücke geladen werden. "
-            "Die aktuelle Bereinigung bleibt deshalb ohne automatische Normalisierungsfreigabe."
+            "Es konnte noch kein älteres Volljahr mit einer validierten EPS-Brücke geladen werden – auch nicht über "
+            "die direkte Unternehmens-Sitemap-/IR-Archiv-Recovery. Die aktuelle Bereinigung bleibt deshalb ohne automatische Normalisierungsfreigabe."
         )
         recurrence_class = "unvollstaendig"
 
@@ -2012,10 +2239,10 @@ def research_special_event_online(
     symbol,
     company_name,
     website=None,
-    cache_version="v22019",
+    cache_version="v22020",
 ):
     """
-    V2.20.19: bounded research with period validation, adjustment review and multi-year recurrence diagnostics.
+    V2.20.20: bounded research with direct historical company-source recovery before web fallback.
 
     Source priority remains company/IR -> SEC -> web -> Yahoo. Unrelated search
     results are rejected before they can become evidence. A quantitative EPS
@@ -2240,7 +2467,7 @@ def research_special_event_online(
         else None
     )
 
-    # V2.20.19: once a validated primary full-year bridge is available, use
+    # V2.20.20: once a validated primary full-year bridge is available, use
     # the remaining research budget to look back across older full years.
     historical_bridge_rows = []
     historical_attempted_years = []
@@ -14721,7 +14948,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_historical_recurrence_review_v22019_20260908"
+CACHE_VERSION = "m6_historical_source_recovery_v22020_20260908"
 
 @st.cache_data(
     ttl=900,
@@ -16027,7 +16254,7 @@ if selected_symbol:
 
                     adjustment_review = research.get("adjustment_recurrence_review") or {}
                     if adjustment_review:
-                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.19**")
+                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.20**")
                         review_level = adjustment_review.get("status_level")
                         review_status = text_or_dash(adjustment_review.get("status"))
                         if review_level == "Rot":
@@ -16063,7 +16290,7 @@ if selected_symbol:
 
                         st.error(
                             "**Automatische EPS-Normalisierungsfreigabe: NEIN.** Kein erkannter "
-                            "Bereinigungsposten wird in V2.20.19 automatisch zum Bewertungs-EPS addiert."
+                            "Bereinigungsposten wird in V2.20.20 automatisch zum Bewertungs-EPS addiert."
                         )
                         st.caption(
                             "Nächster Prüfschritt: "
@@ -16073,7 +16300,7 @@ if selected_symbol:
 
                     historical_review = research.get("historical_recurrence_review") or {}
                     if historical_review:
-                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.19**")
+                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.20**")
                         hist_level = historical_review.get("status_level")
                         hist_status = text_or_dash(historical_review.get("status"))
                         if hist_level == "Rot":
@@ -16102,7 +16329,10 @@ if selected_symbol:
                                     line += " · **materiell**"
                                 st.write(line)
                                 if hist.get("source_title"):
-                                    st.caption("Quelle: " + text_or_dash(hist.get("source_title")))
+                                    source_caption = "Quelle: " + text_or_dash(hist.get("source_title"))
+                                    if hist.get("source_method"):
+                                        source_caption += " · Recovery: " + text_or_dash(hist.get("source_method"))
+                                    st.caption(source_caption)
 
                         loaded_years = historical_review.get("loaded_prior_years") or []
                         missing_years = historical_review.get("missing_prior_years") or []
@@ -16212,13 +16442,13 @@ if selected_symbol:
 
                     if research.get("quantitative_eps_bridge_found"):
                         st.info(
-                            "Eine quantitative EPS-Brücke wurde nach V2.20.19-Regeln periodenvalidiert, auf Bereinigungskategorien und historisch auf Wiederholung geprüft. "
+                            "Eine quantitative EPS-Brücke wurde nach V2.20.20-Regeln periodenvalidiert, über Unternehmens-Sitemap/IR-Archiv historisch recovered und auf Wiederholung geprüft. "
                             "Sie wird weiterhin **nicht automatisch als bereinigtes EPS übernommen**."
                         )
 
                     st.error(
                         "**Freigabestatus: GESPERRT.** Die historische Wiederkehrbarkeits-Prüfung darf in "
-                        "V2.20.19 den Fair Value noch nicht selbst entsperren."
+                        "V2.20.20 den Fair Value noch nicht selbst entsperren."
                     )
                     st.write("**Nächster Schritt:** " + text_or_dash(research.get("next_step")))
 
