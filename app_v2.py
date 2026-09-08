@@ -1535,6 +1535,33 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel bis Hoch"
         }
 
+    # Autozulieferer / Auto Parts: zyklisches Geschäftsmodell, aber nicht
+    # mit dem Sondermodell für Autohersteller verwechseln. Dieser Router
+    # steht bewusst vor der breiteren Autohersteller-Erkennung.
+    auto_supplier_terms = [
+        "auto parts",
+        "automotive parts",
+        "motor vehicle parts",
+        "auto components",
+        "automotive components",
+        "vehicle electronics",
+        "automotive supplier",
+        "auto supplier"
+    ]
+
+    if any(
+        term in industry_text
+        for term in auto_supplier_terms
+    ):
+        return {
+            "type": "Autozulieferer / zyklisch",
+            "method": (
+                "Zyklus-normalisiertes EPS + KGV + "
+                "FCF-/Margenkontrolle"
+            ),
+            "confidence_cap": "Mittel"
+        }
+
     # Autohersteller
     auto_terms = [
         "auto manufacturers",
@@ -4168,6 +4195,12 @@ def get_valuation_corridor(company_type):
             20.0,
             30.0,
             "Normalisiertes/Forward-KGV"
+        ),
+        (
+            "autozulieferer / zyklisch",
+            8.0,
+            16.0,
+            "Zyklus-normalisiertes KGV"
         ),
         (
             "autohersteller / zyklisch",
