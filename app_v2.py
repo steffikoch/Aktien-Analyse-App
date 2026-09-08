@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.18: Wiederkehrbarkeits-Prüfung der Bereinigungen auf Basis V2.20.17.
+# V2.20.19: Historische Wiederkehrbarkeits-Prüfung über mehrere Volljahre auf Basis V2.20.18.
 
 # =========================================================
 # Hilfsfunktionen
@@ -1344,6 +1344,257 @@ def _build_adjustment_recurrence_review(text, bridge_values=None):
     }
 
 
+
+# =========================================================
+# V2.20.19 – Historische Wiederkehrbarkeits-Prüfung
+# =========================================================
+
+HISTORICAL_RECURRENCE_YEARS = 3
+
+
+def _fy_year_from_period(period):
+    m = re.search(r"\bFY\s*(20\d{2})\b", _clean_text(period), flags=re.I)
+    return int(m.group(1)) if m else None
+
+
+def _bridge_gap_value(bridge):
+    bridge = bridge if isinstance(bridge, dict) else {}
+    gaap = safe_float(bridge.get("gaap_eps"))
+    adjusted = safe_float(bridge.get("adjusted_eps"))
+    if gaap is None or adjusted is None:
+        return None
+    return adjusted - gaap
+
+
+def _bridge_has_material_adjustment(bridge):
+    bridge = bridge if isinstance(bridge, dict) else {}
+    adjusted = safe_float(bridge.get("adjusted_eps"))
+    gap = _bridge_gap_value(bridge)
+    if gap is None:
+        return False
+    threshold = max(0.05, abs(adjusted or 0.0) * 0.02)
+    return gap > threshold
+
+
+def _discover_historical_full_year_bridges(
+    company_domain,
+    company_name,
+    current_fy,
+    deadline=None,
+    years_back=HISTORICAL_RECURRENCE_YEARS,
+):
+    """
+    Search a small number of older company/IR full-year releases and accept only
+    V2.20.17-period-validated FY bridges for the requested year.
+
+    This remains a diagnostic source-recovery step. It never writes an adjusted
+    EPS into the valuation model and it stops immediately when the global
+    research time budget is low.
+    """
+    if not company_domain or current_fy is None:
+        return [], []
+
+    target_years = [current_fy - i for i in range(1, int(years_back) + 1)]
+    found = []
+    attempted = []
+    seen_urls = set()
+
+    for year in target_years:
+        if not _research_budget_ok(deadline, reserve=2.2):
+            break
+        attempted.append(year)
+
+        queries = [
+            f'"{company_name}" site:{company_domain} "{year}" "adjusted EPS" "GAAP"',
+            f'"{company_name}" site:{company_domain} "full year {year}" "adjusted EPS"',
+        ]
+        year_found = None
+
+        for query in queries:
+            if not _research_budget_ok(deadline, reserve=1.8):
+                break
+            candidates = _duckduckgo_html_search(query, max_results=4, deadline=deadline)
+            for item in candidates:
+                if not _research_budget_ok(deadline, reserve=1.0):
+                    break
+                url = _clean_text(item.get("url"))
+                if not url or url in seen_urls:
+                    continue
+                if _normalize_host(url) != company_domain:
+                    continue
+                seen_urls.add(url)
+
+                page_text = _fetch_source_text(url, deadline=deadline, timeout=2.4)
+                if not page_text:
+                    continue
+
+                combined = " ".join([
+                    item.get("title") or "",
+                    item.get("snippet") or "",
+                    page_text[:140_000],
+                ])
+                bridge = _extract_eps_bridge_values(combined, title=item.get("title"))
+                if not bridge or _fy_year_from_period(bridge.get("period")) != year:
+                    continue
+
+                year_found = {
+                    "year": year,
+                    "title": item.get("title") or url,
+                    "url": url,
+                    "primary_source": True,
+                    "eps_bridge_values": bridge,
+                    "adjustment_recurrence_review": _build_adjustment_recurrence_review(
+                        combined, bridge
+                    ),
+                }
+                break
+            if year_found:
+                break
+
+        if year_found:
+            found.append(year_found)
+
+    return found, attempted
+
+
+def _build_historical_recurrence_summary(
+    current_bridge,
+    current_adjustment_review=None,
+    historical_rows=None,
+    attempted_years=None,
+    target_years_back=HISTORICAL_RECURRENCE_YEARS,
+):
+    """
+    Compare the current validated full-year GAAP/adjusted bridge with older
+    validated full-year bridges. The result is deliberately conservative:
+    recurring adjustments can block a full one-off normalization, but this
+    function never releases Fair Value or computes a replacement EPS.
+    """
+    current_bridge = current_bridge if isinstance(current_bridge, dict) else {}
+    current_year = _fy_year_from_period(current_bridge.get("period"))
+    historical_rows = historical_rows if isinstance(historical_rows, list) else []
+    attempted_years = attempted_years if isinstance(attempted_years, list) else []
+
+    rows = []
+    if current_year is not None and current_bridge:
+        rows.append({
+            "year": current_year,
+            "period": current_bridge.get("period"),
+            "gaap_eps": safe_float(current_bridge.get("gaap_eps")),
+            "adjusted_eps": safe_float(current_bridge.get("adjusted_eps")),
+            "noncomparable_per_share": safe_float(current_bridge.get("noncomparable_per_share")),
+            "gap": _bridge_gap_value(current_bridge),
+            "material_adjustment": _bridge_has_material_adjustment(current_bridge),
+            "source_title": None,
+            "source_url": None,
+            "components": (current_adjustment_review or {}).get("components") or [],
+            "is_current": True,
+        })
+
+    seen_years = {current_year} if current_year is not None else set()
+    for item in historical_rows:
+        bridge = item.get("eps_bridge_values") or {}
+        year = item.get("year") or _fy_year_from_period(bridge.get("period"))
+        if year is None or year in seen_years:
+            continue
+        seen_years.add(year)
+        review = item.get("adjustment_recurrence_review") or {}
+        rows.append({
+            "year": int(year),
+            "period": bridge.get("period"),
+            "gaap_eps": safe_float(bridge.get("gaap_eps")),
+            "adjusted_eps": safe_float(bridge.get("adjusted_eps")),
+            "noncomparable_per_share": safe_float(bridge.get("noncomparable_per_share")),
+            "gap": _bridge_gap_value(bridge),
+            "material_adjustment": _bridge_has_material_adjustment(bridge),
+            "source_title": item.get("title"),
+            "source_url": item.get("url"),
+            "components": review.get("components") or [],
+            "is_current": False,
+        })
+
+    rows.sort(key=lambda r: r.get("year") or 0, reverse=True)
+    material_rows = [r for r in rows if r.get("material_adjustment")]
+    prior_material_rows = [r for r in material_rows if not r.get("is_current")]
+
+    category_years = {}
+    for row in rows:
+        year = row.get("year")
+        for comp in row.get("components") or []:
+            label = _clean_text(comp.get("label"))
+            if not label or year is None:
+                continue
+            category_years.setdefault(label, set()).add(int(year))
+    category_history = [
+        {"label": label, "years": sorted(years, reverse=True), "year_count": len(years)}
+        for label, years in category_years.items()
+    ]
+    category_history.sort(key=lambda x: (-x["year_count"], x["label"]))
+
+    expected_prior = []
+    if current_year is not None:
+        expected_prior = [current_year - i for i in range(1, int(target_years_back) + 1)]
+    loaded_prior_years = sorted(
+        [r["year"] for r in rows if not r.get("is_current")], reverse=True
+    )
+    missing_prior_years = [y for y in expected_prior if y not in loaded_prior_years]
+
+    if len(prior_material_rows) >= 2:
+        level = "Rot"
+        status = "Bereinigungen wiederholt über mehrere Jahre aufgetreten"
+        summary = (
+            "Mindestens zwei frühere Volljahre zeigen ebenfalls eine materielle Differenz zwischen "
+            "GAAP- und bereinigtem EPS. Die aktuelle Bereinigung darf deshalb nicht vollständig als "
+            "einmaliger Sondereffekt normalisiert werden."
+        )
+        recurrence_class = "wiederholt"
+    elif len(prior_material_rows) == 1:
+        level = "Gelb"
+        status = "Wiederholung in mindestens einem früheren Jahr bestätigt"
+        summary = (
+            "Neben dem aktuellen Volljahr wurde mindestens ein früheres Volljahr mit einer materiellen "
+            "GAAP-/Adjusted-Differenz bestätigt. Eine Vollbereinigung ist damit nicht automatisch zulässig."
+        )
+        recurrence_class = "teilweise_wiederholt"
+    elif loaded_prior_years:
+        level = "Gelb"
+        status = "Historische Wiederholung bislang nicht bestätigt"
+        summary = (
+            "Ältere Volljahre wurden geprüft, bislang aber keine weitere materielle GAAP-/Adjusted-Differenz "
+            "validiert. Für eine automatische Freigabe reicht das noch nicht aus."
+        )
+        recurrence_class = "nicht_bestaetigt"
+    else:
+        level = "Gelb"
+        status = "Historische Mehrjahresprüfung noch unvollständig"
+        summary = (
+            "Es konnte noch kein älteres Volljahr mit einer validierten EPS-Brücke geladen werden. "
+            "Die aktuelle Bereinigung bleibt deshalb ohne automatische Normalisierungsfreigabe."
+        )
+        recurrence_class = "unvollstaendig"
+
+    return {
+        "status_level": level,
+        "status": status,
+        "summary": summary,
+        "rows": rows,
+        "material_year_count": len(material_rows),
+        "prior_material_year_count": len(prior_material_rows),
+        "loaded_prior_years": loaded_prior_years,
+        "attempted_prior_years": attempted_years,
+        "missing_prior_years": missing_prior_years,
+        "category_history": category_history,
+        "recurrence_class": recurrence_class,
+        "normalization_release": False,
+        "valuation_release": False,
+        "next_step": (
+            "Bei wiederholt auftretenden Bereinigungen darf nur ein belastbar abgegrenzter, wirklich "
+            "nicht wiederkehrender Teil normalisiert werden. Im nächsten Schritt wird deshalb nicht die "
+            "gesamte Adjusted-EPS-Brücke übernommen, sondern geprüft, welcher Teil strukturell/operativ "
+            "wiederkehrt und welcher Teil außergewöhnlich ist."
+        ),
+    }
+
 def _has_quantitative_eps_bridge(text, title=None):
     """True only for a V2.20.17-validated bridge; never imports adjusted EPS into valuation."""
     return _extract_eps_bridge_values(text, title=title) is not None
@@ -1703,7 +1954,7 @@ def _discover_sec_primary_pages(symbol, max_filings=3, deadline=None):
         r = requests.get(
             f"https://data.sec.gov/submissions/CIK{cik10}.json",
             headers={
-                "User-Agent": "AktienAnalyseV2/2.20.18 research-client",
+                "User-Agent": "AktienAnalyseV2/2.20.19 research-client",
                 "Accept-Encoding": "gzip, deflate",
             },
             timeout=(min(1.8, effective_timeout), effective_timeout),
@@ -1761,10 +2012,10 @@ def research_special_event_online(
     symbol,
     company_name,
     website=None,
-    cache_version="v22018",
+    cache_version="v22019",
 ):
     """
-    V2.20.18: bounded research with period validation plus conservative adjustment-recurrence review.
+    V2.20.19: bounded research with period validation, adjustment review and multi-year recurrence diagnostics.
 
     Source priority remains company/IR -> SEC -> web -> Yahoo. Unrelated search
     results are rejected before they can become evidence. A quantitative EPS
@@ -1989,6 +2240,43 @@ def research_special_event_online(
         else None
     )
 
+    # V2.20.19: once a validated primary full-year bridge is available, use
+    # the remaining research budget to look back across older full years.
+    historical_bridge_rows = []
+    historical_attempted_years = []
+    best_bridge_year = _fy_year_from_period((best_bridge or {}).get("period"))
+    if (
+        best_bridge_row
+        and best_bridge_row.get("primary_source")
+        and best_bridge_year is not None
+        and _research_budget_ok(deadline, reserve=2.2)
+    ):
+        historical_bridge_rows, historical_attempted_years = (
+            _discover_historical_full_year_bridges(
+                company_domain,
+                company_name,
+                best_bridge_year,
+                deadline=deadline,
+                years_back=HISTORICAL_RECURRENCE_YEARS,
+            )
+        )
+
+    historical_recurrence_review = (
+        _build_historical_recurrence_summary(
+            best_bridge,
+            current_adjustment_review=best_adjustment_review,
+            historical_rows=historical_bridge_rows,
+            attempted_years=historical_attempted_years,
+            target_years_back=HISTORICAL_RECURRENCE_YEARS,
+        )
+        if best_bridge and best_bridge_year is not None
+        else None
+    )
+
+    # Recalculate elapsed time after the bounded historical look-back.
+    elapsed = time.monotonic() - started
+    time_limit_reached = elapsed >= (RESEARCH_TIME_LIMIT_SECONDS - 0.3)
+
     # Keep additional validated bridges visible as corroboration. Deduplicate
     # identical source/period/value tuples.
     supporting_bridge_rows = []
@@ -2016,7 +2304,9 @@ def research_special_event_online(
             break
 
     if validated_primary_bridge_found and best_bridge:
-        if best_adjustment_review and best_adjustment_review.get("components"):
+        if historical_recurrence_review:
+            next_step = historical_recurrence_review.get("next_step")
+        elif best_adjustment_review and best_adjustment_review.get("components"):
             next_step = best_adjustment_review.get("next_step")
         else:
             next_step = (
@@ -2060,6 +2350,8 @@ def research_special_event_online(
         "eps_bridge_source_title": best_bridge_row.get("title") if best_bridge_row else None,
         "eps_bridge_source_url": best_bridge_row.get("url") if best_bridge_row else None,
         "adjustment_recurrence_review": best_adjustment_review,
+        "historical_recurrence_review": historical_recurrence_review,
+        "historical_eps_bridges": historical_bridge_rows,
         "supporting_eps_bridges": supporting_bridge_rows,
         "bridge_priority_rule": "Volljahr → Quartal → Guidance/sonstige",
         "rejected_entity_count": rejected_entity_count,
@@ -14429,7 +14721,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_adjustment_recurrence_review_v22018_20260908"
+CACHE_VERSION = "m6_historical_recurrence_review_v22019_20260908"
 
 @st.cache_data(
     ttl=900,
@@ -15735,7 +16027,7 @@ if selected_symbol:
 
                     adjustment_review = research.get("adjustment_recurrence_review") or {}
                     if adjustment_review:
-                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.18**")
+                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.19**")
                         review_level = adjustment_review.get("status_level")
                         review_status = text_or_dash(adjustment_review.get("status"))
                         if review_level == "Rot":
@@ -15771,11 +16063,87 @@ if selected_symbol:
 
                         st.error(
                             "**Automatische EPS-Normalisierungsfreigabe: NEIN.** Kein erkannter "
-                            "Bereinigungsposten wird in V2.20.18 automatisch zum Bewertungs-EPS addiert."
+                            "Bereinigungsposten wird in V2.20.19 automatisch zum Bewertungs-EPS addiert."
                         )
                         st.caption(
                             "Nächster Prüfschritt: "
                             + text_or_dash(adjustment_review.get("next_step"))
+                        )
+
+
+                    historical_review = research.get("historical_recurrence_review") or {}
+                    if historical_review:
+                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.19**")
+                        hist_level = historical_review.get("status_level")
+                        hist_status = text_or_dash(historical_review.get("status"))
+                        if hist_level == "Rot":
+                            st.error("**🔴 " + hist_status + "**")
+                        else:
+                            st.warning("**🟡 " + hist_status + "**")
+                        st.write(text_or_dash(historical_review.get("summary")))
+
+                        hist_rows = historical_review.get("rows") or []
+                        if hist_rows:
+                            st.write("**Validierte Volljahres-Brücken:**")
+                            for hist in hist_rows[:6]:
+                                h_year = hist.get("year")
+                                h_gaap = safe_float(hist.get("gaap_eps"))
+                                h_adj = safe_float(hist.get("adjusted_eps"))
+                                h_gap = safe_float(hist.get("gap"))
+                                h_noncomp = safe_float(hist.get("noncomparable_per_share"))
+                                if h_year is None or h_gaap is None or h_adj is None:
+                                    continue
+                                line = f"• **{h_year}:** GAAP {h_gaap:.2f} → bereinigt {h_adj:.2f}"
+                                if h_gap is not None:
+                                    line += f" · Differenz {h_gap:.2f} je Aktie"
+                                if h_noncomp is not None:
+                                    line += f" · ausgewiesen non-comparable {h_noncomp:.2f}"
+                                if hist.get("material_adjustment"):
+                                    line += " · **materiell**"
+                                st.write(line)
+                                if hist.get("source_title"):
+                                    st.caption("Quelle: " + text_or_dash(hist.get("source_title")))
+
+                        loaded_years = historical_review.get("loaded_prior_years") or []
+                        missing_years = historical_review.get("missing_prior_years") or []
+                        if loaded_years:
+                            st.caption(
+                                "Ältere Volljahre geladen: "
+                                + ", ".join(str(y) for y in loaded_years)
+                            )
+                        if missing_years:
+                            st.caption(
+                                "Noch nicht belastbar geladen: "
+                                + ", ".join(str(y) for y in missing_years)
+                            )
+
+                        category_history = historical_review.get("category_history") or []
+                        recurring_categories = [
+                            row for row in category_history if int(row.get("year_count") or 0) >= 2
+                        ]
+                        if recurring_categories:
+                            st.write("**Wiederholt erkannte Bereinigungskategorien:**")
+                            for row in recurring_categories[:8]:
+                                years = ", ".join(str(y) for y in row.get("years") or [])
+                                st.write(
+                                    f"• **{text_or_dash(row.get('label'))}** – "
+                                    f"in {int(row.get('year_count') or 0)} Volljahren ({years})"
+                                )
+
+                        prior_count = int(historical_review.get("prior_material_year_count") or 0)
+                        material_count = int(historical_review.get("material_year_count") or 0)
+                        st.write(
+                            f"**Materielle GAAP-/Adjusted-Differenz:** {material_count} Volljahr(e) insgesamt · "
+                            f"davon {prior_count} frühere Volljahr(e)."
+                        )
+
+                        st.error(
+                            "**Automatische Vollbereinigung: NEIN.** Wiederholt auftretende Adjustments "
+                            "dürfen nicht pauschal als einmalig aus dem Bewertungs-EPS herausgerechnet werden."
+                        )
+                        st.caption(
+                            "Nächster Prüfschritt: "
+                            + text_or_dash(historical_review.get("next_step"))
                         )
 
 
@@ -15844,13 +16212,13 @@ if selected_symbol:
 
                     if research.get("quantitative_eps_bridge_found"):
                         st.info(
-                            "Eine quantitative EPS-Brücke wurde nach V2.20.18-Regeln periodenvalidiert und auf Bereinigungskategorien geprüft. "
+                            "Eine quantitative EPS-Brücke wurde nach V2.20.19-Regeln periodenvalidiert, auf Bereinigungskategorien und historisch auf Wiederholung geprüft. "
                             "Sie wird weiterhin **nicht automatisch als bereinigtes EPS übernommen**."
                         )
 
                     st.error(
-                        "**Freigabestatus: GESPERRT.** Die Wiederkehrbarkeits-Prüfung darf in "
-                        "V2.20.18 den Fair Value noch nicht selbst entsperren."
+                        "**Freigabestatus: GESPERRT.** Die historische Wiederkehrbarkeits-Prüfung darf in "
+                        "V2.20.19 den Fair Value noch nicht selbst entsperren."
                     )
                     st.write("**Nächster Schritt:** " + text_or_dash(research.get("next_step")))
 
