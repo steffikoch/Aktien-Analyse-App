@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.15: Zeitbegrenzte Primärquellen-Recovery für Sonderereignisse auf Basis V2.20.14.
+# V2.20.16: Validierte EPS-Brücken + Quellen-/Unternehmensfilter auf Basis V2.20.15.
 
 # =========================================================
 # Hilfsfunktionen
@@ -692,6 +692,7 @@ def _source_category(url, company_domain=None):
 
 
 def _classify_special_event_text(text):
+    """Broad keyword scan used only for discovery. Final evidence uses the stricter validator below."""
     haystack = _clean_text(text).lower()
     labels = []
     for label, keywords in SPECIAL_EVENT_KEYWORDS.items():
@@ -700,93 +701,324 @@ def _classify_special_event_text(text):
     return labels
 
 
-def _has_quantitative_eps_bridge(text):
-    """Diagnostic only. No adjusted EPS is imported into valuation."""
-    t = _clean_text(text).lower()
-    eps_present = "eps" in t or "earnings per share" in t or "per diluted share" in t
-    adjusted_present = any(x in t for x in [
-        "adjusted eps", "adjusted diluted eps", "adjusted earnings per share",
-        "adjusted earnings", "adjusted net earnings", "bereinigtes eps",
-        "bereinigter gewinn",
-    ])
-    reported_present = any(x in t for x in [
-        "gaap", "reported eps", "reported diluted eps", "diluted eps",
-        "reported earnings per share", "u.s. gaap", "ausgewiesenes eps",
-    ])
-    number_present = bool(re.search(r"(?:\$|€|£)?\s*\(?-?\d+[\.,]\d+\)?", t))
-    return bool(eps_present and adjusted_present and reported_present and number_present)
-
-
-def _extract_eps_bridge_values(text):
+def _context_looks_like_actual_event(context, label):
     """
-    Extract a conservative GAAP-vs-adjusted EPS pair for display only.
-    Values are never fed into valuation automatically.
+    Reject pure non-GAAP definition boilerplate. A displayed cause needs either an
+    actual action/charge or a quantitative/time-specific context.
+    """
+    c = _clean_text(context).lower()
+    if not c:
+        return False
+
+    definition_only = any(x in c for x in [
+        "defines adjusted", "defined as", "definition of", "adjusted to eliminate",
+        "may include", "can include", "non-gaap measures", "non-gaap measure",
+        "for comparison with", "most directly comparable", "we believe the following table",
+    ])
+
+    action_cues = [
+        "recorded", "recognized", "incurred", "completed", "completion", "announced",
+        "acquired", "acquisition of", "sold", "sale of", "divested", "divestiture of",
+        "spun off", "spin-off of", "separated", "separation of", "restructuring expense",
+        "restructuring charge", "impairment charge", "impairment charges", "write-down",
+        "write off", "write-off", "tax charge", "tax benefit", "settlement", "non-comparable items",
+        "noncomparable items", "net losses per diluted share", "net gains per diluted share",
+    ]
+    has_action = any(x in c for x in action_cues)
+    has_money = bool(re.search(r"(?:\$|€|£)\s*\(?-?\d", c))
+    has_period = bool(re.search(
+        r"\b(?:20\d{2}|q[1-4]\s*20\d{2}|first quarter|second quarter|third quarter|fourth quarter|full[-\s]?year|fiscal year)\b",
+        c,
+        flags=re.I,
+    ))
+
+    # Generic adjusted-EPS wording alone is not an event.
+    if label == "Einmal-/Sonderposten":
+        concrete_special = any(x in c for x in [
+            "non-comparable items", "noncomparable items", "one-time charge", "one time charge",
+            "special charge", "exceptional item", "excluded net non-comparable", "excluded net noncomparable",
+        ])
+        if not concrete_special and not (has_action and has_money):
+            return False
+
+    if definition_only and not (has_action and (has_money or has_period)):
+        return False
+
+    return bool(has_action or (has_money and has_period))
+
+
+def _classify_special_event_evidence(text):
+    """Stricter event classifier for user-visible evidence."""
+    haystack = _clean_text(text).lower()
+    labels = []
+    for label, keywords in SPECIAL_EVENT_KEYWORDS.items():
+        matched = False
+        for keyword in keywords:
+            for m in re.finditer(re.escape(keyword), haystack, flags=re.I):
+                left = max(0, m.start() - 260)
+                right = min(len(haystack), m.end() + 320)
+                if _context_looks_like_actual_event(haystack[left:right], label):
+                    matched = True
+                    break
+            if matched:
+                break
+        if matched:
+            labels.append(label)
+    return labels
+
+
+def _company_identity_tokens(company_name):
+    raw = _clean_text(company_name).lower()
+    raw = re.sub(r"[^a-z0-9äöüß]+", " ", raw)
+    stop = {
+        "inc", "incorporated", "corp", "corporation", "company", "co", "ltd", "limited",
+        "plc", "ag", "sa", "se", "nv", "holdings", "holding", "group", "the",
+    }
+    tokens = []
+    for token in raw.split():
+        if token in stop:
+            continue
+        if len(token) >= 4 or any(ch.isdigit() for ch in token):
+            tokens.append(token)
+    compact = re.sub(r"[^a-z0-9äöüß]+", "", raw)
+    if compact and compact not in stop and len(compact) >= 4:
+        tokens.append(compact)
+    return list(dict.fromkeys(tokens))
+
+
+def _source_matches_company(item, page_text, company_name, symbol, company_domain, primary):
+    """
+    Primary company-domain and SEC rows are trusted by construction. Other web
+    rows must actually mention the analyzed company, so unrelated search hits
+    (e.g. another issuer's press release) cannot enter the evidence list.
+    """
+    url = _clean_text(item.get("url"))
+    host = _normalize_host(url)
+    if primary:
+        return True
+    if host == "sec.gov" or host.endswith(".sec.gov"):
+        return True
+
+    sample = " ".join([
+        item.get("title") or "",
+        item.get("snippet") or "",
+        (page_text or "")[:12_000],
+    ]).lower()
+    compact_sample = re.sub(r"[^a-z0-9äöüß]+", "", sample)
+    tokens = _company_identity_tokens(company_name)
+    if any(token in sample or token in compact_sample for token in tokens):
+        return True
+
+    sym = _clean_text(symbol).upper()
+    if len(sym) >= 3:
+        if re.search(rf"\b(?:nyse|nasdaq|ticker)\s*[:\-]?\s*{re.escape(sym)}\b", sample, flags=re.I):
+            return True
+        if re.search(rf"\({re.escape(sym)}\)", sample, flags=re.I):
+            return True
+    return False
+
+
+def _eps_number(raw):
+    if raw is None:
+        return None
+    s = str(raw).strip().replace(",", ".")
+    negative = s.startswith("(") and s.endswith(")")
+    s = s.strip("()")
+    try:
+        value = float(s)
+    except Exception:
+        return None
+    if negative:
+        value = -value
+    if abs(value) > 50:
+        return None
+    return value
+
+
+def _period_markers(text):
+    t = _clean_text(text)
+    patterns = [
+        (r"\b(?:full[-\s]?year|fiscal\s+year|fy)\s*(20\d{2})\b", lambda m: f"FY {m.group(1)}"),
+        (r"\b(20\d{2})\s+(?:full[-\s]?year|fiscal\s+year)\b", lambda m: f"FY {m.group(1)}"),
+        (r"\b(first|second|third|fourth)\s+quarter(?:\s+(?:of|ended))?\s*(20\d{2})\b",
+         lambda m: f"Q{('first','second','third','fourth').index(m.group(1).lower()) + 1} {m.group(2)}"),
+        (r"\bq([1-4])\s*[-/]?\s*(20\d{2})\b", lambda m: f"Q{m.group(1)} {m.group(2)}"),
+        (r"\b(?:year\s+ended|year\s+ending)\s+[^.]{0,45}?(20\d{2})\b", lambda m: f"FY {m.group(1)}"),
+    ]
+    out = []
+    for pat, formatter in patterns:
+        for m in re.finditer(pat, t, flags=re.I):
+            try:
+                label = formatter(m)
+            except Exception:
+                continue
+            out.append((m.start(), m.end(), label))
+    out.sort(key=lambda row: row[0])
+    return out
+
+
+def _period_for_span(text, start, end, title=None):
+    t = _clean_text(text)
+    markers = _period_markers(t)
+    prior = [row for row in markers if row[0] <= start and start - row[0] <= 900]
+    marker = prior[-1] if prior else None
+    if marker is None:
+        near = [row for row in markers if row[0] <= end + 180 and row[1] >= start - 180]
+        marker = near[0] if near else None
+
+    period = marker[2] if marker else None
+    if period is None and title:
+        title_markers = _period_markers(title)
+        # Ambiguous titles like "Fourth Quarter and Full-Year 2025" are left
+        # unresolved unless the local body text supplies a clear period.
+        unique = list(dict.fromkeys(row[2] for row in title_markers))
+        if len(unique) == 1:
+            period = unique[0]
+
+    context = t[max(0, start - 240):min(len(t), end + 220)].lower()
+    guidance = any(x in context for x in ["guidance", "outlook", "expects", "expected to be", "forecast"])
+    return period, guidance
+
+
+def _eps_candidates(text, kind):
+    t = _clean_text(text)
+    num = r"(\(?-?\d+(?:[\.,]\d+)?\)?)"
+    if kind == "gaap":
+        patterns = [
+            rf"(?:u\.?s\.?\s*)?gaap\s+(?:net\s+)?(?:earnings|loss)(?:\s+per\s+diluted\s+share)?\s*(?:were|was|of|:|=)?\s*\$?\s*{num}\s*(?:per\s+diluted\s+share)?",
+            rf"(?:u\.?s\.?\s*)?gaap\s+(?:diluted\s+)?(?:eps|earnings\s+per\s+share)\s*(?:were|was|of|:|=)?\s*\$?\s*{num}",
+            rf"reported\s+(?:diluted\s+)?(?:eps|earnings\s+per\s+share)\s*(?:were|was|of|:|=)?\s*\$?\s*{num}",
+        ]
+    else:
+        patterns = [
+            rf"adjusted\s+(?:net\s+)?earnings(?:\s+per\s+diluted\s+share)?\s*(?:were|was|of|:|=)?\s*\$?\s*{num}\s*(?:per\s+diluted\s+share)?",
+            rf"adjusted\s+(?:diluted\s+)?(?:eps|earnings\s+per\s+share)\s*(?:were|was|of|:|=)?\s*\$?\s*{num}",
+            rf"adj\.?\s+(?:diluted\s+)?eps\s*(?:were|was|of|:|=)?\s*\$?\s*{num}",
+        ]
+
+    out = []
+    for pat in patterns:
+        for m in re.finditer(pat, t, flags=re.I):
+            raw = m.group(1)
+            value = _eps_number(raw)
+            if value is None:
+                continue
+            # Never treat a percentage as EPS.
+            tail = t[m.end(1):m.end(1) + 5]
+            if re.match(r"\s*%", tail):
+                continue
+            out.append({"value": value, "start": m.start(), "end": m.end(), "raw": m.group(0)})
+    # dedupe overlapping regex variants
+    deduped = []
+    for row in sorted(out, key=lambda x: (x["start"], x["end"] - x["start"])):
+        if any(abs(row["start"] - old["start"]) < 8 and abs(row["value"] - old["value"]) < 1e-9 for old in deduped):
+            continue
+        deduped.append(row)
+    return deduped
+
+
+def _noncomparable_per_share_values(text, start, end):
+    t = _clean_text(text)
+    context_start = max(0, start - 220)
+    context_end = min(len(t), end + 260)
+    context = t[context_start:context_end]
+    num = r"(\(?-?\d+(?:[\.,]\d+)?\)?)"
+    patterns = [
+        rf"excluding\s+\$?\s*{num}\s+of\s+net\s+(?:losses|gains)[^.{{}}]{{0,120}}?per\s+diluted\s+share[^.{{}}]{{0,140}}?non[-\s]?comparable",
+        rf"non[-\s]?comparable\s+items[^.{{}}]{{0,130}}?\$?\s*{num}\s+per\s+diluted\s+share",
+    ]
+    values = []
+    for pat in patterns:
+        for m in re.finditer(pat, context, flags=re.I):
+            value = _eps_number(m.group(1))
+            if value is not None:
+                values.append(abs(value))
+    return values
+
+
+def _extract_eps_bridge_values(text, title=None):
+    """
+    V2.20.16: Extract only explicitly labelled GAAP and adjusted EPS values.
+    Both values must belong to the same local reporting period. Percentages are
+    rejected. A reconciliation amount for non-comparable items is validated
+    when it is available. Values remain diagnostic only.
     """
     t = _clean_text(text)
     if not t:
         return None
 
-    def _to_num(raw):
-        if raw is None:
-            return None
-        raw = raw.replace(",", ".").strip()
-        negative = raw.startswith("(") and raw.endswith(")")
-        raw = raw.strip("()")
-        try:
-            value = float(raw)
-            return -value if negative else value
-        except Exception:
-            return None
+    gaap_rows = _eps_candidates(t, "gaap")
+    adj_rows = _eps_candidates(t, "adjusted")
+    candidates = []
+    current_year = datetime.now().year
 
-    num = r"(\(?-?\d+(?:[\.,]\d+)?\)?)"
-    gaap_patterns = [
-        rf"(?:u\.?s\.?\s*)?gaap.{{0,120}}?(?:net\s+earnings|earnings|loss).{{0,80}}?(?:per\s+diluted\s+share|earnings\s+per\s+share|eps).{{0,40}}?\$?\s*{num}",
-        rf"(?:u\.?s\.?\s*)?gaap.{{0,80}}?(?:per\s+diluted\s+share|eps).{{0,40}}?\$?\s*{num}",
-        rf"reported.{{0,80}}?(?:per\s+diluted\s+share|eps).{{0,40}}?\$?\s*{num}",
-    ]
-    adjusted_patterns = [
-        rf"adjusted.{{0,120}}?(?:net\s+earnings|earnings|income).{{0,80}}?(?:per\s+diluted\s+share|earnings\s+per\s+share|eps).{{0,40}}?\$?\s*{num}",
-        rf"adjusted.{{0,80}}?(?:per\s+diluted\s+share|eps).{{0,40}}?\$?\s*{num}",
-    ]
+    for g in gaap_rows:
+        for a in adj_rows:
+            left = min(g["start"], a["start"])
+            right = max(g["end"], a["end"])
+            distance = right - left
+            if distance > 700:
+                continue
 
-    gaap = adjusted = None
-    lower = t.lower()
-    for pat in gaap_patterns:
-        m = re.search(pat, lower, flags=re.I | re.S)
-        if m:
-            gaap = _to_num(m.group(1))
-            if gaap is not None:
-                break
-    for pat in adjusted_patterns:
-        m = re.search(pat, lower, flags=re.I | re.S)
-        if m:
-            adjusted = _to_num(m.group(1))
-            if adjusted is not None:
-                break
+            g_period, g_guidance = _period_for_span(t, g["start"], g["end"], title=title)
+            a_period, a_guidance = _period_for_span(t, a["start"], a["end"], title=title)
+            if g_period and a_period and g_period != a_period:
+                continue
+            period = g_period or a_period
+            guidance = bool(g_guidance or a_guidance)
 
-    # BorgWarner-style wording and similar releases often put the value before
-    # "per diluted share". Catch that safely as a second pass.
-    if gaap is None:
-        m = re.search(
-            rf"(?:u\.?s\.?\s*)?gaap.{{0,150}}?\$\s*{num}.{{0,30}}?per\s+diluted\s+share",
-            lower, flags=re.I | re.S,
-        )
-        if m:
-            gaap = _to_num(m.group(1))
-    if adjusted is None:
-        m = re.search(
-            rf"adjusted.{{0,150}}?\$\s*{num}.{{0,30}}?per\s+diluted\s+share",
-            lower, flags=re.I | re.S,
-        )
-        if m:
-            adjusted = _to_num(m.group(1))
+            # Same-period requirement: when no explicit period marker exists,
+            # accept only a very tight sentence-like span.
+            if period is None and distance > 320:
+                continue
 
-    if gaap is None or adjusted is None:
+            diff = abs(a["value"] - g["value"])
+            recon_values = _noncomparable_per_share_values(t, left, right)
+            recon_amount = None
+            reconciliation_ok = False
+            if recon_values:
+                recon_amount = min(recon_values, key=lambda x: abs(x - diff))
+                reconciliation_ok = abs(recon_amount - diff) <= max(0.04, diff * 0.04)
+
+            score = 80.0 - distance / 25.0
+            if period and period.startswith("FY") and not guidance:
+                score += 70
+            elif period and period.startswith("Q") and not guidance:
+                score += 40
+            elif guidance:
+                score -= 35
+            if period == f"FY {current_year - 1}":
+                score += 25
+            if reconciliation_ok:
+                score += 45
+            if "$" in g["raw"] or "$" in a["raw"]:
+                score += 5
+
+            candidates.append({
+                "gaap_eps": g["value"],
+                "adjusted_eps": a["value"],
+                "period": period or "Zeitraum lokal eindeutig",
+                "guidance": guidance,
+                "noncomparable_per_share": recon_amount,
+                "reconciliation_ok": reconciliation_ok,
+                "bridge_delta": diff,
+                "validation": (
+                    "Explizite GAAP-/Adjusted-EPS-Labels, gleicher Zeitraum"
+                    + (" und rechnerische Non-Comparable-Reconciliation" if reconciliation_ok else "")
+                ),
+                "bridge_score": score,
+                "source_excerpt": t[max(0, left - 160):min(len(t), right + 220)],
+            })
+
+    if not candidates:
         return None
-    if abs(gaap) > 100 or abs(adjusted) > 100:
-        return None
-    return {"gaap_eps": gaap, "adjusted_eps": adjusted}
+    candidates.sort(key=lambda row: row.get("bridge_score", 0), reverse=True)
+    return candidates[0]
 
+
+def _has_quantitative_eps_bridge(text, title=None):
+    """True only for a V2.20.16-validated bridge; never imports adjusted EPS into valuation."""
+    return _extract_eps_bridge_values(text, title=title) is not None
 
 def _unwrap_duckduckgo_url(href):
     href = _clean_text(href)
@@ -976,6 +1208,10 @@ def _score_primary_link(url, anchor, current_year):
     for year in [current_year, current_year - 1, current_year - 2, current_year - 3]:
         if str(year) in hay:
             score += 3
+    if any(x in hay for x in ["full year", "full-year", "annual results", "year-end", "fourth quarter"]):
+        score += 8
+    if str(current_year - 1) in hay and any(x in hay for x in ["results", "earnings", "annual", "full year", "full-year"]):
+        score += 5
     if any(x in hay for x in ["privacy", "career", "product", "supplier", "contact", "cookie"]):
         score -= 5
     return score
@@ -1123,7 +1359,7 @@ def _discover_sec_primary_pages(symbol, max_filings=3, deadline=None):
         r = requests.get(
             f"https://data.sec.gov/submissions/CIK{cik10}.json",
             headers={
-                "User-Agent": "AktienAnalyseV2/2.20.15 research-client",
+                "User-Agent": "AktienAnalyseV2/2.20.16 research-client",
                 "Accept-Encoding": "gzip, deflate",
             },
             timeout=(min(1.8, effective_timeout), effective_timeout),
@@ -1181,16 +1417,15 @@ def research_special_event_online(
     symbol,
     company_name,
     website=None,
-    cache_version="v22015",
+    cache_version="v22016",
 ):
     """
-    V2.20.15: bounded automatic research.
+    V2.20.16: bounded research with validated EPS bridges and entity filtering.
 
-    Source priority remains company/IR -> SEC -> web -> Yahoo, but every stage
-    is strictly limited. A slow or blocked website must never keep the complete
-    stock analysis waiting for minutes. If the budget expires, the Fair-Value
-    gate stays locked and the UI says that the research timed out; it does not
-    falsely claim that no special event exists.
+    Source priority remains company/IR -> SEC -> web -> Yahoo. Unrelated search
+    results are rejected before they can become evidence. A quantitative EPS
+    bridge is accepted only when GAAP EPS and adjusted EPS are explicitly
+    labelled for the same period; percentages can never be parsed as EPS.
     """
     _ = cache_version
     started = time.monotonic()
@@ -1199,6 +1434,7 @@ def research_special_event_online(
     symbol = _clean_text(symbol).upper()
     company_name = _clean_text(company_name) or symbol
     company_domain = _extract_company_domain(website)
+    target_year = datetime.now().year - 1
 
     raw_results = []
 
@@ -1222,14 +1458,15 @@ def research_special_event_online(
             )
         )
 
-    # 3) Targeted discovery. Two queries are enough for the automatic first pass.
+    # 3) Targeted discovery. Prefer the latest completed full year because a
+    # cycle-normalization alarm usually concerns historical comparability.
     queries = []
     if company_domain:
         queries.append(
-            f'"{company_name}" site:{company_domain} adjusted EPS impairment restructuring spin-off results'
+            f'"{company_name}" site:{company_domain} "{target_year}" "adjusted net earnings" GAAP results'
         )
     queries.append(
-        f'"{company_name}" {symbol} adjusted EPS impairment restructuring spin-off divestiture'
+        f'"{company_name}" {symbol} "{target_year}" adjusted EPS impairment restructuring spin-off divestiture'
     )
 
     if _research_budget_ok(deadline, reserve=3.5):
@@ -1259,13 +1496,14 @@ def research_special_event_online(
 
     evidence = []
     document_fetches = 0
+    rejected_entity_count = 0
+    rejected_definition_only_count = 0
     for item in deduped:
         url = item.get("url")
         category, primary = _source_category(url, company_domain)
         page_text = item.get("preloaded_text") or ""
 
-        # Load at most six additional documents. Search snippets can still be
-        # classified when a document cannot be fetched inside the budget.
+        # Load at most six additional documents.
         if (
             not page_text
             and document_fetches < 6
@@ -1274,16 +1512,33 @@ def research_special_event_online(
             page_text = _fetch_source_text(url, deadline=deadline, timeout=2.6)
             document_fetches += 1
 
+        if not _source_matches_company(
+            item,
+            page_text,
+            company_name,
+            symbol,
+            company_domain,
+            primary,
+        ):
+            rejected_entity_count += 1
+            continue
+
         combined = " ".join([
             item.get("title") or "",
             item.get("snippet") or "",
             page_text[:140_000],
         ])
-        event_types = _classify_special_event_text(combined)
-        quantitative_bridge = _has_quantitative_eps_bridge(combined)
-        bridge_values = _extract_eps_bridge_values(combined) if quantitative_bridge else None
+        event_types = _classify_special_event_evidence(combined)
+        bridge_values = _extract_eps_bridge_values(combined, title=item.get("title"))
+        quantitative_bridge = bridge_values is not None
+
         if not event_types and not quantitative_bridge:
+            # Broad keyword matches can still have helped discovery, but pure
+            # non-GAAP definition boilerplate is not user-visible evidence.
+            if _classify_special_event_text(combined):
+                rejected_definition_only_count += 1
             continue
+
         evidence.append({
             "title": item.get("title") or url,
             "url": url,
@@ -1294,11 +1549,14 @@ def research_special_event_online(
             "event_types": event_types,
             "quantitative_eps_bridge": quantitative_bridge,
             "eps_bridge_values": bridge_values,
+            "bridge_score": (bridge_values or {}).get("bridge_score", 0),
             "search_source": item.get("search_source"),
+            "entity_match": True,
         })
 
     evidence.sort(key=lambda row: (
         not bool(row.get("primary_source") and row.get("document_loaded")),
+        -float(row.get("bridge_score") or 0),
         not bool(row.get("quantitative_eps_bridge")),
         row.get("source_category") or "",
     ))
@@ -1314,8 +1572,13 @@ def research_special_event_online(
 
     primary_rows = [row for row in evidence if row.get("primary_source") and row.get("document_loaded")]
     document_rows = [row for row in evidence if row.get("document_loaded")]
-    quantitative_rows = [row for row in evidence if row.get("quantitative_eps_bridge") and row.get("document_loaded")]
-    bridge_value_rows = [row for row in quantitative_rows if row.get("eps_bridge_values")]
+    validated_bridge_rows = [
+        row for row in evidence
+        if row.get("quantitative_eps_bridge") and row.get("document_loaded") and row.get("eps_bridge_values")
+    ]
+    primary_bridge_rows = [row for row in validated_bridge_rows if row.get("primary_source")]
+    validated_bridge_rows.sort(key=lambda row: float(row.get("bridge_score") or 0), reverse=True)
+    primary_bridge_rows.sort(key=lambda row: float(row.get("bridge_score") or 0), reverse=True)
 
     elapsed = time.monotonic() - started
     time_limit_reached = elapsed >= (RESEARCH_TIME_LIMIT_SECONDS - 0.3)
@@ -1324,21 +1587,21 @@ def research_special_event_online(
         status = "Primär-/Regulierungsbelege gefunden"
         status_level = "Gelb"
         summary = (
-            "Die automatische Recherche hat geladene Unternehmens-/IR- oder SEC-Primärquellen "
-            "mit Hinweisen auf Sondereffekte bzw. Strukturänderungen gefunden."
+            "Die automatische Recherche hat zum analysierten Unternehmen passende, geladene "
+            "Unternehmens-/IR- oder SEC-Primärquellen mit konkreten Hinweisen gefunden."
         )
     elif document_rows:
         status = "Web-Hinweise gefunden – Primärbeleg noch offen"
         status_level = "Gelb"
         summary = (
-            "Es wurden geladene Webquellen mit möglichen Sonderursachen gefunden, aber noch "
-            "kein belastbarer Primär-/Regulierungsbeleg bestätigt."
+            "Es wurden zum Unternehmen passende Dokumente mit Sonderereignis-Hinweisen geladen, "
+            "aber ein Primär-/Regulierungsbeleg fehlt noch."
         )
     elif evidence:
-        status = "Suchhinweise gefunden – Dokumente nicht belastbar geladen"
-        status_level = "Rot"
+        status = "Suchhinweise gefunden – Dokumentbeleg noch offen"
+        status_level = "Gelb"
         summary = (
-            "Die Suche hat passende Hinweise geliefert, die zugrunde liegenden Dokumente konnten "
+            "Die Suche hat zum Unternehmen passende Hinweise geliefert, die zugrunde liegenden Dokumente konnten "
             "jedoch nicht belastbar geladen werden."
         )
     elif time_limit_reached:
@@ -1357,24 +1620,26 @@ def research_special_event_online(
             "Die Bewertung bleibt deshalb vollständig gesperrt."
         )
 
-    quantitative_bridge_found = bool(quantitative_rows)
-    best_bridge = bridge_value_rows[0].get("eps_bridge_values") if bridge_value_rows else None
+    validated_bridge_found = bool(validated_bridge_rows)
+    validated_primary_bridge_found = bool(primary_bridge_rows)
+    best_bridge_row = primary_bridge_rows[0] if primary_bridge_rows else (validated_bridge_rows[0] if validated_bridge_rows else None)
+    best_bridge = best_bridge_row.get("eps_bridge_values") if best_bridge_row else None
 
-    if best_bridge:
+    if validated_primary_bridge_found and best_bridge:
         next_step = (
-            "Eine Primärquelle enthält eine quantitative GAAP-/bereinigte-EPS-Brücke. Die Werte "
-            "werden nur zur Diagnose angezeigt und noch nicht automatisch als Bewertungs-EPS übernommen. "
-            "Als nächstes muss geprüft werden, welche Bereinigungen tatsächlich nicht wiederkehrend sind."
+            "Eine Primärquelle enthält eine validierte GAAP-/bereinigte-EPS-Brücke für denselben Zeitraum. "
+            "Die Werte werden nur diagnostisch angezeigt. Als nächstes muss geprüft werden, welche "
+            "Bereinigungen tatsächlich nicht wiederkehrend und für die Gewinnnormalisierung zulässig sind."
         )
-    elif quantitative_bridge_found:
+    elif validated_bridge_found:
         next_step = (
-            "Mindestens eine Quelle enthält offenbar eine quantitative GAAP-/bereinigte-EPS-Brücke. "
-            "Die automatische Extraktion ist noch nicht eindeutig genug; Fair Value bleibt gesperrt."
+            "Eine quantitative EPS-Brücke wurde in einer passenden Quelle validiert, aber ein gleichwertiger "
+            "Primär-/Regulierungsbeleg fehlt noch. Fair Value bleibt gesperrt."
         )
     elif primary_rows:
         next_step = (
             "Die wahrscheinliche Sonderursache ist durch Primärquellen belegt, aber ihre quantitative "
-            "EPS-Wirkung ist noch nicht ausreichend reconciliert. Fair Value bleibt gesperrt."
+            "EPS-Wirkung ist noch nicht als gleichperiodige GAAP-/Adjusted-Brücke validiert. Fair Value bleibt gesperrt."
         )
     elif time_limit_reached:
         next_step = (
@@ -1383,7 +1648,7 @@ def research_special_event_online(
         )
     else:
         next_step = (
-            "Primär-/IR-/Regulierungsquelle bzw. eine quantitative EPS-Brücke fehlt. Fair Value bleibt gesperrt."
+            "Primär-/IR-/Regulierungsquelle bzw. eine validierte quantitative EPS-Brücke fehlt. Fair Value bleibt gesperrt."
         )
 
     return {
@@ -1395,9 +1660,13 @@ def research_special_event_online(
         "evidence": evidence[:10],
         "primary_evidence_count": len(primary_rows),
         "loaded_document_count": len(document_rows),
-        "quantitative_eps_bridge_found": quantitative_bridge_found,
-        "quantitative_eps_bridge_count": len(quantitative_rows),
+        "quantitative_eps_bridge_found": validated_bridge_found,
+        "validated_primary_eps_bridge_found": validated_primary_bridge_found,
+        "quantitative_eps_bridge_count": len(validated_bridge_rows),
         "eps_bridge_values": best_bridge,
+        "eps_bridge_source_title": best_bridge_row.get("title") if best_bridge_row else None,
+        "rejected_entity_count": rejected_entity_count,
+        "rejected_definition_only_count": rejected_definition_only_count,
         "valuation_release": False,
         "next_step": next_step,
         "company_domain": company_domain,
@@ -1407,6 +1676,7 @@ def research_special_event_online(
         "time_limit_seconds": RESEARCH_TIME_LIMIT_SECONDS,
         "time_limit_reached": time_limit_reached,
     }
+
 
 def build_eps_result(
     normalized_eps,
@@ -13762,7 +14032,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_sonderereignis_timeout_guard_v22015_20260908"
+CACHE_VERSION = "m6_eps_bridge_validation_v22016_20260908"
 
 @st.cache_data(
     ttl=900,
@@ -15041,12 +15311,32 @@ if selected_symbol:
                     if bridge_values:
                         gaap_eps = safe_float(bridge_values.get("gaap_eps"))
                         adjusted_eps = safe_float(bridge_values.get("adjusted_eps"))
+                        noncomp = safe_float(bridge_values.get("noncomparable_per_share"))
+                        period = text_or_dash(bridge_values.get("period"))
+                        validation = text_or_dash(bridge_values.get("validation"))
                         if gaap_eps is not None and adjusted_eps is not None:
-                            st.info(
-                                "**Diagnostisch erkannte EPS-Brücke aus Primärquelle:** "
-                                f"GAAP/ausgewiesen {gaap_eps:.2f} · bereinigt {adjusted_eps:.2f}. "
-                                "Diese Werte werden nicht automatisch in die Bewertung übernommen."
+                            bridge_text = (
+                                "**✅ Validierte diagnostische EPS-Brücke:** "
+                                f"{period} · GAAP/ausgewiesen {gaap_eps:.2f} · bereinigt {adjusted_eps:.2f}"
                             )
+                            if noncomp is not None:
+                                bridge_text += f" · nicht vergleichbare Posten {noncomp:.2f} je Aktie"
+                            bridge_text += ". Diese Werte werden nicht automatisch in die Bewertung übernommen."
+                            st.info(bridge_text)
+                            st.caption("Bridge-Validierung: " + validation)
+                            if research.get("eps_bridge_source_title"):
+                                st.caption(
+                                    "Brückenquelle: " + text_or_dash(research.get("eps_bridge_source_title"))
+                                )
+
+                    rejected_entities = int(research.get("rejected_entity_count") or 0)
+                    rejected_definitions = int(research.get("rejected_definition_only_count") or 0)
+                    if rejected_entities or rejected_definitions:
+                        st.caption(
+                            "Recherche-Filter: "
+                            f"{rejected_entities} unternehmensfremde Treffer verworfen · "
+                            f"{rejected_definitions} reine Definitions-/Boilerplate-Treffer nicht als Ereignis gewertet."
+                        )
 
                     evidence_rows = research.get("evidence") or []
                     if evidence_rows:
@@ -15080,13 +15370,13 @@ if selected_symbol:
 
                     if research.get("quantitative_eps_bridge_found"):
                         st.info(
-                            "Eine quantitative EPS-Brücke wurde als Hinweis erkannt. "
-                            "Sie wird in V2.20.15 noch **nicht automatisch als bereinigtes EPS übernommen**."
+                            "Eine quantitative EPS-Brücke wurde nach V2.20.16-Regeln validiert. "
+                            "Sie wird weiterhin **nicht automatisch als bereinigtes EPS übernommen**."
                         )
 
                     st.error(
                         "**Freigabestatus: GESPERRT.** Die automatische Recherche darf in "
-                        "V2.20.15 den Fair Value noch nicht selbst entsperren."
+                        "V2.20.16 den Fair Value noch nicht selbst entsperren."
                     )
                     st.write("**Nächster Schritt:** " + text_or_dash(research.get("next_step")))
 
