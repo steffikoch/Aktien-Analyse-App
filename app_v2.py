@@ -17,7 +17,7 @@ st.caption(
 )
 
 
-# V2.20.2: EPS-Divergenz-Gate + robuster Yahoo-Datenabruf auf Basis V2.20.
+# V2.20.3: EPS-Divergenz-Gate + Yahoo-Recovery Hotfix auf Basis V2.20.
 
 # =========================================================
 # Hilfsfunktionen
@@ -11514,11 +11514,6 @@ def resolve_fundamental_symbol(selected_symbol, company_name=None):
     }
 
 
-@st.cache_data(
-    ttl=3600,
-    show_spinner=False
-)
-
 def _fast_info_value(fast_info, *names):
     """Read one value from yfinance FastInfo without assuming one API shape."""
     if fast_info is None:
@@ -11717,6 +11712,10 @@ def load_yahoo_info_resilient(symbol, ticker=None):
     }
 
 
+@st.cache_data(
+    ttl=3600,
+    show_spinner=False
+)
 def load_fx_conversion(
     from_currency,
     to_currency,
@@ -11803,7 +11802,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_eps_divergence_yahoo_recovery_v2202_20260908"
+CACHE_VERSION = "m6_eps_divergence_yahoo_recovery_hotfix_v2203_20260908"
 
 @st.cache_data(
     ttl=900,
