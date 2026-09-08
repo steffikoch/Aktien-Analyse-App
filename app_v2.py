@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.23: Financial Archive Type Guard – Release-Archive strikt von Annual-Report-Bereichen trennen.
+# V2.20.24: Archive Index Guard & Parent Recovery – Detailseiten als Archiv sperren und Archiv-Elternpfad wiederherstellen.
 
 # =========================================================
 # Hilfsfunktionen
@@ -1584,7 +1584,7 @@ def _historical_row_from_candidate(item, company_domain, company_name, year, dea
 
 
 # =========================================================
-# V2.20.23 – Financial Archive Type Guard
+# V2.20.24 – Archive Index Guard & Parent Recovery
 # =========================================================
 
 IR_ROUTER_SEED_PATHS = [
@@ -1681,7 +1681,7 @@ def _router_doc_score(url, title, year):
 def _router_page_role(url, title="", text=""):
     """Classify a page by URL/title first; body navigation is only fallback.
 
-    V2.20.23 prevents a press-release archive from becoming an Annual-Reports
+    V2.20.24 prevents a press-release archive from becoming an Annual-Reports
     page merely because its global navigation contains an "Annual Reports" link.
     """
     nav_type = _router_archive_type({"url": url, "title": title}) if "_router_archive_type" in globals() else None
@@ -1750,7 +1750,7 @@ def _router_year_filter_variants(url, year):
 
 def _router_archive_page_variants(url, page_no):
     """
-    V2.20.23: build a tiny set of common pagination variants for an issuer's
+    V2.20.24: build a tiny set of common pagination variants for an issuer's
     own release/results archive. This is deliberately same-domain only.
     """
     url = _clean_text(url)
@@ -1767,12 +1767,116 @@ def _router_archive_page_variants(url, page_no):
     return list(dict.fromkeys(variants))
 
 
+def _router_release_archive_parent(url):
+    """Return the canonical release-archive parent for an issuer release URL.
+
+    V2.20.24: a detail URL such as
+    /newsroom/press-releases/2026/08/17/some-release must never be treated as
+    an archive. This helper recovers /newsroom/press-releases so the router can
+    retry the actual issuer index instead of crawling related links on the
+    article page.
+    """
+    url = _clean_text(url)
+    if not url:
+        return None
+    try:
+        parsed = urlparse(url)
+        path = parsed.path or "/"
+        low = path.lower()
+        markers = [
+            "/press-releases", "/news-releases", "/financial-releases",
+            "/earnings-releases", "/financial-results", "/quarterly-results",
+        ]
+        hit = None
+        for marker in markers:
+            idx = low.find(marker)
+            if idx >= 0:
+                end = idx + len(marker)
+                hit = path[:end].rstrip("/") or "/"
+                break
+        if not hit:
+            return None
+        origin = f"{parsed.scheme or 'https'}://{parsed.netloc}"
+        return origin + hit
+    except Exception:
+        return None
+
+
+def _router_is_release_detail_url(url):
+    """True only for a single release/article detail URL, not an archive index.
+
+    Conservative by design: explicit date/slug paths and common detail markers
+    are blocked. Pure archive paths, /page/N pagination and simple /YYYY archive
+    buckets remain eligible as index pages.
+    """
+    url = _clean_text(url)
+    if not url:
+        return False
+    try:
+        path = unquote(urlparse(url).path or "/").strip("/")
+    except Exception:
+        return False
+    low = path.lower()
+    if any(x in low for x in ["news-release-details", "press-release-details", "release-details"]):
+        return True
+    markers = [
+        "press-releases", "news-releases", "financial-releases",
+        "earnings-releases", "financial-results", "quarterly-results",
+    ]
+    parts = [p for p in path.split("/") if p]
+    low_parts = [p.lower() for p in parts]
+    for marker in markers:
+        if marker not in low_parts:
+            continue
+        idx = low_parts.index(marker)
+        suffix = parts[idx + 1:]
+        if not suffix:
+            return False
+        # Index pagination is explicitly allowed.
+        if len(suffix) >= 2 and suffix[0].lower() == "page" and suffix[1].isdigit():
+            return False
+        # A simple year bucket can still be a legitimate archive page.
+        if len(suffix) == 1 and re.fullmatch(r"20\d{2}", suffix[0]):
+            return False
+        # YYYY/MM/DD[/slug] or YYYY/MM[/slug] is a classic release detail path.
+        if re.fullmatch(r"20\d{2}", suffix[0]):
+            if len(suffix) >= 3 and suffix[1].isdigit() and suffix[2].isdigit():
+                return True
+            if len(suffix) >= 2 and not re.fullmatch(r"(?:page|archive|results?)", suffix[1], flags=re.I):
+                return True
+        # A non-index slug directly beneath press/news/financial releases is
+        # almost always a single article. Keep common archive tokens eligible.
+        if len(suffix) >= 1:
+            token = suffix[0].lower()
+            if token not in {"archive", "archives", "results", "earnings", "financial", "page"}:
+                if "release" in marker and not token.isdigit():
+                    return True
+    return False
+
+
+def _router_parent_recovery_row(row):
+    """Create an archive-index candidate from a rejected release detail URL."""
+    row = row or {}
+    parent = _router_release_archive_parent(row.get("url"))
+    if not parent or parent == _clean_text(row.get("url")):
+        return None
+    return {
+        "title": "Financial Releases Archive – Parent Recovery",
+        "url": parent,
+        "snippet": "Recovered from release detail URL",
+        "search_source": "Company IR Router – Parent Recovery",
+        "link_score": max(120, int(row.get("link_score") or 0)),
+        "parent_recovered_from": row.get("url"),
+    }
+
+
 def _router_archive_type(row=None, url=None, title=None):
     """Classify navigation links before any archive pagination is attempted.
 
-    V2.20.23 guardrail: annual-report / filing hubs are document repositories,
-    not press/earnings release archives. They must never be paginated with
-    /page/N or ?page=N release-archive patterns.
+    V2.20.24 guardrails:
+    - annual-report / filing hubs are document repositories, never release archives;
+    - individual press/news/earnings release detail pages are ``release_detail``;
+    - only genuine index/list URLs are eligible as ``release_archive``.
     """
     row = row or {}
     url = _clean_text(url or row.get("url"))
@@ -1787,6 +1891,10 @@ def _router_archive_type(row=None, url=None, title=None):
     ]
     if any(marker in hay for marker in annual_markers):
         return "annual_reports"
+
+    # Detail-page test must run before the generic /press-releases marker.
+    if _router_is_release_detail_url(url):
+        return "release_detail"
 
     release_markers = [
         "financial releases", "financial results", "earnings releases",
@@ -1831,7 +1939,7 @@ def _router_release_archive_score(row):
 
 
 def _router_is_archive_link(row):
-    # Kept as a compatibility helper, but V2.20.23 deliberately means only a
+    # Kept as a compatibility helper, but V2.20.24 deliberately means only a
     # release/results archive. Annual-report hubs are handled separately.
     return _router_archive_type(row) == "release_archive"
 
@@ -1883,20 +1991,29 @@ def _router_release_index_stats(html, base_url, company_domain):
 def _router_validate_release_archive_index(row, html, final_url, company_domain):
     """Validate that a fetched page is actually a release/results index.
 
-    Explicit annual-report hubs are rejected unconditionally. For an explicit
-    release archive, at least one release/result-looking document link is enough;
-    generic hubs need stronger evidence.
+    V2.20.24 explicitly rejects article/detail URLs even if their page contains
+    related-release links. This closes the BorgWarner regression where a single
+    tender-offer press release was accepted as the Financial Releases archive.
     """
+    if _router_is_release_detail_url(final_url):
+        return False, "Einzelmeldung/Detailseite ist kein Archivindex", {}
     declared_type = _router_archive_type(row, url=final_url)
     if declared_type == "annual_reports":
         return False, "Annual-Report-Bereich ist kein Release-Archiv", {}
+    if declared_type == "release_detail":
+        return False, "Einzelmeldung/Detailseite ist kein Release-Archiv", {}
     stats = _router_release_index_stats(html, final_url, company_domain)
     evidence_count = int(stats.get("release_like_count") or 0) + int(stats.get("result_like_count") or 0)
-    if declared_type == "release_archive" and evidence_count >= 1:
-        return True, "Release-/Ergebnisarchiv bestätigt", stats
-    if evidence_count >= 3:
+    # A true explicit archive path can pass with modest evidence; generic hubs
+    # still need a stronger list structure. A detail URL can never reach here.
+    parent = _router_release_archive_parent(final_url)
+    canonical_index = bool(parent and parent.rstrip("/") == (urlparse(final_url).scheme + "://" + urlparse(final_url).netloc + (urlparse(final_url).path or "")).rstrip("/"))
+    is_pagination = bool(re.search(r"/page/\d+/?$", (urlparse(final_url).path or ""), flags=re.I) or re.search(r"(?:^|[?&])page=\d+", urlparse(final_url).query or "", flags=re.I))
+    if declared_type == "release_archive" and evidence_count >= 1 and (canonical_index or is_pagination or "category=" in (urlparse(final_url).query or "").lower()):
+        return True, "Archivindex bestätigt", stats
+    if evidence_count >= 3 and not _router_is_release_detail_url(final_url):
         return True, "Release-Archiv über Linkstruktur bestätigt", stats
-    return False, "Keine ausreichende Release-/Ergebnis-Linkstruktur", stats
+    return False, "Keine ausreichende Archivindex-/Release-Linkstruktur", stats
 
 
 def _router_collect_year_candidates(all_links, years, method="IR Archive Fast Path"):
@@ -1912,7 +2029,7 @@ def _router_collect_year_candidates(all_links, years, method="IR Archive Fast Pa
             item["historical_recovery_method"] = method
             rows.append(item)
         rows.sort(key=lambda r: r.get("historical_candidate_score", 0), reverse=True)
-        # The whole point of V2.20.23 is to fetch only the strongest one or two
+        # The whole point of V2.20.24 is to fetch only the strongest one or two
         # documents per year, not crawl every official link.
         by_year[year] = rows[:3]
     return by_year
@@ -1926,7 +2043,7 @@ def _discover_company_ir_router(
     max_hubs=3,
 ):
     """
-    V2.20.23 Financial Archive Type Guard.
+    V2.20.24 Archive Index Guard & Parent Recovery.
 
     Fast path:
       1) load issuer homepage once,
@@ -1957,6 +2074,9 @@ def _discover_company_ir_router(
         "archive_index_pages_loaded": 0,
         "archive_guard_rejected_count": 0,
         "archive_guard_rejections": [],
+        "release_detail_rejected_count": 0,
+        "parent_archive_recovery_count": 0,
+        "parent_archive_recoveries": [],
         "selected_archive_url": None,
         "selected_archive_type": None,
         "selected_archive_validation": None,
@@ -1964,7 +2084,7 @@ def _discover_company_ir_router(
         "selected_archive_result_links": 0,
         "candidate_counts_by_year": {y: 0 for y in years},
         "fast_path": True,
-        "strategy": "Unternehmensseite → echtes Financial/Earnings-Release-Archiv → Type Guard → gezielte Jahresdokumente",
+        "strategy": "Unternehmensseite → Detailseiten-Guard/Parent Recovery → echter Archivindex → gezielte Jahresdokumente",
     }
     if not company_domain or not _research_budget_ok(deadline, reserve=3.0):
         return result
@@ -1972,6 +2092,7 @@ def _discover_company_ir_router(
     root = _router_root(company_domain)
     all_links = {}
     discovered = {}
+    parent_recovery_seen = set()
     archive_pages = []
     annual_pages = []
     fetched = set()
@@ -1997,6 +2118,30 @@ def _discover_company_ir_router(
     def collect_navigation_candidates():
         rows = list(all_links.values())
         release_rows = [r for r in rows if _router_archive_type(r) == "release_archive"]
+        detail_rows = [r for r in rows if _router_archive_type(r) == "release_detail"]
+
+        # V2.20.24 Parent Recovery: recent-release links often appear on the
+        # corporate home page even when the archive-index link itself is hidden.
+        # Recover the parent archive path, but never promote the detail page.
+        recovered = {}
+        for detail in detail_rows:
+            parent_row = _router_parent_recovery_row(detail)
+            if not parent_row:
+                continue
+            old = recovered.get(parent_row["url"])
+            if old is None or parent_row.get("link_score", 0) > old.get("link_score", 0):
+                recovered[parent_row["url"]] = parent_row
+        for parent_row in recovered.values():
+            if all(r.get("url") != parent_row.get("url") for r in release_rows):
+                release_rows.append(parent_row)
+                if parent_row.get("url") not in parent_recovery_seen:
+                    parent_recovery_seen.add(parent_row.get("url"))
+                    result["parent_archive_recovery_count"] += 1
+                    result["parent_archive_recoveries"].append({
+                        "archive_url": parent_row.get("url"),
+                        "recovered_from": parent_row.get("parent_recovered_from"),
+                    })
+
         release_rows.sort(key=_router_release_archive_score, reverse=True)
         annual_rows = [r for r in rows if _router_archive_type(r) == "annual_reports"]
         annual_rows.sort(key=lambda r: r.get("link_score", 0), reverse=True)
@@ -2006,7 +2151,8 @@ def _discover_company_ir_router(
             and r.get("link_score", 0) >= 35
         ]
         hub_rows.sort(key=lambda r: r.get("link_score", 0), reverse=True)
-        return release_rows, annual_rows, hub_rows
+        return release_rows, annual_rows, hub_rows, detail_rows
+
 
     # 1) Homepage: cheap same-domain navigation discovery.
     home_url = root + "/"
@@ -2018,7 +2164,8 @@ def _discover_company_ir_router(
         register_links(html, final_url)
         register_page(final_url, f"{company_name} – Unternehmensseite", "Unternehmensseite")
 
-    release_candidates, annual_candidates, hub_candidates = collect_navigation_candidates()
+    release_candidates, annual_candidates, hub_candidates, detail_candidates = collect_navigation_candidates()
+    result["release_detail_rejected_count"] = len({r.get("url") for r in detail_candidates if r.get("url")})
     for row in annual_candidates[:4]:
         if row.get("url") not in annual_pages:
             annual_pages.append(row.get("url"))
@@ -2038,7 +2185,8 @@ def _discover_company_ir_router(
                 role = _router_page_role(hub_final, hub.get("title", ""), hub_text)
                 register_page(hub_final, hub.get("title") or _historical_title_hint_from_url(hub_final), role)
                 register_links(hub_html, hub_final)
-                release_candidates, annual_candidates, hub_candidates = collect_navigation_candidates()
+                release_candidates, annual_candidates, hub_candidates, detail_candidates = collect_navigation_candidates()
+                result["release_detail_rejected_count"] = len({r.get("url") for r in detail_candidates if r.get("url")})
                 for row in annual_candidates[:4]:
                     if row.get("url") not in annual_pages:
                         annual_pages.append(row.get("url"))
@@ -2066,12 +2214,18 @@ def _discover_company_ir_router(
     for archive_item in release_candidates[:2]:
         if primary_archive or not _research_budget_ok(deadline, reserve=3.8):
             break
-        if _router_archive_type(archive_item) != "release_archive":
+        archive_item_type = _router_archive_type(archive_item)
+        if archive_item_type != "release_archive" or _router_is_release_detail_url(archive_item.get("url")):
             result["archive_guard_rejected_count"] += 1
+            if archive_item_type == "release_detail" or _router_is_release_detail_url(archive_item.get("url")):
+                result["release_detail_rejected_count"] += 1
+                reject_reason = "Einzelmeldung/Detailseite – Parent Recovery erforderlich"
+            else:
+                reject_reason = "Kein Financial/Earnings-Release-Archiv"
             result["archive_guard_rejections"].append({
                 "url": archive_item.get("url"),
-                "type": _router_archive_type(archive_item),
-                "reason": "Kein Financial/Earnings-Release-Archiv",
+                "type": archive_item_type,
+                "reason": reject_reason,
             })
             continue
 
@@ -2110,7 +2264,7 @@ def _discover_company_ir_router(
             primary_archive = archive_final
             primary_archive_row = candidate_row
             result["selected_archive_url"] = archive_final
-            result["selected_archive_type"] = "Financial/Earnings Releases"
+            result["selected_archive_type"] = "Financial/Earnings Release-Archivindex"
             result["selected_archive_validation"] = reason
             result["selected_archive_release_links"] = int(stats.get("release_like_count") or 0)
             result["selected_archive_result_links"] = int(stats.get("result_like_count") or 0)
@@ -2133,7 +2287,7 @@ def _discover_company_ir_router(
     refresh_candidate_counts()
 
     # 5) Paginate only the validated release archive. This is the central
-    # V2.20.23 guardrail: annual-report/filing repositories can never reach here.
+    # V2.20.24 guardrail: annual-report/filing repositories can never reach here.
     if primary_archive and primary_archive_row:
         for page_no in range(2, 6):
             missing = [y for y in years if not has_strong_candidate(y)]
@@ -2217,7 +2371,7 @@ def _discover_historical_full_year_bridges(
     ir_router=None,
 ):
     """
-    V2.20.23 targeted historical bridge recovery.
+    V2.20.24 targeted historical bridge recovery.
 
     The router has already indexed issuer archive links. We therefore fetch at
     most two strongest document candidates per year. Expensive sitemap/general
@@ -2848,10 +3002,10 @@ def research_special_event_online(
     symbol,
     company_name,
     website=None,
-    cache_version="v22023",
+    cache_version="v22024",
 ):
     """
-    V2.20.23: Financial-Archive-Type-Guard research. The issuer website/IR archive is routed before SEC, web search and Yahoo.
+    V2.20.24: Archive-Index-Guard research. The issuer website/IR archive is routed before SEC, web search and Yahoo.
 
     Source priority remains company/IR -> SEC -> web -> Yahoo. Unrelated search
     results are rejected before they can become evidence. A quantitative EPS
@@ -2868,7 +3022,7 @@ def research_special_event_online(
     target_year = datetime.now().year - 1
     router_years = [target_year - i for i in range(0, HISTORICAL_RECURRENCE_YEARS + 1)]
 
-    # V2.20.23: index only validated release/results archives first; annual-report hubs are never paginated as release archives.
+    # V2.20.24: index only validated release/results archives first; annual-report hubs are never paginated as release archives.
     ir_router = _discover_company_ir_router(
         company_domain,
         company_name,
@@ -2883,7 +3037,7 @@ def research_special_event_online(
     for item in ((ir_router.get("documents_by_year") or {}).get(target_year, []) if isinstance(ir_router, dict) else [])[:4]:
         raw_results.append(item)
 
-    # V2.20.23: if the validated issuer release archive already exposed a plausible full-year
+    # V2.20.24: if the validated issuer release archive already exposed a plausible full-year
     # release, do not spend the budget crawling generic company pages/SEC before
     # validating that document. Fallback discovery is used only when the issuer
     # index yielded nothing usable.
@@ -3094,7 +3248,7 @@ def research_special_event_online(
         else None
     )
 
-    # V2.20.23: once a validated primary full-year bridge is available, reserve
+    # V2.20.24: once a validated primary full-year bridge is available, reserve
     # the remaining research budget for only the targeted older full-year documents.
     historical_bridge_rows = []
     historical_attempted_years = []
@@ -3215,7 +3369,7 @@ def research_special_event_online(
         "next_step": next_step,
         "company_domain": company_domain,
         "queries_run": len(queries),
-        "source_order": "Unternehmenswebseite/IR → validiertes Financial/Earnings-Release-Archiv → gezielte Jahresdokumente → SEC/Web-Fallback",
+        "source_order": "Unternehmenswebseite/IR → Detailseiten-Guard/Parent Recovery → validierter Archivindex → gezielte Jahresdokumente → SEC/Web-Fallback",
         "ir_router": {
             "available": bool((ir_router or {}).get("available")),
             "entrypoint_count": len((ir_router or {}).get("entrypoints") or []),
@@ -3225,6 +3379,8 @@ def research_special_event_online(
             "pages_loaded": (ir_router or {}).get("pages_loaded", 0),
             "archive_index_pages_loaded": (ir_router or {}).get("archive_index_pages_loaded", 0),
             "archive_guard_rejected_count": (ir_router or {}).get("archive_guard_rejected_count", 0),
+            "release_detail_rejected_count": (ir_router or {}).get("release_detail_rejected_count", 0),
+            "parent_archive_recovery_count": (ir_router or {}).get("parent_archive_recovery_count", 0),
             "selected_archive_url": (ir_router or {}).get("selected_archive_url"),
             "selected_archive_type": (ir_router or {}).get("selected_archive_type"),
             "selected_archive_validation": (ir_router or {}).get("selected_archive_validation"),
@@ -15595,7 +15751,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_financial_archive_type_guard_v22023_20260908"
+CACHE_VERSION = "m6_archive_index_guard_parent_recovery_v22024_20260908"
 
 @st.cache_data(
     ttl=900,
@@ -16855,9 +17011,9 @@ if selected_symbol:
                     ir_router_ui = research.get("ir_router") or {}
                     if ir_router_ui.get("available"):
                         st.info(
-                            "🏢 **Financial-Archive-Type-Guard aktiv:** Unternehmens-/IR-Seiten werden zuerst geprüft. "
-                            "Nur ein als Financial/Earnings-Release-Archiv bestätigter Bereich darf paginiert werden; "
-                            "Annual-Report-/Filings-Bereiche bleiben getrennte Dokumentquellen."
+                            "🏢 **Archive-Index-Guard & Parent Recovery aktiv:** Unternehmens-/IR-Seiten werden zuerst geprüft. "
+                            "Einzelne Presse-/Ergebnismeldungen dürfen niemals als Archiv gelten; aus solchen Detail-URLs "
+                            "wird stattdessen der offizielle Archiv-Elternpfad wiederhergestellt. Annual-Report-/Filings-Bereiche bleiben getrennt."
                         )
                         st.caption(
                             f"IR-/Finanz-Einstiegspunkte: {ir_router_ui.get('entrypoint_count', 0)} · "
@@ -16865,7 +17021,9 @@ if selected_symbol:
                             f"Jahresbericht-Bereiche: {ir_router_ui.get('annual_report_page_count', 0)} · "
                             f"offizielle Links erkannt: {ir_router_ui.get('official_link_count', 0)} · "
                             f"Archiv-Indexseiten geladen: {ir_router_ui.get('archive_index_pages_loaded', 0)} · "
-                            f"vom Type Guard verworfen: {ir_router_ui.get('archive_guard_rejected_count', 0)}"
+                            f"Detailseiten als Archiv verworfen: {ir_router_ui.get('release_detail_rejected_count', 0)} · "
+                            f"Parent-Recoveries: {ir_router_ui.get('parent_archive_recovery_count', 0)} · "
+                            f"vom Guard insgesamt verworfen: {ir_router_ui.get('archive_guard_rejected_count', 0)}"
                         )
                         if ir_router_ui.get("selected_archive_url"):
                             st.caption(
@@ -16937,7 +17095,7 @@ if selected_symbol:
 
                     adjustment_review = research.get("adjustment_recurrence_review") or {}
                     if adjustment_review:
-                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.23**")
+                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.24**")
                         review_level = adjustment_review.get("status_level")
                         review_status = text_or_dash(adjustment_review.get("status"))
                         if review_level == "Rot":
@@ -16973,7 +17131,7 @@ if selected_symbol:
 
                         st.error(
                             "**Automatische EPS-Normalisierungsfreigabe: NEIN.** Kein erkannter "
-                            "Bereinigungsposten wird in V2.20.23 automatisch zum Bewertungs-EPS addiert."
+                            "Bereinigungsposten wird in V2.20.24 automatisch zum Bewertungs-EPS addiert."
                         )
                         st.caption(
                             "Nächster Prüfschritt: "
@@ -16983,7 +17141,7 @@ if selected_symbol:
 
                     historical_review = research.get("historical_recurrence_review") or {}
                     if historical_review:
-                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.23**")
+                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.24**")
                         hist_level = historical_review.get("status_level")
                         hist_status = text_or_dash(historical_review.get("status"))
                         if hist_level == "Rot":
@@ -17125,13 +17283,13 @@ if selected_symbol:
 
                     if research.get("quantitative_eps_bridge_found"):
                         st.info(
-                            "Eine quantitative EPS-Brücke wurde nach V2.20.23-Regeln periodenvalidiert. Der Financial-Archive-Type-Guard trennt Financial/Earnings-Release-Archive strikt von Annual-Report-/Filings-Bereichen; nur validierte Release-Archive werden paginiert, danach werden gezielte Jahresdokumente geladen und erst anschließend SEC/Web-Fallbacks genutzt. "
+                            "Eine quantitative EPS-Brücke wurde nach V2.20.24-Regeln periodenvalidiert. Der Archive-Index-Guard verwirft Einzelmeldungen als Archiv, stellt bei Bedarf den offiziellen Archiv-Elternpfad wieder her und trennt Release-Archive strikt von Annual-Report-/Filings-Bereichen; nur validierte Archivindizes werden paginiert, danach werden gezielte Jahresdokumente geladen und erst anschließend SEC/Web-Fallbacks genutzt. "
                             "Sie wird weiterhin **nicht automatisch als bereinigtes EPS übernommen**."
                         )
 
                     st.error(
                         "**Freigabestatus: GESPERRT.** Die historische Wiederkehrbarkeits-Prüfung darf in "
-                        "V2.20.23 den Fair Value noch nicht selbst entsperren."
+                        "V2.20.24 den Fair Value noch nicht selbst entsperren."
                     )
                     st.write("**Nächster Schritt:** " + text_or_dash(research.get("next_step")))
 
