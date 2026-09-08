@@ -3,6 +3,7 @@ import yfinance as yf
 import pandas as pd
 import math
 import re
+import time
 from datetime import datetime
 from urllib.parse import urlparse, parse_qs, unquote, urljoin
 from xml.etree import ElementTree as ET
@@ -23,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.14: Primärquellen-Recovery für Sonderereignisse auf Basis V2.20.13.
+# V2.20.15: Zeitbegrenzte Primärquellen-Recovery für Sonderereignisse auf Basis V2.20.14.
 
 # =========================================================
 # Hilfsfunktionen
@@ -821,19 +822,49 @@ def _request_headers(sec=False):
     }
 
 
-def _fetch_html(url, timeout=8, sec=False):
+RESEARCH_TIME_LIMIT_SECONDS = 28.0
+
+
+def _research_budget_left(deadline):
+    if deadline is None:
+        return None
+    return max(0.0, float(deadline) - time.monotonic())
+
+
+def _research_budget_ok(deadline, reserve=0.25):
+    remaining = _research_budget_left(deadline)
+    return remaining is None or remaining > reserve
+
+
+def _bounded_timeout(deadline, preferred=3.0, floor=0.6):
+    """Keep every individual network request inside the remaining research budget."""
+    preferred = max(float(floor), float(preferred))
+    remaining = _research_budget_left(deadline)
+    if remaining is None:
+        return preferred
+    if remaining <= floor:
+        return None
+    return max(float(floor), min(preferred, remaining - 0.15))
+
+
+def _fetch_html(url, timeout=3.0, sec=False, deadline=None):
+    if not url or not _research_budget_ok(deadline):
+        return "", ""
+    effective_timeout = _bounded_timeout(deadline, timeout)
+    if effective_timeout is None:
+        return "", ""
     try:
         response = requests.get(
             url,
             headers=_request_headers(sec=sec),
-            timeout=timeout,
+            timeout=(min(1.8, effective_timeout), effective_timeout),
             allow_redirects=True,
         )
         response.raise_for_status()
         ctype = (response.headers.get("Content-Type") or "").lower()
         if "html" not in ctype and "text" not in ctype and "xml" not in ctype:
             return "", ""
-        return response.text[:2_500_000], response.url
+        return response.text[:1_500_000], response.url
     except Exception:
         return "", ""
 
@@ -845,24 +876,34 @@ def _html_to_text(html):
         soup = BeautifulSoup(html, "html.parser")
         for node in soup(["script", "style", "noscript", "svg"]):
             node.decompose()
-        return _clean_text(soup.get_text(" ", strip=True))[:220_000]
+        return _clean_text(soup.get_text(" ", strip=True))[:160_000]
     except Exception:
         return ""
 
 
-def _fetch_source_text(url):
-    html, _ = _fetch_html(url, timeout=9, sec="sec.gov" in _normalize_host(url))
+def _fetch_source_text(url, deadline=None, timeout=3.2):
+    html, _ = _fetch_html(
+        url,
+        timeout=timeout,
+        sec="sec.gov" in _normalize_host(url),
+        deadline=deadline,
+    )
     return _html_to_text(html)
 
 
-def _duckduckgo_html_search(query, max_results=6):
+def _duckduckgo_html_search(query, max_results=5, deadline=None):
     results = []
+    if not _research_budget_ok(deadline):
+        return results
+    effective_timeout = _bounded_timeout(deadline, 3.0)
+    if effective_timeout is None:
+        return results
     try:
         response = requests.get(
             "https://html.duckduckgo.com/html/",
             params={"q": query},
             headers=_request_headers(),
-            timeout=8,
+            timeout=(min(1.8, effective_timeout), effective_timeout),
         )
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
@@ -887,8 +928,13 @@ def _duckduckgo_html_search(query, max_results=6):
     return results
 
 
-def _yahoo_news_search(query, max_results=6):
+def _yahoo_news_search(query, max_results=5, deadline=None):
     results = []
+    if not _research_budget_ok(deadline):
+        return results
+    effective_timeout = _bounded_timeout(deadline, 3.0)
+    if effective_timeout is None:
+        return results
     try:
         response = requests.get(
             "https://query1.finance.yahoo.com/v1/finance/search",
@@ -899,7 +945,7 @@ def _yahoo_news_search(query, max_results=6):
                 "enableFuzzyQuery": "false",
             },
             headers={"User-Agent": "Mozilla/5.0"},
-            timeout=8,
+            timeout=(min(1.8, effective_timeout), effective_timeout),
         )
         response.raise_for_status()
         payload = response.json() if response.content else {}
@@ -935,23 +981,41 @@ def _score_primary_link(url, anchor, current_year):
     return score
 
 
-def _discover_company_primary_pages(company_domain, company_name, max_pages=12):
+def _discover_company_primary_pages(company_domain, company_name, max_pages=4, deadline=None):
     """
-    Directly crawl the company's own public pages. This does not depend on a
-    third-party search engine, which is important when search HTML is blocked.
+    Fast-path company/IR discovery.
+
+    V2.20.14 could probe many company pages sequentially and therefore keep the
+    Streamlit spinner alive for several minutes when a site was slow or blocked.
+    V2.20.15 checks only a small set of high-value entry pages and a bounded set
+    of best links, always respecting the overall research time budget.
     """
-    if not company_domain:
+    if not company_domain or not _research_budget_ok(deadline):
         return []
+
     root = f"https://www.{company_domain}"
     if company_domain.startswith("www."):
         root = f"https://{company_domain}"
     current_year = datetime.now().year
-    seed_urls = [root] + [urljoin(root + "/", p.lstrip("/")) for p in PRIMARY_PATH_HINTS]
+
+    high_value_paths = [
+        "",
+        "/newsroom",
+        "/investors",
+        "/investor-relations",
+        "/investors/news",
+        "/investors/financials",
+    ]
+    seed_urls = [urljoin(root + "/", p.lstrip("/")) for p in high_value_paths]
 
     candidates = []
     seen = set()
+    direct_evidence = []
+
     for seed in seed_urls:
-        html, final_url = _fetch_html(seed, timeout=7)
+        if not _research_budget_ok(deadline, reserve=1.0):
+            break
+        html, final_url = _fetch_html(seed, timeout=2.4, deadline=deadline)
         if not html:
             continue
         final_url = final_url or seed
@@ -959,21 +1023,20 @@ def _discover_company_primary_pages(company_domain, company_name, max_pages=12):
         event_types = _classify_special_event_text(text)
         bridge = _has_quantitative_eps_bridge(text)
         if event_types or bridge:
-            candidates.append({
+            direct_evidence.append({
                 "title": f"{company_name} – Primärseite",
                 "url": final_url,
                 "snippet": text[:450],
                 "search_source": "Direkt-Crawl Unternehmen",
                 "preloaded_text": text,
+                "link_score": 100 if bridge else 50,
             })
 
         try:
             soup = BeautifulSoup(html, "html.parser")
             for a in soup.find_all("a", href=True):
                 href = urljoin(final_url, a.get("href"))
-                if _normalize_host(href) != company_domain:
-                    continue
-                if href in seen:
+                if _normalize_host(href) != company_domain or href in seen:
                     continue
                 seen.add(href)
                 anchor = _clean_text(a.get_text(" ", strip=True))
@@ -989,10 +1052,13 @@ def _discover_company_primary_pages(company_domain, company_name, max_pages=12):
         except Exception:
             pass
 
-    # Highest scoring direct links first; deduplicate and actually load only a
-    # bounded number to keep the app responsive.
+        # A direct page with an actual quantitative bridge is already high-value;
+        # save the remaining budget for SEC corroboration.
+        if any(_has_quantitative_eps_bridge(x.get("preloaded_text") or "") for x in direct_evidence):
+            break
+
     unique = {}
-    for item in candidates:
+    for item in direct_evidence + candidates:
         url = item.get("url")
         if not url:
             continue
@@ -1002,28 +1068,37 @@ def _discover_company_primary_pages(company_domain, company_name, max_pages=12):
     ranked = sorted(unique.values(), key=lambda x: x.get("link_score", 0), reverse=True)
 
     output = []
-    for item in ranked[:max_pages]:
-        text = item.get("preloaded_text") or _fetch_source_text(item.get("url"))
+    for item in ranked:
+        if len(output) >= max_pages or not _research_budget_ok(deadline, reserve=1.0):
+            break
+        text = item.get("preloaded_text") or _fetch_source_text(
+            item.get("url"), deadline=deadline, timeout=2.8
+        )
         if not text:
             continue
         combined = " ".join([item.get("title") or "", item.get("snippet") or "", text])
         if not _classify_special_event_text(combined) and not _has_quantitative_eps_bridge(combined):
             continue
-        item = dict(item)
-        item["preloaded_text"] = text
-        output.append(item)
+        row = dict(item)
+        row["preloaded_text"] = text
+        output.append(row)
+        if _has_quantitative_eps_bridge(combined) and len(output) >= 2:
+            break
     return output
 
 
-def _sec_lookup_cik(symbol):
+def _sec_lookup_cik(symbol, deadline=None):
     symbol = _clean_text(symbol).upper()
-    if not symbol:
+    if not symbol or not _research_budget_ok(deadline):
+        return None
+    effective_timeout = _bounded_timeout(deadline, 2.8)
+    if effective_timeout is None:
         return None
     try:
         r = requests.get(
             "https://www.sec.gov/files/company_tickers.json",
             headers=_request_headers(sec=True),
-            timeout=8,
+            timeout=(min(1.8, effective_timeout), effective_timeout),
         )
         r.raise_for_status()
         payload = r.json()
@@ -1035,20 +1110,23 @@ def _sec_lookup_cik(symbol):
     return None
 
 
-def _discover_sec_primary_pages(symbol, max_filings=6):
-    """Load recent SEC 10-K/10-Q/8-K primary filing documents directly."""
-    cik = _sec_lookup_cik(symbol)
-    if not cik:
+def _discover_sec_primary_pages(symbol, max_filings=3, deadline=None):
+    """Load only a few recent SEC 10-K/10-Q/8-K documents inside the time budget."""
+    cik = _sec_lookup_cik(symbol, deadline=deadline)
+    if not cik or not _research_budget_ok(deadline):
         return []
     cik10 = f"{cik:010d}"
+    effective_timeout = _bounded_timeout(deadline, 2.8)
+    if effective_timeout is None:
+        return []
     try:
         r = requests.get(
             f"https://data.sec.gov/submissions/CIK{cik10}.json",
             headers={
-                "User-Agent": "AktienAnalyseV2/2.20.14 research-client",
+                "User-Agent": "AktienAnalyseV2/2.20.15 research-client",
                 "Accept-Encoding": "gzip, deflate",
             },
-            timeout=8,
+            timeout=(min(1.8, effective_timeout), effective_timeout),
         )
         r.raise_for_status()
         recent = (r.json().get("filings") or {}).get("recent") or {}
@@ -1082,15 +1160,19 @@ def _discover_sec_primary_pages(symbol, max_filings=6):
 
     output = []
     for item in rows:
-        text = _fetch_source_text(item["url"])
+        if not _research_budget_ok(deadline, reserve=0.8):
+            break
+        text = _fetch_source_text(item["url"], deadline=deadline, timeout=2.8)
         if not text:
             continue
         combined = item["title"] + " " + text
         if not _classify_special_event_text(combined) and not _has_quantitative_eps_bridge(combined):
             continue
-        item = dict(item)
-        item["preloaded_text"] = text
-        output.append(item)
+        row = dict(item)
+        row["preloaded_text"] = text
+        output.append(row)
+        if _has_quantitative_eps_bridge(combined):
+            break
     return output
 
 
@@ -1099,45 +1181,71 @@ def research_special_event_online(
     symbol,
     company_name,
     website=None,
-    cache_version="v22014",
+    cache_version="v22015",
 ):
     """
-    V2.20.14 source order:
-    1) company/IR direct crawl,
-    2) SEC direct filings for US tickers,
-    3) targeted web discovery,
-    4) Yahoo news fallback.
+    V2.20.15: bounded automatic research.
 
-    Research never overwrites reported EPS and never releases the Fair Value
-    gate automatically.
+    Source priority remains company/IR -> SEC -> web -> Yahoo, but every stage
+    is strictly limited. A slow or blocked website must never keep the complete
+    stock analysis waiting for minutes. If the budget expires, the Fair-Value
+    gate stays locked and the UI says that the research timed out; it does not
+    falsely claim that no special event exists.
     """
     _ = cache_version
+    started = time.monotonic()
+    deadline = started + RESEARCH_TIME_LIMIT_SECONDS
+
     symbol = _clean_text(symbol).upper()
     company_name = _clean_text(company_name) or symbol
     company_domain = _extract_company_domain(website)
 
     raw_results = []
-    # Primary-source recovery comes first and does not depend on search engines.
-    raw_results.extend(_discover_company_primary_pages(company_domain, company_name, max_pages=12))
-    raw_results.extend(_discover_sec_primary_pages(symbol, max_filings=7))
 
-    queries = [
-        f'"{company_name}" {symbol} spin-off spinoff restructuring impairment adjusted EPS',
-        f'"{company_name}" {symbol} investor relations results adjusted earnings impairment restructuring',
-        f'"{company_name}" {symbol} divestiture acquisition discontinued operations one-time charge',
-        f'"{company_name}" {symbol} site:sec.gov 10-K 10-Q 8-K impairment restructuring spin-off',
-    ]
+    # 1) Company / IR direct fast path.
+    raw_results.extend(
+        _discover_company_primary_pages(
+            company_domain,
+            company_name,
+            max_pages=4,
+            deadline=deadline,
+        )
+    )
+
+    # 2) SEC direct corroboration for US tickers while budget remains.
+    if _research_budget_ok(deadline, reserve=4.0):
+        raw_results.extend(
+            _discover_sec_primary_pages(
+                symbol,
+                max_filings=3,
+                deadline=deadline,
+            )
+        )
+
+    # 3) Targeted discovery. Two queries are enough for the automatic first pass.
+    queries = []
     if company_domain:
-        queries.insert(0, f'"{company_name}" site:{company_domain} adjusted EPS impairment restructuring spin-off results')
+        queries.append(
+            f'"{company_name}" site:{company_domain} adjusted EPS impairment restructuring spin-off results'
+        )
+    queries.append(
+        f'"{company_name}" {symbol} adjusted EPS impairment restructuring spin-off divestiture'
+    )
 
-    for query in queries:
-        raw_results.extend(_duckduckgo_html_search(query, max_results=5))
+    if _research_budget_ok(deadline, reserve=3.5):
+        for query in queries[:2]:
+            if not _research_budget_ok(deadline, reserve=3.0):
+                break
+            raw_results.extend(
+                _duckduckgo_html_search(query, max_results=4, deadline=deadline)
+            )
 
-    if len(raw_results) < 8:
-        for query in queries[:3]:
-            raw_results.extend(_yahoo_news_search(query, max_results=5))
+    # 4) Yahoo discovery only when the earlier stages did not produce enough links.
+    if len(raw_results) < 5 and _research_budget_ok(deadline, reserve=2.5):
+        raw_results.extend(
+            _yahoo_news_search(queries[-1], max_results=4, deadline=deadline)
+        )
 
-    # Deduplicate while preferring directly discovered primary sources.
     deduped = []
     seen_urls = set()
     for item in raw_results:
@@ -1146,18 +1254,30 @@ def research_special_event_online(
             continue
         seen_urls.add(url)
         deduped.append(item)
-        if len(deduped) >= 24:
+        if len(deduped) >= 14:
             break
 
     evidence = []
-    for idx, item in enumerate(deduped):
+    document_fetches = 0
+    for item in deduped:
         url = item.get("url")
         category, primary = _source_category(url, company_domain)
-        page_text = item.get("preloaded_text") or (_fetch_source_text(url) if idx < 18 else "")
+        page_text = item.get("preloaded_text") or ""
+
+        # Load at most six additional documents. Search snippets can still be
+        # classified when a document cannot be fetched inside the budget.
+        if (
+            not page_text
+            and document_fetches < 6
+            and _research_budget_ok(deadline, reserve=0.8)
+        ):
+            page_text = _fetch_source_text(url, deadline=deadline, timeout=2.6)
+            document_fetches += 1
+
         combined = " ".join([
             item.get("title") or "",
             item.get("snippet") or "",
-            page_text[:180_000],
+            page_text[:140_000],
         ])
         event_types = _classify_special_event_text(combined)
         quantitative_bridge = _has_quantitative_eps_bridge(combined)
@@ -1177,7 +1297,6 @@ def research_special_event_online(
             "search_source": item.get("search_source"),
         })
 
-    # Primary sources first in the user-facing result.
     evidence.sort(key=lambda row: (
         not bool(row.get("primary_source") and row.get("document_loaded")),
         not bool(row.get("quantitative_eps_bridge")),
@@ -1197,6 +1316,9 @@ def research_special_event_online(
     document_rows = [row for row in evidence if row.get("document_loaded")]
     quantitative_rows = [row for row in evidence if row.get("quantitative_eps_bridge") and row.get("document_loaded")]
     bridge_value_rows = [row for row in quantitative_rows if row.get("eps_bridge_values")]
+
+    elapsed = time.monotonic() - started
+    time_limit_reached = elapsed >= (RESEARCH_TIME_LIMIT_SECONDS - 0.3)
 
     if primary_rows:
         status = "Primär-/Regulierungsbelege gefunden"
@@ -1219,11 +1341,19 @@ def research_special_event_online(
             "Die Suche hat passende Hinweise geliefert, die zugrunde liegenden Dokumente konnten "
             "jedoch nicht belastbar geladen werden."
         )
+    elif time_limit_reached:
+        status = "Recherche-Zeitlimit erreicht – Sonderprüfung bleibt offen"
+        status_level = "Rot"
+        summary = (
+            f"Die automatische Erstprüfung wurde nach rund {RESEARCH_TIME_LIMIT_SECONDS:.0f} Sekunden "
+            "sicher beendet. Das bedeutet nicht, dass kein Sonderereignis existiert; nur die "
+            "automatische Quelle konnte innerhalb des Zeitlimits nicht belastbar geladen werden."
+        )
     else:
         status = "Ursache automatisch nicht geklärt"
         status_level = "Rot"
         summary = (
-            "Die automatische Internetrecherche konnte keine belastbare Sonderursache finden. "
+            "Die automatische Erstprüfung konnte keine belastbare Sonderursache bestätigen. "
             "Die Bewertung bleibt deshalb vollständig gesperrt."
         )
 
@@ -1246,6 +1376,11 @@ def research_special_event_online(
             "Die wahrscheinliche Sonderursache ist durch Primärquellen belegt, aber ihre quantitative "
             "EPS-Wirkung ist noch nicht ausreichend reconciliert. Fair Value bleibt gesperrt."
         )
+    elif time_limit_reached:
+        next_step = (
+            "Die automatische Recherche wurde wegen des Zeitlimits beendet. Fair Value bleibt gesperrt; "
+            "es wird ausdrücklich nicht unterstellt, dass keine Sonderursache vorliegt."
+        )
     else:
         next_step = (
             "Primär-/IR-/Regulierungsquelle bzw. eine quantitative EPS-Brücke fehlt. Fair Value bleibt gesperrt."
@@ -1257,7 +1392,7 @@ def research_special_event_online(
         "status_level": status_level,
         "summary": summary,
         "causes": causes,
-        "evidence": evidence[:12],
+        "evidence": evidence[:10],
         "primary_evidence_count": len(primary_rows),
         "loaded_document_count": len(document_rows),
         "quantitative_eps_bridge_found": quantitative_bridge_found,
@@ -1268,6 +1403,9 @@ def research_special_event_online(
         "company_domain": company_domain,
         "queries_run": len(queries),
         "source_order": "Unternehmen/IR → SEC → Websuche → Yahoo",
+        "research_duration_seconds": elapsed,
+        "time_limit_seconds": RESEARCH_TIME_LIMIT_SECONDS,
+        "time_limit_reached": time_limit_reached,
     }
 
 def build_eps_result(
@@ -13624,7 +13762,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_sonderereignis_primary_recovery_v22014_20260908"
+CACHE_VERSION = "m6_sonderereignis_timeout_guard_v22015_20260908"
 
 @st.cache_data(
     ttl=900,
@@ -14881,6 +15019,24 @@ if selected_symbol:
                     if research.get("source_order"):
                         st.caption("Quellen-Priorität: " + text_or_dash(research.get("source_order")))
 
+                    duration = safe_float(research.get("research_duration_seconds"))
+                    limit_seconds = safe_float(research.get("time_limit_seconds"))
+                    if duration is not None:
+                        st.caption(
+                            f"Automatische Recherche-Dauer: {duration:.1f} s"
+                            + (
+                                f" · Sicherheitslimit: {limit_seconds:.0f} s"
+                                if limit_seconds is not None
+                                else ""
+                            )
+                        )
+                    if research.get("time_limit_reached"):
+                        st.warning(
+                            "Das Recherche-Zeitlimit wurde erreicht. Die Analyse läuft trotzdem weiter; "
+                            "der Fair Value bleibt sicherheitshalber gesperrt. Das Zeitlimit ist kein "
+                            "Beleg dafür, dass kein Sonderereignis vorliegt."
+                        )
+
                     bridge_values = research.get("eps_bridge_values") or {}
                     if bridge_values:
                         gaap_eps = safe_float(bridge_values.get("gaap_eps"))
@@ -14925,12 +15081,12 @@ if selected_symbol:
                     if research.get("quantitative_eps_bridge_found"):
                         st.info(
                             "Eine quantitative EPS-Brücke wurde als Hinweis erkannt. "
-                            "Sie wird in V2.20.14 noch **nicht automatisch als bereinigtes EPS übernommen**."
+                            "Sie wird in V2.20.15 noch **nicht automatisch als bereinigtes EPS übernommen**."
                         )
 
                     st.error(
                         "**Freigabestatus: GESPERRT.** Die automatische Recherche darf in "
-                        "V2.20.13 den Fair Value noch nicht selbst entsperren."
+                        "V2.20.15 den Fair Value noch nicht selbst entsperren."
                     )
                     st.write("**Nächster Schritt:** " + text_or_dash(research.get("next_step")))
 
