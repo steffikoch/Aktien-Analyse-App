@@ -11712,6 +11712,393 @@ def load_yahoo_info_resilient(symbol, ticker=None):
     }
 
 
+# =========================================================
+# V2.20.4 – Yahoo Statement / Analyst Recovery
+# =========================================================
+
+def _safe_dataframe(value):
+    """Return a DataFrame or an empty frame without propagating Yahoo errors."""
+    return value if isinstance(value, pd.DataFrame) else pd.DataFrame()
+
+
+def _ticker_frame(ticker, property_names, method_calls=None):
+    """Load the first non-empty yfinance statement/analysis table available."""
+    method_calls = method_calls or []
+
+    for method_name, kwargs in method_calls:
+        try:
+            method = getattr(ticker, method_name, None)
+            if callable(method):
+                value = method(**kwargs)
+                frame = _safe_dataframe(value)
+                if not frame.empty:
+                    return frame
+        except Exception:
+            pass
+
+    for property_name in property_names:
+        try:
+            value = getattr(ticker, property_name, None)
+            frame = _safe_dataframe(value)
+            if not frame.empty:
+                return frame
+        except Exception:
+            pass
+
+    return pd.DataFrame()
+
+
+def _statement_series(frame, row_names):
+    """Return one numeric statement row sorted newest to oldest."""
+    if frame is None or getattr(frame, "empty", True):
+        return []
+
+    index_map = {
+        str(index_value).strip().lower(): index_value
+        for index_value in frame.index
+    }
+
+    selected_index = None
+    for name in row_names:
+        key = str(name).strip().lower()
+        if key in index_map:
+            selected_index = index_map[key]
+            break
+
+    if selected_index is None:
+        return []
+
+    try:
+        row = frame.loc[selected_index]
+    except Exception:
+        return []
+
+    if isinstance(row, pd.DataFrame):
+        if row.empty:
+            return []
+        row = row.iloc[0]
+
+    values = []
+    for column, raw_value in row.items():
+        value = safe_float(raw_value)
+        if value is None:
+            continue
+
+        try:
+            date_value = pd.to_datetime(column)
+        except Exception:
+            date_value = column
+
+        values.append({
+            "date": date_value,
+            "value": value,
+        })
+
+    def sort_key(item):
+        date_value = item.get("date")
+        try:
+            return pd.Timestamp(date_value)
+        except Exception:
+            return pd.Timestamp.min
+
+    values.sort(key=sort_key, reverse=True)
+    return values
+
+
+def _latest_statement_value(frame, row_names):
+    values = _statement_series(frame, row_names)
+    return values[0]["value"] if values else None
+
+
+def _sum_latest_statement_values(frame, row_names, required=4):
+    values = _statement_series(frame, row_names)
+    numeric = [item["value"] for item in values[:required]]
+    if len(numeric) < required:
+        return None
+    return float(sum(numeric))
+
+
+def _yoy_from_quarterly_statement(frame, row_names):
+    """Latest reported quarter versus the corresponding quarter one year ago."""
+    values = _statement_series(frame, row_names)
+    if len(values) < 5:
+        return None
+
+    current = safe_float(values[0].get("value"))
+    prior = safe_float(values[4].get("value"))
+
+    if current is None or prior is None or abs(prior) < 1e-12:
+        return None
+
+    # When the denominator is negative, a percentage growth number is often
+    # economically misleading. Keep it missing rather than manufacture a score.
+    if prior < 0:
+        return None
+
+    return current / prior - 1.0
+
+
+def _analyst_forward_eps(ticker):
+    """Load next-fiscal-year analyst EPS consensus from yfinance analysis tables."""
+    estimate = _ticker_frame(
+        ticker,
+        ["earnings_estimate"],
+        method_calls=[("get_earnings_estimate", {})],
+    )
+
+    def extract_from_frame(frame):
+        if frame is None or getattr(frame, "empty", True):
+            return None
+
+        index_lookup = {
+            str(index_value).strip().lower(): index_value
+            for index_value in frame.index
+        }
+        column_lookup = {
+            str(column).strip().lower(): column
+            for column in frame.columns
+        }
+
+        # +1y is deliberately preferred. It is a true forward fiscal-year
+        # consensus and avoids silently treating a current-year estimate as TTM.
+        row_key = index_lookup.get("+1y")
+        if row_key is None:
+            return None
+
+        for candidate in ["avg", "average", "current", "currentestimate"]:
+            column_key = column_lookup.get(candidate)
+            if column_key is None:
+                continue
+            try:
+                value = safe_float(frame.loc[row_key, column_key])
+            except Exception:
+                value = None
+            if value is not None and value > 0:
+                return value
+
+        return None
+
+    value = extract_from_frame(estimate)
+    if value is not None:
+        return value, "Yahoo Analyst Consensus (+1y)"
+
+    eps_trend = _ticker_frame(
+        ticker,
+        ["eps_trend"],
+        method_calls=[("get_eps_trend", {})],
+    )
+    value = extract_from_frame(eps_trend)
+    if value is not None:
+        return value, "Yahoo EPS Trend (+1y)"
+
+    return None, None
+
+
+def recover_fundamentals_from_yahoo_tables(ticker):
+    """
+    Recover only directly reported or mechanically derivable fundamentals when
+    Yahoo quoteSummary/info is incomplete.
+
+    No sector, margin, growth, EPS or balance-sheet number is guessed. TTM values
+    require four reported quarters; YoY growth requires the matching quarter from
+    one year earlier. Forward EPS requires an actual +1y analyst consensus table.
+    """
+    quarterly_income = _ticker_frame(
+        ticker,
+        ["quarterly_income_stmt", "quarterly_financials"],
+        method_calls=[
+            ("get_income_stmt", {"freq": "quarterly"}),
+            ("get_financials", {"freq": "quarterly"}),
+        ],
+    )
+    quarterly_cashflow = _ticker_frame(
+        ticker,
+        ["quarterly_cashflow"],
+        method_calls=[("get_cash_flow", {"freq": "quarterly"})],
+    )
+    quarterly_balance = _ticker_frame(
+        ticker,
+        ["quarterly_balance_sheet"],
+        method_calls=[("get_balance_sheet", {"freq": "quarterly"})],
+    )
+
+    recovered = {}
+    provenance = {}
+
+    revenue_rows = ["Total Revenue", "Operating Revenue"]
+    net_income_rows = [
+        "Net Income Common Stockholders",
+        "Net Income",
+        "Net Income Continuous Operations",
+    ]
+    eps_rows = ["Diluted EPS", "Basic EPS"]
+
+    ttm_revenue = _sum_latest_statement_values(
+        quarterly_income,
+        revenue_rows,
+        required=4,
+    )
+    if ttm_revenue is not None:
+        recovered["totalRevenue"] = ttm_revenue
+        provenance["totalRevenue"] = "4 berichtete Quartale (TTM)"
+
+    ttm_net_income = _sum_latest_statement_values(
+        quarterly_income,
+        net_income_rows,
+        required=4,
+    )
+    if ttm_net_income is not None:
+        recovered["netIncomeToCommon"] = ttm_net_income
+        provenance["netIncomeToCommon"] = "4 berichtete Quartale (TTM)"
+
+    ttm_eps = _sum_latest_statement_values(
+        quarterly_income,
+        eps_rows,
+        required=4,
+    )
+    if ttm_eps is not None:
+        recovered["trailingEps"] = ttm_eps
+        provenance["trailingEps"] = "Summe der letzten 4 berichteten Quartals-EPS"
+
+    ttm_fcf = _sum_latest_statement_values(
+        quarterly_cashflow,
+        ["Free Cash Flow"],
+        required=4,
+    )
+
+    if ttm_fcf is None:
+        ttm_ocf = _sum_latest_statement_values(
+            quarterly_cashflow,
+            [
+                "Operating Cash Flow",
+                "Total Cash From Operating Activities",
+            ],
+            required=4,
+        )
+        ttm_capex = _sum_latest_statement_values(
+            quarterly_cashflow,
+            ["Capital Expenditure", "Capital Expenditures"],
+            required=4,
+        )
+        if ttm_ocf is not None and ttm_capex is not None:
+            # Yahoo reports capex as a negative cash-flow line in its statements.
+            ttm_fcf = ttm_ocf + ttm_capex
+            provenance["freeCashflow"] = "TTM Operating Cash Flow + berichteter TTM CapEx"
+
+    if ttm_fcf is not None:
+        recovered["freeCashflow"] = ttm_fcf
+        provenance.setdefault("freeCashflow", "4 berichtete Quartale (TTM)")
+
+    total_cash = _latest_statement_value(
+        quarterly_balance,
+        [
+            "Cash Cash Equivalents And Short Term Investments",
+            "Cash And Cash Equivalents",
+            "Cash",
+        ],
+    )
+    if total_cash is not None:
+        recovered["totalCash"] = total_cash
+        provenance["totalCash"] = "letzte berichtete Quartalsbilanz"
+
+    total_debt = _latest_statement_value(
+        quarterly_balance,
+        ["Total Debt"],
+    )
+    if total_debt is not None:
+        recovered["totalDebt"] = total_debt
+        provenance["totalDebt"] = "letzte berichtete Quartalsbilanz"
+
+    revenue_growth = _yoy_from_quarterly_statement(
+        quarterly_income,
+        revenue_rows,
+    )
+    if revenue_growth is not None:
+        recovered["revenueGrowth"] = revenue_growth
+        provenance["revenueGrowth"] = "letztes Quartal ggü. Vorjahresquartal"
+
+    earnings_growth = _yoy_from_quarterly_statement(
+        quarterly_income,
+        net_income_rows,
+    )
+    if earnings_growth is not None:
+        recovered["earningsGrowth"] = earnings_growth
+        provenance["earningsGrowth"] = "letztes Quartal ggü. Vorjahresquartal"
+
+    if (
+        ttm_revenue is not None
+        and ttm_revenue > 0
+        and ttm_net_income is not None
+    ):
+        recovered["profitMargins"] = ttm_net_income / ttm_revenue
+        provenance["profitMargins"] = "TTM Nettogewinn / TTM Umsatz"
+
+    equity_values = _statement_series(
+        quarterly_balance,
+        [
+            "Stockholders Equity",
+            "Common Stock Equity",
+            "Total Equity Gross Minority Interest",
+        ],
+    )
+    if ttm_net_income is not None and len(equity_values) >= 5:
+        current_equity = safe_float(equity_values[0].get("value"))
+        prior_year_equity = safe_float(equity_values[4].get("value"))
+        if (
+            current_equity is not None
+            and prior_year_equity is not None
+            and current_equity > 0
+            and prior_year_equity > 0
+        ):
+            average_equity = (current_equity + prior_year_equity) / 2.0
+            if average_equity > 0:
+                recovered["returnOnEquity"] = ttm_net_income / average_equity
+                provenance["returnOnEquity"] = "TTM Nettogewinn / durchschnittliches Eigenkapital"
+
+    forward_eps, forward_source = _analyst_forward_eps(ticker)
+    if forward_eps is not None:
+        recovered["forwardEps"] = forward_eps
+        provenance["forwardEps"] = forward_source
+
+    return {
+        "fields": recovered,
+        "provenance": provenance,
+    }
+
+
+def _merge_missing_fundamentals(info, recovery):
+    merged = dict(info or {})
+    used = {}
+
+    fields = (recovery or {}).get("fields") or {}
+    provenance = (recovery or {}).get("provenance") or {}
+
+    for key, value in fields.items():
+        if merged.get(key) is None and value is not None:
+            merged[key] = value
+            used[key] = provenance.get(key, "Yahoo-Tabelle")
+
+    return merged, used
+
+
+def _analysis_missing_fields(info):
+    required = {
+        "trailingEps": "TTM-EPS",
+        "forwardEps": "Forward-EPS",
+        "totalRevenue": "Umsatz",
+        "netIncomeToCommon": "Nettogewinn",
+        "freeCashflow": "Free Cashflow",
+        "totalCash": "Liquide Mittel",
+        "totalDebt": "Gesamtschulden",
+    }
+
+    return [
+        label
+        for key, label in required.items()
+        if (info or {}).get(key) is None
+    ]
+
+
 @st.cache_data(
     ttl=3600,
     show_spinner=False
@@ -11802,7 +12189,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_eps_divergence_yahoo_recovery_hotfix_v2203_20260908"
+CACHE_VERSION = "m6_eps_divergence_yahoo_statement_analyst_recovery_v2204_20260908"
 
 @st.cache_data(
     ttl=900,
@@ -11882,6 +12269,55 @@ def load_stock(search_text, cache_version):
                 "separate_source": False,
                 "reason": "Hauptnotierung nicht verfügbar – ausgewählte Notierung verwendet"
             }
+
+    # V2.20.4: Yahoo quoteSummary/info can fail while the actual financial
+    # statements and analyst tables remain available. Recover only missing
+    # fields from those independent Yahoo tables.
+    statement_recovery = recover_fundamentals_from_yahoo_tables(
+        fundamental_ticker
+    )
+    fundamental_info, recovered_fundamental_fields = _merge_missing_fundamentals(
+        fundamental_info,
+        statement_recovery,
+    )
+
+    # Yahoo Search sometimes still carries sector/industry labels even when
+    # quoteSummary is temporarily incomplete. These are labels, not estimates.
+    if fundamental_info.get("sector") is None:
+        search_sector = result.get("sector") or result.get("sectorDisp")
+        if search_sector:
+            fundamental_info["sector"] = search_sector
+            recovered_fundamental_fields["sector"] = "Yahoo Search"
+
+    if fundamental_info.get("industry") is None:
+        search_industry = result.get("industry") or result.get("industryDisp")
+        if search_industry:
+            fundamental_info["industry"] = search_industry
+            recovered_fundamental_fields["industry"] = "Yahoo Search"
+
+    missing_analysis_fields = _analysis_missing_fields(
+        fundamental_info
+    )
+
+    recovery_labels = {
+        "trailingEps": "TTM-EPS",
+        "forwardEps": "Forward-EPS",
+        "totalRevenue": "Umsatz",
+        "netIncomeToCommon": "Nettogewinn",
+        "freeCashflow": "Free Cashflow",
+        "totalCash": "Liquide Mittel",
+        "totalDebt": "Gesamtschulden",
+        "revenueGrowth": "Umsatzwachstum",
+        "earningsGrowth": "Gewinnwachstum",
+        "profitMargins": "Nettomarge",
+        "returnOnEquity": "ROE",
+        "sector": "Sektor",
+        "industry": "Branche",
+    }
+    recovered_labels = [
+        recovery_labels.get(key, key)
+        for key in recovered_fundamental_fields.keys()
+    ]
 
     financial_currency = (
         fundamental_info.get("financialCurrency")
@@ -12196,13 +12632,25 @@ def load_stock(search_text, cache_version):
         "earnings_timestamp": earnings_timestamp,
 
         "data_recovery_note": (
-            fundamental_recovery.get("note")
-            or quote_recovery.get("note")
+            (
+                "Yahoo quoteSummary/info war unvollständig. Die App hat fehlende "
+                "Werte zusätzlich aus berichteten Yahoo-Finanzstatements bzw. "
+                "echten Analysten-Konsenstabellen wiedergewonnen: "
+                + ", ".join(recovered_labels)
+                + (
+                    ". Weiterhin fehlend: " + ", ".join(missing_analysis_fields) + "."
+                    if missing_analysis_fields
+                    else ". Die für die Kernbewertung benötigten Fundamentaldaten sind wieder verfügbar."
+                )
+            )
+            if recovered_labels
+            else (
+                fundamental_recovery.get("note")
+                or quote_recovery.get("note")
+            )
         ),
-        "data_recovery_incomplete": bool(
-            fundamental_recovery.get("incomplete")
-            or quote_recovery.get("incomplete")
-        ),
+        "data_recovery_incomplete": bool(missing_analysis_fields),
+        "data_recovery_fields": recovered_fundamental_fields,
 
         "company_type": company_type,
         "historical": historical,
