@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.24: Archive Index Guard & Parent Recovery – Detailseiten als Archiv sperren und Archiv-Elternpfad wiederherstellen.
+# V2.20.25: Archive Fetch Reliability – offizielles Finanzarchiv gezielt und mit belastbarem Timeout laden.
 
 # =========================================================
 # Hilfsfunktionen
@@ -1584,7 +1584,7 @@ def _historical_row_from_candidate(item, company_domain, company_name, year, dea
 
 
 # =========================================================
-# V2.20.24 – Archive Index Guard & Parent Recovery
+# V2.20.25 – Archive Fetch Reliability
 # =========================================================
 
 IR_ROUTER_SEED_PATHS = [
@@ -1945,13 +1945,18 @@ def _router_is_archive_link(row):
 
 
 def _router_preferred_archive_variants(row):
-    """Try a financial-release filter first for broad press/news archives."""
+    """V2.20.25: canonical archive first, narrow Financial Releases filter second.
+
+    The BorgWarner V2.20.24 test showed that many short attempts are less
+    reliable than one deliberate request to the real archive index. We therefore
+    fetch the canonical issuer archive before trying a query-filter variant.
+    """
     row = row or {}
     url = _clean_text(row.get("url"))
     if not url:
         return []
     low = url.lower()
-    variants = []
+    variants = [url]
     if (
         _router_archive_type(row) == "release_archive"
         and any(x in low for x in ["press-release", "press_releases", "news-release", "newsroom"])
@@ -1959,9 +1964,7 @@ def _router_preferred_archive_variants(row):
     ):
         sep = "&" if "?" in url else "?"
         variants.append(f"{url}{sep}category=Financial+Releases")
-        variants.append(f"{url}{sep}category=financial+releases")
-    variants.append(url)
-    return list(dict.fromkeys(variants))[:3]
+    return list(dict.fromkeys(variants))[:2]
 
 
 def _router_release_index_stats(html, base_url, company_domain):
@@ -2029,7 +2032,7 @@ def _router_collect_year_candidates(all_links, years, method="IR Archive Fast Pa
             item["historical_recovery_method"] = method
             rows.append(item)
         rows.sort(key=lambda r: r.get("historical_candidate_score", 0), reverse=True)
-        # The whole point of V2.20.24 is to fetch only the strongest one or two
+        # The V2.20.25 fast path fetches only the strongest one or two
         # documents per year, not crawl every official link.
         by_year[year] = rows[:3]
     return by_year
@@ -2043,7 +2046,7 @@ def _discover_company_ir_router(
     max_hubs=3,
 ):
     """
-    V2.20.24 Archive Index Guard & Parent Recovery.
+    V2.20.25 Archive Fetch Reliability.
 
     Fast path:
       1) load issuer homepage once,
@@ -2083,8 +2086,13 @@ def _discover_company_ir_router(
         "selected_archive_release_links": 0,
         "selected_archive_result_links": 0,
         "candidate_counts_by_year": {y: 0 for y in years},
+        "archive_fetch_attempts": [],
+        "archive_fetch_success_count": 0,
+        "archive_fetch_timeout_count": 0,
+        "archive_fetch_http_error_count": 0,
+        "archive_fetch_empty_count": 0,
         "fast_path": True,
-        "strategy": "Unternehmensseite → Detailseiten-Guard/Parent Recovery → echter Archivindex → gezielte Jahresdokumente",
+        "strategy": "Unternehmensseite → kanonischer Archivabruf → Financial-Releases-Filter → gezielte Jahresdokumente",
     }
     if not company_domain or not _research_budget_ok(deadline, reserve=3.0):
         return result
@@ -2120,7 +2128,7 @@ def _discover_company_ir_router(
         release_rows = [r for r in rows if _router_archive_type(r) == "release_archive"]
         detail_rows = [r for r in rows if _router_archive_type(r) == "release_detail"]
 
-        # V2.20.24 Parent Recovery: recent-release links often appear on the
+        # V2.20.25 Parent Recovery: recent-release links often appear on the
         # corporate home page even when the archive-index link itself is hidden.
         # Recover the parent archive path, but never promote the detail page.
         recovered = {}
@@ -2229,12 +2237,32 @@ def _discover_company_ir_router(
             })
             continue
 
-        for archive_url in _router_preferred_archive_variants(archive_item):
+        archive_variants = _router_preferred_archive_variants(archive_item)
+        for variant_index, archive_url in enumerate(archive_variants):
             if not _research_budget_ok(deadline, reserve=3.5):
                 break
             if archive_url in fetched:
                 continue
-            archive_html, archive_final = _fetch_html(archive_url, timeout=1.9, deadline=deadline)
+
+            # V2.20.25: one reliable canonical attempt first. The filter fallback
+            # gets a smaller timeout because the main issuer archive is preferred.
+            preferred_timeout = 4.8 if variant_index == 0 else 3.4
+            archive_html, archive_final, fetch_diag = _fetch_html_diagnostic(
+                archive_url,
+                timeout=preferred_timeout,
+                deadline=deadline,
+                purpose=("kanonischer Archivindex" if variant_index == 0 else "Financial-Releases-Filter"),
+            )
+            result["archive_fetch_attempts"].append(fetch_diag)
+            if fetch_diag.get("ok"):
+                result["archive_fetch_success_count"] += 1
+            elif fetch_diag.get("status") == "timeout":
+                result["archive_fetch_timeout_count"] += 1
+            elif fetch_diag.get("status") == "http_error":
+                result["archive_fetch_http_error_count"] += 1
+            elif fetch_diag.get("status") in {"empty", "unsupported_content", "network_error"}:
+                result["archive_fetch_empty_count"] += 1
+
             if not archive_html:
                 continue
             archive_final = archive_final or archive_url
@@ -2287,7 +2315,7 @@ def _discover_company_ir_router(
     refresh_candidate_counts()
 
     # 5) Paginate only the validated release archive. This is the central
-    # V2.20.24 guardrail: annual-report/filing repositories can never reach here.
+    # V2.20.25 guardrail: annual-report/filing repositories can never reach here.
     if primary_archive and primary_archive_row:
         for page_no in range(2, 6):
             missing = [y for y in years if not has_strong_candidate(y)]
@@ -2371,7 +2399,7 @@ def _discover_historical_full_year_bridges(
     ir_router=None,
 ):
     """
-    V2.20.24 targeted historical bridge recovery.
+    V2.20.25 targeted historical bridge recovery.
 
     The router has already indexed issuer archive links. We therefore fetch at
     most two strongest document candidates per year. Expensive sitemap/general
@@ -2611,7 +2639,7 @@ def _request_headers(sec=False):
         # SEC asks automated clients to identify themselves. No personal user
         # information is sent; this is a generic application identifier.
         return {
-            "User-Agent": "AktienAnalyseV2/2.20.21 research-client",
+            "User-Agent": "AktienAnalyseV2/2.20.25 research-client",
             "Accept-Encoding": "gzip, deflate",
             "Host": "www.sec.gov",
         }
@@ -2668,6 +2696,83 @@ def _fetch_html(url, timeout=3.0, sec=False, deadline=None):
         return response.text[:1_500_000], response.url
     except Exception:
         return "", ""
+
+
+def _fetch_html_diagnostic(url, timeout=4.8, sec=False, deadline=None, purpose=None):
+    """V2.20.25 bounded HTML fetch with user-visible failure diagnostics.
+
+    This is used only for the small number of official archive-index requests.
+    It never changes valuation logic; it only distinguishes timeout, HTTP error,
+    unsupported content and an actually successful issuer response.
+    """
+    started = time.monotonic()
+    diag = {
+        "url": url,
+        "purpose": purpose or "Archivindex",
+        "ok": False,
+        "status": "not_started",
+        "status_label": "nicht gestartet",
+        "http_status": None,
+        "content_type": None,
+        "elapsed_seconds": 0.0,
+        "final_url": None,
+        "content_length": 0,
+    }
+    if not url or not _research_budget_ok(deadline):
+        diag["status"] = "budget_blocked"
+        diag["status_label"] = "Recherchebudget nicht verfügbar"
+        return "", "", diag
+
+    effective_timeout = _bounded_timeout(deadline, timeout)
+    if effective_timeout is None:
+        diag["status"] = "budget_blocked"
+        diag["status_label"] = "Recherchebudget zu knapp"
+        return "", "", diag
+
+    try:
+        response = requests.get(
+            url,
+            headers=_request_headers(sec=sec),
+            timeout=(min(2.2, effective_timeout), effective_timeout),
+            allow_redirects=True,
+        )
+        diag["http_status"] = int(response.status_code)
+        diag["final_url"] = response.url
+        ctype = (response.headers.get("Content-Type") or "").lower()
+        diag["content_type"] = ctype
+        response.raise_for_status()
+        if "html" not in ctype and "text" not in ctype and "xml" not in ctype:
+            diag["status"] = "unsupported_content"
+            diag["status_label"] = "kein HTML/Text/XML"
+            return "", response.url, diag
+        body = response.text[:1_500_000]
+        diag["content_length"] = len(body)
+        if not body.strip():
+            diag["status"] = "empty"
+            diag["status_label"] = "leere Antwort"
+            return "", response.url, diag
+        diag["ok"] = True
+        diag["status"] = "ok"
+        diag["status_label"] = "geladen"
+        return body, response.url, diag
+    except requests.exceptions.Timeout:
+        diag["status"] = "timeout"
+        diag["status_label"] = "Timeout"
+        return "", diag.get("final_url") or "", diag
+    except requests.exceptions.HTTPError:
+        diag["status"] = "http_error"
+        diag["status_label"] = "HTTP-Fehler"
+        return "", diag.get("final_url") or "", diag
+    except requests.exceptions.RequestException:
+        diag["status"] = "network_error"
+        diag["status_label"] = "Netzwerk-/TLS-Fehler"
+        return "", diag.get("final_url") or "", diag
+    except Exception:
+        diag["status"] = "network_error"
+        diag["status_label"] = "Abruffehler"
+        return "", diag.get("final_url") or "", diag
+    finally:
+        diag["elapsed_seconds"] = round(time.monotonic() - started, 3)
 
 
 def _html_to_text(html):
@@ -2944,7 +3049,7 @@ def _discover_sec_primary_pages(symbol, max_filings=3, deadline=None):
         r = requests.get(
             f"https://data.sec.gov/submissions/CIK{cik10}.json",
             headers={
-                "User-Agent": "AktienAnalyseV2/2.20.21 research-client",
+                "User-Agent": "AktienAnalyseV2/2.20.25 research-client",
                 "Accept-Encoding": "gzip, deflate",
             },
             timeout=(min(1.8, effective_timeout), effective_timeout),
@@ -3002,10 +3107,10 @@ def research_special_event_online(
     symbol,
     company_name,
     website=None,
-    cache_version="v22024",
+    cache_version="v22025",
 ):
     """
-    V2.20.24: Archive-Index-Guard research. The issuer website/IR archive is routed before SEC, web search and Yahoo.
+    V2.20.25: Archive-Fetch-Reliability research. The issuer website/IR archive is routed before SEC, web search and Yahoo.
 
     Source priority remains company/IR -> SEC -> web -> Yahoo. Unrelated search
     results are rejected before they can become evidence. A quantitative EPS
@@ -3022,7 +3127,7 @@ def research_special_event_online(
     target_year = datetime.now().year - 1
     router_years = [target_year - i for i in range(0, HISTORICAL_RECURRENCE_YEARS + 1)]
 
-    # V2.20.24: index only validated release/results archives first; annual-report hubs are never paginated as release archives.
+    # V2.20.25: load the canonical issuer release/results archive with a reliable bounded timeout first; annual-report hubs are never paginated as release archives.
     ir_router = _discover_company_ir_router(
         company_domain,
         company_name,
@@ -3037,7 +3142,7 @@ def research_special_event_online(
     for item in ((ir_router.get("documents_by_year") or {}).get(target_year, []) if isinstance(ir_router, dict) else [])[:4]:
         raw_results.append(item)
 
-    # V2.20.24: if the validated issuer release archive already exposed a plausible full-year
+    # V2.20.25: if the validated issuer release archive already exposed a plausible full-year
     # release, do not spend the budget crawling generic company pages/SEC before
     # validating that document. Fallback discovery is used only when the issuer
     # index yielded nothing usable.
@@ -3248,7 +3353,7 @@ def research_special_event_online(
         else None
     )
 
-    # V2.20.24: once a validated primary full-year bridge is available, reserve
+    # V2.20.25: once a validated primary full-year bridge is available, reserve
     # the remaining research budget for only the targeted older full-year documents.
     historical_bridge_rows = []
     historical_attempted_years = []
@@ -3369,7 +3474,7 @@ def research_special_event_online(
         "next_step": next_step,
         "company_domain": company_domain,
         "queries_run": len(queries),
-        "source_order": "Unternehmenswebseite/IR → Detailseiten-Guard/Parent Recovery → validierter Archivindex → gezielte Jahresdokumente → SEC/Web-Fallback",
+        "source_order": "Unternehmenswebseite/IR → kanonischer Finanzarchiv-Abruf → Financial-Releases-Filter → gezielte Jahresdokumente → SEC/Web-Fallback",
         "ir_router": {
             "available": bool((ir_router or {}).get("available")),
             "entrypoint_count": len((ir_router or {}).get("entrypoints") or []),
@@ -3387,6 +3492,11 @@ def research_special_event_online(
             "selected_archive_release_links": (ir_router or {}).get("selected_archive_release_links", 0),
             "selected_archive_result_links": (ir_router or {}).get("selected_archive_result_links", 0),
             "candidate_counts_by_year": (ir_router or {}).get("candidate_counts_by_year") or {},
+            "archive_fetch_attempts": (ir_router or {}).get("archive_fetch_attempts") or [],
+            "archive_fetch_success_count": (ir_router or {}).get("archive_fetch_success_count", 0),
+            "archive_fetch_timeout_count": (ir_router or {}).get("archive_fetch_timeout_count", 0),
+            "archive_fetch_http_error_count": (ir_router or {}).get("archive_fetch_http_error_count", 0),
+            "archive_fetch_empty_count": (ir_router or {}).get("archive_fetch_empty_count", 0),
             "fast_path": bool((ir_router or {}).get("fast_path")),
             "strategy": (ir_router or {}).get("strategy"),
             "entrypoints": (ir_router or {}).get("entrypoints") or [],
@@ -15751,7 +15861,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_archive_index_guard_parent_recovery_v22024_20260908"
+CACHE_VERSION = "m6_archive_fetch_reliability_v22025_20260908"
 
 @st.cache_data(
     ttl=900,
@@ -17011,9 +17121,10 @@ if selected_symbol:
                     ir_router_ui = research.get("ir_router") or {}
                     if ir_router_ui.get("available"):
                         st.info(
-                            "🏢 **Archive-Index-Guard & Parent Recovery aktiv:** Unternehmens-/IR-Seiten werden zuerst geprüft. "
-                            "Einzelne Presse-/Ergebnismeldungen dürfen niemals als Archiv gelten; aus solchen Detail-URLs "
-                            "wird stattdessen der offizielle Archiv-Elternpfad wiederhergestellt. Annual-Report-/Filings-Bereiche bleiben getrennt."
+                            "🏢 **Archive Fetch Reliability V2.20.25 aktiv:** Unternehmens-/IR-Seiten werden zuerst geprüft. "
+                            "Der kanonische offizielle Finanz-/Release-Archivindex erhält zuerst einen belastbaren, aber weiterhin "
+                            "zeitlich begrenzten Abrufversuch. Erst bei Fehlschlag folgt der Financial-Releases-Filter; Detailseiten "
+                            "dürfen weiterhin niemals als Archiv gelten und Annual-Report-/Filings-Bereiche bleiben getrennt."
                         )
                         st.caption(
                             f"IR-/Finanz-Einstiegspunkte: {ir_router_ui.get('entrypoint_count', 0)} · "
@@ -17025,6 +17136,25 @@ if selected_symbol:
                             f"Parent-Recoveries: {ir_router_ui.get('parent_archive_recovery_count', 0)} · "
                             f"vom Guard insgesamt verworfen: {ir_router_ui.get('archive_guard_rejected_count', 0)}"
                         )
+                        fetch_attempts = ir_router_ui.get("archive_fetch_attempts") or []
+                        if fetch_attempts:
+                            st.caption(
+                                f"Archiv-Abrufe: {len(fetch_attempts)} · erfolgreich: {ir_router_ui.get('archive_fetch_success_count', 0)} · "
+                                f"Timeouts: {ir_router_ui.get('archive_fetch_timeout_count', 0)} · "
+                                f"HTTP-Fehler: {ir_router_ui.get('archive_fetch_http_error_count', 0)} · "
+                                f"leer/blockiert: {ir_router_ui.get('archive_fetch_empty_count', 0)}"
+                            )
+                            for attempt in fetch_attempts[:3]:
+                                st.caption(
+                                    "Archiv-Abruf – "
+                                    + text_or_dash(attempt.get("purpose"))
+                                    + ": "
+                                    + text_or_dash(attempt.get("status_label"))
+                                    + f" · {safe_float(attempt.get('elapsed_seconds')) or 0:.1f} s"
+                                    + (f" · HTTP {attempt.get('http_status')}" if attempt.get("http_status") is not None else "")
+                                    + (" · " + text_or_dash(attempt.get("url")) if attempt.get("url") else "")
+                                )
+
                         if ir_router_ui.get("selected_archive_url"):
                             st.caption(
                                 "Gewähltes Finanzarchiv: "
@@ -17095,7 +17225,7 @@ if selected_symbol:
 
                     adjustment_review = research.get("adjustment_recurrence_review") or {}
                     if adjustment_review:
-                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.24**")
+                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.25**")
                         review_level = adjustment_review.get("status_level")
                         review_status = text_or_dash(adjustment_review.get("status"))
                         if review_level == "Rot":
@@ -17131,7 +17261,7 @@ if selected_symbol:
 
                         st.error(
                             "**Automatische EPS-Normalisierungsfreigabe: NEIN.** Kein erkannter "
-                            "Bereinigungsposten wird in V2.20.24 automatisch zum Bewertungs-EPS addiert."
+                            "Bereinigungsposten wird in V2.20.25 automatisch zum Bewertungs-EPS addiert."
                         )
                         st.caption(
                             "Nächster Prüfschritt: "
@@ -17141,7 +17271,7 @@ if selected_symbol:
 
                     historical_review = research.get("historical_recurrence_review") or {}
                     if historical_review:
-                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.24**")
+                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.25**")
                         hist_level = historical_review.get("status_level")
                         hist_status = text_or_dash(historical_review.get("status"))
                         if hist_level == "Rot":
@@ -17283,13 +17413,13 @@ if selected_symbol:
 
                     if research.get("quantitative_eps_bridge_found"):
                         st.info(
-                            "Eine quantitative EPS-Brücke wurde nach V2.20.24-Regeln periodenvalidiert. Der Archive-Index-Guard verwirft Einzelmeldungen als Archiv, stellt bei Bedarf den offiziellen Archiv-Elternpfad wieder her und trennt Release-Archive strikt von Annual-Report-/Filings-Bereichen; nur validierte Archivindizes werden paginiert, danach werden gezielte Jahresdokumente geladen und erst anschließend SEC/Web-Fallbacks genutzt. "
+                            "Eine quantitative EPS-Brücke wurde nach V2.20.25-Regeln periodenvalidiert. Der Archive-Fetch-Reliability-Pfad lädt zuerst den kanonischen offiziellen Finanz-/Release-Archivindex mit einem belastbaren, aber weiterhin strikt begrenzten Timeout; erst bei Fehlschlag wird ein Financial-Releases-Filter versucht. Detailseiten bleiben als Archive gesperrt, Annual-Report-/Filings-Bereiche bleiben getrennt, danach werden nur gezielte Jahresdokumente und erst anschließend SEC/Web-Fallbacks genutzt. "
                             "Sie wird weiterhin **nicht automatisch als bereinigtes EPS übernommen**."
                         )
 
                     st.error(
                         "**Freigabestatus: GESPERRT.** Die historische Wiederkehrbarkeits-Prüfung darf in "
-                        "V2.20.24 den Fair Value noch nicht selbst entsperren."
+                        "V2.20.25 den Fair Value noch nicht selbst entsperren."
                     )
                     st.write("**Nächster Schritt:** " + text_or_dash(research.get("next_step")))
 
