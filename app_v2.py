@@ -12581,7 +12581,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_eps_divergence_yahoo_statement_label_recovery_v2206_20260908"
+CACHE_VERSION = "m6_autozulieferer_zyklisch_v2208_20260908"
 
 @st.cache_data(
     ttl=900,
