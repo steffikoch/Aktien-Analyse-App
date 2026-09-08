@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.25: Archive Fetch Reliability – offizielles Finanzarchiv gezielt und mit belastbarem Timeout laden.
+# V2.20.26: IR Year Navigator – Financial-Releases-Archiv gezielt nach Geschäftsjahren navigieren.
 
 # =========================================================
 # Hilfsfunktionen
@@ -1584,7 +1584,7 @@ def _historical_row_from_candidate(item, company_domain, company_name, year, dea
 
 
 # =========================================================
-# V2.20.25 – Archive Fetch Reliability
+# V2.20.26 – IR Year Navigator
 # =========================================================
 
 IR_ROUTER_SEED_PATHS = [
@@ -1767,6 +1767,45 @@ def _router_archive_page_variants(url, page_no):
     return list(dict.fromkeys(variants))
 
 
+def _router_financial_release_filter_url(url):
+    """Return a same-domain Financial Releases archive URL for dense earnings navigation.
+
+    V2.20.26 keeps the canonical archive as the validated parent, but uses the
+    issuer's own Financial Releases category when a broad press/news archive
+    exposes such a filter. This reduces page count dramatically without leaving
+    the company website.
+    """
+    url = _clean_text(url)
+    if not url:
+        return None
+    try:
+        parsed = urlparse(url)
+        query = parse_qs(parsed.query, keep_blank_values=True)
+        # Preserve non-pagination query arguments, but force the financial category.
+        query = {k: list(v) for k, v in query.items() if k.lower() not in {"page", "year", "category"}}
+        query["category"] = ["Financial Releases"]
+        from urllib.parse import urlencode
+        q = urlencode(query, doseq=True)
+        origin = f"{parsed.scheme or 'https'}://{parsed.netloc}"
+        return origin + (parsed.path or "/") + (("?" + q) if q else "")
+    except Exception:
+        sep = "&" if "?" in url else "?"
+        return f"{url}{sep}category=Financial+Releases"
+
+
+def _router_archive_visible_years(rows):
+    """Extract publication/title years visible on one archive index page."""
+    years = set()
+    for row in rows or []:
+        hay = _clean_text(f"{row.get('title','')} {unquote(row.get('url',''))}")
+        for token in re.findall(r"\b(20\d{2})\b", hay):
+            try:
+                years.add(int(token))
+            except Exception:
+                pass
+    return sorted(years, reverse=True)
+
+
 def _router_release_archive_parent(url):
     """Return the canonical release-archive parent for an issuer release URL.
 
@@ -1945,7 +1984,7 @@ def _router_is_archive_link(row):
 
 
 def _router_preferred_archive_variants(row):
-    """V2.20.25: canonical archive first, narrow Financial Releases filter second.
+    """V2.20.26: canonical archive first, narrow Financial Releases filter second.
 
     The BorgWarner V2.20.24 test showed that many short attempts are less
     reliable than one deliberate request to the real archive index. We therefore
@@ -2032,7 +2071,7 @@ def _router_collect_year_candidates(all_links, years, method="IR Archive Fast Pa
             item["historical_recovery_method"] = method
             rows.append(item)
         rows.sort(key=lambda r: r.get("historical_candidate_score", 0), reverse=True)
-        # The V2.20.25 fast path fetches only the strongest one or two
+        # The V2.20.26 fast path fetches only the strongest one or two
         # documents per year, not crawl every official link.
         by_year[year] = rows[:3]
     return by_year
@@ -2046,7 +2085,7 @@ def _discover_company_ir_router(
     max_hubs=3,
 ):
     """
-    V2.20.25 Archive Fetch Reliability.
+    V2.20.26 IR Year Navigator.
 
     Fast path:
       1) load issuer homepage once,
@@ -2091,8 +2130,14 @@ def _discover_company_ir_router(
         "archive_fetch_timeout_count": 0,
         "archive_fetch_http_error_count": 0,
         "archive_fetch_empty_count": 0,
+        "year_navigation_base_url": None,
+        "year_navigation_mode": None,
+        "year_navigation_pages": [],
+        "year_navigation_stop_reason": None,
+        "year_navigation_found_years": [],
+        "year_navigation_missing_years": list(years),
         "fast_path": True,
-        "strategy": "Unternehmensseite → kanonischer Archivabruf → Financial-Releases-Filter → gezielte Jahresdokumente",
+        "strategy": "Unternehmensseite → kanonischer Archivindex → Financial-Releases-Year-Navigator → gezielte Jahresdokumente",
     }
     if not company_domain or not _research_budget_ok(deadline, reserve=3.0):
         return result
@@ -2128,7 +2173,7 @@ def _discover_company_ir_router(
         release_rows = [r for r in rows if _router_archive_type(r) == "release_archive"]
         detail_rows = [r for r in rows if _router_archive_type(r) == "release_detail"]
 
-        # V2.20.25 Parent Recovery: recent-release links often appear on the
+        # V2.20.26 Parent Recovery: recent-release links often appear on the
         # corporate home page even when the archive-index link itself is hidden.
         # Recover the parent archive path, but never promote the detail page.
         recovered = {}
@@ -2244,7 +2289,7 @@ def _discover_company_ir_router(
             if archive_url in fetched:
                 continue
 
-            # V2.20.25: one reliable canonical attempt first. The filter fallback
+            # V2.20.26: one reliable canonical attempt first. The filter fallback
             # gets a smaller timeout because the main issuer archive is preferred.
             preferred_timeout = 4.8 if variant_index == 0 else 3.4
             archive_html, archive_final, fetch_diag = _fetch_html_diagnostic(
@@ -2300,66 +2345,182 @@ def _discover_company_ir_router(
 
     # Initial link-index pass: no individual result document fetches.
     result["documents_by_year"] = _router_collect_year_candidates(
-        all_links, years, method="IR Archive Fast Path – Type Guard"
+        all_links, years, method="IR Year Navigator – Archivindex"
     )
 
     def refresh_candidate_counts():
         result["candidate_counts_by_year"] = {
             y: len(result["documents_by_year"].get(y, [])) for y in years
         }
+        result["year_navigation_found_years"] = [
+            y for y in years if any(
+                float(r.get("historical_candidate_score") or 0) >= 170
+                for r in result["documents_by_year"].get(y, [])
+            )
+        ]
+        result["year_navigation_missing_years"] = [
+            y for y in years if y not in result["year_navigation_found_years"]
+        ]
 
     def has_strong_candidate(year):
         rows = result["documents_by_year"].get(year, [])
         return any(float(r.get("historical_candidate_score") or 0) >= 170 for r in rows)
 
+    def rebuild_year_candidates(method):
+        result["documents_by_year"] = _router_collect_year_candidates(
+            all_links, years, method=method
+        )
+        refresh_candidate_counts()
+
     refresh_candidate_counts()
 
-    # 5) Paginate only the validated release archive. This is the central
-    # V2.20.25 guardrail: annual-report/filing repositories can never reach here.
-    if primary_archive and primary_archive_row:
-        for page_no in range(2, 6):
+    # 5) V2.20.26 IR Year Navigator. A validated broad press archive is only
+    # the parent. For historical EPS work we prefer the issuer's own Financial
+    # Releases category because it reaches older earnings releases in far fewer
+    # pages. Only titles/URLs are indexed here; documents are fetched later.
+    navigation_archive = primary_archive
+    navigation_archive_row = dict(primary_archive_row or {}) if primary_archive_row else None
+    if primary_archive and primary_archive_row and result["year_navigation_missing_years"]:
+        filtered_url = _router_financial_release_filter_url(primary_archive)
+        if (
+            filtered_url
+            and filtered_url != primary_archive
+            and _research_budget_ok(deadline, reserve=6.0)
+        ):
+            f_html, f_final, f_diag = _fetch_html_diagnostic(
+                filtered_url, timeout=3.8, deadline=deadline,
+                purpose="IR Year Navigator – Financial Releases",
+            )
+            result["archive_fetch_attempts"].append(f_diag)
+            if f_diag.get("ok"):
+                result["archive_fetch_success_count"] += 1
+            elif f_diag.get("status") == "timeout":
+                result["archive_fetch_timeout_count"] += 1
+            elif f_diag.get("status") == "http_error":
+                result["archive_fetch_http_error_count"] += 1
+            elif f_diag.get("status") in {"empty", "unsupported_content", "network_error"}:
+                result["archive_fetch_empty_count"] += 1
+
+            if f_html:
+                f_final = f_final or filtered_url
+                filter_row = dict(primary_archive_row)
+                filter_row["url"] = f_final
+                ok, reason, stats = _router_validate_release_archive_index(
+                    filter_row, f_html, f_final, company_domain
+                )
+                if ok:
+                    result["pages_loaded"] += 1
+                    result["archive_index_pages_loaded"] += 1
+                    archive_pages.append(f_final)
+                    register_rows(stats.get("links") or [])
+                    navigation_archive = f_final
+                    navigation_archive_row = filter_row
+                    result["year_navigation_base_url"] = f_final
+                    result["year_navigation_mode"] = "Financial Releases"
+                    result["year_navigation_pages"].append({
+                        "page": 1,
+                        "url": f_final,
+                        "visible_years": _router_archive_visible_years(stats.get("links") or []),
+                        "status": "geladen",
+                    })
+                    rebuild_year_candidates("IR Year Navigator – Financial Releases")
+                else:
+                    result["archive_guard_rejected_count"] += 1
+                    result["archive_guard_rejections"].append({
+                        "url": f_final, "type": "year_navigator_filter", "reason": reason
+                    })
+
+    # If no category filter was available, navigate the validated canonical
+    # release archive. This remains same-domain and type-guarded.
+    if navigation_archive and navigation_archive_row and not result["year_navigation_base_url"]:
+        result["year_navigation_base_url"] = navigation_archive
+        result["year_navigation_mode"] = "Kanonisches Release-Archiv"
+
+    # 6) Walk only as far as needed. Stop immediately when every requested FY
+    # has a strong full-year result candidate. This is deliberately bounded and
+    # replaces broad sitemap crawling.
+    if navigation_archive and navigation_archive_row:
+        for page_no in range(2, 8):
             missing = [y for y in years if not has_strong_candidate(y)]
-            if not missing or not _research_budget_ok(deadline, reserve=3.2):
+            if not missing:
+                result["year_navigation_stop_reason"] = "Alle Zieljahre im offiziellen Archiv gefunden"
                 break
+            if not _research_budget_ok(deadline, reserve=5.0):
+                result["year_navigation_stop_reason"] = "Recherchebudget für weitere Archivseiten zu knapp"
+                break
+
             page_loaded = False
-            for page_url in _router_archive_page_variants(primary_archive, page_no):
-                if not _research_budget_ok(deadline, reserve=3.0):
+            page_attempted = False
+            for page_url in _router_archive_page_variants(navigation_archive, page_no):
+                if not _research_budget_ok(deadline, reserve=4.5):
                     break
-                page_html, page_final = _fetch_html(page_url, timeout=1.7, deadline=deadline)
+                page_attempted = True
+                page_html, page_final, page_diag = _fetch_html_diagnostic(
+                    page_url, timeout=3.2, deadline=deadline,
+                    purpose=f"IR Year Navigator – Archivseite {page_no}",
+                )
+                result["archive_fetch_attempts"].append(page_diag)
+                if page_diag.get("ok"):
+                    result["archive_fetch_success_count"] += 1
+                elif page_diag.get("status") == "timeout":
+                    result["archive_fetch_timeout_count"] += 1
+                elif page_diag.get("status") == "http_error":
+                    result["archive_fetch_http_error_count"] += 1
+                elif page_diag.get("status") in {"empty", "unsupported_content", "network_error"}:
+                    result["archive_fetch_empty_count"] += 1
                 if not page_html:
                     continue
                 page_final = page_final or page_url
                 ok, reason, stats = _router_validate_release_archive_index(
-                    primary_archive_row, page_html, page_final, company_domain
+                    navigation_archive_row, page_html, page_final, company_domain
                 )
                 if not ok:
                     result["archive_guard_rejected_count"] += 1
                     result["archive_guard_rejections"].append({
-                        "url": page_final,
-                        "type": "pagination",
-                        "reason": reason,
+                        "url": page_final, "type": "year_navigation", "reason": reason
                     })
                     continue
                 page_loaded = True
                 result["pages_loaded"] += 1
                 result["archive_index_pages_loaded"] += 1
-                register_rows(stats.get("links") or [])
-                result["documents_by_year"] = _router_collect_year_candidates(
-                    all_links, years, method="IR Archive Fast Path – Type-Guard Pagination"
-                )
-                refresh_candidate_counts()
-                break
-            if not page_loaded:
+                archive_pages.append(page_final)
+                page_links = stats.get("links") or []
+                register_rows(page_links)
+                result["year_navigation_pages"].append({
+                    "page": page_no,
+                    "url": page_final,
+                    "visible_years": _router_archive_visible_years(page_links),
+                    "status": "geladen",
+                })
+                rebuild_year_candidates("IR Year Navigator – paginiertes Financial-Release-Archiv")
                 break
 
-    # 6) One year-filtered request only for still-missing years and only against
-    # the validated release archive.
+            if not page_loaded:
+                result["year_navigation_pages"].append({
+                    "page": page_no,
+                    "url": None,
+                    "visible_years": [],
+                    "status": "nicht geladen" if page_attempted else "nicht versucht",
+                })
+                result["year_navigation_stop_reason"] = "Nächste offizielle Archivseite nicht belastbar ladbar"
+                break
+
+        if not result["year_navigation_stop_reason"]:
+            remaining = [y for y in years if not has_strong_candidate(y)]
+            result["year_navigation_stop_reason"] = (
+                "Alle Zieljahre im offiziellen Archiv gefunden"
+                if not remaining else
+                "Maximale gezielte Archivtiefe erreicht"
+            )
+
+    # 7) One direct year-filter request only for years still missing after the
+    # Year Navigator. This is a fallback, not the primary navigation path.
     if primary_archive and primary_archive_row:
         for year in [y for y in years if not has_strong_candidate(y)]:
-            if not _research_budget_ok(deadline, reserve=3.0):
+            if not _research_budget_ok(deadline, reserve=4.0):
                 break
             for filtered_url in _router_year_filter_variants(primary_archive, year)[:1]:
-                f_html, f_final = _fetch_html(filtered_url, timeout=1.7, deadline=deadline)
+                f_html, f_final = _fetch_html(filtered_url, timeout=2.2, deadline=deadline)
                 if not f_html:
                     continue
                 f_final = f_final or filtered_url
@@ -2367,20 +2528,11 @@ def _discover_company_ir_router(
                     primary_archive_row, f_html, f_final, company_domain
                 )
                 if not ok:
-                    result["archive_guard_rejected_count"] += 1
-                    result["archive_guard_rejections"].append({
-                        "url": f_final,
-                        "type": "year_filter",
-                        "reason": reason,
-                    })
                     continue
                 result["pages_loaded"] += 1
                 result["archive_index_pages_loaded"] += 1
                 register_rows(stats.get("links") or [])
-                result["documents_by_year"] = _router_collect_year_candidates(
-                    all_links, years, method="IR Archive Fast Path – Type-Guard Jahresfilter"
-                )
-                refresh_candidate_counts()
+                rebuild_year_candidates("IR Year Navigator – direkter Jahresfilter")
                 break
 
     result["entrypoints"] = list(discovered.values())[:6]
@@ -2399,7 +2551,7 @@ def _discover_historical_full_year_bridges(
     ir_router=None,
 ):
     """
-    V2.20.25 targeted historical bridge recovery.
+    V2.20.26 targeted historical bridge recovery.
 
     The router has already indexed issuer archive links. We therefore fetch at
     most two strongest document candidates per year. Expensive sitemap/general
@@ -2699,7 +2851,7 @@ def _fetch_html(url, timeout=3.0, sec=False, deadline=None):
 
 
 def _fetch_html_diagnostic(url, timeout=4.8, sec=False, deadline=None, purpose=None):
-    """V2.20.25 bounded HTML fetch with user-visible failure diagnostics.
+    """V2.20.26 bounded HTML fetch with user-visible failure diagnostics.
 
     This is used only for the small number of official archive-index requests.
     It never changes valuation logic; it only distinguishes timeout, HTTP error,
@@ -3107,10 +3259,10 @@ def research_special_event_online(
     symbol,
     company_name,
     website=None,
-    cache_version="v22025",
+    cache_version="v22026",
 ):
     """
-    V2.20.25: Archive-Fetch-Reliability research. The issuer website/IR archive is routed before SEC, web search and Yahoo.
+    V2.20.26: IR-Year-Navigator research. The issuer website/IR archive is routed before SEC, web search and Yahoo.
 
     Source priority remains company/IR -> SEC -> web -> Yahoo. Unrelated search
     results are rejected before they can become evidence. A quantitative EPS
@@ -3127,7 +3279,7 @@ def research_special_event_online(
     target_year = datetime.now().year - 1
     router_years = [target_year - i for i in range(0, HISTORICAL_RECURRENCE_YEARS + 1)]
 
-    # V2.20.25: load the canonical issuer release/results archive with a reliable bounded timeout first; annual-report hubs are never paginated as release archives.
+    # V2.20.26: validate the issuer archive once, then navigate the issuer's own Financial Releases pages until the requested fiscal years are indexed.
     ir_router = _discover_company_ir_router(
         company_domain,
         company_name,
@@ -3142,7 +3294,7 @@ def research_special_event_online(
     for item in ((ir_router.get("documents_by_year") or {}).get(target_year, []) if isinstance(ir_router, dict) else [])[:4]:
         raw_results.append(item)
 
-    # V2.20.25: if the validated issuer release archive already exposed a plausible full-year
+    # V2.20.26: if the issuer Year Navigator already exposed a plausible full-year
     # release, do not spend the budget crawling generic company pages/SEC before
     # validating that document. Fallback discovery is used only when the issuer
     # index yielded nothing usable.
@@ -3353,7 +3505,7 @@ def research_special_event_online(
         else None
     )
 
-    # V2.20.25: once a validated primary full-year bridge is available, reserve
+    # V2.20.26: once a validated primary full-year bridge is available, reserve
     # the remaining research budget for only the targeted older full-year documents.
     historical_bridge_rows = []
     historical_attempted_years = []
@@ -3474,7 +3626,7 @@ def research_special_event_online(
         "next_step": next_step,
         "company_domain": company_domain,
         "queries_run": len(queries),
-        "source_order": "Unternehmenswebseite/IR → kanonischer Finanzarchiv-Abruf → Financial-Releases-Filter → gezielte Jahresdokumente → SEC/Web-Fallback",
+        "source_order": "Unternehmenswebseite/IR → kanonischer Archivindex → Financial-Releases-Year-Navigator → gezielte Jahresdokumente → SEC/Web-Fallback",
         "ir_router": {
             "available": bool((ir_router or {}).get("available")),
             "entrypoint_count": len((ir_router or {}).get("entrypoints") or []),
@@ -3497,6 +3649,12 @@ def research_special_event_online(
             "archive_fetch_timeout_count": (ir_router or {}).get("archive_fetch_timeout_count", 0),
             "archive_fetch_http_error_count": (ir_router or {}).get("archive_fetch_http_error_count", 0),
             "archive_fetch_empty_count": (ir_router or {}).get("archive_fetch_empty_count", 0),
+            "year_navigation_base_url": (ir_router or {}).get("year_navigation_base_url"),
+            "year_navigation_mode": (ir_router or {}).get("year_navigation_mode"),
+            "year_navigation_pages": (ir_router or {}).get("year_navigation_pages") or [],
+            "year_navigation_stop_reason": (ir_router or {}).get("year_navigation_stop_reason"),
+            "year_navigation_found_years": (ir_router or {}).get("year_navigation_found_years") or [],
+            "year_navigation_missing_years": (ir_router or {}).get("year_navigation_missing_years") or [],
             "fast_path": bool((ir_router or {}).get("fast_path")),
             "strategy": (ir_router or {}).get("strategy"),
             "entrypoints": (ir_router or {}).get("entrypoints") or [],
@@ -15861,7 +16019,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_archive_fetch_reliability_v22025_20260908"
+CACHE_VERSION = "m6_ir_year_navigator_v22026_20260908"
 
 @st.cache_data(
     ttl=900,
@@ -17121,10 +17279,10 @@ if selected_symbol:
                     ir_router_ui = research.get("ir_router") or {}
                     if ir_router_ui.get("available"):
                         st.info(
-                            "🏢 **Archive Fetch Reliability V2.20.25 aktiv:** Unternehmens-/IR-Seiten werden zuerst geprüft. "
-                            "Der kanonische offizielle Finanz-/Release-Archivindex erhält zuerst einen belastbaren, aber weiterhin "
-                            "zeitlich begrenzten Abrufversuch. Erst bei Fehlschlag folgt der Financial-Releases-Filter; Detailseiten "
-                            "dürfen weiterhin niemals als Archiv gelten und Annual-Report-/Filings-Bereiche bleiben getrennt."
+                            "🏢 **IR Year Navigator V2.20.26 aktiv:** Unternehmens-/IR-Seiten werden zuerst geprüft. "
+                            "Der kanonische Release-Archivindex wird als Parent validiert; für die historische Suche wird anschließend bevorzugt "
+                            "das unternehmenseigene Financial-Releases-Archiv gezielt weitergeblättert. Sobald alle Zieljahre gefunden sind, "
+                            "stoppt die Navigation. Detailseiten und Annual-Report-/Filings-Bereiche bleiben getrennt."
                         )
                         st.caption(
                             f"IR-/Finanz-Einstiegspunkte: {ir_router_ui.get('entrypoint_count', 0)} · "
@@ -17176,6 +17334,31 @@ if selected_symbol:
                             )
                             st.caption("Jahreskandidaten im offiziellen Archiv: " + candidate_text)
 
+                        nav_pages = ir_router_ui.get("year_navigation_pages") or []
+                        if ir_router_ui.get("year_navigation_base_url"):
+                            st.caption(
+                                "IR-Year-Navigator: "
+                                + text_or_dash(ir_router_ui.get("year_navigation_mode"))
+                                + " · Basis: "
+                                + text_or_dash(ir_router_ui.get("year_navigation_base_url"))
+                            )
+                        if nav_pages:
+                            page_bits = []
+                            for nav in nav_pages[:7]:
+                                years_seen = nav.get("visible_years") or []
+                                year_text = "/".join(str(y) for y in years_seen[:4]) if years_seen else "–"
+                                page_bits.append(f"Seite {nav.get('page')}: {year_text} ({text_or_dash(nav.get('status'))})")
+                            st.caption("Archivnavigation: " + " · ".join(page_bits))
+                        if ir_router_ui.get("year_navigation_stop_reason"):
+                            found_years = ir_router_ui.get("year_navigation_found_years") or []
+                            missing_years = ir_router_ui.get("year_navigation_missing_years") or []
+                            st.caption(
+                                "Year-Navigator-Status: "
+                                + text_or_dash(ir_router_ui.get("year_navigation_stop_reason"))
+                                + (" · gefunden FY " + ", ".join(str(y) for y in found_years) if found_years else "")
+                                + (" · offen FY " + ", ".join(str(y) for y in missing_years) if missing_years else "")
+                            )
+
                     duration = safe_float(research.get("research_duration_seconds"))
                     limit_seconds = safe_float(research.get("time_limit_seconds"))
                     if duration is not None:
@@ -17225,7 +17408,7 @@ if selected_symbol:
 
                     adjustment_review = research.get("adjustment_recurrence_review") or {}
                     if adjustment_review:
-                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.25**")
+                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.26**")
                         review_level = adjustment_review.get("status_level")
                         review_status = text_or_dash(adjustment_review.get("status"))
                         if review_level == "Rot":
@@ -17261,7 +17444,7 @@ if selected_symbol:
 
                         st.error(
                             "**Automatische EPS-Normalisierungsfreigabe: NEIN.** Kein erkannter "
-                            "Bereinigungsposten wird in V2.20.25 automatisch zum Bewertungs-EPS addiert."
+                            "Bereinigungsposten wird in V2.20.26 automatisch zum Bewertungs-EPS addiert."
                         )
                         st.caption(
                             "Nächster Prüfschritt: "
@@ -17271,7 +17454,7 @@ if selected_symbol:
 
                     historical_review = research.get("historical_recurrence_review") or {}
                     if historical_review:
-                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.25**")
+                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.26**")
                         hist_level = historical_review.get("status_level")
                         hist_status = text_or_dash(historical_review.get("status"))
                         if hist_level == "Rot":
@@ -17413,13 +17596,13 @@ if selected_symbol:
 
                     if research.get("quantitative_eps_bridge_found"):
                         st.info(
-                            "Eine quantitative EPS-Brücke wurde nach V2.20.25-Regeln periodenvalidiert. Der Archive-Fetch-Reliability-Pfad lädt zuerst den kanonischen offiziellen Finanz-/Release-Archivindex mit einem belastbaren, aber weiterhin strikt begrenzten Timeout; erst bei Fehlschlag wird ein Financial-Releases-Filter versucht. Detailseiten bleiben als Archive gesperrt, Annual-Report-/Filings-Bereiche bleiben getrennt, danach werden nur gezielte Jahresdokumente und erst anschließend SEC/Web-Fallbacks genutzt. "
+                            "Eine quantitative EPS-Brücke wurde nach V2.20.26-Regeln periodenvalidiert. Der IR-Year-Navigator validiert zuerst den kanonischen offiziellen Release-Archivindex und navigiert danach bevorzugt durch das unternehmenseigene Financial-Releases-Archiv, bis die benötigten Volljahre gefunden sind oder das Zeitbudget endet. Nur die stärksten Jahresdokumente werden anschließend geladen; Detailseiten bleiben als Archive gesperrt und Annual-Report-/Filings-Bereiche getrennt. "
                             "Sie wird weiterhin **nicht automatisch als bereinigtes EPS übernommen**."
                         )
 
                     st.error(
                         "**Freigabestatus: GESPERRT.** Die historische Wiederkehrbarkeits-Prüfung darf in "
-                        "V2.20.25 den Fair Value noch nicht selbst entsperren."
+                        "V2.20.26 den Fair Value noch nicht selbst entsperren."
                     )
                     st.write("**Nächster Schritt:** " + text_or_dash(research.get("next_step")))
 
