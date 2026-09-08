@@ -17,7 +17,7 @@ st.caption(
 )
 
 
-# V2.20.5: EPS-Divergenz-Gate + Yahoo TTM/FY/Valuation-Recovery auf Basis V2.20.
+# V2.20.6: robuste Yahoo-Statement-Labels + EPS-Divergenz-Gate auf Basis V2.20.5.
 
 # =========================================================
 # Hilfsfunktionen
@@ -2276,39 +2276,54 @@ def search_stock_suggestions(search_text):
 
 def get_row_values(statement, possible_names):
 
-    if statement is None:
+    if statement is None or statement.empty:
         return []
 
-    if statement.empty:
+    # Keep the historical-data path aligned with the resilient Yahoo recovery:
+    # exact metric identity, but insensitive to spaces/punctuation/camel case.
+    wanted = {
+        "".join(char.lower() for char in str(name) if char.isalnum())
+        for name in possible_names
+    }
+
+    selected = None
+    for index_value in statement.index:
+        key = "".join(
+            char.lower()
+            for char in str(index_value)
+            if char.isalnum()
+        )
+        if key in wanted:
+            selected = index_value
+            break
+
+    if selected is None:
         return []
 
-    for row_name in possible_names:
+    try:
+        row = statement.loc[selected]
+    except Exception:
+        return []
 
-        if row_name in statement.index:
+    if isinstance(row, pd.DataFrame):
+        if row.empty:
+            return []
+        row = row.iloc[0]
 
-            row = statement.loc[row_name]
+    values = []
+    for date, value in row.items():
+        number = safe_float(value)
+        if number is not None:
+            values.append({
+                "date": date,
+                "value": number
+            })
 
-            values = []
-
-            for date, value in row.items():
-
-                number = safe_float(value)
-
-                if number is not None:
-
-                    values.append({
-                        "date": date,
-                        "value": number
-                    })
-
-            values.sort(
-                key=lambda item: item["date"],
-                reverse=True
-            )
-
-            return values
-
-    return []
+    values.sort(
+        key=lambda item: item["date"],
+        reverse=True
+    )
+    return values
 
 
 def build_historical_data(ticker):
@@ -11748,46 +11763,86 @@ def _ticker_frame(ticker, property_names, method_calls=None):
     return pd.DataFrame()
 
 
+def _statement_label_key(value):
+    """Normalize Yahoo/yfinance statement labels across spacing/camel-case variants."""
+    return "".join(
+        char.lower()
+        for char in str(value or "")
+        if char.isalnum()
+    )
+
+
 def _statement_series(frame, row_names):
-    """Return one numeric statement row sorted newest to oldest."""
+    """Return one numeric statement metric sorted newest to oldest.
+
+    V2.20.6 is deliberately tolerant of Yahoo/yfinance label variants such as
+    ``Total Revenue`` vs. ``TotalRevenue`` and of tables that arrive transposed.
+    Only exact normalized-label matches are accepted; no fuzzy guessing is used.
+    """
     if frame is None or getattr(frame, "empty", True):
         return []
 
+    wanted = [_statement_label_key(name) for name in row_names]
+
     index_map = {
-        str(index_value).strip().lower(): index_value
+        _statement_label_key(index_value): index_value
         for index_value in frame.index
     }
+    column_map = {
+        _statement_label_key(column): column
+        for column in frame.columns
+    }
 
-    selected_index = None
-    for name in row_names:
-        key = str(name).strip().lower()
-        if key in index_map:
-            selected_index = index_map[key]
+    series = None
+
+    # Normal yfinance orientation: metrics are rows, dates are columns.
+    for key in wanted:
+        selected_index = index_map.get(key)
+        if selected_index is None:
+            continue
+        try:
+            series = frame.loc[selected_index]
+        except Exception:
+            series = None
+        if isinstance(series, pd.DataFrame):
+            if series.empty:
+                series = None
+            else:
+                series = series.iloc[0]
+        if series is not None:
             break
 
-    if selected_index is None:
-        return []
+    # Defensive fallback: some intermediate/table variants can be transposed.
+    if series is None:
+        for key in wanted:
+            selected_column = column_map.get(key)
+            if selected_column is None:
+                continue
+            try:
+                series = frame[selected_column]
+            except Exception:
+                series = None
+            if isinstance(series, pd.DataFrame):
+                if series.empty:
+                    series = None
+                else:
+                    series = series.iloc[:, 0]
+            if series is not None:
+                break
 
-    try:
-        row = frame.loc[selected_index]
-    except Exception:
+    if series is None:
         return []
-
-    if isinstance(row, pd.DataFrame):
-        if row.empty:
-            return []
-        row = row.iloc[0]
 
     values = []
-    for column, raw_value in row.items():
+    for date_label, raw_value in series.items():
         value = safe_float(raw_value)
         if value is None:
             continue
 
         try:
-            date_value = pd.to_datetime(column)
+            date_value = pd.to_datetime(date_label)
         except Exception:
-            date_value = column
+            date_value = date_label
 
         values.append({
             "date": date_value,
@@ -12010,7 +12065,7 @@ def _latest_two_growth(frame, row_names):
 
 def recover_fundamentals_from_yahoo_tables(ticker):
     """
-    V2.20.5 – layered Yahoo fundamentals recovery.
+    V2.20.6 – layered Yahoo fundamentals recovery with robust statement labels.
 
     Yahoo quoteSummary/info can be unavailable while the fundamentals-timeseries
     endpoints still work. Recovery therefore tries, in this order:
@@ -12493,7 +12548,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_eps_divergence_yahoo_ttm_annual_valuation_recovery_v2205_20260908"
+CACHE_VERSION = "m6_eps_divergence_yahoo_statement_label_recovery_v2206_20260908"
 
 @st.cache_data(
     ttl=900,
