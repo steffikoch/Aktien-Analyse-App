@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.27: Adjustment Component Analysis – wiederkehrende vs. außergewöhnliche Bereinigungskomponenten.
+# V2.20.28: Bridge Component Evidence Gate – nur quantitativ bestätigte EPS-Brückenkomponenten beeinflussen die Normalisierung.
 
 # =========================================================
 # Hilfsfunktionen
@@ -1350,15 +1350,77 @@ def _match_adjustment_rule(row_label):
     return None
 
 
-def _extract_adjustment_components_from_html(html, target_year=None):
-    """
-    V2.20.27 structured reconciliation parser.
+def _bridge_row_label(row):
+    """Build a conservative row label from cells before the first numeric accounting value."""
+    parts = []
+    for c, cell in enumerate(row or []):
+        if c > 0 and _parse_accounting_cell(cell) is not None:
+            break
+        cell = _clean_text(cell)
+        if cell and not re.fullmatch(r"[$€£—–-]+", cell):
+            parts.append(cell)
+    return _clean_text(" ".join(dict.fromkeys(parts)))
 
-    It only accepts rows from tables that look like GAAP-to-adjusted EPS reconciliations.
-    A component is attached to a fiscal year only when the table has a target-year
-    full-year/year-ended column and that row has a non-zero numeric value in that column.
-    This prevents a row that is non-zero only in the comparative year from being counted
-    as a current-year adjustment.
+
+def _eps_row_kind(label):
+    """Return 'gaap', 'adjusted' or None for EPS bridge boundary rows."""
+    low = _clean_text(label).lower()
+    if not low:
+        return None
+    eps_signal = any(x in low for x in [
+        "earnings per diluted share", "loss per diluted share", "diluted earnings per share",
+        "diluted loss per share", "diluted eps",
+    ])
+    if not eps_signal:
+        return None
+    if "adjusted" in low or "non-gaap" in low or "non gaap" in low:
+        return "adjusted"
+    # Rows that merely describe the EPS impact of an adjustment are not the GAAP baseline.
+    if any(x in low for x in [
+        "non-comparable", "noncomparable", "impact on", "effect on", "adjustment",
+        "excluding", "exclude", "restructuring", "impairment", "acquisition", "divestiture",
+    ]):
+        return None
+    return "gaap"
+
+
+def _accounting_value_for_target_col(row, headers, col, target_year):
+    """Read one per-share value from a selected target-year column, allowing split currency cells."""
+    if col < len(row):
+        value = _parse_accounting_cell(row[col])
+        if value is not None and abs(value) < 100:
+            return value
+    if (
+        col + 1 < len(row)
+        and col + 1 < len(headers)
+        and str(target_year) in headers[col + 1]
+    ):
+        value = _parse_accounting_cell(row[col + 1])
+        if value is not None and abs(value) < 100:
+            return value
+    return None
+
+
+def _bridge_value_matches(observed, expected):
+    observed = safe_float(observed)
+    expected = safe_float(expected)
+    if observed is None or expected is None:
+        return False
+    return abs(observed - expected) <= max(0.08, abs(expected) * 0.035)
+
+
+def _extract_adjustment_components_from_html(html, target_year=None, bridge_values=None):
+    """
+    V2.20.28 Bridge Component Evidence Gate.
+
+    A row is accepted as an EPS adjustment component only when it lies inside the
+    same target-year GAAP-to-adjusted EPS reconciliation bounded by a GAAP EPS row
+    and an adjusted EPS row. When validated bridge values are available, those
+    boundary values must numerically match the already validated bridge.
+
+    Text mentions elsewhere in the release are deliberately excluded here and are
+    handled separately as context hints. This prevents guidance, margin bridges,
+    acquisition notes or spin-off prose from becoming EPS adjustments by proximity.
     """
     if not html or target_year is None:
         return []
@@ -1368,13 +1430,18 @@ def _extract_adjustment_components_from_html(html, target_year=None):
         return []
 
     target_year = int(target_year)
+    bridge = bridge_values if isinstance(bridge_values, dict) else {}
+    expected_gaap = safe_float(bridge.get("gaap_eps"))
+    expected_adjusted = safe_float(bridge.get("adjusted_eps"))
     best_components = []
     best_score = -1
 
     for table in soup.find_all("table"):
         table_text = _clean_text(table.get_text(" ", strip=True))
         low_table = table_text.lower()
-        if "adjusted" not in low_table or "earnings per diluted share" not in low_table:
+        if "adjusted" not in low_table:
+            continue
+        if not any(x in low_table for x in ["earnings per diluted share", "loss per diluted share", "diluted eps"]):
             continue
         if "non-comparable" not in low_table and "noncomparable" not in low_table:
             continue
@@ -1383,15 +1450,13 @@ def _extract_adjustment_components_from_html(html, target_year=None):
         if len(grid) < 3:
             continue
 
-        # Header rows end when the first obvious EPS/reconciliation data label appears.
+        # Header rows end at the first true GAAP/adjusted EPS boundary row.
         data_start = None
+        row_labels = []
         for i, row in enumerate(grid):
-            label = _clean_text(row[0] if row else "").lower()
-            joined = _clean_text(" ".join(row)).lower()
-            if any(k in label for k in [
-                "earnings per diluted share", "loss per diluted share",
-                "restructuring", "impairment", "merger", "acquisition", "divestiture",
-            ]) or ("per diluted share" in joined and any(_parse_accounting_cell(x) is not None for x in row[1:])):
+            label = _bridge_row_label(row)
+            row_labels.append(label)
+            if _eps_row_kind(label) in {"gaap", "adjusted"}:
                 data_start = i
                 break
         if data_start is None or data_start <= 0:
@@ -1425,9 +1490,7 @@ def _extract_adjustment_components_from_html(html, target_year=None):
             ])
             score = 20 + (80 if full_year_signal else 0) - (50 if quarterly_signal and not full_year_signal else 0)
             year_cols.append((score, col, header))
-
         if not year_cols:
-            # Some simple annual tables only expose the year itself in the header.
             for col, header in enumerate(headers):
                 if col and re.search(rf"\b{target_year}\b", header):
                     year_cols.append((10, col, header))
@@ -1435,54 +1498,57 @@ def _extract_adjustment_components_from_html(html, target_year=None):
             continue
 
         max_col_score = max(s for s, _, _ in year_cols)
-        target_cols = [c for s, c, _ in year_cols if s == max_col_score]
+        candidate_cols = [c for s, c, _ in year_cols if s == max_col_score]
 
+        # Build labels for all rows now that header handling is known.
+        row_labels = [_bridge_row_label(row) for row in grid]
+        gaap_rows = [i for i, label in enumerate(row_labels) if _eps_row_kind(label) == "gaap"]
+        adjusted_rows = [i for i, label in enumerate(row_labels) if _eps_row_kind(label) == "adjusted"]
+        if not gaap_rows or not adjusted_rows:
+            continue
+
+        best_bounds = None
+        best_bounds_score = -10_000
+        for col in candidate_cols:
+            for gi in gaap_rows:
+                gval = _accounting_value_for_target_col(grid[gi], headers, col, target_year)
+                if gval is None:
+                    continue
+                for ai in adjusted_rows:
+                    if ai <= gi:
+                        continue
+                    aval = _accounting_value_for_target_col(grid[ai], headers, col, target_year)
+                    if aval is None:
+                        continue
+                    score = max_col_score
+                    # Strongest protection: both EPS boundaries match the already validated bridge.
+                    if expected_gaap is not None and expected_adjusted is not None:
+                        if not (_bridge_value_matches(gval, expected_gaap) and _bridge_value_matches(aval, expected_adjusted)):
+                            continue
+                        score += 250
+                    else:
+                        # Without external bridge values, require a plausible non-zero bridge.
+                        if abs(aval - gval) < 0.01:
+                            continue
+                        score += 40
+                    # Prefer compact reconciliation blocks over very long mixed-purpose tables.
+                    score -= max(0, ai - gi - 12) * 4
+                    if score > best_bounds_score:
+                        best_bounds_score = score
+                        best_bounds = (gi, ai, col, gval, aval)
+        if best_bounds is None:
+            continue
+
+        gaap_i, adjusted_i, selected_col, observed_gaap, observed_adjusted = best_bounds
         components = []
-        for row in grid[data_start:]:
-            if not row:
-                continue
-            # A row label can span one or more left-most cells before numeric columns.
-            label_parts = []
-            first_numeric_col = None
-            for c, cell in enumerate(row):
-                if c > 0 and _parse_accounting_cell(cell) is not None:
-                    first_numeric_col = c
-                    break
-                if cell and (c == 0 or not re.fullmatch(r"[$€£—–-]+", cell)):
-                    label_parts.append(cell)
-            label = _clean_text(" ".join(dict.fromkeys(label_parts)))
+        for row in grid[gaap_i + 1:adjusted_i]:
+            label = _bridge_row_label(row)
             rule = _match_adjustment_rule(label)
             if not rule:
                 continue
-
-            values = []
-            for col in target_cols:
-                current_val = None
-                if col < len(row):
-                    current_val = _parse_accounting_cell(row[col])
-                    if current_val is not None:
-                        values.append(current_val)
-                # Currency symbols are sometimes split into a separate cell. Only
-                # inspect the right neighbor when the target cell itself is not numeric;
-                # otherwise that neighbor can be the comparative-year column.
-                if (
-                    current_val is None
-                    and col + 1 < len(row)
-                    and col + 1 < len(headers)
-                    and str(target_year) in headers[col + 1]
-                ):
-                    neighbor_val = _parse_accounting_cell(row[col + 1])
-                    if neighbor_val is not None:
-                        values.append(neighbor_val)
-            # Remove impossible "year" values accidentally picked from malformed tables.
-            values = [v for v in values if abs(v) < 100]
-            if not values:
+            value = _accounting_value_for_target_col(row, headers, selected_col, target_year)
+            if value is None or abs(value) <= 1e-9:
                 continue
-            # Prefer the smallest-magnitude non-zero candidate; EPS bridge rows are per-share values.
-            nonzero = [v for v in values if abs(v) > 1e-9]
-            if not nonzero:
-                continue
-            value = sorted(nonzero, key=lambda x: abs(x))[0]
             components.append({
                 "label": rule["label"],
                 "bucket": rule["bucket"],
@@ -1490,24 +1556,31 @@ def _extract_adjustment_components_from_html(html, target_year=None):
                 "note": rule["note"],
                 "reported_eps_effect": value,
                 "evidence_excerpt": label[:420],
-                "evidence_type": "strukturierte EPS-Reconciliation-Tabelle",
+                "evidence_type": "quantitativ bestätigte EPS-Reconciliation-Tabelle",
+                "evidence_level": "Quantitativ bestätigte Bridge-Komponente",
                 "structured": True,
+                "bridge_component_confirmed": True,
+                "bridge_bounds_validated": True,
+                "bridge_gaap_observed": observed_gaap,
+                "bridge_adjusted_observed": observed_adjusted,
             })
 
-        # Deduplicate labels and favor the table with the strongest set of components.
+        # Deduplicate labels, preserving the first row within the validated bridge segment.
         unique = {}
         for comp in components:
             label = comp.get("label")
             if label and label not in unique:
                 unique[label] = comp
         components = list(unique.values())
-        table_score = len(components) * 10 + max_col_score
+
+        # A table may have a valid bridge with zero recognized categories. Keep searching
+        # for another table, but never manufacture text-only components here.
+        table_score = best_bounds_score + len(components) * 10
         if table_score > best_score:
             best_score = table_score
             best_components = components
 
     return best_components
-
 
 def _adjustment_context_is_concrete(text, match_start, match_end):
     """Reject pure non-GAAP definitions; require a concrete amount/action/period/table context."""
@@ -1535,11 +1608,12 @@ def _adjustment_context_is_concrete(text, match_start, match_end):
 
 def _build_adjustment_recurrence_review(text, bridge_values=None, structured_components=None):
     """
-    Conservative diagnostic review of the adjustment types behind an adjusted-EPS bridge.
+    V2.20.28 conservative evidence review.
 
-    V2.20.18 never releases valuation and never adds an adjustment to EPS. It only tells the
-    user which categories look transaction/event-related and which still have meaningful
-    recurrence risk.
+    Only quantitatively confirmed rows from the validated GAAP-to-adjusted EPS
+    reconciliation are allowed into ``components``. Concrete text mentions are
+    retained separately as ``context_hints`` and can never drive EPS normalization,
+    recurrence classification or Fair-Value release.
     """
     t = _clean_text(text)
     bridge = bridge_values if isinstance(bridge_values, dict) else {}
@@ -1548,20 +1622,20 @@ def _build_adjustment_recurrence_review(text, bridge_values=None, structured_com
         return None
 
     components = []
-    seen_labels = set()
-
-    # V2.20.27: structured reconciliation-table rows win because they are tied
-    # to the target fiscal-year column. Text scanning remains a conservative
-    # fallback for issuers whose HTML table structure cannot be parsed.
+    confirmed_labels = set()
     for comp in (structured_components or []):
         label = _clean_text(comp.get("label"))
-        if not label or label in seen_labels:
+        if not label or label in confirmed_labels or not comp.get("bridge_component_confirmed"):
             continue
-        seen_labels.add(label)
-        components.append(dict(comp))
+        confirmed_labels.add(label)
+        clean_comp = dict(comp)
+        clean_comp["evidence_level"] = "Quantitativ bestätigte Bridge-Komponente"
+        components.append(clean_comp)
 
+    context_hints = []
+    context_seen = set()
     for rule in ADJUSTMENT_REVIEW_RULES:
-        if rule["label"] in seen_labels:
+        if rule["label"] in confirmed_labels:
             continue
         matched_context = None
         for pattern in rule["patterns"]:
@@ -1571,17 +1645,19 @@ def _build_adjustment_recurrence_review(text, bridge_values=None, structured_com
                     break
             if matched_context:
                 break
-        if not matched_context or rule["label"] in seen_labels:
+        if not matched_context or rule["label"] in context_seen:
             continue
-        seen_labels.add(rule["label"])
-        components.append({
+        context_seen.add(rule["label"])
+        context_hints.append({
             "label": rule["label"],
             "bucket": rule["bucket"],
             "severity": rule["severity"],
             "note": rule["note"],
             "evidence_excerpt": _clean_text(matched_context)[:420],
-            "evidence_type": "Text-/Tabellenkontext",
+            "evidence_type": "Kontext-Hinweis",
+            "evidence_level": "Kontext-Hinweis – nicht Bestandteil der EPS-Brücke bestätigt",
             "structured": False,
+            "bridge_component_confirmed": False,
         })
 
     gaap = safe_float(bridge.get("gaap_eps"))
@@ -1595,13 +1671,11 @@ def _build_adjustment_recurrence_review(text, bridge_values=None, structured_com
     structured_values = [
         safe_float(c.get("reported_eps_effect"))
         for c in components
-        if c.get("structured") and safe_float(c.get("reported_eps_effect")) is not None
+        if c.get("bridge_component_confirmed") and safe_float(c.get("reported_eps_effect")) is not None
     ]
     structured_component_sum = sum(structured_values) if structured_values else None
     structured_sum_reconciles = False
     if gap is not None and structured_component_sum is not None:
-        # Issuers often show expense/loss rows with negative signs while the
-        # GAAP->Adjusted bridge gap is positive. Compare absolute economic effect.
         structured_sum_reconciles = abs(abs(structured_component_sum) - abs(gap)) <= max(0.05, abs(gap) * 0.08)
 
     risk_components = [c for c in components if c["severity"] >= 3]
@@ -1609,25 +1683,32 @@ def _build_adjustment_recurrence_review(text, bridge_values=None, structured_com
     event_components = [c for c in components if c["severity"] <= 2]
 
     if not components:
-        status = "Einzelbereinigungen noch nicht ausreichend aufgeschlüsselt"
+        status = "EPS-Brückenkomponenten noch nicht quantitativ bestätigt"
         level = "Rot"
-        summary = (
-            "Die Gesamt-EPS-Brücke ist vorhanden, aber die einzelnen Bereinigungsposten konnten aus der "
-            "geladenen Quelle nicht zuverlässig als konkrete Ereignisse extrahiert werden."
-        )
+        if context_hints:
+            summary = (
+                "Die Gesamt-EPS-Brücke ist vorhanden und es gibt konkrete Ereignis-/Bereinigungshinweise im Bericht. "
+                "Diese Hinweise sind jedoch nicht quantitativ als Bestandteil derselben GAAP→Adjusted-EPS-Reconciliation "
+                "bestätigt und dürfen deshalb die Gewinnnormalisierung nicht beeinflussen."
+            )
+        else:
+            summary = (
+                "Die Gesamt-EPS-Brücke ist vorhanden, aber einzelne Bereinigungsposten konnten nicht quantitativ "
+                "innerhalb derselben EPS-Reconciliation bestätigt werden."
+            )
     elif risk_components or unclear_components:
-        status = "Bereinigungen teilweise erklärt – Wiederkehrungsrisiko offen"
+        status = "Quantitativ bestätigte Brückenkomponenten – Wiederkehrungsrisiko offen"
         level = "Gelb"
         summary = (
-            "Konkrete Bereinigungskategorien wurden erkannt. Mindestens ein Posten kann jedoch wiederkehren "
-            "oder ist nicht eindeutig als einmalig belegbar. Deshalb bleibt die Gewinnnormalisierung gesperrt."
+            "Mindestens eine Einzelkomponente ist quantitativ derselben GAAP→Adjusted-EPS-Brücke zugeordnet. "
+            "Mindestens ein bestätigter Posten kann jedoch wiederkehren oder ist nicht eindeutig als einmalig belegbar."
         )
     else:
-        status = "Bereinigungen ereignisbezogen – Mehrjahresbestätigung noch offen"
+        status = "Quantitativ bestätigte Brückenkomponenten – Mehrjahresbestätigung offen"
         level = "Gelb"
         summary = (
-            "Die erkannten Posten wirken überwiegend an konkrete Ereignisse gebunden. Eine automatische "
-            "Vollbereinigung erfolgt trotzdem erst nach einer Mehrjahres-/Wiederholungsprüfung."
+            "Die bestätigten EPS-Brückenkomponenten wirken überwiegend ereignisbezogen. Eine automatische "
+            "Normalisierung erfolgt trotzdem erst nach Mehrjahres- und Wiederholungsprüfung."
         )
 
     return {
@@ -1637,6 +1718,9 @@ def _build_adjustment_recurrence_review(text, bridge_values=None, structured_com
         "summary": summary,
         "components": components,
         "component_count": len(components),
+        "confirmed_component_count": len(components),
+        "context_hints": context_hints,
+        "context_hint_count": len(context_hints),
         "event_related_count": len(event_components),
         "recurrence_risk_count": len(risk_components),
         "unclear_count": len(unclear_components),
@@ -1648,9 +1732,8 @@ def _build_adjustment_recurrence_review(text, bridge_values=None, structured_com
         "structured_component_count": len(structured_values),
         "normalization_release": False,
         "next_step": (
-            "Für die risikobehafteten bzw. unklaren Kategorien wird als nächstes geprüft, ob vergleichbare "
-            "Bereinigungen bereits in früheren Jahren aufgetreten sind. Erst danach kann entschieden werden, "
-            "welcher Teil der Brücke für eine normalisierte Gewinnbasis zulässig ist."
+            "Nur quantitativ bestätigte EPS-Brückenkomponenten werden historisch auf Wiederholung geprüft. "
+            "Kontext-Hinweise bleiben separat und dürfen keinen normalisierten EPS-Wert verändern."
         ),
     }
 
@@ -1895,7 +1978,7 @@ def _historical_row_from_candidate(item, company_domain, company_name, year, dea
         "adjustment_recurrence_review": _build_adjustment_recurrence_review(
             combined,
             bridge,
-            structured_components=_extract_adjustment_components_from_html(page_html, int(year)),
+            structured_components=_extract_adjustment_components_from_html(page_html, int(year), bridge_values=bridge),
         ),
         "historical_recovery_method": item.get("historical_recovery_method") or item.get("search_source") or "Unternehmensquelle",
     }
@@ -2114,7 +2197,7 @@ def _router_financial_release_filter_url(url):
 
 
 def _router_archive_visible_years(rows):
-    """V2.20.27: show only publication/result years, not guidance years embedded in headlines."""
+    """V2.20.28: show only publication/result years, not guidance years embedded in headlines."""
     years = set()
     for row in rows or []:
         title = _clean_text(row.get("title"))
@@ -2995,6 +3078,7 @@ def _build_historical_recurrence_summary(
             "source_url": None,
             "source_method": "Aktuelle Primärquelle",
             "components": (current_adjustment_review or {}).get("components") or [],
+            "context_hints": (current_adjustment_review or {}).get("context_hints") or [],
             "is_current": True,
         })
 
@@ -3018,6 +3102,7 @@ def _build_historical_recurrence_summary(
             "source_url": item.get("url"),
             "source_method": item.get("historical_recovery_method"),
             "components": review.get("components") or [],
+            "context_hints": review.get("context_hints") or [],
             "is_current": False,
         })
 
@@ -3038,6 +3123,20 @@ def _build_historical_recurrence_summary(
         for label, years in category_years.items()
     ]
     category_history.sort(key=lambda x: (-x["year_count"], x["label"]))
+
+    context_category_years = {}
+    for row in rows:
+        year = row.get("year")
+        for hint in row.get("context_hints") or []:
+            label = _clean_text(hint.get("label"))
+            if not label or year is None:
+                continue
+            context_category_years.setdefault(label, set()).add(int(year))
+    context_category_history = [
+        {"label": label, "years": sorted(years, reverse=True), "year_count": len(years)}
+        for label, years in context_category_years.items()
+    ]
+    context_category_history.sort(key=lambda x: (-x["year_count"], x["label"]))
 
     expected_prior = []
     if current_year is not None:
@@ -3092,6 +3191,7 @@ def _build_historical_recurrence_summary(
         "attempted_prior_years": attempted_years,
         "missing_prior_years": missing_prior_years,
         "category_history": category_history,
+        "context_category_history": context_category_history,
         "recurrence_class": recurrence_class,
         "normalization_release": False,
         "valuation_release": False,
@@ -3106,16 +3206,17 @@ def _build_historical_recurrence_summary(
 
 
 # =========================================================
-# V2.20.27 – Adjustment Component Analysis
+# V2.20.28 – Bridge Component Evidence Gate
 # =========================================================
 
 def _build_adjustment_component_analysis(historical_review):
     """
-    Classify individual reconciliation categories across validated full years.
+    V2.20.28 multi-year Bridge Component Evidence Gate.
 
-    The component analysis is intentionally diagnostic. It distinguishes
-    recurring/structural adjustments from plausible one-off candidates, but it
-    never creates an adjusted valuation EPS and never releases Fair Value.
+    Only components that were quantitatively confirmed inside a validated
+    GAAP-to-adjusted EPS reconciliation participate in recurrence classification.
+    Text-only/context mentions are shown separately and are never treated as EPS
+    bridge components.
     """
     review = historical_review if isinstance(historical_review, dict) else {}
     rows = review.get("rows") or []
@@ -3131,11 +3232,14 @@ def _build_adjustment_component_analysis(historical_review):
         current_year = max([r.get("year") for r in rows if r.get("year") is not None] or [None])
 
     by_label = {}
+    context_by_label = {}
     for row in rows:
         year = row.get("year")
         if year is None:
             continue
         for comp in row.get("components") or []:
+            if not comp.get("bridge_component_confirmed"):
+                continue
             label = _clean_text(comp.get("label"))
             if not label:
                 continue
@@ -3159,8 +3263,17 @@ def _build_adjustment_component_analysis(historical_review):
             effect = safe_float(comp.get("reported_eps_effect"))
             if effect is not None:
                 rec["effects_by_year"][int(year)] = effect
-            if comp.get("structured"):
-                rec["structured_years"].add(int(year))
+            rec["structured_years"].add(int(year))
+
+        for hint in row.get("context_hints") or []:
+            label = _clean_text(hint.get("label"))
+            if not label:
+                continue
+            rec = context_by_label.setdefault(label, {"label": label, "years": set(), "notes": []})
+            rec["years"].add(int(year))
+            note = _clean_text(hint.get("note"))
+            if note and note not in rec["notes"]:
+                rec["notes"].append(note)
 
     components = []
     for label, rec in by_label.items():
@@ -3170,53 +3283,41 @@ def _build_adjustment_component_analysis(historical_review):
         label_low = label.lower()
         buckets = sorted(rec["buckets"])
 
-        unresolved = (
-            "sonstige" in label_low
-            or any("unklar" in b.lower() for b in buckets)
-        )
-        structured_year_count = len(rec["structured_years"])
+        unresolved = "sonstige" in label_low or any("unklar" in b.lower() for b in buckets)
+        confirmed_year_count = len(rec["structured_years"])
         explicit_structural_bucket = any("strukturell / wiederkehrend" in b.lower() for b in buckets)
-        structurally_recurring = structured_year_count >= 2 or explicit_structural_bucket
-        recurrence_hint = year_count >= 2 and not structurally_recurring
+        structurally_recurring = confirmed_year_count >= 2 or explicit_structural_bucket
 
         if unresolved:
-            classification = "Unaufgeschlüsselt / nicht automatisch normalisierbar"
+            classification = "Quantitativ bestätigt, aber unaufgeschlüsselt"
             treatment = "GESPERRT"
-            rationale = (
-                "Ein Sammel-/unklarer Posten ist nicht belastbar genug, um ihn als einmalig zu behandeln."
-            )
+            rationale = "Der Posten gehört zur EPS-Brücke, ist aber als Sammel-/unklarer Posten nicht belastbar normalisierbar."
             class_rank = 5
         elif structurally_recurring:
-            classification = "Wiederkehrend / strukturell"
+            classification = "Quantitativ bestätigt wiederkehrend / strukturell"
             treatment = "NICHT VOLL NORMALISIERBAR"
             rationale = (
-                f"Die Kategorie wurde periodenspezifisch in {max(structured_year_count, year_count if explicit_structural_bucket else 0)} "
-                "Volljahr(en) bzw. als strukturell wiederkehrend erkannt. Wiederholte Bereinigungen dürfen nicht "
-                "vollständig als einmalig herausgerechnet werden."
+                f"Die Kategorie ist in {confirmed_year_count} Volljahr(en) quantitativ innerhalb der EPS-Reconciliation bestätigt "
+                "bzw. strukturell wiederkehrend. Sie darf nicht vollständig als einmalig herausgerechnet werden."
             )
             class_rank = 4
-        elif recurrence_hint:
-            classification = "Mehrjahres-Hinweis – Periodenzuordnung teilweise unstrukturiert"
+        elif year_count >= 2:
+            classification = "Quantitativ bestätigter Mehrjahres-Hinweis"
             treatment = "NICHT AUTOMATISCH NORMALISIERBAR"
-            rationale = (
-                f"Die Kategorie taucht in {year_count} Jahresquellen auf, ist aber nicht in mindestens zwei Jahren "
-                "periodenspezifisch aus einer strukturierten Reconciliation-Tabelle bestätigt. Sie bleibt deshalb gesperrt."
-            )
+            rationale = f"Die Kategorie ist in {year_count} Volljahren quantitativ als Teil der EPS-Brücke bestätigt."
             class_rank = 3
         elif severity <= 2:
-            classification = "Außergewöhnlicher Einzelereignis-Kandidat"
-            treatment = "POTENZIELL NORMALISIERBAR – Betrag validieren"
+            classification = "Quantitativ bestätigter Einzelereignis-Kandidat"
+            treatment = "POTENZIELL NORMALISIERBAR – Betrag/Einmaligkeit validieren"
             rationale = (
-                "Die Kategorie wurde bislang nur in einem Volljahr erkannt und wirkt ereignisbezogen. "
-                "Sie bleibt trotzdem ohne automatische EPS-Übernahme."
+                "Die Kategorie ist genau einem Volljahr quantitativ innerhalb der EPS-Brücke zugeordnet und wirkt ereignisbezogen. "
+                "Eine automatische EPS-Übernahme bleibt trotzdem gesperrt."
             )
             class_rank = 1
         else:
-            classification = "Einmal beobachtet – Wiederkehrungsrisiko offen"
+            classification = "Quantitativ einmal bestätigt – Wiederkehrungsrisiko offen"
             treatment = "NICHT AUTOMATISCH NORMALISIERBAR"
-            rationale = (
-                "Die Kategorie wurde nur einmal erkannt, trägt aber ein erhöhtes Wiederkehrungs-/Strukturrisiko."
-            )
+            rationale = "Die Kategorie ist Bestandteil der EPS-Brücke, trägt aber ein erhöhtes Wiederkehrungs-/Strukturrisiko."
             class_rank = 2
 
         components.append({
@@ -3231,52 +3332,64 @@ def _build_adjustment_component_analysis(historical_review):
             "effects_by_year": dict(sorted(rec["effects_by_year"].items(), reverse=True)),
             "current_year_effect": rec["effects_by_year"].get(int(current_year)) if current_year is not None else None,
             "structured_years": sorted(rec["structured_years"], reverse=True),
-            "structured_year_count": structured_year_count,
-            "evidence_strength": (
-                "periodenspezifisch strukturiert" if structured_year_count >= 1
-                else "Text-/Tabellenkontext"
-            ),
+            "structured_year_count": confirmed_year_count,
+            "evidence_strength": "✅ quantitativ bestätigte Bridge-Komponente",
             "class_rank": class_rank,
         })
 
+    context_hints = []
+    for label, rec in context_by_label.items():
+        years = sorted(rec["years"], reverse=True)
+        context_hints.append({
+            "label": label,
+            "years": years,
+            "year_count": len(years),
+            "evidence_strength": "🟡 Kontext-Hinweis – nicht Bestandteil der EPS-Brücke bestätigt",
+            "treatment": "KEIN EPS-EINFLUSS",
+            "rationale": (
+                "Der Bericht erwähnt diese Kategorie konkret, aber sie ist nicht quantitativ innerhalb derselben "
+                "GAAP→Adjusted-EPS-Reconciliation bestätigt."
+            ),
+        })
+    context_hints.sort(key=lambda c: (-c["year_count"], c["label"]))
+
     components.sort(key=lambda c: (-c["class_rank"], -c["year_count"], c["label"]))
-    recurring = [c for c in components if c["classification"] == "Wiederkehrend / strukturell"]
-    recurrence_hints = [c for c in components if c["classification"].startswith("Mehrjahres-Hinweis")]
+    recurring = [c for c in components if "wiederkehrend / strukturell" in c["classification"].lower()]
+    recurrence_hints = [c for c in components if "mehrjahres-hinweis" in c["classification"].lower()]
     unresolved = [c for c in components if c["treatment"] == "GESPERRT"]
-    oneoff_candidates = [c for c in components if c["classification"] == "Außergewöhnlicher Einzelereignis-Kandidat"]
+    oneoff_candidates = [c for c in components if "einzelereignis-kandidat" in c["classification"].lower()]
 
     current_row = next((r for r in rows if r.get("is_current")), rows[0] if rows else {})
     current_gap = safe_float(current_row.get("gap"))
-    current_structured_effects = [
+    current_confirmed_effects = [
         safe_float(c.get("current_year_effect"))
         for c in components
         if safe_float(c.get("current_year_effect")) is not None
     ]
     current_structured_coverage = None
-    if current_gap is not None and current_gap != 0 and current_structured_effects:
-        current_structured_coverage = min(2.0, abs(sum(current_structured_effects)) / abs(current_gap))
+    if current_gap is not None and current_gap != 0 and current_confirmed_effects:
+        current_structured_coverage = min(2.0, abs(sum(current_confirmed_effects)) / abs(current_gap))
 
     if recurring or unresolved:
         level = "Rot"
-        status = "Adjusted-EPS-Brücke enthält wiederkehrende bzw. unklare Komponenten"
+        status = "Bestätigte EPS-Brücke enthält wiederkehrende bzw. unklare Komponenten"
         summary = (
-            "Die Mehrjahresanalyse zeigt, dass mindestens ein Teil der Bereinigungen strukturell/wiederkehrend "
-            "oder nicht ausreichend aufgeschlüsselt ist. Das vollständig bereinigte EPS ist deshalb keine "
-            "automatisch zulässige Bewertungsbasis."
+            "Nur quantitativ bestätigte EPS-Brückenkomponenten wurden klassifiziert. Mindestens ein bestätigter Teil ist "
+            "strukturell/wiederkehrend oder unaufgeschlüsselt; das vollständig bereinigte EPS ist daher keine zulässige automatische Bewertungsbasis."
         )
     elif components:
         level = "Gelb"
-        status = "Komponenten überwiegend ereignisbezogen – quantitative Freigabe noch offen"
+        status = "Bestätigte Komponenten überwiegend ereignisbezogen – Freigabe noch offen"
         summary = (
-            "Die erkannten Komponenten wirken überwiegend einzelereignisbezogen. Vor einer Bewertungsfreigabe "
-            "müssen die Beträge und ihre Periodenzuordnung jedoch vollständig validiert werden."
+            "Die klassifizierten Positionen sind quantitativ Teil der EPS-Brücke. Vor einer Bewertungsfreigabe müssen "
+            "Einmaligkeit und zulässige Normalisierungsbeträge dennoch abschließend validiert werden."
         )
     else:
         level = "Rot"
-        status = "Einzelkomponenten nicht belastbar extrahiert"
+        status = "Keine Einzelkomponente quantitativ als EPS-Brückenbestandteil bestätigt"
         summary = (
-            "Die Gesamtbrücken sind validiert, aber die einzelnen Bereinigungskomponenten konnten nicht "
-            "ausreichend sicher aufgeschlüsselt werden."
+            "Die Gesamtbrücken sind validiert, aber keine Einzelkomponente erfüllt bislang den Evidence Gate. "
+            "Kontext-Hinweise dürfen die Gewinnnormalisierung nicht beeinflussen."
         )
 
     return {
@@ -3287,6 +3400,9 @@ def _build_adjustment_component_analysis(historical_review):
         "current_gap": current_gap,
         "components": components,
         "component_count": len(components),
+        "confirmed_component_count": len(components),
+        "context_hints": context_hints,
+        "context_hint_count": len(context_hints),
         "recurring_component_count": len(recurring),
         "recurrence_hint_count": len(recurrence_hints),
         "unresolved_component_count": len(unresolved),
@@ -3296,9 +3412,8 @@ def _build_adjustment_component_analysis(historical_review):
         "valuation_release": False,
         "adjusted_eps_direct_use_allowed": False,
         "next_step": (
-            "Nur klar abgegrenzte Einzelereignis-Komponenten dürfen später in einen konservativen "
-            "Normalisierungs-Korridor einfließen. Wiederkehrende, strukturelle und unklare Posten bleiben "
-            "aus der automatischen Vollbereinigung ausgeschlossen."
+            "Nur quantitativ bestätigte Einzelereignis-Komponenten dürfen später in einen konservativen Normalisierungs-Korridor einfließen. "
+            "Kontext-Hinweise, wiederkehrende und unklare Posten bleiben ohne EPS-Einfluss bzw. gesperrt."
         ),
     }
 
@@ -3807,10 +3922,10 @@ def research_special_event_online(
     symbol,
     company_name,
     website=None,
-    cache_version="v22027",
+    cache_version="v22028",
 ):
     """
-    V2.20.27: IR-Year-Navigator plus Adjustment Component Analysis research. The issuer website/IR archive is routed before SEC, web search and Yahoo.
+    V2.20.28: IR-Year-Navigator plus Bridge Component Evidence Gate research. The issuer website/IR archive is routed before SEC, web search and Yahoo.
 
     Source priority remains company/IR -> SEC -> web -> Yahoo. Unrelated search
     results are rejected before they can become evidence. A quantitative EPS
@@ -3912,7 +4027,7 @@ def research_special_event_online(
         page_html = item.get("preloaded_html") or ""
         page_text = item.get("preloaded_text") or ""
 
-        # Load at most four additional documents. V2.20.27 keeps the HTML for
+        # Load at most four additional documents. V2.20.28 keeps the HTML for
         # structured GAAP-to-adjusted reconciliation-table parsing, so there is
         # no second network request for the component analysis.
         if (
@@ -3950,7 +4065,7 @@ def research_special_event_online(
         quantitative_bridge = bridge_values is not None
         bridge_year = _fy_year_from_period((bridge_values or {}).get("period")) if quantitative_bridge else None
         structured_components = (
-            _extract_adjustment_components_from_html(page_html, bridge_year)
+            _extract_adjustment_components_from_html(page_html, bridge_year, bridge_values=bridge_values)
             if quantitative_bridge and bridge_year is not None and page_html
             else []
         )
@@ -4106,7 +4221,7 @@ def research_special_event_online(
         else None
     )
 
-    # V2.20.27: once the annual bridge history is validated, classify the
+    # V2.20.28: once the annual bridge history is validated, evidence-gate the
     # individual reconciliation components across years. This is still a hard
     # diagnostic gate: no replacement EPS and no Fair-Value release.
     adjustment_component_analysis = _build_adjustment_component_analysis(
@@ -16596,7 +16711,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_adjustment_component_analysis_v22027_20260908"
+CACHE_VERSION = "m6_bridge_component_evidence_gate_v22028_20260908"
 
 @st.cache_data(
     ttl=900,
@@ -17856,7 +17971,7 @@ if selected_symbol:
                     ir_router_ui = research.get("ir_router") or {}
                     if ir_router_ui.get("available"):
                         st.info(
-                            "🏢 **IR Year Navigator V2.20.27 aktiv:** Unternehmens-/IR-Seiten werden zuerst geprüft. "
+                            "🏢 **IR Year Navigator V2.20.28 aktiv:** Unternehmens-/IR-Seiten werden zuerst geprüft. "
                             "Der kanonische Release-Archivindex wird als Parent validiert; für die historische Suche wird anschließend bevorzugt "
                             "das unternehmenseigene Financial-Releases-Archiv gezielt weitergeblättert. Sobald alle Zieljahre gefunden sind, "
                             "stoppt die Navigation. Detailseiten und Annual-Report-/Filings-Bereiche bleiben getrennt."
@@ -17985,7 +18100,7 @@ if selected_symbol:
 
                     adjustment_review = research.get("adjustment_recurrence_review") or {}
                     if adjustment_review:
-                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.27**")
+                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.28**")
                         review_level = adjustment_review.get("status_level")
                         review_status = text_or_dash(adjustment_review.get("status"))
                         if review_level == "Rot":
@@ -18006,22 +18121,35 @@ if selected_symbol:
 
                         components = adjustment_review.get("components") or []
                         if components:
-                            st.write("**Erkannte Bereinigungskategorien:**")
+                            st.write("**✅ Quantitativ bestätigte EPS-Brückenkomponenten:**")
                             for comp in components[:10]:
-                                st.write(
+                                effect = safe_float(comp.get("reported_eps_effect"))
+                                line = (
                                     f"• **{text_or_dash(comp.get('label'))}** – "
                                     f"{text_or_dash(comp.get('bucket'))}"
                                 )
-                                st.caption(text_or_dash(comp.get("note")))
+                                if effect is not None:
+                                    line += f" · EPS-Effekt {effect:+.2f}"
+                                st.write(line)
+                                st.caption(
+                                    text_or_dash(comp.get("evidence_level")) + " · " + text_or_dash(comp.get("note"))
+                                )
                         else:
                             st.info(
-                                "Die Quelle enthält die Gesamt-EPS-Brücke, aber keine ausreichend "
-                                "sicher extrahierbare Einzelaufschlüsselung."
+                                "Die Quelle enthält die Gesamt-EPS-Brücke, aber keine Einzelkomponente hat den "
+                                "quantitativen Bridge Component Evidence Gate bestanden."
                             )
+
+                        context_hints = adjustment_review.get("context_hints") or []
+                        if context_hints:
+                            st.write("**🟡 Kontext-Hinweise – nicht als EPS-Brückenbestandteil bestätigt:**")
+                            for hint in context_hints[:10]:
+                                st.write(f"• **{text_or_dash(hint.get('label'))}** – kein EPS-Einfluss")
+                                st.caption(text_or_dash(hint.get("evidence_level")))
 
                         st.error(
                             "**Automatische EPS-Normalisierungsfreigabe: NEIN.** Kein erkannter "
-                            "Bereinigungsposten wird in V2.20.27 automatisch zum Bewertungs-EPS addiert."
+                            "Bereinigungsposten wird in V2.20.28 automatisch zum Bewertungs-EPS addiert; Kontext-Hinweise haben grundsätzlich keinen EPS-Einfluss."
                         )
                         st.caption(
                             "Nächster Prüfschritt: "
@@ -18031,7 +18159,7 @@ if selected_symbol:
 
                     historical_review = research.get("historical_recurrence_review") or {}
                     if historical_review:
-                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.27**")
+                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.28**")
                         hist_level = historical_review.get("status_level")
                         hist_status = text_or_dash(historical_review.get("status"))
                         if hist_level == "Rot":
@@ -18083,12 +18211,22 @@ if selected_symbol:
                             row for row in category_history if int(row.get("year_count") or 0) >= 2
                         ]
                         if recurring_categories:
-                            st.write("**Wiederholt erkannte Bereinigungskategorien:**")
+                            st.write("**Wiederholt quantitativ bestätigte EPS-Brückenkomponenten:**")
                             for row in recurring_categories[:8]:
                                 years = ", ".join(str(y) for y in row.get("years") or [])
                                 st.write(
                                     f"• **{text_or_dash(row.get('label'))}** – "
                                     f"in {int(row.get('year_count') or 0)} Volljahren ({years})"
+                                )
+
+                        context_history = historical_review.get("context_category_history") or []
+                        if context_history:
+                            st.write("**🟡 Wiederholte Kontext-Hinweise ohne bestätigte EPS-Brückenzuordnung:**")
+                            for row in context_history[:8]:
+                                years = ", ".join(str(y) for y in row.get("years") or [])
+                                st.write(
+                                    f"• **{text_or_dash(row.get('label'))}** – "
+                                    f"erwähnt in {int(row.get('year_count') or 0)} Volljahren ({years}) · kein EPS-Einfluss"
                                 )
 
                         prior_count = int(historical_review.get("prior_material_year_count") or 0)
@@ -18110,7 +18248,7 @@ if selected_symbol:
 
                     component_analysis = research.get("adjustment_component_analysis") or {}
                     if component_analysis:
-                        st.write("**🧩 Adjustment Component Analysis V2.20.27**")
+                        st.write("**🧩 Bridge Component Evidence Gate V2.20.28**")
                         comp_level = component_analysis.get("status_level")
                         comp_status = text_or_dash(component_analysis.get("status"))
                         if comp_level == "Rot":
@@ -18121,7 +18259,7 @@ if selected_symbol:
 
                         comp_rows = component_analysis.get("components") or []
                         if comp_rows:
-                            st.write("**Komponenten-Matrix über die validierten Volljahre:**")
+                            st.write("**✅ Quantitativ bestätigte Komponenten-Matrix über die validierten Volljahre:**")
                             for comp in comp_rows[:12]:
                                 years = ", ".join(str(y) for y in comp.get("years") or []) or "–"
                                 line = (
@@ -18139,9 +18277,23 @@ if selected_symbol:
                                 )
                         else:
                             st.info(
-                                "Die Volljahresbrücken sind vorhanden, aber es konnten noch keine "
-                                "Einzelkomponenten belastbar über mehrere Jahre zugeordnet werden."
+                                "Die Volljahresbrücken sind vorhanden, aber keine Einzelkomponente wurde bislang "
+                                "quantitativ als Bestandteil derselben EPS-Brücke bestätigt."
                             )
+
+                        context_rows = component_analysis.get("context_hints") or []
+                        if context_rows:
+                            st.write("**🟡 Kontext-Hinweise – separat, ohne EPS-Einfluss:**")
+                            for hint in context_rows[:12]:
+                                years = ", ".join(str(y) for y in hint.get("years") or []) or "–"
+                                st.write(
+                                    f"• **{text_or_dash(hint.get('label'))}** · Jahre: {years} · "
+                                    "nicht als EPS-Brückenbestandteil bestätigt"
+                                )
+                                st.caption(
+                                    "Behandlung: " + text_or_dash(hint.get("treatment"))
+                                    + " · Evidenz: " + text_or_dash(hint.get("evidence_strength"))
+                                )
 
                         coverage = safe_float(component_analysis.get("current_structured_coverage"))
                         if coverage is not None:
@@ -18235,13 +18387,13 @@ if selected_symbol:
 
                     if research.get("quantitative_eps_bridge_found"):
                         st.info(
-                            "Eine quantitative EPS-Brücke wurde nach V2.20.27-Regeln periodenvalidiert, historisch auf Wiederholung geprüft und anschließend in einzelne Bereinigungskomponenten zerlegt. Der IR-Year-Navigator validiert zuerst den kanonischen offiziellen Release-Archivindex und navigiert danach bevorzugt durch das unternehmenseigene Financial-Releases-Archiv, bis die benötigten Volljahre gefunden sind oder das Zeitbudget endet. Strukturierte Reconciliation-Tabellen werden periodenspezifisch ausgewertet; Detailseiten bleiben als Archive gesperrt und Annual-Report-/Filings-Bereiche getrennt. "
+                            "Eine quantitative EPS-Brücke wurde nach V2.20.28-Regeln periodenvalidiert, historisch auf Wiederholung geprüft und anschließend durch den Bridge Component Evidence Gate gefiltert. Der IR-Year-Navigator validiert zuerst den kanonischen offiziellen Release-Archivindex und navigiert danach bevorzugt durch das unternehmenseigene Financial-Releases-Archiv, bis die benötigten Volljahre gefunden sind oder das Zeitbudget endet. Nur Komponenten innerhalb einer periodenvalidierten GAAP→Adjusted-EPS-Reconciliation werden quantitativ akzeptiert; reine Kontextfunde bleiben ohne EPS-Einfluss; Detailseiten bleiben als Archive gesperrt und Annual-Report-/Filings-Bereiche getrennt. "
                             "Sie wird weiterhin **nicht automatisch als bereinigtes EPS übernommen**."
                         )
 
                     st.error(
                         "**Freigabestatus: GESPERRT.** Die Komponenten-/Wiederkehrbarkeits-Prüfung darf in "
-                        "V2.20.27 den Fair Value noch nicht selbst entsperren."
+                        "V2.20.28 den Fair Value noch nicht selbst entsperren."
                     )
                     st.write("**Nächster Schritt:** " + text_or_dash(research.get("next_step")))
 
