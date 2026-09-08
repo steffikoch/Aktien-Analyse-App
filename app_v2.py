@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.16: Validierte EPS-Brücken + Quellen-/Unternehmensfilter auf Basis V2.20.15.
+# V2.20.17: Periodenvalidierung + Jahrespriorität für Sonderereignis-EPS-Brücken auf Basis V2.20.16.
 
 # =========================================================
 # Hilfsfunktionen
@@ -835,11 +835,33 @@ def _eps_number(raw):
     return value
 
 
-def _period_markers(text):
+def _marker_is_comparative(text, start):
+    """Reject period mentions that only describe the comparison period."""
+    t = _clean_text(text)
+    before = t[max(0, start - 180):start].lower()
+    comparative_phrases = [
+        "compared with", "compared to", "versus", " vs ", "year-ago",
+        "year ago", "prior-year", "prior year", "same quarter of",
+        "same period of", "same period in", "from the second quarter of",
+        "from the first quarter of", "from the third quarter of",
+        "from the fourth quarter of",
+    ]
+    return any(phrase in before for phrase in comparative_phrases)
+
+
+def _period_markers(text, include_comparatives=False):
+    """
+    Return explicit reporting-period markers.
+
+    V2.20.17 adds annual-title forms such as "Reports 2025 Results" and
+    suppresses comparison-period phrases by default.
+    """
     t = _clean_text(text)
     patterns = [
         (r"\b(?:full[-\s]?year|fiscal\s+year|fy)\s*(20\d{2})\b", lambda m: f"FY {m.group(1)}"),
-        (r"\b(20\d{2})\s+(?:full[-\s]?year|fiscal\s+year)\b", lambda m: f"FY {m.group(1)}"),
+        (r"\b(20\d{2})\s+(?:full[-\s]?year|fiscal\s+year|annual)\b", lambda m: f"FY {m.group(1)}"),
+        (r"\breports?\s+(20\d{2})\s+(?:full[-\s]?year\s+)?results\b", lambda m: f"FY {m.group(1)}"),
+        (r"\b(?:annual|full[-\s]?year)\s+results(?:\s+for)?\s*(20\d{2})\b", lambda m: f"FY {m.group(1)}"),
         (r"\b(first|second|third|fourth)\s+quarter(?:\s+(?:of|ended))?\s*(20\d{2})\b",
          lambda m: f"Q{('first','second','third','fourth').index(m.group(1).lower()) + 1} {m.group(2)}"),
         (r"\bq([1-4])\s*[-/]?\s*(20\d{2})\b", lambda m: f"Q{m.group(1)} {m.group(2)}"),
@@ -852,14 +874,48 @@ def _period_markers(text):
                 label = formatter(m)
             except Exception:
                 continue
-            out.append((m.start(), m.end(), label))
+            comparative = _marker_is_comparative(t, m.start())
+            if comparative and not include_comparatives:
+                continue
+            out.append((m.start(), m.end(), label, comparative))
     out.sort(key=lambda row: row[0])
     return out
 
 
+def _document_period_from_title(title):
+    """
+    Extract an authoritative report period only when the title is unambiguous.
+
+    A title such as "Second Quarter 2026 Results" is authoritative and must not
+    be overwritten by a later phrase like "compared with second quarter 2025".
+    Titles containing both quarter and full-year periods intentionally remain
+    unresolved so the local EPS table/paragraph can decide.
+    """
+    title = _clean_text(title)
+    if not title:
+        return None
+    markers = _period_markers(title, include_comparatives=False)
+    unique = list(dict.fromkeys(row[2] for row in markers))
+    return unique[0] if len(unique) == 1 else None
+
+
 def _period_for_span(text, start, end, title=None):
     t = _clean_text(text)
-    markers = _period_markers(t)
+    title_period = _document_period_from_title(title)
+
+    context = t[max(0, start - 260):min(len(t), end + 240)].lower()
+    guidance = any(x in context for x in [
+        "guidance", "outlook", "expects", "expected to be", "forecast",
+        "full-year adjusted eps guidance", "adjusted eps guidance",
+    ])
+
+    # V2.20.17: a single explicit report period in the document title is the
+    # strongest current-period signal. Comparison-year wording in the body may
+    # never override it.
+    if title_period is not None:
+        return title_period, guidance
+
+    markers = _period_markers(t, include_comparatives=False)
     prior = [row for row in markers if row[0] <= start and start - row[0] <= 900]
     marker = prior[-1] if prior else None
     if marker is None:
@@ -867,17 +923,36 @@ def _period_for_span(text, start, end, title=None):
         marker = near[0] if near else None
 
     period = marker[2] if marker else None
-    if period is None and title:
-        title_markers = _period_markers(title)
-        # Ambiguous titles like "Fourth Quarter and Full-Year 2025" are left
-        # unresolved unless the local body text supplies a clear period.
-        unique = list(dict.fromkeys(row[2] for row in title_markers))
-        if len(unique) == 1:
-            period = unique[0]
-
-    context = t[max(0, start - 240):min(len(t), end + 220)].lower()
-    guidance = any(x in context for x in ["guidance", "outlook", "expects", "expected to be", "forecast"])
     return period, guidance
+
+
+def _bridge_period_rank(period, target_year=None, guidance=False):
+    """Higher is better: latest completed FY > other FY > quarter > guidance/unknown."""
+    p = _clean_text(period).upper()
+    if guidance:
+        return 0
+    if target_year is not None and p == f"FY {int(target_year)}":
+        return 5
+    if p.startswith("FY "):
+        return 4
+    if p.startswith("Q"):
+        return 3
+    if p:
+        return 1
+    return 0
+
+
+def _bridge_row_sort_key(row, target_year=None):
+    bridge = row.get("eps_bridge_values") or {}
+    return (
+        _bridge_period_rank(
+            bridge.get("period"),
+            target_year=target_year,
+            guidance=bool(bridge.get("guidance")),
+        ),
+        1 if row.get("primary_source") else 0,
+        float(row.get("bridge_score") or 0),
+    )
 
 
 def _eps_candidates(text, kind):
@@ -938,7 +1013,7 @@ def _noncomparable_per_share_values(text, start, end):
 
 def _extract_eps_bridge_values(text, title=None):
     """
-    V2.20.16: Extract only explicitly labelled GAAP and adjusted EPS values.
+    V2.20.17: Extract explicitly labelled, same-period GAAP and adjusted EPS values with period validation.
     Both values must belong to the same local reporting period. Percentages are
     rejected. A reconciliation amount for non-comparable items is validated
     when it is available. Values remain diagnostic only.
@@ -1017,7 +1092,7 @@ def _extract_eps_bridge_values(text, title=None):
 
 
 def _has_quantitative_eps_bridge(text, title=None):
-    """True only for a V2.20.16-validated bridge; never imports adjusted EPS into valuation."""
+    """True only for a V2.20.17-validated bridge; never imports adjusted EPS into valuation."""
     return _extract_eps_bridge_values(text, title=title) is not None
 
 def _unwrap_duckduckgo_url(href):
@@ -1202,6 +1277,7 @@ def _yahoo_news_search(query, max_results=5, deadline=None):
 def _score_primary_link(url, anchor, current_year):
     hay = (_clean_text(url) + " " + _clean_text(anchor)).lower()
     score = 0
+    target_year = current_year - 1
     for kw in PRIMARY_LINK_KEYWORDS:
         if kw in hay:
             score += 5
@@ -1210,21 +1286,34 @@ def _score_primary_link(url, anchor, current_year):
             score += 3
     if any(x in hay for x in ["full year", "full-year", "annual results", "year-end", "fourth quarter"]):
         score += 8
-    if str(current_year - 1) in hay and any(x in hay for x in ["results", "earnings", "annual", "full year", "full-year"]):
-        score += 5
+
+    # V2.20.17: a completed full-year result is the preferred bridge for cycle
+    # comparability. Give explicit prior-year annual result links a large boost
+    # so they outrank the latest quarter on newsroom/index pages.
+    annual_target = (
+        re.search(rf"\breports?\s+{target_year}\s+(?:full[-\s]?year\s+)?results\b", hay)
+        or (
+            str(target_year) in hay
+            and any(x in hay for x in ["full year", "full-year", "annual results", "year-end"])
+        )
+    )
+    if annual_target:
+        score += 120
+    elif str(target_year) in hay and any(x in hay for x in ["results", "earnings", "annual"]):
+        score += 18
+
     if any(x in hay for x in ["privacy", "career", "product", "supplier", "contact", "cookie"]):
         score -= 5
     return score
 
 
-def _discover_company_primary_pages(company_domain, company_name, max_pages=4, deadline=None):
+def _discover_company_primary_pages(company_domain, company_name, max_pages=5, deadline=None):
     """
-    Fast-path company/IR discovery.
+    V2.20.17 company/IR discovery with completed-full-year priority.
 
-    V2.20.14 could probe many company pages sequentially and therefore keep the
-    Streamlit spinner alive for several minutes when a site was slow or blocked.
-    V2.20.15 checks only a small set of high-value entry pages and a bounded set
-    of best links, always respecting the overall research time budget.
+    The crawl remains bounded, but it no longer stops merely because the latest
+    quarterly page contains an EPS bridge. It first gives explicit links to the
+    latest completed full-year results a chance to load.
     """
     if not company_domain or not _research_budget_ok(deadline):
         return []
@@ -1233,14 +1322,13 @@ def _discover_company_primary_pages(company_domain, company_name, max_pages=4, d
     if company_domain.startswith("www."):
         root = f"https://{company_domain}"
     current_year = datetime.now().year
+    target_year = current_year - 1
 
     high_value_paths = [
         "",
         "/newsroom",
         "/investors",
         "/investor-relations",
-        "/investors/news",
-        "/investors/financials",
     ]
     seed_urls = [urljoin(root + "/", p.lstrip("/")) for p in high_value_paths]
 
@@ -1257,15 +1345,15 @@ def _discover_company_primary_pages(company_domain, company_name, max_pages=4, d
         final_url = final_url or seed
         text = _html_to_text(html)
         event_types = _classify_special_event_text(text)
-        bridge = _has_quantitative_eps_bridge(text)
-        if event_types or bridge:
+        bridge_values = _extract_eps_bridge_values(text, title=None)
+        if event_types or bridge_values:
             direct_evidence.append({
                 "title": f"{company_name} – Primärseite",
                 "url": final_url,
                 "snippet": text[:450],
                 "search_source": "Direkt-Crawl Unternehmen",
                 "preloaded_text": text,
-                "link_score": 100 if bridge else 50,
+                "link_score": 65 if bridge_values else 40,
             })
 
         try:
@@ -1288,11 +1376,6 @@ def _discover_company_primary_pages(company_domain, company_name, max_pages=4, d
         except Exception:
             pass
 
-        # A direct page with an actual quantitative bridge is already high-value;
-        # save the remaining budget for SEC corroboration.
-        if any(_has_quantitative_eps_bridge(x.get("preloaded_text") or "") for x in direct_evidence):
-            break
-
     unique = {}
     for item in direct_evidence + candidates:
         url = item.get("url")
@@ -1304,21 +1387,29 @@ def _discover_company_primary_pages(company_domain, company_name, max_pages=4, d
     ranked = sorted(unique.values(), key=lambda x: x.get("link_score", 0), reverse=True)
 
     output = []
+    annual_found = False
     for item in ranked:
         if len(output) >= max_pages or not _research_budget_ok(deadline, reserve=1.0):
             break
-        text = item.get("preloaded_text") or _fetch_source_text(
+        page_text = item.get("preloaded_text") or _fetch_source_text(
             item.get("url"), deadline=deadline, timeout=2.8
         )
-        if not text:
+        if not page_text:
             continue
-        combined = " ".join([item.get("title") or "", item.get("snippet") or "", text])
-        if not _classify_special_event_text(combined) and not _has_quantitative_eps_bridge(combined):
+        combined = " ".join([item.get("title") or "", item.get("snippet") or "", page_text])
+        bridge_values = _extract_eps_bridge_values(combined, title=item.get("title"))
+        if not _classify_special_event_text(combined) and not bridge_values:
             continue
         row = dict(item)
-        row["preloaded_text"] = text
+        row["preloaded_text"] = page_text
         output.append(row)
-        if _has_quantitative_eps_bridge(combined) and len(output) >= 2:
+
+        if bridge_values and _clean_text(bridge_values.get("period")).upper() == f"FY {target_year}":
+            annual_found = True
+
+        # Keep at least one additional document as corroboration when budget
+        # allows, but do not burn the whole time budget after the annual bridge.
+        if annual_found and len(output) >= 2:
             break
     return output
 
@@ -1359,7 +1450,7 @@ def _discover_sec_primary_pages(symbol, max_filings=3, deadline=None):
         r = requests.get(
             f"https://data.sec.gov/submissions/CIK{cik10}.json",
             headers={
-                "User-Agent": "AktienAnalyseV2/2.20.16 research-client",
+                "User-Agent": "AktienAnalyseV2/2.20.17 research-client",
                 "Accept-Encoding": "gzip, deflate",
             },
             timeout=(min(1.8, effective_timeout), effective_timeout),
@@ -1417,15 +1508,15 @@ def research_special_event_online(
     symbol,
     company_name,
     website=None,
-    cache_version="v22016",
+    cache_version="v22017",
 ):
     """
-    V2.20.16: bounded research with validated EPS bridges and entity filtering.
+    V2.20.17: bounded research with period validation, completed-full-year priority and entity filtering.
 
     Source priority remains company/IR -> SEC -> web -> Yahoo. Unrelated search
     results are rejected before they can become evidence. A quantitative EPS
     bridge is accepted only when GAAP EPS and adjusted EPS are explicitly
-    labelled for the same period; percentages can never be parsed as EPS.
+    labelled for the same period; comparison-period wording cannot override the report period, and percentages can never be parsed as EPS.
     """
     _ = cache_version
     started = time.monotonic()
@@ -1443,7 +1534,7 @@ def research_special_event_online(
         _discover_company_primary_pages(
             company_domain,
             company_name,
-            max_pages=4,
+            max_pages=5,
             deadline=deadline,
         )
     )
@@ -1463,10 +1554,10 @@ def research_special_event_online(
     queries = []
     if company_domain:
         queries.append(
-            f'"{company_name}" site:{company_domain} "{target_year}" "adjusted net earnings" GAAP results'
+            f'"{company_name}" site:{company_domain} "Reports {target_year} Results" "adjusted EPS"'
         )
     queries.append(
-        f'"{company_name}" {symbol} "{target_year}" adjusted EPS impairment restructuring spin-off divestiture'
+        f'"{company_name}" {symbol} "{target_year}" "GAAP EPS" "adjusted EPS" impairment restructuring spin-off divestiture'
     )
 
     if _research_budget_ok(deadline, reserve=3.5):
@@ -1577,8 +1668,17 @@ def research_special_event_online(
         if row.get("quantitative_eps_bridge") and row.get("document_loaded") and row.get("eps_bridge_values")
     ]
     primary_bridge_rows = [row for row in validated_bridge_rows if row.get("primary_source")]
-    validated_bridge_rows.sort(key=lambda row: float(row.get("bridge_score") or 0), reverse=True)
-    primary_bridge_rows.sort(key=lambda row: float(row.get("bridge_score") or 0), reverse=True)
+    # V2.20.17: completed full year is more relevant for cycle comparability
+    # than a single quarter. Primary-source status still wins within the same
+    # period class.
+    validated_bridge_rows.sort(
+        key=lambda row: _bridge_row_sort_key(row, target_year=target_year),
+        reverse=True,
+    )
+    primary_bridge_rows.sort(
+        key=lambda row: _bridge_row_sort_key(row, target_year=target_year),
+        reverse=True,
+    )
 
     elapsed = time.monotonic() - started
     time_limit_reached = elapsed >= (RESEARCH_TIME_LIMIT_SECONDS - 0.3)
@@ -1625,9 +1725,36 @@ def research_special_event_online(
     best_bridge_row = primary_bridge_rows[0] if primary_bridge_rows else (validated_bridge_rows[0] if validated_bridge_rows else None)
     best_bridge = best_bridge_row.get("eps_bridge_values") if best_bridge_row else None
 
+    # Keep additional validated bridges visible as corroboration. Deduplicate
+    # identical source/period/value tuples.
+    supporting_bridge_rows = []
+    seen_bridge_keys = set()
+    if best_bridge_row and best_bridge:
+        seen_bridge_keys.add((
+            best_bridge_row.get("url"),
+            best_bridge.get("period"),
+            best_bridge.get("gaap_eps"),
+            best_bridge.get("adjusted_eps"),
+        ))
+    for row in validated_bridge_rows:
+        bridge = row.get("eps_bridge_values") or {}
+        key = (row.get("url"), bridge.get("period"), bridge.get("gaap_eps"), bridge.get("adjusted_eps"))
+        if key in seen_bridge_keys:
+            continue
+        seen_bridge_keys.add(key)
+        supporting_bridge_rows.append({
+            "title": row.get("title"),
+            "url": row.get("url"),
+            "primary_source": bool(row.get("primary_source")),
+            "eps_bridge_values": bridge,
+        })
+        if len(supporting_bridge_rows) >= 3:
+            break
+
     if validated_primary_bridge_found and best_bridge:
         next_step = (
-            "Eine Primärquelle enthält eine validierte GAAP-/bereinigte-EPS-Brücke für denselben Zeitraum. "
+            "Eine Primärquelle enthält eine periodenvalidierte GAAP-/bereinigte-EPS-Brücke. "
+            "Für Zyklusvergleiche wird ein vollständiges Geschäftsjahr gegenüber einem Einzelquartal priorisiert. "
             "Die Werte werden nur diagnostisch angezeigt. Als nächstes muss geprüft werden, welche "
             "Bereinigungen tatsächlich nicht wiederkehrend und für die Gewinnnormalisierung zulässig sind."
         )
@@ -1665,6 +1792,9 @@ def research_special_event_online(
         "quantitative_eps_bridge_count": len(validated_bridge_rows),
         "eps_bridge_values": best_bridge,
         "eps_bridge_source_title": best_bridge_row.get("title") if best_bridge_row else None,
+        "eps_bridge_source_url": best_bridge_row.get("url") if best_bridge_row else None,
+        "supporting_eps_bridges": supporting_bridge_rows,
+        "bridge_priority_rule": "Volljahr → Quartal → Guidance/sonstige",
         "rejected_entity_count": rejected_entity_count,
         "rejected_definition_only_count": rejected_definition_only_count,
         "valuation_release": False,
@@ -14032,7 +14162,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_eps_bridge_validation_v22016_20260908"
+CACHE_VERSION = "m6_eps_bridge_period_validation_v22017_20260908"
 
 @st.cache_data(
     ttl=900,
@@ -15315,9 +15445,15 @@ if selected_symbol:
                         period = text_or_dash(bridge_values.get("period"))
                         validation = text_or_dash(bridge_values.get("validation"))
                         if gaap_eps is not None and adjusted_eps is not None:
+                            is_full_year = str(period).upper().startswith("FY ")
+                            bridge_label = (
+                                "**✅ Hauptbrücke – Volljahr:** "
+                                if is_full_year
+                                else "**✅ Beste verfügbare diagnostische EPS-Brücke:** "
+                            )
                             bridge_text = (
-                                "**✅ Validierte diagnostische EPS-Brücke:** "
-                                f"{period} · GAAP/ausgewiesen {gaap_eps:.2f} · bereinigt {adjusted_eps:.2f}"
+                                bridge_label
+                                + f"{period} · GAAP/ausgewiesen {gaap_eps:.2f} · bereinigt {adjusted_eps:.2f}"
                             )
                             if noncomp is not None:
                                 bridge_text += f" · nicht vergleichbare Posten {noncomp:.2f} je Aktie"
@@ -15328,6 +15464,31 @@ if selected_symbol:
                                 st.caption(
                                     "Brückenquelle: " + text_or_dash(research.get("eps_bridge_source_title"))
                                 )
+
+
+                    supporting_bridges = research.get("supporting_eps_bridges") or []
+                    if supporting_bridges:
+                        st.write("**Weitere validierte Brücken (Zusatzbelege):**")
+                        for row in supporting_bridges[:3]:
+                            bridge = row.get("eps_bridge_values") or {}
+                            s_gaap = safe_float(bridge.get("gaap_eps"))
+                            s_adj = safe_float(bridge.get("adjusted_eps"))
+                            s_noncomp = safe_float(bridge.get("noncomparable_per_share"))
+                            s_period = text_or_dash(bridge.get("period"))
+                            if s_gaap is None or s_adj is None:
+                                continue
+                            line = f"• {s_period}: GAAP {s_gaap:.2f} → bereinigt {s_adj:.2f}"
+                            if s_noncomp is not None:
+                                line += f" · nicht vergleichbare Posten {s_noncomp:.2f} je Aktie"
+                            st.write(line)
+                            if row.get("title"):
+                                st.caption("Quelle: " + text_or_dash(row.get("title")))
+
+                    if research.get("bridge_priority_rule"):
+                        st.caption(
+                            "Brücken-Priorität für Zyklusvergleich: "
+                            + text_or_dash(research.get("bridge_priority_rule"))
+                        )
 
                     rejected_entities = int(research.get("rejected_entity_count") or 0)
                     rejected_definitions = int(research.get("rejected_definition_only_count") or 0)
@@ -15370,13 +15531,13 @@ if selected_symbol:
 
                     if research.get("quantitative_eps_bridge_found"):
                         st.info(
-                            "Eine quantitative EPS-Brücke wurde nach V2.20.16-Regeln validiert. "
+                            "Eine quantitative EPS-Brücke wurde nach V2.20.17-Regeln periodenvalidiert. "
                             "Sie wird weiterhin **nicht automatisch als bereinigtes EPS übernommen**."
                         )
 
                     st.error(
                         "**Freigabestatus: GESPERRT.** Die automatische Recherche darf in "
-                        "V2.20.16 den Fair Value noch nicht selbst entsperren."
+                        "V2.20.17 den Fair Value noch nicht selbst entsperren."
                     )
                     st.write("**Nächster Schritt:** " + text_or_dash(research.get("next_step")))
 
