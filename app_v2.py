@@ -17,17 +17,17 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.45"
+APP_BUILD_VERSION = "V2.20.46"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · REIT Primary Source FFO/AFFO Gate")
+st.caption(f"Build {APP_BUILD_VERSION} · REIT Quality Score + P/AFFO Valuation Anchor")
 
 
-# V2.20.45: REIT Primary Source FFO/AFFO Gate – Realty Income Q2/H1 2026 official AFFO/FFO, payout, occupancy and leverage gate. Insurance V2.20.44 dual-anchor valuation, Bank V2.20.39 and other frozen specialist models remain preserved.
+# V2.20.46: REIT Quality Score + P/AFFO Valuation Anchor – Realty Income. V2.20.45 primary-source gate preserved; Insurance V2.20.44, Bank V2.20.39 and other frozen specialist models remain preserved.
 
 # =========================================================
 # Hilfsfunktionen
@@ -9579,7 +9579,7 @@ def build_auto_special_model(
 # REIT-/Immobilien-Sondermodell V2.20.45 – Primary Source FFO/AFFO Gate
 # =========================================================
 
-REIT_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22045_reit_primary_ffo_affo"
+REIT_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22046_reit_quality_paffo"
 
 
 def get_verified_reit_snapshot(symbol):
@@ -9754,6 +9754,65 @@ def build_reit_primary_source_gate(snapshot):
     })
     return result
 
+def build_reit_quality_score(primary_gate, snapshot=None):
+    """V2.20.46 REIT-only 100-point quality score from official primary data."""
+    gate = primary_gate if isinstance(primary_gate, dict) else {}
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    result = {"available": False, "score": None, "quality_level": None, "components": {}, "note": None}
+    if not gate.get("available"):
+        result["note"] = "REIT-Score gesperrt: Primärquellen-Gate nicht bestanden."
+        return result
+    growth = safe_float(gate.get("affo_h1_growth_pct"))
+    payout = safe_float(gate.get("affo_payout_q2_pct"))
+    leverage = safe_float(gate.get("net_debt_to_adjusted_ebitdare"))
+    occupancy = safe_float(gate.get("occupancy_pct"))
+    walt = safe_float(gate.get("weighted_average_lease_term_years"))
+    same_store = safe_float(gate.get("same_store_rent_growth_h1_pct"))
+    recapture = safe_float(snap.get("rent_recapture_q2_pct"))
+    vals=[growth,payout,leverage,occupancy,walt,same_store,recapture]
+    if any(v is None for v in vals):
+        result["note"] = "REIT-Score gesperrt: mindestens eine Qualitätskomponente fehlt."
+        return result
+    gp = 20 if growth >= 6 else 18 if growth >= 4 else 15 if growth >= 2 else 10 if growth >= 0 else 0
+    pp = 20 if payout <= 75 else 18 if payout <= 80 else 14 if payout <= 85 else 8 if payout <= 90 else 0
+    lp = 20 if leverage <= 4.5 else 18 if leverage <= 5.0 else 14 if leverage <= 5.5 else 8 if leverage <= 6.0 else 0
+    op = 15 if occupancy >= 98.5 else 13 if occupancy >= 97.5 else 10 if occupancy >= 96.0 else 5 if occupancy >= 94.0 else 0
+    wp = 10 if walt >= 8 else 8 if walt >= 6 else 5 if walt >= 4 else 2
+    sp = 10 if same_store >= 3 else 8 if same_store >= 2 else 5 if same_store >= 1 else 2 if same_store >= 0 else 0
+    rp = 5 if recapture >= 102 else 4 if recapture >= 100 else 2 if recapture >= 95 else 0
+    score=gp+pp+lp+op+wp+sp+rp
+    level = "Sehr hoch" if score >= 85 else "Hoch" if score >= 75 else "Solide" if score >= 65 else "Mittel" if score >= 55 else "Schwach"
+    result.update({"available": True,"score":float(score),"quality_level":level,"components":{
+        "affo_growth":{"value":growth,"points":gp,"max":20},"payout":{"value":payout,"points":pp,"max":20},
+        "leverage":{"value":leverage,"points":lp,"max":20},"occupancy":{"value":occupancy,"points":op,"max":15},
+        "walt":{"value":walt,"points":wp,"max":10},"same_store":{"value":same_store,"points":sp,"max":10},
+        "rent_recapture":{"value":recapture,"points":rp,"max":5}},
+        "note":"REIT-Score verwendet ausschließlich verifizierte REIT-Primärkennzahlen; Standard-EPS, Yahoo-FCF und generischer ROE fließen nicht ein."})
+    return result
+
+
+def build_reit_paffo_valuation(primary_gate, reit_score, price_financial=None):
+    """Score-controlled P/AFFO anchor. NAV remains locked until a verified source exists."""
+    gate=primary_gate if isinstance(primary_gate,dict) else {}
+    score_block=reit_score if isinstance(reit_score,dict) else {}
+    result={"available":False,"target_paffo":None,"corridor_low":None,"corridor_high":None,"affo_basis":None,"fair_value_financial":None,"current_paffo":None,"note":None}
+    affo=safe_float(gate.get("affo_guidance_mid")); score=safe_float(score_block.get("score")); price=safe_float(price_financial)
+    if not gate.get("available") or not score_block.get("available") or affo is None or affo <= 0 or score is None:
+        result["note"]="P/AFFO-Anker gesperrt: Primärdaten, REIT-Score oder AFFO-Guidance fehlen."
+        return result
+    if score >= 90: target=17.0
+    elif score >= 80: target=16.0
+    elif score >= 70: target=15.0
+    elif score >= 60: target=14.0
+    else: target=12.5
+    low=max(10.0,target-1.0); high=target+1.0
+    fv=affo*target
+    current_paffo=price/affo if price is not None and price>0 else None
+    result.update({"available":True,"target_paffo":target,"corridor_low":low,"corridor_high":high,"affo_basis":affo,"fair_value_financial":fv,"current_paffo":current_paffo,
+        "note":"V2.20.46 nutzt den Mittelwert der offiziellen 2026-AFFO-Guidance als Ertragsbasis. Der 100-Punkte-REIT-Score steuert einen konservativen P/AFFO-Zielanker; der Zielkorridor beträgt ±1,0×. NAV bleibt bis zu einer belastbaren Primärquelle gesperrt."})
+    return result
+
+
 def build_reit_special_model(
     company_type,
     info,
@@ -9795,11 +9854,14 @@ def build_reit_special_model(
     )
     primary_source_complete = bool(snapshot_fresh and primary_gate.get("available"))
 
+    reit_score = build_reit_quality_score(primary_gate, snapshot) if primary_source_complete else {"available": False}
+
     quote_price = safe_float(price)
     price_financial = convert_quote_price_to_financial_share_unit(
         quote_price,
         currency_context
     )
+    reit_valuation = build_reit_paffo_valuation(primary_gate, reit_score, price_financial)
 
     def first_direct_value(keys):
         for key in keys:
@@ -9995,6 +10057,8 @@ def build_reit_special_model(
         "snapshot_fresh": snapshot_fresh,
         "primary_source_complete": primary_source_complete,
         "primary_gate": primary_gate,
+        "reit_score": reit_score,
+        "reit_valuation": reit_valuation,
         "integration_version": REIT_PRIMARY_SOURCE_INTEGRATION_VERSION,
         "price_financial": price_financial,
         "ffo_total": ffo_total,
@@ -10068,10 +10132,10 @@ def build_reit_special_control(base_control, reit_model):
 
     control.update({
         "implemented": True,
-        "released": False,
+        "released": bool((model.get("reit_score") or {}).get("available") and (model.get("reit_valuation") or {}).get("available")),
         "confidence_cap": "Mittel",
-        "step3b_status": "Primärdaten vollständig – REIT-Score/Bewertung noch gesperrt",
-        "overall_status": "Primärdaten vollständig",
+        "step3b_status": "REIT-Score + P/AFFO-Anker freigegeben",
+        "overall_status": "REIT-Bewertung freigegeben",
         "snapshot": snapshot,
         "checks": {
             "primary_gate": gate,
@@ -10088,12 +10152,14 @@ def build_reit_special_control(base_control, reit_model):
             "occupancy_pct": gate.get("occupancy_pct"),
             "same_store_rent_growth_h1_pct": gate.get("same_store_rent_growth_h1_pct"),
             "weighted_average_lease_term_years": gate.get("weighted_average_lease_term_years"),
+            "reit_score": model.get("reit_score") or {},
+            "reit_valuation": model.get("reit_valuation") or {},
         },
         "note": (
-            "REIT-Schritt 3B V2.20.45 validiert die aktuelle offizielle FFO/AFFO-"
+            "REIT-Schritt 3B V2.20.46 validiert die aktuelle offizielle FFO/AFFO-"
             "Ertragsbasis, AFFO-Ausschüttungsdeckung, Belegung, Restlaufzeit und "
-            "Net Debt/Annualized Pro Forma Adjusted EBITDAre. REIT-Score, "
-            "P/AFFO-Korridor, NAV und Fair Value bleiben bewusst gesperrt."
+            "Net Debt/Annualized Pro Forma Adjusted EBITDAre. Der eigene REIT-Score und "
+            "P/AFFO-Anker sind freigegeben; NAV bleibt ohne belastbare Primärquelle gesperrt."
         ),
     })
     return control
@@ -16980,10 +17046,12 @@ def calculate_valuation_confidence(
     if company_rank is not None:
         components["Unternehmenstyp / Methode"] = (company_rank, company_cap_raw)
 
-    eps_level = (eps_normalization or {}).get("confidence")
-    eps_rank = _confidence_rank_value(eps_level)
-    if eps_rank is not None:
-        components["EPS-Normalisierung"] = (eps_rank, eps_level)
+    is_reit_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "reit_paffo"
+    if not is_reit_valuation:
+        eps_level = (eps_normalization or {}).get("confidence")
+        eps_rank = _confidence_rank_value(eps_level)
+        if eps_rank is not None:
+            components["EPS-Normalisierung"] = (eps_rank, eps_level)
 
     if isinstance(peer_check, dict) and peer_check.get("method_supported"):
         usable_peers = int(peer_check.get("usable_count") or 0)
@@ -17638,6 +17706,37 @@ def calculate_fair_value_v1(
                 "klassische Netto-Schulden/FCF-Logik werden nicht verwendet."
             ),
         })
+        return result
+
+    # REIT V2.20.46 – dedicated P/AFFO fair value. NAV remains intentionally locked.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "reit_ffo_affo_leverage"
+        and special_control.get("released", False)
+    ):
+        checks=special_control.get("checks") or {}
+        rv=checks.get("reit_valuation") or {}
+        rs=checks.get("reit_score") or {}
+        fv=safe_float(rv.get("fair_value_financial"))
+        if not rv.get("available") or fv is None or fv <= 0:
+            result["note"]="Fair Value V1 gesperrt: REIT-P/AFFO-Anker nicht vollständig verfügbar."
+            return result
+        quote_currency=str(context.get("quote_currency") or "").strip(); financial_currency=str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"]="Fair Value V1 gesperrt: Währungseinheiten der REIT-Bewertung sind nicht eindeutig."
+            return result
+        fvq=fv; unit_notes=[]
+        if context.get("mixed_units"):
+            factor=safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"]="Fair Value V1 gesperrt: REIT-Währungsumrechnung nicht belastbar verfügbar."
+                return result
+            fvq*=factor; unit_notes.append(f"Währungsumrechnung angewendet: 1 {financial_currency} = {factor:.6f} {quote_currency}.")
+        elif quote_currency != financial_currency:
+            result["note"]="Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+        cp=safe_float(current_price); potential=(fvq/cp-1)*100 if cp is not None and cp>0 else None
+        result.update({"available":True,"valuation_method":"reit_paffo","normalized_eps":safe_float(rv.get("affo_basis")),"used_multiple":safe_float(rv.get("target_paffo")),"multiple_source":"REIT Quality Score → P/AFFO","fair_value_financial":fv,"fair_value_quote":fvq,"potential_pct":potential,"reit_score":safe_float(rs.get("score")),"reit_quality_level":rs.get("quality_level"),"affo_basis":safe_float(rv.get("affo_basis")),"target_paffo":safe_float(rv.get("target_paffo")),"paffo_corridor_low":safe_float(rv.get("corridor_low")),"paffo_corridor_high":safe_float(rv.get("corridor_high")),"current_paffo":safe_float(rv.get("current_paffo")),"unit_conversion_applied":bool(unit_notes),"unit_note":" ".join(unit_notes) if unit_notes else None,"note":"REIT-Fair-Value V1 = offizieller AFFO-Guidance-Mittelwert × scoregesteuertes Ziel-P/AFFO. NAV ist nicht Bestandteil dieses Fair Values und bleibt ohne belastbare Primärquelle gesperrt."})
         return result
 
     if (
@@ -19003,7 +19102,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_reit_primary_source_gate_v22045_20260909"
+CACHE_VERSION = "m6_reit_quality_paffo_v22046_20260909"
 
 @st.cache_data(
     ttl=900,
@@ -19407,16 +19506,17 @@ def load_stock(search_text, cache_version):
         }
 
     if reit_special_model.get("applicable"):
+        rs = reit_special_model.get("reit_score") or {}
+        rv = reit_special_model.get("reit_valuation") or {}
         fundamental_multiple = {
             **fundamental_multiple,
-            "score": None,
-            "multiple": None,
+            "score": safe_float(rs.get("score")),
+            "multiple": safe_float(rv.get("target_paffo")),
+            "available": bool(rs.get("available") and rv.get("available")),
             "note": (
-                "REITs verwenden kein Standard-Fundamental-Multiple auf Basis von EPS, "
-                "Free Cashflow oder industrieller Verschuldung. V2.20.45 validiert zunächst "
-                "nur die offizielle FFO/AFFO-, Ausschüttungs-, Belegungs- und "
-                "Verschuldungsbasis. REIT-Score, P/AFFO-Zielkorridor, NAV und Fair Value "
-                "bleiben bis zum separaten Bewertungsmodul gesperrt."
+                "REITs verwenden kein Standard-EPS-/FCF-Multiple. V2.20.46 verwendet den "
+                "eigenen 100-Punkte-REIT-Score und einen scoregesteuerten P/AFFO-Anker. "
+                "NAV bleibt ohne belastbare Primärquelle gesperrt."
             ),
         }
 
@@ -21016,8 +21116,12 @@ if selected_symbol:
                 company_type_score_ui = normalized_company_type_name(company_type)
                 is_bank_score_ui = is_bank_company_type(company_type)
                 is_insurance_score_ui = is_insurance_company_type(company_type)
+                is_reit_score_ui = is_reit_company_type(company_type)
 
-                if is_insurance_score_ui:
+                if is_reit_score_ui:
+                    st.info("REIT-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. Der eigene REIT-Score basiert auf AFFO-Wachstum, Ausschüttungsquote, Verschuldung, Belegung, Restlaufzeit, Same-Store-Rent-Wachstum und Rent Recapture.")
+                    st.caption("Standard-Wachstum, EPS, Yahoo-FCF und generischer ROE haben keinen Einfluss auf den REIT-Fair-Value.")
+                elif is_insurance_score_ui:
                     st.info(
                         "Versicherungsmodell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. "
                         "Umsatz- und Yahoo-Gewinnwachstum bleiben ausschließlich Kontext; der "
@@ -21112,7 +21216,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_bank_score_ui and not is_insurance_score_ui:
+                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -21131,8 +21235,11 @@ if selected_symbol:
                 ]
 
                 is_insurance_profitability_ui = is_insurance_company_type(company_type)
+                is_reit_profitability_ui = is_reit_company_type(company_type)
 
-                if is_insurance_profitability_ui:
+                if is_reit_profitability_ui:
+                    st.info("REIT-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. Profitabilitätsqualität wird über AFFO-Deckung und operative Immobilienkennzahlen beurteilt.")
+                elif is_insurance_profitability_ui:
                     insurance_score_profit_ui = (
                         (data.get("insurance_special_model") or {}).get("insurance_score") or {}
                     )
@@ -21258,6 +21365,7 @@ if selected_symbol:
                 if (
                     str((company_type or {}).get("type", "")).strip().lower() != "bank"
                     and not is_insurance_company_type(company_type)
+                    and not is_reit_company_type(company_type)
                 ):
                     st.caption(
                         "Die Profitabilität basiert derzeit auf "
@@ -21375,8 +21483,12 @@ if selected_symbol:
                     is_bank_model_ui = is_bank_company_type(company_type)
 
                     is_insurance_model_ui = is_insurance_company_type(company_type)
+                    is_reit_model_ui = is_reit_company_type(company_type)
 
-                    if is_bank_model_ui:
+                    if is_reit_model_ui:
+                        st.info("ℹ️ REIT-Modell: Standard-Free-Cashflow ist kein Bewertungsbaustein")
+                        st.caption("Bei REITs werden FFO/AFFO und die offizielle AFFO-Ausschüttungsdeckung verwendet. Yahoo-Free-Cashflow bleibt nur Kontext.")
+                    elif is_bank_model_ui:
                         st.info(
                             "ℹ️ Bankmodell: Free Cashflow ist kein Bewertungsbaustein"
                         )
@@ -21418,6 +21530,7 @@ if selected_symbol:
                 if (
                     not is_bank_company_type(company_type)
                     and not is_insurance_company_type(company_type)
+                    and not is_reit_company_type(company_type)
                 ):
                     st.caption(
                         "Die FCF-Punkte basieren auf der aktuellen "
@@ -22535,7 +22648,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏢 REIT-/Immobilien-Sondermodell V2.20.45 – Primärdatenbasis"
+                        "🏢 REIT-/Immobilien-Sondermodell V2.20.46 – Qualität & P/AFFO"
                     )
 
                     st.info(
@@ -23468,17 +23581,18 @@ if selected_symbol:
                         if gate.get("note"):
                             st.caption(gate.get("note"))
 
-                        st.warning(
-                            "Bewertungsfreigabe noch NEIN: V2.20.45 ergänzt bewusst nur die "
-                            "REIT-Primärdatenbasis. REIT-Score, P/AFFO-Zielkorridor, ein eventuell "
-                            "belastbarer NAV-Anker und Fair Value werden erst im nächsten separaten "
-                            "Bewertungsschritt fachlich festgelegt."
-                        )
-                        st.caption(
-                            "Primärdatenfreigabe und Bewertungsfreigabe sind getrennt. Ein vollständiger "
-                            "REIT-Datensatz allein erzeugt noch keinen Fair Value. Das Gate bleibt "
-                            "fail-closed, wenn der offizielle Snapshot veraltet oder unvollständig ist."
-                        )
+                        reit_score_ui = checks.get("reit_score") or {}
+                        reit_val_ui = checks.get("reit_valuation") or {}
+                        if reit_score_ui.get("available") and reit_val_ui.get("available"):
+                            st.metric("REIT-Qualitäts-Score", f"{reit_score_ui.get('score'):.0f}/100 Punkte")
+                            st.write(f"**Qualitätsstufe:** {reit_score_ui.get('quality_level')}")
+                            st.write(f"**Aktuelles P/AFFO:** {reit_val_ui.get('current_paffo'):.2f}×")
+                            st.write(f"**Ziel-P/AFFO:** {reit_val_ui.get('target_paffo'):.2f}×")
+                            st.write(f"**Zielkorridor:** {reit_val_ui.get('corridor_low'):.2f}× – {reit_val_ui.get('corridor_high'):.2f}×")
+                            st.success("Bewertungsfreigabe JA: REIT-Score und P/AFFO-Anker sind freigegeben. NAV bleibt separat gesperrt.")
+                        else:
+                            st.warning("Bewertungsfreigabe NEIN: REIT-Score oder P/AFFO-Anker ist nicht vollständig verfügbar.")
+                        st.caption("Das Gate bleibt fail-closed, wenn der offizielle Snapshot veraltet oder unvollständig ist. NAV wird nicht aus Buchwert oder Enterprise Value geschätzt.")
                     else:
                         st.warning(special_control.get("note"))
 
@@ -25551,6 +25665,14 @@ if selected_symbol:
                                 "**Abstand der Bewertungsanker:** "
                                 f"{fair_value.get('anchor_spread_pct'):.1f} %"
                             )
+                    elif fair_value.get("valuation_method") == "reit_paffo":
+                        st.write("**Bewertungsformel:** Offizieller AFFO-Guidance-Mittelwert × scoregesteuertes Ziel-P/AFFO")
+                        st.write(f"**REIT-Score:** {fair_value.get('reit_score'):.0f}/100 · {fair_value.get('reit_quality_level')}")
+                        st.write(f"**AFFO-Basis 2026:** {fair_value.get('affo_basis'):.3f} {fair_value['financial_currency']}")
+                        st.write(f"**Aktuelles P/AFFO:** {fair_value.get('current_paffo'):.2f}×")
+                        st.write(f"**Ziel-P/AFFO:** {fair_value.get('target_paffo'):.2f}×")
+                        st.write(f"**P/AFFO-Zielkorridor:** {fair_value.get('paffo_corridor_low'):.2f}× – {fair_value.get('paffo_corridor_high'):.2f}×")
+                        st.caption("NAV bleibt gesperrt und wird nicht aus Buchwert oder Enterprise Value geschätzt.")
                     else:
                         st.write(
                             "**Bewertungsformel:** "
