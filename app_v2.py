@@ -17,17 +17,17 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.44"
+APP_BUILD_VERSION = "V2.20.45"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · Insurance Dual-Anchor Valuation")
+st.caption(f"Build {APP_BUILD_VERSION} · REIT Primary Source FFO/AFFO Gate")
 
 
-# V2.20.44: Insurance Dual-Anchor Valuation – verifizierter offizieller Buchwert/P-B-Anker + Core-TTM-EPS/Core-KGV-Anker, 55/45 gewichtet und fail-closed bei Quellen-/Coverage-Konflikten. Bank V2.20.39 und übrige Spezialmodelle bleiben fachlich unverändert.
+# V2.20.45: REIT Primary Source FFO/AFFO Gate – Realty Income Q2/H1 2026 official AFFO/FFO, payout, occupancy and leverage gate. Insurance V2.20.44 dual-anchor valuation, Bank V2.20.39 and other frozen specialist models remain preserved.
 
 # =========================================================
 # Hilfsfunktionen
@@ -54,6 +54,11 @@ def is_bank_company_type(company_type):
 
 def is_insurance_company_type(company_type):
     return "versicherung" in normalized_company_type_name(company_type)
+
+
+def is_reit_company_type(company_type):
+    name = normalized_company_type_name(company_type)
+    return "reit" in name or "immobilien" in name
 
 
 def format_number(value):
@@ -7165,7 +7170,7 @@ def normalize_eps(
 
 
 # =========================================================
-# Versicherungs-Sondermodell V2.20.44 – Core Coverage + Score + Dual-Anchor Valuation
+# Versicherungs-Sondermodell V2.20.44 – Dual-Anchor Valuation
 # =========================================================
 
 def get_verified_insurance_snapshot(symbol):
@@ -7276,8 +7281,8 @@ def get_verified_insurance_snapshot(symbol):
             "Offizielle Allianz-2Q/6M-2026-Daten. Shareholders' Core Net "
             "Income, Core EPS, Core RoE und Solvency-II-Quote werden nicht "
             "aus Yahoo-Feldern rekonstruiert. Die 6M-Werte werden nicht "
-            "annualisiert. V2.20.44 ergänzt daraus die nicht annualisierte Core-TTM-Abdeckung, den Versicherungs-Score und die getrennte Dual-Anchor-Bewertung. "
-            "Bewertungs-Multiple und Fair Value bleiben weiterhin gesperrt."
+            "annualisiert. V2.20.44 ergänzt die nicht annualisierte Core-TTM-Abdeckung, den Versicherungs-Score und die Dual-Anchor-Bewertung. "
+            "Die Bewertung wird nur nach vollständiger Konsistenzprüfung freigegeben."
         ),
     }
 
@@ -7609,20 +7614,11 @@ def calculate_insurance_score(snapshot, core_coverage, book_bridge):
 INSURANCE_VALUATION_INTEGRATION_VERSION = "v22044_insurance_dual_anchor"
 
 
-def calculate_insurance_valuation_v1(
-    insurance_score,
-    core_coverage,
-    book_bridge,
-    pb_consistency_status,
-):
-    """Conservative insurer dual-anchor valuation.
+def calculate_insurance_dual_anchor_valuation(snapshot, core_coverage, book_bridge, insurance_score):
+    """V2.20.44 insurer valuation: official BV/P-B + Core-TTM EPS/Core-P-E.
 
-    V2.20.44 uses two independent insurer-specific anchors:
-      - 55% official book value per share × score-derived P/B
-      - 45% verified Core-TTM EPS × score-derived Core P/E
-
-    The official 6M26 book value from the primary-source bridge is mandatory.
-    Yahoo book value is only a plausibility cross-check, never the valuation base.
+    Fail closed when the primary-source chain is incomplete or the two
+    valuation anchors diverge by more than 25%.
     """
     result = {
         "available": False,
@@ -7634,115 +7630,97 @@ def calculate_insurance_valuation_v1(
         "core_pe_corridor_upper": 14.0,
         "target_pb": None,
         "target_core_pe": None,
-        "official_book_value_per_share": None,
+        "official_bvps": None,
         "core_ttm_eps": None,
         "fair_value_book_financial": None,
-        "fair_value_core_earnings_financial": None,
-        "fair_value_financial": None,
+        "fair_value_core_pe_financial": None,
         "book_weight": 0.55,
-        "earnings_weight": 0.45,
+        "core_pe_weight": 0.45,
         "anchor_spread_pct": None,
-        "confidence_cap": "Mittel",
+        "fair_value_financial": None,
+        "release_reason": None,
         "note": None,
     }
 
-    if not isinstance(insurance_score, dict) or not insurance_score.get("available"):
-        result["note"] = "Versicherungsbewertung gesperrt: kein vollständiger Versicherungs-Score verfügbar."
+    if not isinstance(snapshot, dict):
+        result["note"] = "Versicherungsbewertung gesperrt: Primärquellen-Snapshot fehlt."
         return result
-
-    if not isinstance(core_coverage, dict) or not core_coverage.get("available"):
-        result["note"] = "Versicherungsbewertung gesperrt: verifizierte Core-TTM-Abdeckung fehlt."
+    if not (core_coverage or {}).get("available"):
+        result["note"] = "Versicherungsbewertung gesperrt: Core-TTM-Abdeckung fehlt."
         return result
-
-    if core_coverage.get("integration_version") != INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION:
-        result["note"] = (
-            "Versicherungsbewertung gesperrt: die Core-TTM-Basis stammt nicht aus dem aktuellen "
-            "Insurance Coverage Gate. Veraltete oder annualisierte Halbjahrespfade werden nicht akzeptiert."
-        )
-        return result
-
-    if not isinstance(book_bridge, dict) or not book_bridge.get("available"):
+    if not (book_bridge or {}).get("available"):
         result["note"] = "Versicherungsbewertung gesperrt: offizieller Buchwert-Abgleich fehlt."
         return result
-
-    if pb_consistency_status == "conflict":
-        result["note"] = (
-            "Versicherungsbewertung gesperrt: Yahoo-Kontext und Kurs/Buchwert-Plausibilisierung "
-            "zeigen einen möglichen Einheiten-/Quellenkonflikt."
-        )
-        return result
-
-    yahoo_bv_dev = safe_float(book_bridge.get("yahoo_book_value_deviation_pct"))
-    if yahoo_bv_dev is not None and yahoo_bv_dev > 5.0:
-        result["note"] = (
-            "Versicherungsbewertung gesperrt: offizieller 6M-Buchwert je Aktie und Yahoo-"
-            "Buchwert weichen um mehr als 5 % voneinander ab. Der Primärquellenkonflikt muss zuerst geklärt werden."
-        )
+    if not (insurance_score or {}).get("available"):
+        result["note"] = "Versicherungsbewertung gesperrt: Versicherungs-Score fehlt."
         return result
 
     score = safe_float(insurance_score.get("score"))
-    official_bvps = safe_float(book_bridge.get("bvps_2026_h1"))
+    bvps = safe_float(book_bridge.get("bvps_2026_h1"))
     core_ttm_eps = safe_float(core_coverage.get("core_ttm_eps"))
+    yahoo_dev = safe_float(book_bridge.get("yahoo_book_value_deviation_pct"))
 
-    if (
-        score is None
-        or official_bvps is None
-        or official_bvps <= 0
-        or core_ttm_eps is None
-        or core_ttm_eps <= 0
-    ):
+    if score is None or score < 0 or score > 100 or bvps is None or bvps <= 0 or core_ttm_eps is None or core_ttm_eps <= 0:
+        result["note"] = "Versicherungsbewertung gesperrt: Score, Buchwert oder Core-TTM-EPS sind nicht plausibel."
+        return result
+
+    # The official BVPS is the valuation anchor. A material Yahoo-vs-official
+    # book-value conflict blocks release, but Yahoo never becomes the anchor.
+    if yahoo_dev is not None and yahoo_dev > 20.0:
         result["note"] = (
-            "Versicherungsbewertung gesperrt: Versicherungs-Score, offizieller aktueller Buchwert "
-            "und verifiziertes Core-TTM-EPS müssen gleichzeitig positiv verfügbar sein."
+            "Versicherungsbewertung gesperrt: offizieller Buchwert und Yahoo-Buchwert "
+            "weichen um mehr als 20 % voneinander ab."
         )
         return result
 
-    score_fraction = max(0.0, min(1.0, score / 100.0))
-    target_pb = 1.0 + (2.8 - 1.0) * score_fraction
-    target_core_pe = 8.0 + (14.0 - 8.0) * score_fraction
+    pb_low, pb_high = 1.0, 2.8
+    pe_low, pe_high = 8.0, 14.0
+    score_fraction = score / 100.0
+    target_pb = pb_low + score_fraction * (pb_high - pb_low)
+    target_core_pe = pe_low + score_fraction * (pe_high - pe_low)
 
-    fair_book = official_bvps * target_pb
-    fair_earnings = core_ttm_eps * target_core_pe
-
-    if fair_book <= 0 or fair_earnings <= 0:
+    fv_book = bvps * target_pb
+    fv_core = core_ttm_eps * target_core_pe
+    if fv_book <= 0 or fv_core <= 0:
         result["note"] = "Versicherungsbewertung gesperrt: mindestens ein Bewertungsanker ist nicht positiv."
         return result
 
-    anchor_spread = abs(fair_book / fair_earnings - 1.0)
-    if anchor_spread > 0.25:
+    anchor_spread_pct = abs(fv_book / fv_core - 1.0) * 100.0
+    if anchor_spread_pct > 25.0:
         result.update({
             "insurance_score": score,
             "target_pb": target_pb,
             "target_core_pe": target_core_pe,
-            "official_book_value_per_share": official_bvps,
+            "official_bvps": bvps,
             "core_ttm_eps": core_ttm_eps,
-            "fair_value_book_financial": fair_book,
-            "fair_value_core_earnings_financial": fair_earnings,
-            "anchor_spread_pct": anchor_spread * 100.0,
+            "fair_value_book_financial": fv_book,
+            "fair_value_core_pe_financial": fv_core,
+            "anchor_spread_pct": anchor_spread_pct,
+            "release_reason": "anchor_gap",
             "note": (
-                "Versicherungsbewertung gesperrt: offizieller Buchwert-/P/B-Anker und Core-KGV-Anker "
-                "weichen um mehr als 25 % voneinander ab. Die beiden Bewertungswege sind nicht ausreichend konsistent."
+                "Versicherungsbewertung gesperrt: Buchwert/P-B- und Core-KGV-Anker "
+                f"liegen {anchor_spread_pct:.1f} % auseinander; maximal 25 % sind zulässig."
             ),
         })
         return result
 
-    fair_blended = 0.55 * fair_book + 0.45 * fair_earnings
+    fair_value = 0.55 * fv_book + 0.45 * fv_core
     result.update({
         "available": True,
         "insurance_score": score,
         "target_pb": target_pb,
         "target_core_pe": target_core_pe,
-        "official_book_value_per_share": official_bvps,
+        "official_bvps": bvps,
         "core_ttm_eps": core_ttm_eps,
-        "fair_value_book_financial": fair_book,
-        "fair_value_core_earnings_financial": fair_earnings,
-        "fair_value_financial": fair_blended,
-        "anchor_spread_pct": anchor_spread * 100.0,
+        "fair_value_book_financial": fv_book,
+        "fair_value_core_pe_financial": fv_core,
+        "anchor_spread_pct": anchor_spread_pct,
+        "fair_value_financial": fair_value,
+        "release_reason": "passed",
         "note": (
-            "Versicherungs-Fair-Value V1 kombiniert 55 % offiziellen Buchwert-/P/B-Anker und "
-            "45 % verifizierten Core-TTM-EPS/Core-KGV-Anker. Der Versicherungs-Score steuert beide "
-            "Zielkorridore linear. Yahoo-Buchwert und Forward-KGV bleiben reine Plausibilitäts-/Kontextanker. "
-            "Bei mehr als 25 % Abstand zwischen den beiden Fair-Value-Ankern bleibt die Bewertung gesperrt."
+            "Bewertungsfreigabe JA: Versicherungs-Score sowie offizieller P/B- und "
+            "Core-KGV-Anker sind vollständig und ausreichend konsistent. Der "
+            "Dual-Anchor-Fair-Value ist freigegeben."
         ),
     })
     return result
@@ -7757,10 +7735,9 @@ def build_insurance_special_model(
     """
     Conservative insurer-specific data block.
 
-    V2.20.44 keeps the official Core-TTM coverage bridge, book-value quality
-    check and insurer-specific 100-point score, then adds a conservative
-    official-book-value + Core-TTM-EPS dual-anchor valuation. Core earnings and
-    solvency/capital ratios are never estimated from Yahoo proxies.
+    V2.20.44 adds an official Core-TTM coverage bridge, book-value quality
+    check, insurer-specific 100-point score and fail-closed dual-anchor valuation.
+    Core earnings and solvency/capital ratios are never estimated from Yahoo proxies.
     """
     type_name = str(
         company_type.get("type", "")
@@ -8130,11 +8107,16 @@ def build_insurance_special_model(
         }
     )
 
-    insurance_valuation = calculate_insurance_valuation_v1(
-        insurance_score,
-        core_coverage,
-        book_value_bridge,
-        pb_consistency_status,
+    insurance_valuation = (
+        calculate_insurance_dual_anchor_valuation(
+            snapshot, core_coverage, book_value_bridge, insurance_score
+        )
+        if snapshot_fresh
+        else {
+            "available": False,
+            "integration_version": INSURANCE_VALUATION_INTEGRATION_VERSION,
+            "note": "Versicherungsbewertung gesperrt: Versicherungs-Snapshot ist veraltet.",
+        }
     )
 
     readiness = (
@@ -8147,7 +8129,7 @@ def build_insurance_special_model(
             and insurance_valuation.get("available")
         )
         else (
-            "Core-TTM + Score vollständig – Bewertung gesperrt"
+            "Core-TTM + Score vollständig"
             if (
                 primary_source_complete
                 and core_coverage.get("available")
@@ -8168,6 +8150,10 @@ def build_insurance_special_model(
 
     return {
         "applicable": True,
+        "snapshot": snapshot,
+        "snapshot_fresh": snapshot_fresh,
+        "primary_source_complete": primary_source_complete,
+        "primary_gate": primary_gate,
         "price_financial": price_financial,
         "book_value_per_share": book_value,
         "roe": roe,
@@ -8214,13 +8200,14 @@ def build_insurance_special_model(
             "Core RoE und Solvency II, die vollständige Core-TTM-Brücke, den offiziellen "
             "Buchwert je Aktie und den 100-Punkte-Versicherungs-Score. Bei vollständiger "
             "und konsistenter Datenbasis wird ein Dual-Anchor-Fair-Value aus 55 % offiziellem "
-            "Buchwert/P-B und 45 % Core-TTM-EPS/Core-KGV freigegeben. Die 6M-Daten werden nicht annualisiert."
+            "Buchwert/P-B und 45 % Core-TTM-EPS/Core-KGV freigegeben. Die 6M-Daten werden "
+            "nicht annualisiert."
         )
     }
 
 
 def build_insurance_special_control(base_control, insurance_model):
-    """Attach a fail-closed insurer step-3B primary-source gate."""
+    """Attach the frozen V2.20.44 insurer step-3B dual-anchor gate."""
     control = dict(base_control or {})
     control.setdefault("router_status", control.get("status"))
     control.setdefault("router_note", control.get("note"))
@@ -8258,7 +8245,7 @@ def build_insurance_special_control(base_control, insurance_model):
         and book_bridge.get("available")
         and insurance_score.get("available")
     )
-    valuation_released = bool(
+    valuation_ready = bool(
         score_ready
         and insurance_valuation.get("available")
         and insurance_valuation.get("integration_version") == INSURANCE_VALUATION_INTEGRATION_VERSION
@@ -8266,20 +8253,20 @@ def build_insurance_special_control(base_control, insurance_model):
 
     control.update({
         "implemented": True,
-        "released": valuation_released,
-        "confidence_cap": (insurance_valuation.get("confidence_cap") or "Mittel"),
+        "released": valuation_ready,
+        "confidence_cap": "Mittel" if valuation_ready else "Niedrig",
         "step3b_status": (
-            "Versicherungsbewertung freigegeben – Dual-Anchor V1"
-            if valuation_released
+            "Dual-Anchor-Bewertung freigegeben"
+            if valuation_ready
             else (
-                "Core-TTM + Versicherungs-Score vollständig – Bewertung noch gesperrt"
+                "Core-TTM + Versicherungs-Score vollständig – Bewertung gesperrt"
                 if score_ready
                 else "Primärdaten vollständig – Core-TTM/Score noch unvollständig"
             )
         ),
         "overall_status": (
-            "Freigegeben"
-            if valuation_released
+            "Core-TTM + Score + Bewertung vollständig"
+            if valuation_ready
             else (
                 "Core-TTM + Score vollständig"
                 if score_ready
@@ -8305,16 +8292,11 @@ def build_insurance_special_control(base_control, insurance_model):
             "insurance_valuation": insurance_valuation,
         },
         "note": (
-            "Versicherungs-Schritt 3B V2.20.44 hat Primärdaten, Core-TTM-Abdeckung, offiziellen "
-            "Buchwert-Abgleich, Versicherungs-Score und beide Bewertungsanker validiert. Der Fair Value "
-            "wird nur freigegeben, wenn offizieller Buchwert/P-B- und Core-TTM/Core-KGV-Anker gleichzeitig "
-            "belastbar und ausreichend konsistent sind."
-            if valuation_released
-            else (
-                "Versicherungs-Schritt 3B V2.20.44 hat die Primärdatenbasis validiert, aber die "
-                "Bewertungsfreigabe bleibt gesperrt: "
-                + str(insurance_valuation.get("note") or insurance_score.get("note") or "Versicherungsbewertung unvollständig.")
-            )
+            "Versicherungs-Schritt 3B V2.20.44 validiert die offizielle Core-Earnings-/"
+            "Kapitalbasis, die nicht annualisierte Core-TTM-Brücke, den offiziellen "
+            "Buchwert-Abgleich, den 100-Punkte-Versicherungs-Score sowie getrennte "
+            "P/B- und Core-KGV-Anker. Die Bewertung wird nur bei vollständiger und "
+            "konsistenter Dual-Anchor-Prüfung freigegeben."
         ),
     })
     return control
@@ -9393,9 +9375,13 @@ def build_midstream_special_model(
     )
 
     readiness = (
-        "Teilweise"
-        if available_anchors >= 2
-        else "Unvollständig"
+        "Primärdaten vollständig"
+        if primary_source_complete
+        else (
+            "Teilweise"
+            if available_anchors >= 2
+            else "Unvollständig"
+        )
     )
 
     return {
@@ -9590,22 +9576,199 @@ def build_auto_special_model(
 
 
 # =========================================================
-# REIT-/Immobilien-Sondermodell V1 – Datenbasis / Plausibilitätscheck
+# REIT-/Immobilien-Sondermodell V2.20.45 – Primary Source FFO/AFFO Gate
 # =========================================================
+
+REIT_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22045_reit_primary_ffo_affo"
+
+
+def get_verified_reit_snapshot(symbol):
+    """Time-bounded official REIT snapshot for supported REITs.
+
+    V2.20.45 starts with Realty Income (NYSE: O). Unknown REITs deliberately
+    return None. AFFO/FFO, payout, occupancy and leverage are never inferred
+    from standard EPS, standard free cash flow or generic EBITDA proxies.
+    """
+    symbol_text = str(symbol or "").upper().strip()
+    if symbol_text != "O":
+        return None
+
+    return {
+        "company": "Realty Income Corporation",
+        "as_of_date": "30.06.2026",
+        "published_date": "05.08.2026",
+        # Conservative expiry before the normal Q3 reporting window.
+        "valid_until": "02.11.2026",
+        "source_name": "Realty Income Q2 2026 Earnings Release + Supplemental Information",
+        "source_url": (
+            "https://www.realtyincome.com/sites/realty-income/files/2026-08/"
+            "realty-income-earnings-release-and-supplemental-information-q2-2026.pdf"
+        ),
+        "period_label": "Q2 / 6M 2026",
+
+        # Three months ended June 30, 2026.
+        "ffo_q2_total": 996.6e6,
+        "ffo_q2_per_share": 1.07,
+        "normalized_ffo_q2_total": 998.7e6,
+        "normalized_ffo_q2_per_share": 1.07,
+        "affo_q2_total": 1.0221e9,
+        "affo_q2_per_share": 1.09,
+        "affo_q2_prior_per_share": 1.05,
+        "affo_q2_growth_pct": 3.8,
+
+        # Six months ended June 30, 2026.
+        "ffo_h1_total": 1.9902e9,
+        "ffo_h1_per_share": 2.13,
+        "normalized_ffo_h1_total": 2.0030e9,
+        "normalized_ffo_h1_per_share": 2.14,
+        "affo_h1_total": 2.0797e9,
+        "affo_h1_per_share": 2.22,
+        "affo_h1_prior_per_share": 2.11,
+
+        # Completed-year AFFO history from official FY2025 materials.
+        "affo_fy_2025_per_share": 4.28,
+        "affo_fy_2024_per_share": 4.19,
+        "fy_2025_source_name": "Realty Income Q4 & FY2025 Earnings Release + Supplemental",
+        "fy_2025_source_url": (
+            "https://www.realtyincome.com/sites/realty-income/files/2026-02/"
+            "q4-2025-supplemental-report.pdf"
+        ),
+
+        # 2026 official guidance / operating quality.
+        "affo_guidance_low": 4.44,
+        "affo_guidance_high": 4.45,
+        "same_store_rent_growth_h1_pct": 1.0,
+        "occupancy_pct": 98.8,
+        "occupancy_q1_pct": 98.9,
+        "occupancy_prior_year_pct": 98.6,
+        "occupancy_guidance_pct": 98.5,
+        "weighted_average_lease_term_years": 8.6,
+        "rent_recapture_q2_pct": 102.7,
+
+        # Distribution coverage and balance-sheet quality.
+        "dividend_paid_q2_per_share": 0.812,
+        "annualized_dividend_per_share": 3.252,
+        "affo_payout_q2_pct": 74.5,
+        "net_debt_to_annualized_pro_forma_adjusted_ebitdare": 5.4,
+
+        "source_note": (
+            "Offizielle Realty-Income-Q2/6M-2026-Daten. FFO, Normalized FFO, AFFO, "
+            "AFFO-Ausschüttungsquote, Belegung und Net Debt/Annualized Pro Forma Adjusted "
+            "EBITDAre werden nicht aus Yahoo-EPS, Standard-Free-Cashflow oder generischen "
+            "Bilanz-/EBITDA-Proxies rekonstruiert. V2.20.45 baut ausschließlich die "
+            "Primärdatenbasis auf; REIT-Score, P/AFFO-Korridor, NAV und Fair Value bleiben gesperrt."
+        ),
+    }
+
+
+def _reit_snapshot_is_fresh(snapshot):
+    if not isinstance(snapshot, dict):
+        return False
+    try:
+        valid_until = datetime.strptime(snapshot.get("valid_until"), "%d.%m.%Y").date()
+        return datetime.now().date() <= valid_until
+    except Exception:
+        return False
+
+
+def build_reit_primary_source_gate(snapshot):
+    """Validate the minimum official data set needed for later REIT scoring."""
+    result = {
+        "available": False,
+        "integration_version": REIT_PRIMARY_SOURCE_INTEGRATION_VERSION,
+        "affo_q2_per_share": None,
+        "affo_h1_per_share": None,
+        "affo_h1_growth_pct": None,
+        "ffo_q2_per_share": None,
+        "ffo_h1_per_share": None,
+        "normalized_ffo_h1_per_share": None,
+        "affo_guidance_low": None,
+        "affo_guidance_high": None,
+        "affo_guidance_mid": None,
+        "affo_payout_q2_pct": None,
+        "net_debt_to_adjusted_ebitdare": None,
+        "occupancy_pct": None,
+        "same_store_rent_growth_h1_pct": None,
+        "weighted_average_lease_term_years": None,
+        "note": None,
+    }
+    if not isinstance(snapshot, dict):
+        result["note"] = (
+            "REIT-Primärquellen-Gate nicht verfügbar: kein verifizierter aktueller "
+            "REIT-Snapshot."
+        )
+        return result
+
+    affo_q2 = safe_float(snapshot.get("affo_q2_per_share"))
+    affo_h1 = safe_float(snapshot.get("affo_h1_per_share"))
+    affo_h1_prior = safe_float(snapshot.get("affo_h1_prior_per_share"))
+    ffo_q2 = safe_float(snapshot.get("ffo_q2_per_share"))
+    ffo_h1 = safe_float(snapshot.get("ffo_h1_per_share"))
+    nffo_h1 = safe_float(snapshot.get("normalized_ffo_h1_per_share"))
+    guide_low = safe_float(snapshot.get("affo_guidance_low"))
+    guide_high = safe_float(snapshot.get("affo_guidance_high"))
+    payout = safe_float(snapshot.get("affo_payout_q2_pct"))
+    leverage = safe_float(snapshot.get("net_debt_to_annualized_pro_forma_adjusted_ebitdare"))
+    occupancy = safe_float(snapshot.get("occupancy_pct"))
+    same_store = safe_float(snapshot.get("same_store_rent_growth_h1_pct"))
+    walt = safe_float(snapshot.get("weighted_average_lease_term_years"))
+
+    required = [affo_q2, affo_h1, ffo_q2, ffo_h1, payout, leverage, occupancy, walt]
+    if any(value is None or value <= 0 for value in required):
+        result["note"] = (
+            "REIT-Primärquellen-Gate gesperrt: mindestens eine Pflichtkomponente aus "
+            "AFFO/FFO, Ausschüttungsdeckung, Belegung oder Verschuldung fehlt."
+        )
+        return result
+
+    affo_h1_growth = None
+    if affo_h1_prior is not None and affo_h1_prior > 0:
+        affo_h1_growth = (affo_h1 / affo_h1_prior - 1.0) * 100.0
+
+    guide_mid = None
+    if guide_low is not None and guide_high is not None and guide_low > 0 and guide_high >= guide_low:
+        guide_mid = (guide_low + guide_high) / 2.0
+
+    result.update({
+        "available": True,
+        "affo_q2_per_share": affo_q2,
+        "affo_h1_per_share": affo_h1,
+        "affo_h1_growth_pct": affo_h1_growth,
+        "ffo_q2_per_share": ffo_q2,
+        "ffo_h1_per_share": ffo_h1,
+        "normalized_ffo_h1_per_share": nffo_h1,
+        "affo_guidance_low": guide_low,
+        "affo_guidance_high": guide_high,
+        "affo_guidance_mid": guide_mid,
+        "affo_payout_q2_pct": payout,
+        "net_debt_to_adjusted_ebitdare": leverage,
+        "occupancy_pct": occupancy,
+        "same_store_rent_growth_h1_pct": same_store,
+        "weighted_average_lease_term_years": walt,
+        "note": (
+            "REIT-Primärquellen-Gate bestanden: aktuelles FFO/AFFO, AFFO-Ausschüttungsquote, "
+            "Belegung, Restlaufzeit und Net Debt/Annualized Pro Forma Adjusted EBITDAre "
+            "stammen aus den offiziellen Realty-Income-Q2/6M-2026-Unterlagen. "
+            "Noch kein REIT-Score und keine Bewertung."
+        ),
+    })
+    return result
 
 def build_reit_special_model(
     company_type,
     info,
     price,
-    currency_context
+    currency_context,
+    symbol=None
 ):
     """
     Conservative REIT / real-estate data block.
 
-    It does not create a score, valuation multiple or fair value.
-    FFO/AFFO are only used when Yahoo exposes them directly. V1 never
-    reconstructs FFO/AFFO from net income, depreciation, standard FCF
-    or operating cash flow. Leverage is shown via EBITDA-based context.
+    V2.20.45 adds a time-bounded official primary-source gate for supported
+    REITs while preserving Yahoo values only as context. It does not create
+    a REIT score, valuation multiple or fair value. FFO/AFFO are never
+    reconstructed from net income, depreciation, standard FCF or operating
+    cash flow.
     """
     type_name = str(
         company_type.get("type", "")
@@ -9618,6 +9781,19 @@ def build_reit_special_model(
         return {
             "applicable": False
         }
+
+    snapshot = get_verified_reit_snapshot(symbol)
+    snapshot_fresh = _reit_snapshot_is_fresh(snapshot)
+    primary_gate = (
+        build_reit_primary_source_gate(snapshot)
+        if snapshot_fresh
+        else {
+            "available": False,
+            "integration_version": REIT_PRIMARY_SOURCE_INTEGRATION_VERSION,
+            "note": "REIT-Primärquellen-Gate gesperrt: verifizierter Snapshot ist veraltet.",
+        }
+    )
+    primary_source_complete = bool(snapshot_fresh and primary_gate.get("available"))
 
     quote_price = safe_float(price)
     price_financial = convert_quote_price_to_financial_share_unit(
@@ -9804,14 +9980,22 @@ def build_reit_special_model(
         ]
     )
 
-    readiness = (
-        "Teilweise"
-        if available_anchors >= 2
-        else "Unvollständig"
-    )
+    if primary_source_complete:
+        readiness = "Primärdaten vollständig"
+    else:
+        readiness = (
+            "Teilweise"
+            if available_anchors >= 2
+            else "Unvollständig"
+        )
 
     return {
         "applicable": True,
+        "snapshot": snapshot,
+        "snapshot_fresh": snapshot_fresh,
+        "primary_source_complete": primary_source_complete,
+        "primary_gate": primary_gate,
+        "integration_version": REIT_PRIMARY_SOURCE_INTEGRATION_VERSION,
         "price_financial": price_financial,
         "ffo_total": ffo_total,
         "ffo_total_source": ffo_total_source,
@@ -9840,16 +10024,79 @@ def build_reit_special_model(
         "property_value_available": False,
         "readiness": readiness,
         "note": (
-            "REIT-/Immobilien-Sondermodell V1 bleibt ein reiner Daten- und "
-            "Plausibilitätsblock. FFO und AFFO werden ausschließlich verwendet, "
-            "wenn sie direkt separat verfügbar sind; sie werden nicht aus "
-            "Nettogewinn, Abschreibungen, Standard-FCF oder Operating Cashflow "
-            "rekonstruiert. NAV/EPRA NTA bzw. Immobilienwerte werden in der "
-            "aktuellen Datenquelle nicht separat belastbar geladen und nicht "
-            "geschätzt. Noch keine REIT-Punkte, kein Bewertungs-Multiple und "
-            "kein Fair Value."
+            "REIT-/Immobilien-Sondermodell V2.20.45 verwendet für unterstützte REITs "
+            "verifizierte offizielle FFO-/AFFO-, Ausschüttungs-, Belegungs- und "
+            "Verschuldungsdaten als Primärbasis. Yahoo-FFO/AFFO, EV/EBITDA und "
+            "konsolidierte Netto-Schulden bleiben reine Kontext-/Plausibilitätswerte. "
+            "FFO/AFFO werden nicht aus Nettogewinn, Abschreibungen, Standard-FCF oder "
+            "Operating Cashflow rekonstruiert. NAV/EPRA NTA wird nicht geschätzt. "
+            "Noch kein REIT-Score, kein P/AFFO-Zielkorridor und kein Fair Value."
         )
     }
+
+
+def build_reit_special_control(base_control, reit_model):
+    """Attach the V2.20.45 fail-closed REIT primary-source gate to step 3B."""
+    control = dict(base_control or {})
+    control.setdefault("router_status", control.get("status"))
+    control.setdefault("router_note", control.get("note"))
+
+    if control.get("control_key") != "reit_ffo_affo_leverage":
+        return control
+
+    model = reit_model if isinstance(reit_model, dict) else {}
+    snapshot = model.get("snapshot")
+    gate = model.get("primary_gate") or {}
+
+    if not model.get("primary_source_complete"):
+        control.update({
+            "implemented": False,
+            "released": False,
+            "confidence_cap": "Niedrig",
+            "step3b_status": "REIT-Primärdaten unvollständig oder veraltet",
+            "overall_status": "Nicht freigegeben",
+            "snapshot": snapshot,
+            "checks": {"primary_gate": gate},
+            "note": (
+                "Die REIT-Spezialkontrolle benötigt aktuelle offizielle FFO/AFFO-, "
+                "Ausschüttungs-, Belegungs- und Verschuldungsdaten. Fehlende Werte "
+                "werden nicht aus Standard-EPS, Yahoo-Free-Cashflow, EBITDA oder "
+                "Buchwert-Proxies geschätzt."
+            ),
+        })
+        return control
+
+    control.update({
+        "implemented": True,
+        "released": False,
+        "confidence_cap": "Mittel",
+        "step3b_status": "Primärdaten vollständig – REIT-Score/Bewertung noch gesperrt",
+        "overall_status": "Primärdaten vollständig",
+        "snapshot": snapshot,
+        "checks": {
+            "primary_gate": gate,
+            "ffo_q2_per_share": gate.get("ffo_q2_per_share"),
+            "ffo_h1_per_share": gate.get("ffo_h1_per_share"),
+            "normalized_ffo_h1_per_share": gate.get("normalized_ffo_h1_per_share"),
+            "affo_q2_per_share": gate.get("affo_q2_per_share"),
+            "affo_h1_per_share": gate.get("affo_h1_per_share"),
+            "affo_h1_growth_pct": gate.get("affo_h1_growth_pct"),
+            "affo_guidance_low": gate.get("affo_guidance_low"),
+            "affo_guidance_high": gate.get("affo_guidance_high"),
+            "affo_payout_q2_pct": gate.get("affo_payout_q2_pct"),
+            "net_debt_to_adjusted_ebitdare": gate.get("net_debt_to_adjusted_ebitdare"),
+            "occupancy_pct": gate.get("occupancy_pct"),
+            "same_store_rent_growth_h1_pct": gate.get("same_store_rent_growth_h1_pct"),
+            "weighted_average_lease_term_years": gate.get("weighted_average_lease_term_years"),
+        },
+        "note": (
+            "REIT-Schritt 3B V2.20.45 validiert die aktuelle offizielle FFO/AFFO-"
+            "Ertragsbasis, AFFO-Ausschüttungsdeckung, Belegung, Restlaufzeit und "
+            "Net Debt/Annualized Pro Forma Adjusted EBITDAre. REIT-Score, "
+            "P/AFFO-Korridor, NAV und Fair Value bleiben bewusst gesperrt."
+        ),
+    })
+    return control
 
 
 # =========================================================
@@ -10849,20 +11096,22 @@ def get_special_control(company_type, symbol):
                 "REIT / FFO-, AFFO- & Verschuldungsprüfung"
             ),
             "planned_checks": [
-                "FFO / AFFO je Aktie",
-                "P/FFO bzw. P/AFFO",
-                "Netto-Schulden / EBITDA",
-                "NAV / Immobilienwert",
-                "Ausschüttungsdeckung"
+                "Offizielles FFO / Normalized FFO / AFFO je Aktie",
+                "AFFO-Wachstum / 2026 AFFO-Guidance",
+                "AFFO-Ausschüttungsdeckung",
+                "Net Debt / Annualized Pro Forma Adjusted EBITDAre",
+                "Portfolio-Belegung / Restlaufzeit",
+                "Same-Store-Rent-Wachstum",
+                "später: P/AFFO / NAV"
             ],
-            "status": "Router aktiv – V1 Datenbasis vorhanden",
+            "status": "Router aktiv – V2.20.45 REIT-Primärquellen-Gate",
             "note": (
-                "V1 nutzt FFO/AFFO nur, wenn Yahoo sie direkt separat "
-                "liefert. FFO/AFFO, NAV und Immobilienwerte werden nicht "
-                "aus Standardkennzahlen rekonstruiert oder geschätzt. "
-                "EV/EBITDA und Netto-Schulden/EBITDA bleiben reine "
-                "Datenreferenzen. Das Sondermodell verändert noch keinen "
-                "Score und kein Bewertungs-Multiple."
+                "V2.20.45 trennt Yahoo-Kontextkennzahlen von verifizierten REIT-Primärdaten. "
+                "Für unterstützte REITs werden FFO/AFFO, Ausschüttungsdeckung, Belegung und "
+                "Net Debt/Annualized Pro Forma Adjusted EBITDAre nur aus einem aktuellen "
+                "offiziellen Snapshot übernommen. Standard-EPS, Yahoo-Free-Cashflow und "
+                "generische EBITDA-/Bilanzwerte dürfen diese Kernkennzahlen nicht ersetzen. "
+                "REIT-Score, P/AFFO-Korridor, NAV und Fair Value bleiben gesperrt."
             )
         }
 
@@ -10906,10 +11155,11 @@ def get_special_control(company_type, symbol):
             ],
             "status": "Router aktiv – V2.20.44 Core-TTM + Versicherungs-Score + Dual-Anchor-Bewertung",
             "note": (
-                "V2.20.44 trennt Yahoo-Kontextkennzahlen von verifizierten Versicherungs-Primärdaten. "
-                "Core-TTM-Abdeckung, offizieller Buchwert, Versicherungs-Score sowie P/B- und Core-KGV-Anker "
-                "werden nur aus verifizierten Daten aufgebaut. Der Fair Value wird ausschließlich bei vollständiger "
-                "und konsistenter Dual-Anchor-Prüfung freigegeben."
+                "V2.20.44 trennt Yahoo-Kontextkennzahlen von verifizierten "
+                "Versicherungs-Primärdaten. Core-TTM-Abdeckung, offizieller Buchwert, "
+                "Versicherungs-Score sowie P/B- und Core-KGV-Anker werden nur aus "
+                "verifizierten Daten aufgebaut. Der Fair Value wird ausschließlich bei "
+                "vollständiger und konsistenter Dual-Anchor-Prüfung freigegeben."
             )
         }
 
@@ -17283,9 +17533,7 @@ def calculate_fair_value_v1(
         })
         return result
 
-    # Insurance V2.20.44 – dedicated dual-anchor fair value using the official
-    # current book value and verified Core-TTM EPS. This branch stays separate
-    # from the generic EPS × single-multiple path.
+    # Insurance V2.20.44 – frozen dual-anchor fair value.
     if (
         isinstance(special_control, dict)
         and special_control.get("control_key") == "insurance_core_capital"
@@ -17297,13 +17545,6 @@ def calculate_fair_value_v1(
             result["note"] = (
                 "Fair Value V1 gesperrt: Die Versicherungs-Spezialkontrolle ist zwar implementiert, "
                 "aber der Dual-Anchor-Bewertungsblock ist nicht vollständig freigegeben."
-            )
-            return result
-
-        if insurance_valuation.get("integration_version") != INSURANCE_VALUATION_INTEGRATION_VERSION:
-            result["note"] = (
-                "Fair Value V1 gesperrt: Versicherungsbewertung stammt nicht aus dem aktuellen "
-                "Dual-Anchor-Integrationsstand."
             )
             return result
 
@@ -17326,8 +17567,8 @@ def calculate_fair_value_v1(
         if share_context.get("conversion_required"):
             if not share_context.get("conversion_available"):
                 result["note"] = (
-                    "Fair Value V1 gesperrt: Die Versicherungs-Handelsnotierung verwendet eine abweichende "
-                    "Aktieneinheit ohne verifizierte Umrechnung."
+                    "Fair Value V1 gesperrt: Die Versicherungs-Handelsnotierung verwendet eine "
+                    "abweichende Aktieneinheit ohne verifizierte Umrechnung."
                 )
                 return result
             share_ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
@@ -17380,20 +17621,21 @@ def calculate_fair_value_v1(
             "fair_value_quote": fair_value_quote,
             "potential_pct": potential_pct,
             "insurance_score": safe_float(insurance_valuation.get("insurance_score")),
+            "official_bvps": safe_float(insurance_valuation.get("official_bvps")),
+            "core_ttm_eps": safe_float(insurance_valuation.get("core_ttm_eps")),
             "target_pb": safe_float(insurance_valuation.get("target_pb")),
             "target_core_pe": safe_float(insurance_valuation.get("target_core_pe")),
-            "official_book_value_per_share": safe_float(insurance_valuation.get("official_book_value_per_share")),
             "fair_value_book_financial": safe_float(insurance_valuation.get("fair_value_book_financial")),
-            "fair_value_core_earnings_financial": safe_float(insurance_valuation.get("fair_value_core_earnings_financial")),
+            "fair_value_core_pe_financial": safe_float(insurance_valuation.get("fair_value_core_pe_financial")),
             "book_weight": safe_float(insurance_valuation.get("book_weight")),
-            "earnings_weight": safe_float(insurance_valuation.get("earnings_weight")),
+            "core_pe_weight": safe_float(insurance_valuation.get("core_pe_weight")),
             "anchor_spread_pct": safe_float(insurance_valuation.get("anchor_spread_pct")),
             "unit_conversion_applied": bool(unit_notes),
             "unit_note": " ".join(unit_notes) if unit_notes else None,
             "note": (
                 "Versicherungs-Fair-Value V1 = 55 % offizieller Buchwert/P-B-Anker + "
-                "45 % verifizierter Core-TTM-EPS/Core-KGV-Anker. Standard-FCF und klassische "
-                "Netto-Schulden/FCF-Logik werden nicht verwendet."
+                "45 % verifizierter Core-TTM-EPS/Core-KGV-Anker. Standard-FCF und "
+                "klassische Netto-Schulden/FCF-Logik werden nicht verwendet."
             ),
         })
         return result
@@ -18761,7 +19003,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_insurance_dual_anchor_v22044_20260909"
+CACHE_VERSION = "m6_reit_primary_source_gate_v22045_20260909"
 
 @st.cache_data(
     ttl=900,
@@ -19124,7 +19366,8 @@ def load_stock(search_text, cache_version):
         company_type,
         fundamental_info,
         price,
-        currency_context
+        currency_context,
+        symbol=fundamental_symbol
     )
 
     fundamental_multiple = calculate_fundamental_multiple(
@@ -19158,8 +19401,22 @@ def load_stock(search_text, cache_version):
             "multiple": None,
             "note": (
                 "Versicherungen verwenden kein einzelnes Standard-Fundamental-Multiple. "
-                "Der versicherungsspezifische Score steuert getrennte P/B- und Core-KGV-Zielkorridore; "
-                "die eigentliche Dual-Anchor-Bewertung erfolgt in Schritt 3B."
+                "Der versicherungsspezifische Score steuert getrennte P/B- und Core-KGV-"
+                "Zielkorridore; die eigentliche Dual-Anchor-Bewertung erfolgt in Schritt 3B."
+            ),
+        }
+
+    if reit_special_model.get("applicable"):
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": None,
+            "multiple": None,
+            "note": (
+                "REITs verwenden kein Standard-Fundamental-Multiple auf Basis von EPS, "
+                "Free Cashflow oder industrieller Verschuldung. V2.20.45 validiert zunächst "
+                "nur die offizielle FFO/AFFO-, Ausschüttungs-, Belegungs- und "
+                "Verschuldungsbasis. REIT-Score, P/AFFO-Zielkorridor, NAV und Fair Value "
+                "bleiben bis zum separaten Bewertungsmodul gesperrt."
             ),
         }
 
@@ -19192,6 +19449,11 @@ def load_stock(search_text, cache_version):
     special_control = build_bank_special_control(
         special_control,
         bank_special_model
+    )
+
+    special_control = build_reit_special_control(
+        special_control,
+        reit_special_model
     )
 
     special_control = build_defense_special_control(
@@ -20204,9 +20466,8 @@ if selected_symbol:
                     )
                 elif insurance_core_eps_active:
                     st.caption(
-                        "Für die Versicherungsbewertung ist der verifizierte Core-TTM-EPS-Wert "
-                        "die vorbereitete Gewinnbasis des späteren Core-KGV-Ankers. Ein "
-                        "Der Versicherungs-Core-TTM-EPS-Wert ist die Gewinnbasis des Core-KGV-Ankers; die Fair-Value-Freigabe erfolgt ausschließlich über das Versicherungs-Dual-Anchor-Gate V2.20.44."
+                        "Der Versicherungs-Core-TTM-EPS-Wert ist die Gewinnbasis des Core-KGV-Ankers; "
+                        "die Fair-Value-Freigabe erfolgt ausschließlich über das Versicherungs-Dual-Anchor-Gate V2.20.44."
                     )
                 elif company_type.get("type") == "REIT / Immobilien":
                     st.caption(
@@ -21345,8 +21606,8 @@ if selected_symbol:
                     )
 
                     st.info(
-                        "Versicherungsmodell erkannt. V2.20.44 übernimmt das Primärquellen-Gate, ergänzt die nicht annualisierte Core-TTM-Abdeckung und die Dual-Anchor-Bewertung und trennt "
-                        "Yahoo-Kontextdaten klar von den verifizierten Primärdaten für Core Earnings/Core EPS, "
+                        "Versicherungsmodell erkannt. V2.20.44 übernimmt das Primärquellen-Gate, ergänzt die nicht annualisierte Core-TTM-Abdeckung "
+                        "und die Dual-Anchor-Bewertung und trennt Yahoo-Kontextdaten klar von den verifizierten Primärdaten für Core Earnings/Core EPS, "
                         "Core RoE und Solvency II. Die Versicherungsbewertung wird nur nach vollständiger Dual-Anchor-Prüfung freigegeben."
                     )
 
@@ -22274,172 +22535,169 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏢 REIT-/Immobilien-Sondermodell V1 – Datenbasis"
+                        "🏢 REIT-/Immobilien-Sondermodell V2.20.45 – Primärdatenbasis"
                     )
 
                     st.info(
-                        "REIT-/Immobilien-Modell erkannt. In V1 werden nur "
-                        "direkt verfügbare FFO/AFFO-Daten sowie EV/EBITDA- "
-                        "und Verschuldungskennzahlen plausibilisiert. FFO "
-                        "und AFFO werden nicht aus Standard-FCF oder "
-                        "Nettogewinn rekonstruiert."
+                        "REIT-/Immobilien-Modell erkannt. V2.20.45 verwendet für unterstützte REITs "
+                        "aktuelle offizielle FFO/AFFO-, Ausschüttungs-, Belegungs- und Verschuldungsdaten "
+                        "als Primärbasis. Yahoo-FFO/AFFO, EV/EBITDA und konsolidierte Bilanzwerte bleiben "
+                        "nur Kontext. Es wird noch keine REIT-Bewertung erzeugt."
                     )
 
-                    col1, col2 = st.columns(2)
+                    primary_gate_ui = reit_model.get("primary_gate") or {}
+                    snapshot_ui = reit_model.get("snapshot") or {}
 
-                    with col1:
+                    if reit_model.get("primary_source_complete") and primary_gate_ui.get("available"):
+                        st.success(
+                            "REIT-Primärquellen-Gate bestanden: offizielles FFO/AFFO, "
+                            "AFFO-Ausschüttungsdeckung, Belegung und Verschuldung sind vollständig validiert."
+                        )
+                        st.write(
+                            "**Datenstand Primärquelle:** "
+                            f"{text_or_dash(snapshot_ui.get('as_of_date'))} "
+                            f"(veröffentlicht {text_or_dash(snapshot_ui.get('published_date'))})"
+                        )
 
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            st.metric(
+                                "AFFO je Aktie Q2 2026",
+                                format_eps(primary_gate_ui.get("affo_q2_per_share"), financial_currency)
+                            )
+                            st.metric(
+                                "AFFO je Aktie 6M 2026",
+                                format_eps(primary_gate_ui.get("affo_h1_per_share"), financial_currency)
+                            )
+                            affo_growth_h1 = safe_float(primary_gate_ui.get("affo_h1_growth_pct"))
+                            st.metric(
+                                "AFFO-Wachstum 6M YoY",
+                                f"{affo_growth_h1:.1f} %" if affo_growth_h1 is not None else "–"
+                            )
+                            st.metric(
+                                "FFO je Aktie Q2 2026",
+                                format_eps(primary_gate_ui.get("ffo_q2_per_share"), financial_currency)
+                            )
+                            st.metric(
+                                "FFO je Aktie 6M 2026",
+                                format_eps(primary_gate_ui.get("ffo_h1_per_share"), financial_currency)
+                            )
+                            st.metric(
+                                "Normalized FFO je Aktie 6M 2026",
+                                format_eps(primary_gate_ui.get("normalized_ffo_h1_per_share"), financial_currency)
+                            )
+
+                        with c2:
+                            g_low = safe_float(primary_gate_ui.get("affo_guidance_low"))
+                            g_high = safe_float(primary_gate_ui.get("affo_guidance_high"))
+                            st.metric(
+                                "AFFO-Guidance 2026",
+                                (
+                                    f"{g_low:.2f} – {g_high:.2f} {financial_currency}"
+                                    if g_low is not None and g_high is not None
+                                    else "–"
+                                )
+                            )
+                            payout = safe_float(primary_gate_ui.get("affo_payout_q2_pct"))
+                            st.metric(
+                                "AFFO-Ausschüttungsquote Q2",
+                                f"{payout:.1f} %" if payout is not None else "–"
+                            )
+                            leverage = safe_float(primary_gate_ui.get("net_debt_to_adjusted_ebitdare"))
+                            st.metric(
+                                "Net Debt / Annualized Pro Forma Adjusted EBITDAre",
+                                f"{leverage:.1f}×" if leverage is not None else "–"
+                            )
+                            occupancy = safe_float(primary_gate_ui.get("occupancy_pct"))
+                            st.metric(
+                                "Portfolio-Belegung",
+                                f"{occupancy:.1f} %" if occupancy is not None else "–"
+                            )
+                            walt = safe_float(primary_gate_ui.get("weighted_average_lease_term_years"))
+                            st.metric(
+                                "Gewichtete Restlaufzeit",
+                                f"{walt:.1f} Jahre" if walt is not None else "–"
+                            )
+                            ssr = safe_float(primary_gate_ui.get("same_store_rent_growth_h1_pct"))
+                            st.metric(
+                                "Same-Store-Rent-Wachstum 6M",
+                                f"{ssr:.1f} %" if ssr is not None else "–"
+                            )
+
+                        rent_recapture = safe_float(snapshot_ui.get("rent_recapture_q2_pct"))
+                        if rent_recapture is not None:
+                            st.caption(
+                                f"Rent recapture Q2 2026: {rent_recapture:.1f} %. "
+                                f"Annualisierte Dividende zum 30.06.2026: "
+                                f"{safe_float(snapshot_ui.get('annualized_dividend_per_share')):.3f} {financial_currency} je Aktie."
+                            )
+
+                        st.info(primary_gate_ui.get("note"))
+                        st.caption(
+                            f"Quelle: {text_or_dash(snapshot_ui.get('source_name'))} · "
+                            f"gültig bis {text_or_dash(snapshot_ui.get('valid_until'))} · "
+                            f"Integrationsstand: {text_or_dash(primary_gate_ui.get('integration_version'))}"
+                        )
+                    elif reit_model.get("snapshot") and not reit_model.get("snapshot_fresh"):
+                        st.warning(
+                            "Der verifizierte REIT-Snapshot ist abgelaufen. FFO/AFFO, Ausschüttungsdeckung, "
+                            "Belegung und Verschuldungskennzahlen werden nicht stillschweigend weiterverwendet."
+                        )
+                    else:
+                        st.warning(
+                            primary_gate_ui.get("note")
+                            or "Für diesen REIT liegt noch kein vollständiger verifizierter Primärquellen-Snapshot vor."
+                        )
+
+                    st.write("**Yahoo-/Standarddaten nur als Kontext**")
+                    c3, c4 = st.columns(2)
+                    with c3:
                         st.metric(
-                            "FFO (direkt gemeldet)",
-                            format_money(
-                                reit_model["ffo_total"],
-                                financial_currency
-                            )
+                            "FFO je Aktie (Yahoo-Kontext)",
+                            format_eps(reit_model.get("ffo_per_share"), financial_currency)
                         )
-
                         st.metric(
-                            "FFO je Aktie (direkt gemeldet)",
-                            format_eps(
-                                reit_model["ffo_per_share"],
-                                financial_currency
-                            )
+                            "AFFO je Aktie (Yahoo-Kontext)",
+                            format_eps(reit_model.get("affo_per_share"), financial_currency)
                         )
-
-                        if reit_model["price_to_ffo"] is not None:
-                            st.metric(
-                                "P / FFO (nur Datenreferenz)",
-                                f"{reit_model['price_to_ffo']:.2f}×"
-                            )
-                        else:
-                            st.metric(
-                                "P / FFO (nur Datenreferenz)",
-                                "–"
-                            )
-
+                        ev_e = safe_float(reit_model.get("display_ev_to_ebitda"))
                         st.metric(
-                            "AFFO je Aktie (direkt gemeldet)",
-                            format_eps(
-                                reit_model["affo_per_share"],
-                                financial_currency
-                            )
+                            "EV / EBITDA (Yahoo-Kontext)",
+                            f"{ev_e:.2f}×" if ev_e is not None else "–"
                         )
-
-                        if reit_model["price_to_affo"] is not None:
-                            st.metric(
-                                "P / AFFO (nur Datenreferenz)",
-                                f"{reit_model['price_to_affo']:.2f}×"
-                            )
-                        else:
-                            st.metric(
-                                "P / AFFO (nur Datenreferenz)",
-                                "–"
-                            )
-
-                    with col2:
-
+                    with c4:
+                        nd = safe_float(reit_model.get("net_debt"))
                         st.metric(
-                            "EBITDA",
-                            format_money(
-                                reit_model["ebitda"],
-                                financial_currency
-                            )
+                            "Konsolidierte Nettoschulden (Kontext)",
+                            format_money(nd, financial_currency) if nd is not None else "–"
                         )
-
+                        nd_e = safe_float(reit_model.get("net_debt_to_ebitda"))
                         st.metric(
-                            "Enterprise Value",
-                            format_money(
-                                reit_model["enterprise_value"],
-                                financial_currency
-                            )
+                            "Netto-Schulden / EBITDA (Kontext)",
+                            f"{nd_e:.2f}×" if nd_e is not None else "–"
                         )
-
-                        if reit_model[
-                            "display_ev_to_ebitda"
-                        ] is not None:
-                            st.metric(
-                                "EV / EBITDA (nur Kontext)",
-                                f"{reit_model['display_ev_to_ebitda']:.2f}×"
-                            )
-                        else:
-                            st.metric(
-                                "EV / EBITDA (nur Kontext)",
-                                "–"
-                            )
-
-                        st.metric(
-                            "Nettoschulden",
-                            format_money(
-                                reit_model["net_debt"],
-                                financial_currency
-                            )
-                        )
-
-                        if reit_model[
-                            "net_debt_to_ebitda"
-                        ] is not None:
-                            st.metric(
-                                "Netto-Schulden / EBITDA",
-                                f"{reit_model['net_debt_to_ebitda']:.2f}×"
-                            )
-                        else:
-                            st.metric(
-                                "Netto-Schulden / EBITDA",
-                                "–"
-                            )
-
-                    if data[
-                        "currency_context"
-                    ].get("mixed_units"):
-                        price_financial = reit_model.get(
-                            "price_financial"
-                        )
-                        if price_financial is not None:
-                            st.write(
-                                "**Kurs für fundamentale Verhältniskennzahlen:** "
-                                f"{price_financial:,.4f} {financial_currency} "
-                                "(explizit aus der Pence-Notierung umgerechnet)"
-                            )
 
                     st.write(
                         "**NAV / EPRA NTA / Immobilienwert:** – "
-                        "(in der aktuellen Datenquelle nicht separat belastbar "
-                        "verfügbar; wird nicht aus Buchwert oder Enterprise "
-                        "Value geschätzt)"
+                        "(noch nicht als belastbare Primärquelle implementiert; wird nicht aus Buchwert oder Enterprise Value geschätzt)"
                     )
-
                     st.write(
                         "**Datenreife Sondermodell:** "
                         f"{reit_model['readiness']}"
                     )
 
-                    st.caption(
-                        reit_model["ffo_note"]
-                    )
-
-                    st.caption(
-                        reit_model["affo_note"]
-                    )
-
-                    if reit_model.get(
-                        "ev_to_ebitda_note"
-                    ):
-                        ev_note = reit_model[
-                            "ev_to_ebitda_note"
-                        ]
+                    if reit_model.get("ev_to_ebitda_note"):
+                        ev_note = reit_model["ev_to_ebitda_note"]
                         if ev_note.startswith("⚠️"):
                             st.warning(ev_note)
                         else:
                             st.caption(ev_note)
 
                     st.warning(
-                        "Bei REITs werden normales EPS, Yahoo-Free-Cashflow "
-                        "und die allgemeine Netto-Schulden/FCF-Logik nicht "
-                        "als Ersatz für FFO/AFFO verwendet."
+                        "Bei REITs werden normales EPS, Yahoo-Free-Cashflow und die allgemeine "
+                        "Netto-Schulden/FCF-Logik nicht als Ersatz für FFO/AFFO verwendet."
                     )
-
-                    st.caption(
-                        reit_model["note"]
-                    )
+                    st.caption(reit_model["note"])
 
                 st.divider()
 
@@ -22455,6 +22713,7 @@ if selected_symbol:
                     str((company_type or {}).get("type", "")).strip().lower() == "bank"
                 )
                 is_insurance_valuation_ui = is_insurance_company_type(company_type)
+                is_reit_valuation_ui = is_reit_company_type(company_type)
 
                 if is_bank_valuation_ui:
                     bank_model_m6 = data.get("bank_special_model") or {}
@@ -22539,8 +22798,43 @@ if selected_symbol:
 
                     st.caption(multiple_result.get("note"))
                     st.caption(
-                        "Bei Versicherungen werden offizieller Buchwert/P-B und verifiziertes Core-TTM-EPS/Core-KGV "
-                        "getrennt geführt. Der Dual-Anchor-Fair-Value folgt erst nach Schritt 3B."
+                        "Bei Versicherungen werden offizieller Buchwert/P-B und verifiziertes "
+                        "Core-TTM-EPS/Core-KGV getrennt geführt. Der Dual-Anchor-Fair-Value "
+                        "folgt erst nach Schritt 3B."
+                    )
+                elif is_reit_valuation_ui:
+                    reit_model_m6 = data.get("reit_special_model") or {}
+                    reit_gate_m6 = reit_model_m6.get("primary_gate") or {}
+
+                    if reit_model_m6.get("primary_source_complete") and reit_gate_m6.get("available"):
+                        st.success(
+                            "REIT-Primärdaten vollständig: offizielles FFO/AFFO, "
+                            "Ausschüttungsdeckung, Belegung, Restlaufzeit und Verschuldung "
+                            "sind für den nächsten Bewertungsschritt belastbar vorhanden."
+                        )
+                        guide_mid = safe_float(reit_gate_m6.get("affo_guidance_mid"))
+                        if guide_mid is not None:
+                            st.write(
+                                "**Offizieller AFFO-Guidance-Mittelwert 2026:** "
+                                f"{guide_mid:.3f} {financial_currency} je Aktie"
+                            )
+                    else:
+                        st.warning(
+                            "REIT-Primärdaten noch nicht vollständig oder nicht mehr aktuell. "
+                            "Die Bewertung bleibt fail-closed."
+                        )
+
+                    st.info(
+                        "P/AFFO-/P/FFO-Zielkorridore sind in V2.20.45 noch nicht fachlich "
+                        "freigegeben. Deshalb wird bewusst kein Standard-Fundamental-Multiple "
+                        "und kein Fair Value berechnet."
+                    )
+                    st.caption(multiple_result.get("note"))
+                    st.caption(
+                        "Der nächste REIT-Schritt baut einen eigenen Qualitäts-/Bilanz-Score "
+                        "und einen P/AFFO-Anker auf. Ein NAV-Anker wird nur ergänzt, wenn eine "
+                        "belastbare und vergleichbare Primärquelle vorhanden ist; NAV wird nicht "
+                        "aus Buchwert oder Enterprise Value geschätzt."
                     )
                 else:
                     corridor = multiple_result[
@@ -23083,6 +23377,113 @@ if selected_symbol:
 
                 if special_control.get(
                     "control_key"
+                ) == "reit_ffo_affo_leverage":
+
+                    st.divider()
+
+                    st.subheader(
+                        "🏢 Modul 6 – Schritt 3B: REIT-FFO/AFFO- & Verschuldungsprüfung"
+                    )
+
+                    if special_control.get("implemented"):
+                        checks = special_control.get("checks", {})
+                        snapshot = special_control.get("snapshot") or {}
+                        gate = checks.get("primary_gate") or {}
+
+                        st.write(
+                            "**Datenstand:** "
+                            f"{text_or_dash(snapshot.get('as_of_date'))} "
+                            f"(veröffentlicht {text_or_dash(snapshot.get('published_date'))})"
+                        )
+
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            st.metric(
+                                "AFFO je Aktie Q2",
+                                format_eps(checks.get("affo_q2_per_share"), financial_currency)
+                            )
+                            st.metric(
+                                "AFFO je Aktie 6M",
+                                format_eps(checks.get("affo_h1_per_share"), financial_currency)
+                            )
+                            growth = safe_float(checks.get("affo_h1_growth_pct"))
+                            st.metric(
+                                "AFFO-Wachstum 6M YoY",
+                                f"{growth:.1f} %" if growth is not None else "–"
+                            )
+                            st.metric(
+                                "FFO je Aktie Q2",
+                                format_eps(checks.get("ffo_q2_per_share"), financial_currency)
+                            )
+                            st.metric(
+                                "FFO je Aktie 6M",
+                                format_eps(checks.get("ffo_h1_per_share"), financial_currency)
+                            )
+                            st.metric(
+                                "Normalized FFO je Aktie 6M",
+                                format_eps(checks.get("normalized_ffo_h1_per_share"), financial_currency)
+                            )
+
+                        with c2:
+                            g_low = safe_float(checks.get("affo_guidance_low"))
+                            g_high = safe_float(checks.get("affo_guidance_high"))
+                            st.metric(
+                                "AFFO-Guidance 2026",
+                                (
+                                    f"{g_low:.2f} – {g_high:.2f} {financial_currency}"
+                                    if g_low is not None and g_high is not None else "–"
+                                )
+                            )
+                            payout = safe_float(checks.get("affo_payout_q2_pct"))
+                            st.metric(
+                                "AFFO-Ausschüttungsquote",
+                                f"{payout:.1f} %" if payout is not None else "–"
+                            )
+                            leverage = safe_float(checks.get("net_debt_to_adjusted_ebitdare"))
+                            st.metric(
+                                "Net Debt / Adjusted EBITDAre",
+                                f"{leverage:.1f}×" if leverage is not None else "–"
+                            )
+                            occupancy = safe_float(checks.get("occupancy_pct"))
+                            st.metric(
+                                "Portfolio-Belegung",
+                                f"{occupancy:.1f} %" if occupancy is not None else "–"
+                            )
+                            walt = safe_float(checks.get("weighted_average_lease_term_years"))
+                            st.metric(
+                                "Gewichtete Restlaufzeit",
+                                f"{walt:.1f} Jahre" if walt is not None else "–"
+                            )
+                            same_store = safe_float(checks.get("same_store_rent_growth_h1_pct"))
+                            st.metric(
+                                "Same-Store-Rent-Wachstum 6M",
+                                f"{same_store:.1f} %" if same_store is not None else "–"
+                            )
+
+                        st.success(
+                            "REIT-Primärdaten vollständig validiert. FFO/AFFO, "
+                            "AFFO-Ausschüttungsdeckung, Belegung, Restlaufzeit und offizielle "
+                            "Verschuldungskennzahl sind belastbar vorhanden."
+                        )
+                        if gate.get("note"):
+                            st.caption(gate.get("note"))
+
+                        st.warning(
+                            "Bewertungsfreigabe noch NEIN: V2.20.45 ergänzt bewusst nur die "
+                            "REIT-Primärdatenbasis. REIT-Score, P/AFFO-Zielkorridor, ein eventuell "
+                            "belastbarer NAV-Anker und Fair Value werden erst im nächsten separaten "
+                            "Bewertungsschritt fachlich festgelegt."
+                        )
+                        st.caption(
+                            "Primärdatenfreigabe und Bewertungsfreigabe sind getrennt. Ein vollständiger "
+                            "REIT-Datensatz allein erzeugt noch keinen Fair Value. Das Gate bleibt "
+                            "fail-closed, wenn der offizielle Snapshot veraltet oder unvollständig ist."
+                        )
+                    else:
+                        st.warning(special_control.get("note"))
+
+                if special_control.get(
+                    "control_key"
                 ) == "insurance_core_capital":
 
                     st.divider()
@@ -23154,11 +23555,11 @@ if selected_symbol:
                             st.caption(core_cov_3b.get("note"))
 
                         if book_bridge_3b.get("available"):
+                            bvps_now = safe_float(book_bridge_3b.get("bvps_2026_h1"))
                             bg3 = safe_float(book_bridge_3b.get("bvps_growth_2025_pct"))
-                            bv_current = safe_float(book_bridge_3b.get("bvps_2026_h1"))
                             st.write(
                                 "**Offizieller Buchwert je Aktie 30.06.2026:** "
-                                + (f"{bv_current:.2f} {financial_currency}" if bv_current is not None else "–")
+                                + (format_eps(bvps_now, financial_currency) if bvps_now is not None else "–")
                             )
                             st.write(
                                 "**Offizielles Buchwertwachstum FY2025:** "
@@ -23175,51 +23576,44 @@ if selected_symbol:
                                 f"{text_or_dash(insurance_score_3b.get('quality_level'))}"
                             )
 
-                        if insurance_val_3b.get("target_pb") is not None:
+                        if insurance_val_3b.get("available"):
                             st.write(
                                 "**Ziel-P/B:** "
                                 f"{insurance_val_3b.get('target_pb'):.2f}× innerhalb "
                                 f"{insurance_val_3b.get('pb_corridor_lower'):.1f}–{insurance_val_3b.get('pb_corridor_upper'):.1f}×"
                             )
-                        if insurance_val_3b.get("target_core_pe") is not None:
                             st.write(
                                 "**Ziel-Core-KGV:** "
                                 f"{insurance_val_3b.get('target_core_pe'):.2f}× innerhalb "
                                 f"{insurance_val_3b.get('core_pe_corridor_lower'):.1f}–{insurance_val_3b.get('core_pe_corridor_upper'):.1f}×"
                             )
-                        if insurance_val_3b.get("fair_value_book_financial") is not None:
                             st.write(
                                 "**Fair-Value-Anker Buchwert/P-B:** "
-                                f"{insurance_val_3b.get('fair_value_book_financial'):.2f} {financial_currency}"
+                                f"{format_eps(insurance_val_3b.get('fair_value_book_financial'), financial_currency)}"
                             )
-                        if insurance_val_3b.get("fair_value_core_earnings_financial") is not None:
                             st.write(
                                 "**Fair-Value-Anker Core-KGV:** "
-                                f"{insurance_val_3b.get('fair_value_core_earnings_financial'):.2f} {financial_currency}"
+                                f"{format_eps(insurance_val_3b.get('fair_value_core_pe_financial'), financial_currency)}"
                             )
-                        if insurance_val_3b.get("anchor_spread_pct") is not None:
+                            spread = safe_float(insurance_val_3b.get("anchor_spread_pct"))
                             st.write(
                                 "**Abstand der beiden Anker:** "
-                                f"{insurance_val_3b.get('anchor_spread_pct'):.1f} %"
+                                + (f"{spread:.1f} %" if spread is not None else "–")
                             )
-
-                        if special_control.get("released") and insurance_val_3b.get("available"):
-                            st.success(
-                                "Bewertungsfreigabe JA: Versicherungs-Score sowie offizieller P/B- und Core-KGV-Anker "
-                                "sind vollständig und ausreichend konsistent. Der Dual-Anchor-Fair-Value ist freigegeben."
+                            st.success(insurance_val_3b.get("note"))
+                            st.caption(
+                                "Versicherungs-Freigabe bleibt fail-closed: veraltete Primärdaten, "
+                                "unvollständige Core-TTM-Abdeckung, Buchwert-Quellenkonflikte oder "
+                                "mehr als 25 % Abstand zwischen Buchwert/P-B- und Core-KGV-Anker "
+                                "sperren die Bewertung."
                             )
                         else:
                             st.warning(
-                                "Bewertungsfreigabe noch NEIN: "
-                                + str(insurance_val_3b.get("note") or special_control.get("note") or "Versicherungsbewertung unvollständig.")
+                                insurance_val_3b.get("note")
+                                or "Bewertungsfreigabe noch NEIN: Versicherungs-Dual-Anchor-Gate nicht bestanden."
                             )
                     else:
                         st.info(special_control.get("note"))
-
-                    st.caption(
-                        "Versicherungs-Freigabe bleibt fail-closed: veraltete Primärdaten, unvollständige Core-TTM-Abdeckung, "
-                        "Buchwert-Quellenkonflikte oder mehr als 25 % Abstand zwischen Buchwert/P-B- und Core-KGV-Anker sperren die Bewertung."
-                    )
 
                 if special_control.get(
                     "control_key"
@@ -25128,11 +25522,11 @@ if selected_symbol:
                         )
                         st.write(
                             "**Offizieller Buchwert je Aktie:** "
-                            f"{fair_value.get('official_book_value_per_share'):.2f} {fair_value['financial_currency']}"
+                            f"{fair_value.get('official_bvps'):.2f} {fair_value['financial_currency']}"
                         )
                         st.write(
                             "**Core-TTM-EPS:** "
-                            f"{fair_value.get('normalized_eps'):.2f} {fair_value['financial_currency']}"
+                            f"{fair_value.get('core_ttm_eps'):.2f} {fair_value['financial_currency']}"
                         )
                         st.write(
                             "**Ziel-P/B:** "
@@ -25144,11 +25538,13 @@ if selected_symbol:
                         )
                         st.write(
                             "**Buchwert/P-B-Fair-Value-Anker:** "
-                            f"{fair_value.get('fair_value_book_financial'):.2f} {fair_value['financial_currency']}"
+                            f"{fair_value.get('fair_value_book_financial'):.2f} "
+                            f"{fair_value['financial_currency']}"
                         )
                         st.write(
                             "**Core-KGV-Fair-Value-Anker:** "
-                            f"{fair_value.get('fair_value_core_earnings_financial'):.2f} {fair_value['financial_currency']}"
+                            f"{fair_value.get('fair_value_core_pe_financial'):.2f} "
+                            f"{fair_value['financial_currency']}"
                         )
                         if fair_value.get("anchor_spread_pct") is not None:
                             st.write(
