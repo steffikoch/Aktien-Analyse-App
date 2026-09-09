@@ -17,17 +17,17 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.50"
+APP_BUILD_VERSION = "V2.20.51"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · Midstream Quality Score + EV/Adjusted EBITDA Valuation Anchor")
+st.caption(f"Build {APP_BUILD_VERSION} · Midstream Peer Valuation Overlay")
 
 
-# V2.20.50: Midstream Quality Score + EV/Adjusted EBITDA Valuation Anchor. Builds on the time-bounded Kinder Morgan primary-source gate, adds a dedicated 100-point Midstream score and a fail-closed EV/Adjusted-EBITDA equity-value bridge. Currency Engine and existing specialist models remain unchanged.
+# V2.20.51: Midstream Peer Valuation Overlay. Adds a large-cap North-American midstream EV/EBITDA peer reality check to the released V2.20.50 KMI quality/EV-Adjusted-EBITDA model. At least three usable peers are required; the peer median may move the score-derived target multiple by at most ±5 %. The 100-point Midstream score and official KMI Adjusted EBITDA / Net Debt / share-count bridge remain unchanged.
 
 # =========================================================
 # Hilfsfunktionen
@@ -9435,16 +9435,16 @@ def build_bank_special_control(base_control, bank_model):
 
 
 # =========================================================
-# Midstream-Sondermodell V2.20.50 – Quality Score + EV/Adjusted EBITDA Valuation Anchor
+# Midstream-Sondermodell V2.20.51 – Quality Score + EV/Adjusted EBITDA + Peer Overlay
 # =========================================================
 
-MIDSTREAM_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22050_midstream_quality_ev_adjusted_ebitda"
+MIDSTREAM_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22051_midstream_peer_overlay"
 
 
 def get_verified_midstream_snapshot(symbol):
     """Time-bounded official Midstream snapshot for supported companies.
 
-    V2.20.50 starts with Kinder Morgan (NYSE: KMI). Kinder Morgan currently
+    V2.20.51 continues with Kinder Morgan (NYSE: KMI). Kinder Morgan currently
     reports issuer-defined FCF rather than a metric labelled DCF. We preserve
     that nomenclature and never relabel Yahoo FCF/OCF as issuer-defined DCF.
     """
@@ -9624,7 +9624,7 @@ def build_midstream_primary_source_gate(snapshot):
 
 
 def build_midstream_quality_score(primary_gate, snapshot=None):
-    """V2.20.50 dedicated 100-point Midstream score from verified issuer data only.
+    """V2.20.51 dedicated 100-point Midstream score from verified issuer data only.
 
     The standard revenue/EPS/ROE/Yahoo-FCF score is deliberately excluded. The
     score focuses on cash generation after capex, dividend coverage, leverage,
@@ -9770,13 +9770,61 @@ def build_midstream_ev_ebitda_valuation(primary_gate, midstream_score, price_fin
         "fair_value_financial": fair_value,
         "current_ev_adjusted_ebitda": current_ev_multiple,
         "note": (
-            "V2.20.50 bewertet Midstream über einen scoregesteuerten EV/Adjusted-EBITDA-Anker. "
+            "V2.20.51 bildet zunächst den scoregesteuerten EV/Adjusted-EBITDA-Fundamentalaner. "
             "Der Enterprise Value wird mit dem offiziellen LTM Adjusted EBITDA ermittelt, danach "
             "wird die offizielle Nettoverschuldung abgezogen und durch die offizielle Aktienbasis geteilt. "
-            "Yahoo-EV/EBITDA bleibt nur Plausibilitätskontext; ein Peer-Overlay ist noch nicht enthalten."
+            "Ein regelkonformer Peer-Median kann diesen Fundamentalanker anschließend um höchstens ±5 % bewegen."
         ),
     })
     return result
+
+
+def apply_midstream_peer_overlay(midstream_valuation, peer_check):
+    """Recalculate the EV-to-equity bridge with a peer-controlled target multiple.
+
+    The score-derived multiple remains visible as the fundamental anchor. The peer
+    overlay can only move it by ±5 % and never changes the score or official inputs.
+    """
+    mv = dict(midstream_valuation or {})
+    if not mv.get("available"):
+        return mv
+    base = safe_float(mv.get("target_ev_adjusted_ebitda"))
+    ebitda = safe_float(mv.get("adjusted_ebitda_basis"))
+    net_debt = safe_float(mv.get("official_net_debt"))
+    shares = safe_float(mv.get("shares_basis"))
+    mv["fundamental_target_ev_adjusted_ebitda"] = base
+    mv["peer_overlay_applied"] = False
+    mv["peer_median_ev_ebitda"] = safe_float((peer_check or {}).get("peer_median"))
+    mv["peer_adjustment_pct"] = safe_float((peer_check or {}).get("adjustment_pct")) or 0.0
+    if not (peer_check or {}).get("applied"):
+        mv["note"] = (
+            "V2.20.51 hält den scoregesteuerten EV/Adjusted-EBITDA-Anker unverändert, "
+            "weil keine regelkonforme Peer-Anpassung verfügbar ist. Die Kernbewertung "
+            "bleibt auf offiziellen KMI-Primärdaten aufgebaut."
+        )
+        return mv
+    adjusted = safe_float((peer_check or {}).get("adjusted_multiple"))
+    if adjusted is None or adjusted <= 0 or ebitda is None or ebitda <= 0 or net_debt is None or shares is None or shares <= 0:
+        return mv
+    fair_ev = ebitda * adjusted
+    fair_equity = fair_ev - net_debt
+    if fair_equity <= 0:
+        return mv
+    mv.update({
+        "peer_overlay_applied": True,
+        "target_ev_adjusted_ebitda": adjusted,
+        "fair_enterprise_value": fair_ev,
+        "fair_equity_value": fair_equity,
+        "fair_value_financial": fair_equity / shares,
+        "note": (
+            "V2.20.51 verwendet den scoregesteuerten EV/Adjusted-EBITDA-Anker als Fundamentalbasis "
+            "und legt darüber einen Midstream-Peer-Median als externen Realitätscheck. Die Peer-"
+            "Anpassung ist auf ±5 % begrenzt. Offizielles Adjusted EBITDA, Net Debt, Aktienbasis und "
+            "der 100-Punkte-Midstream-Score bleiben unverändert."
+        ),
+    })
+    return mv
+
 
 
 def build_midstream_special_model(
@@ -9786,7 +9834,7 @@ def build_midstream_special_model(
     currency_context,
     symbol=None
 ):
-    """Midstream-specific primary-source model plus released V2.20.50 valuation.
+    """Midstream-specific primary-source model plus released V2.20.51 valuation.
 
     Yahoo EV/EBITDA and standard FCF remain contextual. The released valuation
     uses only the dedicated Midstream score and the official Adjusted EBITDA /
@@ -9883,7 +9931,7 @@ def build_midstream_special_model(
         "distributable_cashflow_available": False,
         "readiness": readiness,
         "note": (
-            "Midstream-Sondermodell V2.20.50 trennt offizielle issuer-definierte "
+            "Midstream-Sondermodell V2.20.51 trennt offizielle issuer-definierte "
             "Cashflow-/Dividendendeckungs-, Adjusted-EBITDA-, Verschuldungs- und "
             "Backlog-Kennzahlen von Yahoo-Kontextdaten. Für KMI wird die offiziell "
             "gemeldete Kennzahl KMI FCF verwendet; ein DCF-Wert wird nicht erfunden. "
@@ -9952,7 +10000,7 @@ def build_midstream_special_control(base_control, midstream_model):
             ]},
         },
         "note": (
-            "Midstream-Schritt 3B V2.20.50 validiert die offizielle Cashflow-/Dividendendeckungsbasis, "
+            "Midstream-Schritt 3B V2.20.51 validiert die offizielle Cashflow-/Dividendendeckungsbasis, "
             "Adjusted EBITDA, Net Debt / Adjusted EBITDA und Projekt-Backlog und gibt danach den "
             "eigenen Midstream-Quality-Score sowie den EV/Adjusted-EBITDA-Equity-Value-Bridge frei. "
             "Yahoo-EV/EBITDA bleibt Kontext; fehlende Primärdaten sperren die Bewertung fail-closed."
@@ -11104,6 +11152,15 @@ def get_peer_group(company_type, symbol):
             ]
         ),
         (
+            "öl & gas / midstream",
+            [
+                ("WMB", "The Williams Companies"),
+                ("OKE", "ONEOK"),
+                ("EPD", "Enterprise Products Partners"),
+                ("MPLX", "MPLX"),
+            ]
+        ),
+        (
             "öl & gas / zyklisch",
             [
                 ("SHEL", "Shell"),
@@ -11166,6 +11223,13 @@ def get_peer_group(company_type, symbol):
                         "der analysierten Aktie wird dadurch nicht ersetzt."
                     )
                     if key == "autozulieferer / zyklisch"
+                    else (
+                        "Midstream-Peer-Gruppe automatisch ausgewählt. Verwendet werden "
+                        "große nordamerikanische Infrastrukturunternehmen. Der Median des "
+                        "Yahoo-EV/EBITDA dient ausschließlich als externer Multiple-Realitätscheck; "
+                        "offizielles KMI Adjusted EBITDA, Net Debt und Midstream-Score bleiben unverändert."
+                    )
+                    if key == "öl & gas / midstream"
                     else (
                         "Peer-Gruppe automatisch aus dem Unternehmenstyp "
                         "ausgewählt. In Schritt 2A werden noch keine Peer-"
@@ -11332,6 +11396,112 @@ def load_peer_forward_pe(peer_symbol, cache_version):
         }
 
 
+@st.cache_data(ttl=900)
+def load_peer_ev_ebitda(peer_symbol, cache_version):
+    """Load one directly reported Yahoo Enterprise Value/EBITDA multiple.
+
+    This is deliberately an external market-comparison layer. It never replaces
+    issuer-defined Adjusted EBITDA in the core Midstream valuation.
+    """
+    try:
+        peer_ticker = yf.Ticker(peer_symbol)
+        try:
+            peer_info = peer_ticker.info or {}
+        except Exception:
+            peer_info = {}
+
+        value = safe_float(peer_info.get("enterpriseToEbitda"))
+        source = "Yahoo quoteSummary/info"
+
+        if value is None:
+            try:
+                valuation = _ticker_frame(
+                    peer_ticker,
+                    ["valuation"],
+                    method_calls=[(
+                        "get_valuation_measures",
+                        {"freq": "trailing", "periods": 0}
+                    )],
+                )
+                value = _valuation_measure_value(
+                    valuation,
+                    [
+                        "Enterprise Value/EBITDA",
+                        "Enterprise Value / EBITDA",
+                        "EV/EBITDA",
+                        "EnterpriseToEbitda",
+                    ],
+                )
+                source = "Yahoo Valuation Measures"
+            except Exception:
+                value = None
+
+        if value is None or value <= 0 or value > 40:
+            return {
+                "usable": False, "ev_ebitda": None, "source": None,
+                "reason": "Kein plausibles positives EV/EBITDA verfügbar."
+            }
+        return {
+            "usable": True, "ev_ebitda": float(value), "source": source,
+            "reason": None
+        }
+    except Exception:
+        return {
+            "usable": False, "ev_ebitda": None, "source": None,
+            "reason": "Peer-EV/EBITDA konnte nicht zuverlässig geladen werden."
+        }
+
+
+def _calculate_midstream_peer_overlay(peer_group, fundamental_multiple, cache_version):
+    """External Midstream EV/EBITDA median with strict ±5 % adjustment cap."""
+    result = {
+        "method_supported": True, "metric": "EV/EBITDA", "peer_rows": [],
+        "usable_count": 0, "peer_median": None, "adjustment_pct": 0.0,
+        "adjusted_multiple": fundamental_multiple, "applied": False, "note": None
+    }
+    for peer in peer_group.get("peers", []):
+        pdx = load_peer_ev_ebitda(peer["symbol"], cache_version)
+        result["peer_rows"].append({
+            "symbol": peer["symbol"], "name": peer["name"],
+            "usable": pdx.get("usable", False),
+            "ev_ebitda": pdx.get("ev_ebitda"),
+            "source": pdx.get("source"), "reason": pdx.get("reason")
+        })
+    values = [r["ev_ebitda"] for r in result["peer_rows"] if r.get("usable") and r.get("ev_ebitda") is not None]
+    result["usable_count"] = len(values)
+    if len(values) < 3:
+        result["note"] = (
+            "Weniger als 3 brauchbare Midstream-Peer-EV/EBITDA-Werte verfügbar. "
+            "Nach unserer Regel erfolgt keine automatische Peer-Anpassung; der "
+            "scoregesteuerte Fundamental-Anker bleibt unverändert."
+        )
+        return result
+    median = float(pd.Series(values).median())
+    result["peer_median"] = median
+    base = safe_float(fundamental_multiple)
+    if base is None or base <= 0:
+        result["note"] = "Peer-Median vorhanden, aber kein belastbarer Midstream-Fundamental-Anker verfügbar."
+        return result
+    raw = median / base - 1.0
+    adj = max(-0.05, min(0.05, raw))
+    result["adjustment_pct"] = adj
+    result["adjusted_multiple"] = base * (1.0 + adj)
+    result["applied"] = True
+    if abs(raw) <= 0.05:
+        result["note"] = (
+            "Der Midstream-Peer-Median liegt innerhalb von ±5 % des scoregesteuerten "
+            "Fundamental-Ankers. Die tatsächliche Abweichung wird vollständig berücksichtigt. "
+            "Der 100-Punkte-Midstream-Score und die offiziellen KMI-Primärkennzahlen ändern sich nicht."
+        )
+    else:
+        result["note"] = (
+            "Der Abstand zwischen Peer-Median und Fundamental-Anker ist größer als 5 %. "
+            "Die automatische Midstream-Peer-Anpassung wird strikt auf ±5 % begrenzt. "
+            "Der 100-Punkte-Midstream-Score und die offiziellen KMI-Primärkennzahlen ändern sich nicht."
+        )
+    return result
+
+
 def calculate_peer_check(
     company_type,
     peer_group,
@@ -11350,11 +11520,9 @@ def calculate_peer_check(
         "note": None
     }
 
-    if not peer_group.get("available"):
-        type_name = str(
-            company_type.get("type", "")
-        ).lower()
+    type_name = str(company_type.get("type", "")).lower()
 
+    if not peer_group.get("available"):
         if "standard-unternehmen" in type_name:
             result["note"] = (
                 "Kein automatischer Peer-Check für den Sammeltyp "
@@ -11367,6 +11535,11 @@ def calculate_peer_check(
                 "Keine automatische Peer-Gruppe verfügbar."
             )
         return result
+
+    if "midstream" in type_name:
+        return _calculate_midstream_peer_overlay(
+            peer_group, fundamental_multiple, cache_version
+        )
 
     if not peer_forward_pe_is_supported(company_type):
         result["note"] = (
@@ -11690,9 +11863,9 @@ def get_special_control(company_type, symbol):
                 "Dividendendeckung",
                 "Projekt-Backlog / Projekt-EBITDA-Multiple"
             ],
-            "status": "Router aktiv – V2.20.50 Midstream-Quality-/EV-Adjusted-EBITDA-Gate",
+            "status": "Router aktiv – V2.20.51 Midstream-Peer-Overlay-Gate",
             "note": (
-                "V2.20.50 trennt issuer-definierte FCF/DCF-, Dividendendeckungs-, "
+                "V2.20.51 trennt issuer-definierte FCF/DCF-, Dividendendeckungs-, "
                 "Adjusted-EBITDA-, Verschuldungs- und Backlog-Kennzahlen von Yahoo-"
                 "Kontextdaten. Für Kinder Morgan wird die offiziell gemeldete KMI-FCF-"
                 "Kennzahl verwendet; ein DCF-Wert wird nicht aus Standard-FCF oder OCF "
@@ -18278,7 +18451,7 @@ def calculate_fair_value_v1(
         })
         return result
 
-    # Midstream V2.20.50 – dedicated EV/Adjusted-EBITDA to equity-value bridge.
+    # Midstream V2.20.51 – EV/Adjusted-EBITDA equity-value bridge with capped peer overlay.
     if (
         isinstance(special_control, dict)
         and special_control.get("control_key") == "midstream_cashflow_leverage"
@@ -18319,7 +18492,7 @@ def calculate_fair_value_v1(
             "valuation_method": "midstream_ev_adjusted_ebitda",
             "normalized_eps": None,
             "used_multiple": safe_float(mv.get("target_ev_adjusted_ebitda")),
-            "multiple_source": "Midstream Quality Score → EV/Adjusted EBITDA",
+            "multiple_source": "Midstream Quality Score → EV/Adjusted EBITDA → Peer Overlay (max. ±5 %)",
             "fair_value_financial": fv,
             "fair_value_quote": fvq,
             "potential_pct": potential,
@@ -18332,14 +18505,19 @@ def calculate_fair_value_v1(
             "fair_equity_value": safe_float(mv.get("fair_equity_value")),
             "current_ev_adjusted_ebitda": safe_float(mv.get("current_ev_adjusted_ebitda")),
             "target_ev_adjusted_ebitda": safe_float(mv.get("target_ev_adjusted_ebitda")),
+            "fundamental_target_ev_adjusted_ebitda": safe_float(mv.get("fundamental_target_ev_adjusted_ebitda")),
+            "peer_overlay_applied": bool(mv.get("peer_overlay_applied")),
+            "peer_median_ev_ebitda": safe_float(mv.get("peer_median_ev_ebitda")),
+            "peer_adjustment_pct": safe_float(mv.get("peer_adjustment_pct")),
             "ev_ebitda_corridor_low": safe_float(mv.get("corridor_low")),
             "ev_ebitda_corridor_high": safe_float(mv.get("corridor_high")),
             "unit_conversion_applied": bool(unit_notes),
             "unit_note": " ".join(unit_notes) if unit_notes else None,
             "note": (
-                "Midstream-Fair-Value V1 = offizielles LTM Adjusted EBITDA × scoregesteuertes "
-                "EV/Adjusted-EBITDA-Zielmultiple − offizielle Nettoverschuldung; anschließend Division "
-                "durch die offizielle Aktienbasis. Yahoo-EV/EBITDA und Standard-FCF sind nicht Bestandteil des Fair Values."
+                "Midstream-Fair-Value V1 = offizielles LTM Adjusted EBITDA × verwendetes EV/Adjusted-EBITDA-"
+                "Zielmultiple − offizielle Nettoverschuldung; anschließend Division durch die offizielle Aktienbasis. "
+                "Das verwendete Multiple startet beim scoregesteuerten Fundamentalaner und kann durch den Peer-Median "
+                "höchstens ±5 % angepasst werden. Yahoo-FCF bleibt vollständig außerhalb des Fair Values."
             ),
         })
         return result
@@ -20252,8 +20430,8 @@ def load_stock(search_text, cache_version):
             "multiple": safe_float(mv.get("target_ev_adjusted_ebitda")),
             "available": bool(ms.get("available") and mv.get("available")),
             "note": (
-                "Midstream verwendet kein Standard-EPS-/FCF-Multiple. V2.20.50 nutzt den eigenen "
-                "100-Punkte-Midstream-Score und einen scoregesteuerten EV/Adjusted-EBITDA-Anker. "
+                "Midstream verwendet kein Standard-EPS-/FCF-Multiple. V2.20.51 nutzt den eigenen "
+                "100-Punkte-Midstream-Score als Fundamentalaner; ein Peer-Overlay folgt erst in Schritt 2B. "
                 "Der Equity Value entsteht erst nach Abzug der offiziellen Nettoverschuldung."
             ),
         }
@@ -20288,6 +20466,22 @@ def load_stock(search_text, cache_version):
             False
         )
     )
+
+    if midstream_special_model.get("applicable"):
+        midstream_special_model["midstream_valuation"] = apply_midstream_peer_overlay(
+            midstream_special_model.get("midstream_valuation"),
+            peer_check,
+        )
+        mv_peer = midstream_special_model.get("midstream_valuation") or {}
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "multiple": safe_float(mv_peer.get("target_ev_adjusted_ebitda")),
+            "note": (
+                "Midstream verwendet den 100-Punkte-Quality-Score als Fundamentalaner und V2.20.51 "
+                "ergänzt einen externen EV/EBITDA-Peer-Median. Die Peer-Anpassung ist auf ±5 % "
+                "begrenzt und verändert weder Score noch offizielle Adjusted-EBITDA-/Net-Debt-Basis."
+            ),
+        }
 
     special_control = get_special_control(
         company_type,
@@ -23301,7 +23495,7 @@ if selected_symbol:
                 if midstream_model.get("applicable"):
 
                     st.divider()
-                    st.subheader("🛢️ Midstream-Sondermodell V2.20.50 – Qualität & EV/Adjusted EBITDA")
+                    st.subheader("🛢️ Midstream-Sondermodell V2.20.51 – Qualität & EV/Adjusted EBITDA + Peer Overlay")
 
                     if midstream_model.get("primary_source_complete"):
                         st.success(
@@ -23388,8 +23582,14 @@ if selected_symbol:
                         st.write(f"**Qualitätsstufe:** {ms_ui.get('quality_level')}")
                         if mv_ui.get("current_ev_adjusted_ebitda") is not None:
                             st.write(f"**Aktuelles EV / offizielles Adjusted EBITDA:** {mv_ui.get('current_ev_adjusted_ebitda'):.2f}×")
-                        st.write(f"**Ziel-EV/Adjusted EBITDA:** {mv_ui.get('target_ev_adjusted_ebitda'):.2f}×")
-                        st.write(f"**Zielkorridor:** {mv_ui.get('corridor_low'):.2f}× – {mv_ui.get('corridor_high'):.2f}×")
+                        fundamental_target = safe_float(mv_ui.get("fundamental_target_ev_adjusted_ebitda"))
+                        if fundamental_target is not None:
+                            st.write(f"**Score-Fundamentalaner:** {fundamental_target:.2f}×")
+                        if mv_ui.get("peer_overlay_applied"):
+                            st.write(f"**Peer-Median EV/EBITDA:** {mv_ui.get('peer_median_ev_ebitda'):.2f}×")
+                            st.write(f"**Peer-Anpassung:** {mv_ui.get('peer_adjustment_pct') * 100:+.2f} %")
+                        st.write(f"**Verwendetes Ziel-EV/Adjusted EBITDA:** {mv_ui.get('target_ev_adjusted_ebitda'):.2f}×")
+                        st.write(f"**Fundamentaler Zielkorridor:** {mv_ui.get('corridor_low'):.2f}× – {mv_ui.get('corridor_high'):.2f}×")
                         st.caption(ms_ui.get("note"))
                         st.caption(mv_ui.get("note"))
 
@@ -23860,11 +24060,17 @@ if selected_symbol:
                             f"{midstream_score_m6.get('score'):.0f}/100 · {midstream_score_m6.get('quality_level')}"
                         )
                         st.write(
-                            "**EV/Adjusted-EBITDA-Zielkorridor:** "
+                            "**Fundamentaler EV/Adjusted-EBITDA-Zielkorridor:** "
                             f"{midstream_val_m6.get('corridor_low'):.2f}× – {midstream_val_m6.get('corridor_high'):.2f}×"
                         )
+                        base_m6 = safe_float(midstream_val_m6.get("fundamental_target_ev_adjusted_ebitda"))
+                        if base_m6 is not None:
+                            st.write(f"**Score-Fundamentalaner:** {base_m6:.2f}×")
+                        if midstream_val_m6.get("peer_overlay_applied"):
+                            st.write(f"**Peer-Median EV/EBITDA:** {midstream_val_m6.get('peer_median_ev_ebitda'):.2f}×")
+                            st.write(f"**Peer-Anpassung:** {midstream_val_m6.get('peer_adjustment_pct') * 100:+.2f} %")
                         st.metric(
-                            "Ziel-EV/Adjusted EBITDA",
+                            "Verwendetes Ziel-EV/Adjusted EBITDA",
                             f"{midstream_val_m6.get('target_ev_adjusted_ebitda'):.2f}×"
                         )
                         if midstream_val_m6.get("current_ev_adjusted_ebitda") is not None:
@@ -23873,9 +24079,10 @@ if selected_symbol:
                                 f"{midstream_val_m6.get('current_ev_adjusted_ebitda'):.2f}×"
                             )
                         st.success(
-                            "Midstream-Bewertungsanker freigegeben. Der eigene Midstream-Score steuert den "
-                            "EV/Adjusted-EBITDA-Anker; der Equity Value wird erst nach Abzug der offiziellen "
-                            "Nettoverschuldung aus dem Fair Enterprise Value abgeleitet."
+                            "Midstream-Bewertungsanker freigegeben. Der eigene Midstream-Score setzt den "
+                            "Fundamentalaner; der Peer-Median darf ihn um maximal ±5 % kontrollieren. "
+                            "Der Equity Value wird erst nach Abzug der offiziellen Nettoverschuldung aus dem "
+                            "Fair Enterprise Value abgeleitet."
                         )
                     else:
                         st.warning(
@@ -23884,8 +24091,9 @@ if selected_symbol:
                         )
                     st.caption(multiple_result.get("note"))
                     st.caption(
-                        "Yahoo-EV/EBITDA und Standard-FCF bleiben reine Kontextwerte. Ein Peer-Overlay "
-                        "wird erst nach separater Prüfung ergänzt und verändert den 100-Punkte-Midstream-Score nicht."
+                        "Yahoo-EV/EBITDA bleibt außerhalb der Kernbewertung. In Schritt 2B wird der Median "
+                        "der ausgewählten Peer-EV/EBITDA-Werte ausschließlich als externer Realitätscheck "
+                        "verwendet; die Anpassung ist auf ±5 % begrenzt und verändert den Midstream-Score nicht."
                     )
                 elif is_reit_valuation_ui:
                     reit_model_m6 = data.get("reit_special_model") or {}
@@ -24077,49 +24285,32 @@ if selected_symbol:
 
                 else:
 
+                    is_midstream_peer_metric = peer_check.get("metric") == "EV/EBITDA"
                     st.write(
-                        "**Geladene Peer-KGVs:**"
+                        "**Geladene Peer-EV/EBITDA-Werte:**"
+                        if is_midstream_peer_metric else "**Geladene Peer-KGVs:**"
                     )
 
-                    for row in peer_check[
-                        "peer_rows"
-                    ]:
-
+                    for row in peer_check["peer_rows"]:
                         if row["usable"]:
-
-                            source_text = (
-                                f" · {row['source']}"
-                                if row.get("source")
-                                else ""
-                            )
+                            source_text = f" · {row['source']}" if row.get("source") else ""
+                            peer_value = row.get("ev_ebitda") if is_midstream_peer_metric else row.get("forward_pe")
                             st.write(
-                                f"• {row['name']} "
-                                f"({row['symbol']}): "
-                                f"{row['forward_pe']:.2f}×"
-                                f"{source_text}"
+                                f"• {row['name']} ({row['symbol']}): "
+                                f"{peer_value:.2f}×{source_text}"
                             )
-
                         else:
-
-                            st.write(
-                                f"• {row['name']} "
-                                f"({row['symbol']}): –"
-                            )
+                            st.write(f"• {row['name']} ({row['symbol']}): –")
 
                     st.write(
                         "**Brauchbare Peer-Daten:** "
                         f"{peer_check['usable_count']}"
                     )
 
-                    if peer_check[
-                        "peer_median"
-                    ] is not None:
-
+                    if peer_check["peer_median"] is not None:
                         st.metric(
-                            "Peer-Median Forward-KGV",
-                            (
-                                f"{peer_check['peer_median']:.2f}×"
-                            )
+                            "Peer-Median EV/EBITDA" if is_midstream_peer_metric else "Peer-Median Forward-KGV",
+                            f"{peer_check['peer_median']:.2f}×"
                         )
 
                     if peer_check["applied"]:
@@ -24137,10 +24328,10 @@ if selected_symbol:
                         )
 
                         st.metric(
-                            "Peer-kontrolliertes Multiple",
-                            (
-                                f"{peer_check['adjusted_multiple']:.2f}×"
-                            )
+                            "Peer-kontrolliertes EV/Adjusted EBITDA"
+                            if peer_check.get("metric") == "EV/EBITDA"
+                            else "Peer-kontrolliertes Multiple",
+                            f"{peer_check['adjusted_multiple']:.2f}×"
                         )
 
                         st.success(
@@ -24536,8 +24727,14 @@ if selected_symbol:
                             st.metric("Midstream-Quality-Score", f"{ms3.get('score'):.0f}/100 Punkte")
                             st.write(f"**Qualitätsstufe:** {ms3.get('quality_level')}")
                             st.write(f"**Aktuelles EV / offizielles Adjusted EBITDA:** {mv3.get('current_ev_adjusted_ebitda'):.2f}×")
-                            st.write(f"**Ziel-EV/Adjusted EBITDA:** {mv3.get('target_ev_adjusted_ebitda'):.2f}×")
-                            st.write(f"**Zielkorridor:** {mv3.get('corridor_low'):.2f}× – {mv3.get('corridor_high'):.2f}×")
+                            base3 = safe_float(mv3.get("fundamental_target_ev_adjusted_ebitda"))
+                            if base3 is not None:
+                                st.write(f"**Score-Fundamentalaner:** {base3:.2f}×")
+                            if mv3.get("peer_overlay_applied"):
+                                st.write(f"**Peer-Median EV/EBITDA:** {mv3.get('peer_median_ev_ebitda'):.2f}×")
+                                st.write(f"**Peer-Anpassung:** {mv3.get('peer_adjustment_pct') * 100:+.2f} %")
+                            st.write(f"**Verwendetes Ziel-EV/Adjusted EBITDA:** {mv3.get('target_ev_adjusted_ebitda'):.2f}×")
+                            st.write(f"**Fundamentaler Zielkorridor:** {mv3.get('corridor_low'):.2f}× – {mv3.get('corridor_high'):.2f}×")
                             st.success("Bewertungsfreigabe JA: Midstream-Score und EV/Adjusted-EBITDA-Equity-Value-Bridge sind freigegeben.")
                         else:
                             st.warning("Bewertungsfreigabe noch NEIN: Midstream-Score oder EV/Adjusted-EBITDA-Anker unvollständig.")
@@ -26788,13 +26985,19 @@ if selected_symbol:
                                 f"{fair_value.get('anchor_spread_pct'):.1f} %"
                             )
                     elif fair_value.get("valuation_method") == "midstream_ev_adjusted_ebitda":
-                        st.write("**Bewertungsformel:** Offizielles LTM Adjusted EBITDA × Ziel-EV/Adjusted EBITDA − offizielle Nettoverschuldung; danach ÷ Aktienbasis")
+                        st.write("**Bewertungsformel:** Offizielles LTM Adjusted EBITDA × verwendetes EV/Adjusted EBITDA − offizielle Nettoverschuldung; danach ÷ Aktienbasis")
                         st.write(f"**Midstream-Score:** {fair_value.get('midstream_score'):.0f}/100 · {fair_value.get('midstream_quality_level')}")
                         st.write("**Adjusted-EBITDA-Basis:** " + format_money(fair_value.get("adjusted_ebitda_basis"), fair_value["financial_currency"]))
                         st.write("**Offizielle Nettoverschuldung:** " + format_money(fair_value.get("official_net_debt"), fair_value["financial_currency"]))
                         st.write(f"**Aktuelles EV / offizielles Adjusted EBITDA:** {fair_value.get('current_ev_adjusted_ebitda'):.2f}×")
-                        st.write(f"**Ziel-EV/Adjusted EBITDA:** {fair_value.get('target_ev_adjusted_ebitda'):.2f}×")
-                        st.write(f"**EV/Adjusted-EBITDA-Zielkorridor:** {fair_value.get('ev_ebitda_corridor_low'):.2f}× – {fair_value.get('ev_ebitda_corridor_high'):.2f}×")
+                        base_fv = safe_float(fair_value.get("fundamental_target_ev_adjusted_ebitda"))
+                        if base_fv is not None:
+                            st.write(f"**Score-Fundamentalaner:** {base_fv:.2f}×")
+                        if fair_value.get("peer_overlay_applied"):
+                            st.write(f"**Peer-Median EV/EBITDA:** {fair_value.get('peer_median_ev_ebitda'):.2f}×")
+                            st.write(f"**Peer-Anpassung:** {fair_value.get('peer_adjustment_pct') * 100:+.2f} %")
+                        st.write(f"**Verwendetes Ziel-EV/Adjusted EBITDA:** {fair_value.get('target_ev_adjusted_ebitda'):.2f}×")
+                        st.write(f"**Fundamentaler EV/Adjusted-EBITDA-Zielkorridor:** {fair_value.get('ev_ebitda_corridor_low'):.2f}× – {fair_value.get('ev_ebitda_corridor_high'):.2f}×")
                         st.write("**Fair Enterprise Value:** " + format_money(fair_value.get("fair_enterprise_value"), fair_value["financial_currency"]))
                         st.write("**Fair Equity Value nach Net Debt:** " + format_money(fair_value.get("fair_equity_value"), fair_value["financial_currency"]))
                     elif fair_value.get("valuation_method") == "reit_paffo":
