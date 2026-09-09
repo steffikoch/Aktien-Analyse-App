@@ -17,19 +17,20 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.54"
+APP_BUILD_VERSION = "V2.20.55"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · Automotive Quality Score & Cycle Compression Gate")
+st.caption(f"Build {APP_BUILD_VERSION} · Automotive Quality-Adjusted Cycle P/E Valuation Anchor")
 
 
 # V2.20.52: Midstream Peer Safety Cap & Comparability Gate. Separates market-reference peers from adjustment-eligible peers. Automatic peer adjustment requires at least three peers with sufficiently comparable corporate structure AND issuer-adjusted EBITDA basis. Generic Yahoo EV/EBITDA remains reference-only. If a future gate passes, the multiple proposal and the resulting equity fair-value effect are each capped at ±5 %. The 100-point Midstream score and official KMI Adjusted EBITDA / Net Debt / share-count bridge remain unchanged.
 # V2.20.53: Automotive Primary Source / Industrial Net Liquidity & FCF Gate. First supported issuer: Mercedes-Benz Group (MBG.DE). Separates industrial-business free cash flow and net liquidity from consolidated Group debt distorted by captive Financial Services. Uses only current official Mercedes-Benz Q2/H1 2026 source data for the automotive primary gate; no automotive score, target multiple or fair value is released yet.
 # V2.20.54: Automotive Quality Score & Cycle Compression Gate. Adds a dedicated 100-point automotive quality score from industrial FCF resilience, industrial net liquidity, Cars/Vans margins, Financial Services RoE, capital allocation and disclosed FCF one-offs. Adds a fail-closed cycle-compression diagnostic that caps the weight of strong historical cycle EPS when current Cars margins/guidance and forward EPS are materially weaker. Still no automotive target multiple or fair value.
+# V2.20.55: Automotive Quality-Adjusted Cycle P/E Valuation Anchor. Releases a dedicated automotive fair value only after the primary-source gate, Automotive Quality Score and Cycle Compression Gate are complete. The score sets a base cycle P/E, weak Cars margins/guidance and strong cycle compression can only cap that multiple downward. The compressed EPS basis is the sole earnings basis; industrial net liquidity is not added again to avoid double counting, and consolidated Yahoo FCF/debt/EV remain context only.
 
 # =========================================================
 # Hilfsfunktionen
@@ -6011,7 +6012,7 @@ def classify_company(name, symbol, sector, industry):
     ):
         return {
             "type": "Autohersteller / zyklisch",
-            "method": "Industrie-FCF + Industrie-Netto-Liquidität + Zyklus-/Margenkontrolle",
+            "method": "Cycle-compressed EPS + Automotive Quality Score + Margen-Cap; Industrie-FCF/Netto-Liquidität als Qualitätskontrolle",
             "confidence_cap": "Mittel"
         }
 
@@ -10055,16 +10056,16 @@ def build_midstream_special_control(base_control, midstream_model):
 
 
 # =========================================================
-# Autohersteller-Sondermodell V2.20.54 – Quality Score & Cycle Compression Gate
+# Autohersteller-Sondermodell V2.20.55 – Quality-Adjusted Cycle P/E Valuation Anchor
 # =========================================================
 
-AUTO_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22054_auto_quality_cycle_compression"
+AUTO_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22055_auto_quality_cycle_pe_anchor"
 
 
 def get_verified_auto_snapshot(symbol):
     """Time-bounded official automotive snapshot for supported manufacturers.
 
-    V2.20.54 continues with Mercedes-Benz Group (XETRA: MBG.DE). Mercedes-Benz
+    V2.20.55 continues with Mercedes-Benz Group (XETRA: MBG.DE). Mercedes-Benz
     explicitly separates the industrial business from Financial Services.
     The gate therefore uses industrial-business FCF and net liquidity, not
     consolidated Yahoo cash/debt as a proxy for automotive leverage.
@@ -10112,7 +10113,7 @@ def get_verified_auto_snapshot(symbol):
             "Netto-Liquidität des Industriegeschäfts werden bewusst getrennt vom "
             "Finanzdienstleistungsgeschäft geführt. Konsolidierte Yahoo-Schulden, Cash "
             "und Standard-FCF werden deshalb nicht als Automotive-Industrieverschuldung "
-            "oder Industrie-FCF interpretiert. V2.20.54 ergänzt Quality Score und Cycle Compression; ein Fair Value bleibt noch gesperrt."
+            "oder Industrie-FCF interpretiert. V2.20.55 ergänzt nach Quality Score und Cycle Compression einen eigenständigen Automotive-KGV-Anker."
         ),
     }
 
@@ -10424,7 +10425,7 @@ def build_auto_quality_score(primary_gate, snapshot):
 
 
 def build_auto_cycle_compression_gate(eps_normalization, primary_gate, snapshot, info):
-    """Diagnostic cycle compression; no valuation release in V2.20.54."""
+    """Diagnostic cycle compression used by the V2.20.55 valuation anchor."""
     result = {
         "available": False,
         "status": "Nicht verfügbar",
@@ -10514,7 +10515,137 @@ def build_auto_cycle_compression_gate(eps_normalization, primary_gate, snapshot,
         "note": (
             "Cycle Compression Gate: starke historische Zyklusjahre werden bei schwacher aktueller Cars-Marge "
             "und deutlich niedrigerer Forward-/TTM-Ertragskraft nur begrenzt gewichtet. Die komprimierte EPS-Basis "
-            "ist in V2.20.54 ausschließlich Diagnose für den nächsten Bewertungsanker und erzeugt noch keinen Fair Value."
+            "liefert in V2.20.55 die einzige EPS-Basis für den Automotive-Bewertungsanker."
+        ),
+    })
+    return result
+
+
+def build_auto_cycle_pe_valuation(primary_gate, automotive_score, cycle_compression):
+    """Conservative automotive valuation from compressed EPS and capped cycle P/E.
+
+    The Automotive Quality Score sets a base P/E inside a 6x-10x structural
+    corridor. Current Cars margin/guidance and the cycle-compression status can
+    only cap that base multiple downward; they can never increase it. Industrial
+    net liquidity is already rewarded in the quality score and is therefore not
+    added again to the equity fair value. Industrial FCF remains a plausibility
+    / quality control rather than a second equal-weighted valuation anchor.
+    """
+    gate = primary_gate if isinstance(primary_gate, dict) else {}
+    score_block = automotive_score if isinstance(automotive_score, dict) else {}
+    cycle = cycle_compression if isinstance(cycle_compression, dict) else {}
+    result = {
+        "available": False,
+        "compressed_eps_basis": None,
+        "score": None,
+        "quality_level": None,
+        "score_base_target_pe": None,
+        "margin_reference_pct": None,
+        "margin_cap_pe": None,
+        "cycle_status": None,
+        "cycle_cap_pe": None,
+        "target_pe": None,
+        "corridor_low": None,
+        "corridor_high": None,
+        "fair_value_financial": None,
+        "industrial_fcf_h1_total": None,
+        "industrial_fcf_annualized_context": None,
+        "industrial_net_liquidity_total": None,
+        "net_liquidity_added_to_fair_value": False,
+        "note": None,
+    }
+    if not gate.get("available") or not score_block.get("available") or not cycle.get("available"):
+        result["note"] = (
+            "Automotive-KGV-Anker gesperrt: Primärquellen-Gate, Automotive-Quality-Score "
+            "und Cycle Compression müssen vollständig verfügbar sein."
+        )
+        return result
+
+    score = safe_float(score_block.get("score"))
+    eps_basis = safe_float(cycle.get("diagnostic_compressed_eps"))
+    cars_ros = safe_float(cycle.get("cars_adjusted_ros_q2_pct"))
+    guidance_mid = safe_float(cycle.get("cars_guidance_mid_pct"))
+    cycle_status = str(cycle.get("status") or "")
+    fcf_h1 = safe_float(gate.get("industrial_fcf_h1_total"))
+    net_liq = safe_float(gate.get("industrial_net_liquidity_total"))
+
+    if score is None or eps_basis is None or eps_basis <= 0 or cars_ros is None:
+        result["note"] = "Automotive-KGV-Anker gesperrt: Score, komprimierte EPS-Basis oder Cars-Marge fehlen."
+        return result
+
+    # Score-derived base target within the long-run automotive 6x-10x corridor.
+    if score >= 85:
+        score_target = 9.0
+    elif score >= 75:
+        score_target = 8.5
+    elif score >= 65:
+        score_target = 8.0
+    elif score >= 55:
+        score_target = 7.5
+    elif score >= 45:
+        score_target = 7.0
+    else:
+        score_target = 6.5
+
+    # The lower of current Cars RoS and the official guidance midpoint is the
+    # margin brake. Weak current/guided margins can only reduce the target P/E.
+    margin_values = [v for v in (cars_ros, guidance_mid) if v is not None]
+    margin_reference = min(margin_values) if margin_values else cars_ros
+    if margin_reference <= 3.5:
+        margin_cap = 6.5
+    elif margin_reference <= 5.0:
+        margin_cap = 7.0
+    elif margin_reference <= 6.0:
+        margin_cap = 8.0
+    elif margin_reference <= 8.0:
+        margin_cap = 9.0
+    else:
+        margin_cap = 10.0
+
+    # A strong cycle-compression diagnosis is an independent ceiling. It never
+    # increases the score-derived multiple and prevents historical peak years
+    # from being rewarded twice through both EPS and multiple.
+    cycle_caps = {
+        "Stark": 7.5,
+        "Mittel": 8.5,
+        "Leicht": 9.5,
+        "Keine / gering": 10.0,
+    }
+    cycle_cap = cycle_caps.get(cycle_status, 8.0)
+
+    target = max(6.0, min(10.0, score_target, margin_cap, cycle_cap))
+    low = max(6.0, target - 1.0)
+    high = min(10.0, target + 1.0)
+    fair_value = eps_basis * target
+    if fair_value <= 0:
+        result["note"] = "Automotive-KGV-Anker gesperrt: resultierender Fair Value ist nicht positiv."
+        return result
+
+    result.update({
+        "available": True,
+        "compressed_eps_basis": eps_basis,
+        "score": score,
+        "quality_level": score_block.get("quality_level"),
+        "score_base_target_pe": score_target,
+        "margin_reference_pct": margin_reference,
+        "margin_cap_pe": margin_cap,
+        "cycle_status": cycle_status,
+        "cycle_cap_pe": cycle_cap,
+        "target_pe": target,
+        "corridor_low": low,
+        "corridor_high": high,
+        "fair_value_financial": fair_value,
+        "industrial_fcf_h1_total": fcf_h1,
+        "industrial_fcf_annualized_context": (fcf_h1 * 2.0 if fcf_h1 is not None and fcf_h1 > 0 else None),
+        "industrial_net_liquidity_total": net_liq,
+        "net_liquidity_added_to_fair_value": False,
+        "note": (
+            "V2.20.55 verwendet ausschließlich die cycle-komprimierte EPS-Basis. Der Automotive-Quality-Score "
+            "setzt den fundamentalen Ziel-KGV-Anker; schwache Cars-Margen/Guidance und starke Cycle Compression "
+            "dürfen dieses Multiple nur nach unten begrenzen. Industrie-Netto-Liquidität wird nicht zusätzlich je "
+            "Aktie auf den Fair Value addiert, weil sie bereits im Quality Score berücksichtigt ist. Der offizielle "
+            "Industrie-FCF bleibt Qualitäts-/Plausibilitätskontrolle und wird nicht als zweiter gleichgewichteter "
+            "Fair-Value-Anker verwendet."
         ),
     })
     return result
@@ -10526,7 +10657,7 @@ def build_auto_special_model(
     currency_context,
     symbol=None
 ):
-    """Automotive primary gate + Quality Score + Cycle Compression; no valuation yet."""
+    """Automotive primary gate + Quality Score + Cycle Compression + released P/E anchor."""
     type_name = str(company_type.get("type", "")).lower()
     if "autohersteller" not in type_name:
         return {"applicable": False}
@@ -10537,6 +10668,7 @@ def build_auto_special_model(
     primary_source_complete = bool(snapshot_fresh and primary_gate.get("available"))
     automotive_score = build_auto_quality_score(primary_gate, snapshot)
     cycle_compression = build_auto_cycle_compression_gate(eps_normalization, primary_gate, snapshot, info)
+    automotive_valuation = build_auto_cycle_pe_valuation(primary_gate, automotive_score, cycle_compression)
 
     enterprise_value = safe_float(info.get("enterpriseValue"))
     ebitda = safe_float(info.get("ebitda"))
@@ -10598,6 +10730,7 @@ def build_auto_special_model(
         "primary_gate": primary_gate,
         "automotive_score": automotive_score,
         "cycle_compression": cycle_compression,
+        "automotive_valuation": automotive_valuation,
         "integration_version": AUTO_PRIMARY_SOURCE_INTEGRATION_VERSION,
         "normalized_eps": normalized_eps,
         "eps_method": eps_method,
@@ -10618,9 +10751,9 @@ def build_auto_special_model(
         "financial_services_split_available": bool(primary_gate.get("available") and primary_gate.get("financial_services_contract_volume_total") is not None),
         "readiness": readiness,
         "note": (
-            "Autohersteller-Sondermodell V2.20.54 trennt verifizierte Industrie-Kennzahlen "
-            "von konsolidierten Yahoo-Kontextdaten. Der eigene Automotive-Quality-Score und das "
-            "Cycle Compression Gate sind freigegeben; Zielmultiple und Fair Value bleiben bewusst gesperrt."
+            "Autohersteller-Sondermodell V2.20.55 trennt verifizierte Industrie-Kennzahlen "
+            "von konsolidierten Yahoo-Kontextdaten. Automotive-Quality-Score, Cycle Compression und der "
+            "quality-/margengekappte Cycle-KGV-Anker sind freigegeben."
         ),
     }
 
@@ -10638,6 +10771,7 @@ def build_auto_special_control(base_control, auto_model):
     gate = model.get("primary_gate") or {}
     automotive_score = model.get("automotive_score") or {}
     cycle_compression = model.get("cycle_compression") or {}
+    automotive_valuation = model.get("automotive_valuation") or {}
 
     if not model.get("primary_source_complete"):
         control.update({
@@ -10656,17 +10790,26 @@ def build_auto_special_control(base_control, auto_model):
         })
         return control
 
+    valuation_released = bool(
+        automotive_score.get("available")
+        and cycle_compression.get("available")
+        and automotive_valuation.get("available")
+    )
     control.update({
         "implemented": True,
-        "released": False,
+        "released": valuation_released,
         "confidence_cap": "Mittel",
-        "step3b_status": "Automotive Quality Score + Cycle Compression freigegeben – Fair Value noch gesperrt",
-        "overall_status": "Quality/Compression freigegeben",
+        "step3b_status": (
+            "Automotive-Bewertung freigegeben – Quality Score + Cycle Compression + Cycle-KGV"
+            if valuation_released else "Automotive-Primärdaten vollständig – Bewertungsanker noch gesperrt"
+        ),
+        "overall_status": "Freigegeben" if valuation_released else "Quality/Compression freigegeben",
         "snapshot": snapshot,
         "checks": {
             "primary_gate": gate,
             "automotive_score": automotive_score,
             "cycle_compression": cycle_compression,
+            "automotive_valuation": automotive_valuation,
             **{k: gate.get(k) for k in [
                 "industrial_fcf_q2_total", "industrial_fcf_h1_total", "industrial_fcf_h1_yoy_pct",
                 "industrial_net_liquidity_total", "shareholder_distributions_h1_total",
@@ -10677,9 +10820,9 @@ def build_auto_special_control(base_control, auto_model):
             ]},
         },
         "note": (
-            "Automotive-Schritt 3B V2.20.54 validiert die offizielle Trennung zwischen Industriegeschäft "
-            "und captive Financial Services und gibt anschließend Automotive-Quality-Score sowie Cycle "
-            "Compression Gate frei. Ein Zielmultiple und Fair Value bleiben weiterhin separat gesperrt."
+            "Automotive-Schritt 3B V2.20.55 validiert die offizielle Trennung zwischen Industriegeschäft "
+            "und captive Financial Services und gibt anschließend Automotive-Quality-Score, Cycle Compression "
+            "und den quality-/margengekappten Cycle-KGV-Anker frei. Fehlende Pflichtdaten sperren den Fair Value fail-closed."
         ),
     })
     return control
@@ -12444,14 +12587,14 @@ def get_special_control(company_type, symbol):
                 "Cars/Vans operative Margen",
                 "Financial-Services-Abgrenzung",
                 "Automotive Quality Score / Cycle Compression",
-                "später: zyklus-/margenbasierter Bewertungsanker"
+                "Quality-adjusted Cycle-KGV + Margen-Cap"
             ],
-            "status": "Router aktiv – V2.20.54 Automotive-Quality-/Cycle-Compression-Gate",
+            "status": "Router aktiv – V2.20.55 Automotive-Cycle-KGV-Valuation-Gate",
             "note": (
-                "V2.20.54 trennt bei unterstützten Autoherstellern offizielle Industrie-Kennzahlen "
+                "V2.20.55 trennt bei unterstützten Autoherstellern offizielle Industrie-Kennzahlen "
                 "vom captive Finanzdienstleistungsgeschäft. Konsolidierter Yahoo-FCF, Cash und Schulden "
-                "dürfen Industrie-FCF bzw. Industrie-Netto-Liquidität nicht ersetzen. Automotive-Quality-Score "
-                "und Cycle Compression sind freigegeben; Zielmultiple und Fair Value bleiben noch gesperrt."
+                "dürfen Industrie-FCF bzw. Industrie-Netto-Liquidität nicht ersetzen. Automotive-Quality-Score, "
+                "Cycle Compression und der quality-/margengekappte Cycle-KGV-Anker sind freigegeben."
             )
         }
 
@@ -19140,6 +19283,85 @@ def calculate_fair_value_v1(
         })
         return result
 
+    # Automotive V2.20.55 – quality-adjusted cycle P/E on compressed EPS.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "auto_cycle_industrial_cashflow"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        av = checks.get("automotive_valuation") or {}
+        aus = checks.get("automotive_score") or {}
+        cycle = checks.get("cycle_compression") or {}
+        fv = safe_float(av.get("fair_value_financial"))
+        if not av.get("available") or fv is None or fv <= 0:
+            result["note"] = "Fair Value V1 gesperrt: Automotive-Cycle-KGV-Anker nicht vollständig verfügbar."
+            return result
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der Automotive-Bewertung sind nicht eindeutig."
+            return result
+        fvq = fv
+        unit_notes = []
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Automotive-Währungsumrechnung nicht belastbar verfügbar."
+                return result
+            fvq *= factor
+            unit_notes.append(
+                f"Währungsangleichung für den Fair-Value/Kurs-Vergleich: Fundamentaldaten in {financial_currency} "
+                f"→ Handelswährung {quote_currency} mit 1 {financial_currency} = {factor:.6f} {quote_currency}. "
+                f"Der Handelskurs liegt bereits in {quote_currency} vor."
+            )
+        elif quote_currency != financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+        cp = safe_float(current_price)
+        potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+        price_financial = convert_quote_price_to_financial_share_unit(cp, context) if cp is not None and cp > 0 else None
+        current_pe = None
+        eps_basis = safe_float(av.get("compressed_eps_basis"))
+        if price_financial is not None and eps_basis is not None and eps_basis > 0:
+            current_pe = price_financial / eps_basis
+        result.update({
+            "available": True,
+            "valuation_method": "automotive_quality_cycle_pe",
+            "normalized_eps": eps_basis,
+            "used_multiple": safe_float(av.get("target_pe")),
+            "multiple_source": "Automotive Quality Score → Cars-Margen/Guidance-Cap → Cycle-Compression-Cap → Cycle-KGV",
+            "fair_value_financial": fv,
+            "fair_value_quote": fvq,
+            "potential_pct": potential,
+            "automotive_score": safe_float(aus.get("score")),
+            "automotive_quality_level": aus.get("quality_level"),
+            "compressed_eps_basis": eps_basis,
+            "cycle_status": cycle.get("status"),
+            "cycle_weight": safe_float(cycle.get("cycle_weight")),
+            "score_base_target_pe": safe_float(av.get("score_base_target_pe")),
+            "margin_reference_pct": safe_float(av.get("margin_reference_pct")),
+            "margin_cap_pe": safe_float(av.get("margin_cap_pe")),
+            "cycle_cap_pe": safe_float(av.get("cycle_cap_pe")),
+            "target_pe": safe_float(av.get("target_pe")),
+            "pe_corridor_low": safe_float(av.get("corridor_low")),
+            "pe_corridor_high": safe_float(av.get("corridor_high")),
+            "current_pe_on_compressed_eps": current_pe,
+            "industrial_fcf_h1_total": safe_float(av.get("industrial_fcf_h1_total")),
+            "industrial_fcf_annualized_context": safe_float(av.get("industrial_fcf_annualized_context")),
+            "industrial_net_liquidity_total": safe_float(av.get("industrial_net_liquidity_total")),
+            "net_liquidity_added_to_fair_value": bool(av.get("net_liquidity_added_to_fair_value")),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "Automotive-Fair-Value V1 = cycle-komprimierte EPS-Basis × quality-/margengekapptes Cycle-KGV. "
+                "Industrie-Netto-Liquidität ist bereits Bestandteil des Automotive-Quality-Scores und wird nicht "
+                "noch einmal je Aktie addiert. Offizieller Industrie-FCF bleibt Qualitäts-/Plausibilitätskontrolle; "
+                "konsolidierter Yahoo-FCF, Yahoo-Schulden und Konzern-EV/EBITDA sind nicht Bestandteil des Fair Values."
+            ),
+        })
+        return result
+
     # REIT V2.20.48 – dedicated P/AFFO fair value. NAV remains intentionally locked.
     if (
         isinstance(special_control, dict)
@@ -21079,15 +21301,17 @@ def load_stock(search_text, cache_version):
 
     if auto_special_model.get("applicable"):
         aus = auto_special_model.get("automotive_score") or {}
+        av = auto_special_model.get("automotive_valuation") or {}
         fundamental_multiple = {
             **fundamental_multiple,
             "score": safe_float(aus.get("score")),
-            "multiple": None,
-            "available": False,
+            "multiple": safe_float(av.get("target_pe")),
+            "available": bool(aus.get("available") and av.get("available")),
             "note": (
-                "Autohersteller verwenden in V2.20.54 noch kein freigegebenes Bewertungs-Multiple. "
-                "Der eigene Automotive-Quality-Score und das Cycle Compression Gate sind Diagnose- und "
-                "Qualitätsbasis; der eigentliche zyklus-/margenbasierte Bewertungsanker folgt separat."
+                "Autohersteller verwenden V2.20.55 nicht das generische EPS-/FCF-Multiple. Der eigene "
+                "Automotive-Quality-Score setzt den Cycle-KGV-Fundamentalaner; Cars-Margen/Guidance und "
+                "Cycle Compression dürfen ihn nur nach unten begrenzen. Industrie-Netto-Liquidität wird "
+                "nicht zusätzlich auf den Fair Value addiert."
             ),
         }
 
@@ -22334,8 +22558,9 @@ if selected_symbol:
                 elif "autohersteller" in normalized_company_type_name(company_type):
                     st.caption(
                         "Das historische Zyklus-EPS bleibt beim Autohersteller nur Ausgangskontext. "
-                        "V2.20.54 prüft es weiter unten mit dem Cycle Compression Gate gegen Forward-/TTM-EPS "
-                        "und die aktuelle Cars-Marge; die komprimierte Basis erzeugt noch keinen Fair Value."
+                        "V2.20.55 prüft es weiter unten mit dem Cycle Compression Gate gegen Forward-/TTM-EPS "
+                        "und die aktuelle Cars-Marge; für den Automotive-KGV-Anker wird anschließend ausschließlich "
+                        "die komprimierte EPS-Basis verwendet."
                     )
                 elif eps_result.get("normalization_blocked_by_structural_break"):
                     st.caption(
@@ -23335,6 +23560,7 @@ if selected_symbol:
                     and not is_insurance_company_type(company_type)
                     and not is_reit_company_type(company_type)
                     and not is_midstream_company_type(company_type)
+                    and "autohersteller" not in normalized_company_type_name(company_type)
                 ):
                     st.caption(
                         "Die FCF-Punkte basieren auf der aktuellen "
@@ -24333,7 +24559,7 @@ if selected_symbol:
                 if auto_model.get("applicable"):
 
                     st.divider()
-                    st.subheader("🚗 Autohersteller-Sondermodell V2.20.54 – Quality Score & Cycle Compression")
+                    st.subheader("🚗 Autohersteller-Sondermodell V2.20.55 – Quality Score, Cycle Compression & Cycle-KGV")
 
                     if auto_model.get("primary_source_complete"):
                         st.success(
@@ -24467,21 +24693,34 @@ if selected_symbol:
                         with ccy2:
                             st.metric("Zyklusgewicht nach Kompression", f"{cycle_ui.get('cycle_weight') * 100:.0f} %")
                             st.metric("Aktuelle/Forward-Gewichtung", f"{cycle_ui.get('current_reference_weight') * 100:.0f} %")
-                            st.metric("Vorläufig komprimierte EPS-Basis", format_eps(cycle_ui.get("diagnostic_compressed_eps"), financial_currency))
+                            st.metric("Komprimierte EPS-Basis", format_eps(cycle_ui.get("diagnostic_compressed_eps"), financial_currency))
                         dev = safe_float(cycle_ui.get("cycle_forward_deviation_pct"))
                         if dev is not None:
                             st.write(f"**Abweichung aktuelle EPS-Referenz zur historischen Zyklus-Basis:** {dev:.1f} %")
                         st.warning(
-                            "Bewertungsfreigabe noch NEIN: Die komprimierte EPS-Basis ist nur Diagnose. "
-                            "V2.20.54 berechnet daraus weder Ziel-KGV noch Fair Value."
+                            "Cycle Compression bestanden: Die komprimierte EPS-Basis ist die einzige Gewinnbasis "
+                            "für den Automotive-KGV-Anker in V2.20.55."
                         )
                         st.caption(cycle_ui.get("note"))
                     else:
                         st.warning(cycle_ui.get("note") or "Cycle Compression Gate nicht verfügbar.")
 
+                    auto_val_ui = auto_model.get("automotive_valuation") or {}
+                    if auto_val_ui.get("available"):
+                        st.write("**Automotive-Bewertungsanker V2.20.55**")
+                        st.write(f"**Score-Fundamentalaner KGV:** {auto_val_ui.get('score_base_target_pe'):.2f}×")
+                        st.write(f"**Cars-Margen-/Guidance-Cap:** {auto_val_ui.get('margin_cap_pe'):.2f}× bei {auto_val_ui.get('margin_reference_pct'):.1f} % Margenreferenz")
+                        st.write(f"**Cycle-Compression-Cap:** {auto_val_ui.get('cycle_cap_pe'):.2f}×")
+                        st.write(f"**Verwendetes Ziel-KGV:** {auto_val_ui.get('target_pe'):.2f}×")
+                        st.write(f"**Automotive-KGV-Zielkorridor:** {auto_val_ui.get('corridor_low'):.2f}× – {auto_val_ui.get('corridor_high'):.2f}×")
+                        st.metric("Fundamentaler Automotive-Fair-Value", format_eps(auto_val_ui.get("fair_value_financial"), financial_currency))
+                        st.caption(auto_val_ui.get("note"))
+                    else:
+                        st.warning(auto_val_ui.get("note") or "Automotive-Bewertungsanker nicht verfügbar.")
+
                     st.write("**Yahoo-/Konzernwerte nur als Kontext**")
                     st.write(
-                        "**Zyklus-/normalisiertes EPS (Kontext):** "
+                        "**Alte Standard-EPS-Normalisierung (nur Kontext):** "
                         f"{format_eps(auto_model.get('normalized_eps'), financial_currency)}"
                     )
                     if auto_model.get("display_ev_to_ebitda") is not None:
@@ -24504,8 +24743,8 @@ if selected_symbol:
                         else:
                             st.caption(auto_model.get("ev_to_ebitda_note"))
                     st.info(
-                        "V2.20.54 gibt Automotive-Quality-Score und Cycle Compression frei. "
-                        "Ein Zielmultiple und Fair Value bleiben bewusst bis zum separaten Bewertungsanker gesperrt."
+                        "V2.20.55 gibt Automotive-Quality-Score, Cycle Compression und den konservativ "
+                        "gekappten Cycle-KGV-Anker frei. Industrie-Netto-Liquidität wird nicht doppelt aufgeschlagen."
                     )
                     st.caption(auto_model.get("note"))
 
@@ -24793,6 +25032,7 @@ if selected_symbol:
                     auto_m6 = data.get("auto_special_model") or {}
                     auto_score_m6 = auto_m6.get("automotive_score") or {}
                     cycle_m6 = auto_m6.get("cycle_compression") or {}
+                    auto_val_m6 = auto_m6.get("automotive_valuation") or {}
                     if auto_m6.get("primary_source_complete"):
                         st.success(
                             "Automotive-Primärdaten vollständig: Industrie-FCF, Industrie-Netto-Liquidität, "
@@ -24808,20 +25048,28 @@ if selected_symbol:
                     if cycle_m6.get("available"):
                         st.write(f"**Cycle Compression:** {cycle_m6.get('status')}")
                         st.write(
-                            "**Vorläufig komprimierte EPS-Basis:** "
+                            "**Komprimierte EPS-Basis:** "
                             f"{format_eps(cycle_m6.get('diagnostic_compressed_eps'), financial_currency)}"
                         )
                         st.write(
                             "**Zyklusgewicht / aktuelle Referenz:** "
                             f"{cycle_m6.get('cycle_weight') * 100:.0f} % / {cycle_m6.get('current_reference_weight') * 100:.0f} %"
                         )
-                    st.info(
-                        "Noch kein Automotive-Fundamental-Multiple: V2.20.54 endet bewusst nach Quality Score "
-                        "und Cycle Compression. Der zyklus-/margenbasierte Bewertungsanker folgt separat."
-                    )
+                    if auto_val_m6.get("available"):
+                        st.write(f"**Score-Fundamentalaner KGV:** {auto_val_m6.get('score_base_target_pe'):.2f}×")
+                        st.write(f"**Cars-Margen-/Guidance-Cap:** {auto_val_m6.get('margin_cap_pe'):.2f}×")
+                        st.write(f"**Cycle-Compression-Cap:** {auto_val_m6.get('cycle_cap_pe'):.2f}×")
+                        st.metric("Verwendetes Automotive-Ziel-KGV", f"{auto_val_m6.get('target_pe'):.2f}×")
+                        st.write(f"**Automotive-KGV-Zielkorridor:** {auto_val_m6.get('corridor_low'):.2f}× – {auto_val_m6.get('corridor_high'):.2f}×")
+                        st.success(
+                            "Automotive-Bewertungsanker freigegeben. Die komprimierte EPS-Basis wird nur mit dem "
+                            "niedrigsten zulässigen Wert aus Score-Anker, Margen-Cap und Cycle-Compression-Cap bewertet."
+                        )
+                    else:
+                        st.warning(auto_val_m6.get("note") or "Automotive-Fundamental-Multiple noch nicht verfügbar.")
                     st.caption(multiple_result.get("note"))
                     st.caption(
-                        "Industrie-Netto-Liquidität wird nicht automatisch auf einen späteren KGV-Fair-Value addiert; "
+                        "Industrie-Netto-Liquidität wird nicht zusätzlich auf den KGV-Fair-Value addiert; "
                         "damit wird eine Doppelzählung der Bilanzstärke vermieden."
                     )
                 elif is_midstream_valuation_ui:
@@ -25526,10 +25774,17 @@ if selected_symbol:
                             st.metric("Automotive-Quality-Score", f"{auto_score_3b.get('score'):.0f}/100 · {auto_score_3b.get('quality_level')}")
                         if cycle_3b.get("available"):
                             st.write(f"**Cycle Compression:** {cycle_3b.get('status')} · Zyklusgewicht {cycle_3b.get('cycle_weight') * 100:.0f} %")
-                            st.write("**Vorläufig komprimierte EPS-Basis:** " + format_eps(cycle_3b.get("diagnostic_compressed_eps"), financial_currency))
-                        st.warning(
-                            "Bewertungsfreigabe noch NEIN: V2.20.54 gibt Quality Score und Cycle Compression frei, "
-                            "aber noch kein Zielmultiple und keinen Fair Value."
+                            st.write("**Komprimierte EPS-Basis:** " + format_eps(cycle_3b.get("diagnostic_compressed_eps"), financial_currency))
+                        auto_val_3b = checks.get("automotive_valuation") or {}
+                        if auto_val_3b.get("available"):
+                            st.write(f"**Score-Fundamentalaner KGV:** {auto_val_3b.get('score_base_target_pe'):.2f}×")
+                            st.write(f"**Cars-Margen-/Guidance-Cap:** {auto_val_3b.get('margin_cap_pe'):.2f}×")
+                            st.write(f"**Cycle-Compression-Cap:** {auto_val_3b.get('cycle_cap_pe'):.2f}×")
+                            st.write(f"**Verwendetes Ziel-KGV:** {auto_val_3b.get('target_pe'):.2f}×")
+                            st.write(f"**Zielkorridor:** {auto_val_3b.get('corridor_low'):.2f}× – {auto_val_3b.get('corridor_high'):.2f}×")
+                        st.success(
+                            "Bewertungsfreigabe JA: V2.20.55 gibt Quality Score, Cycle Compression und den "
+                            "quality-/margengekappten Cycle-KGV-Anker frei."
                         )
                         st.caption(
                             "Das Gate bleibt fail-closed, wenn der offizielle Snapshot veraltet oder unvollständig ist. "
@@ -27860,6 +28115,25 @@ if selected_symbol:
                                 "**Abstand der Bewertungsanker:** "
                                 f"{fair_value.get('anchor_spread_pct'):.1f} %"
                             )
+                    elif fair_value.get("valuation_method") == "automotive_quality_cycle_pe":
+                        st.write("**Bewertungsformel:** Cycle-komprimierte EPS-Basis × quality-/margengekapptes Automotive-Ziel-KGV")
+                        st.write(f"**Automotive-Quality-Score:** {fair_value.get('automotive_score'):.0f}/100 · {fair_value.get('automotive_quality_level')}")
+                        st.write("**Komprimierte EPS-Basis:** " + format_eps(fair_value.get("compressed_eps_basis"), fair_value["financial_currency"]))
+                        st.write(f"**Cycle Compression:** {fair_value.get('cycle_status')} · Zyklusgewicht {fair_value.get('cycle_weight') * 100:.0f} %")
+                        st.write(f"**Score-Fundamentalaner KGV:** {fair_value.get('score_base_target_pe'):.2f}×")
+                        st.write(f"**Cars-Margen-/Guidance-Cap:** {fair_value.get('margin_cap_pe'):.2f}× bei {fair_value.get('margin_reference_pct'):.1f} %")
+                        st.write(f"**Cycle-Compression-Cap:** {fair_value.get('cycle_cap_pe'):.2f}×")
+                        current_auto_pe = safe_float(fair_value.get("current_pe_on_compressed_eps"))
+                        if current_auto_pe is not None:
+                            st.write(f"**Aktuelles KGV auf komprimierter EPS-Basis:** {current_auto_pe:.2f}×")
+                        st.write(f"**Verwendetes Ziel-KGV:** {fair_value.get('target_pe'):.2f}×")
+                        st.write(f"**Automotive-KGV-Zielkorridor:** {fair_value.get('pe_corridor_low'):.2f}× – {fair_value.get('pe_corridor_high'):.2f}×")
+                        st.write("**Industrie-FCF H1 (Plausibilitätskontext):** " + format_money(fair_value.get("industrial_fcf_h1_total"), fair_value["financial_currency"]))
+                        annualized_ctx = safe_float(fair_value.get("industrial_fcf_annualized_context"))
+                        if annualized_ctx is not None:
+                            st.caption("Mechanische H1-FCF-Annualisierung nur als Kontext: " + format_money(annualized_ctx, fair_value["financial_currency"]) + ". Kein zweiter Fair-Value-Anker.")
+                        st.write("**Industrie-Netto-Liquidität:** " + format_money(fair_value.get("industrial_net_liquidity_total"), fair_value["financial_currency"]))
+                        st.caption("Industrie-Netto-Liquidität wird nicht zusätzlich je Aktie auf den KGV-Fair-Value addiert; sie ist bereits im Automotive-Quality-Score berücksichtigt.")
                     elif fair_value.get("valuation_method") == "midstream_ev_adjusted_ebitda":
                         st.write("**Bewertungsformel:** Offizielles LTM Adjusted EBITDA × verwendetes EV/Adjusted EBITDA − offizielle Nettoverschuldung; danach ÷ Aktienbasis")
                         st.write(f"**Midstream-Score:** {fair_value.get('midstream_score'):.0f}/100 · {fair_value.get('midstream_quality_level')}")
@@ -27980,6 +28254,11 @@ if selected_symbol:
                         st.success(
                             "Versicherungs-Fair-Value V1 wurde aus zwei unabhängigen, versicherungsspezifischen "
                             "Bewertungsankern berechnet und erst nach der Schritt-3B-Freigabe veröffentlicht."
+                        )
+                    elif fair_value.get("valuation_method") == "automotive_quality_cycle_pe":
+                        st.success(
+                            "Automotive-Fair-Value V1 wurde aus der cycle-komprimierten EPS-Basis und dem "
+                            "quality-/margengekappten Cycle-KGV berechnet. Industrie-Netto-Liquidität wird nicht doppelt addiert."
                         )
                     elif fair_value.get("valuation_method") == "midstream_ev_adjusted_ebitda":
                         st.success(
