@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.28: Bridge Component Evidence Gate – nur quantitativ bestätigte EPS-Brückenkomponenten beeinflussen die Normalisierung.
+# V2.20.29: ADR / Share-Unit Guard – verifizierte ADR-Verhältnisse und Primärlisting-Fundamentaldaten verhindern Per-Share-Einheitenmischungen.
 
 # =========================================================
 # Hilfsfunktionen
@@ -227,6 +227,138 @@ def build_currency_context(
             "Bewertungsschritte werden deshalb gesperrt."
         ) if raw_quote != raw_financial else None
     }
+
+
+# =========================================================
+# V2.20.29 – Verifizierte ADR-/Aktieneinheiten
+# =========================================================
+
+VERIFIED_SHARE_UNIT_ROUTES = {
+    # Toyota Motor Corporation 2026 Form 20-F:
+    # NYSE ticker TM is an American Depositary Share (ADS), and each ADS
+    # represents ten Toyota common shares. Fundamentals are therefore routed
+    # to the Tokyo primary listing so current and historical per-share values
+    # use the same ordinary-share unit.
+    "TM": {
+        "fundamental_symbol": "7203.T",
+        "quote_unit_name": "Toyota ADS / ADR",
+        "fundamental_unit_name": "Toyota-Stammaktie",
+        "fundamental_shares_per_quote_unit": 10.0,
+        "source_name": "Toyota Motor Corporation – Form 20-F 2026",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1094517/000119312526264811/d101983d20f.htm",
+        "source_note": (
+            "Verifiziertes Verhältnis: 1 Toyota ADS/ADR (TM) repräsentiert "
+            "10 Toyota-Stammaktien."
+        ),
+    },
+}
+
+
+def build_share_unit_context(selected_symbol, fundamental_symbol, route=None):
+    """Return only explicitly verified per-share unit conversions.
+
+    Unknown ADR/depositary-receipt ratios are never inferred from price,
+    market cap, EPS or FX. If a listing is not present in the verified map,
+    the normal one-share-to-one-share assumption remains in force only when
+    no separate share-unit route has been declared.
+    """
+    selected = str(selected_symbol or "").strip().upper()
+    fundamental = str(fundamental_symbol or "").strip().upper()
+    route_info = route if isinstance(route, dict) else {}
+    verified = VERIFIED_SHARE_UNIT_ROUTES.get(selected)
+
+    if not isinstance(verified, dict):
+        return {
+            "applicable": False,
+            "conversion_required": False,
+            "conversion_available": True,
+            "fundamental_shares_per_quote_unit": 1.0,
+            "quote_unit_name": "Aktie",
+            "fundamental_unit_name": "Aktie",
+            "source_name": None,
+            "source_url": None,
+            "note": None,
+        }
+
+    expected_fundamental = str(
+        verified.get("fundamental_symbol") or ""
+    ).strip().upper()
+    ratio = safe_float(
+        verified.get("fundamental_shares_per_quote_unit")
+    )
+    route_matches = bool(
+        fundamental
+        and expected_fundamental
+        and fundamental == expected_fundamental
+    )
+    ratio_valid = ratio is not None and ratio > 0
+    available = (
+        route_matches
+        and ratio_valid
+        and not route_info.get("primary_source_unavailable")
+    )
+
+    note = verified.get("source_note")
+    if available:
+        note = (
+            f"ADR-/Aktieneinheit verifiziert: {note} Der Börsenkurs bleibt "
+            f"in der Einheit {selected}; Fundamentaldaten und historische "
+            f"EPS werden dagegen aus {fundamental} je "
+            f"{verified.get('fundamental_unit_name', 'Stammaktie')} geladen. "
+            "Bei einem späteren Kurs/Fair-Value-Vergleich werden sowohl "
+            "Währung als auch das verifizierte Aktienverhältnis ausdrücklich "
+            "umgerechnet."
+        )
+    else:
+        note = (
+            "ADR-/Aktieneinheiten-Gate aktiv, aber die verifizierte "
+            "Primärnotierung bzw. das bestätigte Aktienverhältnis steht "
+            "nicht konsistent zur Verfügung. Per-Share-basierte "
+            "Bewertungsschritte müssen deshalb gesperrt bleiben."
+        )
+
+    return {
+        "applicable": True,
+        "conversion_required": True,
+        "conversion_available": available,
+        "fundamental_shares_per_quote_unit": ratio if ratio_valid else None,
+        "quote_unit_name": verified.get("quote_unit_name"),
+        "fundamental_unit_name": verified.get("fundamental_unit_name"),
+        "source_name": verified.get("source_name"),
+        "source_url": verified.get("source_url"),
+        "expected_fundamental_symbol": expected_fundamental,
+        "route_reason": route_info.get("reason"),
+        "note": note,
+    }
+
+
+def convert_quote_price_to_financial_share_unit(price, currency_context):
+    """Convert quote price to the fundamental per-share unit, fail closed."""
+    quote_price = safe_float(price)
+    if quote_price is None:
+        return None
+
+    context = currency_context if isinstance(currency_context, dict) else {}
+    quote_to_financial = safe_float(
+        context.get("quote_to_financial_factor", 1.0)
+    )
+    if quote_to_financial is None or quote_to_financial <= 0:
+        return None
+
+    share_context = context.get("share_unit_context") or {}
+    ratio = 1.0
+    if share_context.get("conversion_required"):
+        if not share_context.get("conversion_available"):
+            return None
+        ratio = safe_float(
+            share_context.get("fundamental_shares_per_quote_unit")
+        )
+        if ratio is None or ratio <= 0:
+            return None
+
+    # Example Toyota TM: USD per ADR -> JPY per ADR via FX -> divide by
+    # 10 common shares represented by one ADR -> JPY per common share.
+    return quote_price * quote_to_financial / ratio
 
 
 def sanitize_profit_margin(
@@ -1411,7 +1543,7 @@ def _bridge_value_matches(observed, expected):
 
 def _extract_adjustment_components_from_html(html, target_year=None, bridge_values=None):
     """
-    V2.20.28 Bridge Component Evidence Gate.
+    V2.20.29 Bridge Component Evidence Gate.
 
     A row is accepted as an EPS adjustment component only when it lies inside the
     same target-year GAAP-to-adjusted EPS reconciliation bounded by a GAAP EPS row
@@ -1608,7 +1740,7 @@ def _adjustment_context_is_concrete(text, match_start, match_end):
 
 def _build_adjustment_recurrence_review(text, bridge_values=None, structured_components=None):
     """
-    V2.20.28 conservative evidence review.
+    V2.20.29 conservative evidence review.
 
     Only quantitatively confirmed rows from the validated GAAP-to-adjusted EPS
     reconciliation are allowed into ``components``. Concrete text mentions are
@@ -2197,7 +2329,7 @@ def _router_financial_release_filter_url(url):
 
 
 def _router_archive_visible_years(rows):
-    """V2.20.28: show only publication/result years, not guidance years embedded in headlines."""
+    """V2.20.29: show only publication/result years, not guidance years embedded in headlines."""
     years = set()
     for row in rows or []:
         title = _clean_text(row.get("title"))
@@ -3206,12 +3338,12 @@ def _build_historical_recurrence_summary(
 
 
 # =========================================================
-# V2.20.28 – Bridge Component Evidence Gate
+# V2.20.29 – Bridge Component Evidence Gate
 # =========================================================
 
 def _build_adjustment_component_analysis(historical_review):
     """
-    V2.20.28 multi-year Bridge Component Evidence Gate.
+    V2.20.29 multi-year Bridge Component Evidence Gate.
 
     Only components that were quantitatively confirmed inside a validated
     GAAP-to-adjusted EPS reconciliation participate in recurrence classification.
@@ -3922,10 +4054,10 @@ def research_special_event_online(
     symbol,
     company_name,
     website=None,
-    cache_version="v22028",
+    cache_version="v22029",
 ):
     """
-    V2.20.28: IR-Year-Navigator plus Bridge Component Evidence Gate research. The issuer website/IR archive is routed before SEC, web search and Yahoo.
+    V2.20.29: IR-Year-Navigator plus Bridge Component Evidence Gate research. The issuer website/IR archive is routed before SEC, web search and Yahoo.
 
     Source priority remains company/IR -> SEC -> web -> Yahoo. Unrelated search
     results are rejected before they can become evidence. A quantitative EPS
@@ -4027,7 +4159,7 @@ def research_special_event_online(
         page_html = item.get("preloaded_html") or ""
         page_text = item.get("preloaded_text") or ""
 
-        # Load at most four additional documents. V2.20.28 keeps the HTML for
+        # Load at most four additional documents. V2.20.29 keeps the HTML for
         # structured GAAP-to-adjusted reconciliation-table parsing, so there is
         # no second network request for the component analysis.
         if (
@@ -4221,7 +4353,7 @@ def research_special_event_online(
         else None
     )
 
-    # V2.20.28: once the annual bridge history is validated, evidence-gate the
+    # V2.20.29: once the annual bridge history is validated, evidence-gate the
     # individual reconciliation components across years. This is still a hard
     # diagnostic gate: no replacement EPS and no Fair-Value release.
     adjustment_component_analysis = _build_adjustment_component_analysis(
@@ -6928,20 +7060,9 @@ def build_insurance_special_model(
         }
 
     quote_price = safe_float(price)
-    quote_to_financial = safe_float(
-        currency_context.get(
-            "quote_to_financial_factor",
-            1.0
-        )
-    )
-
-    if quote_to_financial is None:
-        quote_to_financial = 1.0
-
-    price_financial = (
-        quote_price * quote_to_financial
-        if quote_price is not None
-        else None
+    price_financial = convert_quote_price_to_financial_share_unit(
+        quote_price,
+        currency_context
     )
 
     book_value = safe_float(
@@ -7307,20 +7428,9 @@ def build_bank_special_model(
         }
 
     quote_price = safe_float(price)
-    quote_to_financial = safe_float(
-        currency_context.get(
-            "quote_to_financial_factor",
-            1.0
-        )
-    )
-
-    if quote_to_financial is None:
-        quote_to_financial = 1.0
-
-    price_financial = (
-        quote_price * quote_to_financial
-        if quote_price is not None
-        else None
+    price_financial = convert_quote_price_to_financial_share_unit(
+        quote_price,
+        currency_context
     )
 
     book_value = safe_float(
@@ -7894,20 +8004,9 @@ def build_reit_special_model(
         }
 
     quote_price = safe_float(price)
-    quote_to_financial = safe_float(
-        currency_context.get(
-            "quote_to_financial_factor",
-            1.0
-        )
-    )
-
-    if quote_to_financial is None:
-        quote_to_financial = 1.0
-
-    price_financial = (
-        quote_price * quote_to_financial
-        if quote_price is not None
-        else None
+    price_financial = convert_quote_price_to_financial_share_unit(
+        quote_price,
+        currency_context
     )
 
     def first_direct_value(keys):
@@ -15560,6 +15659,43 @@ def calculate_fair_value_v1(
         )
         return result
 
+    # V2.20.29 – Currency and per-share units are two independent dimensions.
+    # A Toyota ordinary-share fair value, for example, must first be scaled to
+    # the 10 common shares represented by one TM ADS/ADR and only then compared
+    # with the USD ADR quote. Neither factor may be silently assumed.
+    share_context = context.get("share_unit_context") or {}
+    share_ratio = 1.0
+    unit_notes = []
+
+    if share_context.get("conversion_required"):
+        if not share_context.get("conversion_available"):
+            result["note"] = (
+                "Fair Value V1 gesperrt: Die Handelsnotierung verwendet eine "
+                "abweichende ADR-/Aktieneinheit, aber das verifizierte "
+                "Aktienverhältnis bzw. die Primäraktien-Route ist nicht "
+                "belastbar verfügbar."
+            )
+            return result
+
+        share_ratio = safe_float(
+            share_context.get("fundamental_shares_per_quote_unit")
+        )
+        if share_ratio is None or share_ratio <= 0:
+            result["note"] = (
+                "Fair Value V1 gesperrt: Das ADR-/Aktienverhältnis ist nicht "
+                "positiv und belastbar verfügbar."
+            )
+            return result
+
+        unit_notes.append(
+            "Aktieneinheit ausdrücklich angeglichen: 1 "
+            f"{share_context.get('quote_unit_name') or 'Handelseinheit'} = "
+            f"{share_ratio:g} "
+            f"{share_context.get('fundamental_unit_name') or 'Fundamentalaktien'}."
+        )
+
+    fair_value_quote = fair_value_financial * share_ratio
+
     if context.get("mixed_units"):
         factor = safe_float(
             context.get("financial_to_quote_factor")
@@ -15577,33 +15713,31 @@ def calculate_fair_value_v1(
             )
             return result
 
-        fair_value_quote = fair_value_financial * factor
-        result["unit_conversion_applied"] = True
+        fair_value_quote *= factor
 
         if context.get("conversion_kind") == "gbp_pence":
-            result["unit_note"] = (
-                "Einheitenangleichung ausdrücklich angewendet: Der Fair Value "
-                "wird zunächst aus EPS in GBP berechnet und anschließend mit "
-                "1 GBP = 100 GBp in die Kurs-Einheit GBp umgerechnet."
+            unit_notes.append(
+                "Währungseinheit ausdrücklich angeglichen: 1 GBP = 100 GBp."
             )
         else:
             fx_symbol = context.get("fx_symbol")
-            result["unit_note"] = (
+            unit_notes.append(
                 f"Währungsumrechnung ausdrücklich angewendet: 1 "
                 f"{financial_currency} = {factor:.6f} {quote_currency}"
                 + (f" über {fx_symbol}." if fx_symbol else ".")
             )
 
-    else:
-        if quote_currency != financial_currency:
-            result["note"] = (
-                "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen "
-                "voneinander ab und es ist keine ausdrücklich hinterlegte "
-                "Umrechnung verfügbar."
-            )
-            return result
+    elif quote_currency != financial_currency:
+        result["note"] = (
+            "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen "
+            "voneinander ab und es ist keine ausdrücklich hinterlegte "
+            "Umrechnung verfügbar."
+        )
+        return result
 
-        fair_value_quote = fair_value_financial
+    if unit_notes:
+        result["unit_conversion_applied"] = True
+        result["unit_note"] = " ".join(unit_notes)
 
     current_price_value = safe_float(
         current_price
@@ -15651,6 +15785,23 @@ def resolve_fundamental_symbol(selected_symbol, company_name=None):
     """
     symbol = str(selected_symbol or "").strip().upper()
     name = str(company_name or "").strip().upper()
+
+    # V2.20.29 – verified ADR/share-unit routes. These must be handled
+    # before the ordinary secondary-listing routes because the selected quote
+    # unit is not one-for-one with the primary common share.
+    share_unit_route = VERIFIED_SHARE_UNIT_ROUTES.get(symbol)
+    if isinstance(share_unit_route, dict):
+        target = str(share_unit_route.get("fundamental_symbol") or "").strip().upper()
+        if target:
+            return {
+                "symbol": target,
+                "separate_source": target != symbol,
+                "reason": "Verifizierte ADR-/Primäraktien-Route",
+                "share_unit_sensitive": True,
+                "fundamental_shares_per_quote_unit": share_unit_route.get(
+                    "fundamental_shares_per_quote_unit"
+                ),
+            }
 
     exact_routes = {
         # Cisco: German secondary listings -> Nasdaq primary fundamentals.
@@ -16711,7 +16862,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_bridge_component_evidence_gate_v22028_20260908"
+CACHE_VERSION = "m6_adr_share_unit_guard_v22029_20260909"
 
 @st.cache_data(
     ttl=900,
@@ -16779,18 +16930,32 @@ def load_stock(search_text, cache_version):
         )
         fundamental_info = fundamental_recovery.get("info") or {}
 
-        # Hard safety fallback: if the routed source does not return usable
-        # company data, keep the selected listing instead of mixing blanks.
+        # Hard safety fallback. Ordinary secondary listings may fall back to
+        # the selected listing if the routed source is unavailable. A verified
+        # ADR/share-unit route may NOT do that, because quote-level per-share
+        # fields can be in ADR units while statements are in ordinary-share
+        # units. In that case we fail closed and keep the primary route.
         if not fundamental_info:
-            fundamental_symbol = symbol
-            fundamental_ticker = quote_ticker
-            fundamental_info = quote_info
-            fundamental_recovery = quote_recovery
-            fundamental_route = {
-                "symbol": symbol,
-                "separate_source": False,
-                "reason": "Hauptnotierung nicht verfügbar – ausgewählte Notierung verwendet"
-            }
+            if fundamental_route.get("share_unit_sensitive"):
+                fundamental_info = {}
+                fundamental_route = {
+                    **fundamental_route,
+                    "primary_source_unavailable": True,
+                    "reason": (
+                        "Verifizierte ADR-/Primäraktien-Route – Primärdaten "
+                        "vorübergehend unvollständig; kein ADR-Fallback"
+                    ),
+                }
+            else:
+                fundamental_symbol = symbol
+                fundamental_ticker = quote_ticker
+                fundamental_info = quote_info
+                fundamental_recovery = quote_recovery
+                fundamental_route = {
+                    "symbol": symbol,
+                    "separate_source": False,
+                    "reason": "Hauptnotierung nicht verfügbar – ausgewählte Notierung verwendet"
+                }
 
     # V2.20.5: Yahoo quoteSummary/info can fail while TTM/FY statements,
     # valuation measures or analyst tables remain available. Recover only
@@ -16859,6 +17024,13 @@ def load_stock(search_text, cache_version):
         financial_currency,
         fx_conversion
     )
+
+    share_unit_context = build_share_unit_context(
+        symbol,
+        fundamental_symbol,
+        fundamental_route
+    )
+    currency_context["share_unit_context"] = share_unit_context
 
     earnings_timestamp = (
         fundamental_info.get("earningsTimestamp")
@@ -17130,6 +17302,7 @@ def load_stock(search_text, cache_version):
         "currency": currency_context["quote_currency"],
         "financial_currency": currency_context["financial_currency"],
         "currency_context": currency_context,
+        "share_unit_context": share_unit_context,
 
         "sector": (
             fundamental_info.get("sector")
@@ -17454,6 +17627,23 @@ if selected_symbol:
                         f"Fundamentaldaten von {data['fundamental_symbol']} "
                         f"({text_or_dash(data.get('fundamental_exchange_name'))})."
                     )
+
+                share_unit_context = data.get("share_unit_context") or {}
+                if share_unit_context.get("applicable"):
+                    if share_unit_context.get("conversion_available"):
+                        st.success(
+                            share_unit_context.get("note")
+                        )
+                        source_name = share_unit_context.get("source_name")
+                        source_url = share_unit_context.get("source_url")
+                        if source_name and source_url:
+                            st.caption(
+                                f"Verifizierte Share-Unit-Quelle: [{source_name}]({source_url})"
+                            )
+                    else:
+                        st.error(
+                            share_unit_context.get("note")
+                        )
 
                 if data.get("data_recovery_note"):
                     if data.get("data_recovery_incomplete"):
@@ -17971,7 +18161,7 @@ if selected_symbol:
                     ir_router_ui = research.get("ir_router") or {}
                     if ir_router_ui.get("available"):
                         st.info(
-                            "🏢 **IR Year Navigator V2.20.28 aktiv:** Unternehmens-/IR-Seiten werden zuerst geprüft. "
+                            "🏢 **IR Year Navigator V2.20.29 aktiv:** Unternehmens-/IR-Seiten werden zuerst geprüft. "
                             "Der kanonische Release-Archivindex wird als Parent validiert; für die historische Suche wird anschließend bevorzugt "
                             "das unternehmenseigene Financial-Releases-Archiv gezielt weitergeblättert. Sobald alle Zieljahre gefunden sind, "
                             "stoppt die Navigation. Detailseiten und Annual-Report-/Filings-Bereiche bleiben getrennt."
@@ -18100,7 +18290,7 @@ if selected_symbol:
 
                     adjustment_review = research.get("adjustment_recurrence_review") or {}
                     if adjustment_review:
-                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.28**")
+                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.29**")
                         review_level = adjustment_review.get("status_level")
                         review_status = text_or_dash(adjustment_review.get("status"))
                         if review_level == "Rot":
@@ -18149,7 +18339,7 @@ if selected_symbol:
 
                         st.error(
                             "**Automatische EPS-Normalisierungsfreigabe: NEIN.** Kein erkannter "
-                            "Bereinigungsposten wird in V2.20.28 automatisch zum Bewertungs-EPS addiert; Kontext-Hinweise haben grundsätzlich keinen EPS-Einfluss."
+                            "Bereinigungsposten wird in V2.20.29 automatisch zum Bewertungs-EPS addiert; Kontext-Hinweise haben grundsätzlich keinen EPS-Einfluss."
                         )
                         st.caption(
                             "Nächster Prüfschritt: "
@@ -18159,7 +18349,7 @@ if selected_symbol:
 
                     historical_review = research.get("historical_recurrence_review") or {}
                     if historical_review:
-                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.28**")
+                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.29**")
                         hist_level = historical_review.get("status_level")
                         hist_status = text_or_dash(historical_review.get("status"))
                         if hist_level == "Rot":
@@ -18248,7 +18438,7 @@ if selected_symbol:
 
                     component_analysis = research.get("adjustment_component_analysis") or {}
                     if component_analysis:
-                        st.write("**🧩 Bridge Component Evidence Gate V2.20.28**")
+                        st.write("**🧩 Bridge Component Evidence Gate V2.20.29**")
                         comp_level = component_analysis.get("status_level")
                         comp_status = text_or_dash(component_analysis.get("status"))
                         if comp_level == "Rot":
@@ -18387,13 +18577,13 @@ if selected_symbol:
 
                     if research.get("quantitative_eps_bridge_found"):
                         st.info(
-                            "Eine quantitative EPS-Brücke wurde nach V2.20.28-Regeln periodenvalidiert, historisch auf Wiederholung geprüft und anschließend durch den Bridge Component Evidence Gate gefiltert. Der IR-Year-Navigator validiert zuerst den kanonischen offiziellen Release-Archivindex und navigiert danach bevorzugt durch das unternehmenseigene Financial-Releases-Archiv, bis die benötigten Volljahre gefunden sind oder das Zeitbudget endet. Nur Komponenten innerhalb einer periodenvalidierten GAAP→Adjusted-EPS-Reconciliation werden quantitativ akzeptiert; reine Kontextfunde bleiben ohne EPS-Einfluss; Detailseiten bleiben als Archive gesperrt und Annual-Report-/Filings-Bereiche getrennt. "
+                            "Eine quantitative EPS-Brücke wurde nach V2.20.29-Regeln periodenvalidiert, historisch auf Wiederholung geprüft und anschließend durch den Bridge Component Evidence Gate gefiltert. Der IR-Year-Navigator validiert zuerst den kanonischen offiziellen Release-Archivindex und navigiert danach bevorzugt durch das unternehmenseigene Financial-Releases-Archiv, bis die benötigten Volljahre gefunden sind oder das Zeitbudget endet. Nur Komponenten innerhalb einer periodenvalidierten GAAP→Adjusted-EPS-Reconciliation werden quantitativ akzeptiert; reine Kontextfunde bleiben ohne EPS-Einfluss; Detailseiten bleiben als Archive gesperrt und Annual-Report-/Filings-Bereiche getrennt. "
                             "Sie wird weiterhin **nicht automatisch als bereinigtes EPS übernommen**."
                         )
 
                     st.error(
                         "**Freigabestatus: GESPERRT.** Die Komponenten-/Wiederkehrbarkeits-Prüfung darf in "
-                        "V2.20.28 den Fair Value noch nicht selbst entsperren."
+                        "V2.20.29 den Fair Value noch nicht selbst entsperren."
                     )
                     st.write("**Nächster Schritt:** " + text_or_dash(research.get("next_step")))
 
