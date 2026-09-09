@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.30: FCF Source Integrity Guard – Cashflow-Statement-FCF wird von Yahoo Levered FCF getrennt und für Standardbewertungen bevorzugt.
+# V2.20.31: FCF Source Integrity Guard UX – operative FCF-Warnung wird klar von Datenquellenabweichungen getrennt.
 
 # =========================================================
 # Hilfsfunktionen
@@ -230,7 +230,7 @@ def build_currency_context(
 
 
 # =========================================================
-# V2.20.30 – Verifizierte ADR-/Aktieneinheiten
+# V2.20.31 – Verifizierte ADR-/Aktieneinheiten
 # =========================================================
 
 VERIFIED_SHARE_UNIT_ROUTES = {
@@ -1543,7 +1543,7 @@ def _bridge_value_matches(observed, expected):
 
 def _extract_adjustment_components_from_html(html, target_year=None, bridge_values=None):
     """
-    V2.20.30 Bridge Component Evidence Gate.
+    V2.20.31 Bridge Component Evidence Gate.
 
     A row is accepted as an EPS adjustment component only when it lies inside the
     same target-year GAAP-to-adjusted EPS reconciliation bounded by a GAAP EPS row
@@ -1740,7 +1740,7 @@ def _adjustment_context_is_concrete(text, match_start, match_end):
 
 def _build_adjustment_recurrence_review(text, bridge_values=None, structured_components=None):
     """
-    V2.20.30 conservative evidence review.
+    V2.20.31 conservative evidence review.
 
     Only quantitatively confirmed rows from the validated GAAP-to-adjusted EPS
     reconciliation are allowed into ``components``. Concrete text mentions are
@@ -2329,7 +2329,7 @@ def _router_financial_release_filter_url(url):
 
 
 def _router_archive_visible_years(rows):
-    """V2.20.30: show only publication/result years, not guidance years embedded in headlines."""
+    """V2.20.31: show only publication/result years, not guidance years embedded in headlines."""
     years = set()
     for row in rows or []:
         title = _clean_text(row.get("title"))
@@ -3338,12 +3338,12 @@ def _build_historical_recurrence_summary(
 
 
 # =========================================================
-# V2.20.30 – Bridge Component Evidence Gate
+# V2.20.31 – Bridge Component Evidence Gate
 # =========================================================
 
 def _build_adjustment_component_analysis(historical_review):
     """
-    V2.20.30 multi-year Bridge Component Evidence Gate.
+    V2.20.31 multi-year Bridge Component Evidence Gate.
 
     Only components that were quantitatively confirmed inside a validated
     GAAP-to-adjusted EPS reconciliation participate in recurrence classification.
@@ -4054,10 +4054,10 @@ def research_special_event_online(
     symbol,
     company_name,
     website=None,
-    cache_version="v22030",
+    cache_version="v22031",
 ):
     """
-    V2.20.30: IR-Year-Navigator plus Bridge Component Evidence Gate research. The issuer website/IR archive is routed before SEC, web search and Yahoo.
+    V2.20.31: IR-Year-Navigator plus Bridge Component Evidence Gate research. The issuer website/IR archive is routed before SEC, web search and Yahoo.
 
     Source priority remains company/IR -> SEC -> web -> Yahoo. Unrelated search
     results are rejected before they can become evidence. A quantitative EPS
@@ -4159,7 +4159,7 @@ def research_special_event_online(
         page_html = item.get("preloaded_html") or ""
         page_text = item.get("preloaded_text") or ""
 
-        # Load at most four additional documents. V2.20.30 keeps the HTML for
+        # Load at most four additional documents. V2.20.31 keeps the HTML for
         # structured GAAP-to-adjusted reconciliation-table parsing, so there is
         # no second network request for the component analysis.
         if (
@@ -4353,7 +4353,7 @@ def research_special_event_online(
         else None
     )
 
-    # V2.20.30: once the annual bridge history is validated, evidence-gate the
+    # V2.20.31: once the annual bridge history is validated, evidence-gate the
     # individual reconciliation components across years. This is still a hard
     # diagnostic gate: no replacement EPS and no Fair-Value release.
     adjustment_component_analysis = _build_adjustment_component_analysis(
@@ -15659,7 +15659,7 @@ def calculate_fair_value_v1(
         )
         return result
 
-    # V2.20.30 – Currency and per-share units are two independent dimensions.
+    # V2.20.31 – Currency and per-share units are two independent dimensions.
     # A Toyota ordinary-share fair value, for example, must first be scaled to
     # the 10 common shares represented by one TM ADS/ADR and only then compared
     # with the USD ADR quote. Neither factor may be silently assumed.
@@ -15786,7 +15786,7 @@ def resolve_fundamental_symbol(selected_symbol, company_name=None):
     symbol = str(selected_symbol or "").strip().upper()
     name = str(company_name or "").strip().upper()
 
-    # V2.20.30 – verified ADR/share-unit routes. These must be handled
+    # V2.20.31 – verified ADR/share-unit routes. These must be handled
     # before the ordinary secondary-listing routes because the selected quote
     # unit is not one-for-one with the primary common share.
     share_unit_route = VERIFIED_SHARE_UNIT_ROUTES.get(symbol)
@@ -16754,7 +16754,7 @@ def _merge_missing_fundamentals(info, recovery):
     return merged, used
 
 def reconcile_free_cashflow_sources(raw_info, merged_info, recovery):
-    """V2.20.30 – keep Yahoo Levered FCF separate from statement FCF.
+    """V2.20.31 – keep Yahoo Levered FCF separate from statement FCF.
 
     Yahoo's quoteSummary/info field ``freeCashflow`` is presented on Yahoo's
     statistics page as *Levered Free Cash Flow (ttm)*. The app's FCF-margin and
@@ -16924,7 +16924,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_fcf_source_integrity_guard_v22030_20260909"
+CACHE_VERSION = "m6_fcf_source_integrity_guard_v22031_20260909"
 
 @st.cache_data(
     ttl=900,
@@ -18293,7 +18293,7 @@ if selected_symbol:
                     ir_router_ui = research.get("ir_router") or {}
                     if ir_router_ui.get("available"):
                         st.info(
-                            "🏢 **IR Year Navigator V2.20.30 aktiv:** Unternehmens-/IR-Seiten werden zuerst geprüft. "
+                            "🏢 **IR Year Navigator V2.20.31 aktiv:** Unternehmens-/IR-Seiten werden zuerst geprüft. "
                             "Der kanonische Release-Archivindex wird als Parent validiert; für die historische Suche wird anschließend bevorzugt "
                             "das unternehmenseigene Financial-Releases-Archiv gezielt weitergeblättert. Sobald alle Zieljahre gefunden sind, "
                             "stoppt die Navigation. Detailseiten und Annual-Report-/Filings-Bereiche bleiben getrennt."
@@ -18422,7 +18422,7 @@ if selected_symbol:
 
                     adjustment_review = research.get("adjustment_recurrence_review") or {}
                     if adjustment_review:
-                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.30**")
+                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.31**")
                         review_level = adjustment_review.get("status_level")
                         review_status = text_or_dash(adjustment_review.get("status"))
                         if review_level == "Rot":
@@ -18471,7 +18471,7 @@ if selected_symbol:
 
                         st.error(
                             "**Automatische EPS-Normalisierungsfreigabe: NEIN.** Kein erkannter "
-                            "Bereinigungsposten wird in V2.20.30 automatisch zum Bewertungs-EPS addiert; Kontext-Hinweise haben grundsätzlich keinen EPS-Einfluss."
+                            "Bereinigungsposten wird in V2.20.31 automatisch zum Bewertungs-EPS addiert; Kontext-Hinweise haben grundsätzlich keinen EPS-Einfluss."
                         )
                         st.caption(
                             "Nächster Prüfschritt: "
@@ -18481,7 +18481,7 @@ if selected_symbol:
 
                     historical_review = research.get("historical_recurrence_review") or {}
                     if historical_review:
-                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.30**")
+                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.31**")
                         hist_level = historical_review.get("status_level")
                         hist_status = text_or_dash(historical_review.get("status"))
                         if hist_level == "Rot":
@@ -18570,7 +18570,7 @@ if selected_symbol:
 
                     component_analysis = research.get("adjustment_component_analysis") or {}
                     if component_analysis:
-                        st.write("**🧩 Bridge Component Evidence Gate V2.20.30**")
+                        st.write("**🧩 Bridge Component Evidence Gate V2.20.31**")
                         comp_level = component_analysis.get("status_level")
                         comp_status = text_or_dash(component_analysis.get("status"))
                         if comp_level == "Rot":
@@ -18709,13 +18709,13 @@ if selected_symbol:
 
                     if research.get("quantitative_eps_bridge_found"):
                         st.info(
-                            "Eine quantitative EPS-Brücke wurde nach V2.20.30-Regeln periodenvalidiert, historisch auf Wiederholung geprüft und anschließend durch den Bridge Component Evidence Gate gefiltert. Der IR-Year-Navigator validiert zuerst den kanonischen offiziellen Release-Archivindex und navigiert danach bevorzugt durch das unternehmenseigene Financial-Releases-Archiv, bis die benötigten Volljahre gefunden sind oder das Zeitbudget endet. Nur Komponenten innerhalb einer periodenvalidierten GAAP→Adjusted-EPS-Reconciliation werden quantitativ akzeptiert; reine Kontextfunde bleiben ohne EPS-Einfluss; Detailseiten bleiben als Archive gesperrt und Annual-Report-/Filings-Bereiche getrennt. "
+                            "Eine quantitative EPS-Brücke wurde nach V2.20.31-Regeln periodenvalidiert, historisch auf Wiederholung geprüft und anschließend durch den Bridge Component Evidence Gate gefiltert. Der IR-Year-Navigator validiert zuerst den kanonischen offiziellen Release-Archivindex und navigiert danach bevorzugt durch das unternehmenseigene Financial-Releases-Archiv, bis die benötigten Volljahre gefunden sind oder das Zeitbudget endet. Nur Komponenten innerhalb einer periodenvalidierten GAAP→Adjusted-EPS-Reconciliation werden quantitativ akzeptiert; reine Kontextfunde bleiben ohne EPS-Einfluss; Detailseiten bleiben als Archive gesperrt und Annual-Report-/Filings-Bereiche getrennt. "
                             "Sie wird weiterhin **nicht automatisch als bereinigtes EPS übernommen**."
                         )
 
                     st.error(
                         "**Freigabestatus: GESPERRT.** Die Komponenten-/Wiederkehrbarkeits-Prüfung darf in "
-                        "V2.20.30 den Fair Value noch nicht selbst entsperren."
+                        "V2.20.31 den Fair Value noch nicht selbst entsperren."
                     )
                     st.write("**Nächster Schritt:** " + text_or_dash(research.get("next_step")))
 
@@ -19002,8 +19002,16 @@ if selected_symbol:
                     else:
 
                         st.success(
-                            "✓ Keine FCF-Warnung"
+                            "✓ Keine operative FCF-Warnung"
                         )
+
+                        fcf_source_ui = data.get("fcf_source_context") or {}
+                        if fcf_source_ui.get("material_divergence"):
+                            st.caption(
+                                "Die FCF-Marge selbst ist solide. Eine separate "
+                                "Quellenabweichung wurde erkannt und bereits durch den "
+                                "FCF Source Integrity Guard behandelt."
+                            )
 
                     st.caption(
                         fcf_result[
