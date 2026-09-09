@@ -17,14 +17,14 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.56"
+APP_BUILD_VERSION = "V2.20.57"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · Automotive Valuation De-Duplication & FCF Plausibility Gate")
+st.caption(f"Build {APP_BUILD_VERSION} · Automotive Normalized Peer Comparability & Valuation Safety Gate")
 
 
 # V2.20.52: Midstream Peer Safety Cap & Comparability Gate. Separates market-reference peers from adjustment-eligible peers. Automatic peer adjustment requires at least three peers with sufficiently comparable corporate structure AND issuer-adjusted EBITDA basis. Generic Yahoo EV/EBITDA remains reference-only. If a future gate passes, the multiple proposal and the resulting equity fair-value effect are each capped at ±5 %. The 100-point Midstream score and official KMI Adjusted EBITDA / Net Debt / share-count bridge remain unchanged.
@@ -32,6 +32,7 @@ st.caption(f"Build {APP_BUILD_VERSION} · Automotive Valuation De-Duplication & 
 # V2.20.54: Automotive Quality Score & Cycle Compression Gate. Adds a dedicated 100-point automotive quality score from industrial FCF resilience, industrial net liquidity, Cars/Vans margins, Financial Services RoE, capital allocation and disclosed FCF one-offs. Adds a fail-closed cycle-compression diagnostic that caps the weight of strong historical cycle EPS when current Cars margins/guidance and forward EPS are materially weaker. Still no automotive target multiple or fair value.
 # V2.20.55: Automotive Quality-Adjusted Cycle P/E Valuation Anchor. Releases a dedicated automotive fair value only after the primary-source gate, Automotive Quality Score and Cycle Compression Gate are complete. The score sets a base cycle P/E, weak Cars margins/guidance and strong cycle compression can only cap that multiple downward. The compressed EPS basis is the sole earnings basis; industrial net liquidity is not added again to avoid double counting, and consolidated Yahoo FCF/debt/EV remain context only.
 # V2.20.56: Automotive Valuation De-Duplication & FCF Plausibility Gate. Separates roles cleanly: Cycle Compression determines the sole EPS basis; Automotive Quality Score alone determines the target cycle P/E. Cars margin and cycle status no longer apply a second/third multiple cap. Adds a downward-only industrial-FCF plausibility gate using official H1 industrial FCF and a minimum implied FCF yield; the gate can cap or block but never lift fair value. Known disclosed automotive one-offs now turn the special-event light yellow instead of green.
+# V2.20.57: Automotive Normalized Peer Comparability & Valuation Safety Gate. BMW, Stellantis and Toyota Yahoo Forward-P/E values are loaded only as market references unless at least three peers have both sufficiently comparable OEM/captive-finance structure and a cycle-normalized earnings basis comparable with the analyzed issuer. Automatic peer adjustment is fail-closed; if a future comparability gate passes, both the target P/E proposal and final automotive fair-value effect are capped at ±5 %. The industrial-FCF downside gate remains in force after any peer proposal.
 
 # =========================================================
 # Hilfsfunktionen
@@ -10057,16 +10058,16 @@ def build_midstream_special_control(base_control, midstream_model):
 
 
 # =========================================================
-# Autohersteller-Sondermodell V2.20.56 – Valuation De-Duplication & FCF Plausibility Gate
+# Autohersteller-Sondermodell V2.20.57 – Normalized Peer Comparability & Valuation Safety Gate
 # =========================================================
 
-AUTO_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22056_auto_dedup_fcf_plausibility"
+AUTO_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22057_auto_peer_comparability_safety"
 
 
 def get_verified_auto_snapshot(symbol):
     """Time-bounded official automotive snapshot for supported manufacturers.
 
-    V2.20.56 continues with Mercedes-Benz Group (XETRA: MBG.DE). Mercedes-Benz
+    V2.20.57 continues with Mercedes-Benz Group (XETRA: MBG.DE). Mercedes-Benz
     explicitly separates the industrial business from Financial Services.
     The gate therefore uses industrial-business FCF and net liquidity, not
     consolidated Yahoo cash/debt as a proxy for automotive leverage.
@@ -10114,7 +10115,7 @@ def get_verified_auto_snapshot(symbol):
             "Netto-Liquidität des Industriegeschäfts werden bewusst getrennt vom "
             "Finanzdienstleistungsgeschäft geführt. Konsolidierte Yahoo-Schulden, Cash "
             "und Standard-FCF werden deshalb nicht als Automotive-Industrieverschuldung "
-            "oder Industrie-FCF interpretiert. V2.20.56 trennt EPS-Basis, Quality-Multiple und Industrie-FCF-Plausibilitätsgate strikt voneinander."
+            "oder Industrie-FCF interpretiert. V2.20.57 trennt EPS-Basis, Quality-Multiple, Industrie-FCF-Plausibilitätsgate und Peer-Comparability strikt voneinander."
         ),
     }
 
@@ -10426,7 +10427,7 @@ def build_auto_quality_score(primary_gate, snapshot):
 
 
 def build_auto_cycle_compression_gate(eps_normalization, primary_gate, snapshot, info):
-    """Cycle compression determines the sole automotive EPS basis in V2.20.56."""
+    """Cycle compression determines the sole automotive EPS basis in V2.20.57."""
     result = {
         "available": False,
         "status": "Nicht verfügbar",
@@ -10516,7 +10517,7 @@ def build_auto_cycle_compression_gate(eps_normalization, primary_gate, snapshot,
         "note": (
             "Cycle Compression Gate: starke historische Zyklusjahre werden bei schwacher aktueller Cars-Marge "
             "und deutlich niedrigerer Forward-/TTM-Ertragskraft nur begrenzt gewichtet. Die komprimierte EPS-Basis "
-            "liefert in V2.20.56 ausschließlich die EPS-Basis; sie verändert das Ziel-KGV nicht zusätzlich."
+            "liefert in V2.20.57 ausschließlich die EPS-Basis; sie verändert das Ziel-KGV nicht zusätzlich."
         ),
     })
     return result
@@ -10700,7 +10701,7 @@ def build_auto_cycle_pe_valuation(primary_gate, automotive_score, cycle_compress
         "industrial_net_liquidity_total": net_liq,
         "net_liquidity_added_to_fair_value": False,
         "note": (
-            "V2.20.56 entkoppelt die Automotive-Bewertung: Cycle Compression bestimmt ausschließlich die EPS-Basis; "
+            "V2.20.57 hält die Automotive-Bewertung de-dupliziert: Cycle Compression bestimmt ausschließlich die EPS-Basis; "
             "der Automotive-Quality-Score bestimmt ausschließlich das Ziel-KGV. Cars-Marge und Kompressionsstatus "
             "werden nicht nochmals als separate Multiple-Caps verwendet. Der offizielle H1-Industrie-FCF dient nur "
             "als abwärtsgerichtetes Plausibilitätsgate mit mindestens 8 % impliziter annualisierter FCF-Rendite. "
@@ -10811,7 +10812,7 @@ def build_auto_special_model(
         "financial_services_split_available": bool(primary_gate.get("available") and primary_gate.get("financial_services_contract_volume_total") is not None),
         "readiness": readiness,
         "note": (
-            "Autohersteller-Sondermodell V2.20.56 trennt verifizierte Industrie-Kennzahlen von konsolidierten "
+            "Autohersteller-Sondermodell V2.20.57 trennt verifizierte Industrie-Kennzahlen von konsolidierten "
             "Yahoo-Kontextdaten. Cycle Compression liefert nur die EPS-Basis, der Automotive-Quality-Score nur "
             "das Ziel-KGV; der offizielle Industrie-FCF ist ein abwärtsgerichtetes Plausibilitätsgate."
         ),
@@ -10881,9 +10882,10 @@ def build_auto_special_control(base_control, auto_model):
             ]},
         },
         "note": (
-            "Automotive-Schritt 3B V2.20.56 validiert die Trennung zwischen Industriegeschäft und captive Financial "
-            "Services. Cycle Compression bestimmt die EPS-Basis, der Quality Score das Ziel-KGV und der offizielle "
-            "Industrie-FCF prüft den resultierenden Equity Value abwärtsgerichtet. Fehlende Pflichtdaten sperren fail-closed."
+            "Automotive-Schritt 3B V2.20.57 validiert die Trennung zwischen Industriegeschäft und captive Financial "
+            "Services. Cycle Compression bestimmt die EPS-Basis, der Quality Score den KGV-Fundamentalaner. Ein Peer-Overlay "
+            "ist nur nach bestandenem Normalized Comparability Gate zulässig und doppelt auf ±5 % begrenzt; der offizielle "
+            "Industrie-FCF prüft den resultierenden Equity Value weiterhin abwärtsgerichtet. Fehlende Pflichtdaten sperren fail-closed."
         ),
     })
     return control
@@ -11949,6 +11951,12 @@ def get_peer_group(company_type, symbol):
                     )
                     if key == "öl & gas / midstream"
                     else (
+                        "Automotive-Peer-Gruppe automatisch ausgewählt. V2.20.57 trennt Markt-Referenz-KGVs "
+                        "von voll vergleichbaren normalisierten Peers. Yahoo-Forward-KGVs dürfen ohne bestandene "
+                        "Cycle-/Earnings-Basis-Vergleichbarkeit weder Ziel-KGV noch Fair Value verändern."
+                    )
+                    if key == "autohersteller / zyklisch"
+                    else (
                         "Peer-Gruppe automatisch aus dem Unternehmenstyp "
                         "ausgewählt. In Schritt 2A werden noch keine Peer-"
                         "Kennzahlen geladen und das Fundamental-Multiple "
@@ -12311,6 +12319,236 @@ def _calculate_midstream_peer_overlay(peer_group, fundamental_multiple, cache_ve
 
 
 
+AUTOMOTIVE_PEER_COMPARABILITY = {
+    "BMW.DE": {
+        "structure": "Premium-OEM + captive Financial Services",
+        "structure_comparable": True,
+        "structure_note": "OEM mit eigenem Finanzdienstleistungsgeschäft; strukturell grundsätzlich mit Mercedes-Benz vergleichbar.",
+    },
+    "STLAM.MI": {
+        "structure": "Globaler OEM + captive/partnerbasierte Financial Services",
+        "structure_comparable": True,
+        "structure_note": "Großer globaler OEM; Finanzierungsstruktur ist grundsätzlich relevant, aber nicht identisch mit Mercedes-Benz.",
+    },
+    "7203.T": {
+        "structure": "Globaler OEM + Financial Services",
+        "structure_comparable": True,
+        "structure_note": "OEM mit bedeutendem Finanzdienstleistungsgeschäft; strukturell grundsätzlich vergleichbar, trotz anderer Region/Rechnungslegung.",
+    },
+}
+
+
+def _automotive_peer_comparability(symbol, peer_data):
+    """Classify whether a peer may automatically change the automotive valuation.
+
+    A Yahoo Forward-P/E is useful as a market reference but does not use the same
+    cycle-compressed earnings basis as the Automotive V2 model. Therefore it is
+    not adjustment-eligible unless the peer data explicitly declares an
+    issuer/cycle-normalized earnings basis.
+    """
+    sym = str(symbol or "").upper()
+    meta = dict(AUTOMOTIVE_PEER_COMPARABILITY.get(sym, {}))
+    structure_ok = bool(meta.get("structure_comparable", False))
+    earnings_basis = str((peer_data or {}).get("earnings_basis") or "yahoo_forward_eps")
+    normalized_basis_ok = earnings_basis == "issuer_cycle_normalized_eps"
+    cycle_stage_comparable = bool((peer_data or {}).get("cycle_stage_comparable", False))
+    return {
+        "structure": meta.get("structure", "OEM-Struktur unklar"),
+        "structure_comparable": structure_ok,
+        "structure_note": meta.get("structure_note") or "OEM-/Financial-Services-Struktur nicht ausreichend klassifiziert.",
+        "earnings_basis": earnings_basis,
+        "earnings_basis_comparable": normalized_basis_ok,
+        "earnings_basis_note": (
+            "Peer-EPS wurde auf eine issuer-/zyklus-normalisierte Basis überführt."
+            if normalized_basis_ok else
+            "Yahoo Forward-P/E basiert nicht auf der Mercedes-kompatiblen Cycle-Compression-/Segmentmargen-Logik."
+        ),
+        "cycle_stage_comparable": cycle_stage_comparable,
+        "cycle_note": (
+            "Zyklus-/Margenlage auf vergleichbarer Primärdatenbasis klassifiziert."
+            if cycle_stage_comparable else
+            "Keine ausreichend vergleichbare offizielle Zyklus-/Segmentmargenklassifikation im Peer-Datensatz."
+        ),
+        "adjustment_eligible": bool(
+            structure_ok
+            and normalized_basis_ok
+            and cycle_stage_comparable
+            and (peer_data or {}).get("usable")
+        ),
+    }
+
+
+def _calculate_automotive_peer_overlay(peer_group, fundamental_multiple, cache_version):
+    """Automotive peer reference with normalized-basis comparability gate.
+
+    All plausible reported Forward-P/E values may be displayed as a market
+    reference. Automatic valuation changes require at least three peers with a
+    sufficiently comparable OEM/Financial-Services structure, cycle-normalized
+    earnings basis and cycle-stage classification. Current Yahoo-only data are
+    therefore intentionally reference-only and fail closed.
+    """
+    result = {
+        "method_supported": True,
+        "metric": "Automotive Forward P/E reference",
+        "peer_rows": [],
+        "usable_count": 0,
+        "adjustment_eligible_count": 0,
+        "peer_median": None,
+        "eligible_peer_median": None,
+        "comparability_gate_passed": False,
+        "adjustment_pct": 0.0,
+        "adjusted_multiple": fundamental_multiple,
+        "applied": False,
+        "reference_gap_pct": None,
+        "note": None,
+    }
+
+    for peer in peer_group.get("peers", []):
+        pdx = load_peer_forward_pe(peer["symbol"], cache_version)
+        # Current loader is Yahoo reported Forward-P/E. Explicitly tag the basis
+        # so it cannot silently become a normalized peer anchor.
+        pdx = dict(pdx or {})
+        pdx.setdefault("earnings_basis", "yahoo_forward_eps")
+        pdx.setdefault("cycle_stage_comparable", False)
+        comp = _automotive_peer_comparability(peer["symbol"], pdx)
+        result["peer_rows"].append({
+            "symbol": peer["symbol"],
+            "name": peer["name"],
+            "usable": pdx.get("usable", False),
+            "forward_pe": pdx.get("forward_pe"),
+            "source": pdx.get("source"),
+            "reason": pdx.get("reason"),
+            **comp,
+        })
+
+    reference_values = [
+        r["forward_pe"] for r in result["peer_rows"]
+        if r.get("usable") and r.get("forward_pe") is not None
+    ]
+    eligible_values = [
+        r["forward_pe"] for r in result["peer_rows"]
+        if r.get("adjustment_eligible") and r.get("forward_pe") is not None
+    ]
+    result["usable_count"] = len(reference_values)
+    result["adjustment_eligible_count"] = len(eligible_values)
+
+    base = safe_float(fundamental_multiple)
+    if len(reference_values) >= 3:
+        result["peer_median"] = float(pd.Series(reference_values).median())
+        if base is not None and base > 0:
+            result["reference_gap_pct"] = result["peer_median"] / base - 1.0
+
+    if len(eligible_values) < 3:
+        result["note"] = (
+            "Automotive Comparability Gate nicht bestanden: Es liegen weniger als 3 voll vergleichbare "
+            "Peers mit cycle-normalisierter Gewinnbasis und vergleichbarer Zyklus-/Margenlage vor. Die geladenen "
+            "Yahoo-Forward-KGVs von BMW, Stellantis und Toyota bleiben reine Markt-/Plausibilitätsreferenz und "
+            "verändern weder Ziel-KGV noch Fair Value."
+        )
+        return result
+
+    result["comparability_gate_passed"] = True
+    median = float(pd.Series(eligible_values).median())
+    result["eligible_peer_median"] = median
+    if base is None or base <= 0:
+        result["note"] = "Comparability Gate bestanden, aber kein belastbarer Automotive-Fundamentalaner verfügbar."
+        return result
+
+    raw = median / base - 1.0
+    adj = max(-0.05, min(0.05, raw))
+    result["adjustment_pct"] = adj
+    result["adjusted_multiple"] = base * (1.0 + adj)
+    result["applied"] = True
+    result["note"] = (
+        "Automotive Comparability Gate bestanden: mindestens 3 voll vergleichbare normalisierte Peers. "
+        "Der Peer-Median darf das scoregesteuerte Ziel-KGV zunächst maximal um ±5 % verändern; im anschließenden "
+        "Automotive-Fair-Value-Overlay gilt zusätzlich ein ±5-%-Equity-Fair-Value-Safety-Cap und das Downside-only "
+        "Industrie-FCF-Gate bleibt wirksam."
+    )
+    return result
+
+
+def apply_automotive_peer_overlay(automotive_valuation, peer_check):
+    """Apply an eligible normalized peer proposal with strict automotive safety caps."""
+    av = dict(automotive_valuation or {})
+    if not av.get("available"):
+        return av
+
+    base_pe = safe_float(av.get("target_pe"))
+    eps_basis = safe_float(av.get("compressed_eps_basis"))
+    base_fv = safe_float(av.get("fair_value_financial"))
+    base_pre_fcf = safe_float(av.get("fair_value_before_fcf_gate"))
+    fcf_cap = safe_float(av.get("industrial_fcf_cap_per_share"))
+
+    av.update({
+        "fundamental_target_pe": base_pe,
+        "fundamental_fair_value_financial": base_fv,
+        "peer_reference_median_pe": safe_float((peer_check or {}).get("peer_median")),
+        "peer_eligible_median_pe": safe_float((peer_check or {}).get("eligible_peer_median")),
+        "peer_reference_count": int((peer_check or {}).get("usable_count") or 0),
+        "peer_eligible_count": int((peer_check or {}).get("adjustment_eligible_count") or 0),
+        "peer_comparability_gate_passed": bool((peer_check or {}).get("comparability_gate_passed")),
+        "peer_overlay_applied": False,
+        "peer_adjustment_pct": 0.0,
+        "peer_fair_value_effect_raw_pct": 0.0,
+        "peer_fair_value_effect_used_pct": 0.0,
+        "peer_fair_value_cap_applied": False,
+        "peer_fair_value_cap_pct": 5.0,
+    })
+
+    if not (peer_check or {}).get("applied"):
+        return av
+    proposed_pe = safe_float((peer_check or {}).get("adjusted_multiple"))
+    if base_pe is None or base_pe <= 0 or proposed_pe is None or proposed_pe <= 0 or eps_basis is None or eps_basis <= 0:
+        return av
+    if base_fv is None or base_fv <= 0:
+        return av
+
+    # Multiple proposal is already ±5 % capped in peer_check; enforce again here.
+    pe_floor = base_pe * 0.95
+    pe_ceiling = base_pe * 1.05
+    used_pe = max(pe_floor, min(pe_ceiling, proposed_pe))
+    proposed_pre_fcf = eps_basis * used_pe
+
+    # Keep the industrial-FCF downside gate in force after the peer proposal.
+    proposed_after_fcf = proposed_pre_fcf
+    if fcf_cap is not None and fcf_cap > 0:
+        proposed_after_fcf = min(proposed_after_fcf, fcf_cap)
+
+    raw_effect = proposed_after_fcf / base_fv - 1.0
+    fv_floor = base_fv * 0.95
+    fv_ceiling = base_fv * 1.05
+    final_fv = max(fv_floor, min(fv_ceiling, proposed_after_fcf))
+    used_effect = final_fv / base_fv - 1.0
+
+    annualized_fcf = safe_float(av.get("industrial_fcf_annualized_context"))
+    shares = safe_float(av.get("shares_outstanding_used"))
+    final_implied_yield_pct = safe_float(av.get("industrial_fcf_implied_yield_pct"))
+    final_implied_multiple = safe_float(av.get("industrial_fcf_implied_multiple"))
+    if annualized_fcf is not None and annualized_fcf > 0 and shares is not None and shares > 0 and final_fv > 0:
+        final_equity_value = final_fv * shares
+        if final_equity_value > 0:
+            final_implied_yield_pct = annualized_fcf / final_equity_value * 100.0
+            final_implied_multiple = final_equity_value / annualized_fcf
+
+    av.update({
+        "peer_overlay_applied": True,
+        "peer_adjustment_pct": used_pe / base_pe - 1.0,
+        "target_pe": used_pe,
+        "fair_value_before_fcf_gate": proposed_pre_fcf,
+        "fair_value_financial": final_fv,
+        "peer_fair_value_effect_raw_pct": raw_effect * 100.0,
+        "peer_fair_value_effect_used_pct": used_effect * 100.0,
+        "peer_fair_value_cap_applied": abs(final_fv - proposed_after_fcf) > 1e-9,
+        "industrial_fcf_gate_capped": bool(
+            fcf_cap is not None and fcf_cap > 0 and proposed_after_fcf < proposed_pre_fcf - 1e-9
+        ),
+        "industrial_fcf_implied_yield_pct": final_implied_yield_pct,
+        "industrial_fcf_implied_multiple": final_implied_multiple,
+    })
+    return av
+
+
 def calculate_peer_check(
     company_type,
     peer_group,
@@ -12347,6 +12585,11 @@ def calculate_peer_check(
 
     if "midstream" in type_name:
         return _calculate_midstream_peer_overlay(
+            peer_group, fundamental_multiple, cache_version
+        )
+
+    if "autohersteller" in type_name:
+        return _calculate_automotive_peer_overlay(
             peer_group, fundamental_multiple, cache_version
         )
 
@@ -12649,13 +12892,16 @@ def get_special_control(company_type, symbol):
                 "Financial-Services-Abgrenzung",
                 "Automotive Quality Score / Cycle Compression",
                 "Quality-adjusted Cycle-KGV ohne Mehrfach-Caps",
+                "Normalisierter Automotive-Peer-Comparability-Check + ±5-%-Safety-Caps",
                 "Industrie-FCF-Plausibilitätsgate (abwärtsgerichtet)"
             ],
-            "status": "Router aktiv – V2.20.56 Automotive-De-Dup-/FCF-Plausibility-Gate",
+            "status": "Router aktiv – V2.20.57 Automotive-Peer-Comparability-/Safety-Gate",
             "note": (
-                "V2.20.56 trennt bei unterstützten Autoherstellern offizielle Industrie-Kennzahlen vom captive "
+                "V2.20.57 trennt bei unterstützten Autoherstellern offizielle Industrie-Kennzahlen vom captive "
                 "Finanzdienstleistungsgeschäft. Cycle Compression setzt nur die EPS-Basis; der Quality Score nur "
-                "das Ziel-KGV. Der offizielle Industrie-FCF darf den Fair Value nur begrenzen, nie erhöhen."
+                "das Ziel-KGV. Peer-Forward-KGVs dürfen ohne bestandenes Normalized Comparability Gate nur Referenz sein; "
+                "bei einer später zulässigen Anpassung gelten ±5-%-Multiple- und Fair-Value-Safety-Caps. Der offizielle "
+                "Industrie-FCF darf den Fair Value nur begrenzen, nie erhöhen."
             )
         }
 
@@ -19349,7 +19595,7 @@ def calculate_fair_value_v1(
         })
         return result
 
-    # Automotive V2.20.56 – quality-adjusted cycle P/E on compressed EPS.
+    # Automotive V2.20.57 – cycle-compressed P/E + normalized peer safety overlay.
     if (
         isinstance(special_control, dict)
         and special_control.get("control_key") == "auto_cycle_industrial_cashflow"
@@ -19396,7 +19642,7 @@ def calculate_fair_value_v1(
             "valuation_method": "automotive_quality_cycle_pe",
             "normalized_eps": eps_basis,
             "used_multiple": safe_float(av.get("target_pe")),
-            "multiple_source": "Automotive Quality Score → Cycle-KGV; Cycle Compression nur EPS-Basis; Industrie-FCF nur Downside-Gate",
+            "multiple_source": "Automotive Quality Score → Cycle-KGV; Normalized Peer Comparability Gate; Industrie-FCF Downside-Gate",
             "fair_value_financial": fv,
             "fair_value_quote": fvq,
             "potential_pct": potential,
@@ -19424,12 +19670,25 @@ def calculate_fair_value_v1(
             "shares_source": av.get("shares_source"),
             "industrial_net_liquidity_total": safe_float(av.get("industrial_net_liquidity_total")),
             "net_liquidity_added_to_fair_value": bool(av.get("net_liquidity_added_to_fair_value")),
+            "fundamental_target_pe": safe_float(av.get("fundamental_target_pe")),
+            "fundamental_fair_value_financial": safe_float(av.get("fundamental_fair_value_financial")),
+            "peer_reference_median_pe": safe_float(av.get("peer_reference_median_pe")),
+            "peer_eligible_median_pe": safe_float(av.get("peer_eligible_median_pe")),
+            "peer_reference_count": int(av.get("peer_reference_count") or 0),
+            "peer_eligible_count": int(av.get("peer_eligible_count") or 0),
+            "peer_comparability_gate_passed": bool(av.get("peer_comparability_gate_passed")),
+            "peer_overlay_applied": bool(av.get("peer_overlay_applied")),
+            "peer_adjustment_pct": safe_float(av.get("peer_adjustment_pct")),
+            "peer_fair_value_effect_raw_pct": safe_float(av.get("peer_fair_value_effect_raw_pct")),
+            "peer_fair_value_effect_used_pct": safe_float(av.get("peer_fair_value_effect_used_pct")),
+            "peer_fair_value_cap_applied": bool(av.get("peer_fair_value_cap_applied")),
+            "peer_fair_value_cap_pct": safe_float(av.get("peer_fair_value_cap_pct")),
             "unit_conversion_applied": bool(unit_notes),
             "unit_note": " ".join(unit_notes) if unit_notes else None,
             "note": (
-                "Automotive-Fair-Value V1 = cycle-komprimierte EPS-Basis × scoregesteuertes Cycle-KGV. Cycle Compression "
-                "verändert das Multiple nicht nochmals. Anschließend prüft der offizielle Industrie-FCF den impliziten "
-                "Equity Value mit einem abwärtsgerichteten Mindest-FCF-Yield-Gate; das Gate kann nur begrenzen, nie erhöhen. "
+                "Automotive-Fair-Value V1 = cycle-komprimierte EPS-Basis × scoregesteuertes Cycle-KGV. Ein Peer-Overlay "
+                "darf nur nach bestandenem Normalized Comparability Gate wirken; Multiple- und resultierender Fair-Value-Effekt "
+                "sind jeweils auf ±5 % begrenzt. Anschließend bleibt das Downside-only Industrie-FCF-Yield-Gate wirksam. "
                 "Industrie-Netto-Liquidität wird nicht noch einmal je Aktie addiert."
             ),
         })
@@ -21381,7 +21640,7 @@ def load_stock(search_text, cache_version):
             "multiple": safe_float(av.get("target_pe")),
             "available": bool(aus.get("available") and av.get("available")),
             "note": (
-                "Autohersteller verwenden V2.20.56 nicht das generische EPS-/FCF-Multiple. Cycle Compression "
+                "Autohersteller verwenden V2.20.57 nicht das generische EPS-/FCF-Multiple. Cycle Compression "
                 "bestimmt nur die EPS-Basis; der Automotive-Quality-Score bestimmt nur das Ziel-KGV. Das "
                 "Industrie-FCF-Gate kann den Fair Value nur abwärts begrenzen; Netto-Liquidität wird nicht addiert."
             ),
@@ -21431,6 +21690,22 @@ def load_stock(search_text, cache_version):
                 "Midstream verwendet den 100-Punkte-Quality-Score als Fundamentalaner. V2.20.52 "
                 "erlaubt eine automatische Peer-Anpassung nur nach bestandenem Comparability Gate; "
                 "zusätzlich begrenzt ein Equity-Fair-Value-Safety-Cap den Peer-Effekt auf ±5 %."
+            ),
+        }
+
+    if auto_special_model.get("applicable"):
+        auto_special_model["automotive_valuation"] = apply_automotive_peer_overlay(
+            auto_special_model.get("automotive_valuation"),
+            peer_check,
+        )
+        av_peer = auto_special_model.get("automotive_valuation") or {}
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "multiple": safe_float(av_peer.get("target_pe")),
+            "note": (
+                "Automotive V2.20.57: Cycle Compression bestimmt die EPS-Basis, der Automotive-Quality-Score "
+                "den Fundamentalaner. Ein Peer-Overlay ist nur nach bestandenem Normalized Comparability Gate "
+                "zulässig; Multiple- und Fair-Value-Effekt sind jeweils auf ±5 % begrenzt, das Industrie-FCF-Gate bleibt aktiv."
             ),
         }
 
@@ -22662,7 +22937,7 @@ if selected_symbol:
                 elif "autohersteller" in normalized_company_type_name(company_type):
                     st.caption(
                         "Das historische Zyklus-EPS bleibt beim Autohersteller nur Ausgangskontext. "
-                        "V2.20.56 prüft es weiter unten mit dem Cycle Compression Gate gegen Forward-/TTM-EPS "
+                        "V2.20.57 prüft es weiter unten mit dem Cycle Compression Gate gegen Forward-/TTM-EPS "
                         "und die aktuelle Cars-Marge. Die komprimierte EPS-Basis ist danach ausschließlich die "
                         "Gewinnbasis; das Ziel-KGV wird separat nur aus dem Automotive-Quality-Score abgeleitet."
                     )
@@ -24663,7 +24938,7 @@ if selected_symbol:
                 if auto_model.get("applicable"):
 
                     st.divider()
-                    st.subheader("🚗 Autohersteller-Sondermodell V2.20.56 – De-Dup Cycle-KGV & Industrie-FCF-Gate")
+                    st.subheader("🚗 Autohersteller-Sondermodell V2.20.57 – Cycle-KGV, FCF-Gate & Peer Safety")
 
                     if auto_model.get("primary_source_complete"):
                         st.success(
@@ -24802,7 +25077,7 @@ if selected_symbol:
                         if dev is not None:
                             st.write(f"**Abweichung aktuelle EPS-Referenz zur historischen Zyklus-Basis:** {dev:.1f} %")
                         st.warning(
-                            "Cycle Compression bestanden: Die komprimierte EPS-Basis ist in V2.20.56 ausschließlich die Gewinnbasis; "
+                            "Cycle Compression bestanden: Die komprimierte EPS-Basis ist in V2.20.57 ausschließlich die Gewinnbasis; "
                             "sie reduziert das Ziel-KGV nicht nochmals."
                         )
                         st.caption(cycle_ui.get("note"))
@@ -24811,17 +25086,28 @@ if selected_symbol:
 
                     auto_val_ui = auto_model.get("automotive_valuation") or {}
                     if auto_val_ui.get("available"):
-                        st.write("**Automotive-Bewertungsanker V2.20.56 – Rollen sauber getrennt**")
-                        st.write(f"**Score-gesteuertes Ziel-KGV:** {auto_val_ui.get('score_target_pe'):.2f}×")
+                        st.write("**Automotive-Bewertungsanker V2.20.57 – Rollen + Peer-Safety sauber getrennt**")
+                        st.write(f"**Score-gesteuerter Fundamentalaner KGV:** {auto_val_ui.get('score_target_pe'):.2f}×")
+                        st.write(f"**Verwendetes Ziel-KGV nach Peer-Safety:** {auto_val_ui.get('target_pe'):.2f}×")
                         st.write("Cars-Marge und Cycle-Compression wirken nicht nochmals als separate Multiple-Caps.")
                         st.write(f"**Automotive-KGV-Zielkorridor:** {auto_val_ui.get('corridor_low'):.2f}× – {auto_val_ui.get('corridor_high'):.2f}×")
+                        if auto_val_ui.get("peer_reference_median_pe") is not None:
+                            st.write(f"**Peer-Referenzmedian Forward-KGV:** {auto_val_ui.get('peer_reference_median_pe'):.2f}×")
+                            st.write(
+                                "**Automotive Comparability Gate:** "
+                                + (
+                                    f"BESTANDEN · voll vergleichbar {auto_val_ui.get('peer_eligible_count', 0)}/{auto_val_ui.get('peer_reference_count', 0)}"
+                                    if auto_val_ui.get("peer_comparability_gate_passed") else
+                                    f"NICHT BESTANDEN · voll vergleichbar {auto_val_ui.get('peer_eligible_count', 0)}/{auto_val_ui.get('peer_reference_count', 0)}"
+                                )
+                            )
                         st.write("**Industrie-FCF-Plausibilitätsgate:** " + ("BESTANDEN" if auto_val_ui.get("industrial_fcf_gate_passed") else "NICHT BESTANDEN"))
                         st.write(f"**Implizite annualisierte Industrie-FCF-Rendite:** {auto_val_ui.get('industrial_fcf_implied_yield_pct'):.1f} % · Mindestwert {auto_val_ui.get('industrial_fcf_min_yield_pct'):.1f} %")
                         if auto_val_ui.get("industrial_fcf_gate_capped"):
                             st.warning("FCF-Gate aktiv: Der EPS/KGV-Fair-Value wurde ausschließlich nach unten begrenzt.")
                         else:
                             st.success("FCF-Gate bestanden: Kein FCF-bedingter Abschlag auf den EPS/KGV-Fair-Value nötig.")
-                        st.metric("Fundamentaler Automotive-Fair-Value", format_eps(auto_val_ui.get("fair_value_financial"), financial_currency))
+                        st.metric("Automotive-Fair-Value nach Safety Gates", format_eps(auto_val_ui.get("fair_value_financial"), financial_currency))
                         st.caption(auto_val_ui.get("note"))
                     else:
                         st.warning(auto_val_ui.get("note") or "Automotive-Bewertungsanker nicht verfügbar.")
@@ -24851,8 +25137,9 @@ if selected_symbol:
                         else:
                             st.caption(auto_model.get("ev_to_ebitda_note"))
                     st.info(
-                        "V2.20.56 trennt EPS-Basis, Quality-Multiple und Industrie-FCF-Plausibilitätsgate. "
-                        "Das FCF-Gate darf den Fair Value nur nach unten begrenzen; Netto-Liquidität wird nicht doppelt addiert."
+                        "V2.20.57 trennt EPS-Basis, Quality-Multiple, Industrie-FCF-Plausibilitätsgate und Peer-Comparability. "
+                        "Yahoo-Forward-KGVs bleiben ohne mindestens 3 voll vergleichbare cycle-normalisierte Peers reine Referenz. "
+                        "Eine spätere Peer-Anpassung ist auf ±5 % beim Multiple und Fair Value begrenzt; das FCF-Gate bleibt Downside-only."
                     )
                     st.caption(auto_model.get("note"))
 
@@ -25167,6 +25454,16 @@ if selected_symbol:
                         st.write(f"**Score-gesteuertes Ziel-KGV:** {auto_val_m6.get('score_target_pe'):.2f}×")
                         st.metric("Verwendetes Automotive-Ziel-KGV", f"{auto_val_m6.get('target_pe'):.2f}×")
                         st.write(f"**Automotive-KGV-Zielkorridor:** {auto_val_m6.get('corridor_low'):.2f}× – {auto_val_m6.get('corridor_high'):.2f}×")
+                        if auto_val_m6.get("peer_reference_median_pe") is not None:
+                            st.write(f"**Peer-Referenzmedian Forward-KGV:** {auto_val_m6.get('peer_reference_median_pe'):.2f}×")
+                            st.write(
+                                "**Comparability Gate:** "
+                                + (
+                                    f"BESTANDEN · voll vergleichbar {auto_val_m6.get('peer_eligible_count', 0)}/{auto_val_m6.get('peer_reference_count', 0)}"
+                                    if auto_val_m6.get("peer_comparability_gate_passed") else
+                                    f"NICHT BESTANDEN · voll vergleichbar {auto_val_m6.get('peer_eligible_count', 0)}/{auto_val_m6.get('peer_reference_count', 0)}"
+                                )
+                            )
                         st.write("**Industrie-FCF-Plausibilitätsgate:** " + ("BESTANDEN" if auto_val_m6.get("industrial_fcf_gate_passed") else "NICHT BESTANDEN"))
                         st.write(f"**Implizite annualisierte Industrie-FCF-Rendite:** {auto_val_m6.get('industrial_fcf_implied_yield_pct'):.1f} % · Minimum {auto_val_m6.get('industrial_fcf_min_yield_pct'):.1f} %")
                         st.success(
@@ -25424,6 +25721,7 @@ if selected_symbol:
                     "peer_check"
                 ]
                 is_midstream_peer_metric = peer_check.get("metric") == "EV/EBITDA"
+                is_automotive_peer_metric = peer_check.get("metric") == "Automotive Forward P/E reference"
 
                 if not peer_check[
                     "method_supported"
@@ -25437,7 +25735,7 @@ if selected_symbol:
 
                     st.write(
                         "**Geladene Peer-EV/EBITDA-Werte:**"
-                        if is_midstream_peer_metric else "**Geladene Peer-KGVs:**"
+                        if is_midstream_peer_metric else ("**Automotive Peer-Forward-KGVs (Referenz):**" if is_automotive_peer_metric else "**Geladene Peer-KGVs:**")
                     )
 
                     for row in peer_check["peer_rows"]:
@@ -25451,6 +25749,14 @@ if selected_symbol:
                                     f"• {row['name']} ({row['symbol']}): {peer_value:.2f}×{source_text} "
                                     f"· {structure} · {eligibility}"
                                 )
+                            elif is_automotive_peer_metric:
+                                eligibility = "voll vergleichbar" if row.get("adjustment_eligible") else "nur Referenz"
+                                structure = row.get("structure") or "OEM-Struktur unklar"
+                                basis = "cycle-normalisiert" if row.get("earnings_basis_comparable") else "Yahoo Forward-EPS"
+                                st.write(
+                                    f"• {row['name']} ({row['symbol']}): {peer_value:.2f}×{source_text} "
+                                    f"· {structure} · {basis} · {eligibility}"
+                                )
                             else:
                                 st.write(
                                     f"• {row['name']} ({row['symbol']}): "
@@ -25460,16 +25766,20 @@ if selected_symbol:
                             st.write(f"• {row['name']} ({row['symbol']}): –")
 
                     st.write(
-                        ("**Brauchbare Referenz-Peer-Daten:** " if is_midstream_peer_metric else "**Brauchbare Peer-Daten:** ")
+                        ("**Brauchbare Referenz-Peer-Daten:** " if (is_midstream_peer_metric or is_automotive_peer_metric) else "**Brauchbare Peer-Daten:** ")
                         + f"{peer_check['usable_count']}"
                     )
-                    if is_midstream_peer_metric:
+                    if is_midstream_peer_metric or is_automotive_peer_metric:
                         st.write(
                             "**Für automatische Anpassung voll vergleichbar:** "
                             f"{peer_check.get('adjustment_eligible_count', 0)}"
                         )
                         if peer_check.get("comparability_gate_passed"):
-                            st.success("Comparability Gate bestanden: mindestens 3 voll vergleichbare Midstream-Peers.")
+                            st.success(
+                                "Comparability Gate bestanden: mindestens 3 voll vergleichbare Midstream-Peers."
+                                if is_midstream_peer_metric else
+                                "Automotive Comparability Gate bestanden: mindestens 3 cycle-normalisierte, zyklusvergleichbare Peers."
+                            )
                         else:
                             st.warning(
                                 "Comparability Gate nicht bestanden: Referenzmedian bleibt ohne Einfluss auf Zielmultiple und Fair Value."
@@ -25477,7 +25787,7 @@ if selected_symbol:
 
                     if peer_check["peer_median"] is not None:
                         st.metric(
-                            "Peer-Median EV/EBITDA" if is_midstream_peer_metric else "Peer-Median Forward-KGV",
+                            "Peer-Median EV/EBITDA" if is_midstream_peer_metric else ("Automotive Referenzmedian Forward-KGV" if is_automotive_peer_metric else "Peer-Median Forward-KGV"),
                             f"{peer_check['peer_median']:.2f}×"
                         )
 
@@ -25498,7 +25808,7 @@ if selected_symbol:
                         st.metric(
                             "Peer-kontrolliertes EV/Adjusted EBITDA"
                             if peer_check.get("metric") == "EV/EBITDA"
-                            else "Peer-kontrolliertes Multiple",
+                            else ("Peer-kontrolliertes Automotive-Ziel-KGV" if is_automotive_peer_metric else "Peer-kontrolliertes Multiple"),
                             f"{peer_check['adjusted_multiple']:.2f}×"
                         )
 
@@ -25539,8 +25849,12 @@ if selected_symbol:
                     + (
                         "Mindestens 3 voll vergleichbare Peers sind für eine automatische Midstream-Anpassung Pflicht; "
                         "der Median wird statt des Durchschnitts verwendet."
-                        if is_midstream_peer_metric else
-                        "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
+                        if is_midstream_peer_metric else (
+                            "Mindestens 3 cycle-normalisierte und zyklusvergleichbare Peers sind für eine automatische Automotive-Anpassung Pflicht; "
+                            "der Median wird statt des Durchschnitts verwendet."
+                            if is_automotive_peer_metric else
+                            "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
+                        )
                     )
                 )
 
@@ -25888,11 +26202,22 @@ if selected_symbol:
                             st.write(f"**Score-gesteuertes Ziel-KGV:** {auto_val_3b.get('score_target_pe'):.2f}×")
                             st.write(f"**Verwendetes Ziel-KGV:** {auto_val_3b.get('target_pe'):.2f}×")
                             st.write(f"**Zielkorridor:** {auto_val_3b.get('corridor_low'):.2f}× – {auto_val_3b.get('corridor_high'):.2f}×")
+                            if auto_val_3b.get("peer_reference_median_pe") is not None:
+                                st.write(f"**Peer-Referenzmedian Forward-KGV:** {auto_val_3b.get('peer_reference_median_pe'):.2f}×")
+                                st.write(
+                                    "**Comparability Gate:** "
+                                    + (
+                                        f"BESTANDEN · voll vergleichbar {auto_val_3b.get('peer_eligible_count', 0)}/{auto_val_3b.get('peer_reference_count', 0)}"
+                                        if auto_val_3b.get("peer_comparability_gate_passed") else
+                                        f"NICHT BESTANDEN · voll vergleichbar {auto_val_3b.get('peer_eligible_count', 0)}/{auto_val_3b.get('peer_reference_count', 0)}"
+                                    )
+                                )
                             st.write("**Industrie-FCF-Plausibilitätsgate:** " + ("BESTANDEN" if auto_val_3b.get("industrial_fcf_gate_passed") else "NICHT BESTANDEN"))
                             st.write(f"**Implizite annualisierte Industrie-FCF-Rendite:** {auto_val_3b.get('industrial_fcf_implied_yield_pct'):.1f} %")
                         st.success(
-                            "Bewertungsfreigabe JA: V2.20.56 gibt die de-duplizierte Cycle-KGV-Bewertung erst nach "
-                            "bestandenem Industrie-FCF-Plausibilitätsgate frei."
+                            "Bewertungsfreigabe JA: V2.20.57 gibt die de-duplizierte Cycle-KGV-Bewertung nach bestandenem "
+                            "Industrie-FCF-Plausibilitätsgate frei. Ein nicht bestandenes Peer-Comparability-Gate blockiert nicht, "
+                            "sondern verhindert ausschließlich jede automatische Peer-Anpassung."
                         )
                         st.caption(
                             "Das Gate bleibt fail-closed, wenn der offizielle Snapshot veraltet oder unvollständig ist. "
@@ -28224,15 +28549,31 @@ if selected_symbol:
                                 f"{fair_value.get('anchor_spread_pct'):.1f} %"
                             )
                     elif fair_value.get("valuation_method") == "automotive_quality_cycle_pe":
-                        st.write("**Bewertungsformel:** Cycle-komprimierte EPS-Basis × scoregesteuertes Automotive-Ziel-KGV; danach Downside-only Industrie-FCF-Gate")
+                        st.write("**Bewertungsformel:** Cycle-komprimierte EPS-Basis × scoregesteuertes Automotive-Ziel-KGV; optional nur nach Comparability Gate ±5-%-Peer-Overlay; danach Downside-only Industrie-FCF-Gate")
                         st.write(f"**Automotive-Quality-Score:** {fair_value.get('automotive_score'):.0f}/100 · {fair_value.get('automotive_quality_level')}")
                         st.write("**Komprimierte EPS-Basis:** " + format_eps(fair_value.get("compressed_eps_basis"), fair_value["financial_currency"]))
                         st.write(f"**Cycle Compression:** {fair_value.get('cycle_status')} · Zyklusgewicht {fair_value.get('cycle_weight') * 100:.0f} % · nur EPS-Basis")
-                        st.write(f"**Score-gesteuertes Ziel-KGV:** {fair_value.get('score_target_pe'):.2f}×")
+                        st.write(f"**Score-gesteuerter Fundamentalaner KGV:** {fair_value.get('score_target_pe'):.2f}×")
+                        st.write(f"**Verwendetes Ziel-KGV nach Peer-Safety:** {fair_value.get('target_pe'):.2f}×")
                         current_auto_pe = safe_float(fair_value.get("current_pe_on_compressed_eps"))
                         if current_auto_pe is not None:
                             st.write(f"**Aktuelles KGV auf komprimierter EPS-Basis:** {current_auto_pe:.2f}×")
                         st.write(f"**Automotive-KGV-Zielkorridor:** {fair_value.get('pe_corridor_low'):.2f}× – {fair_value.get('pe_corridor_high'):.2f}×")
+                        if fair_value.get("peer_reference_median_pe") is not None:
+                            st.write(f"**Peer-Referenzmedian Forward-KGV:** {fair_value.get('peer_reference_median_pe'):.2f}×")
+                            st.write(
+                                "**Automotive Comparability Gate:** "
+                                + (
+                                    f"BESTANDEN · voll vergleichbar {fair_value.get('peer_eligible_count', 0)}/{fair_value.get('peer_reference_count', 0)}"
+                                    if fair_value.get("peer_comparability_gate_passed") else
+                                    f"NICHT BESTANDEN · voll vergleichbar {fair_value.get('peer_eligible_count', 0)}/{fair_value.get('peer_reference_count', 0)}"
+                                )
+                            )
+                            if fair_value.get("peer_overlay_applied"):
+                                st.write(f"**Peer-Anpassung Ziel-KGV:** {fair_value.get('peer_adjustment_pct', 0.0) * 100:+.2f} %")
+                                st.write(f"**Verwendeter Fair-Value-Effekt:** {fair_value.get('peer_fair_value_effect_used_pct', 0.0):+.2f} %")
+                                if fair_value.get("peer_fair_value_cap_applied"):
+                                    st.warning("Automotive Fair-Value-Safety-Cap aktiv: Peer-Effekt wurde auf ±5 % begrenzt.")
                         st.write("**Industrie-FCF H1:** " + format_money(fair_value.get("industrial_fcf_h1_total"), fair_value["financial_currency"]))
                         annualized_ctx = safe_float(fair_value.get("industrial_fcf_annualized_context"))
                         if annualized_ctx is not None:
