@@ -17,18 +17,19 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.53"
+APP_BUILD_VERSION = "V2.20.54"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · Automotive Primary Source / Industrial FCF & Net Liquidity Gate")
+st.caption(f"Build {APP_BUILD_VERSION} · Automotive Quality Score & Cycle Compression Gate")
 
 
 # V2.20.52: Midstream Peer Safety Cap & Comparability Gate. Separates market-reference peers from adjustment-eligible peers. Automatic peer adjustment requires at least three peers with sufficiently comparable corporate structure AND issuer-adjusted EBITDA basis. Generic Yahoo EV/EBITDA remains reference-only. If a future gate passes, the multiple proposal and the resulting equity fair-value effect are each capped at ±5 %. The 100-point Midstream score and official KMI Adjusted EBITDA / Net Debt / share-count bridge remain unchanged.
 # V2.20.53: Automotive Primary Source / Industrial Net Liquidity & FCF Gate. First supported issuer: Mercedes-Benz Group (MBG.DE). Separates industrial-business free cash flow and net liquidity from consolidated Group debt distorted by captive Financial Services. Uses only current official Mercedes-Benz Q2/H1 2026 source data for the automotive primary gate; no automotive score, target multiple or fair value is released yet.
+# V2.20.54: Automotive Quality Score & Cycle Compression Gate. Adds a dedicated 100-point automotive quality score from industrial FCF resilience, industrial net liquidity, Cars/Vans margins, Financial Services RoE, capital allocation and disclosed FCF one-offs. Adds a fail-closed cycle-compression diagnostic that caps the weight of strong historical cycle EPS when current Cars margins/guidance and forward EPS are materially weaker. Still no automotive target multiple or fair value.
 
 # =========================================================
 # Hilfsfunktionen
@@ -10054,16 +10055,16 @@ def build_midstream_special_control(base_control, midstream_model):
 
 
 # =========================================================
-# Autohersteller-Sondermodell V2.20.53 – Primärdaten / Industrial FCF & Net Liquidity Gate
+# Autohersteller-Sondermodell V2.20.54 – Quality Score & Cycle Compression Gate
 # =========================================================
 
-AUTO_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22053_auto_primary_industrial_fcf_net_liquidity"
+AUTO_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22054_auto_quality_cycle_compression"
 
 
 def get_verified_auto_snapshot(symbol):
     """Time-bounded official automotive snapshot for supported manufacturers.
 
-    V2.20.53 starts with Mercedes-Benz Group (XETRA: MBG.DE). Mercedes-Benz
+    V2.20.54 continues with Mercedes-Benz Group (XETRA: MBG.DE). Mercedes-Benz
     explicitly separates the industrial business from Financial Services.
     The gate therefore uses industrial-business FCF and net liquidity, not
     consolidated Yahoo cash/debt as a proxy for automotive leverage.
@@ -10111,7 +10112,7 @@ def get_verified_auto_snapshot(symbol):
             "Netto-Liquidität des Industriegeschäfts werden bewusst getrennt vom "
             "Finanzdienstleistungsgeschäft geführt. Konsolidierte Yahoo-Schulden, Cash "
             "und Standard-FCF werden deshalb nicht als Automotive-Industrieverschuldung "
-            "oder Industrie-FCF interpretiert. Noch kein Automotive-Score und kein Fair Value."
+            "oder Industrie-FCF interpretiert. V2.20.54 ergänzt Quality Score und Cycle Compression; ein Fair Value bleibt noch gesperrt."
         ),
     }
 
@@ -10205,6 +10206,319 @@ def build_auto_primary_source_gate(snapshot):
     return result
 
 
+
+def _auto_quality_level(score):
+    value = safe_float(score)
+    if value is None:
+        return "Nicht verfügbar"
+    if value >= 85:
+        return "Sehr hoch"
+    if value >= 75:
+        return "Hoch"
+    if value >= 60:
+        return "Gut"
+    if value >= 45:
+        return "Mittel"
+    return "Niedrig"
+
+
+def build_auto_quality_score(primary_gate, snapshot):
+    """100-point automotive quality score from issuer-defined operating anchors.
+
+    The score deliberately avoids consolidated Yahoo FCF/debt, generic ROE and
+    generic earnings growth. Known disclosed one-offs are used only to build a
+    transparent mechanical FCF-resilience bridge; it is not labelled as an
+    issuer-reported normalized FCF.
+    """
+    result = {
+        "available": False,
+        "score": None,
+        "quality_level": "Nicht verfügbar",
+        "fcf_resilience_points": None,
+        "net_liquidity_points": None,
+        "cars_margin_points": None,
+        "vans_margin_points": None,
+        "financial_services_points": None,
+        "capital_allocation_points": None,
+        "one_off_quality_points": None,
+        "mechanical_known_items_fcf_h1_total": None,
+        "mechanical_known_items_fcf_h1_yoy_pct": None,
+        "net_liquidity_to_annualized_h1_fcf": None,
+        "distribution_to_h1_fcf": None,
+        "sale_proceeds_share_q2_fcf_pct": None,
+        "note": None,
+    }
+    gate = primary_gate if isinstance(primary_gate, dict) else {}
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    if not gate.get("available"):
+        result["note"] = "Automotive-Quality-Score gesperrt: Primärquellen-Gate nicht bestanden."
+        return result
+
+    fcf_h1 = safe_float(gate.get("industrial_fcf_h1_total"))
+    fcf_q2 = safe_float(gate.get("industrial_fcf_q2_total"))
+    prior_h1 = safe_float(snap.get("industrial_fcf_h1_prior_total"))
+    net_liq = safe_float(gate.get("industrial_net_liquidity_total"))
+    cars_ros = safe_float(gate.get("cars_adjusted_ros_q2_pct"))
+    vans_ros = safe_float(gate.get("vans_adjusted_ros_q2_pct"))
+    fs_roe = safe_float(gate.get("financial_services_adjusted_roe_q2_pct"))
+    distributions = safe_float(gate.get("shareholder_distributions_h1_total"))
+    sale_proceeds = safe_float(gate.get("daimler_truck_sale_proceeds_q2_total"))
+    severance = safe_float(gate.get("severance_outflow_h1_total"))
+
+    required = [fcf_h1, fcf_q2, net_liq, cars_ros, vans_ros, fs_roe]
+    if any(v is None for v in required) or fcf_h1 <= 0 or fcf_q2 <= 0:
+        result["note"] = "Automotive-Quality-Score gesperrt: Pflichtkomponenten fehlen."
+        return result
+
+    # Mechanical bridge for disclosed known items: reported H1 FCF minus the
+    # Daimler-Truck sale proceeds plus the disclosed severance cash outflow.
+    # This is context only and must never be described as official normalized FCF.
+    mechanical_fcf = fcf_h1
+    if sale_proceeds is not None:
+        mechanical_fcf -= sale_proceeds
+    if severance is not None:
+        mechanical_fcf += severance
+    mechanical_yoy = None
+    if prior_h1 is not None and prior_h1 > 0:
+        mechanical_yoy = (mechanical_fcf / prior_h1 - 1.0) * 100.0
+
+    # 1) Industrial FCF resilience – 20 points.
+    trend = mechanical_yoy if mechanical_yoy is not None else safe_float(gate.get("industrial_fcf_h1_yoy_pct"))
+    if trend is None:
+        fcf_pts = 8
+    elif trend >= 10:
+        fcf_pts = 20
+    elif trend >= 0:
+        fcf_pts = 17
+    elif trend >= -10:
+        fcf_pts = 14
+    elif trend >= -20:
+        fcf_pts = 12
+    elif trend >= -30:
+        fcf_pts = 9
+    else:
+        fcf_pts = 5
+
+    # 2) Industrial net-liquidity resilience – 20 points, scaled to annualized H1 FCF.
+    annualized_h1_fcf = fcf_h1 * 2.0
+    liq_ratio = net_liq / annualized_h1_fcf if annualized_h1_fcf > 0 else None
+    if liq_ratio is None:
+        liq_pts = 0
+    elif liq_ratio >= 4:
+        liq_pts = 20
+    elif liq_ratio >= 3:
+        liq_pts = 18
+    elif liq_ratio >= 2:
+        liq_pts = 16
+    elif liq_ratio >= 1:
+        liq_pts = 13
+    elif liq_ratio > 0:
+        liq_pts = 10
+    else:
+        liq_pts = 0
+
+    # 3) Core Cars margin – 20 points.
+    if cars_ros >= 10:
+        cars_pts = 20
+    elif cars_ros >= 8:
+        cars_pts = 17
+    elif cars_ros >= 6:
+        cars_pts = 14
+    elif cars_ros >= 5:
+        cars_pts = 11
+    elif cars_ros >= 4:
+        cars_pts = 8
+    elif cars_ros > 0:
+        cars_pts = 4
+    else:
+        cars_pts = 0
+
+    # 4) Vans margin – 10 points.
+    if vans_ros >= 10:
+        vans_pts = 10
+    elif vans_ros >= 8:
+        vans_pts = 8
+    elif vans_ros >= 6:
+        vans_pts = 6
+    elif vans_ros >= 4:
+        vans_pts = 4
+    elif vans_ros > 0:
+        vans_pts = 2
+    else:
+        vans_pts = 0
+
+    # 5) Captive Financial Services quality – 10 points.
+    if fs_roe >= 15:
+        fs_pts = 10
+    elif fs_roe >= 12:
+        fs_pts = 8
+    elif fs_roe >= 10:
+        fs_pts = 6
+    elif fs_roe >= 8:
+        fs_pts = 4
+    elif fs_roe > 0:
+        fs_pts = 2
+    else:
+        fs_pts = 0
+
+    # 6) Capital allocation – 10 points. Strong liquidity does not erase a
+    # payout/buyback run-rate above current industrial FCF; it is scored separately.
+    dist_ratio = distributions / fcf_h1 if distributions is not None and fcf_h1 > 0 else None
+    if dist_ratio is None:
+        capital_pts = 5
+    elif dist_ratio <= 0.80:
+        capital_pts = 10
+    elif dist_ratio <= 1.00:
+        capital_pts = 9
+    elif dist_ratio <= 1.20:
+        capital_pts = 8
+    elif dist_ratio <= 1.50:
+        capital_pts = 6
+    elif dist_ratio <= 2.00:
+        capital_pts = 4
+    else:
+        capital_pts = 1
+
+    # 7) FCF one-off quality – 10 points. A large asset-sale share lowers the
+    # quality of headline quarterly FCF; restructuring outflows are disclosed
+    # separately and therefore not silently added to reported FCF.
+    sale_share = sale_proceeds / fcf_q2 * 100.0 if sale_proceeds is not None and fcf_q2 > 0 else None
+    if sale_share is None:
+        oneoff_pts = 6
+    elif sale_share <= 5:
+        oneoff_pts = 10
+    elif sale_share <= 15:
+        oneoff_pts = 8
+    elif sale_share <= 25:
+        oneoff_pts = 6
+    elif sale_share <= 40:
+        oneoff_pts = 4
+    else:
+        oneoff_pts = 2
+
+    score = int(round(fcf_pts + liq_pts + cars_pts + vans_pts + fs_pts + capital_pts + oneoff_pts))
+    score = max(0, min(100, score))
+    result.update({
+        "available": True,
+        "score": score,
+        "quality_level": _auto_quality_level(score),
+        "fcf_resilience_points": fcf_pts,
+        "net_liquidity_points": liq_pts,
+        "cars_margin_points": cars_pts,
+        "vans_margin_points": vans_pts,
+        "financial_services_points": fs_pts,
+        "capital_allocation_points": capital_pts,
+        "one_off_quality_points": oneoff_pts,
+        "mechanical_known_items_fcf_h1_total": mechanical_fcf,
+        "mechanical_known_items_fcf_h1_yoy_pct": mechanical_yoy,
+        "net_liquidity_to_annualized_h1_fcf": liq_ratio,
+        "distribution_to_h1_fcf": dist_ratio,
+        "sale_proceeds_share_q2_fcf_pct": sale_share,
+        "note": (
+            "Der Automotive-Quality-Score verwendet ausschließlich verifizierte Industrie-/Segmentdaten. "
+            "Der bekannte-Einmaleffekte-FCF-Bridge ist eine mechanische Transparenzrechnung und kein "
+            "vom Unternehmen gemeldeter normalisierter FCF."
+        ),
+    })
+    return result
+
+
+def build_auto_cycle_compression_gate(eps_normalization, primary_gate, snapshot, info):
+    """Diagnostic cycle compression; no valuation release in V2.20.54."""
+    result = {
+        "available": False,
+        "status": "Nicht verfügbar",
+        "cycle_weight": None,
+        "current_reference_weight": None,
+        "cycle_basis_eps": None,
+        "normalized_eps_before_compression": None,
+        "forward_eps": None,
+        "ttm_eps": None,
+        "current_reference_eps": None,
+        "diagnostic_compressed_eps": None,
+        "cycle_forward_deviation_pct": None,
+        "cars_adjusted_ros_q2_pct": None,
+        "cars_guidance_mid_pct": None,
+        "valuation_released": False,
+        "note": None,
+    }
+    eps = eps_normalization if isinstance(eps_normalization, dict) else {}
+    gate = primary_gate if isinstance(primary_gate, dict) else {}
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    if not gate.get("available"):
+        result["note"] = "Cycle Compression Gate gesperrt: Automotive-Primärdaten fehlen."
+        return result
+
+    cycle_basis = safe_float(eps.get("cycle_basis"))
+    normalized_before = safe_float(eps.get("normalized_eps"))
+    forward = safe_float((info or {}).get("forwardEps"))
+    if forward is None:
+        forward = safe_float((info or {}).get("epsForward"))
+    ttm = safe_float((info or {}).get("trailingEps"))
+    if ttm is None:
+        ttm = safe_float((info or {}).get("epsTrailingTwelveMonths"))
+    cars_ros = safe_float(gate.get("cars_adjusted_ros_q2_pct"))
+    guidance_low = safe_float(snap.get("cars_adjusted_ros_guidance_low_pct"))
+    guidance_high = safe_float(snap.get("cars_adjusted_ros_guidance_high_pct"))
+    guidance_mid = None
+    if guidance_low is not None and guidance_high is not None:
+        guidance_mid = (guidance_low + guidance_high) / 2.0
+
+    current_ref = forward if forward is not None and forward > 0 else ttm
+    if cycle_basis is None or cycle_basis <= 0 or current_ref is None or current_ref <= 0 or cars_ros is None:
+        result["note"] = (
+            "Cycle Compression Gate nicht berechenbar: positive historische Zyklus-Basis, "
+            "aktuelle/erwartete EPS-Referenz und Cars-Marge sind erforderlich."
+        )
+        return result
+
+    cycle_forward_dev = abs(current_ref / cycle_basis - 1.0) * 100.0
+
+    # Current Mercedes margin/guidance is the brake: a 3–5% Cars margin must
+    # not give the same historical-cycle weight as a healthy 8–10% margin.
+    margin_reference = min(v for v in [cars_ros, guidance_mid] if v is not None)
+    if margin_reference <= 5.0:
+        status = "Stark"
+        cycle_weight = 0.25
+    elif margin_reference <= 7.0:
+        status = "Mittel"
+        cycle_weight = 0.40
+    elif margin_reference <= 9.0:
+        status = "Leicht"
+        cycle_weight = 0.60
+    else:
+        status = "Keine / gering"
+        cycle_weight = 0.75
+
+    # If forward/current earnings are already close to the cycle basis, the
+    # margin brake remains visible but there is no artificial upward compression.
+    compressed = cycle_weight * cycle_basis + (1.0 - cycle_weight) * current_ref
+    if normalized_before is not None and normalized_before > 0:
+        compressed = min(compressed, normalized_before)
+
+    result.update({
+        "available": True,
+        "status": status,
+        "cycle_weight": cycle_weight,
+        "current_reference_weight": 1.0 - cycle_weight,
+        "cycle_basis_eps": cycle_basis,
+        "normalized_eps_before_compression": normalized_before,
+        "forward_eps": forward,
+        "ttm_eps": ttm,
+        "current_reference_eps": current_ref,
+        "diagnostic_compressed_eps": compressed,
+        "cycle_forward_deviation_pct": cycle_forward_dev,
+        "cars_adjusted_ros_q2_pct": cars_ros,
+        "cars_guidance_mid_pct": guidance_mid,
+        "valuation_released": False,
+        "note": (
+            "Cycle Compression Gate: starke historische Zyklusjahre werden bei schwacher aktueller Cars-Marge "
+            "und deutlich niedrigerer Forward-/TTM-Ertragskraft nur begrenzt gewichtet. Die komprimierte EPS-Basis "
+            "ist in V2.20.54 ausschließlich Diagnose für den nächsten Bewertungsanker und erzeugt noch keinen Fair Value."
+        ),
+    })
+    return result
+
 def build_auto_special_model(
     company_type,
     info,
@@ -10212,7 +10526,7 @@ def build_auto_special_model(
     currency_context,
     symbol=None
 ):
-    """Conservative automotive primary-source gate; no valuation yet."""
+    """Automotive primary gate + Quality Score + Cycle Compression; no valuation yet."""
     type_name = str(company_type.get("type", "")).lower()
     if "autohersteller" not in type_name:
         return {"applicable": False}
@@ -10221,6 +10535,8 @@ def build_auto_special_model(
     snapshot_fresh = _auto_snapshot_is_fresh(snapshot)
     primary_gate = build_auto_primary_source_gate(snapshot)
     primary_source_complete = bool(snapshot_fresh and primary_gate.get("available"))
+    automotive_score = build_auto_quality_score(primary_gate, snapshot)
+    cycle_compression = build_auto_cycle_compression_gate(eps_normalization, primary_gate, snapshot, info)
 
     enterprise_value = safe_float(info.get("enterpriseValue"))
     ebitda = safe_float(info.get("ebitda"))
@@ -10280,6 +10596,8 @@ def build_auto_special_model(
         "snapshot_fresh": snapshot_fresh,
         "primary_source_complete": primary_source_complete,
         "primary_gate": primary_gate,
+        "automotive_score": automotive_score,
+        "cycle_compression": cycle_compression,
         "integration_version": AUTO_PRIMARY_SOURCE_INTEGRATION_VERSION,
         "normalized_eps": normalized_eps,
         "eps_method": eps_method,
@@ -10300,11 +10618,9 @@ def build_auto_special_model(
         "financial_services_split_available": bool(primary_gate.get("available") and primary_gate.get("financial_services_contract_volume_total") is not None),
         "readiness": readiness,
         "note": (
-            "Autohersteller-Sondermodell V2.20.53 trennt verifizierte Industrie-Kennzahlen "
-            "von konsolidierten Yahoo-Kontextdaten. Für Mercedes-Benz werden der offizielle "
-            "Free Cash Flow des Industriegeschäfts, die Industrie-Netto-Liquidität sowie die "
-            "Financial-Services-Abgrenzung verwendet. Noch kein Automotive-Quality-Score, "
-            "kein Zielmultiple und kein Fair Value."
+            "Autohersteller-Sondermodell V2.20.54 trennt verifizierte Industrie-Kennzahlen "
+            "von konsolidierten Yahoo-Kontextdaten. Der eigene Automotive-Quality-Score und das "
+            "Cycle Compression Gate sind freigegeben; Zielmultiple und Fair Value bleiben bewusst gesperrt."
         ),
     }
 
@@ -10320,6 +10636,8 @@ def build_auto_special_control(base_control, auto_model):
     model = auto_model if isinstance(auto_model, dict) else {}
     snapshot = model.get("snapshot")
     gate = model.get("primary_gate") or {}
+    automotive_score = model.get("automotive_score") or {}
+    cycle_compression = model.get("cycle_compression") or {}
 
     if not model.get("primary_source_complete"):
         control.update({
@@ -10342,11 +10660,13 @@ def build_auto_special_control(base_control, auto_model):
         "implemented": True,
         "released": False,
         "confidence_cap": "Mittel",
-        "step3b_status": "Automotive-Primärdaten vollständig – Bewertung noch gesperrt",
-        "overall_status": "Primärdaten vollständig",
+        "step3b_status": "Automotive Quality Score + Cycle Compression freigegeben – Fair Value noch gesperrt",
+        "overall_status": "Quality/Compression freigegeben",
         "snapshot": snapshot,
         "checks": {
             "primary_gate": gate,
+            "automotive_score": automotive_score,
+            "cycle_compression": cycle_compression,
             **{k: gate.get(k) for k in [
                 "industrial_fcf_q2_total", "industrial_fcf_h1_total", "industrial_fcf_h1_yoy_pct",
                 "industrial_net_liquidity_total", "shareholder_distributions_h1_total",
@@ -10357,10 +10677,9 @@ def build_auto_special_control(base_control, auto_model):
             ]},
         },
         "note": (
-            "Automotive-Schritt 3B V2.20.53 validiert zunächst nur die offizielle Trennung "
-            "zwischen Industriegeschäft und captive Financial Services. Primärdatenfreigabe "
-            "und Bewertungsfreigabe bleiben getrennt; ein Automotive-Score und Fair Value "
-            "werden erst in einem separaten nächsten Schritt fachlich festgelegt."
+            "Automotive-Schritt 3B V2.20.54 validiert die offizielle Trennung zwischen Industriegeschäft "
+            "und captive Financial Services und gibt anschließend Automotive-Quality-Score sowie Cycle "
+            "Compression Gate frei. Ein Zielmultiple und Fair Value bleiben weiterhin separat gesperrt."
         ),
     })
     return control
@@ -12124,14 +12443,15 @@ def get_special_control(company_type, symbol):
                 "Industrie-Netto-Liquidität / -Schulden",
                 "Cars/Vans operative Margen",
                 "Financial-Services-Abgrenzung",
-                "später: Automotive Quality Score & Bewertungsanker"
+                "Automotive Quality Score / Cycle Compression",
+                "später: zyklus-/margenbasierter Bewertungsanker"
             ],
-            "status": "Router aktiv – V2.20.53 Automotive-Primärquellen-Gate",
+            "status": "Router aktiv – V2.20.54 Automotive-Quality-/Cycle-Compression-Gate",
             "note": (
-                "V2.20.53 trennt bei unterstützten Autoherstellern offizielle Industrie-Kennzahlen "
+                "V2.20.54 trennt bei unterstützten Autoherstellern offizielle Industrie-Kennzahlen "
                 "vom captive Finanzdienstleistungsgeschäft. Konsolidierter Yahoo-FCF, Cash und Schulden "
-                "dürfen Industrie-FCF bzw. Industrie-Netto-Liquidität nicht ersetzen. Score, Zielmultiple "
-                "und Fair Value bleiben noch gesperrt."
+                "dürfen Industrie-FCF bzw. Industrie-Netto-Liquidität nicht ersetzen. Automotive-Quality-Score "
+                "und Cycle Compression sind freigegeben; Zielmultiple und Fair Value bleiben noch gesperrt."
             )
         }
 
@@ -20595,6 +20915,27 @@ def load_stock(search_text, cache_version):
         earnings_growth
     )
 
+    if "autohersteller" in normalized_company_type_name(company_type):
+        growth_score = {
+            **growth_score,
+            "context_score": growth_score.get("score"),
+            "score": None,
+            "note": (
+                "Beim Autohersteller bleiben generisches Umsatz-/Gewinnwachstum reine Kontextdaten. "
+                "Der Automotive-Quality-Score verwendet Industrie-FCF, Industrie-Netto-Liquidität, "
+                "operative Margen, Financial Services, Kapitalallokation und Einmaleffekt-Qualität."
+            ),
+        }
+        profitability_score = {
+            **profitability_score,
+            "context_score": profitability_score.get("score"),
+            "score": None,
+            "brake_text": (
+                "Beim Autohersteller wird die generische Nettomargen-/ROE-Punktelogik deaktiviert; "
+                "maßgeblich sind Cars/Vans Adjusted RoS und Financial Services Adjusted RoE."
+            ),
+        }
+
     score_fcf_input = (
         free_cashflow
         if is_special_fcf_model(company_type)
@@ -20733,6 +21074,20 @@ def load_stock(search_text, cache_version):
                 "100-Punkte-Midstream-Score als Fundamentalaner; Schritt 2B prüft Peers zuerst auf "
                 "Struktur- und EBITDA-Vergleichbarkeit. Der Equity Value entsteht erst nach Abzug "
                 "der offiziellen Nettoverschuldung."
+            ),
+        }
+
+    if auto_special_model.get("applicable"):
+        aus = auto_special_model.get("automotive_score") or {}
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": safe_float(aus.get("score")),
+            "multiple": None,
+            "available": False,
+            "note": (
+                "Autohersteller verwenden in V2.20.54 noch kein freigegebenes Bewertungs-Multiple. "
+                "Der eigene Automotive-Quality-Score und das Cycle Compression Gate sind Diagnose- und "
+                "Qualitätsbasis; der eigentliche zyklus-/margenbasierte Bewertungsanker folgt separat."
             ),
         }
 
@@ -21976,6 +22331,12 @@ if selected_symbol:
                         "als Kontext angezeigt. Für die spätere "
                         "Bewertung sind FFO/AFFO maßgeblich."
                     )
+                elif "autohersteller" in normalized_company_type_name(company_type):
+                    st.caption(
+                        "Das historische Zyklus-EPS bleibt beim Autohersteller nur Ausgangskontext. "
+                        "V2.20.54 prüft es weiter unten mit dem Cycle Compression Gate gegen Forward-/TTM-EPS "
+                        "und die aktuelle Cars-Marge; die komprimierte Basis erzeugt noch keinen Fair Value."
+                    )
                 elif eps_result.get("normalization_blocked_by_structural_break"):
                     st.caption(
                         "Die reguläre Zyklus-EPS-Bewertungsbasis ist wegen des Structural Breaks "
@@ -22536,8 +22897,12 @@ if selected_symbol:
                 is_insurance_score_ui = is_insurance_company_type(company_type)
                 is_reit_score_ui = is_reit_company_type(company_type)
                 is_midstream_score_ui = is_midstream_company_type(company_type)
+                is_auto_score_ui = "autohersteller" in normalized_company_type_name(company_type)
 
-                if is_midstream_score_ui:
+                if is_auto_score_ui:
+                    st.info("Automotive-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. Der eigene Automotive-Quality-Score basiert auf Industrie-FCF-Resilienz, Industrie-Netto-Liquidität, Cars/Vans-Margen, Financial Services, Kapitalallokation und FCF-Einmaleffekt-Qualität.")
+                    st.caption("Yahoo-Umsatz-/Gewinnwachstum bleibt Kontext und hat keinen Einfluss auf den Automotive-Quality-Score oder das Cycle Compression Gate.")
+                elif is_midstream_score_ui:
                     st.info("Midstream-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. Der eigene Midstream-Score basiert auf issuer-definiertem FCF-Wachstum, Dividendendeckung, Verschuldung, Adjusted-EBITDA-Outlook und Backlog-Qualität.")
                     st.caption("Standard-Wachstum, EPS, Yahoo-FCF, Nettomarge und generischer ROE haben keinen Einfluss auf den Midstream-Fair-Value.")
                 elif is_reit_score_ui:
@@ -22638,7 +23003,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui:
+                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -22659,8 +23024,11 @@ if selected_symbol:
                 is_insurance_profitability_ui = is_insurance_company_type(company_type)
                 is_reit_profitability_ui = is_reit_company_type(company_type)
                 is_midstream_profitability_ui = is_midstream_company_type(company_type)
+                is_auto_profitability_ui = "autohersteller" in normalized_company_type_name(company_type)
 
-                if is_midstream_profitability_ui:
+                if is_auto_profitability_ui:
+                    st.info("Automotive-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. Ertragsqualität wird über Cars/Vans Adjusted RoS und Financial Services Adjusted RoE im eigenen Automotive-Quality-Score beurteilt.")
+                elif is_midstream_profitability_ui:
                     st.info("Midstream-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. Ertragsqualität wird über issuer-definierten FCF, Dividendendeckung, Adjusted EBITDA und Projektökonomik beurteilt.")
                 elif is_reit_profitability_ui:
                     st.info("REIT-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. Profitabilitätsqualität wird über AFFO-Deckung und operative Immobilienkennzahlen beurteilt.")
@@ -23965,7 +24333,7 @@ if selected_symbol:
                 if auto_model.get("applicable"):
 
                     st.divider()
-                    st.subheader("🚗 Autohersteller-Sondermodell V2.20.53 – Industrie-FCF & Netto-Liquidität")
+                    st.subheader("🚗 Autohersteller-Sondermodell V2.20.54 – Quality Score & Cycle Compression")
 
                     if auto_model.get("primary_source_complete"):
                         st.success(
@@ -24053,6 +24421,64 @@ if selected_symbol:
                     if gate.get("note"):
                         st.caption(gate.get("note"))
 
+                    auto_score_ui = auto_model.get("automotive_score") or {}
+                    cycle_ui = auto_model.get("cycle_compression") or {}
+                    if auto_score_ui.get("available"):
+                        st.metric(
+                            "Automotive-Quality-Score",
+                            f"{auto_score_ui.get('score'):.0f}/100 Punkte"
+                        )
+                        st.write(f"**Qualitätsstufe:** {auto_score_ui.get('quality_level')}")
+                        s1, s2 = st.columns(2)
+                        with s1:
+                            st.write(f"**Industrie-FCF-Resilienz:** {auto_score_ui.get('fcf_resilience_points')}/20")
+                            st.write(f"**Industrie-Netto-Liquidität:** {auto_score_ui.get('net_liquidity_points')}/20")
+                            st.write(f"**Cars Adjusted RoS:** {auto_score_ui.get('cars_margin_points')}/20")
+                            st.write(f"**Vans Adjusted RoS:** {auto_score_ui.get('vans_margin_points')}/10")
+                        with s2:
+                            st.write(f"**Financial Services:** {auto_score_ui.get('financial_services_points')}/10")
+                            st.write(f"**Kapitalallokation:** {auto_score_ui.get('capital_allocation_points')}/10")
+                            st.write(f"**FCF-Einmaleffekt-Qualität:** {auto_score_ui.get('one_off_quality_points')}/10")
+                            dr = safe_float(auto_score_ui.get('distribution_to_h1_fcf'))
+                            if dr is not None:
+                                st.write(f"**Ausschüttungen + Rückkäufe / H1 Industrie-FCF:** {dr:.2f}×")
+                        bridge_yoy = safe_float(auto_score_ui.get("mechanical_known_items_fcf_h1_yoy_pct"))
+                        bridge_total = safe_float(auto_score_ui.get("mechanical_known_items_fcf_h1_total"))
+                        if bridge_total is not None:
+                            bridge_text = format_money(bridge_total, financial_currency)
+                            if bridge_yoy is not None:
+                                bridge_text += f" · {bridge_yoy:+.1f} % YoY"
+                            st.info(
+                                "Bekannte-Einmaleffekte-Bridge (nur Transparenz, kein offizieller normalisierter FCF): "
+                                + bridge_text
+                            )
+                        st.caption(auto_score_ui.get("note"))
+                    else:
+                        st.warning(auto_score_ui.get("note") or "Automotive-Quality-Score nicht verfügbar.")
+
+                    if cycle_ui.get("available"):
+                        st.write("**Cycle Compression Gate**")
+                        st.write(f"**Kompressionsstatus:** {cycle_ui.get('status')}")
+                        ccy1, ccy2 = st.columns(2)
+                        with ccy1:
+                            st.metric("Historische Zyklus-Basis", format_eps(cycle_ui.get("cycle_basis_eps"), financial_currency))
+                            st.metric("Forward-EPS", format_eps(cycle_ui.get("forward_eps"), financial_currency))
+                            st.metric("Cars Adjusted RoS Q2", f"{cycle_ui.get('cars_adjusted_ros_q2_pct'):.1f} %")
+                        with ccy2:
+                            st.metric("Zyklusgewicht nach Kompression", f"{cycle_ui.get('cycle_weight') * 100:.0f} %")
+                            st.metric("Aktuelle/Forward-Gewichtung", f"{cycle_ui.get('current_reference_weight') * 100:.0f} %")
+                            st.metric("Vorläufig komprimierte EPS-Basis", format_eps(cycle_ui.get("diagnostic_compressed_eps"), financial_currency))
+                        dev = safe_float(cycle_ui.get("cycle_forward_deviation_pct"))
+                        if dev is not None:
+                            st.write(f"**Abweichung aktuelle EPS-Referenz zur historischen Zyklus-Basis:** {dev:.1f} %")
+                        st.warning(
+                            "Bewertungsfreigabe noch NEIN: Die komprimierte EPS-Basis ist nur Diagnose. "
+                            "V2.20.54 berechnet daraus weder Ziel-KGV noch Fair Value."
+                        )
+                        st.caption(cycle_ui.get("note"))
+                    else:
+                        st.warning(cycle_ui.get("note") or "Cycle Compression Gate nicht verfügbar.")
+
                     st.write("**Yahoo-/Konzernwerte nur als Kontext**")
                     st.write(
                         "**Zyklus-/normalisiertes EPS (Kontext):** "
@@ -24078,9 +24504,8 @@ if selected_symbol:
                         else:
                             st.caption(auto_model.get("ev_to_ebitda_note"))
                     st.info(
-                        "Bewertungsfreigabe noch NEIN: V2.20.53 validiert bewusst nur die "
-                        "Automotive-Primärdatenbasis. Ein eigener Automotive-Quality-Score, "
-                        "Zyklus-/Margin-Anker und Fair Value folgen erst separat."
+                        "V2.20.54 gibt Automotive-Quality-Score und Cycle Compression frei. "
+                        "Ein Zielmultiple und Fair Value bleiben bewusst bis zum separaten Bewertungsanker gesperrt."
                     )
                     st.caption(auto_model.get("note"))
 
@@ -24275,6 +24700,7 @@ if selected_symbol:
                 is_insurance_valuation_ui = is_insurance_company_type(company_type)
                 is_reit_valuation_ui = is_reit_company_type(company_type)
                 is_midstream_valuation_ui = is_midstream_company_type(company_type)
+                is_auto_valuation_ui = "autohersteller" in normalized_company_type_name(company_type)
 
                 if is_bank_valuation_ui:
                     bank_model_m6 = data.get("bank_special_model") or {}
@@ -24362,6 +24788,41 @@ if selected_symbol:
                         "Bei Versicherungen werden offizieller Buchwert/P-B und verifiziertes "
                         "Core-TTM-EPS/Core-KGV getrennt geführt. Der Dual-Anchor-Fair-Value "
                         "folgt erst nach Schritt 3B."
+                    )
+                elif is_auto_valuation_ui:
+                    auto_m6 = data.get("auto_special_model") or {}
+                    auto_score_m6 = auto_m6.get("automotive_score") or {}
+                    cycle_m6 = auto_m6.get("cycle_compression") or {}
+                    if auto_m6.get("primary_source_complete"):
+                        st.success(
+                            "Automotive-Primärdaten vollständig: Industrie-FCF, Industrie-Netto-Liquidität, "
+                            "Cars/Vans-Margen und Financial Services sind belastbar getrennt."
+                        )
+                    else:
+                        st.warning("Automotive-Primärdaten unvollständig oder veraltet; Bewertung bleibt fail-closed.")
+                    if auto_score_m6.get("available"):
+                        st.write(
+                            "**Automotive-Quality-Score:** "
+                            f"{auto_score_m6.get('score'):.0f}/100 · {auto_score_m6.get('quality_level')}"
+                        )
+                    if cycle_m6.get("available"):
+                        st.write(f"**Cycle Compression:** {cycle_m6.get('status')}")
+                        st.write(
+                            "**Vorläufig komprimierte EPS-Basis:** "
+                            f"{format_eps(cycle_m6.get('diagnostic_compressed_eps'), financial_currency)}"
+                        )
+                        st.write(
+                            "**Zyklusgewicht / aktuelle Referenz:** "
+                            f"{cycle_m6.get('cycle_weight') * 100:.0f} % / {cycle_m6.get('current_reference_weight') * 100:.0f} %"
+                        )
+                    st.info(
+                        "Noch kein Automotive-Fundamental-Multiple: V2.20.54 endet bewusst nach Quality Score "
+                        "und Cycle Compression. Der zyklus-/margenbasierte Bewertungsanker folgt separat."
+                    )
+                    st.caption(multiple_result.get("note"))
+                    st.caption(
+                        "Industrie-Netto-Liquidität wird nicht automatisch auf einen späteren KGV-Fair-Value addiert; "
+                        "damit wird eine Doppelzählung der Bilanzstärke vermieden."
                     )
                 elif is_midstream_valuation_ui:
                     midstream_model_m6 = data.get("midstream_special_model") or {}
@@ -25059,9 +25520,16 @@ if selected_symbol:
                             "Financial Services sind für den nächsten Bewertungsschritt belastbar getrennt."
                         )
                         st.caption(gate.get("note"))
+                        auto_score_3b = checks.get("automotive_score") or {}
+                        cycle_3b = checks.get("cycle_compression") or {}
+                        if auto_score_3b.get("available"):
+                            st.metric("Automotive-Quality-Score", f"{auto_score_3b.get('score'):.0f}/100 · {auto_score_3b.get('quality_level')}")
+                        if cycle_3b.get("available"):
+                            st.write(f"**Cycle Compression:** {cycle_3b.get('status')} · Zyklusgewicht {cycle_3b.get('cycle_weight') * 100:.0f} %")
+                            st.write("**Vorläufig komprimierte EPS-Basis:** " + format_eps(cycle_3b.get("diagnostic_compressed_eps"), financial_currency))
                         st.warning(
-                            "Bewertungsfreigabe noch NEIN: V2.20.53 ergänzt bewusst nur die Automotive-Primärdatenbasis. "
-                            "Automotive-Quality-Score, zyklus-/margenbasierter Bewertungsanker und Fair Value folgen separat."
+                            "Bewertungsfreigabe noch NEIN: V2.20.54 gibt Quality Score und Cycle Compression frei, "
+                            "aber noch kein Zielmultiple und keinen Fair Value."
                         )
                         st.caption(
                             "Das Gate bleibt fail-closed, wenn der offizielle Snapshot veraltet oder unvollständig ist. "
