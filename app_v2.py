@@ -17,17 +17,18 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.52"
+APP_BUILD_VERSION = "V2.20.53"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · Midstream Peer Safety Cap & Comparability Gate")
+st.caption(f"Build {APP_BUILD_VERSION} · Automotive Primary Source / Industrial FCF & Net Liquidity Gate")
 
 
 # V2.20.52: Midstream Peer Safety Cap & Comparability Gate. Separates market-reference peers from adjustment-eligible peers. Automatic peer adjustment requires at least three peers with sufficiently comparable corporate structure AND issuer-adjusted EBITDA basis. Generic Yahoo EV/EBITDA remains reference-only. If a future gate passes, the multiple proposal and the resulting equity fair-value effect are each capped at ±5 %. The 100-point Midstream score and official KMI Adjusted EBITDA / Net Debt / share-count bridge remain unchanged.
+# V2.20.53: Automotive Primary Source / Industrial Net Liquidity & FCF Gate. First supported issuer: Mercedes-Benz Group (MBG.DE). Separates industrial-business free cash flow and net liquidity from consolidated Group debt distorted by captive Financial Services. Uses only current official Mercedes-Benz Q2/H1 2026 source data for the automotive primary gate; no automotive score, target multiple or fair value is released yet.
 
 # =========================================================
 # Hilfsfunktionen
@@ -6009,7 +6010,7 @@ def classify_company(name, symbol, sector, industry):
     ):
         return {
             "type": "Autohersteller / zyklisch",
-            "method": "Normalisiertes Mehrjahres-EPS + KGV",
+            "method": "Industrie-FCF + Industrie-Netto-Liquidität + Zyklus-/Margenkontrolle",
             "confidence_cap": "Mittel"
         }
 
@@ -10053,136 +10054,233 @@ def build_midstream_special_control(base_control, midstream_model):
 
 
 # =========================================================
-# Autohersteller-Sondermodell V1 – Datenbasis / Plausibilitätscheck
+# Autohersteller-Sondermodell V2.20.53 – Primärdaten / Industrial FCF & Net Liquidity Gate
 # =========================================================
+
+AUTO_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22053_auto_primary_industrial_fcf_net_liquidity"
+
+
+def get_verified_auto_snapshot(symbol):
+    """Time-bounded official automotive snapshot for supported manufacturers.
+
+    V2.20.53 starts with Mercedes-Benz Group (XETRA: MBG.DE). Mercedes-Benz
+    explicitly separates the industrial business from Financial Services.
+    The gate therefore uses industrial-business FCF and net liquidity, not
+    consolidated Yahoo cash/debt as a proxy for automotive leverage.
+    """
+    symbol_text = str(symbol or "").upper().strip()
+    if symbol_text not in {"MBG.DE", "MBG.F", "MBG"}:
+        return None
+
+    return {
+        "company": "Mercedes-Benz Group AG",
+        "as_of_date": "30.06.2026",
+        "published_date": "28.07.2026",
+        # Q3 results are scheduled for 28 Oct 2026; force refresh before then.
+        "valid_until": "27.10.2026",
+        "source_name": "Mercedes-Benz Group Q2 2026 Interim Results + Outlook",
+        "source_url": "https://group.mercedes-benz.com/investors/reports-news/interim-reports/q2-2026/",
+        "source_currency": "EUR",
+        "period_label": "Q2 / H1 2026",
+
+        # Official industrial-business cash-flow / liquidity anchors.
+        "industrial_fcf_q2_total": 1.1e9,
+        "industrial_fcf_h1_total": 3.0e9,
+        "industrial_fcf_h1_prior_total": 4.2e9,
+        "industrial_net_liquidity_total": 30.4e9,
+        "shareholder_distributions_h1_total": 5.0e9,
+        "severance_outflow_h1_total": 1.1e9,
+        "daimler_truck_sale_proceeds_q2_total": 417e6,
+
+        # Divisional operating quality / captive-finance separation.
+        "cars_adjusted_ebit_q2_total": 909e6,
+        "cars_adjusted_ros_q2_pct": 4.0,
+        "cars_adjusted_ros_guidance_low_pct": 3.0,
+        "cars_adjusted_ros_guidance_high_pct": 5.0,
+        "vans_adjusted_ebit_q2_total": 454e6,
+        "vans_adjusted_ros_q2_pct": 10.2,
+        "financial_services_adjusted_ebit_q2_total": 492e6,
+        "financial_services_adjusted_roe_q2_pct": 15.3,
+        "financial_services_roe_guidance_low_pct": 12.0,
+        "financial_services_roe_guidance_high_pct": 14.0,
+        "financial_services_contract_volume_total": 131.6e9,
+        "financial_services_new_business_h1_total": 26.8e9,
+
+        "source_note": (
+            "Offizielle Mercedes-Benz-Q2/H1-2026-Daten. Der Free Cash Flow und die "
+            "Netto-Liquidität des Industriegeschäfts werden bewusst getrennt vom "
+            "Finanzdienstleistungsgeschäft geführt. Konsolidierte Yahoo-Schulden, Cash "
+            "und Standard-FCF werden deshalb nicht als Automotive-Industrieverschuldung "
+            "oder Industrie-FCF interpretiert. Noch kein Automotive-Score und kein Fair Value."
+        ),
+    }
+
+
+def _auto_snapshot_is_fresh(snapshot):
+    if not isinstance(snapshot, dict):
+        return False
+    try:
+        valid_until = datetime.strptime(snapshot.get("valid_until"), "%d.%m.%Y").date()
+        return datetime.now().date() <= valid_until
+    except Exception:
+        return False
+
+
+def build_auto_primary_source_gate(snapshot):
+    """Validate official industrial FCF, industrial net liquidity and FS split."""
+    result = {
+        "available": False,
+        "integration_version": AUTO_PRIMARY_SOURCE_INTEGRATION_VERSION,
+        "industrial_fcf_q2_total": None,
+        "industrial_fcf_h1_total": None,
+        "industrial_fcf_h1_yoy_pct": None,
+        "industrial_net_liquidity_total": None,
+        "shareholder_distributions_h1_total": None,
+        "severance_outflow_h1_total": None,
+        "daimler_truck_sale_proceeds_q2_total": None,
+        "cars_adjusted_ebit_q2_total": None,
+        "cars_adjusted_ros_q2_pct": None,
+        "vans_adjusted_ebit_q2_total": None,
+        "vans_adjusted_ros_q2_pct": None,
+        "financial_services_adjusted_ebit_q2_total": None,
+        "financial_services_adjusted_roe_q2_pct": None,
+        "financial_services_contract_volume_total": None,
+        "financial_services_new_business_h1_total": None,
+        "note": None,
+    }
+    if not isinstance(snapshot, dict):
+        result["note"] = (
+            "Automotive-Primärquellen-Gate nicht verfügbar: Für diesen Autohersteller "
+            "liegt noch kein verifizierter aktueller Industrie-/Financial-Services-Snapshot vor."
+        )
+        return result
+    if not _auto_snapshot_is_fresh(snapshot):
+        result["note"] = (
+            "Automotive-Primärquellen-Gate gesperrt: Der offizielle Snapshot ist abgelaufen "
+            "und muss vor einer späteren Bewertung aktualisiert werden."
+        )
+        return result
+
+    fcf_q2 = safe_float(snapshot.get("industrial_fcf_q2_total"))
+    fcf_h1 = safe_float(snapshot.get("industrial_fcf_h1_total"))
+    fcf_h1_prior = safe_float(snapshot.get("industrial_fcf_h1_prior_total"))
+    net_liq = safe_float(snapshot.get("industrial_net_liquidity_total"))
+    fs_roe = safe_float(snapshot.get("financial_services_adjusted_roe_q2_pct"))
+    fs_volume = safe_float(snapshot.get("financial_services_contract_volume_total"))
+    cars_ros = safe_float(snapshot.get("cars_adjusted_ros_q2_pct"))
+
+    required = [fcf_q2, fcf_h1, net_liq, fs_roe, fs_volume, cars_ros]
+    if any(v is None for v in required) or fcf_q2 <= 0 or fcf_h1 <= 0 or net_liq <= 0 or fs_volume <= 0:
+        result["note"] = (
+            "Automotive-Primärquellen-Gate gesperrt: Mindestens eine Pflichtkomponente "
+            "aus Industrie-FCF, Industrie-Netto-Liquidität, Cars-Marge oder Financial-Services-"
+            "Abgrenzung fehlt. Konsolidierte Yahoo-Werte werden nicht als Ersatz verwendet."
+        )
+        return result
+
+    yoy = ((fcf_h1 / fcf_h1_prior) - 1.0) * 100.0 if fcf_h1_prior and fcf_h1_prior > 0 else None
+    result.update({
+        "available": True,
+        "industrial_fcf_q2_total": fcf_q2,
+        "industrial_fcf_h1_total": fcf_h1,
+        "industrial_fcf_h1_yoy_pct": yoy,
+        "industrial_net_liquidity_total": net_liq,
+        "shareholder_distributions_h1_total": safe_float(snapshot.get("shareholder_distributions_h1_total")),
+        "severance_outflow_h1_total": safe_float(snapshot.get("severance_outflow_h1_total")),
+        "daimler_truck_sale_proceeds_q2_total": safe_float(snapshot.get("daimler_truck_sale_proceeds_q2_total")),
+        "cars_adjusted_ebit_q2_total": safe_float(snapshot.get("cars_adjusted_ebit_q2_total")),
+        "cars_adjusted_ros_q2_pct": cars_ros,
+        "vans_adjusted_ebit_q2_total": safe_float(snapshot.get("vans_adjusted_ebit_q2_total")),
+        "vans_adjusted_ros_q2_pct": safe_float(snapshot.get("vans_adjusted_ros_q2_pct")),
+        "financial_services_adjusted_ebit_q2_total": safe_float(snapshot.get("financial_services_adjusted_ebit_q2_total")),
+        "financial_services_adjusted_roe_q2_pct": fs_roe,
+        "financial_services_contract_volume_total": fs_volume,
+        "financial_services_new_business_h1_total": safe_float(snapshot.get("financial_services_new_business_h1_total")),
+        "note": (
+            "Automotive-Primärquellen-Gate bestanden: Industrie-Free-Cash-Flow, Industrie-Netto-"
+            "Liquidität, operative Cars/Vans-Kennzahlen und die Financial-Services-Abgrenzung "
+            "stammen aus den offiziellen Mercedes-Benz-Q2/H1-2026-Unterlagen."
+        ),
+    })
+    return result
+
 
 def build_auto_special_model(
     company_type,
     info,
     eps_normalization,
-    currency_context
+    currency_context,
+    symbol=None
 ):
-    """
-    Conservative auto-manufacturer data block.
-
-    It does not create a score, valuation multiple or fair value.
-    Consolidated Yahoo cash flow and debt can mix the industrial
-    automotive business with captive financial services, so V1
-    never treats them as automotive industrial FCF/net debt.
-    """
-    type_name = str(
-        company_type.get("type", "")
-    ).lower()
-
+    """Conservative automotive primary-source gate; no valuation yet."""
+    type_name = str(company_type.get("type", "")).lower()
     if "autohersteller" not in type_name:
-        return {
-            "applicable": False
-        }
+        return {"applicable": False}
 
-    enterprise_value = safe_float(
-        info.get("enterpriseValue")
-    )
-    ebitda = safe_float(
-        info.get("ebitda")
-    )
-    yahoo_ev_to_ebitda = safe_float(
-        info.get("enterpriseToEbitda")
-    )
-    operating_cashflow = safe_float(
-        info.get("operatingCashflow")
-    )
-    free_cashflow_reference = safe_float(
-        info.get("freeCashflow")
-    )
-    total_cash_reference = safe_float(
-        info.get("totalCash")
-    )
-    total_debt_reference = safe_float(
-        info.get("totalDebt")
-    )
+    snapshot = get_verified_auto_snapshot(symbol)
+    snapshot_fresh = _auto_snapshot_is_fresh(snapshot)
+    primary_gate = build_auto_primary_source_gate(snapshot)
+    primary_source_complete = bool(snapshot_fresh and primary_gate.get("available"))
+
+    enterprise_value = safe_float(info.get("enterpriseValue"))
+    ebitda = safe_float(info.get("ebitda"))
+    yahoo_ev_to_ebitda = safe_float(info.get("enterpriseToEbitda"))
+    operating_cashflow = safe_float(info.get("operatingCashflow"))
+    free_cashflow_reference = safe_float(info.get("freeCashflow"))
+    total_cash_reference = safe_float(info.get("totalCash"))
+    total_debt_reference = safe_float(info.get("totalDebt"))
 
     normalized_eps = None
     eps_method = None
     eps_confidence = None
     if isinstance(eps_normalization, dict):
-        normalized_eps = safe_float(
-            eps_normalization.get("normalized_eps")
-        )
+        normalized_eps = safe_float(eps_normalization.get("normalized_eps"))
         eps_method = eps_normalization.get("method")
         eps_confidence = eps_normalization.get("confidence")
 
     calculated_ev_to_ebitda = None
-    if (
-        enterprise_value is not None
-        and enterprise_value > 0
-        and ebitda is not None
-        and ebitda > 0
-    ):
-        calculated_ev_to_ebitda = (
-            enterprise_value / ebitda
-        )
+    if enterprise_value is not None and enterprise_value > 0 and ebitda is not None and ebitda > 0:
+        calculated_ev_to_ebitda = enterprise_value / ebitda
 
     display_ev_to_ebitda = None
     ev_to_ebitda_status = "unverified"
     ev_to_ebitda_note = None
-
     if calculated_ev_to_ebitda is None:
         ev_to_ebitda_note = (
-            "EV/EBITDA konnte aus Enterprise Value und EBITDA nicht "
-            "belastbar berechnet werden. Es wird kein Wert geschätzt."
+            "Konzern-EV/EBITDA konnte nicht belastbar berechnet werden. Es wird kein Wert geschätzt."
         )
-    elif (
-        yahoo_ev_to_ebitda is not None
-        and yahoo_ev_to_ebitda > 0
-    ):
-        deviation = abs(
-            calculated_ev_to_ebitda
-            / yahoo_ev_to_ebitda
-            - 1.0
-        )
+    elif yahoo_ev_to_ebitda is not None and yahoo_ev_to_ebitda > 0:
+        deviation = abs(calculated_ev_to_ebitda / yahoo_ev_to_ebitda - 1.0)
         if deviation <= 0.20:
             display_ev_to_ebitda = calculated_ev_to_ebitda
             ev_to_ebitda_status = "plausible"
             ev_to_ebitda_note = (
-                "EV/EBITDA-Plausibilitätscheck bestanden: Die aus "
-                "Enterprise Value und EBITDA berechnete Kennzahl liegt "
-                "innerhalb von 20 % des separat gemeldeten Yahoo-"
-                "enterpriseToEbitda. Bei Autoherstellern bleibt dieser "
-                "Wert trotzdem nur Konzern-Kontext, weil Finanzdienstleistungen "
-                "die Konzernkennzahlen beeinflussen können."
+                "Konzern-EV/EBITDA-Plausibilitätscheck bestanden. Bei Autoherstellern bleibt "
+                "dieser Wert reiner Kontext, weil captive Financial Services die Konzernbilanz "
+                "und das Enterprise Value beeinflussen können."
             )
         else:
             ev_to_ebitda_status = "conflict"
             ev_to_ebitda_note = (
-                "⚠️ EV/EBITDA nicht belastbar: Die selbst berechnete "
-                "Kennzahl weicht um mehr als 20 % vom separat gemeldeten "
-                "Yahoo-enterpriseToEbitda ab. Deshalb wird sie nicht als "
-                "belastbare Referenz angezeigt."
+                "⚠️ Konzern-EV/EBITDA nicht belastbar: selbst berechnete Kennzahl und Yahoo-"
+                "enterpriseToEbitda weichen um mehr als 20 % voneinander ab."
             )
     else:
         ev_to_ebitda_note = (
-            "EV/EBITDA konnte zwar aus Enterprise Value und EBITDA "
-            "berechnet werden, aber ein separater Yahoo-Anker fehlt. "
-            "Der Wert wird deshalb nicht als belastbar angezeigt."
+            "Konzern-EV/EBITDA konnte berechnet werden, aber ein separater Yahoo-Anker fehlt. "
+            "Der Wert wird nicht als Automotive-Kernkennzahl verwendet."
         )
 
-    available_anchors = sum(
-        value is not None
-        for value in [
-            normalized_eps,
-            display_ev_to_ebitda,
-            operating_cashflow
-        ]
-    )
-
-    readiness = (
-        "Teilweise"
-        if available_anchors >= 2
-        else "Unvollständig"
-    )
+    available_anchors = sum(v is not None for v in [normalized_eps, display_ev_to_ebitda, operating_cashflow])
+    readiness = "Primärdaten vollständig" if primary_source_complete else ("Teilweise" if available_anchors >= 2 else "Unvollständig")
 
     return {
         "applicable": True,
+        "snapshot": snapshot,
+        "snapshot_fresh": snapshot_fresh,
+        "primary_source_complete": primary_source_complete,
+        "primary_gate": primary_gate,
+        "integration_version": AUTO_PRIMARY_SOURCE_INTEGRATION_VERSION,
         "normalized_eps": normalized_eps,
         "eps_method": eps_method,
         "eps_confidence": eps_confidence,
@@ -10197,21 +10295,75 @@ def build_auto_special_model(
         "free_cashflow_reference": free_cashflow_reference,
         "total_cash_reference": total_cash_reference,
         "total_debt_reference": total_debt_reference,
-        "automotive_fcf_available": False,
-        "industrial_net_debt_available": False,
-        "financial_services_split_available": False,
+        "automotive_fcf_available": bool(primary_gate.get("available") and primary_gate.get("industrial_fcf_h1_total") is not None),
+        "industrial_net_debt_available": bool(primary_gate.get("available") and primary_gate.get("industrial_net_liquidity_total") is not None),
+        "financial_services_split_available": bool(primary_gate.get("available") and primary_gate.get("financial_services_contract_volume_total") is not None),
         "readiness": readiness,
         "note": (
-            "Autohersteller-Sondermodell V1 bleibt ein reiner Daten- und "
-            "Plausibilitätsblock. Yahoo-Free-Cashflow, Cash und Schulden "
-            "werden bei Autoherstellern nicht als Automotive-Industrie-FCF "
-            "oder Industrie-Netto-Schulden interpretiert, weil konsolidierte "
-            "Werte häufig das Finanzdienstleistungsgeschäft enthalten. "
-            "Automotive Free Cash Flow, Industrie-Netto-Cash/-Schulden und "
-            "der Finanzdienstleistungs-Anteil werden nicht geschätzt. Noch "
-            "keine Auto-Punkte, kein Bewertungs-Multiple und kein Fair Value."
-        )
+            "Autohersteller-Sondermodell V2.20.53 trennt verifizierte Industrie-Kennzahlen "
+            "von konsolidierten Yahoo-Kontextdaten. Für Mercedes-Benz werden der offizielle "
+            "Free Cash Flow des Industriegeschäfts, die Industrie-Netto-Liquidität sowie die "
+            "Financial-Services-Abgrenzung verwendet. Noch kein Automotive-Quality-Score, "
+            "kein Zielmultiple und kein Fair Value."
+        ),
     }
+
+
+def build_auto_special_control(base_control, auto_model):
+    """Attach the fail-closed automotive primary-source gate to step 3B."""
+    control = dict(base_control or {})
+    control.setdefault("router_status", control.get("status"))
+    control.setdefault("router_note", control.get("note"))
+    if control.get("control_key") != "auto_cycle_industrial_cashflow":
+        return control
+
+    model = auto_model if isinstance(auto_model, dict) else {}
+    snapshot = model.get("snapshot")
+    gate = model.get("primary_gate") or {}
+
+    if not model.get("primary_source_complete"):
+        control.update({
+            "implemented": False,
+            "released": False,
+            "confidence_cap": "Niedrig",
+            "step3b_status": "Automotive-Primärdaten unvollständig oder veraltet",
+            "overall_status": "Nicht freigegeben",
+            "snapshot": snapshot,
+            "checks": {"primary_gate": gate},
+            "note": (
+                "Die Autohersteller-Spezialkontrolle benötigt aktuelle offizielle Industrie-FCF-, "
+                "Industrie-Netto-Liquiditäts- und Financial-Services-Abgrenzungsdaten. Fehlende "
+                "Werte werden nicht aus konsolidiertem Yahoo-FCF, Cash oder Schulden geschätzt."
+            ),
+        })
+        return control
+
+    control.update({
+        "implemented": True,
+        "released": False,
+        "confidence_cap": "Mittel",
+        "step3b_status": "Automotive-Primärdaten vollständig – Bewertung noch gesperrt",
+        "overall_status": "Primärdaten vollständig",
+        "snapshot": snapshot,
+        "checks": {
+            "primary_gate": gate,
+            **{k: gate.get(k) for k in [
+                "industrial_fcf_q2_total", "industrial_fcf_h1_total", "industrial_fcf_h1_yoy_pct",
+                "industrial_net_liquidity_total", "shareholder_distributions_h1_total",
+                "severance_outflow_h1_total", "cars_adjusted_ebit_q2_total", "cars_adjusted_ros_q2_pct",
+                "vans_adjusted_ebit_q2_total", "vans_adjusted_ros_q2_pct",
+                "financial_services_adjusted_ebit_q2_total", "financial_services_adjusted_roe_q2_pct",
+                "financial_services_contract_volume_total", "financial_services_new_business_h1_total"
+            ]},
+        },
+        "note": (
+            "Automotive-Schritt 3B V2.20.53 validiert zunächst nur die offizielle Trennung "
+            "zwischen Industriegeschäft und captive Financial Services. Primärdatenfreigabe "
+            "und Bewertungsfreigabe bleiben getrennt; ein Automotive-Score und Fair Value "
+            "werden erst in einem separaten nächsten Schritt fachlich festgelegt."
+        ),
+    })
+    return control
 
 
 # =========================================================
@@ -11968,18 +12120,18 @@ def get_special_control(company_type, symbol):
             ),
             "planned_checks": [
                 "Zyklus-normalisiertes EPS",
-                "Automotive Free Cash Flow",
-                "Industrie-Netto-Cash / -Schulden",
-                "EV / EBITDA",
-                "Finanzdienstleistungs-Anteil"
+                "Free Cash Flow des Industriegeschäfts",
+                "Industrie-Netto-Liquidität / -Schulden",
+                "Cars/Vans operative Margen",
+                "Financial-Services-Abgrenzung",
+                "später: Automotive Quality Score & Bewertungsanker"
             ],
-            "status": "Router aktiv – V1 Datenbasis vorhanden",
+            "status": "Router aktiv – V2.20.53 Automotive-Primärquellen-Gate",
             "note": (
-                "V1 lädt nur belastbare Konzern-Basiskennzahlen. "
-                "Automotive Free Cash Flow, Industrie-Netto-Cash/-Schulden "
-                "und der Finanzdienstleistungs-Anteil werden nicht aus "
-                "konsolidierten Yahoo-Werten geschätzt. Das Sondermodell "
-                "verändert noch keinen Score und kein Bewertungs-Multiple."
+                "V2.20.53 trennt bei unterstützten Autoherstellern offizielle Industrie-Kennzahlen "
+                "vom captive Finanzdienstleistungsgeschäft. Konsolidierter Yahoo-FCF, Cash und Schulden "
+                "dürfen Industrie-FCF bzw. Industrie-Netto-Liquidität nicht ersetzen. Score, Zielmultiple "
+                "und Fair Value bleiben noch gesperrt."
             )
         }
 
@@ -20520,7 +20672,8 @@ def load_stock(search_text, cache_version):
         company_type,
         fundamental_info,
         eps_normalization,
-        currency_context
+        currency_context,
+        symbol=fundamental_symbol
     )
 
     reit_special_model = build_reit_special_model(
@@ -20648,6 +20801,11 @@ def load_stock(search_text, cache_version):
     special_control = build_midstream_special_control(
         special_control,
         midstream_special_model
+    )
+
+    special_control = build_auto_special_control(
+        special_control,
+        auto_special_model
     )
 
     special_control = build_reit_special_control(
@@ -21368,6 +21526,7 @@ if selected_symbol:
                 is_insurance_fcf_context = is_insurance_company_type(company_type)
                 is_reit_fcf_context = is_reit_company_type(company_type)
                 is_midstream_fcf_context = is_midstream_company_type(company_type)
+                is_auto_fcf_context = "autohersteller" in company_type_ui
                 if fcf_ctx.get("score_eligible"):
                     source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
                     if is_bank_fcf_context:
@@ -21397,6 +21556,13 @@ if selected_symbol:
                             "Bei Midstream wird dieser Yahoo-/Cashflow-Statement-FCF ausschließlich als Kontext angezeigt. "
                             "Er fließt weder in Midstream-Score noch EV/Adjusted-EBITDA-Anker oder Fair Value ein; "
                             "maßgeblich ist der issuer-definierte Cashflow aus der verifizierten Primärquelle."
+                        )
+                    elif is_auto_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            "Bei Autoherstellern wird dieser konsolidierte Yahoo-/Cashflow-Statement-FCF ausschließlich als Kontext angezeigt. "
+                            "Er darf den offiziellen Free Cash Flow des Industriegeschäfts nicht ersetzen, weil captive Financial Services "
+                            "in den Konzernzahlen enthalten sein können."
                         )
                     else:
                         st.caption(
@@ -21437,6 +21603,14 @@ if selected_symbol:
                                 f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Yahoo-Werte bleiben bei Midstream reine "
                                 "Kontext-/Rohdaten; die Bewertung nutzt ausschließlich die verifizierten issuer-definierten Midstream-Kennzahlen."
                             )
+                        elif is_auto_fcf_context:
+                            st.warning(
+                                "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info zeigt "
+                                f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
+                                f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
+                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Yahoo-Werte bleiben beim Autohersteller reine "
+                                "Kontext-/Rohdaten; maßgeblich ist der offizielle Free Cash Flow des Industriegeschäfts."
+                            )
                         else:
                             st.warning(
                                 "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info zeigt "
@@ -21457,6 +21631,11 @@ if selected_symbol:
                             "FCF-Kontext/Rohdaten: Nur Yahoo Levered Free Cash Flow verfügbar. "
                             "Bei Versicherungen bleibt auch dieser Wert reine Referenz und hat keinen Einfluss auf "
                             "Versicherungs-Score, Bewertungs-Multiple oder Fair Value."
+                        )
+                    elif is_auto_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: Nur Yahoo Levered Free Cash Flow verfügbar. "
+                            "Beim Autohersteller bleibt dieser Wert reine Referenz; er ersetzt keinen offiziellen Industrie-FCF."
                         )
                     else:
                         st.warning(
@@ -22335,6 +22514,12 @@ if selected_symbol:
                             "Midstream-Sonderbewertung kann ohne zusätzliche EPS-Sonderrecherche weiterlaufen. "
                             "Für den Fair Value bleiben issuer-definierter Cashflow, Adjusted EBITDA, Verschuldung und Backlog maßgeblich."
                         )
+                    elif "autohersteller" in normalized_company_type_name(company_type) and event_level == "Grün":
+                        event_action = (
+                            "Automotive-Sonderprüfung kann ohne zusätzliche EPS-Sonderrecherche weiterlaufen. "
+                            "Für eine spätere Bewertung bleiben Industrie-FCF, Industrie-Netto-Liquidität, zyklische Margen "
+                            "und die getrennte Financial-Services-Betrachtung maßgeblich."
+                        )
                     st.write("**Nächster Schritt:** " + text_or_dash(event_action))
 
                 st.divider()
@@ -22607,6 +22792,7 @@ if selected_symbol:
                     and not is_insurance_company_type(company_type)
                     and not is_reit_company_type(company_type)
                     and not is_midstream_company_type(company_type)
+                    and "autohersteller" not in str(company_type.get("type", "")).lower()
                 ):
                     st.caption(
                         "Die Profitabilität basiert derzeit auf "
@@ -22726,8 +22912,12 @@ if selected_symbol:
                     is_insurance_model_ui = is_insurance_company_type(company_type)
                     is_reit_model_ui = is_reit_company_type(company_type)
                     is_midstream_model_ui = is_midstream_company_type(company_type)
+                    is_auto_model_ui = "autohersteller" in str(company_type.get("type", "")).lower()
 
-                    if is_midstream_model_ui:
+                    if is_auto_model_ui:
+                        st.info("ℹ️ Autohersteller-Modell: Konzern-Free-Cashflow ist kein Industrie-Bewertungsbaustein")
+                        st.caption("Maßgeblich ist der verifizierte Free Cash Flow des Industriegeschäfts aus der offiziellen Primärquelle. Konsolidierter Yahoo-FCF bleibt nur Kontext, weil captive Financial Services enthalten sein können.")
+                    elif is_midstream_model_ui:
                         st.info("ℹ️ Midstream-Modell: Standard-Free-Cashflow ist kein Bewertungsbaustein")
                         st.caption("Maßgeblich ist der issuer-definierte Cashflow nach CapEx aus der offiziellen Midstream-Primärquelle. Yahoo-Free-Cashflow bleibt nur Kontext.")
                     elif is_reit_model_ui:
@@ -22890,8 +23080,12 @@ if selected_symbol:
                     is_insurance_balance_ui = is_insurance_company_type(company_type)
                     is_reit_balance_ui = is_reit_company_type(company_type)
                     is_midstream_balance_ui = is_midstream_company_type(company_type)
+                    is_auto_balance_ui = "autohersteller" in str(company_type.get("type", "")).lower()
 
-                    if is_bank_balance_ui:
+                    if is_auto_balance_ui:
+                        st.info("ℹ️ Autohersteller-Bilanzmodell: Industrie-Netto-Liquidität wird separat geprüft")
+                        st.caption("Die konsolidierte Netto-Schulden/FCF-Logik ist für Autohersteller deaktiviert. Maßgeblich ist die verifizierte Netto-Liquidität bzw. Nettoverschuldung des Industriegeschäfts; Financial-Services-Finanzierung bleibt getrennt.")
+                    elif is_bank_balance_ui:
                         st.info(
                             "ℹ️ Bankmodell: Klassische Netto-Schulden/FCF-Logik wird nicht verwendet"
                         )
@@ -22958,6 +23152,7 @@ if selected_symbol:
                     and not is_insurance_company_type(company_type)
                     and not is_reit_company_type(company_type)
                     and not is_midstream_company_type(company_type)
+                    and "autohersteller" not in str(company_type.get("type", "")).lower()
                 ):
                     st.caption(
                         "Bilanzpunkte: Netto-Cash 15/15; "
@@ -23770,148 +23965,124 @@ if selected_symbol:
                 if auto_model.get("applicable"):
 
                     st.divider()
+                    st.subheader("🚗 Autohersteller-Sondermodell V2.20.53 – Industrie-FCF & Netto-Liquidität")
 
-                    st.subheader(
-                        "🚗 Autohersteller-Sondermodell V1 – Datenbasis"
+                    if auto_model.get("primary_source_complete"):
+                        st.success(
+                            "Automotive-Primärquellen-Gate bestanden: Industrie-Free-Cash-Flow, "
+                            "Industrie-Netto-Liquidität und Financial-Services-Abgrenzung sind vollständig validiert."
+                        )
+                    else:
+                        st.warning(
+                            "Automotive-Primärquellen-Gate noch nicht bestanden. Für diese Aktie liegt "
+                            "noch kein aktueller vollständig verifizierter Industrie-/Financial-Services-Snapshot vor."
+                        )
+
+                    snapshot = auto_model.get("snapshot") or {}
+                    gate = auto_model.get("primary_gate") or {}
+                    if snapshot:
+                        st.write(
+                            "**Datenstand Primärquelle:** "
+                            f"{text_or_dash(snapshot.get('as_of_date'))} "
+                            f"(veröffentlicht {text_or_dash(snapshot.get('published_date'))})"
+                        )
+
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        st.metric(
+                            "Free Cash Flow Industriegeschäft Q2",
+                            format_money(gate.get("industrial_fcf_q2_total"), financial_currency)
+                        )
+                        st.metric(
+                            "Free Cash Flow Industriegeschäft H1",
+                            format_money(gate.get("industrial_fcf_h1_total"), financial_currency)
+                        )
+                        fcf_yoy = safe_float(gate.get("industrial_fcf_h1_yoy_pct"))
+                        st.metric("Industrie-FCF H1 YoY", f"{fcf_yoy:+.1f} %" if fcf_yoy is not None else "–")
+                        st.metric(
+                            "Netto-Liquidität Industriegeschäft",
+                            format_money(gate.get("industrial_net_liquidity_total"), financial_currency)
+                        )
+                        st.metric(
+                            "Ausschüttungen + Aktienrückkäufe H1",
+                            format_money(gate.get("shareholder_distributions_h1_total"), financial_currency)
+                        )
+                        st.metric(
+                            "Restrukturierungs-/Abfindungsabfluss H1",
+                            format_money(gate.get("severance_outflow_h1_total"), financial_currency)
+                        )
+
+                    with c2:
+                        st.metric(
+                            "Mercedes-Benz Cars Adjusted EBIT Q2",
+                            format_money(gate.get("cars_adjusted_ebit_q2_total"), financial_currency)
+                        )
+                        cars_ros = safe_float(gate.get("cars_adjusted_ros_q2_pct"))
+                        st.metric("Cars Adjusted RoS Q2", f"{cars_ros:.1f} %" if cars_ros is not None else "–")
+                        vans_ros = safe_float(gate.get("vans_adjusted_ros_q2_pct"))
+                        st.metric("Vans Adjusted RoS Q2", f"{vans_ros:.1f} %" if vans_ros is not None else "–")
+                        st.metric(
+                            "Financial Services Adjusted EBIT Q2",
+                            format_money(gate.get("financial_services_adjusted_ebit_q2_total"), financial_currency)
+                        )
+                        fs_roe = safe_float(gate.get("financial_services_adjusted_roe_q2_pct"))
+                        st.metric("Financial Services Adjusted RoE Q2", f"{fs_roe:.1f} %" if fs_roe is not None else "–")
+                        st.metric(
+                            "Financial Services Vertragsvolumen",
+                            format_money(gate.get("financial_services_contract_volume_total"), financial_currency)
+                        )
+
+                    if snapshot.get("cars_adjusted_ros_guidance_low_pct") is not None:
+                        st.write(
+                            "**Cars Adjusted-RoS-Guidance 2026:** "
+                            f"{snapshot.get('cars_adjusted_ros_guidance_low_pct'):.0f}–{snapshot.get('cars_adjusted_ros_guidance_high_pct'):.0f} %"
+                        )
+                    if snapshot.get("financial_services_roe_guidance_low_pct") is not None:
+                        st.write(
+                            "**Financial Services Adjusted-RoE-Guidance 2026:** "
+                            f"{snapshot.get('financial_services_roe_guidance_low_pct'):.0f}–{snapshot.get('financial_services_roe_guidance_high_pct'):.0f} %"
+                        )
+                    if snapshot.get("daimler_truck_sale_proceeds_q2_total") is not None:
+                        st.caption(
+                            "Q2-Industrie-FCF enthält "
+                            f"{format_money(snapshot.get('daimler_truck_sale_proceeds_q2_total'), financial_currency)} "
+                            "Erlös aus dem Teilverkauf der Daimler-Truck-Beteiligung."
+                        )
+                    if snapshot.get("source_note"):
+                        st.caption(snapshot.get("source_note"))
+                    if gate.get("note"):
+                        st.caption(gate.get("note"))
+
+                    st.write("**Yahoo-/Konzernwerte nur als Kontext**")
+                    st.write(
+                        "**Zyklus-/normalisiertes EPS (Kontext):** "
+                        f"{format_eps(auto_model.get('normalized_eps'), financial_currency)}"
                     )
-
+                    if auto_model.get("display_ev_to_ebitda") is not None:
+                        st.write(f"**EV / EBITDA (Konzern-Kontext):** {auto_model.get('display_ev_to_ebitda'):.2f}×")
+                    else:
+                        st.write("**EV / EBITDA (Konzern-Kontext):** –")
+                    st.write(
+                        "**Yahoo-Free-Cashflow (Konzern-Kontext):** "
+                        f"{format_money(auto_model.get('free_cashflow_reference'), financial_currency)}"
+                    )
+                    st.write(
+                        "**Konzern-Cash / Schulden (Kontext):** "
+                        f"{format_money(auto_model.get('total_cash_reference'), financial_currency)} / "
+                        f"{format_money(auto_model.get('total_debt_reference'), financial_currency)}"
+                    )
+                    st.write(f"**Datenreife Sondermodell:** {auto_model.get('readiness')}")
+                    if auto_model.get("ev_to_ebitda_note"):
+                        if str(auto_model.get("ev_to_ebitda_note")).startswith("⚠️"):
+                            st.warning(auto_model.get("ev_to_ebitda_note"))
+                        else:
+                            st.caption(auto_model.get("ev_to_ebitda_note"))
                     st.info(
-                        "Autohersteller-Modell erkannt. In V1 werden nur "
-                        "Zyklus-EPS, EV/EBITDA und Konzern-Cashflow-Daten "
-                        "plausibilisiert. Konsolidierte Schulden und Cashflows "
-                        "werden nicht als reines Automotive-Industriegeschäft "
-                        "interpretiert."
+                        "Bewertungsfreigabe noch NEIN: V2.20.53 validiert bewusst nur die "
+                        "Automotive-Primärdatenbasis. Ein eigener Automotive-Quality-Score, "
+                        "Zyklus-/Margin-Anker und Fair Value folgen erst separat."
                     )
-
-                    col1, col2 = st.columns(2)
-
-                    with col1:
-
-                        st.metric(
-                            "Zyklus-/normalisiertes EPS",
-                            format_eps(
-                                auto_model["normalized_eps"],
-                                financial_currency
-                            )
-                        )
-
-                        st.write(
-                            "**EPS-Methode:** "
-                            f"{text_or_dash(auto_model['eps_method'])}"
-                        )
-
-                        st.write(
-                            "**EPS-Sicherheit:** "
-                            f"{text_or_dash(auto_model['eps_confidence'])}"
-                        )
-
-                        st.metric(
-                            "EBITDA",
-                            format_money(
-                                auto_model["ebitda"],
-                                financial_currency
-                            )
-                        )
-
-                        st.metric(
-                            "Enterprise Value",
-                            format_money(
-                                auto_model["enterprise_value"],
-                                financial_currency
-                            )
-                        )
-
-                        if auto_model[
-                            "display_ev_to_ebitda"
-                        ] is not None:
-                            st.metric(
-                                "EV / EBITDA (Konzern-Kontext)",
-                                f"{auto_model['display_ev_to_ebitda']:.2f}×"
-                            )
-                        else:
-                            st.metric(
-                                "EV / EBITDA (Konzern-Kontext)",
-                                "–"
-                            )
-
-                    with col2:
-
-                        st.metric(
-                            "Operating Cashflow (Konzern, nur Kontext)",
-                            format_money(
-                                auto_model["operating_cashflow"],
-                                financial_currency
-                            )
-                        )
-
-                        st.metric(
-                            "Yahoo-Free-Cashflow (Konzern, nur Referenz)",
-                            format_money(
-                                auto_model["free_cashflow_reference"],
-                                financial_currency
-                            )
-                        )
-
-                        st.metric(
-                            "Cash (Konzern, nur Referenz)",
-                            format_money(
-                                auto_model["total_cash_reference"],
-                                financial_currency
-                            )
-                        )
-
-                        st.metric(
-                            "Schulden (Konzern, nur Referenz)",
-                            format_money(
-                                auto_model["total_debt_reference"],
-                                financial_currency
-                            )
-                        )
-
-                    st.write(
-                        "**Automotive Free Cash Flow:** – "
-                        "(nicht separat belastbar verfügbar; Konzern-FCF wird "
-                        "nicht als Ersatz verwendet)"
-                    )
-
-                    st.write(
-                        "**Industrie-Netto-Cash / -Schulden:** – "
-                        "(nicht separat belastbar verfügbar; Konzern-Cash und "
-                        "-Schulden werden nicht als Ersatz verwendet)"
-                    )
-
-                    st.write(
-                        "**Finanzdienstleistungs-Anteil:** – "
-                        "(in der aktuellen Datenquelle nicht separat belastbar "
-                        "verfügbar; wird nicht geschätzt)"
-                    )
-
-                    st.write(
-                        "**Datenreife Sondermodell:** "
-                        f"{auto_model['readiness']}"
-                    )
-
-                    if auto_model.get(
-                        "ev_to_ebitda_note"
-                    ):
-                        ev_note = auto_model[
-                            "ev_to_ebitda_note"
-                        ]
-                        if ev_note.startswith("⚠️"):
-                            st.warning(ev_note)
-                        else:
-                            st.caption(ev_note)
-
-                    st.warning(
-                        "Bei Autoherstellern können konsolidierte Yahoo-"
-                        "Schulden und Cashflows das Finanzdienstleistungsgeschäft "
-                        "enthalten. Deshalb werden diese Werte in V1 nicht für "
-                        "eine normale Netto-Schulden/FCF-Bewertung verwendet."
-                    )
-
-                    st.caption(
-                        auto_model["note"]
-                    )
+                    st.caption(auto_model.get("note"))
 
                 reit_model = data.get(
                     "reit_special_model",
@@ -24848,6 +25019,56 @@ if selected_symbol:
                         "Verifizierte Spezialdaten werden nach ihrem Gültigkeitsdatum "
                         "nicht stillschweigend weiterverwendet."
                     )
+
+                if special_control.get(
+                    "control_key"
+                ) == "auto_cycle_industrial_cashflow":
+
+                    st.divider()
+                    st.subheader(
+                        "🚗 Modul 6 – Schritt 3B: Automotive-Industrie-FCF-, Netto-Liquiditäts- & Financial-Services-Prüfung"
+                    )
+
+                    if special_control.get("implemented"):
+                        checks = special_control.get("checks", {})
+                        snapshot = special_control.get("snapshot") or {}
+                        gate = checks.get("primary_gate") or {}
+                        st.write(
+                            "**Datenstand:** "
+                            f"{text_or_dash(snapshot.get('as_of_date'))} "
+                            f"(veröffentlicht {text_or_dash(snapshot.get('published_date'))})"
+                        )
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            st.metric("Industrie-FCF Q2", format_money(checks.get("industrial_fcf_q2_total"), financial_currency))
+                            st.metric("Industrie-FCF H1", format_money(checks.get("industrial_fcf_h1_total"), financial_currency))
+                            fcf_yoy = safe_float(checks.get("industrial_fcf_h1_yoy_pct"))
+                            st.metric("Industrie-FCF H1 YoY", f"{fcf_yoy:+.1f} %" if fcf_yoy is not None else "–")
+                            st.metric("Industrie-Netto-Liquidität", format_money(checks.get("industrial_net_liquidity_total"), financial_currency))
+                        with c2:
+                            cars_ros = safe_float(checks.get("cars_adjusted_ros_q2_pct"))
+                            vans_ros = safe_float(checks.get("vans_adjusted_ros_q2_pct"))
+                            fs_roe = safe_float(checks.get("financial_services_adjusted_roe_q2_pct"))
+                            st.metric("Cars Adjusted RoS Q2", f"{cars_ros:.1f} %" if cars_ros is not None else "–")
+                            st.metric("Vans Adjusted RoS Q2", f"{vans_ros:.1f} %" if vans_ros is not None else "–")
+                            st.metric("Financial Services Adjusted RoE Q2", f"{fs_roe:.1f} %" if fs_roe is not None else "–")
+                            st.metric("Financial Services Vertragsvolumen", format_money(checks.get("financial_services_contract_volume_total"), financial_currency))
+
+                        st.success(
+                            "Automotive-Primärdaten vollständig validiert. Industriegeschäft und captive "
+                            "Financial Services sind für den nächsten Bewertungsschritt belastbar getrennt."
+                        )
+                        st.caption(gate.get("note"))
+                        st.warning(
+                            "Bewertungsfreigabe noch NEIN: V2.20.53 ergänzt bewusst nur die Automotive-Primärdatenbasis. "
+                            "Automotive-Quality-Score, zyklus-/margenbasierter Bewertungsanker und Fair Value folgen separat."
+                        )
+                        st.caption(
+                            "Das Gate bleibt fail-closed, wenn der offizielle Snapshot veraltet oder unvollständig ist. "
+                            "Konsolidierter Yahoo-FCF, Cash und Schulden dürfen die Industrie-Kennzahlen nicht ersetzen."
+                        )
+                    else:
+                        st.warning(special_control.get("note"))
 
                 if special_control.get(
                     "control_key"
