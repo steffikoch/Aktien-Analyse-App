@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.37: Bank Core EPS Bridge + Dual-Anchor Valuation – ROTCE/CET1/TBV-Wachstum/Ertragsqualität steuern P/TBV- und Core-KGV-Anker; Freigabe bleibt fail-closed.
+# V2.20.38: Bank TTM Special-Item Coverage Gate + Dual-Anchor Valuation – ROTCE/CET1/TBV-Wachstum/Ertragsqualität steuern P/TBV- und Core-KGV-Anker; Freigabe bleibt fail-closed.
 
 # =========================================================
 # Hilfsfunktionen
@@ -7466,7 +7466,7 @@ def build_insurance_special_model(
 
 
 # =========================================================
-# Banken-Sondermodell V2.20.37 – Bank Core EPS Bridge + Dual-Anchor Valuation
+# Banken-Sondermodell V2.20.38 – Bank TTM Special-Item Coverage Gate + Dual-Anchor Valuation
 # =========================================================
 
 def get_verified_bank_snapshot(symbol):
@@ -7516,19 +7516,77 @@ def get_verified_bank_snapshot(symbol):
         "visa_eps_effect": 1.27,
         "equity_investment_eps_effect": 0.29,
         "significant_items_eps_effect": 1.56,
-        # Time-bounded TTM applicability: the official source verifies the
-        # 2Q26 EPS bridge; the app applies it to the current TTM EPS only while
-        # this pre-next-results snapshot is fresh. It is never carried forward
-        # after the snapshot expires.
-        "special_items_in_current_ttm": True,
-        "ttm_special_items_eps_effect": 1.56,
-        "ttm_special_items_period": "2Q26",
+        # V2.20.38: full four-quarter TTM special-item coverage from official
+        # JPMorganChase quarterly earnings releases.  Positive effects are gains
+        # that increased reported EPS; negative effects are charges that reduced
+        # reported EPS.  A quarter with no company-designated significant item
+        # is explicitly marked as such rather than inferred from Yahoo.
+        "ttm_eps_coverage": [
+            {
+                "period": "3Q25",
+                "published_date": "14.10.2025",
+                "source_url": (
+                    "https://www.jpmorganchase.com/content/dam/jpmc/"
+                    "jpmorgan-chase-and-co/investor-relations/documents/"
+                    "quarterly-earnings/2025/3rd-quarter/"
+                    "f24f154c-2653-4da3-b1b0-185586086d50.pdf"
+                ),
+                "reported_eps": 5.07,
+                "core_eps": 5.07,
+                "special_items_eps_effect": 0.00,
+                "special_item_status": "Keine von JPMorgan als significant item ausgewiesene Bereinigung",
+            },
+            {
+                "period": "4Q25",
+                "published_date": "13.01.2026",
+                "source_url": (
+                    "https://www.jpmorganchase.com/content/dam/jpmc/"
+                    "jpmorgan-chase-and-co/investor-relations/documents/"
+                    "quarterly-earnings/2025/4th-quarter/"
+                    "d868c7ef-1670-465d-ba75-c2b36ddbcc6b.pdf"
+                ),
+                "reported_eps": 4.63,
+                "core_eps": 5.23,
+                "special_items_eps_effect": -0.60,
+                "special_item_status": "Apple-Card-Kreditreserve; offizielles EPS ex significant item",
+            },
+            {
+                "period": "1Q26",
+                "published_date": "14.04.2026",
+                "source_url": (
+                    "https://www.jpmorganchase.com/content/dam/jpmc/"
+                    "jpmorgan-chase-and-co/investor-relations/documents/"
+                    "quarterly-earnings/2026/1st-quarter/"
+                    "a5fd2d13-877b-43b2-8b58-81bad4399c87.pdf"
+                ),
+                "reported_eps": 5.94,
+                "core_eps": 5.94,
+                "special_items_eps_effect": 0.00,
+                "special_item_status": "Keine von JPMorgan als significant item ausgewiesene Bereinigung",
+            },
+            {
+                "period": "2Q26",
+                "published_date": "14.07.2026",
+                "source_url": (
+                    "https://www.jpmorganchase.com/content/dam/jpmc/"
+                    "jpmorgan-chase-and-co/investor-relations/documents/"
+                    "quarterly-earnings/2026/2nd-quarter/"
+                    "6cded9fd-a164-4e6c-8cff-377357cf105c.pdf"
+                ),
+                "reported_eps": 7.70,
+                "core_eps": 6.14,
+                "special_items_eps_effect": 1.56,
+                "special_item_status": "Visa- und Equity-Investment-Gewinne; offizielles EPS ex significant items",
+            },
+        ],
+        "ttm_coverage_expected_periods": ["3Q25", "4Q25", "1Q26", "2Q26"],
         "source_note": (
             "Offizielle JPMorganChase-2Q26-Daten. Der gemeldete ROTCE von "
             "29 % enthält wesentliche Sondergewinne. Für die normalisierte "
             "Ertragskraft wird deshalb der von JPMorgan selbst ausgewiesene "
             "ROTCE ex significant items von 23 % separat geführt. TBVPS und "
-            "CET1 werden nicht aus Yahoo-Feldern geschätzt."
+            "CET1 werden nicht aus Yahoo-Feldern geschätzt. Die Core-TTM-EPS-Basis wird "
+            "über vier offizielle Quartale vollständig abgedeckt."
         ),
     }
 
@@ -7697,24 +7755,27 @@ def calculate_bank_core_eps_v1(
     eps_normalization,
     primary_source_complete,
 ):
-    """Build a source-verified Core-EPS basis for the bank P/E anchor.
+    """Build a fully covered, source-verified Core-TTM EPS basis for banks.
 
-    Material special items are removed from TTM EPS only when an official
-    quarterly EPS bridge is verified and the time-bounded bank snapshot marks
-    that quarter as part of the current TTM window. Forward EPS is not adjusted by assumption. The
-    TTM/Forward weights already selected by the conservative EPS logic are
-    reused so only the verified special-item bridge changes the earnings base.
+    V2.20.38 requires four consecutive official quarterly observations.  Each
+    quarter must carry reported EPS, Core/ex-significant-items EPS, the signed
+    special-item effect and an official source URL.  The official reported EPS
+    sum must reconcile to Yahoo TTM EPS within a small rounding tolerance.
+    Forward EPS is never adjusted by assumption.
     """
     result = {
         "available": False,
         "trailing_eps_reported": None,
+        "official_ttm_reported_eps": None,
         "ttm_special_items_eps_effect": None,
         "core_trailing_eps": None,
         "forward_eps": None,
         "trailing_weight": None,
         "forward_weight": None,
         "bank_normalized_core_eps": None,
-        "bridge_period": None,
+        "coverage_periods": [],
+        "coverage_complete": False,
+        "coverage_reconciliation_diff": None,
         "confidence": None,
         "note": None,
     }
@@ -7728,41 +7789,89 @@ def calculate_bank_core_eps_v1(
 
     trailing = safe_float((info or {}).get("trailingEps"))
     forward = safe_float((info or {}).get("forwardEps"))
-    significant = safe_float(snapshot.get("ttm_special_items_eps_effect"))
-    reported_q_eps = safe_float(snapshot.get("quarter_eps_reported"))
-    ex_q_eps = safe_float(snapshot.get("quarter_eps_ex_significant_items"))
-    bridge_in_ttm = bool(snapshot.get("special_items_in_current_ttm"))
-
     if trailing is None or trailing <= 0 or forward is None or forward <= 0:
         result["note"] = (
             "Bank-Core-EPS gesperrt: positive TTM- und Forward-EPS müssen gleichzeitig vorliegen."
         )
         return result
 
-    if significant is None:
-        result["note"] = "Bank-Core-EPS gesperrt: der verifizierte TTM-Sondereffekt fehlt."
+    coverage = snapshot.get("ttm_eps_coverage")
+    expected = snapshot.get("ttm_coverage_expected_periods")
+    if not isinstance(coverage, list) or not isinstance(expected, list) or len(expected) != 4:
+        result["note"] = (
+            "Bank-Core-EPS gesperrt: die erwartete Vier-Quartals-TTM-Abdeckung ist nicht definiert."
+        )
         return result
 
-    if abs(significant) > 1e-12:
-        if not bridge_in_ttm:
+    rows_by_period = {}
+    validated_rows = []
+    for row in coverage:
+        if not isinstance(row, dict):
+            continue
+        period = str(row.get("period") or "").strip()
+        if not period or period in rows_by_period:
+            result["note"] = "Bank-Core-EPS gesperrt: TTM-Quartale fehlen oder sind doppelt."
+            return result
+        reported = safe_float(row.get("reported_eps"))
+        core = safe_float(row.get("core_eps"))
+        effect = safe_float(row.get("special_items_eps_effect"))
+        source_url = str(row.get("source_url") or "")
+        status = str(row.get("special_item_status") or "").strip()
+        if reported is None or core is None or effect is None or not source_url or not status:
             result["note"] = (
-                "Bank-Core-EPS gesperrt: der verifizierte Quartals-Sondereffekt ist für "
-                "das aktuelle TTM-Fenster nicht ausdrücklich freigegeben."
+                f"Bank-Core-EPS gesperrt: Primärquellen-Abdeckung für {period or 'ein Quartal'} ist unvollständig."
             )
             return result
-        if reported_q_eps is None or ex_q_eps is None:
+        if "jpmorganchase.com" not in source_url.lower():
             result["note"] = (
-                "Bank-Core-EPS gesperrt: die offizielle Quartals-EPS-Brücke ist unvollständig."
+                f"Bank-Core-EPS gesperrt: Quelle für {period} ist keine verifizierte JPMorgan-Primärquelle."
             )
             return result
-        bridge_difference = reported_q_eps - ex_q_eps
-        bridge_tolerance = max(0.05, abs(significant) * 0.05)
-        if abs(bridge_difference - significant) > bridge_tolerance:
+        bridge_diff = reported - core
+        bridge_tol = max(0.02, abs(effect) * 0.05)
+        if abs(bridge_diff - effect) > bridge_tol:
             result["note"] = (
-                "Bank-Core-EPS gesperrt: der ausgewiesene EPS-Sondereffekt stimmt nicht "
-                "mit der offiziellen Reported-/Ex-Significant-Items-Brücke überein."
+                f"Bank-Core-EPS gesperrt: Reported-/Core-EPS-Brücke für {period} stimmt nicht "
+                "mit dem ausgewiesenen Sondereffekt überein."
             )
             return result
+        normalized_row = dict(row)
+        normalized_row.update({
+            "reported_eps": reported,
+            "core_eps": core,
+            "special_items_eps_effect": effect,
+        })
+        rows_by_period[period] = normalized_row
+
+    if set(rows_by_period) != set(expected) or len(rows_by_period) != 4:
+        missing = [p for p in expected if p not in rows_by_period]
+        result["note"] = (
+            "Bank-Core-EPS gesperrt: Vier-Quartals-TTM-Abdeckung unvollständig"
+            + (f"; fehlend: {', '.join(missing)}." if missing else ".")
+        )
+        return result
+
+    validated_rows = [rows_by_period[p] for p in expected]
+    official_reported_ttm = sum(r["reported_eps"] for r in validated_rows)
+    official_core_ttm = sum(r["core_eps"] for r in validated_rows)
+    total_effect = sum(r["special_items_eps_effect"] for r in validated_rows)
+
+    # Yahoo and official quarterly EPS can differ by a cent or two because the
+    # four source quarters are published rounded to cents.  Larger differences
+    # indicate a period/unit mismatch and fail closed.
+    reconciliation_diff = trailing - official_reported_ttm
+    reconciliation_tol = max(0.10, abs(trailing) * 0.01)
+    if abs(reconciliation_diff) > reconciliation_tol:
+        result.update({
+            "official_ttm_reported_eps": official_reported_ttm,
+            "coverage_periods": validated_rows,
+            "coverage_reconciliation_diff": reconciliation_diff,
+        })
+        result["note"] = (
+            "Bank-Core-EPS gesperrt: Summe der vier offiziellen Quartals-EPS stimmt nicht "
+            "ausreichend mit dem aktuellen Yahoo-TTM-EPS überein."
+        )
+        return result
 
     trailing_weight = safe_float((eps_normalization or {}).get("eps_used_trailing_weight"))
     forward_weight = safe_float((eps_normalization or {}).get("eps_used_forward_weight"))
@@ -7778,14 +7887,11 @@ def calculate_bank_core_eps_v1(
         result["note"] = "Bank-Core-EPS gesperrt: TTM-/Forward-Gewichte sind nicht konsistent."
         return result
 
-    # Signed effect: positive special gains are subtracted; negative special
-    # charges are added back by subtracting their negative EPS effect.
-    core_trailing = trailing - significant
-    if core_trailing <= 0:
-        result["note"] = "Bank-Core-EPS gesperrt: das bereinigte Core-TTM-EPS ist nicht positiv."
+    if official_core_ttm <= 0:
+        result["note"] = "Bank-Core-EPS gesperrt: das vollständig bereinigte Core-TTM-EPS ist nicht positiv."
         return result
 
-    bank_normalized = trailing_weight * core_trailing + forward_weight * forward
+    bank_normalized = trailing_weight * official_core_ttm + forward_weight * forward
     if bank_normalized <= 0:
         result["note"] = "Bank-Core-EPS gesperrt: die bereinigte Gewinnbasis ist nicht positiv."
         return result
@@ -7793,24 +7899,28 @@ def calculate_bank_core_eps_v1(
     result.update({
         "available": True,
         "trailing_eps_reported": trailing,
-        "ttm_special_items_eps_effect": significant,
-        "core_trailing_eps": core_trailing,
+        "official_ttm_reported_eps": official_reported_ttm,
+        "ttm_special_items_eps_effect": total_effect,
+        "core_trailing_eps": official_core_ttm,
         "forward_eps": forward,
         "trailing_weight": trailing_weight,
         "forward_weight": forward_weight,
         "bank_normalized_core_eps": bank_normalized,
-        "bridge_period": snapshot.get("ttm_special_items_period"),
+        "coverage_periods": validated_rows,
+        "coverage_complete": True,
+        "coverage_reconciliation_diff": reconciliation_diff,
         "confidence": "Hoch",
         "note": (
-            f"Bank-Core-EPS-Brücke: gemeldetes TTM-EPS {trailing:.2f} minus verifizierter "
-            f"TTM-Sondereffekt {significant:+.2f} = Core-TTM-EPS {core_trailing:.2f}. "
-            f"Danach werden die bereits konservativ festgelegten Gewichte "
-            f"{trailing_weight * 100:.0f} % Core-TTM / {forward_weight * 100:.0f} % Forward "
-            "verwendet. Forward-EPS wird nicht um einen unbekannten zukünftigen Sonderposten bereinigt."
+            f"TTM-Coverage Gate bestanden: {', '.join(expected)} sind einzeln aus offiziellen "
+            f"Bankquellen abgedeckt. Offizielle Reported-EPS-Summe {official_reported_ttm:.2f}, "
+            f"vollständig bereinigtes Core-TTM-EPS {official_core_ttm:.2f}, saldierter "
+            f"Sondereffekt {total_effect:+.2f}. Yahoo-TTM-Abweichung nur {reconciliation_diff:+.2f}. "
+            f"Danach werden {trailing_weight * 100:.0f} % Core-TTM / "
+            f"{forward_weight * 100:.0f} % Forward verwendet; Forward-EPS wird nicht um "
+            "unbekannte zukünftige Sonderposten bereinigt."
         ),
     })
     return result
-
 
 def calculate_bank_valuation_v1(
     bank_score,
@@ -7945,7 +8055,7 @@ def build_bank_special_model(
     """
     Bank-specific primary-source, score and dual-anchor valuation block.
 
-    V2.20.37 keeps the verified ROTCE/TBV/CET1 gate and adds a dedicated
+    V2.20.38 keeps the verified ROTCE/TBV/CET1 gate and adds a dedicated
     bank score plus a conservative P/TBV + bank-normalized Core-P/E valuation.
     """
     type_name = str(company_type.get("type", "")).lower()
@@ -8170,11 +8280,12 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Banken-Sondermodell V2.20.37 lädt verifizierte Primärquellen-"
+            "Banken-Sondermodell V2.20.38 lädt verifizierte Primärquellen-"
             "Kennzahlen und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % bank-normalisiertem Core-KGV "
-            "berechnet. Standard-FCF und Netto-Schulden/FCF bleiben ausgeschlossen."
+            "berechnet. Der Core-KGV-Anker wird nur bei vollständiger Vier-Quartals-TTM-"
+            "Abdeckung freigegeben. Standard-FCF und Netto-Schulden/FCF bleiben ausgeschlossen."
         )
     }
 
@@ -8242,13 +8353,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B V2.20.37 hat Primärdaten, Bank-Score, Core-EPS-Brücke und beide "
+            "Bank-Schritt 3B V2.20.38 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B V2.20.37 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B V2.20.38 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -9888,9 +9999,9 @@ def get_special_control(company_type, symbol):
                 "CET1-Kapitalquote",
                 "Sondergewinne / Ertragsqualität"
             ],
-            "status": "Router aktiv – V2.20.37 Bank-Score + Dual-Anchor-Bewertung",
+            "status": "Router aktiv – V2.20.38 Bank-Score + Dual-Anchor-Bewertung",
             "note": (
-                "V2.20.37 behält Primärquellen-Gate, FCF-Kontext und Sonderposten-Ampel bei. "
+                "V2.20.38 behält Primärquellen-Gate, FCF-Kontext und Sonderposten-Ampel bei. "
                 "Zusätzlich bewertet der Bank-Score normalisierten ROTCE, CET1, Tangible-Book-"
                 "Wachstum und Ertragsqualität. P/TBV- und bank-normalisierte Core-KGV-Anker werden getrennt berechnet; "
                 "ein Fair Value wird nur bei vollständiger und konsistenter Datenbasis freigegeben."
@@ -16185,7 +16296,7 @@ def calculate_fair_value_v1(
                 )
             return result
 
-    # Bank V2.20.37 – dedicated dual-anchor fair value. This branch is
+    # Bank V2.20.38 – dedicated dual-anchor fair value. This branch is
     # intentionally separate from the generic EPS x single-multiple path.
     if (
         isinstance(special_control, dict)
@@ -20262,7 +20373,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Banken-Sondermodell V2.20.37 – Datenbasis"
+                        "🏦 Banken-Sondermodell V2.20.38 – Datenbasis"
                     )
 
                     if bank_model.get("primary_source_complete"):
@@ -20391,7 +20502,7 @@ if selected_symbol:
                     bank_core_eps_ui = bank_model.get("bank_core_eps") or {}
                     if bank_core_eps_ui.get("available"):
                         st.divider()
-                        st.subheader("🧮 Bank Core EPS Bridge")
+                        st.subheader("🧮 Bank TTM Special-Item Coverage Gate")
                         col_bce1, col_bce2 = st.columns(2)
                         with col_bce1:
                             st.metric(
@@ -20399,7 +20510,7 @@ if selected_symbol:
                                 format_eps(bank_core_eps_ui.get("trailing_eps_reported"), financial_currency)
                             )
                             st.metric(
-                                "Verifizierter TTM-Sondereffekt",
+                                "Saldierter TTM-Sondereffekt",
                                 f"{bank_core_eps_ui.get('ttm_special_items_eps_effect'):+.2f} {financial_currency}"
                             )
                         with col_bce2:
@@ -20412,9 +20523,19 @@ if selected_symbol:
                                 format_eps(bank_core_eps_ui.get("bank_normalized_core_eps"), financial_currency)
                             )
                         st.caption(bank_core_eps_ui.get("note"))
+                        coverage_rows = bank_core_eps_ui.get("coverage_periods") or []
+                        if coverage_rows:
+                            st.write("**Vier-Quartals-Abdeckung:**")
+                            for row in coverage_rows:
+                                st.write(
+                                    f"• {row.get('period')}: reported {row.get('reported_eps'):.2f} USD · "
+                                    f"Core/ex significant items {row.get('core_eps'):.2f} USD · "
+                                    f"Sondereffekt {row.get('special_items_eps_effect'):+.2f} USD · "
+                                    f"{row.get('special_item_status')}"
+                                )
                     elif bank_model.get("primary_source_complete"):
                         st.warning(
-                            "Bank Core EPS Bridge nicht freigegeben: "
+                            "Bank TTM Coverage Gate nicht freigegeben: "
                             + text_or_dash(bank_core_eps_ui.get("note"))
                         )
 
@@ -21633,7 +21754,7 @@ if selected_symbol:
 
                     st.caption(
                         "Bank-Freigabe bleibt fail-closed: veraltete Primärdaten, Quellenkonflikte, "
-                        "unvollständige Sonderposten-/Core-EPS-Brücken oder mehr als 25 % Abstand zwischen "
+                        "unvollständige Vier-Quartals-TTM-/Core-EPS-Abdeckung oder mehr als 25 % Abstand zwischen "
                         "P/TBV- und Core-KGV-Fair-Value-Anker sperren die Bewertung."
                     )
 
