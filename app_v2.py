@@ -17,17 +17,17 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.49"
+APP_BUILD_VERSION = "V2.20.50"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · Midstream Primary Source FCF/Leverage Gate")
+st.caption(f"Build {APP_BUILD_VERSION} · Midstream Quality Score + EV/Adjusted EBITDA Valuation Anchor")
 
 
-# V2.20.49: Midstream Primary Source FCF/Leverage Gate. Adds a time-bounded official Kinder Morgan FCF/dividend-coverage, leverage, Adjusted EBITDA and project-backlog gate. No Midstream score or Fair Value is released yet. Currency Engine and existing specialist models remain unchanged.
+# V2.20.50: Midstream Quality Score + EV/Adjusted EBITDA Valuation Anchor. Builds on the time-bounded Kinder Morgan primary-source gate, adds a dedicated 100-point Midstream score and a fail-closed EV/Adjusted-EBITDA equity-value bridge. Currency Engine and existing specialist models remain unchanged.
 
 # =========================================================
 # Hilfsfunktionen
@@ -59,6 +59,10 @@ def is_insurance_company_type(company_type):
 def is_reit_company_type(company_type):
     name = normalized_company_type_name(company_type)
     return "reit" in name or "immobilien" in name
+
+
+def is_midstream_company_type(company_type):
+    return "midstream" in normalized_company_type_name(company_type)
 
 
 def format_number(value):
@@ -5726,7 +5730,7 @@ def classify_company(name, symbol, sector, industry):
         return {
             "type": "Öl & Gas / Midstream",
             "method": (
-                "EV/EBITDA + distributable Cashflow + "
+                "EV/Adjusted EBITDA + issuer-definierter DCF/FCF + "
                 "Verschuldung"
             ),
             "confidence_cap": "Mittel"
@@ -9431,16 +9435,16 @@ def build_bank_special_control(base_control, bank_model):
 
 
 # =========================================================
-# Midstream-Sondermodell V2.20.49 – Primary Source FCF / Leverage Gate
+# Midstream-Sondermodell V2.20.50 – Quality Score + EV/Adjusted EBITDA Valuation Anchor
 # =========================================================
 
-MIDSTREAM_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22049_midstream_primary_fcf_leverage"
+MIDSTREAM_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22050_midstream_quality_ev_adjusted_ebitda"
 
 
 def get_verified_midstream_snapshot(symbol):
     """Time-bounded official Midstream snapshot for supported companies.
 
-    V2.20.49 starts with Kinder Morgan (NYSE: KMI). Kinder Morgan currently
+    V2.20.50 starts with Kinder Morgan (NYSE: KMI). Kinder Morgan currently
     reports issuer-defined FCF rather than a metric labelled DCF. We preserve
     that nomenclature and never relabel Yahoo FCF/OCF as issuer-defined DCF.
     """
@@ -9538,6 +9542,9 @@ def build_midstream_primary_source_gate(snapshot):
         "project_backlog_total": None,
         "project_backlog_natural_gas_share_pct": None,
         "project_backlog_first_year_ebitda_multiple": None,
+        "project_backlog_power_ldc_share_min_pct": None,
+        "adjusted_ebitda_expected_vs_budget_min_pct": None,
+        "weighted_avg_shares_m": None,
         "annualized_dividend_per_share": None,
         "note": None,
     }
@@ -9603,11 +9610,170 @@ def build_midstream_primary_source_gate(snapshot):
         "project_backlog_total": backlog,
         "project_backlog_natural_gas_share_pct": gas_share,
         "project_backlog_first_year_ebitda_multiple": backlog_multiple,
+        "project_backlog_power_ldc_share_min_pct": safe_float(snapshot.get("project_backlog_power_ldc_share_min_pct")),
+        "adjusted_ebitda_expected_vs_budget_min_pct": safe_float(snapshot.get("adjusted_ebitda_expected_vs_budget_min_pct")),
+        "weighted_avg_shares_m": safe_float(snapshot.get("weighted_avg_shares_m")),
         "annualized_dividend_per_share": safe_float(snapshot.get("annualized_dividend_per_share")),
         "note": (
             "Midstream-Primärquellen-Gate bestanden: issuer-definierter Cashflow, "
             "Dividendendeckung, Adjusted EBITDA, Net Debt / Adjusted EBITDA und "
             "Projekt-Backlog stammen aus den offiziellen Kinder-Morgan-Q2/6M-2026-Unterlagen."
+        ),
+    })
+    return result
+
+
+def build_midstream_quality_score(primary_gate, snapshot=None):
+    """V2.20.50 dedicated 100-point Midstream score from verified issuer data only.
+
+    The standard revenue/EPS/ROE/Yahoo-FCF score is deliberately excluded. The
+    score focuses on cash generation after capex, dividend coverage, leverage,
+    management's current Adjusted-EBITDA outlook and backlog economics/visibility.
+    """
+    gate = primary_gate if isinstance(primary_gate, dict) else {}
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    result = {
+        "available": False, "score": None, "quality_level": None,
+        "components": {}, "note": None,
+    }
+    if not gate.get("available"):
+        result["note"] = "Midstream-Score gesperrt: Primärquellen-Gate nicht bestanden."
+        return result
+
+    fcf_growth = safe_float(gate.get("fcf_h1_growth_pct"))
+    coverage = safe_float(gate.get("coverage_h1"))
+    leverage = safe_float(gate.get("net_debt_to_adjusted_ebitda"))
+    outlook = safe_float(gate.get("adjusted_ebitda_expected_vs_budget_min_pct"))
+    gas_share = safe_float(gate.get("project_backlog_natural_gas_share_pct"))
+    power_ldc = safe_float(gate.get("project_backlog_power_ldc_share_min_pct"))
+    project_multiple = safe_float(gate.get("project_backlog_first_year_ebitda_multiple"))
+
+    required = [fcf_growth, coverage, leverage, outlook, gas_share, power_ldc, project_multiple]
+    if any(v is None for v in required):
+        result["note"] = "Midstream-Score gesperrt: mindestens eine verifizierte Qualitätskomponente fehlt."
+        return result
+
+    # 20 pts: issuer-defined FCF growth.
+    gp = 20 if fcf_growth >= 15 else 18 if fcf_growth >= 10 else 15 if fcf_growth >= 5 else 10 if fcf_growth >= 0 else 0
+    # 20 pts: dividend coverage from the same issuer-defined cashflow measure.
+    cp = 20 if coverage >= 1.50 else 18 if coverage >= 1.30 else 16 if coverage >= 1.20 else 12 if coverage >= 1.10 else 8 if coverage >= 1.00 else 0
+    # 25 pts: official Net Debt / Adjusted EBITDA.
+    lp = 25 if leverage <= 3.0 else 23 if leverage <= 3.5 else 20 if leverage <= 4.0 else 15 if leverage <= 4.5 else 8 if leverage <= 5.0 else 0
+    # 15 pts: current official Adjusted-EBITDA outlook versus budget.
+    op = 15 if outlook >= 10 else 13 if outlook >= 5 else 9 if outlook >= 0 else 3
+    # 10 pts: backlog visibility / demand mix. Both official mix fields must support the score.
+    if gas_share >= 85 and power_ldc >= 50:
+        bp = 10
+    elif gas_share >= 75 and power_ldc >= 40:
+        bp = 8
+    elif gas_share >= 60:
+        bp = 6
+    elif gas_share >= 40:
+        bp = 3
+    else:
+        bp = 0
+    # 10 pts: first-full-year Project EBITDA multiple. Lower is better.
+    pp = 10 if project_multiple <= 5.0 else 9 if project_multiple <= 6.0 else 7 if project_multiple <= 7.0 else 5 if project_multiple <= 8.0 else 2 if project_multiple <= 10.0 else 0
+
+    score = gp + cp + lp + op + bp + pp
+    level = "Sehr hoch" if score >= 85 else "Hoch" if score >= 75 else "Solide" if score >= 65 else "Mittel" if score >= 55 else "Schwach"
+    result.update({
+        "available": True,
+        "score": float(score),
+        "quality_level": level,
+        "components": {
+            "fcf_growth": {"value": fcf_growth, "points": gp, "max": 20},
+            "dividend_coverage": {"value": coverage, "points": cp, "max": 20},
+            "leverage": {"value": leverage, "points": lp, "max": 25},
+            "ebitda_outlook": {"value": outlook, "points": op, "max": 15},
+            "backlog_visibility": {"gas_share": gas_share, "power_ldc_share_min": power_ldc, "points": bp, "max": 10},
+            "project_economics": {"value": project_multiple, "points": pp, "max": 10},
+        },
+        "note": (
+            "Midstream-Score verwendet ausschließlich verifizierte issuer-definierte FCF-/"
+            "Dividendendeckungs-, Adjusted-EBITDA-, Verschuldungs- und Backlog-Kennzahlen. "
+            "Standard-EPS, Yahoo-FCF, Nettomarge und generischer ROE fließen nicht ein."
+        ),
+    })
+    return result
+
+
+def build_midstream_ev_ebitda_valuation(primary_gate, midstream_score, price_financial=None):
+    """Score-controlled EV/Adjusted-EBITDA bridge to equity value per share.
+
+    Fair enterprise value = official LTM Adjusted EBITDA × target multiple.
+    Fair equity value = fair enterprise value − official Net Debt.
+    Fair value/share = fair equity value ÷ official weighted-average shares.
+    The current EV/Adjusted-EBITDA reference is built on the same official
+    denominator and debt definition, avoiding Yahoo EBITDA as a valuation input.
+    """
+    gate = primary_gate if isinstance(primary_gate, dict) else {}
+    score_block = midstream_score if isinstance(midstream_score, dict) else {}
+    result = {
+        "available": False, "target_ev_adjusted_ebitda": None,
+        "corridor_low": None, "corridor_high": None,
+        "adjusted_ebitda_basis": None, "official_net_debt": None,
+        "shares_basis": None, "fair_enterprise_value": None,
+        "fair_equity_value": None, "fair_value_financial": None,
+        "current_ev_adjusted_ebitda": None, "note": None,
+    }
+    score = safe_float(score_block.get("score"))
+    ebitda = safe_float(gate.get("adjusted_ebitda_ltm_total"))
+    net_debt = safe_float(gate.get("net_debt_total"))
+    shares_m = safe_float(gate.get("weighted_avg_shares_m"))
+    price = safe_float(price_financial)
+    if (
+        not gate.get("available") or not score_block.get("available")
+        or score is None or ebitda is None or ebitda <= 0
+        or net_debt is None or net_debt < 0
+        or shares_m is None or shares_m <= 0
+    ):
+        result["note"] = "Midstream-EV/Adjusted-EBITDA-Anker gesperrt: Primärdaten, Score, EBITDA, Net Debt oder Aktienbasis fehlen."
+        return result
+
+    if score >= 90:
+        target = 11.50
+    elif score >= 85:
+        target = 11.25
+    elif score >= 80:
+        target = 11.00
+    elif score >= 70:
+        target = 10.50
+    elif score >= 60:
+        target = 10.00
+    else:
+        target = 9.00
+    low = max(7.5, target - 0.75)
+    high = target + 0.75
+    shares = shares_m * 1e6
+    fair_ev = ebitda * target
+    fair_equity = fair_ev - net_debt
+    if fair_equity <= 0:
+        result["note"] = "Midstream-Bewertung gesperrt: Ziel-Enterprise-Value deckt die offizielle Nettoverschuldung nicht."
+        return result
+    fair_value = fair_equity / shares
+    current_ev_multiple = None
+    if price is not None and price > 0:
+        current_equity = price * shares
+        current_ev_multiple = (current_equity + net_debt) / ebitda
+
+    result.update({
+        "available": True,
+        "target_ev_adjusted_ebitda": target,
+        "corridor_low": low,
+        "corridor_high": high,
+        "adjusted_ebitda_basis": ebitda,
+        "official_net_debt": net_debt,
+        "shares_basis": shares,
+        "fair_enterprise_value": fair_ev,
+        "fair_equity_value": fair_equity,
+        "fair_value_financial": fair_value,
+        "current_ev_adjusted_ebitda": current_ev_multiple,
+        "note": (
+            "V2.20.50 bewertet Midstream über einen scoregesteuerten EV/Adjusted-EBITDA-Anker. "
+            "Der Enterprise Value wird mit dem offiziellen LTM Adjusted EBITDA ermittelt, danach "
+            "wird die offizielle Nettoverschuldung abgezogen und durch die offizielle Aktienbasis geteilt. "
+            "Yahoo-EV/EBITDA bleibt nur Plausibilitätskontext; ein Peer-Overlay ist noch nicht enthalten."
         ),
     })
     return result
@@ -9620,11 +9786,11 @@ def build_midstream_special_model(
     currency_context,
     symbol=None
 ):
-    """Midstream-specific official-data gate plus Yahoo context.
+    """Midstream-specific primary-source model plus released V2.20.50 valuation.
 
-    V2.20.49 still does not create a Midstream score, valuation multiple or
-    fair value. It validates the minimum primary-source dataset needed for the
-    next phase and keeps Yahoo EV/EBITDA/FCF strictly contextual.
+    Yahoo EV/EBITDA and standard FCF remain contextual. The released valuation
+    uses only the dedicated Midstream score and the official Adjusted EBITDA /
+    Net Debt / share-count bridge.
     """
     type_name = str(company_type.get("type", "")).lower()
     if "midstream" not in type_name:
@@ -9634,6 +9800,11 @@ def build_midstream_special_model(
     snapshot_fresh = _midstream_snapshot_is_fresh(snapshot)
     primary_gate = build_midstream_primary_source_gate(snapshot)
     primary_source_complete = bool(snapshot_fresh and primary_gate.get("available"))
+
+    midstream_score = build_midstream_quality_score(primary_gate, snapshot) if primary_source_complete else {"available": False}
+    quote_price = safe_float(price)
+    price_financial = convert_quote_price_to_financial_share_unit(quote_price, currency_context)
+    midstream_valuation = build_midstream_ev_ebitda_valuation(primary_gate, midstream_score, price_financial)
 
     enterprise_value = safe_float(info.get("enterpriseValue"))
     ebitda = safe_float(info.get("ebitda"))
@@ -9693,6 +9864,9 @@ def build_midstream_special_model(
         "primary_source_complete": primary_source_complete,
         "primary_gate": primary_gate,
         "integration_version": MIDSTREAM_PRIMARY_SOURCE_INTEGRATION_VERSION,
+        "midstream_score": midstream_score,
+        "midstream_valuation": midstream_valuation,
+        "price_financial": price_financial,
         "enterprise_value": enterprise_value,
         "ebitda": ebitda,
         "calculated_ev_to_ebitda": calculated_ev_to_ebitda,
@@ -9709,11 +9883,11 @@ def build_midstream_special_model(
         "distributable_cashflow_available": False,
         "readiness": readiness,
         "note": (
-            "Midstream-Sondermodell V2.20.49 trennt offizielle issuer-definierte "
+            "Midstream-Sondermodell V2.20.50 trennt offizielle issuer-definierte "
             "Cashflow-/Dividendendeckungs-, Adjusted-EBITDA-, Verschuldungs- und "
             "Backlog-Kennzahlen von Yahoo-Kontextdaten. Für KMI wird die offiziell "
             "gemeldete Kennzahl KMI FCF verwendet; ein DCF-Wert wird nicht erfunden. "
-            "Noch kein Midstream-Score, kein Bewertungs-Multiple und kein Fair Value."
+            "Bei vollständigem Gate steuert der eigene Midstream-Score einen EV/Adjusted-EBITDA-Anker."
         ),
     }
 
@@ -9748,15 +9922,23 @@ def build_midstream_special_control(base_control, midstream_model):
         })
         return control
 
+    midstream_score = model.get("midstream_score") or {}
+    midstream_valuation = model.get("midstream_valuation") or {}
+    valuation_released = bool(midstream_score.get("available") and midstream_valuation.get("available"))
     control.update({
         "implemented": True,
-        "released": False,
+        "released": valuation_released,
         "confidence_cap": "Mittel",
-        "step3b_status": "Midstream-Primärquellen-Gate bestanden – Bewertungsmodell noch gesperrt",
-        "overall_status": "Primärdaten freigegeben, Bewertung noch nicht freigegeben",
+        "step3b_status": (
+            "Midstream-Bewertung freigegeben – Quality Score + EV/Adjusted EBITDA"
+            if valuation_released else "Primärdaten vollständig – Midstream-Bewertung noch gesperrt"
+        ),
+        "overall_status": "Freigegeben" if valuation_released else "Primärdaten vollständig",
         "snapshot": snapshot,
         "checks": {
             "primary_gate": gate,
+            "midstream_score": midstream_score,
+            "midstream_valuation": midstream_valuation,
             **{k: gate.get(k) for k in [
                 "cashflow_metric_name", "fcf_q2_total", "fcf_h1_total", "fcf_h1_growth_pct",
                 "dividends_paid_q2_total", "dividends_paid_h1_total",
@@ -9765,14 +9947,15 @@ def build_midstream_special_control(base_control, midstream_model):
                 "adjusted_ebitda_h1_total", "adjusted_ebitda_ltm_total", "net_debt_total",
                 "net_debt_to_adjusted_ebitda", "project_backlog_total",
                 "project_backlog_natural_gas_share_pct", "project_backlog_first_year_ebitda_multiple",
-                "annualized_dividend_per_share"
+                "project_backlog_power_ldc_share_min_pct", "adjusted_ebitda_expected_vs_budget_min_pct",
+                "weighted_avg_shares_m", "annualized_dividend_per_share"
             ]},
         },
         "note": (
-            "Midstream-Schritt 3B V2.20.49 validiert die offizielle Cashflow-/"
-            "Dividendendeckungsbasis, Adjusted EBITDA, Net Debt / Adjusted EBITDA und "
-            "Projekt-Backlog. Primärdatenfreigabe und Bewertungsfreigabe bleiben getrennt: "
-            "Score, EV/Adjusted-EBITDA-Zielkorridor und Fair Value folgen erst separat."
+            "Midstream-Schritt 3B V2.20.50 validiert die offizielle Cashflow-/Dividendendeckungsbasis, "
+            "Adjusted EBITDA, Net Debt / Adjusted EBITDA und Projekt-Backlog und gibt danach den "
+            "eigenen Midstream-Quality-Score sowie den EV/Adjusted-EBITDA-Equity-Value-Bridge frei. "
+            "Yahoo-EV/EBITDA bleibt Kontext; fehlende Primärdaten sperren die Bewertung fail-closed."
         ),
     })
     return control
@@ -11507,13 +11690,13 @@ def get_special_control(company_type, symbol):
                 "Dividendendeckung",
                 "Projekt-Backlog / Projekt-EBITDA-Multiple"
             ],
-            "status": "Router aktiv – V2.20.49 Midstream-Primärquellen-Gate",
+            "status": "Router aktiv – V2.20.50 Midstream-Quality-/EV-Adjusted-EBITDA-Gate",
             "note": (
-                "V2.20.49 trennt issuer-definierte FCF/DCF-, Dividendendeckungs-, "
+                "V2.20.50 trennt issuer-definierte FCF/DCF-, Dividendendeckungs-, "
                 "Adjusted-EBITDA-, Verschuldungs- und Backlog-Kennzahlen von Yahoo-"
                 "Kontextdaten. Für Kinder Morgan wird die offiziell gemeldete KMI-FCF-"
                 "Kennzahl verwendet; ein DCF-Wert wird nicht aus Standard-FCF oder OCF "
-                "erfunden. Score, Zielmultiple und Fair Value bleiben noch gesperrt."
+                "erfunden. Bei bestandenem Gate werden Midstream-Score und EV/Adjusted-EBITDA-Anker freigegeben."
             )
         }
 
@@ -18095,6 +18278,72 @@ def calculate_fair_value_v1(
         })
         return result
 
+    # Midstream V2.20.50 – dedicated EV/Adjusted-EBITDA to equity-value bridge.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "midstream_cashflow_leverage"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        mv = checks.get("midstream_valuation") or {}
+        ms = checks.get("midstream_score") or {}
+        fv = safe_float(mv.get("fair_value_financial"))
+        if not mv.get("available") or fv is None or fv <= 0:
+            result["note"] = "Fair Value V1 gesperrt: Midstream-EV/Adjusted-EBITDA-Anker nicht vollständig verfügbar."
+            return result
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der Midstream-Bewertung sind nicht eindeutig."
+            return result
+        fvq = fv
+        unit_notes = []
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Midstream-Währungsumrechnung nicht belastbar verfügbar."
+                return result
+            fvq *= factor
+            unit_notes.append(
+                f"Währungsangleichung für den Fair-Value/Kurs-Vergleich: Fundamentaldaten in {financial_currency} "
+                f"→ Handelswährung {quote_currency} mit 1 {financial_currency} = {factor:.6f} {quote_currency}. "
+                f"Der Handelskurs liegt bereits in {quote_currency} vor."
+            )
+        elif quote_currency != financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+        cp = safe_float(current_price)
+        potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+        result.update({
+            "available": True,
+            "valuation_method": "midstream_ev_adjusted_ebitda",
+            "normalized_eps": None,
+            "used_multiple": safe_float(mv.get("target_ev_adjusted_ebitda")),
+            "multiple_source": "Midstream Quality Score → EV/Adjusted EBITDA",
+            "fair_value_financial": fv,
+            "fair_value_quote": fvq,
+            "potential_pct": potential,
+            "midstream_score": safe_float(ms.get("score")),
+            "midstream_quality_level": ms.get("quality_level"),
+            "adjusted_ebitda_basis": safe_float(mv.get("adjusted_ebitda_basis")),
+            "official_net_debt": safe_float(mv.get("official_net_debt")),
+            "shares_basis": safe_float(mv.get("shares_basis")),
+            "fair_enterprise_value": safe_float(mv.get("fair_enterprise_value")),
+            "fair_equity_value": safe_float(mv.get("fair_equity_value")),
+            "current_ev_adjusted_ebitda": safe_float(mv.get("current_ev_adjusted_ebitda")),
+            "target_ev_adjusted_ebitda": safe_float(mv.get("target_ev_adjusted_ebitda")),
+            "ev_ebitda_corridor_low": safe_float(mv.get("corridor_low")),
+            "ev_ebitda_corridor_high": safe_float(mv.get("corridor_high")),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "Midstream-Fair-Value V1 = offizielles LTM Adjusted EBITDA × scoregesteuertes "
+                "EV/Adjusted-EBITDA-Zielmultiple − offizielle Nettoverschuldung; anschließend Division "
+                "durch die offizielle Aktienbasis. Yahoo-EV/EBITDA und Standard-FCF sind nicht Bestandteil des Fair Values."
+            ),
+        })
+        return result
+
     # REIT V2.20.48 – dedicated P/AFFO fair value. NAV remains intentionally locked.
     if (
         isinstance(special_control, dict)
@@ -19590,7 +19839,7 @@ def _format_fx_timestamp(value):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_currency_consistency_final_v22048_20260909"
+CACHE_VERSION = "m6_midstream_quality_ev_ebitda_v22050_20260909"
 
 @st.cache_data(
     ttl=900,
@@ -19995,15 +20244,17 @@ def load_stock(search_text, cache_version):
         }
 
     if midstream_special_model.get("applicable"):
+        ms = midstream_special_model.get("midstream_score") or {}
+        mv = midstream_special_model.get("midstream_valuation") or {}
         fundamental_multiple = {
             **fundamental_multiple,
-            "score": None,
-            "multiple": None,
-            "available": False,
+            "score": safe_float(ms.get("score")),
+            "multiple": safe_float(mv.get("target_ev_adjusted_ebitda")),
+            "available": bool(ms.get("available") and mv.get("available")),
             "note": (
-                "Midstream V2.20.49 validiert zunächst nur die offizielle Cashflow-, "
-                "Dividendendeckungs-, Adjusted-EBITDA-, Verschuldungs- und Backlog-Basis. "
-                "Ein eigener Midstream-Score und Bewertungs-Multiple folgen separat."
+                "Midstream verwendet kein Standard-EPS-/FCF-Multiple. V2.20.50 nutzt den eigenen "
+                "100-Punkte-Midstream-Score und einen scoregesteuerten EV/Adjusted-EBITDA-Anker. "
+                "Der Equity Value entsteht erst nach Abzug der offiziellen Nettoverschuldung."
             ),
         }
 
@@ -20775,6 +21026,7 @@ if selected_symbol:
                 is_bank_fcf_context = is_bank_company_type(company_type)
                 is_insurance_fcf_context = is_insurance_company_type(company_type)
                 is_reit_fcf_context = is_reit_company_type(company_type)
+                is_midstream_fcf_context = is_midstream_company_type(company_type)
                 if fcf_ctx.get("score_eligible"):
                     source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
                     if is_bank_fcf_context:
@@ -20797,6 +21049,13 @@ if selected_symbol:
                             "Bei REITs wird dieser Standard-Free-Cashflow ausschließlich als Kontext angezeigt. "
                             "Er fließt weder in den REIT-Quality-Score noch in P/AFFO-Zielanker, "
                             "Bewertungszonen oder Fair Value ein; maßgeblich sind die verifizierten FFO/AFFO-Primärdaten."
+                        )
+                    elif is_midstream_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            "Bei Midstream wird dieser Yahoo-/Cashflow-Statement-FCF ausschließlich als Kontext angezeigt. "
+                            "Er fließt weder in Midstream-Score noch EV/Adjusted-EBITDA-Anker oder Fair Value ein; "
+                            "maßgeblich ist der issuer-definierte Cashflow aus der verifizierten Primärquelle."
                         )
                     else:
                         st.caption(
@@ -20828,6 +21087,14 @@ if selected_symbol:
                                 f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
                                 f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Werte bleiben bei REITs reine "
                                 "Kontext-/Rohdaten und haben keinen Einfluss auf REIT-Score, P/AFFO-Anker oder Fair Value."
+                            )
+                        elif is_midstream_fcf_context:
+                            st.warning(
+                                "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info zeigt "
+                                f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
+                                f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
+                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Yahoo-Werte bleiben bei Midstream reine "
+                                "Kontext-/Rohdaten; die Bewertung nutzt ausschließlich die verifizierten issuer-definierten Midstream-Kennzahlen."
                             )
                         else:
                             st.warning(
@@ -21722,6 +21989,11 @@ if selected_symbol:
                             "REIT-Sonderbewertung kann ohne zusätzliche Sonderrecherche weiterlaufen. "
                             "Für den Fair Value bleiben FFO/AFFO, Ausschüttungsdeckung und REIT-Verschuldungskennzahlen maßgeblich."
                         )
+                    elif is_midstream_company_type(company_type) and event_level == "Grün":
+                        event_action = (
+                            "Midstream-Sonderbewertung kann ohne zusätzliche EPS-Sonderrecherche weiterlaufen. "
+                            "Für den Fair Value bleiben issuer-definierter Cashflow, Adjusted EBITDA, Verschuldung und Backlog maßgeblich."
+                        )
                     st.write("**Nächster Schritt:** " + text_or_dash(event_action))
 
                 st.divider()
@@ -21737,8 +22009,12 @@ if selected_symbol:
                 is_bank_score_ui = is_bank_company_type(company_type)
                 is_insurance_score_ui = is_insurance_company_type(company_type)
                 is_reit_score_ui = is_reit_company_type(company_type)
+                is_midstream_score_ui = is_midstream_company_type(company_type)
 
-                if is_reit_score_ui:
+                if is_midstream_score_ui:
+                    st.info("Midstream-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. Der eigene Midstream-Score basiert auf issuer-definiertem FCF-Wachstum, Dividendendeckung, Verschuldung, Adjusted-EBITDA-Outlook und Backlog-Qualität.")
+                    st.caption("Standard-Wachstum, EPS, Yahoo-FCF, Nettomarge und generischer ROE haben keinen Einfluss auf den Midstream-Fair-Value.")
+                elif is_reit_score_ui:
                     st.info("REIT-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. Der eigene REIT-Score basiert auf AFFO-Wachstum, Ausschüttungsquote, Verschuldung, Belegung, Restlaufzeit, Same-Store-Rent-Wachstum und Rent Recapture.")
                     st.caption("Standard-Wachstum, EPS, Yahoo-FCF und generischer ROE haben keinen Einfluss auf den REIT-Fair-Value.")
                 elif is_insurance_score_ui:
@@ -21836,7 +22112,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui:
+                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -21856,8 +22132,11 @@ if selected_symbol:
 
                 is_insurance_profitability_ui = is_insurance_company_type(company_type)
                 is_reit_profitability_ui = is_reit_company_type(company_type)
+                is_midstream_profitability_ui = is_midstream_company_type(company_type)
 
-                if is_reit_profitability_ui:
+                if is_midstream_profitability_ui:
+                    st.info("Midstream-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. Ertragsqualität wird über issuer-definierten FCF, Dividendendeckung, Adjusted EBITDA und Projektökonomik beurteilt.")
+                elif is_reit_profitability_ui:
                     st.info("REIT-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. Profitabilitätsqualität wird über AFFO-Deckung und operative Immobilienkennzahlen beurteilt.")
                 elif is_insurance_profitability_ui:
                     insurance_score_profit_ui = (
@@ -21986,6 +22265,7 @@ if selected_symbol:
                     str((company_type or {}).get("type", "")).strip().lower() != "bank"
                     and not is_insurance_company_type(company_type)
                     and not is_reit_company_type(company_type)
+                    and not is_midstream_company_type(company_type)
                 ):
                     st.caption(
                         "Die Profitabilität basiert derzeit auf "
@@ -22104,8 +22384,12 @@ if selected_symbol:
 
                     is_insurance_model_ui = is_insurance_company_type(company_type)
                     is_reit_model_ui = is_reit_company_type(company_type)
+                    is_midstream_model_ui = is_midstream_company_type(company_type)
 
-                    if is_reit_model_ui:
+                    if is_midstream_model_ui:
+                        st.info("ℹ️ Midstream-Modell: Standard-Free-Cashflow ist kein Bewertungsbaustein")
+                        st.caption("Maßgeblich ist der issuer-definierte Cashflow nach CapEx aus der offiziellen Midstream-Primärquelle. Yahoo-Free-Cashflow bleibt nur Kontext.")
+                    elif is_reit_model_ui:
                         st.info("ℹ️ REIT-Modell: Standard-Free-Cashflow ist kein Bewertungsbaustein")
                         st.caption("Bei REITs werden FFO/AFFO und die offizielle AFFO-Ausschüttungsdeckung verwendet. Yahoo-Free-Cashflow bleibt nur Kontext.")
                     elif is_bank_model_ui:
@@ -22151,6 +22435,7 @@ if selected_symbol:
                     not is_bank_company_type(company_type)
                     and not is_insurance_company_type(company_type)
                     and not is_reit_company_type(company_type)
+                    and not is_midstream_company_type(company_type)
                 ):
                     st.caption(
                         "Die FCF-Punkte basieren auf der aktuellen "
@@ -22263,6 +22548,7 @@ if selected_symbol:
                     is_bank_balance_ui = is_bank_company_type(company_type)
                     is_insurance_balance_ui = is_insurance_company_type(company_type)
                     is_reit_balance_ui = is_reit_company_type(company_type)
+                    is_midstream_balance_ui = is_midstream_company_type(company_type)
 
                     if is_bank_balance_ui:
                         st.info(
@@ -22290,6 +22576,9 @@ if selected_symbol:
                             "Maßgeblich ist die verifizierte REIT-Verschuldungskennzahl Net Debt / "
                             "Annualized Pro Forma Adjusted EBITDAre; konsolidierte Yahoo-Schulden bleiben nur Kontext."
                         )
+                    elif is_midstream_balance_ui:
+                        st.info("ℹ️ Midstream-Bilanzmodell: Net Debt / Adjusted EBITDA wird im eigenen Midstream-Score bewertet")
+                        st.caption("Die industrielle Netto-Schulden/FCF-Logik ist für Midstream deaktiviert. Maßgeblich ist die verifizierte issuer-definierte Net-Debt/Adjusted-EBITDA-Kennzahl; Yahoo-Schulden bleiben nur Kontext.")
                     else:
                         if balance_result[
                             "confidence"
@@ -22327,6 +22616,7 @@ if selected_symbol:
                     not is_bank_company_type(company_type)
                     and not is_insurance_company_type(company_type)
                     and not is_reit_company_type(company_type)
+                    and not is_midstream_company_type(company_type)
                 ):
                     st.caption(
                         "Bilanzpunkte: Netto-Cash 15/15; "
@@ -23011,7 +23301,7 @@ if selected_symbol:
                 if midstream_model.get("applicable"):
 
                     st.divider()
-                    st.subheader("🛢️ Midstream-Sondermodell V2.20.49 – Primärdatenbasis")
+                    st.subheader("🛢️ Midstream-Sondermodell V2.20.50 – Qualität & EV/Adjusted EBITDA")
 
                     if midstream_model.get("primary_source_complete"):
                         st.success(
@@ -23090,6 +23380,18 @@ if selected_symbol:
                         st.caption(snapshot.get("source_note"))
                     if gate.get("note"):
                         st.caption(gate.get("note"))
+
+                    ms_ui = midstream_model.get("midstream_score") or {}
+                    mv_ui = midstream_model.get("midstream_valuation") or {}
+                    if ms_ui.get("available") and mv_ui.get("available"):
+                        st.metric("Midstream-Quality-Score", f"{ms_ui.get('score'):.0f}/100 Punkte")
+                        st.write(f"**Qualitätsstufe:** {ms_ui.get('quality_level')}")
+                        if mv_ui.get("current_ev_adjusted_ebitda") is not None:
+                            st.write(f"**Aktuelles EV / offizielles Adjusted EBITDA:** {mv_ui.get('current_ev_adjusted_ebitda'):.2f}×")
+                        st.write(f"**Ziel-EV/Adjusted EBITDA:** {mv_ui.get('target_ev_adjusted_ebitda'):.2f}×")
+                        st.write(f"**Zielkorridor:** {mv_ui.get('corridor_low'):.2f}× – {mv_ui.get('corridor_high'):.2f}×")
+                        st.caption(ms_ui.get("note"))
+                        st.caption(mv_ui.get("note"))
 
                     st.write("**Yahoo-/Standarddaten nur als Kontext**")
                     if midstream_model.get("display_ev_to_ebitda") is not None:
@@ -23446,6 +23748,7 @@ if selected_symbol:
                 )
                 is_insurance_valuation_ui = is_insurance_company_type(company_type)
                 is_reit_valuation_ui = is_reit_company_type(company_type)
+                is_midstream_valuation_ui = is_midstream_company_type(company_type)
 
                 if is_bank_valuation_ui:
                     bank_model_m6 = data.get("bank_special_model") or {}
@@ -23533,6 +23836,56 @@ if selected_symbol:
                         "Bei Versicherungen werden offizieller Buchwert/P-B und verifiziertes "
                         "Core-TTM-EPS/Core-KGV getrennt geführt. Der Dual-Anchor-Fair-Value "
                         "folgt erst nach Schritt 3B."
+                    )
+                elif is_midstream_valuation_ui:
+                    midstream_model_m6 = data.get("midstream_special_model") or {}
+                    midstream_gate_m6 = midstream_model_m6.get("primary_gate") or {}
+                    midstream_score_m6 = midstream_model_m6.get("midstream_score") or {}
+                    midstream_val_m6 = midstream_model_m6.get("midstream_valuation") or {}
+
+                    if midstream_model_m6.get("primary_source_complete") and midstream_gate_m6.get("available"):
+                        st.success(
+                            "Midstream-Primärdaten vollständig: issuer-definierter Cashflow, Dividendendeckung, "
+                            "Adjusted EBITDA, Nettoverschuldung und Projekt-Backlog sind belastbar vorhanden."
+                        )
+                    else:
+                        st.warning(
+                            "Midstream-Primärdaten noch nicht vollständig oder nicht mehr aktuell. "
+                            "Die Bewertung bleibt fail-closed."
+                        )
+
+                    if midstream_score_m6.get("available") and midstream_val_m6.get("available"):
+                        st.write(
+                            "**Midstream-Quality-Score:** "
+                            f"{midstream_score_m6.get('score'):.0f}/100 · {midstream_score_m6.get('quality_level')}"
+                        )
+                        st.write(
+                            "**EV/Adjusted-EBITDA-Zielkorridor:** "
+                            f"{midstream_val_m6.get('corridor_low'):.2f}× – {midstream_val_m6.get('corridor_high'):.2f}×"
+                        )
+                        st.metric(
+                            "Ziel-EV/Adjusted EBITDA",
+                            f"{midstream_val_m6.get('target_ev_adjusted_ebitda'):.2f}×"
+                        )
+                        if midstream_val_m6.get("current_ev_adjusted_ebitda") is not None:
+                            st.write(
+                                "**Aktuelles EV / offizielles Adjusted EBITDA:** "
+                                f"{midstream_val_m6.get('current_ev_adjusted_ebitda'):.2f}×"
+                            )
+                        st.success(
+                            "Midstream-Bewertungsanker freigegeben. Der eigene Midstream-Score steuert den "
+                            "EV/Adjusted-EBITDA-Anker; der Equity Value wird erst nach Abzug der offiziellen "
+                            "Nettoverschuldung aus dem Fair Enterprise Value abgeleitet."
+                        )
+                    else:
+                        st.warning(
+                            "Midstream-Score oder EV/Adjusted-EBITDA-Anker noch nicht vollständig verfügbar. "
+                            "Die Bewertung bleibt fail-closed."
+                        )
+                    st.caption(multiple_result.get("note"))
+                    st.caption(
+                        "Yahoo-EV/EBITDA und Standard-FCF bleiben reine Kontextwerte. Ein Peer-Overlay "
+                        "wird erst nach separater Prüfung ergänzt und verändert den 100-Punkte-Midstream-Score nicht."
                     )
                 elif is_reit_valuation_ui:
                     reit_model_m6 = data.get("reit_special_model") or {}
@@ -24177,14 +24530,20 @@ if selected_symbol:
                         )
                         if gate.get("note"):
                             st.caption(gate.get("note"))
-                        st.warning(
-                            "Bewertungsfreigabe noch NEIN: V2.20.49 ergänzt bewusst nur die "
-                            "Midstream-Primärdatenbasis. Midstream-Score, EV/Adjusted-EBITDA-"
-                            "Zielkorridor und Fair Value folgen erst im nächsten separaten Schritt."
-                        )
+                        ms3 = checks.get("midstream_score") or {}
+                        mv3 = checks.get("midstream_valuation") or {}
+                        if ms3.get("available") and mv3.get("available"):
+                            st.metric("Midstream-Quality-Score", f"{ms3.get('score'):.0f}/100 Punkte")
+                            st.write(f"**Qualitätsstufe:** {ms3.get('quality_level')}")
+                            st.write(f"**Aktuelles EV / offizielles Adjusted EBITDA:** {mv3.get('current_ev_adjusted_ebitda'):.2f}×")
+                            st.write(f"**Ziel-EV/Adjusted EBITDA:** {mv3.get('target_ev_adjusted_ebitda'):.2f}×")
+                            st.write(f"**Zielkorridor:** {mv3.get('corridor_low'):.2f}× – {mv3.get('corridor_high'):.2f}×")
+                            st.success("Bewertungsfreigabe JA: Midstream-Score und EV/Adjusted-EBITDA-Equity-Value-Bridge sind freigegeben.")
+                        else:
+                            st.warning("Bewertungsfreigabe noch NEIN: Midstream-Score oder EV/Adjusted-EBITDA-Anker unvollständig.")
                         st.caption(
-                            "Primärdatenfreigabe und Bewertungsfreigabe sind getrennt. Das Gate "
-                            "bleibt fail-closed, wenn der offizielle Snapshot veraltet oder unvollständig ist."
+                            "Das Gate bleibt fail-closed, wenn der offizielle Snapshot veraltet oder unvollständig ist. "
+                            "Yahoo-EV/EBITDA und Standard-FCF dürfen die Primärkennzahlen nicht ersetzen."
                         )
                     else:
                         st.warning(special_control.get("note"))
@@ -26428,6 +26787,16 @@ if selected_symbol:
                                 "**Abstand der Bewertungsanker:** "
                                 f"{fair_value.get('anchor_spread_pct'):.1f} %"
                             )
+                    elif fair_value.get("valuation_method") == "midstream_ev_adjusted_ebitda":
+                        st.write("**Bewertungsformel:** Offizielles LTM Adjusted EBITDA × Ziel-EV/Adjusted EBITDA − offizielle Nettoverschuldung; danach ÷ Aktienbasis")
+                        st.write(f"**Midstream-Score:** {fair_value.get('midstream_score'):.0f}/100 · {fair_value.get('midstream_quality_level')}")
+                        st.write("**Adjusted-EBITDA-Basis:** " + format_money(fair_value.get("adjusted_ebitda_basis"), fair_value["financial_currency"]))
+                        st.write("**Offizielle Nettoverschuldung:** " + format_money(fair_value.get("official_net_debt"), fair_value["financial_currency"]))
+                        st.write(f"**Aktuelles EV / offizielles Adjusted EBITDA:** {fair_value.get('current_ev_adjusted_ebitda'):.2f}×")
+                        st.write(f"**Ziel-EV/Adjusted EBITDA:** {fair_value.get('target_ev_adjusted_ebitda'):.2f}×")
+                        st.write(f"**EV/Adjusted-EBITDA-Zielkorridor:** {fair_value.get('ev_ebitda_corridor_low'):.2f}× – {fair_value.get('ev_ebitda_corridor_high'):.2f}×")
+                        st.write("**Fair Enterprise Value:** " + format_money(fair_value.get("fair_enterprise_value"), fair_value["financial_currency"]))
+                        st.write("**Fair Equity Value nach Net Debt:** " + format_money(fair_value.get("fair_equity_value"), fair_value["financial_currency"]))
                     elif fair_value.get("valuation_method") == "reit_paffo":
                         st.write("**Bewertungsformel:** Offizieller AFFO-Guidance-Mittelwert × scoregesteuertes Ziel-P/AFFO")
                         st.write(f"**REIT-Score:** {fair_value.get('reit_score'):.0f}/100 · {fair_value.get('reit_quality_level')}")
@@ -26516,6 +26885,11 @@ if selected_symbol:
                         st.success(
                             "Versicherungs-Fair-Value V1 wurde aus zwei unabhängigen, versicherungsspezifischen "
                             "Bewertungsankern berechnet und erst nach der Schritt-3B-Freigabe veröffentlicht."
+                        )
+                    elif fair_value.get("valuation_method") == "midstream_ev_adjusted_ebitda":
+                        st.success(
+                            "Midstream-Fair-Value V1 wurde aus dem verifizierten offiziellen Adjusted EBITDA, "
+                            "dem scoregesteuerten EV/Adjusted-EBITDA-Zielanker und der offiziellen Nettoverschuldung berechnet."
                         )
                     elif fair_value.get("valuation_method") == "reit_paffo":
                         st.success(
