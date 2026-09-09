@@ -17,17 +17,17 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.47"
+APP_BUILD_VERSION = "V2.20.48"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · Currency Display Engine + REIT Consistency Fix")
+st.caption(f"Build {APP_BUILD_VERSION} · Currency Consistency Final Fix")
 
 
-# V2.20.47: Currency Display Engine + REIT Consistency Fix. Valuation logic remains in native currencies; only presentation is converted. REIT V2.20.46 valuation is preserved, while stale V2.20.45 UI text is cleaned up. Insurance V2.20.44, Bank V2.20.39 and other frozen specialist models remain preserved.
+# V2.20.48: Currency Consistency Final Fix. Adds a fail-closed valuation-currency sanity gate, clarifies mixed-currency valuation notes, and removes remaining REIT context-text inconsistencies. Valuation formulas and specialist scores remain unchanged.
 
 # =========================================================
 # Hilfsfunktionen
@@ -142,7 +142,7 @@ def safe_float(value):
         return None
 
 
-DISPLAY_CURRENCY_SESSION_KEY = "_v22047_display_currency_context"
+DISPLAY_CURRENCY_SESSION_KEY = "_v22048_display_currency_context"
 
 
 def _normalize_currency_code(code):
@@ -403,6 +403,53 @@ def build_currency_context(
             "Währungsumrechnung konnte nicht geladen werden; abhängige "
             "Bewertungsschritte werden deshalb gesperrt."
         ) if raw_quote != raw_financial else None
+    }
+
+
+def validate_valuation_currency_context(currency_context):
+    """Fail-closed currency gate for every Fair-Value/price comparison.
+
+    A valuation may continue only when trading and financial currencies are
+    explicit and either identical or connected by a positive, verified
+    conversion factor. This gate is independent of the presentation currency.
+    """
+    context = currency_context if isinstance(currency_context, dict) else {}
+    quote_currency = str(context.get("quote_currency") or "").strip()
+    financial_currency = str(context.get("financial_currency") or "").strip()
+
+    if not quote_currency or not financial_currency:
+        return {
+            "passed": False,
+            "note": (
+                "Currency-Sanity-Check nicht bestanden: Handels- und Berichtswährung "
+                "sind nicht beide eindeutig verfügbar. Fair Value bleibt gesperrt."
+            ),
+        }
+
+    mixed = bool(context.get("mixed_units")) or quote_currency != financial_currency
+    if not mixed:
+        return {
+            "passed": True,
+            "note": f"Currency-Sanity-Check bestanden: Handels- und Berichtswährung sind {quote_currency}.",
+        }
+
+    factor = safe_float(context.get("financial_to_quote_factor"))
+    if not context.get("conversion_available") or factor is None or factor <= 0:
+        return {
+            "passed": False,
+            "note": (
+                f"Currency-Sanity-Check nicht bestanden: Fundamentaldaten in {financial_currency} "
+                f"und Handelskurs in {quote_currency}, aber kein positiver verifizierter FX-/Einheitenfaktor. "
+                "Fair Value bleibt gesperrt; es wird niemals 1:1 angenommen."
+            ),
+        }
+
+    return {
+        "passed": True,
+        "note": (
+            f"Currency-Sanity-Check bestanden: Fundamentaldaten {financial_currency} → "
+            f"Handelswährung {quote_currency} mit Faktor {factor:.6f}."
+        ),
     }
 
 
@@ -9728,16 +9775,16 @@ def build_auto_special_model(
 
 
 # =========================================================
-# REIT-/Immobilien-Sondermodell V2.20.47 – Primary Source + Quality Score + P/AFFO Gate
+# REIT-/Immobilien-Sondermodell V2.20.48 – Primary Source + Quality Score + P/AFFO Gate
 # =========================================================
 
-REIT_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22046_reit_quality_paffo"
+REIT_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22048_reit_quality_paffo_currency"
 
 
 def get_verified_reit_snapshot(symbol):
     """Time-bounded official REIT snapshot for supported REITs.
 
-    V2.20.47 starts with Realty Income (NYSE: O). Unknown REITs deliberately
+    V2.20.48 starts with Realty Income (NYSE: O). Unknown REITs deliberately
     return None. AFFO/FFO, payout, occupancy and leverage are never inferred
     from standard EPS, standard free cash flow or generic EBITDA proxies.
     """
@@ -9807,7 +9854,7 @@ def get_verified_reit_snapshot(symbol):
             "Offizielle Realty-Income-Q2/6M-2026-Daten. FFO, Normalized FFO, AFFO, "
             "AFFO-Ausschüttungsquote, Belegung und Net Debt/Annualized Pro Forma Adjusted "
             "EBITDAre werden nicht aus Yahoo-EPS, Standard-Free-Cashflow oder generischen "
-            "Bilanz-/EBITDA-Proxies rekonstruiert. V2.20.47 nutzt diese Primärdatenbasis "
+            "Bilanz-/EBITDA-Proxies rekonstruiert. V2.20.48 nutzt diese Primärdatenbasis "
             "für den freigegebenen REIT-Quality-Score und den P/AFFO-Anker. NAV bleibt ohne "
             "belastbare Primärquelle gesperrt."
         ),
@@ -9907,7 +9954,7 @@ def build_reit_primary_source_gate(snapshot):
     return result
 
 def build_reit_quality_score(primary_gate, snapshot=None):
-    """V2.20.47 REIT-only 100-point quality score from official primary data."""
+    """V2.20.48 REIT-only 100-point quality score from official primary data."""
     gate = primary_gate if isinstance(primary_gate, dict) else {}
     snap = snapshot if isinstance(snapshot, dict) else {}
     result = {"available": False, "score": None, "quality_level": None, "components": {}, "note": None}
@@ -9961,7 +10008,7 @@ def build_reit_paffo_valuation(primary_gate, reit_score, price_financial=None):
     fv=affo*target
     current_paffo=price/affo if price is not None and price>0 else None
     result.update({"available":True,"target_paffo":target,"corridor_low":low,"corridor_high":high,"affo_basis":affo,"fair_value_financial":fv,"current_paffo":current_paffo,
-        "note":"V2.20.47 nutzt den Mittelwert der offiziellen 2026-AFFO-Guidance als Ertragsbasis. Der 100-Punkte-REIT-Score steuert einen konservativen P/AFFO-Zielanker; der Zielkorridor beträgt ±1,0×. NAV bleibt bis zu einer belastbaren Primärquelle gesperrt."})
+        "note":"V2.20.48 nutzt den Mittelwert der offiziellen 2026-AFFO-Guidance als Ertragsbasis. Der 100-Punkte-REIT-Score steuert einen konservativen P/AFFO-Zielanker; der Zielkorridor beträgt ±1,0×. NAV bleibt bis zu einer belastbaren Primärquelle gesperrt."})
     return result
 
 
@@ -9975,7 +10022,7 @@ def build_reit_special_model(
     """
     Conservative REIT / real-estate data block.
 
-    V2.20.47 keeps the time-bounded official primary-source gate for supported
+    V2.20.48 keeps the time-bounded official primary-source gate for supported
     REITs, adds the released REIT quality score and P/AFFO anchor, and preserves
     Yahoo values only as context. FFO/AFFO are never reconstructed from net
     income, depreciation, standard FCF or operating cash flow; NAV remains locked
@@ -10240,7 +10287,7 @@ def build_reit_special_model(
         "property_value_available": False,
         "readiness": readiness,
         "note": (
-            "REIT-/Immobilien-Sondermodell V2.20.47 verwendet für unterstützte REITs "
+            "REIT-/Immobilien-Sondermodell V2.20.48 verwendet für unterstützte REITs "
             "verifizierte offizielle FFO-/AFFO-, Ausschüttungs-, Belegungs- und "
             "Verschuldungsdaten als Primärbasis. Yahoo-FFO/AFFO, EV/EBITDA und "
             "konsolidierte Netto-Schulden bleiben reine Kontext-/Plausibilitätswerte. "
@@ -10308,7 +10355,7 @@ def build_reit_special_control(base_control, reit_model):
             "reit_valuation": model.get("reit_valuation") or {},
         },
         "note": (
-            "REIT-Schritt 3B V2.20.47 validiert die aktuelle offizielle FFO/AFFO-"
+            "REIT-Schritt 3B V2.20.48 validiert die aktuelle offizielle FFO/AFFO-"
             "Ertragsbasis, AFFO-Ausschüttungsdeckung, Belegung, Restlaufzeit und "
             "Net Debt/Annualized Pro Forma Adjusted EBITDAre. Der eigene REIT-Score und "
             "P/AFFO-Anker sind freigegeben; NAV bleibt ohne belastbare Primärquelle gesperrt."
@@ -11323,9 +11370,9 @@ def get_special_control(company_type, symbol):
                 "P/AFFO-Zielanker",
                 "später optional: NAV nur aus belastbarer Primärquelle"
             ],
-            "status": "Router aktiv – V2.20.47 REIT-Quality-/P/AFFO-Gate",
+            "status": "Router aktiv – V2.20.48 REIT-Quality-/P/AFFO-Gate",
             "note": (
-                "V2.20.47 trennt Yahoo-Kontextkennzahlen von verifizierten REIT-Primärdaten. "
+                "V2.20.48 trennt Yahoo-Kontextkennzahlen von verifizierten REIT-Primärdaten. "
                 "Für unterstützte REITs werden FFO/AFFO, Ausschüttungsdeckung, Belegung und "
                 "Net Debt/Annualized Pro Forma Adjusted EBITDAre nur aus einem aktuellen "
                 "offiziellen Snapshot übernommen. Standard-EPS, Yahoo-Free-Cashflow und "
@@ -17552,6 +17599,8 @@ def calculate_fair_value_v1(
         "potential_pct": None,
         "unit_conversion_applied": False,
         "unit_note": None,
+        "currency_gate_passed": False,
+        "currency_gate_note": None,
         "note": None
     }
 
@@ -17567,6 +17616,13 @@ def calculate_fair_value_v1(
     result["quote_currency"] = context.get(
         "quote_currency"
     )
+
+    currency_gate = validate_valuation_currency_context(context)
+    result["currency_gate_passed"] = bool(currency_gate.get("passed"))
+    result["currency_gate_note"] = currency_gate.get("note")
+    if not result["currency_gate_passed"]:
+        result["note"] = currency_gate.get("note")
+        return result
 
     # Mining V2.11 hard safety gate. This is intentionally independent of the
     # special-control release flag so that stale cache/state can never release
@@ -17720,8 +17776,10 @@ def calculate_fair_value_v1(
             else:
                 fx_symbol = context.get("fx_symbol")
                 unit_notes.append(
-                    f"Währungsumrechnung ausdrücklich angewendet: 1 {financial_currency} = "
-                    f"{factor:.6f} {quote_currency}" + (f" über {fx_symbol}." if fx_symbol else ".")
+                    f"Währungsangleichung für den Fair-Value/Kurs-Vergleich: Fundamentaldaten in {financial_currency} "
+                    f"→ Handelswährung {quote_currency} mit 1 {financial_currency} = {factor:.6f} {quote_currency}"
+                    + (f" über {fx_symbol}." if fx_symbol else ".")
+                    + f" Der Handelskurs liegt bereits in {quote_currency} vor."
                 )
         elif quote_currency != financial_currency:
             result["note"] = (
@@ -17824,8 +17882,10 @@ def calculate_fair_value_v1(
             else:
                 fx_symbol = context.get("fx_symbol")
                 unit_notes.append(
-                    f"Währungsumrechnung ausdrücklich angewendet: 1 {financial_currency} = "
-                    f"{factor:.6f} {quote_currency}" + (f" über {fx_symbol}." if fx_symbol else ".")
+                    f"Währungsangleichung für den Fair-Value/Kurs-Vergleich: Fundamentaldaten in {financial_currency} "
+                    f"→ Handelswährung {quote_currency} mit 1 {financial_currency} = {factor:.6f} {quote_currency}"
+                    + (f" über {fx_symbol}." if fx_symbol else ".")
+                    + f" Der Handelskurs liegt bereits in {quote_currency} vor."
                 )
         elif quote_currency != financial_currency:
             result["note"] = (
@@ -17868,7 +17928,7 @@ def calculate_fair_value_v1(
         })
         return result
 
-    # REIT V2.20.47 – dedicated P/AFFO fair value. NAV remains intentionally locked.
+    # REIT V2.20.48 – dedicated P/AFFO fair value. NAV remains intentionally locked.
     if (
         isinstance(special_control, dict)
         and special_control.get("control_key") == "reit_ffo_affo_leverage"
@@ -17891,7 +17951,11 @@ def calculate_fair_value_v1(
             if not context.get("conversion_available") or factor is None or factor <= 0:
                 result["note"]="Fair Value V1 gesperrt: REIT-Währungsumrechnung nicht belastbar verfügbar."
                 return result
-            fvq*=factor; unit_notes.append(f"Währungsumrechnung angewendet: 1 {financial_currency} = {factor:.6f} {quote_currency}.")
+            fvq*=factor; unit_notes.append(
+                f"Währungsangleichung für den Fair-Value/Kurs-Vergleich: Fundamentaldaten in {financial_currency} "
+                f"→ Handelswährung {quote_currency} mit 1 {financial_currency} = {factor:.6f} {quote_currency}. "
+                f"Der Handelskurs liegt bereits in {quote_currency} vor."
+            )
         elif quote_currency != financial_currency:
             result["note"]="Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
             return result
@@ -18060,9 +18124,10 @@ def calculate_fair_value_v1(
         else:
             fx_symbol = context.get("fx_symbol")
             unit_notes.append(
-                f"Währungsumrechnung ausdrücklich angewendet: 1 "
-                f"{financial_currency} = {factor:.6f} {quote_currency}"
+                f"Währungsangleichung für den Fair-Value/Kurs-Vergleich: Fundamentaldaten in {financial_currency} "
+                f"→ Handelswährung {quote_currency} mit 1 {financial_currency} = {factor:.6f} {quote_currency}"
                 + (f" über {fx_symbol}." if fx_symbol else ".")
+                + f" Der Handelskurs liegt bereits in {quote_currency} vor."
             )
 
     elif quote_currency != financial_currency:
@@ -19183,7 +19248,7 @@ def load_fx_conversion(
 ):
     """Load an explicit current FX factor: 1 from_currency -> to_currency.
 
-    V2.20.47 also returns a quote timestamp when Yahoo provides one and
+    V2.20.48 also returns a quote timestamp when Yahoo provides one and
     supports GBp through an explicit GBP bridge. The returned rate is used
     only for presentation unless an existing valuation unit-alignment path
     explicitly calls this function.
@@ -19358,7 +19423,7 @@ def _format_fx_timestamp(value):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_currency_display_reit_consistency_v22047_20260909"
+CACHE_VERSION = "m6_currency_consistency_final_v22048_20260909"
 
 @st.cache_data(
     ttl=900,
@@ -19770,7 +19835,7 @@ def load_stock(search_text, cache_version):
             "multiple": safe_float(rv.get("target_paffo")),
             "available": bool(rs.get("available") and rv.get("available")),
             "note": (
-                "REITs verwenden kein Standard-EPS-/FCF-Multiple. V2.20.47 verwendet den "
+                "REITs verwenden kein Standard-EPS-/FCF-Multiple. V2.20.48 verwendet den "
                 "eigenen 100-Punkte-REIT-Score und einen scoregesteuerten P/AFFO-Anker. "
                 "NAV bleibt ohne belastbare Primärquelle gesperrt."
             ),
@@ -20307,7 +20372,7 @@ if selected_symbol:
                         "DKK",
                     ],
                     index=0,
-                    key="display_currency_selector_v22047",
+                    key="display_currency_selector_v22048",
                     help=(
                         "Die Bewertungslogik rechnet weiterhin in den Original-/Quellwährungen. "
                         "Nur die Anzeige wird mit einem expliziten FX-Kurs umgerechnet."
@@ -20476,6 +20541,7 @@ if selected_symbol:
                     company_type_ui = normalized_company_type_name(company_type)
                     is_bank_fcf_context = is_bank_company_type(company_type)
                     is_insurance_fcf_context = is_insurance_company_type(company_type)
+                    is_reit_fcf_context = is_reit_company_type(company_type)
                     if is_bank_fcf_context and fcf_ctx.get("score_eligible"):
                         fcf_label = "Free Cashflow (Bank-Kontext, Cashflow-Statement)"
                     elif is_bank_fcf_context:
@@ -20484,6 +20550,10 @@ if selected_symbol:
                         fcf_label = "Free Cashflow (Versicherungs-Kontext, Cashflow-Statement)"
                     elif is_insurance_fcf_context:
                         fcf_label = "Levered Free Cashflow (Versicherungs-Kontext, Yahoo-Referenz)"
+                    elif is_reit_fcf_context and fcf_ctx.get("score_eligible"):
+                        fcf_label = "Free Cashflow (REIT-Kontext, Cashflow-Statement)"
+                    elif is_reit_fcf_context:
+                        fcf_label = "Levered Free Cashflow (REIT-Kontext, Yahoo-Referenz)"
                     else:
                         fcf_label = (
                             "Free Cashflow (Cashflow-Statement)"
@@ -20518,6 +20588,7 @@ if selected_symbol:
                 company_type_ui = normalized_company_type_name(company_type)
                 is_bank_fcf_context = is_bank_company_type(company_type)
                 is_insurance_fcf_context = is_insurance_company_type(company_type)
+                is_reit_fcf_context = is_reit_company_type(company_type)
                 if fcf_ctx.get("score_eligible"):
                     source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
                     if is_bank_fcf_context:
@@ -20533,6 +20604,13 @@ if selected_symbol:
                             "Bei Versicherungen wird dieser Cashflow-Statement-Wert ausschließlich als Kontext angezeigt. "
                             "Er fließt weder in FCF-Marge oder Netto-Schulden/FCF noch in Versicherungs-Score, "
                             "Bewertungs-Multiple oder Fair Value ein."
+                        )
+                    elif is_reit_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            "Bei REITs wird dieser Standard-Free-Cashflow ausschließlich als Kontext angezeigt. "
+                            "Er fließt weder in den REIT-Quality-Score noch in P/AFFO-Zielanker, "
+                            "Bewertungszonen oder Fair Value ein; maßgeblich sind die verifizierten FFO/AFFO-Primärdaten."
                         )
                     else:
                         st.caption(
@@ -20556,6 +20634,14 @@ if selected_symbol:
                                 f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
                                 f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Werte bleiben bei Versicherungen reine "
                                 "Kontext-/Rohdaten und haben keinen Einfluss auf die Versicherungsbewertung."
+                            )
+                        elif is_reit_fcf_context:
+                            st.warning(
+                                "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info zeigt "
+                                f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
+                                f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
+                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Werte bleiben bei REITs reine "
+                                "Kontext-/Rohdaten und haben keinen Einfluss auf REIT-Score, P/AFFO-Anker oder Fair Value."
                             )
                         else:
                             st.warning(
@@ -21444,7 +21530,13 @@ if selected_symbol:
                     st.write("**Nächster Schritt:** " + text_or_dash(research.get("next_step")))
 
                 else:
-                    st.write("**Nächster Schritt:** " + text_or_dash(event_warning.get("action")))
+                    event_action = event_warning.get("action")
+                    if is_reit_company_type(company_type) and event_level == "Grün":
+                        event_action = (
+                            "REIT-Sonderbewertung kann ohne zusätzliche Sonderrecherche weiterlaufen. "
+                            "Für den Fair Value bleiben FFO/AFFO, Ausschüttungsdeckung und REIT-Verschuldungskennzahlen maßgeblich."
+                        )
+                    st.write("**Nächster Schritt:** " + text_or_dash(event_action))
 
                 st.divider()
 
@@ -23008,11 +23100,11 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏢 REIT-/Immobilien-Sondermodell V2.20.47 – Qualität & P/AFFO"
+                        "🏢 REIT-/Immobilien-Sondermodell V2.20.48 – Qualität & P/AFFO"
                     )
 
                     st.info(
-                        "REIT-/Immobilien-Modell erkannt. V2.20.47 verwendet für unterstützte REITs "
+                        "REIT-/Immobilien-Modell erkannt. V2.20.48 verwendet für unterstützte REITs "
                         "aktuelle offizielle FFO/AFFO-, Ausschüttungs-, Belegungs- und Verschuldungsdaten "
                         "als Primärbasis. Yahoo-FFO/AFFO, EV/EBITDA und konsolidierte Bilanzwerte bleiben "
                         "nur Kontext. Bei bestandenem Primärquellen-Gate werden REIT-Quality-Score und "
@@ -26145,15 +26237,6 @@ if selected_symbol:
                     if fair_value.get(
                         "unit_conversion_applied"
                     ):
-                        st.write(
-                            "**Fair Value vor Einheitenangleichung:** "
-                            + format_currency_value(
-                                fair_value["fair_value_financial"],
-                                fair_value["financial_currency"],
-                                2,
-                            )
-                        )
-
                         st.info(
                             fair_value["unit_note"]
                         )
