@@ -17,17 +17,17 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.42"
+APP_BUILD_VERSION = "V2.20.43"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · Insurance Context Integration Fix")
+st.caption(f"Build {APP_BUILD_VERSION} · Insurance Core-Earnings Coverage + Score")
 
 
-# V2.20.42: Insurance Context Integration Fix – zentrale Typ-Erkennung erzwingt Versicherungs-Kontextlogik in Datenbasis, Wachstum, FCF und Bilanz. Sichtbarer Build-Marker verhindert Verwechslung mit einer alten extrahierten App. Insurance Primary Source Gate V2.20.40 und Bank V2.20.39 bleiben fachlich unverändert.
+# V2.20.43: Insurance Core-Earnings Coverage + Score – vollständige Core-TTM-Brücke aus offiziellen Allianz-Perioden, offizieller Buchwert-/Kapitalabgleich und eigener 100-Punkte-Versicherungs-Score. Noch kein Versicherungs-Fair-Value; Bank V2.20.39 und übrige Spezialmodelle bleiben fachlich unverändert.
 
 # =========================================================
 # Hilfsfunktionen
@@ -646,7 +646,7 @@ def evaluate_cycle_eps_comparability_gate(
 
 
 
-def build_special_event_warning(eps_normalization, bank_special_model=None):
+def build_special_event_warning(eps_normalization, bank_special_model=None, insurance_special_model=None):
     """
     V2.20.35 – Sonderereignis-Warnampel mit Bank-Sonderposten-Integration.
 
@@ -776,6 +776,53 @@ def build_special_event_warning(eps_normalization, bank_special_model=None):
                 "Bereinigung. Die Freigabe eines Bank-Fair-Values bleibt davon "
                 "getrennt und richtet sich weiterhin ausschließlich nach dem "
                 "Bank-Sondermodell."
+            ),
+        }
+
+
+    insurance_model = (
+        insurance_special_model
+        if isinstance(insurance_special_model, dict)
+        else {}
+    )
+    insurance_snapshot = insurance_model.get("snapshot") or {}
+    headline_core_eps_growth = safe_float(
+        insurance_model.get("core_eps_growth_pct")
+    )
+    underlying_core_eps_growth = safe_float(
+        insurance_model.get("underlying_core_eps_growth_pct")
+    )
+    insurance_effects_verified = bool(
+        insurance_model.get("applicable")
+        and insurance_model.get("primary_source_complete")
+        and insurance_model.get("snapshot_fresh")
+        and headline_core_eps_growth is not None
+        and underlying_core_eps_growth is not None
+        and abs(headline_core_eps_growth - underlying_core_eps_growth) >= 3.0
+    )
+
+    if insurance_effects_verified:
+        return {
+            "level": "Gelb",
+            "icon": "🟡",
+            "title": "Transaktions-/Divestment-Effekte erkannt – Versicherungswachstum bereinigt",
+            "requires_research": False,
+            "valuation_usable": True,
+            "reason": (
+                "Die verifizierte Versicherungs-Primärquelle weist für 6M 2026 "
+                f"ein Core-EPS-Wachstum von {headline_core_eps_growth:.1f} % aus, "
+                f"nennt nach Transaktions-/Divestment-Effekten aber ein underlying "
+                f"Wachstum von {underlying_core_eps_growth:.1f} %. Für den "
+                "Versicherungs-Score wird deshalb der offiziell ausgewiesene "
+                "underlying-Wert verwendet. Ein künstlich bereinigtes absolutes "
+                "Core EPS wird nicht erzeugt."
+            ),
+            "action": (
+                "Keine zusätzliche Sonderrecherche erforderlich: Die aktuelle Allianz-"
+                "Primärquelle benennt die Effekte und liefert bereits die underlying "
+                "Wachstums-/RoE-Kennzahlen. Die spätere Fair-Value-Freigabe bleibt "
+                "davon getrennt und richtet sich ausschließlich nach dem "
+                "Versicherungs-Sondermodell."
             ),
         }
 
@@ -5698,7 +5745,7 @@ def classify_company(name, symbol, sector, industry):
     ):
         return {
             "type": "Versicherung",
-            "method": "Core EPS + KGV + ROE / KBV",
+            "method": "Core-TTM-EPS + Core-KGV + Buchwert / KBV",
             "confidence_cap": "Mittel bis Hoch"
         }
 
@@ -7118,14 +7165,14 @@ def normalize_eps(
 
 
 # =========================================================
-# Versicherungs-Sondermodell V2.20.40 – Primary Source Gate
+# Versicherungs-Sondermodell V2.20.43 – Core Coverage + Score
 # =========================================================
 
 def get_verified_insurance_snapshot(symbol):
     """
     Time-bounded official primary-source snapshot for supported insurers.
 
-    V2.20.40 starts with Allianz SE / Allianz Group. Unknown insurers
+    V2.20.43 continues with Allianz SE / Allianz Group. Unknown insurers
     deliberately return None. Core earnings, Core EPS/Core RoE and Solvency II
     are never inferred from Yahoo proxies.
     """
@@ -7169,10 +7216,59 @@ def get_verified_insurance_snapshot(symbol):
         "solvency_ii_prior_pct": 218.0,
         "solvency_ii_change_pp": 7.0,
         "operating_profit": 9.390e9,
+
+        # V2.20.43 – Core-TTM coverage from official Allianz periods.
+        # No half-year annualization: TTM = FY2025 - 6M2025 + 6M2026.
+        "core_eps_fy_2025": 28.61,
+        "core_eps_h1_2025": 13.99,
+        "core_eps_h1_2026": 16.44,
+        "core_net_income_fy_2025": 11.113e9,
+        "core_net_income_h1_2025": 5.527e9,
+        "core_net_income_h1_2026": 6.385e9,
+        "fy_2025_source_name": "Allianz Group 4Q & 12M 2025 Earnings Release + APM 2025",
+        "fy_2025_source_url": (
+            "https://www.allianz.com/en/mediacenter/news/media-releases/"
+            "financials/260226-4q-2025-earnings-release.result.html/2"
+        ),
+        "h1_2025_source_name": "Allianz Group 2Q & 6M 2025 Earnings Release",
+        "h1_2025_source_url": (
+            "https://www.allianz.com/en/mediacenter/news/media-releases/"
+            "financials/250807-2q-2025-earnings-release.result.html/3"
+        ),
+
+        # Official equity/share-count bridge for book-value quality.
+        "shareholders_equity_2026_h1": 62.865e9,
+        "shares_2026_h1": 380_418_897,
+        "shareholders_equity_2025_fy": 62.722e9,
+        "shares_2025_fy": 380_418_897,
+        "shareholders_equity_2024_fy": 60.287e9,
+        "shares_2024_fy": 386_166_676,
+        "capital_structure_source_name": "Allianz Capital Structure + Interim Report 2026",
+        "capital_structure_source_url": (
+            "https://www.allianz.com/en/investor_relations/share/capital-structure.html"
+        ),
+
+        # Official capital-management / payout context.
+        "dividend_2025_per_share": 17.10,
+        "capital_policy_regular_payout_pct": 60.0,
+        "capital_policy_additional_return_min_pct": 15.0,
+        "capital_policy_source_name": "Allianz Capital Management Policy",
+        "capital_policy_source_url": (
+            "https://www.allianz.com/en/investor_relations/announcements/"
+            "inside-information/241209-ad-hoc.html"
+        ),
+
+        # Allianz explicitly publishes underlying growth/return metrics after
+        # transaction/divestment effects. These are used for quality scoring,
+        # but not to invent an adjusted absolute EPS.
+        "underlying_core_net_income_growth_pct": 9.0,
+        "underlying_core_eps_growth_pct": 10.0,
+        "underlying_core_roe_pct": 19.0,
+
         "underlying_growth_note": (
             "Allianz weist zusätzlich darauf hin, dass das Wachstum des "
             "Shareholders' Core Net Income nach Bereinigung bestimmter "
-            "Transaktions-/Divestment-Effekte bei rund 9 % lag. V2.20.40 "
+            "Transaktions-/Divestment-Effekte bei rund 9 % lag. V2.20.43 "
             "verwendet diesen Hinweis nur als Ertragsqualitäts-Kontext; "
             "es wird daraus keine zusätzliche EPS-Bereinigung geschätzt."
         ),
@@ -7180,8 +7276,8 @@ def get_verified_insurance_snapshot(symbol):
             "Offizielle Allianz-2Q/6M-2026-Daten. Shareholders' Core Net "
             "Income, Core EPS, Core RoE und Solvency-II-Quote werden nicht "
             "aus Yahoo-Feldern rekonstruiert. Die 6M-Werte werden nicht "
-            "annualisiert und erzeugen in V2.20.40 noch keinen Score, "
-            "kein Bewertungs-Multiple und keinen Fair Value."
+            "annualisiert. V2.20.43 ergänzt daraus die nicht annualisierte Core-TTM-Abdeckung und den Versicherungs-Score. "
+            "Bewertungs-Multiple und Fair Value bleiben weiterhin gesperrt."
         ),
     }
 
@@ -7198,6 +7294,317 @@ def _insurance_snapshot_is_fresh(snapshot):
         return False
 
 
+
+INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION = "v22043_insurance_core_ttm"
+
+def build_insurance_core_coverage(snapshot):
+    """
+    Build a fail-closed Core-TTM bridge from official insurer periods.
+
+    V2.20.43 deliberately does not annualize 6M data. For Allianz:
+    Core TTM = FY2025 - 6M2025 + 6M2026.
+    """
+    result = {
+        "available": False,
+        "integration_version": INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION,
+        "core_eps_fy_2025": None,
+        "core_eps_h1_2025": None,
+        "core_eps_h2_2025": None,
+        "core_eps_h1_2026": None,
+        "core_ttm_eps": None,
+        "core_net_income_fy_2025": None,
+        "core_net_income_h1_2025": None,
+        "core_net_income_h2_2025": None,
+        "core_net_income_h1_2026": None,
+        "core_ttm_net_income": None,
+        "note": None,
+    }
+
+    if not isinstance(snapshot, dict):
+        result["note"] = (
+            "Core-TTM-Abdeckung nicht verfügbar: kein aktueller verifizierter "
+            "Versicherungs-Primärquellen-Snapshot."
+        )
+        return result
+
+    required = {
+        "core_eps_fy_2025": safe_float(snapshot.get("core_eps_fy_2025")),
+        "core_eps_h1_2025": safe_float(snapshot.get("core_eps_h1_2025")),
+        "core_eps_h1_2026": safe_float(snapshot.get("core_eps_h1_2026")),
+        "core_net_income_fy_2025": safe_float(snapshot.get("core_net_income_fy_2025")),
+        "core_net_income_h1_2025": safe_float(snapshot.get("core_net_income_h1_2025")),
+        "core_net_income_h1_2026": safe_float(snapshot.get("core_net_income_h1_2026")),
+    }
+
+    if any(value is None or value <= 0 for value in required.values()):
+        result["note"] = (
+            "Core-TTM-Abdeckung gesperrt: mindestens eine offizielle FY-/6M-"
+            "Komponente fehlt oder ist nicht plausibel positiv."
+        )
+        return result
+
+    core_eps_h2_2025 = required["core_eps_fy_2025"] - required["core_eps_h1_2025"]
+    core_ttm_eps = core_eps_h2_2025 + required["core_eps_h1_2026"]
+
+    core_ni_h2_2025 = (
+        required["core_net_income_fy_2025"]
+        - required["core_net_income_h1_2025"]
+    )
+    core_ttm_ni = core_ni_h2_2025 + required["core_net_income_h1_2026"]
+
+    if (
+        core_eps_h2_2025 <= 0
+        or core_ttm_eps <= 0
+        or core_ni_h2_2025 <= 0
+        or core_ttm_ni <= 0
+    ):
+        result["note"] = (
+            "Core-TTM-Abdeckung gesperrt: die abgeleitete H2- oder TTM-Komponente "
+            "ist nicht plausibel positiv."
+        )
+        return result
+
+    # Round only presentation-sensitive bridge values; keep calculations numeric.
+    result.update({
+        "available": True,
+        **required,
+        "core_eps_h2_2025": core_eps_h2_2025,
+        "core_ttm_eps": core_ttm_eps,
+        "core_net_income_h2_2025": core_ni_h2_2025,
+        "core_ttm_net_income": core_ttm_ni,
+        "note": (
+            "Core-TTM-Coverage Gate bestanden: 12M 2025, 6M 2025 und 6M 2026 "
+            "stammen aus offiziellen Allianz-Primärquellen. TTM wird als "
+            "12M 2025 minus 6M 2025 plus 6M 2026 gebildet; die 6M-Daten "
+            "werden ausdrücklich nicht annualisiert."
+        ),
+    })
+    return result
+
+
+def build_insurance_book_value_bridge(snapshot, yahoo_book_value=None):
+    """Official book-value-per-share bridge and annual growth quality check."""
+    result = {
+        "available": False,
+        "bvps_2026_h1": None,
+        "bvps_2025_fy": None,
+        "bvps_2024_fy": None,
+        "bvps_growth_2025_pct": None,
+        "yahoo_book_value_deviation_pct": None,
+        "note": None,
+    }
+    if not isinstance(snapshot, dict):
+        result["note"] = "Offizieller Buchwert-Abgleich nicht verfügbar."
+        return result
+
+    eq_26 = safe_float(snapshot.get("shareholders_equity_2026_h1"))
+    sh_26 = safe_float(snapshot.get("shares_2026_h1"))
+    eq_25 = safe_float(snapshot.get("shareholders_equity_2025_fy"))
+    sh_25 = safe_float(snapshot.get("shares_2025_fy"))
+    eq_24 = safe_float(snapshot.get("shareholders_equity_2024_fy"))
+    sh_24 = safe_float(snapshot.get("shares_2024_fy"))
+
+    values = [eq_26, sh_26, eq_25, sh_25, eq_24, sh_24]
+    if any(value is None or value <= 0 for value in values):
+        result["note"] = (
+            "Offizieller Buchwert-Abgleich gesperrt: Equity- oder Aktienzahl "
+            "für mindestens einen Vergleichszeitpunkt fehlt."
+        )
+        return result
+
+    bvps_26 = eq_26 / sh_26
+    bvps_25 = eq_25 / sh_25
+    bvps_24 = eq_24 / sh_24
+    growth_25 = (bvps_25 / bvps_24 - 1.0) * 100.0
+
+    yahoo_bv = safe_float(yahoo_book_value)
+    yahoo_dev = None
+    if yahoo_bv is not None and yahoo_bv > 0:
+        yahoo_dev = abs(yahoo_bv / bvps_26 - 1.0) * 100.0
+
+    result.update({
+        "available": True,
+        "bvps_2026_h1": bvps_26,
+        "bvps_2025_fy": bvps_25,
+        "bvps_2024_fy": bvps_24,
+        "bvps_growth_2025_pct": growth_25,
+        "yahoo_book_value_deviation_pct": yahoo_dev,
+        "note": (
+            "Offizieller Buchwert-Abgleich: Buchwert je Aktie wird aus Allianz-"
+            "Shareholders' Equity und offizieller Aktienzahl je Stichtag gebildet. "
+            "Für den Score wird die abgeschlossene FY2025-Entwicklung gegenüber "
+            "FY2024 verwendet; 6M 2026 wird nicht annualisiert."
+        ),
+    })
+    return result
+
+
+def calculate_insurance_score(snapshot, core_coverage, book_bridge):
+    """
+    Insurer-specific 100-point score.
+
+    Components:
+      - underlying Core RoE: 30
+      - Solvency II: 25
+      - underlying Core EPS growth: 20
+      - official book-value-per-share growth: 15
+      - distribution quality: 10
+    """
+    result = {
+        "available": False,
+        "score": None,
+        "quality_level": "Nicht verfügbar",
+        "core_roe_points": None,
+        "solvency_points": None,
+        "core_growth_points": None,
+        "book_growth_points": None,
+        "distribution_points": None,
+        "core_roe_pct": None,
+        "solvency_ii_pct": None,
+        "underlying_core_eps_growth_pct": None,
+        "book_value_growth_pct": None,
+        "dividend_core_eps_payout_ratio": None,
+        "note": None,
+    }
+
+    if not isinstance(snapshot, dict):
+        result["note"] = "Versicherungs-Score gesperrt: Primärquellen-Snapshot fehlt."
+        return result
+
+    if not (core_coverage or {}).get("available"):
+        result["note"] = (
+            "Versicherungs-Score gesperrt: vollständige Core-TTM-Abdeckung fehlt."
+        )
+        return result
+
+    if not (book_bridge or {}).get("available"):
+        result["note"] = (
+            "Versicherungs-Score gesperrt: offizieller Buchwert-Abgleich fehlt."
+        )
+        return result
+
+    core_roe = safe_float(snapshot.get("underlying_core_roe_pct"))
+    solvency = safe_float(snapshot.get("solvency_ii_ratio_pct"))
+    core_growth = safe_float(snapshot.get("underlying_core_eps_growth_pct"))
+    book_growth = safe_float(book_bridge.get("bvps_growth_2025_pct"))
+    dividend = safe_float(snapshot.get("dividend_2025_per_share"))
+    fy_core_eps = safe_float(snapshot.get("core_eps_fy_2025"))
+
+    if (
+        core_roe is None
+        or solvency is None
+        or core_growth is None
+        or book_growth is None
+        or dividend is None
+        or fy_core_eps is None
+        or fy_core_eps <= 0
+    ):
+        result["note"] = (
+            "Versicherungs-Score gesperrt: mindestens eine versicherungsspezifische "
+            "Kernkomponente fehlt."
+        )
+        return result
+
+    payout = dividend / fy_core_eps
+
+    # Core RoE (max 30)
+    if core_roe < 10:
+        roe_pts = 0
+    elif core_roe < 12:
+        roe_pts = 10
+    elif core_roe < 15:
+        roe_pts = 18
+    elif core_roe < 18:
+        roe_pts = 24
+    else:
+        roe_pts = 30
+
+    # Solvency II (max 25)
+    if solvency < 150:
+        solv_pts = 0
+    elif solvency < 180:
+        solv_pts = 10
+    elif solvency < 200:
+        solv_pts = 17
+    elif solvency < 220:
+        solv_pts = 22
+    else:
+        solv_pts = 25
+
+    # Underlying Core EPS growth (max 20)
+    if core_growth <= 0:
+        growth_pts = 0
+    elif core_growth < 3:
+        growth_pts = 5
+    elif core_growth < 5:
+        growth_pts = 10
+    elif core_growth < 7:
+        growth_pts = 14
+    elif core_growth < 9:
+        growth_pts = 17
+    else:
+        growth_pts = 20
+
+    # Official FY book-value-per-share growth (max 15)
+    if book_growth <= 0:
+        book_pts = 0
+    elif book_growth < 2:
+        book_pts = 5
+    elif book_growth < 4:
+        book_pts = 9
+    elif book_growth < 6:
+        book_pts = 12
+    else:
+        book_pts = 15
+
+    # Distribution quality (max 10).
+    # 40-65% of FY core EPS is treated as a balanced dividend coverage range.
+    if 0.40 <= payout <= 0.65:
+        dist_pts = 10
+    elif 0.30 <= payout < 0.40 or 0.65 < payout <= 0.80:
+        dist_pts = 7
+    elif 0.20 <= payout < 0.30 or 0.80 < payout <= 1.00:
+        dist_pts = 4
+    else:
+        dist_pts = 0
+
+    score = roe_pts + solv_pts + growth_pts + book_pts + dist_pts
+    if score >= 90:
+        quality = "Sehr stark"
+    elif score >= 75:
+        quality = "Stark"
+    elif score >= 60:
+        quality = "Solide"
+    elif score >= 45:
+        quality = "Mittel"
+    else:
+        quality = "Schwach"
+
+    result.update({
+        "available": True,
+        "score": float(score),
+        "quality_level": quality,
+        "core_roe_points": roe_pts,
+        "solvency_points": solv_pts,
+        "core_growth_points": growth_pts,
+        "book_growth_points": book_pts,
+        "distribution_points": dist_pts,
+        "core_roe_pct": core_roe,
+        "solvency_ii_pct": solvency,
+        "underlying_core_eps_growth_pct": core_growth,
+        "book_value_growth_pct": book_growth,
+        "dividend_core_eps_payout_ratio": payout,
+        "note": (
+            "Der Versicherungs-Score verwendet ausschließlich versicherungsspezifische "
+            "Qualitäts-, Kapital- und Ausschüttungsanker. Für Wachstum und Core RoE "
+            "werden die von Allianz selbst ausgewiesenen underlying-Werte verwendet; "
+            "aus den Transaktions-/Divestment-Hinweisen wird kein künstlich bereinigtes "
+            "absolutes EPS erzeugt."
+        ),
+    })
+    return result
+
+
 def build_insurance_special_model(
     company_type,
     info,
@@ -7208,10 +7615,10 @@ def build_insurance_special_model(
     """
     Conservative insurer-specific data block.
 
-    It does not create a new score, valuation multiple or fair value.
-    It only prepares insurer-relevant Yahoo fields, checks obvious
-    unit/plausibility conflicts and makes GBp/GBP handling explicit.
-    Core earnings and solvency/capital ratios are not estimated.
+    V2.20.43 adds an official Core-TTM coverage bridge, book-value quality
+    check and insurer-specific 100-point score. It still does not create a
+    valuation multiple or fair value. Core earnings and solvency/capital
+    ratios are never estimated from Yahoo proxies.
     """
     type_name = str(
         company_type.get("type", "")
@@ -7551,13 +7958,52 @@ def build_insurance_special_model(
         for value in anchor_values
     )
 
+    core_coverage = (
+        build_insurance_core_coverage(snapshot)
+        if snapshot_fresh
+        else {
+            "available": False,
+            "integration_version": INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION,
+            "note": "Core-TTM-Abdeckung nicht verfügbar: Versicherungs-Snapshot ist veraltet.",
+        }
+    )
+
+    book_value_bridge = (
+        build_insurance_book_value_bridge(snapshot, yahoo_book_value=book_value)
+        if snapshot_fresh
+        else {
+            "available": False,
+            "note": "Offizieller Buchwert-Abgleich nicht verfügbar: Versicherungs-Snapshot ist veraltet.",
+        }
+    )
+
+    insurance_score = (
+        calculate_insurance_score(snapshot, core_coverage, book_value_bridge)
+        if snapshot_fresh
+        else {
+            "available": False,
+            "score": None,
+            "quality_level": "Nicht verfügbar",
+            "note": "Versicherungs-Score gesperrt: Versicherungs-Snapshot ist veraltet.",
+        }
+    )
+
     readiness = (
-        "Primärdaten vollständig"
-        if primary_source_complete
+        "Core-TTM + Score vollständig"
+        if (
+            primary_source_complete
+            and core_coverage.get("available")
+            and book_value_bridge.get("available")
+            and insurance_score.get("available")
+        )
         else (
-            "Teilweise"
-            if available_anchors >= 3
-            else "Unvollständig"
+            "Primärdaten vollständig"
+            if primary_source_complete
+            else (
+                "Teilweise"
+                if available_anchors >= 3
+                else "Unvollständig"
+            )
         )
     )
 
@@ -7597,13 +8043,18 @@ def build_insurance_special_model(
         "solvency_ii_prior_pct": safe_float((snapshot or {}).get("solvency_ii_prior_pct")) if snapshot_fresh else None,
         "solvency_ii_change_pp": safe_float((snapshot or {}).get("solvency_ii_change_pp")) if snapshot_fresh else None,
         "underlying_growth_note": (snapshot or {}).get("underlying_growth_note") if snapshot_fresh else None,
+        "underlying_core_eps_growth_pct": safe_float((snapshot or {}).get("underlying_core_eps_growth_pct")) if snapshot_fresh else None,
+        "underlying_core_net_income_growth_pct": safe_float((snapshot or {}).get("underlying_core_net_income_growth_pct")) if snapshot_fresh else None,
+        "underlying_core_roe_pct": safe_float((snapshot or {}).get("underlying_core_roe_pct")) if snapshot_fresh else None,
+        "core_coverage": core_coverage,
+        "book_value_bridge": book_value_bridge,
+        "insurance_score": insurance_score,
         "note": (
-            "Versicherungs-Sondermodell V2.20.42 lädt für unterstützte Versicherer "
-            "Core Earnings/Core EPS, Core RoE und Solvency II ausschließlich aus "
-            "einem aktuellen verifizierten offiziellen Snapshot. Yahoo-ROE, Buchwert, "
-            "KBV, Forward-KGV und Dividende bleiben Kontext/Plausibilitätsanker. "
-            "Die 6M-Core-EPS-Basis wird nicht annualisiert. Noch keine Versicherungspunkte, "
-            "kein Bewertungs-Multiple und kein Fair Value."
+            "Versicherungs-Sondermodell V2.20.43 lädt verifizierte Core Earnings/Core EPS, "
+            "Core RoE und Solvency II und ergänzt eine vollständige Core-TTM-Brücke aus "
+            "12M 2025, 6M 2025 und 6M 2026. Zusätzlich werden offizieller Buchwert je Aktie "
+            "und ein eigener 100-Punkte-Versicherungs-Score berechnet. Die 6M-Daten werden "
+            "nicht annualisiert. Bewertungs-Multiple und Fair Value bleiben noch gesperrt."
         )
     }
 
@@ -7636,27 +8087,54 @@ def build_insurance_special_control(base_control, insurance_model):
         })
         return control
 
+    core_coverage = model.get("core_coverage") or {}
+    book_bridge = model.get("book_value_bridge") or {}
+    insurance_score = model.get("insurance_score") or {}
+
+    score_ready = bool(
+        core_coverage.get("available")
+        and core_coverage.get("integration_version") == INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION
+        and book_bridge.get("available")
+        and insurance_score.get("available")
+    )
+
     control.update({
         "implemented": True,
         "released": False,
         "confidence_cap": "Mittel",
-        "step3b_status": "Primärdaten vollständig – Versicherungsbewertung noch gesperrt",
-        "overall_status": "Primärdaten vollständig",
+        "step3b_status": (
+            "Core-TTM + Versicherungs-Score vollständig – Bewertung noch gesperrt"
+            if score_ready
+            else "Primärdaten vollständig – Core-TTM/Score noch unvollständig"
+        ),
+        "overall_status": (
+            "Core-TTM + Score vollständig"
+            if score_ready
+            else "Primärdaten vollständig"
+        ),
         "snapshot": snapshot,
         "checks": {
             "shareholders_core_net_income": model.get("shareholders_core_net_income"),
             "core_eps_basic": model.get("core_eps_basic"),
             "core_roe_annualized_pct": model.get("core_roe_annualized_pct"),
+            "underlying_core_roe_pct": model.get("underlying_core_roe_pct"),
             "solvency_ii_ratio_pct": model.get("solvency_ii_ratio_pct"),
             "core_eps_growth_pct": model.get("core_eps_growth_pct"),
+            "underlying_core_eps_growth_pct": model.get("underlying_core_eps_growth_pct"),
             "core_net_income_growth_pct": model.get("core_net_income_growth_pct"),
+            "underlying_core_net_income_growth_pct": model.get("underlying_core_net_income_growth_pct"),
             "solvency_ii_prior_pct": model.get("solvency_ii_prior_pct"),
             "solvency_ii_change_pp": model.get("solvency_ii_change_pp"),
+            "core_coverage": core_coverage,
+            "book_value_bridge": book_bridge,
+            "insurance_score": insurance_score,
         },
         "note": (
-            "Versicherungs-Schritt 3B V2.20.42 validiert weiterhin nur die offizielle "
-            "Core-Earnings-/Kapitalbasis. Bewertungs-Score, P/B-/Core-KGV-Korridor und "
-            "Fair Value werden bewusst erst in einem separaten Folgeschritt festgelegt."
+            "Versicherungs-Schritt 3B V2.20.43 validiert die offizielle Core-Earnings-/"
+            "Kapitalbasis, die nicht annualisierte Core-TTM-Brücke, den offiziellen "
+            "Buchwert-Abgleich und den eigenen 100-Punkte-Versicherungs-Score. "
+            "P/B-/Core-KGV-Korridor und Fair Value bleiben bewusst für den nächsten "
+            "separaten Bewertungs-Schritt gesperrt."
         ),
     })
     return control
@@ -10239,20 +10717,21 @@ def get_special_control(company_type, symbol):
                 "Versicherung / Core-Earnings- & Kapitalprüfung"
             ),
             "planned_checks": [
-                "Core Earnings",
-                "ROE",
+                "Core Earnings / Core-TTM-EPS",
+                "Core RoE / underlying Core RoE",
                 "Buchwert / KBV",
                 "Solvency- / Kapitalquote",
-                "Ausschüttungsquote"
+                "Ausschüttungsqualität",
+                "Versicherungs-Score"
             ],
-            "status": "Router aktiv – V2.20.42 Versicherungs-Kontext-Integration",
+            "status": "Router aktiv – V2.20.43 Core-TTM + Versicherungs-Score",
             "note": (
-                "V2.20.42 trennt Yahoo-Kontextkennzahlen von verifizierten "
+                "V2.20.43 trennt Yahoo-Kontextkennzahlen von verifizierten "
                 "Versicherungs-Primärdaten und kennzeichnet generisches Wachstum sowie Cashflow-Statement-FCF "
                 "bei Versicherungen ausschließlich als Kontext. Für unterstützte Versicherer werden "
                 "Core Earnings/Core EPS, Core RoE und Solvency II nur aus einem "
                 "aktuellen offiziellen Snapshot übernommen; fehlende Werte werden "
-                "nicht geschätzt. Bewertungs-Score, Multiple und Fair Value bleiben "
+                "nicht geschätzt. Core-TTM-Abdeckung und Versicherungs-Score werden zusätzlich aus offiziellen Ankern aufgebaut; Multiple und Fair Value bleiben "
                 "in diesem Schritt gesperrt."
             )
         }
@@ -17990,7 +18469,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_insurance_context_integration_fix_v22042_20260909"
+CACHE_VERSION = "m6_insurance_core_coverage_score_v22043_20260909"
 
 @st.cache_data(
     ttl=900,
@@ -18377,6 +18856,22 @@ def load_stock(search_text, cache_version):
             ),
         }
 
+    if insurance_special_model.get("applicable"):
+        insurance_score_total = safe_float(
+            (insurance_special_model.get("insurance_score") or {}).get("score")
+        )
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": insurance_score_total,
+            "multiple": None,
+            "note": (
+                "Versicherungen verwenden kein Standard-Fundamental-Multiple. "
+                "Der versicherungsspezifische Score ist bereits verfügbar; "
+                "P/B-/Core-KGV-Zielkorridore und Fair Value bleiben bis zum "
+                "separaten Bewertungsmodul gesperrt."
+            ),
+        }
+
     peer_group = get_peer_group(
         company_type,
         fundamental_symbol
@@ -18435,7 +18930,8 @@ def load_stock(search_text, cache_version):
 
     special_event_warning = build_special_event_warning(
         eps_normalization,
-        bank_special_model=bank_special_model
+        bank_special_model=bank_special_model,
+        insurance_special_model=insurance_special_model
     )
 
 
@@ -18587,6 +19083,7 @@ def load_stock(search_text, cache_version):
         "fcf_score": fcf_score,
         "balance_score": balance_score,
         "insurance_special_model": insurance_special_model,
+        "insurance_score": insurance_special_model.get("insurance_score") if insurance_special_model.get("applicable") else None,
         "bank_special_model": bank_special_model,
         "bank_score": bank_special_model.get("bank_score") if bank_special_model.get("applicable") else None,
         "midstream_special_model": midstream_special_model,
@@ -19247,16 +19744,33 @@ if selected_symbol:
                     bank_model_eps_ui.get("applicable") and bank_core_eps_ui.get("available")
                 )
 
-                normalized_eps = (
-                    safe_float(bank_core_eps_ui.get("bank_normalized_core_eps"))
-                    if bank_core_eps_active
-                    else eps_result["normalized_eps"]
+                insurance_model_eps_ui = data.get("insurance_special_model") or {}
+                insurance_core_coverage_ui = insurance_model_eps_ui.get("core_coverage") or {}
+                insurance_core_eps_active = bool(
+                    insurance_model_eps_ui.get("applicable")
+                    and insurance_core_coverage_ui.get("available")
+                    and insurance_core_coverage_ui.get("integration_version")
+                    == INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION
                 )
+
+                if bank_core_eps_active:
+                    normalized_eps = safe_float(
+                        bank_core_eps_ui.get("bank_normalized_core_eps")
+                    )
+                    normalized_eps_label = "Bank-normalisiertes Core EPS"
+                elif insurance_core_eps_active:
+                    normalized_eps = safe_float(
+                        insurance_core_coverage_ui.get("core_ttm_eps")
+                    )
+                    normalized_eps_label = "Versicherungs-Core-TTM-EPS"
+                else:
+                    normalized_eps = eps_result["normalized_eps"]
+                    normalized_eps_label = "Normalisiertes EPS"
 
                 if normalized_eps is not None:
 
                     st.metric(
-                        "Bank-normalisiertes Core EPS" if bank_core_eps_active else "Normalisiertes EPS",
+                        normalized_eps_label,
                         format_eps(
                             normalized_eps,
                             financial_currency
@@ -19278,6 +19792,13 @@ if selected_symbol:
                         "TTM-Sonderposten ausschließlich über verifizierte Bank-Primärquellen-Brücke bereinigt"
                     )
                     st.info(bank_core_eps_ui.get("note"))
+                elif insurance_core_eps_active:
+                    st.write(
+                        "**Verwendete Methode:** 12M 2025 Core EPS − 6M 2025 Core EPS + "
+                        "6M 2026 Core EPS; ausschließlich verifizierte Versicherungs-Primärquellen, "
+                        "keine Annualisierung der Halbjahreswerte"
+                    )
+                    st.info(insurance_core_coverage_ui.get("note"))
                 else:
                     st.write(
                         f"**Verwendete Methode:** "
@@ -19287,7 +19808,11 @@ if selected_symbol:
                 confidence = (
                     bank_core_eps_ui.get("confidence")
                     if bank_core_eps_active
-                    else eps_result["confidence"]
+                    else (
+                        "Hoch"
+                        if insurance_core_eps_active
+                        else eps_result["confidence"]
+                    )
                 )
 
                 if confidence == "Hoch":
@@ -19385,6 +19910,12 @@ if selected_symbol:
                     st.caption(
                         "Für die Bankbewertung ist dieser bank-normalisierte Core-EPS-Wert die "
                         "Gewinnbasis des KGV-Ankers. Der P/TBV-Anker bleibt davon unabhängig."
+                    )
+                elif insurance_core_eps_active:
+                    st.caption(
+                        "Für die Versicherungsbewertung ist der verifizierte Core-TTM-EPS-Wert "
+                        "die vorbereitete Gewinnbasis des späteren Core-KGV-Ankers. Ein "
+                        "Versicherungs-Fair-Value ist in V2.20.43 weiterhin gesperrt."
                     )
                 elif company_type.get("type") == "REIT / Immobilien":
                     st.caption(
@@ -19937,9 +20468,9 @@ if selected_symbol:
                 if is_insurance_score_ui:
                     st.info(
                         "Versicherungsmodell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. "
-                        "Umsatz- und Yahoo-Gewinnwachstum bleiben ausschließlich Kontext; der spätere "
-                        "Versicherungs-Score stützt sich auf Core-Ertragskraft, Core RoE, Solvency II, "
-                        "Buchwertentwicklung und Ausschüttungsqualität."
+                        "Umsatz- und Yahoo-Gewinnwachstum bleiben ausschließlich Kontext; der "
+                        "Versicherungs-Score weiter unten stützt sich auf underlying Core-Ertragskraft, Core RoE, "
+                        "Solvency II, offizielle Buchwertentwicklung und Ausschüttungsqualität."
                     )
                     st.caption(
                         "Der intern verfügbare Standard-Wachstumsscore hat bei Versicherungen keinen Einfluss "
@@ -20047,7 +20578,25 @@ if selected_symbol:
                     "profitability_score"
                 ]
 
-                if profitability_result["score"] is not None:
+                is_insurance_profitability_ui = is_insurance_company_type(company_type)
+
+                if is_insurance_profitability_ui:
+                    insurance_score_profit_ui = (
+                        (data.get("insurance_special_model") or {}).get("insurance_score") or {}
+                    )
+                    st.info(
+                        "Versicherungsmodell: Die generische Nettomargen-/ROE-Punktelogik "
+                        "wird nicht verwendet. Die Ertragskraft wird im eigenen "
+                        "Versicherungs-Score über underlying Core RoE und Core-EPS-Wachstum "
+                        "bewertet."
+                    )
+                    if insurance_score_profit_ui.get("available"):
+                        st.write(
+                            "**Underlying Core RoE im Versicherungs-Score:** "
+                            f"{insurance_score_profit_ui.get('core_roe_points')}/30 Punkte "
+                            f"bei {insurance_score_profit_ui.get('core_roe_pct'):.1f} %"
+                        )
+                elif profitability_result["score"] is not None:
 
                     st.metric(
                         "Profitabilitäts-Score",
@@ -20154,7 +20703,10 @@ if selected_symbol:
                         ]
                     )
 
-                if str((company_type or {}).get("type", "")).strip().lower() != "bank":
+                if (
+                    str((company_type or {}).get("type", "")).strip().lower() != "bank"
+                    and not is_insurance_company_type(company_type)
+                ):
                     st.caption(
                         "Die Profitabilität basiert derzeit auf "
                         "aktueller Nettomarge und aktuellem ROE. "
@@ -20498,11 +21050,11 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🛡️ Versicherungs-Sondermodell V2.20.42 – Datenbasis"
+                        "🛡️ Versicherungs-Sondermodell V2.20.43 – Datenbasis"
                     )
 
                     st.info(
-                        "Versicherungsmodell erkannt. V2.20.42 übernimmt das Primärquellen-Gate aus V2.20.40 und trennt "
+                        "Versicherungsmodell erkannt. V2.20.43 übernimmt das Primärquellen-Gate, ergänzt eine nicht annualisierte Core-TTM-Abdeckung und trennt "
                         "Yahoo-Kontextdaten klar von den verifizierten Primärdaten für Core Earnings/Core EPS, "
                         "Core RoE und Solvency II. Es wird noch keine Versicherungsbewertung erzeugt."
                     )
@@ -20526,7 +21078,7 @@ if selected_symbol:
                             "book_value_per_share"
                         ] is not None:
                             st.metric(
-                                "Buchwert je Aktie",
+                                "Buchwert je Aktie (Yahoo-Kontext)",
                                 format_eps(
                                     insurance_model[
                                         "book_value_per_share"
@@ -20536,7 +21088,7 @@ if selected_symbol:
                             )
                         else:
                             st.metric(
-                                "Buchwert je Aktie",
+                                "Buchwert je Aktie (Yahoo-Kontext)",
                                 "–"
                             )
 
@@ -20544,12 +21096,12 @@ if selected_symbol:
                             "display_price_to_book"
                         ] is not None:
                             st.metric(
-                                "KBV aus Kurs / Buchwert",
+                                "KBV aus Kurs / Yahoo-Buchwert",
                                 f"{insurance_model['display_price_to_book']:.2f}×"
                             )
                         else:
                             st.metric(
-                                "KBV aus Kurs / Buchwert",
+                                "KBV aus Kurs / Yahoo-Buchwert",
                                 "–"
                             )
 
@@ -20698,6 +21250,168 @@ if selected_symbol:
                             f"Quelle: {text_or_dash(snapshot.get('source_name'))} · "
                             f"gültig bis {text_or_dash(snapshot.get('valid_until'))}"
                         )
+
+                        core_cov_ui = insurance_model.get("core_coverage") or {}
+                        book_bridge_ui = insurance_model.get("book_value_bridge") or {}
+                        insurance_score_ui = insurance_model.get("insurance_score") or {}
+
+                        st.write("**🧮 Insurance Core-Earnings Coverage Gate**")
+                        if core_cov_ui.get("available"):
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                st.metric(
+                                    "Core EPS 12M 2025",
+                                    format_eps(
+                                        safe_float(core_cov_ui.get("core_eps_fy_2025")),
+                                        financial_currency
+                                    )
+                                )
+                                st.metric(
+                                    "Core EPS 6M 2025",
+                                    format_eps(
+                                        safe_float(core_cov_ui.get("core_eps_h1_2025")),
+                                        financial_currency
+                                    )
+                                )
+                                st.metric(
+                                    "Core EPS H2 2025 (abgeleitet)",
+                                    format_eps(
+                                        safe_float(core_cov_ui.get("core_eps_h2_2025")),
+                                        financial_currency
+                                    )
+                                )
+                            with c2:
+                                st.metric(
+                                    "Core EPS 6M 2026",
+                                    format_eps(
+                                        safe_float(core_cov_ui.get("core_eps_h1_2026")),
+                                        financial_currency
+                                    )
+                                )
+                                st.metric(
+                                    "Core-TTM-EPS",
+                                    format_eps(
+                                        safe_float(core_cov_ui.get("core_ttm_eps")),
+                                        financial_currency
+                                    )
+                                )
+                                st.metric(
+                                    "Core-TTM-Net-Income",
+                                    format_money(
+                                        safe_float(core_cov_ui.get("core_ttm_net_income")),
+                                        financial_currency
+                                    )
+                                )
+
+                            st.success(
+                                "Core-TTM-Abdeckung vollständig: 12M 2025 − 6M 2025 + 6M 2026. "
+                                "Die Halbjahreswerte werden nicht annualisiert."
+                            )
+                            st.caption(
+                                "Integrationsstand: "
+                                + text_or_dash(core_cov_ui.get("integration_version"))
+                            )
+                            st.info(core_cov_ui.get("note"))
+                        else:
+                            st.warning(
+                                core_cov_ui.get("note")
+                                or "Core-TTM-Abdeckung nicht vollständig."
+                            )
+
+                        st.write("**📘 Offizieller Buchwert-Abgleich**")
+                        if book_bridge_ui.get("available"):
+                            b1, b2 = st.columns(2)
+                            with b1:
+                                st.metric(
+                                    "Buchwert/Aktie 30.06.2026",
+                                    format_eps(
+                                        safe_float(book_bridge_ui.get("bvps_2026_h1")),
+                                        financial_currency
+                                    )
+                                )
+                                st.metric(
+                                    "Buchwert/Aktie 31.12.2025",
+                                    format_eps(
+                                        safe_float(book_bridge_ui.get("bvps_2025_fy")),
+                                        financial_currency
+                                    )
+                                )
+                            with b2:
+                                st.metric(
+                                    "Buchwert/Aktie 31.12.2024",
+                                    format_eps(
+                                        safe_float(book_bridge_ui.get("bvps_2024_fy")),
+                                        financial_currency
+                                    )
+                                )
+                                bg = safe_float(book_bridge_ui.get("bvps_growth_2025_pct"))
+                                st.metric(
+                                    "Buchwertwachstum FY2025",
+                                    f"{bg:.1f} %" if bg is not None else "–"
+                                )
+
+                            yahoo_dev = safe_float(
+                                book_bridge_ui.get("yahoo_book_value_deviation_pct")
+                            )
+                            if yahoo_dev is not None:
+                                st.caption(
+                                    f"Yahoo-Buchwert vs. offizieller 6M26-Buchwert je Aktie: "
+                                    f"{yahoo_dev:.1f} % Abweichung."
+                                )
+                            st.info(book_bridge_ui.get("note"))
+                        else:
+                            st.warning(
+                                book_bridge_ui.get("note")
+                                or "Offizieller Buchwert-Abgleich nicht vollständig."
+                            )
+
+                        st.write("**🛡️ Versicherungs-Score V1 – Qualität, Kapital & Ausschüttung**")
+                        if insurance_score_ui.get("available"):
+                            st.metric(
+                                "Versicherungs-Score",
+                                f"{insurance_score_ui.get('score'):.0f}/100 Punkte"
+                            )
+                            st.write(
+                                f"**Qualitätsstufe:** {text_or_dash(insurance_score_ui.get('quality_level'))}"
+                            )
+                            st.write(
+                                f"**Underlying Core RoE:** "
+                                f"{insurance_score_ui.get('core_roe_points')}/30 Punkte "
+                                f"bei {insurance_score_ui.get('core_roe_pct'):.1f} %"
+                            )
+                            st.write(
+                                f"**Solvency-II-Kapitalqualität:** "
+                                f"{insurance_score_ui.get('solvency_points')}/25 Punkte "
+                                f"bei {insurance_score_ui.get('solvency_ii_pct'):.0f} %"
+                            )
+                            st.write(
+                                f"**Underlying Core-EPS-Wachstum:** "
+                                f"{insurance_score_ui.get('core_growth_points')}/20 Punkte "
+                                f"bei {insurance_score_ui.get('underlying_core_eps_growth_pct'):.1f} %"
+                            )
+                            st.write(
+                                f"**Offizielles Buchwertwachstum:** "
+                                f"{insurance_score_ui.get('book_growth_points')}/15 Punkte "
+                                f"bei {insurance_score_ui.get('book_value_growth_pct'):.1f} %"
+                            )
+                            payout_core = safe_float(
+                                insurance_score_ui.get("dividend_core_eps_payout_ratio")
+                            )
+                            st.write(
+                                f"**Ausschüttungsqualität:** "
+                                f"{insurance_score_ui.get('distribution_points')}/10 Punkte "
+                                + (
+                                    f"bei Dividende/Core-EPS {payout_core * 100:.1f} %"
+                                    if payout_core is not None
+                                    else ""
+                                )
+                            )
+                            st.caption(insurance_score_ui.get("note"))
+                        else:
+                            st.warning(
+                                insurance_score_ui.get("note")
+                                or "Versicherungs-Score noch nicht vollständig."
+                            )
                     elif insurance_model.get("snapshot") and not insurance_model.get("snapshot_fresh"):
                         st.warning(
                             "Der verifizierte Versicherungs-Snapshot ist abgelaufen. "
@@ -21449,6 +22163,7 @@ if selected_symbol:
                 is_bank_valuation_ui = (
                     str((company_type or {}).get("type", "")).strip().lower() == "bank"
                 )
+                is_insurance_valuation_ui = is_insurance_company_type(company_type)
 
                 if is_bank_valuation_ui:
                     bank_model_m6 = data.get("bank_special_model") or {}
@@ -21492,6 +22207,32 @@ if selected_symbol:
                     st.caption(
                         "Bei Banken werden P/TBV und normalisiertes KGV getrennt geführt. "
                         "Der Dual-Anchor-Fair-Value folgt erst nach der Bank-Spezialkontrolle in Schritt 3B."
+                    )
+                elif is_insurance_valuation_ui:
+                    insurance_model_m6 = data.get("insurance_special_model") or {}
+                    insurance_score_m6 = insurance_model_m6.get("insurance_score") or {}
+
+                    if insurance_score_m6.get("available"):
+                        st.write(
+                            "**Verwendeter Versicherungs-Score:** "
+                            f"{insurance_score_m6.get('score'):.0f}/100"
+                        )
+                        st.success(
+                            "Versicherungsspezifischer Qualitäts-/Kapital-Score ist vollständig."
+                        )
+                    else:
+                        st.warning(
+                            "Noch kein vollständiger Versicherungs-Score verfügbar."
+                        )
+
+                    st.warning(
+                        "P/B-/Core-KGV-Korridore sind in V2.20.43 noch nicht fachlich "
+                        "freigegeben. Deshalb wird bewusst kein Bewertungs-Multiple berechnet."
+                    )
+                    st.caption(multiple_result.get("note"))
+                    st.caption(
+                        "Der spätere Versicherungs-Fair-Value wird erst in einem separaten "
+                        "Bewertungsschritt aus Buchwert-/P/B- und Core-KGV-Ankern aufgebaut."
                     )
                 else:
                     corridor = multiple_result[
@@ -22090,10 +22831,42 @@ if selected_symbol:
                             "Versicherungs-Primärdaten vollständig validiert. Core Earnings/Core EPS, "
                             "Core RoE und Solvency II sind belastbar vorhanden."
                         )
+
+                        core_cov_3b = checks.get("core_coverage") or {}
+                        insurance_score_3b = checks.get("insurance_score") or {}
+                        book_bridge_3b = checks.get("book_value_bridge") or {}
+
+                        if core_cov_3b.get("available"):
+                            st.write(
+                                "**Core-TTM-EPS:** "
+                                f"{format_eps(core_cov_3b.get('core_ttm_eps'), financial_currency)} "
+                                "· Methode: 12M 2025 − 6M 2025 + 6M 2026"
+                            )
+                            st.caption(core_cov_3b.get("note"))
+
+                        if book_bridge_3b.get("available"):
+                            bg3 = safe_float(book_bridge_3b.get("bvps_growth_2025_pct"))
+                            st.write(
+                                "**Offizielles Buchwertwachstum FY2025:** "
+                                + (f"{bg3:.1f} %" if bg3 is not None else "–")
+                            )
+
+                        if insurance_score_3b.get("available"):
+                            st.metric(
+                                "Versicherungs-Score",
+                                f"{insurance_score_3b.get('score'):.0f}/100 Punkte"
+                            )
+                            st.write(
+                                "**Qualitätsstufe:** "
+                                f"{text_or_dash(insurance_score_3b.get('quality_level'))}"
+                            )
+
                         st.warning(
-                            "Bewertungsfreigabe noch NEIN: V2.20.42 hält die verifizierte Primärdatenbasis unverändert "
-                            "und bereinigt ausschließlich die Kontextdarstellung. Versicherungs-Score, P/B-/Core-KGV-Korridor und "
-                            "Fair Value werden erst im nächsten Schritt fachlich festgelegt."
+                            "Bewertungsfreigabe noch NEIN: V2.20.43 hat Primärdaten, "
+                            "nicht annualisierte Core-TTM-Abdeckung, offiziellen Buchwert-Abgleich "
+                            "und den Versicherungs-Score vollständig aufgebaut. P/B-/Core-KGV-"
+                            "Korridor und Fair Value werden erst im nächsten separaten "
+                            "Bewertungsschritt fachlich festgelegt."
                         )
                     else:
                         st.info(special_control.get("note"))
