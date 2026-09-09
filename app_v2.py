@@ -17,17 +17,17 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.43"
+APP_BUILD_VERSION = "V2.20.44"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · Insurance Core-Earnings Coverage + Score")
+st.caption(f"Build {APP_BUILD_VERSION} · Insurance Dual-Anchor Valuation")
 
 
-# V2.20.43: Insurance Core-Earnings Coverage + Score – vollständige Core-TTM-Brücke aus offiziellen Allianz-Perioden, offizieller Buchwert-/Kapitalabgleich und eigener 100-Punkte-Versicherungs-Score. Noch kein Versicherungs-Fair-Value; Bank V2.20.39 und übrige Spezialmodelle bleiben fachlich unverändert.
+# V2.20.44: Insurance Dual-Anchor Valuation – verifizierter offizieller Buchwert/P-B-Anker + Core-TTM-EPS/Core-KGV-Anker, 55/45 gewichtet und fail-closed bei Quellen-/Coverage-Konflikten. Bank V2.20.39 und übrige Spezialmodelle bleiben fachlich unverändert.
 
 # =========================================================
 # Hilfsfunktionen
@@ -7165,14 +7165,14 @@ def normalize_eps(
 
 
 # =========================================================
-# Versicherungs-Sondermodell V2.20.43 – Core Coverage + Score
+# Versicherungs-Sondermodell V2.20.44 – Core Coverage + Score + Dual-Anchor Valuation
 # =========================================================
 
 def get_verified_insurance_snapshot(symbol):
     """
     Time-bounded official primary-source snapshot for supported insurers.
 
-    V2.20.43 continues with Allianz SE / Allianz Group. Unknown insurers
+    V2.20.44 continues with Allianz SE / Allianz Group. Unknown insurers
     deliberately return None. Core earnings, Core EPS/Core RoE and Solvency II
     are never inferred from Yahoo proxies.
     """
@@ -7217,7 +7217,7 @@ def get_verified_insurance_snapshot(symbol):
         "solvency_ii_change_pp": 7.0,
         "operating_profit": 9.390e9,
 
-        # V2.20.43 – Core-TTM coverage from official Allianz periods.
+        # V2.20.44 – Core-TTM coverage from official Allianz periods.
         # No half-year annualization: TTM = FY2025 - 6M2025 + 6M2026.
         "core_eps_fy_2025": 28.61,
         "core_eps_h1_2025": 13.99,
@@ -7268,7 +7268,7 @@ def get_verified_insurance_snapshot(symbol):
         "underlying_growth_note": (
             "Allianz weist zusätzlich darauf hin, dass das Wachstum des "
             "Shareholders' Core Net Income nach Bereinigung bestimmter "
-            "Transaktions-/Divestment-Effekte bei rund 9 % lag. V2.20.43 "
+            "Transaktions-/Divestment-Effekte bei rund 9 % lag. V2.20.44 "
             "verwendet diesen Hinweis nur als Ertragsqualitäts-Kontext; "
             "es wird daraus keine zusätzliche EPS-Bereinigung geschätzt."
         ),
@@ -7276,7 +7276,7 @@ def get_verified_insurance_snapshot(symbol):
             "Offizielle Allianz-2Q/6M-2026-Daten. Shareholders' Core Net "
             "Income, Core EPS, Core RoE und Solvency-II-Quote werden nicht "
             "aus Yahoo-Feldern rekonstruiert. Die 6M-Werte werden nicht "
-            "annualisiert. V2.20.43 ergänzt daraus die nicht annualisierte Core-TTM-Abdeckung und den Versicherungs-Score. "
+            "annualisiert. V2.20.44 ergänzt daraus die nicht annualisierte Core-TTM-Abdeckung, den Versicherungs-Score und die getrennte Dual-Anchor-Bewertung. "
             "Bewertungs-Multiple und Fair Value bleiben weiterhin gesperrt."
         ),
     }
@@ -7295,13 +7295,13 @@ def _insurance_snapshot_is_fresh(snapshot):
 
 
 
-INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION = "v22043_insurance_core_ttm"
+INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION = "v22044_insurance_core_ttm"
 
 def build_insurance_core_coverage(snapshot):
     """
     Build a fail-closed Core-TTM bridge from official insurer periods.
 
-    V2.20.43 deliberately does not annualize 6M data. For Allianz:
+    V2.20.44 deliberately does not annualize 6M data. For Allianz:
     Core TTM = FY2025 - 6M2025 + 6M2026.
     """
     result = {
@@ -7605,6 +7605,148 @@ def calculate_insurance_score(snapshot, core_coverage, book_bridge):
     return result
 
 
+
+INSURANCE_VALUATION_INTEGRATION_VERSION = "v22044_insurance_dual_anchor"
+
+
+def calculate_insurance_valuation_v1(
+    insurance_score,
+    core_coverage,
+    book_bridge,
+    pb_consistency_status,
+):
+    """Conservative insurer dual-anchor valuation.
+
+    V2.20.44 uses two independent insurer-specific anchors:
+      - 55% official book value per share × score-derived P/B
+      - 45% verified Core-TTM EPS × score-derived Core P/E
+
+    The official 6M26 book value from the primary-source bridge is mandatory.
+    Yahoo book value is only a plausibility cross-check, never the valuation base.
+    """
+    result = {
+        "available": False,
+        "integration_version": INSURANCE_VALUATION_INTEGRATION_VERSION,
+        "insurance_score": None,
+        "pb_corridor_lower": 1.0,
+        "pb_corridor_upper": 2.8,
+        "core_pe_corridor_lower": 8.0,
+        "core_pe_corridor_upper": 14.0,
+        "target_pb": None,
+        "target_core_pe": None,
+        "official_book_value_per_share": None,
+        "core_ttm_eps": None,
+        "fair_value_book_financial": None,
+        "fair_value_core_earnings_financial": None,
+        "fair_value_financial": None,
+        "book_weight": 0.55,
+        "earnings_weight": 0.45,
+        "anchor_spread_pct": None,
+        "confidence_cap": "Mittel",
+        "note": None,
+    }
+
+    if not isinstance(insurance_score, dict) or not insurance_score.get("available"):
+        result["note"] = "Versicherungsbewertung gesperrt: kein vollständiger Versicherungs-Score verfügbar."
+        return result
+
+    if not isinstance(core_coverage, dict) or not core_coverage.get("available"):
+        result["note"] = "Versicherungsbewertung gesperrt: verifizierte Core-TTM-Abdeckung fehlt."
+        return result
+
+    if core_coverage.get("integration_version") != INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION:
+        result["note"] = (
+            "Versicherungsbewertung gesperrt: die Core-TTM-Basis stammt nicht aus dem aktuellen "
+            "Insurance Coverage Gate. Veraltete oder annualisierte Halbjahrespfade werden nicht akzeptiert."
+        )
+        return result
+
+    if not isinstance(book_bridge, dict) or not book_bridge.get("available"):
+        result["note"] = "Versicherungsbewertung gesperrt: offizieller Buchwert-Abgleich fehlt."
+        return result
+
+    if pb_consistency_status == "conflict":
+        result["note"] = (
+            "Versicherungsbewertung gesperrt: Yahoo-Kontext und Kurs/Buchwert-Plausibilisierung "
+            "zeigen einen möglichen Einheiten-/Quellenkonflikt."
+        )
+        return result
+
+    yahoo_bv_dev = safe_float(book_bridge.get("yahoo_book_value_deviation_pct"))
+    if yahoo_bv_dev is not None and yahoo_bv_dev > 5.0:
+        result["note"] = (
+            "Versicherungsbewertung gesperrt: offizieller 6M-Buchwert je Aktie und Yahoo-"
+            "Buchwert weichen um mehr als 5 % voneinander ab. Der Primärquellenkonflikt muss zuerst geklärt werden."
+        )
+        return result
+
+    score = safe_float(insurance_score.get("score"))
+    official_bvps = safe_float(book_bridge.get("bvps_2026_h1"))
+    core_ttm_eps = safe_float(core_coverage.get("core_ttm_eps"))
+
+    if (
+        score is None
+        or official_bvps is None
+        or official_bvps <= 0
+        or core_ttm_eps is None
+        or core_ttm_eps <= 0
+    ):
+        result["note"] = (
+            "Versicherungsbewertung gesperrt: Versicherungs-Score, offizieller aktueller Buchwert "
+            "und verifiziertes Core-TTM-EPS müssen gleichzeitig positiv verfügbar sein."
+        )
+        return result
+
+    score_fraction = max(0.0, min(1.0, score / 100.0))
+    target_pb = 1.0 + (2.8 - 1.0) * score_fraction
+    target_core_pe = 8.0 + (14.0 - 8.0) * score_fraction
+
+    fair_book = official_bvps * target_pb
+    fair_earnings = core_ttm_eps * target_core_pe
+
+    if fair_book <= 0 or fair_earnings <= 0:
+        result["note"] = "Versicherungsbewertung gesperrt: mindestens ein Bewertungsanker ist nicht positiv."
+        return result
+
+    anchor_spread = abs(fair_book / fair_earnings - 1.0)
+    if anchor_spread > 0.25:
+        result.update({
+            "insurance_score": score,
+            "target_pb": target_pb,
+            "target_core_pe": target_core_pe,
+            "official_book_value_per_share": official_bvps,
+            "core_ttm_eps": core_ttm_eps,
+            "fair_value_book_financial": fair_book,
+            "fair_value_core_earnings_financial": fair_earnings,
+            "anchor_spread_pct": anchor_spread * 100.0,
+            "note": (
+                "Versicherungsbewertung gesperrt: offizieller Buchwert-/P/B-Anker und Core-KGV-Anker "
+                "weichen um mehr als 25 % voneinander ab. Die beiden Bewertungswege sind nicht ausreichend konsistent."
+            ),
+        })
+        return result
+
+    fair_blended = 0.55 * fair_book + 0.45 * fair_earnings
+    result.update({
+        "available": True,
+        "insurance_score": score,
+        "target_pb": target_pb,
+        "target_core_pe": target_core_pe,
+        "official_book_value_per_share": official_bvps,
+        "core_ttm_eps": core_ttm_eps,
+        "fair_value_book_financial": fair_book,
+        "fair_value_core_earnings_financial": fair_earnings,
+        "fair_value_financial": fair_blended,
+        "anchor_spread_pct": anchor_spread * 100.0,
+        "note": (
+            "Versicherungs-Fair-Value V1 kombiniert 55 % offiziellen Buchwert-/P/B-Anker und "
+            "45 % verifizierten Core-TTM-EPS/Core-KGV-Anker. Der Versicherungs-Score steuert beide "
+            "Zielkorridore linear. Yahoo-Buchwert und Forward-KGV bleiben reine Plausibilitäts-/Kontextanker. "
+            "Bei mehr als 25 % Abstand zwischen den beiden Fair-Value-Ankern bleibt die Bewertung gesperrt."
+        ),
+    })
+    return result
+
 def build_insurance_special_model(
     company_type,
     info,
@@ -7615,10 +7757,10 @@ def build_insurance_special_model(
     """
     Conservative insurer-specific data block.
 
-    V2.20.43 adds an official Core-TTM coverage bridge, book-value quality
-    check and insurer-specific 100-point score. It still does not create a
-    valuation multiple or fair value. Core earnings and solvency/capital
-    ratios are never estimated from Yahoo proxies.
+    V2.20.44 keeps the official Core-TTM coverage bridge, book-value quality
+    check and insurer-specific 100-point score, then adds a conservative
+    official-book-value + Core-TTM-EPS dual-anchor valuation. Core earnings and
+    solvency/capital ratios are never estimated from Yahoo proxies.
     """
     type_name = str(
         company_type.get("type", "")
@@ -7988,21 +8130,38 @@ def build_insurance_special_model(
         }
     )
 
+    insurance_valuation = calculate_insurance_valuation_v1(
+        insurance_score,
+        core_coverage,
+        book_value_bridge,
+        pb_consistency_status,
+    )
+
     readiness = (
-        "Core-TTM + Score vollständig"
+        "Core-TTM + Score + Bewertung vollständig"
         if (
             primary_source_complete
             and core_coverage.get("available")
             and book_value_bridge.get("available")
             and insurance_score.get("available")
+            and insurance_valuation.get("available")
         )
         else (
-            "Primärdaten vollständig"
-            if primary_source_complete
+            "Core-TTM + Score vollständig – Bewertung gesperrt"
+            if (
+                primary_source_complete
+                and core_coverage.get("available")
+                and book_value_bridge.get("available")
+                and insurance_score.get("available")
+            )
             else (
-                "Teilweise"
-                if available_anchors >= 3
-                else "Unvollständig"
+                "Primärdaten vollständig"
+                if primary_source_complete
+                else (
+                    "Teilweise"
+                    if available_anchors >= 3
+                    else "Unvollständig"
+                )
             )
         )
     )
@@ -8049,12 +8208,13 @@ def build_insurance_special_model(
         "core_coverage": core_coverage,
         "book_value_bridge": book_value_bridge,
         "insurance_score": insurance_score,
+        "insurance_valuation": insurance_valuation,
         "note": (
-            "Versicherungs-Sondermodell V2.20.43 lädt verifizierte Core Earnings/Core EPS, "
-            "Core RoE und Solvency II und ergänzt eine vollständige Core-TTM-Brücke aus "
-            "12M 2025, 6M 2025 und 6M 2026. Zusätzlich werden offizieller Buchwert je Aktie "
-            "und ein eigener 100-Punkte-Versicherungs-Score berechnet. Die 6M-Daten werden "
-            "nicht annualisiert. Bewertungs-Multiple und Fair Value bleiben noch gesperrt."
+            "Versicherungs-Sondermodell V2.20.44 lädt verifizierte Core Earnings/Core EPS, "
+            "Core RoE und Solvency II, die vollständige Core-TTM-Brücke, den offiziellen "
+            "Buchwert je Aktie und den 100-Punkte-Versicherungs-Score. Bei vollständiger "
+            "und konsistenter Datenbasis wird ein Dual-Anchor-Fair-Value aus 55 % offiziellem "
+            "Buchwert/P-B und 45 % Core-TTM-EPS/Core-KGV freigegeben. Die 6M-Daten werden nicht annualisiert."
         )
     }
 
@@ -8090,6 +8250,7 @@ def build_insurance_special_control(base_control, insurance_model):
     core_coverage = model.get("core_coverage") or {}
     book_bridge = model.get("book_value_bridge") or {}
     insurance_score = model.get("insurance_score") or {}
+    insurance_valuation = model.get("insurance_valuation") or {}
 
     score_ready = bool(
         core_coverage.get("available")
@@ -8097,20 +8258,33 @@ def build_insurance_special_control(base_control, insurance_model):
         and book_bridge.get("available")
         and insurance_score.get("available")
     )
+    valuation_released = bool(
+        score_ready
+        and insurance_valuation.get("available")
+        and insurance_valuation.get("integration_version") == INSURANCE_VALUATION_INTEGRATION_VERSION
+    )
 
     control.update({
         "implemented": True,
-        "released": False,
-        "confidence_cap": "Mittel",
+        "released": valuation_released,
+        "confidence_cap": (insurance_valuation.get("confidence_cap") or "Mittel"),
         "step3b_status": (
-            "Core-TTM + Versicherungs-Score vollständig – Bewertung noch gesperrt"
-            if score_ready
-            else "Primärdaten vollständig – Core-TTM/Score noch unvollständig"
+            "Versicherungsbewertung freigegeben – Dual-Anchor V1"
+            if valuation_released
+            else (
+                "Core-TTM + Versicherungs-Score vollständig – Bewertung noch gesperrt"
+                if score_ready
+                else "Primärdaten vollständig – Core-TTM/Score noch unvollständig"
+            )
         ),
         "overall_status": (
-            "Core-TTM + Score vollständig"
-            if score_ready
-            else "Primärdaten vollständig"
+            "Freigegeben"
+            if valuation_released
+            else (
+                "Core-TTM + Score vollständig"
+                if score_ready
+                else "Primärdaten vollständig"
+            )
         ),
         "snapshot": snapshot,
         "checks": {
@@ -8128,13 +8302,19 @@ def build_insurance_special_control(base_control, insurance_model):
             "core_coverage": core_coverage,
             "book_value_bridge": book_bridge,
             "insurance_score": insurance_score,
+            "insurance_valuation": insurance_valuation,
         },
         "note": (
-            "Versicherungs-Schritt 3B V2.20.43 validiert die offizielle Core-Earnings-/"
-            "Kapitalbasis, die nicht annualisierte Core-TTM-Brücke, den offiziellen "
-            "Buchwert-Abgleich und den eigenen 100-Punkte-Versicherungs-Score. "
-            "P/B-/Core-KGV-Korridor und Fair Value bleiben bewusst für den nächsten "
-            "separaten Bewertungs-Schritt gesperrt."
+            "Versicherungs-Schritt 3B V2.20.44 hat Primärdaten, Core-TTM-Abdeckung, offiziellen "
+            "Buchwert-Abgleich, Versicherungs-Score und beide Bewertungsanker validiert. Der Fair Value "
+            "wird nur freigegeben, wenn offizieller Buchwert/P-B- und Core-TTM/Core-KGV-Anker gleichzeitig "
+            "belastbar und ausreichend konsistent sind."
+            if valuation_released
+            else (
+                "Versicherungs-Schritt 3B V2.20.44 hat die Primärdatenbasis validiert, aber die "
+                "Bewertungsfreigabe bleibt gesperrt: "
+                + str(insurance_valuation.get("note") or insurance_score.get("note") or "Versicherungsbewertung unvollständig.")
+            )
         ),
     })
     return control
@@ -10724,15 +10904,12 @@ def get_special_control(company_type, symbol):
                 "Ausschüttungsqualität",
                 "Versicherungs-Score"
             ],
-            "status": "Router aktiv – V2.20.43 Core-TTM + Versicherungs-Score",
+            "status": "Router aktiv – V2.20.44 Core-TTM + Versicherungs-Score + Dual-Anchor-Bewertung",
             "note": (
-                "V2.20.43 trennt Yahoo-Kontextkennzahlen von verifizierten "
-                "Versicherungs-Primärdaten und kennzeichnet generisches Wachstum sowie Cashflow-Statement-FCF "
-                "bei Versicherungen ausschließlich als Kontext. Für unterstützte Versicherer werden "
-                "Core Earnings/Core EPS, Core RoE und Solvency II nur aus einem "
-                "aktuellen offiziellen Snapshot übernommen; fehlende Werte werden "
-                "nicht geschätzt. Core-TTM-Abdeckung und Versicherungs-Score werden zusätzlich aus offiziellen Ankern aufgebaut; Multiple und Fair Value bleiben "
-                "in diesem Schritt gesperrt."
+                "V2.20.44 trennt Yahoo-Kontextkennzahlen von verifizierten Versicherungs-Primärdaten. "
+                "Core-TTM-Abdeckung, offizieller Buchwert, Versicherungs-Score sowie P/B- und Core-KGV-Anker "
+                "werden nur aus verifizierten Daten aufgebaut. Der Fair Value wird ausschließlich bei vollständiger "
+                "und konsistenter Dual-Anchor-Prüfung freigegeben."
             )
         }
 
@@ -17106,6 +17283,121 @@ def calculate_fair_value_v1(
         })
         return result
 
+    # Insurance V2.20.44 – dedicated dual-anchor fair value using the official
+    # current book value and verified Core-TTM EPS. This branch stays separate
+    # from the generic EPS × single-multiple path.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "insurance_core_capital"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        insurance_valuation = checks.get("insurance_valuation") or {}
+        if not insurance_valuation.get("available"):
+            result["note"] = (
+                "Fair Value V1 gesperrt: Die Versicherungs-Spezialkontrolle ist zwar implementiert, "
+                "aber der Dual-Anchor-Bewertungsblock ist nicht vollständig freigegeben."
+            )
+            return result
+
+        if insurance_valuation.get("integration_version") != INSURANCE_VALUATION_INTEGRATION_VERSION:
+            result["note"] = (
+                "Fair Value V1 gesperrt: Versicherungsbewertung stammt nicht aus dem aktuellen "
+                "Dual-Anchor-Integrationsstand."
+            )
+            return result
+
+        fair_value_financial = safe_float(insurance_valuation.get("fair_value_financial"))
+        if fair_value_financial is None or fair_value_financial <= 0:
+            result["note"] = "Fair Value V1 gesperrt: Versicherungs-Fair-Value ist nicht positiv verfügbar."
+            return result
+
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = (
+                "Fair Value V1 gesperrt: Die Währungseinheiten der Versicherungsbewertung sind nicht eindeutig."
+            )
+            return result
+
+        share_context = context.get("share_unit_context") or {}
+        share_ratio = 1.0
+        unit_notes = []
+        if share_context.get("conversion_required"):
+            if not share_context.get("conversion_available"):
+                result["note"] = (
+                    "Fair Value V1 gesperrt: Die Versicherungs-Handelsnotierung verwendet eine abweichende "
+                    "Aktieneinheit ohne verifizierte Umrechnung."
+                )
+                return result
+            share_ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
+            if share_ratio is None or share_ratio <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Aktien-/ADR-Verhältnis ist nicht belastbar."
+                return result
+            unit_notes.append(
+                "Aktieneinheit ausdrücklich angeglichen: 1 "
+                f"{share_context.get('quote_unit_name') or 'Handelseinheit'} = "
+                f"{share_ratio:g} {share_context.get('fundamental_unit_name') or 'Fundamentalaktien'}."
+            )
+
+        fair_value_quote = fair_value_financial * share_ratio
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = (
+                    "Fair Value V1 gesperrt: Finanz- und Handelswährung weichen ab, aber die "
+                    "Umrechnung ist nicht belastbar verfügbar."
+                )
+                return result
+            fair_value_quote *= factor
+            if context.get("conversion_kind") == "gbp_pence":
+                unit_notes.append("Währungseinheit ausdrücklich angeglichen: 1 GBP = 100 GBp.")
+            else:
+                fx_symbol = context.get("fx_symbol")
+                unit_notes.append(
+                    f"Währungsumrechnung ausdrücklich angewendet: 1 {financial_currency} = "
+                    f"{factor:.6f} {quote_currency}" + (f" über {fx_symbol}." if fx_symbol else ".")
+                )
+        elif quote_currency != financial_currency:
+            result["note"] = (
+                "Fair Value V1 gesperrt: Finanz- und Handelswährung weichen ab und es liegt "
+                "keine ausdrückliche Umrechnung vor."
+            )
+            return result
+
+        current_price_value = safe_float(current_price)
+        potential_pct = None
+        if current_price_value is not None and current_price_value > 0:
+            potential_pct = (fair_value_quote / current_price_value - 1.0) * 100.0
+
+        result.update({
+            "available": True,
+            "valuation_method": "insurance_dual_anchor",
+            "normalized_eps": safe_float(insurance_valuation.get("core_ttm_eps")),
+            "used_multiple": None,
+            "multiple_source": "Insurance Dual-Anchor P/B + Core-KGV",
+            "fair_value_financial": fair_value_financial,
+            "fair_value_quote": fair_value_quote,
+            "potential_pct": potential_pct,
+            "insurance_score": safe_float(insurance_valuation.get("insurance_score")),
+            "target_pb": safe_float(insurance_valuation.get("target_pb")),
+            "target_core_pe": safe_float(insurance_valuation.get("target_core_pe")),
+            "official_book_value_per_share": safe_float(insurance_valuation.get("official_book_value_per_share")),
+            "fair_value_book_financial": safe_float(insurance_valuation.get("fair_value_book_financial")),
+            "fair_value_core_earnings_financial": safe_float(insurance_valuation.get("fair_value_core_earnings_financial")),
+            "book_weight": safe_float(insurance_valuation.get("book_weight")),
+            "earnings_weight": safe_float(insurance_valuation.get("earnings_weight")),
+            "anchor_spread_pct": safe_float(insurance_valuation.get("anchor_spread_pct")),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "Versicherungs-Fair-Value V1 = 55 % offizieller Buchwert/P-B-Anker + "
+                "45 % verifizierter Core-TTM-EPS/Core-KGV-Anker. Standard-FCF und klassische "
+                "Netto-Schulden/FCF-Logik werden nicht verwendet."
+            ),
+        })
+        return result
+
     if (
         isinstance(special_control, dict)
         and special_control.get("required")
@@ -18469,7 +18761,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_insurance_core_coverage_score_v22043_20260909"
+CACHE_VERSION = "m6_insurance_dual_anchor_v22044_20260909"
 
 @st.cache_data(
     ttl=900,
@@ -18865,10 +19157,9 @@ def load_stock(search_text, cache_version):
             "score": insurance_score_total,
             "multiple": None,
             "note": (
-                "Versicherungen verwenden kein Standard-Fundamental-Multiple. "
-                "Der versicherungsspezifische Score ist bereits verfügbar; "
-                "P/B-/Core-KGV-Zielkorridore und Fair Value bleiben bis zum "
-                "separaten Bewertungsmodul gesperrt."
+                "Versicherungen verwenden kein einzelnes Standard-Fundamental-Multiple. "
+                "Der versicherungsspezifische Score steuert getrennte P/B- und Core-KGV-Zielkorridore; "
+                "die eigentliche Dual-Anchor-Bewertung erfolgt in Schritt 3B."
             ),
         }
 
@@ -19915,7 +20206,7 @@ if selected_symbol:
                     st.caption(
                         "Für die Versicherungsbewertung ist der verifizierte Core-TTM-EPS-Wert "
                         "die vorbereitete Gewinnbasis des späteren Core-KGV-Ankers. Ein "
-                        "Versicherungs-Fair-Value ist in V2.20.43 weiterhin gesperrt."
+                        "Der Versicherungs-Core-TTM-EPS-Wert ist die Gewinnbasis des Core-KGV-Ankers; die Fair-Value-Freigabe erfolgt ausschließlich über das Versicherungs-Dual-Anchor-Gate V2.20.44."
                     )
                 elif company_type.get("type") == "REIT / Immobilien":
                     st.caption(
@@ -21050,13 +21341,13 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🛡️ Versicherungs-Sondermodell V2.20.43 – Datenbasis"
+                        "🛡️ Versicherungs-Sondermodell V2.20.44 – Datenbasis"
                     )
 
                     st.info(
-                        "Versicherungsmodell erkannt. V2.20.43 übernimmt das Primärquellen-Gate, ergänzt eine nicht annualisierte Core-TTM-Abdeckung und trennt "
+                        "Versicherungsmodell erkannt. V2.20.44 übernimmt das Primärquellen-Gate, ergänzt die nicht annualisierte Core-TTM-Abdeckung und die Dual-Anchor-Bewertung und trennt "
                         "Yahoo-Kontextdaten klar von den verifizierten Primärdaten für Core Earnings/Core EPS, "
-                        "Core RoE und Solvency II. Es wird noch keine Versicherungsbewertung erzeugt."
+                        "Core RoE und Solvency II. Die Versicherungsbewertung wird nur nach vollständiger Dual-Anchor-Prüfung freigegeben."
                     )
 
                     col1, col2 = st.columns(2)
@@ -22211,28 +22502,45 @@ if selected_symbol:
                 elif is_insurance_valuation_ui:
                     insurance_model_m6 = data.get("insurance_special_model") or {}
                     insurance_score_m6 = insurance_model_m6.get("insurance_score") or {}
+                    insurance_val_m6 = insurance_model_m6.get("insurance_valuation") or {}
 
                     if insurance_score_m6.get("available"):
                         st.write(
                             "**Verwendeter Versicherungs-Score:** "
                             f"{insurance_score_m6.get('score'):.0f}/100"
                         )
+                    else:
+                        st.warning("Noch kein vollständiger Versicherungs-Score verfügbar.")
+
+                    st.write(
+                        "**P/B-Korridor:** "
+                        f"{insurance_val_m6.get('pb_corridor_lower', 1.0):.1f}× bis "
+                        f"{insurance_val_m6.get('pb_corridor_upper', 2.8):.1f}×"
+                    )
+                    st.write(
+                        "**Core-KGV-Korridor:** "
+                        f"{insurance_val_m6.get('core_pe_corridor_lower', 8.0):.1f}× bis "
+                        f"{insurance_val_m6.get('core_pe_corridor_upper', 14.0):.1f}×"
+                    )
+
+                    target_pb = safe_float(insurance_val_m6.get("target_pb"))
+                    target_core_pe = safe_float(insurance_val_m6.get("target_core_pe"))
+                    if target_pb is not None and target_core_pe is not None:
+                        st.metric("Ziel-P/B", f"{target_pb:.2f}×")
+                        st.metric("Ziel-Core-KGV", f"{target_core_pe:.2f}×")
                         st.success(
-                            "Versicherungsspezifischer Qualitäts-/Kapital-Score ist vollständig."
+                            "Versicherungsspezifische Ziel-Multiples aus dem Versicherungs-Score berechnet. "
+                            "Es wird bewusst kein einzelnes Standard-Fundamental-Multiple verwendet."
                         )
                     else:
-                        st.warning(
-                            "Noch kein vollständiger Versicherungs-Score verfügbar."
+                        st.info(
+                            "Versicherungs-Zielmultiples noch nicht freigegeben. Die Bewertung bleibt fail-closed."
                         )
 
-                    st.warning(
-                        "P/B-/Core-KGV-Korridore sind in V2.20.43 noch nicht fachlich "
-                        "freigegeben. Deshalb wird bewusst kein Bewertungs-Multiple berechnet."
-                    )
                     st.caption(multiple_result.get("note"))
                     st.caption(
-                        "Der spätere Versicherungs-Fair-Value wird erst in einem separaten "
-                        "Bewertungsschritt aus Buchwert-/P/B- und Core-KGV-Ankern aufgebaut."
+                        "Bei Versicherungen werden offizieller Buchwert/P-B und verifiziertes Core-TTM-EPS/Core-KGV "
+                        "getrennt geführt. Der Dual-Anchor-Fair-Value folgt erst nach Schritt 3B."
                     )
                 else:
                     corridor = multiple_result[
@@ -22835,6 +23143,7 @@ if selected_symbol:
                         core_cov_3b = checks.get("core_coverage") or {}
                         insurance_score_3b = checks.get("insurance_score") or {}
                         book_bridge_3b = checks.get("book_value_bridge") or {}
+                        insurance_val_3b = checks.get("insurance_valuation") or {}
 
                         if core_cov_3b.get("available"):
                             st.write(
@@ -22846,6 +23155,11 @@ if selected_symbol:
 
                         if book_bridge_3b.get("available"):
                             bg3 = safe_float(book_bridge_3b.get("bvps_growth_2025_pct"))
+                            bv_current = safe_float(book_bridge_3b.get("bvps_2026_h1"))
+                            st.write(
+                                "**Offizieller Buchwert je Aktie 30.06.2026:** "
+                                + (f"{bv_current:.2f} {financial_currency}" if bv_current is not None else "–")
+                            )
                             st.write(
                                 "**Offizielles Buchwertwachstum FY2025:** "
                                 + (f"{bg3:.1f} %" if bg3 is not None else "–")
@@ -22861,19 +23175,50 @@ if selected_symbol:
                                 f"{text_or_dash(insurance_score_3b.get('quality_level'))}"
                             )
 
-                        st.warning(
-                            "Bewertungsfreigabe noch NEIN: V2.20.43 hat Primärdaten, "
-                            "nicht annualisierte Core-TTM-Abdeckung, offiziellen Buchwert-Abgleich "
-                            "und den Versicherungs-Score vollständig aufgebaut. P/B-/Core-KGV-"
-                            "Korridor und Fair Value werden erst im nächsten separaten "
-                            "Bewertungsschritt fachlich festgelegt."
-                        )
+                        if insurance_val_3b.get("target_pb") is not None:
+                            st.write(
+                                "**Ziel-P/B:** "
+                                f"{insurance_val_3b.get('target_pb'):.2f}× innerhalb "
+                                f"{insurance_val_3b.get('pb_corridor_lower'):.1f}–{insurance_val_3b.get('pb_corridor_upper'):.1f}×"
+                            )
+                        if insurance_val_3b.get("target_core_pe") is not None:
+                            st.write(
+                                "**Ziel-Core-KGV:** "
+                                f"{insurance_val_3b.get('target_core_pe'):.2f}× innerhalb "
+                                f"{insurance_val_3b.get('core_pe_corridor_lower'):.1f}–{insurance_val_3b.get('core_pe_corridor_upper'):.1f}×"
+                            )
+                        if insurance_val_3b.get("fair_value_book_financial") is not None:
+                            st.write(
+                                "**Fair-Value-Anker Buchwert/P-B:** "
+                                f"{insurance_val_3b.get('fair_value_book_financial'):.2f} {financial_currency}"
+                            )
+                        if insurance_val_3b.get("fair_value_core_earnings_financial") is not None:
+                            st.write(
+                                "**Fair-Value-Anker Core-KGV:** "
+                                f"{insurance_val_3b.get('fair_value_core_earnings_financial'):.2f} {financial_currency}"
+                            )
+                        if insurance_val_3b.get("anchor_spread_pct") is not None:
+                            st.write(
+                                "**Abstand der beiden Anker:** "
+                                f"{insurance_val_3b.get('anchor_spread_pct'):.1f} %"
+                            )
+
+                        if special_control.get("released") and insurance_val_3b.get("available"):
+                            st.success(
+                                "Bewertungsfreigabe JA: Versicherungs-Score sowie offizieller P/B- und Core-KGV-Anker "
+                                "sind vollständig und ausreichend konsistent. Der Dual-Anchor-Fair-Value ist freigegeben."
+                            )
+                        else:
+                            st.warning(
+                                "Bewertungsfreigabe noch NEIN: "
+                                + str(insurance_val_3b.get("note") or special_control.get("note") or "Versicherungsbewertung unvollständig.")
+                            )
                     else:
                         st.info(special_control.get("note"))
 
                     st.caption(
-                        "Primärdatenfreigabe und Bewertungsfreigabe sind getrennt. "
-                        "Ein vollständiger Versicherungsdatensatz allein erzeugt noch keinen Fair Value."
+                        "Versicherungs-Freigabe bleibt fail-closed: veraltete Primärdaten, unvollständige Core-TTM-Abdeckung, "
+                        "Buchwert-Quellenkonflikte oder mehr als 25 % Abstand zwischen Buchwert/P-B- und Core-KGV-Anker sperren die Bewertung."
                     )
 
                 if special_control.get(
@@ -24772,6 +25117,44 @@ if selected_symbol:
                                 "**Abstand der Bewertungsanker:** "
                                 f"{fair_value.get('anchor_spread_pct'):.1f} %"
                             )
+                    elif fair_value.get("valuation_method") == "insurance_dual_anchor":
+                        st.write(
+                            "**Bewertungsformel:** "
+                            "55 % offizieller Buchwert/P-B-Anker + 45 % verifizierter Core-TTM-EPS/Core-KGV-Anker"
+                        )
+                        st.write(
+                            "**Versicherungs-Score:** "
+                            f"{fair_value.get('insurance_score'):.0f}/100"
+                        )
+                        st.write(
+                            "**Offizieller Buchwert je Aktie:** "
+                            f"{fair_value.get('official_book_value_per_share'):.2f} {fair_value['financial_currency']}"
+                        )
+                        st.write(
+                            "**Core-TTM-EPS:** "
+                            f"{fair_value.get('normalized_eps'):.2f} {fair_value['financial_currency']}"
+                        )
+                        st.write(
+                            "**Ziel-P/B:** "
+                            f"{fair_value.get('target_pb'):.2f}×"
+                        )
+                        st.write(
+                            "**Ziel-Core-KGV:** "
+                            f"{fair_value.get('target_core_pe'):.2f}×"
+                        )
+                        st.write(
+                            "**Buchwert/P-B-Fair-Value-Anker:** "
+                            f"{fair_value.get('fair_value_book_financial'):.2f} {fair_value['financial_currency']}"
+                        )
+                        st.write(
+                            "**Core-KGV-Fair-Value-Anker:** "
+                            f"{fair_value.get('fair_value_core_earnings_financial'):.2f} {fair_value['financial_currency']}"
+                        )
+                        if fair_value.get("anchor_spread_pct") is not None:
+                            st.write(
+                                "**Abstand der Bewertungsanker:** "
+                                f"{fair_value.get('anchor_spread_pct'):.1f} %"
+                            )
                     else:
                         st.write(
                             "**Bewertungsformel:** "
@@ -24843,6 +25226,11 @@ if selected_symbol:
                     if fair_value.get("valuation_method") == "bank_dual_anchor":
                         st.success(
                             "Bank-Fair-Value V1 wurde aus zwei unabhängigen, bankspezifischen "
+                            "Bewertungsankern berechnet und erst nach der Schritt-3B-Freigabe veröffentlicht."
+                        )
+                    elif fair_value.get("valuation_method") == "insurance_dual_anchor":
+                        st.success(
+                            "Versicherungs-Fair-Value V1 wurde aus zwei unabhängigen, versicherungsspezifischen "
                             "Bewertungsankern berechnet und erst nach der Schritt-3B-Freigabe veröffentlicht."
                         )
                     else:
