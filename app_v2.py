@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.34: Bank FCF Context UX – Bank-Cashflow wird klar als Kontext/Rohdaten gekennzeichnet; Bewertung bleibt unverändert gesperrt.
+# V2.20.35: Bank Special-Item Warning UX – verifizierte Bank-Sonderposten werden in der Sonderereignis-Ampel gelb statt grün dargestellt; Bewertung bleibt unverändert gesperrt.
 
 # =========================================================
 # Hilfsfunktionen
@@ -626,16 +626,18 @@ def evaluate_cycle_eps_comparability_gate(
 
 
 
-def build_special_event_warning(eps_normalization):
+def build_special_event_warning(eps_normalization, bank_special_model=None):
     """
-    V2.20.12 – Sonderereignis-Warnampel mit End-to-End-Nutzerführung.
+    V2.20.35 – Sonderereignis-Warnampel mit Bank-Sonderposten-Integration.
 
     Die Ampel übersetzt technische EPS-/Vergleichbarkeits-Signale in eine
     einfache Handlungsebene:
 
     - Grün: keine wesentliche Sonderauffälligkeit aus der EPS-Prüfung.
-    - Gelb: auffällige Abweichung, Bewertung bleibt aber nutzbar; erhöhte
-      Vorsicht, noch keine zwingende externe Sonderrecherche.
+    - Gelb: auffällige Abweichung oder verifizierter bankspezifischer
+      Sonderposten; Bewertung bleibt auf dieser Ampel-Ebene nutzbar,
+      eine bereits offiziell bereinigte Bank-Kennzahl braucht keine
+      zusätzliche Sonderrecherche.
     - Rot: Bewertungsbasis ist nicht ausreichend vergleichbar; Fair Value
       bleibt gesperrt und eine gezielte Geschäftsbericht-/IR-/Internetprüfung
       ist erforderlich, bevor die Bewertung wieder freigegeben werden darf.
@@ -699,6 +701,63 @@ def build_special_event_warning(eps_normalization):
         yellow_reasons.append(
             f"Forward-EPS und Zyklus-Basis weichen um {cycle_forward_deviation * 100:.1f} % voneinander ab"
         )
+
+    bank_model = (
+        bank_special_model
+        if isinstance(bank_special_model, dict)
+        else {}
+    )
+    bank_snapshot = bank_model.get("snapshot") or {}
+    bank_significant_eps = safe_float(
+        bank_snapshot.get("significant_items_eps_effect")
+    )
+    bank_rote_reported = safe_float(
+        bank_model.get("rote_reported_pct")
+    )
+    bank_rote_normalized = safe_float(
+        bank_model.get("rote_normalized_pct")
+    )
+    bank_special_items_verified = bool(
+        bank_model.get("applicable")
+        and bank_model.get("primary_source_complete")
+        and bank_model.get("snapshot_fresh")
+        and bank_significant_eps is not None
+        and abs(bank_significant_eps) > 1e-12
+        and bank_rote_normalized is not None
+    )
+
+    if bank_special_items_verified:
+        bank_reason = (
+            "Die verifizierte Bank-Primärquelle weist wesentliche Sonderposten "
+            f"mit einem EPS-Effekt von {bank_significant_eps:+.2f} aus. "
+            "Für die Ertragsqualitätsprüfung wird deshalb der offiziell "
+            f"bereinigte ROTCE von {bank_rote_normalized:.1f} % als "
+            "normalisierte Ertragskraft geführt"
+        )
+        if bank_rote_reported is not None:
+            bank_reason += (
+                f"; der gemeldete ROTCE von {bank_rote_reported:.1f} % "
+                "bleibt separat sichtbar"
+            )
+        if yellow_reasons:
+            bank_reason += ". Zusätzlich: " + "; ".join(yellow_reasons)
+        bank_reason += "."
+
+        return {
+            "level": "Gelb",
+            "icon": "🟡",
+            "title": "Sonderposten erkannt, bankspezifisch bereinigt",
+            "requires_research": False,
+            "valuation_usable": True,
+            "reason": bank_reason,
+            "action": (
+                "Keine zusätzliche Sonderrecherche erforderlich: Die aktuelle "
+                "verifizierte Bank-Primärquelle enthält bereits eine offizielle "
+                "Bereinigung. Die Freigabe eines Bank-Fair-Values bleibt davon "
+                "getrennt und richtet sich weiterhin ausschließlich nach dem "
+                "Bank-Sondermodell."
+            ),
+        }
 
     if yellow_reasons:
         return {
@@ -7401,7 +7460,7 @@ def build_insurance_special_model(
 
 
 # =========================================================
-# Banken-Sondermodell V2.20.34 – Primary Source Gate + FCF Context UX
+# Banken-Sondermodell V2.20.35 – Primary Source Gate + FCF Context + Special-Item Warning UX
 # =========================================================
 
 def get_verified_bank_snapshot(symbol):
@@ -7690,7 +7749,7 @@ def build_bank_special_model(
         "tangible_book_value_available": tangible_book_value is not None and snapshot_fresh,
         "cet1_available": cet1_standardized is not None and snapshot_fresh,
         "note": (
-            "Banken-Sondermodell V2.20.34 lädt verifizierte Primärquellen-"
+            "Banken-Sondermodell V2.20.35 lädt verifizierte Primärquellen-"
             "Kennzahlen für unterstützte Banken. ROTCE, Tangible Book Value "
             "und CET1 werden nicht aus Yahoo-Proxies rekonstruiert. Bei "
             "JPMorgan werden wesentliche 2Q26-Sondergewinne separat gehalten; "
@@ -7745,7 +7804,7 @@ def build_bank_special_control(base_control, bank_model):
             "cet1_advanced_pct": model.get("cet1_advanced_pct"),
         },
         "note": (
-            "Bank-Schritt 3B V2.20.34 hat die Primärdatenbasis vollständig "
+            "Bank-Schritt 3B V2.20.35 hat die Primärdatenbasis vollständig "
             "validiert. Die Datenfreigabe ist bewusst von der späteren "
             "Bewertungsfreigabe getrennt: Ein Bank-Fair-Value wird in dieser "
             "Version noch nicht erzeugt."
@@ -9385,9 +9444,9 @@ def get_special_control(company_type, symbol):
                 "CET1-Kapitalquote",
                 "Sondergewinne / Ertragsqualität"
             ],
-            "status": "Router aktiv – V2.20.34 Primärquellen-Gate + FCF-Kontext",
+            "status": "Router aktiv – V2.20.35 Primärquellen-Gate + FCF-Kontext + Sonderposten-Ampel",
             "note": (
-                "V2.20.34 trennt Bank-Primärdaten von Yahoo-Proxies und kennzeichnet normalen Cashflow-Statement-FCF bei Banken ausschließlich als Kontext/Rohdaten. Für "
+                "V2.20.35 trennt Bank-Primärdaten von Yahoo-Proxies, kennzeichnet normalen Cashflow-Statement-FCF bei Banken ausschließlich als Kontext/Rohdaten und integriert verifizierte Bank-Sonderposten in die Sonderereignis-Ampel. Für "
                 "unterstützte Banken werden ROTCE, Tangible Book Value und "
                 "CET1 nur aus einem aktuellen verifizierten offiziellen "
                 "Snapshot übernommen. Sondergewinne werden separat markiert. "
@@ -17046,7 +17105,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_bank_fcf_context_ux_v22033_20260909"
+CACHE_VERSION = "m6_bank_special_item_warning_v22035_20260909"
 
 @st.cache_data(
     ttl=900,
@@ -17459,7 +17518,8 @@ def load_stock(search_text, cache_version):
     )
 
     special_event_warning = build_special_event_warning(
-        eps_normalization
+        eps_normalization,
+        bank_special_model=bank_special_model
     )
 
 
@@ -19580,7 +19640,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Banken-Sondermodell V2.20.34 – Datenbasis"
+                        "🏦 Banken-Sondermodell V2.20.35 – Datenbasis"
                     )
 
                     if bank_model.get("primary_source_complete"):
@@ -20764,7 +20824,7 @@ if selected_symbol:
                             "CET1 sind jetzt belastbar vorhanden."
                         )
                         st.warning(
-                            "Bewertungsfreigabe noch NEIN: V2.20.34 hält Primärdatenfreigabe "
+                            "Bewertungsfreigabe noch NEIN: V2.20.35 hält Primärdatenfreigabe "
                             "und Bewertungsfreigabe weiterhin bewusst getrennt. Bank-Score, "
                             "P/TBV-/KGV-Korridor und Fair Value werden erst im nächsten Schritt "
                             "fachlich festgelegt."
