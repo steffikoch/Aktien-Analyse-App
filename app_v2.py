@@ -17,17 +17,17 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.48"
+APP_BUILD_VERSION = "V2.20.49"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · Currency Consistency Final Fix")
+st.caption(f"Build {APP_BUILD_VERSION} · Midstream Primary Source FCF/Leverage Gate")
 
 
-# V2.20.48: Currency Consistency Final Fix. Adds a fail-closed valuation-currency sanity gate, clarifies mixed-currency valuation notes, and removes remaining REIT context-text inconsistencies. Valuation formulas and specialist scores remain unchanged.
+# V2.20.49: Midstream Primary Source FCF/Leverage Gate. Adds a time-bounded official Kinder Morgan FCF/dividend-coverage, leverage, Adjusted EBITDA and project-backlog gate. No Midstream score or Fair Value is released yet. Currency Engine and existing specialist models remain unchanged.
 
 # =========================================================
 # Hilfsfunktionen
@@ -9431,160 +9431,268 @@ def build_bank_special_control(base_control, bank_model):
 
 
 # =========================================================
-# Midstream-Sondermodell V1 – Datenbasis / Plausibilitätscheck
+# Midstream-Sondermodell V2.20.49 – Primary Source FCF / Leverage Gate
 # =========================================================
+
+MIDSTREAM_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22049_midstream_primary_fcf_leverage"
+
+
+def get_verified_midstream_snapshot(symbol):
+    """Time-bounded official Midstream snapshot for supported companies.
+
+    V2.20.49 starts with Kinder Morgan (NYSE: KMI). Kinder Morgan currently
+    reports issuer-defined FCF rather than a metric labelled DCF. We preserve
+    that nomenclature and never relabel Yahoo FCF/OCF as issuer-defined DCF.
+    """
+    symbol_text = str(symbol or "").upper().strip()
+    if symbol_text != "KMI":
+        return None
+
+    return {
+        "company": "Kinder Morgan, Inc.",
+        "as_of_date": "30.06.2026",
+        "published_date": "22.07.2026",
+        # Conservative expiry ahead of the normal Q3 reporting window.
+        "valid_until": "20.10.2026",
+        "source_name": "Kinder Morgan Q2 2026 Financial Results",
+        "source_url": "https://ir.kindermorgan.com/news/news-details/2026/Kinder-Morgan-Reports-Second-Quarter-2026-Financial-Results/default.aspx",
+        "period_label": "Q2 / 6M 2026",
+        "cashflow_metric_name": "KMI FCF",
+
+        # Official Table 6, USD millions.
+        "fcf_q2_total": 978e6,
+        "fcf_q2_prior_total": 1002e6,
+        "fcf_h1_total": 1665e6,
+        "fcf_h1_prior_total": 1398e6,
+        "dividends_paid_q2_total": 665e6,
+        "dividends_paid_h1_total": 1319e6,
+        "fcf_after_dividends_q2_total": 313e6,
+        "fcf_after_dividends_h1_total": 346e6,
+
+        # Official per-share / earnings data.
+        "weighted_avg_shares_m": 2225.0,
+        "declared_dividend_q2_per_share": 0.2975,
+        "annualized_dividend_per_share": 1.19,
+        "adjusted_eps_q2": 0.37,
+        "adjusted_eps_h1": 0.84,
+
+        # Official adjusted EBITDA / balance-sheet anchors.
+        "adjusted_ebitda_q2_total": 2199e6,
+        "adjusted_ebitda_h1_total": 4738e6,
+        "adjusted_ebitda_ltm_total": 9000e6,
+        "net_debt_total": 32027e6,
+        "net_debt_to_adjusted_ebitda": 3.6,
+
+        # 2026 outlook / project visibility.
+        "adjusted_ebitda_budget_2026": 8.6e9,
+        "adjusted_ebitda_expected_vs_budget_min_pct": 5.0,
+        "adjusted_eps_budget_2026": 1.36,
+        "adjusted_eps_expected_vs_budget_min_pct": 12.0,
+        "year_end_leverage_expected": 3.6,
+        "project_backlog_total": 9.6e9,
+        "project_backlog_natural_gas_share_pct": 92.0,
+        "project_backlog_power_ldc_share_min_pct": 60.0,
+        "project_backlog_multiple_scope_total": 8.5e9,
+        "project_backlog_first_year_ebitda_multiple": 5.6,
+
+        "source_note": (
+            "Offizielle Kinder-Morgan-Q2/6M-2026-Daten. KMI FCF, Dividenden, "
+            "Adjusted EBITDA, Net Debt / Adjusted EBITDA und Projekt-Backlog werden "
+            "nicht aus Yahoo-Free-Cashflow, Operating Cashflow oder generischen "
+            "EV/EBITDA-Proxies rekonstruiert. Kinder Morgan bezeichnet die aktuelle "
+            "Cashflow-Kennzahl als FCF; die App erfindet daraus keinen DCF-Wert."
+        ),
+    }
+
+
+def _midstream_snapshot_is_fresh(snapshot):
+    if not isinstance(snapshot, dict):
+        return False
+    try:
+        valid_until = datetime.strptime(snapshot.get("valid_until"), "%d.%m.%Y").date()
+        return datetime.now().date() <= valid_until
+    except Exception:
+        return False
+
+
+def build_midstream_primary_source_gate(snapshot):
+    """Validate issuer-defined cashflow, dividend coverage, leverage and backlog."""
+    result = {
+        "available": False,
+        "integration_version": MIDSTREAM_PRIMARY_SOURCE_INTEGRATION_VERSION,
+        "cashflow_metric_name": None,
+        "fcf_q2_total": None,
+        "fcf_h1_total": None,
+        "fcf_h1_growth_pct": None,
+        "dividends_paid_q2_total": None,
+        "dividends_paid_h1_total": None,
+        "fcf_after_dividends_q2_total": None,
+        "fcf_after_dividends_h1_total": None,
+        "coverage_q2": None,
+        "coverage_h1": None,
+        "adjusted_ebitda_q2_total": None,
+        "adjusted_ebitda_h1_total": None,
+        "adjusted_ebitda_ltm_total": None,
+        "net_debt_total": None,
+        "net_debt_to_adjusted_ebitda": None,
+        "project_backlog_total": None,
+        "project_backlog_natural_gas_share_pct": None,
+        "project_backlog_first_year_ebitda_multiple": None,
+        "annualized_dividend_per_share": None,
+        "note": None,
+    }
+    if not isinstance(snapshot, dict):
+        result["note"] = (
+            "Midstream-Primärquellen-Gate nicht verfügbar: kein verifizierter "
+            "aktueller Midstream-Snapshot."
+        )
+        return result
+    if not _midstream_snapshot_is_fresh(snapshot):
+        result["note"] = (
+            "Midstream-Primärquellen-Gate gesperrt: der offizielle Snapshot ist "
+            "abgelaufen und muss vor einer Bewertung aktualisiert werden."
+        )
+        return result
+
+    fcf_q2 = safe_float(snapshot.get("fcf_q2_total"))
+    fcf_h1 = safe_float(snapshot.get("fcf_h1_total"))
+    fcf_h1_prior = safe_float(snapshot.get("fcf_h1_prior_total"))
+    div_q2 = safe_float(snapshot.get("dividends_paid_q2_total"))
+    div_h1 = safe_float(snapshot.get("dividends_paid_h1_total"))
+    after_q2 = safe_float(snapshot.get("fcf_after_dividends_q2_total"))
+    after_h1 = safe_float(snapshot.get("fcf_after_dividends_h1_total"))
+    ebitda_q2 = safe_float(snapshot.get("adjusted_ebitda_q2_total"))
+    ebitda_h1 = safe_float(snapshot.get("adjusted_ebitda_h1_total"))
+    ebitda_ltm = safe_float(snapshot.get("adjusted_ebitda_ltm_total"))
+    net_debt = safe_float(snapshot.get("net_debt_total"))
+    leverage = safe_float(snapshot.get("net_debt_to_adjusted_ebitda"))
+    backlog = safe_float(snapshot.get("project_backlog_total"))
+    gas_share = safe_float(snapshot.get("project_backlog_natural_gas_share_pct"))
+    backlog_multiple = safe_float(snapshot.get("project_backlog_first_year_ebitda_multiple"))
+
+    required = [fcf_q2, fcf_h1, div_q2, div_h1, ebitda_ltm, net_debt, leverage, backlog]
+    if any(v is None or v <= 0 for v in required):
+        result["note"] = (
+            "Midstream-Primärquellen-Gate gesperrt: mindestens eine Pflichtkomponente "
+            "aus issuer-definiertem FCF, Dividenden, Adjusted EBITDA, Net Debt oder "
+            "Projekt-Backlog fehlt."
+        )
+        return result
+
+    coverage_q2 = fcf_q2 / div_q2 if div_q2 > 0 else None
+    coverage_h1 = fcf_h1 / div_h1 if div_h1 > 0 else None
+    growth_h1 = ((fcf_h1 / fcf_h1_prior) - 1.0) * 100.0 if fcf_h1_prior and fcf_h1_prior > 0 else None
+
+    result.update({
+        "available": True,
+        "cashflow_metric_name": snapshot.get("cashflow_metric_name") or "Issuer FCF/DCF",
+        "fcf_q2_total": fcf_q2,
+        "fcf_h1_total": fcf_h1,
+        "fcf_h1_growth_pct": growth_h1,
+        "dividends_paid_q2_total": div_q2,
+        "dividends_paid_h1_total": div_h1,
+        "fcf_after_dividends_q2_total": after_q2,
+        "fcf_after_dividends_h1_total": after_h1,
+        "coverage_q2": coverage_q2,
+        "coverage_h1": coverage_h1,
+        "adjusted_ebitda_q2_total": ebitda_q2,
+        "adjusted_ebitda_h1_total": ebitda_h1,
+        "adjusted_ebitda_ltm_total": ebitda_ltm,
+        "net_debt_total": net_debt,
+        "net_debt_to_adjusted_ebitda": leverage,
+        "project_backlog_total": backlog,
+        "project_backlog_natural_gas_share_pct": gas_share,
+        "project_backlog_first_year_ebitda_multiple": backlog_multiple,
+        "annualized_dividend_per_share": safe_float(snapshot.get("annualized_dividend_per_share")),
+        "note": (
+            "Midstream-Primärquellen-Gate bestanden: issuer-definierter Cashflow, "
+            "Dividendendeckung, Adjusted EBITDA, Net Debt / Adjusted EBITDA und "
+            "Projekt-Backlog stammen aus den offiziellen Kinder-Morgan-Q2/6M-2026-Unterlagen."
+        ),
+    })
+    return result
+
 
 def build_midstream_special_model(
     company_type,
     info,
     price,
-    currency_context
+    currency_context,
+    symbol=None
 ):
-    """
-    Conservative midstream-specific data block.
+    """Midstream-specific official-data gate plus Yahoo context.
 
-    It does not create a score, valuation multiple or fair value.
-    It only prepares EV/EBITDA and leverage references from Yahoo
-    and keeps distributable cash flow separate from standard FCF.
-    Distributable cash flow is not estimated from FCF or OCF.
+    V2.20.49 still does not create a Midstream score, valuation multiple or
+    fair value. It validates the minimum primary-source dataset needed for the
+    next phase and keeps Yahoo EV/EBITDA/FCF strictly contextual.
     """
-    type_name = str(
-        company_type.get("type", "")
-    ).lower()
-
+    type_name = str(company_type.get("type", "")).lower()
     if "midstream" not in type_name:
-        return {
-            "applicable": False
-        }
+        return {"applicable": False}
 
-    enterprise_value = safe_float(
-        info.get("enterpriseValue")
-    )
-    ebitda = safe_float(
-        info.get("ebitda")
-    )
-    yahoo_ev_to_ebitda = safe_float(
-        info.get("enterpriseToEbitda")
-    )
-    total_cash = safe_float(
-        info.get("totalCash")
-    )
-    total_debt = safe_float(
-        info.get("totalDebt")
-    )
-    operating_cashflow = safe_float(
-        info.get("operatingCashflow")
-    )
-    free_cashflow_reference = safe_float(
-        info.get("freeCashflow")
-    )
+    snapshot = get_verified_midstream_snapshot(symbol)
+    snapshot_fresh = _midstream_snapshot_is_fresh(snapshot)
+    primary_gate = build_midstream_primary_source_gate(snapshot)
+    primary_source_complete = bool(snapshot_fresh and primary_gate.get("available"))
 
-    # -----------------------------------------------------
-    # EV/EBITDA: nur anzeigen, wenn die selbst berechnete
-    # Kennzahl und Yahoo-enterpriseToEbitda ausreichend
-    # gut zusammenpassen. So vermeiden wir Einheitenfehler.
-    # -----------------------------------------------------
+    enterprise_value = safe_float(info.get("enterpriseValue"))
+    ebitda = safe_float(info.get("ebitda"))
+    yahoo_ev_to_ebitda = safe_float(info.get("enterpriseToEbitda"))
+    total_cash = safe_float(info.get("totalCash"))
+    total_debt = safe_float(info.get("totalDebt"))
+    operating_cashflow = safe_float(info.get("operatingCashflow"))
+    free_cashflow_reference = safe_float(info.get("freeCashflow"))
+
     calculated_ev_to_ebitda = None
-    if (
-        enterprise_value is not None
-        and enterprise_value > 0
-        and ebitda is not None
-        and ebitda > 0
-    ):
-        calculated_ev_to_ebitda = (
-            enterprise_value / ebitda
-        )
+    if enterprise_value is not None and enterprise_value > 0 and ebitda is not None and ebitda > 0:
+        calculated_ev_to_ebitda = enterprise_value / ebitda
 
     ev_to_ebitda_display = None
     ev_to_ebitda_status = "unverified"
     ev_to_ebitda_note = None
-
     if calculated_ev_to_ebitda is None:
         ev_to_ebitda_note = (
-            "EV/EBITDA konnte aus Enterprise Value und EBITDA nicht "
-            "belastbar berechnet werden. Es wird kein Wert geschätzt."
+            "Yahoo-EV/EBITDA konnte aus Enterprise Value und EBITDA nicht belastbar "
+            "berechnet werden. Es wird kein Wert geschätzt."
         )
-
-    elif (
-        yahoo_ev_to_ebitda is not None
-        and yahoo_ev_to_ebitda > 0
-    ):
-        ev_deviation = abs(
-            calculated_ev_to_ebitda
-            / yahoo_ev_to_ebitda
-            - 1.0
-        )
-
+    elif yahoo_ev_to_ebitda is not None and yahoo_ev_to_ebitda > 0:
+        ev_deviation = abs(calculated_ev_to_ebitda / yahoo_ev_to_ebitda - 1.0)
         if ev_deviation <= 0.20:
             ev_to_ebitda_display = calculated_ev_to_ebitda
             ev_to_ebitda_status = "plausible"
             ev_to_ebitda_note = (
-                "EV/EBITDA-Plausibilitätscheck bestanden: Die aus "
-                "Enterprise Value und EBITDA berechnete Kennzahl liegt "
-                "innerhalb von 20 % des separat gemeldeten Yahoo-"
-                "enterpriseToEbitda. Der Wert bleibt eine reine "
-                "Datenbasis und erzeugt noch keine Bewertung."
+                "Yahoo-EV/EBITDA-Plausibilitätscheck bestanden. Der Wert bleibt nur "
+                "Kontext; für die Midstream-Kernprüfung gilt das offizielle Adjusted EBITDA."
             )
         else:
             ev_to_ebitda_status = "conflict"
             ev_to_ebitda_note = (
-                "⚠️ EV/EBITDA nicht belastbar: Die selbst berechnete "
-                "Kennzahl weicht um mehr als 20 % vom separat gemeldeten "
-                "Yahoo-enterpriseToEbitda ab. Deshalb wird EV/EBITDA "
-                "nicht als belastbare Referenz angezeigt."
+                "⚠️ Yahoo-EV/EBITDA nicht belastbar: selbst berechnete Kennzahl und "
+                "Yahoo-enterpriseToEbitda weichen um mehr als 20 % voneinander ab."
             )
-
     else:
         ev_to_ebitda_note = (
-            "EV/EBITDA konnte zwar aus Enterprise Value und EBITDA "
-            "berechnet werden, aber ein separater Yahoo-Anker fehlt. "
-            "Der Wert wird deshalb nicht als belastbar angezeigt."
+            "Yahoo-EV/EBITDA konnte berechnet werden, aber ein separater Yahoo-Anker fehlt. "
+            "Der Wert wird nicht als belastbare Kernkennzahl verwendet."
         )
 
-    # -----------------------------------------------------
-    # Verschuldung: Midstream wird über EBITDA statt über
-    # normalen FCF betrachtet. Die Kennzahl bleibt in V1
-    # reine Datenbasis und erhält keine Punkte.
-    # -----------------------------------------------------
-    net_debt = None
-    if (
-        total_debt is not None
-        and total_cash is not None
-    ):
-        net_debt = total_debt - total_cash
-
-    net_debt_to_ebitda = None
-    if (
-        net_debt is not None
-        and net_debt > 0
-        and ebitda is not None
-        and ebitda > 0
-    ):
-        net_debt_to_ebitda = (
-            net_debt / ebitda
-        )
-
-    available_anchors = sum(
-        value is not None
-        for value in [
-            ev_to_ebitda_display,
-            net_debt_to_ebitda,
-            operating_cashflow
-        ]
+    net_debt = total_debt - total_cash if total_debt is not None and total_cash is not None else None
+    net_debt_to_ebitda = (
+        net_debt / ebitda
+        if net_debt is not None and net_debt > 0 and ebitda is not None and ebitda > 0
+        else None
     )
 
-    readiness = (
-        "Primärdaten vollständig"
-        if primary_source_complete
-        else (
-            "Teilweise"
-            if available_anchors >= 2
-            else "Unvollständig"
-        )
-    )
+    available_anchors = sum(v is not None for v in [ev_to_ebitda_display, net_debt_to_ebitda, operating_cashflow])
+    readiness = "Primärdaten vollständig" if primary_source_complete else ("Teilweise" if available_anchors >= 2 else "Unvollständig")
 
     return {
         "applicable": True,
+        "snapshot": snapshot,
+        "snapshot_fresh": snapshot_fresh,
+        "primary_source_complete": primary_source_complete,
+        "primary_gate": primary_gate,
+        "integration_version": MIDSTREAM_PRIMARY_SOURCE_INTEGRATION_VERSION,
         "enterprise_value": enterprise_value,
         "ebitda": ebitda,
         "calculated_ev_to_ebitda": calculated_ev_to_ebitda,
@@ -9601,15 +9709,73 @@ def build_midstream_special_model(
         "distributable_cashflow_available": False,
         "readiness": readiness,
         "note": (
-            "Midstream-Sondermodell V1 bleibt ein reiner Daten- und "
-            "Plausibilitätsblock. EV/EBITDA und Netto-Schulden/EBITDA "
-            "werden nur als Referenz gezeigt. Distributable Cash Flow "
-            "wird in der aktuellen Datenquelle nicht separat belastbar "
-            "geladen und deshalb nicht aus Yahoo-Free-Cashflow oder "
-            "Operating Cashflow abgeleitet. Noch keine Midstream-Punkte, "
-            "kein Bewertungs-Multiple und kein Fair Value."
-        )
+            "Midstream-Sondermodell V2.20.49 trennt offizielle issuer-definierte "
+            "Cashflow-/Dividendendeckungs-, Adjusted-EBITDA-, Verschuldungs- und "
+            "Backlog-Kennzahlen von Yahoo-Kontextdaten. Für KMI wird die offiziell "
+            "gemeldete Kennzahl KMI FCF verwendet; ein DCF-Wert wird nicht erfunden. "
+            "Noch kein Midstream-Score, kein Bewertungs-Multiple und kein Fair Value."
+        ),
     }
+
+
+def build_midstream_special_control(base_control, midstream_model):
+    """Attach the fail-closed Midstream primary-source gate to step 3B."""
+    control = dict(base_control or {})
+    control.setdefault("router_status", control.get("status"))
+    control.setdefault("router_note", control.get("note"))
+    if control.get("control_key") != "midstream_cashflow_leverage":
+        return control
+
+    model = midstream_model if isinstance(midstream_model, dict) else {}
+    snapshot = model.get("snapshot")
+    gate = model.get("primary_gate") or {}
+
+    if not model.get("primary_source_complete"):
+        control.update({
+            "implemented": False,
+            "released": False,
+            "confidence_cap": "Niedrig",
+            "step3b_status": "Midstream-Primärdaten unvollständig oder veraltet",
+            "overall_status": "Nicht freigegeben",
+            "snapshot": snapshot,
+            "checks": {"primary_gate": gate},
+            "note": (
+                "Die Midstream-Spezialkontrolle benötigt aktuelle offizielle "
+                "issuer-definierte FCF/DCF-, Dividendendeckungs-, Adjusted-EBITDA-, "
+                "Net-Debt- und Backlog-Daten. Fehlende Werte werden nicht aus Yahoo-FCF, "
+                "Operating Cashflow oder generischen Bilanz-Proxies geschätzt."
+            ),
+        })
+        return control
+
+    control.update({
+        "implemented": True,
+        "released": False,
+        "confidence_cap": "Mittel",
+        "step3b_status": "Midstream-Primärquellen-Gate bestanden – Bewertungsmodell noch gesperrt",
+        "overall_status": "Primärdaten freigegeben, Bewertung noch nicht freigegeben",
+        "snapshot": snapshot,
+        "checks": {
+            "primary_gate": gate,
+            **{k: gate.get(k) for k in [
+                "cashflow_metric_name", "fcf_q2_total", "fcf_h1_total", "fcf_h1_growth_pct",
+                "dividends_paid_q2_total", "dividends_paid_h1_total",
+                "fcf_after_dividends_q2_total", "fcf_after_dividends_h1_total",
+                "coverage_q2", "coverage_h1", "adjusted_ebitda_q2_total",
+                "adjusted_ebitda_h1_total", "adjusted_ebitda_ltm_total", "net_debt_total",
+                "net_debt_to_adjusted_ebitda", "project_backlog_total",
+                "project_backlog_natural_gas_share_pct", "project_backlog_first_year_ebitda_multiple",
+                "annualized_dividend_per_share"
+            ]},
+        },
+        "note": (
+            "Midstream-Schritt 3B V2.20.49 validiert die offizielle Cashflow-/"
+            "Dividendendeckungsbasis, Adjusted EBITDA, Net Debt / Adjusted EBITDA und "
+            "Projekt-Backlog. Primärdatenfreigabe und Bewertungsfreigabe bleiben getrennt: "
+            "Score, EV/Adjusted-EBITDA-Zielkorridor und Fair Value folgen erst separat."
+        ),
+    })
+    return control
 
 
 # =========================================================
@@ -11335,18 +11501,19 @@ def get_special_control(company_type, symbol):
                 "Midstream / Cashflow-, EV/EBITDA- & Verschuldungsprüfung"
             ),
             "planned_checks": [
-                "EV / EBITDA",
-                "Distributable Cash Flow",
-                "Netto-Schulden / EBITDA",
-                "Ausschüttungsdeckung"
+                "Offizielles Adjusted EBITDA / EV-Referenz",
+                "Issuer-definierter DCF/FCF nach CapEx",
+                "Net Debt / Adjusted EBITDA",
+                "Dividendendeckung",
+                "Projekt-Backlog / Projekt-EBITDA-Multiple"
             ],
-            "status": "Router aktiv – V1 Datenbasis vorhanden",
+            "status": "Router aktiv – V2.20.49 Midstream-Primärquellen-Gate",
             "note": (
-                "V1 lädt nur belastbare Midstream-Basiskennzahlen aus der "
-                "aktuellen Datenquelle. Distributable Cash Flow und "
-                "Ausschüttungsdeckung werden nicht aus Standard-FCF oder "
-                "anderen Kennzahlen geschätzt. Das Sondermodell verändert "
-                "noch keinen Score und kein Bewertungs-Multiple."
+                "V2.20.49 trennt issuer-definierte FCF/DCF-, Dividendendeckungs-, "
+                "Adjusted-EBITDA-, Verschuldungs- und Backlog-Kennzahlen von Yahoo-"
+                "Kontextdaten. Für Kinder Morgan wird die offiziell gemeldete KMI-FCF-"
+                "Kennzahl verwendet; ein DCF-Wert wird nicht aus Standard-FCF oder OCF "
+                "erfunden. Score, Zielmultiple und Fair Value bleiben noch gesperrt."
             )
         }
 
@@ -19772,7 +19939,8 @@ def load_stock(search_text, cache_version):
         company_type,
         fundamental_info,
         price,
-        currency_context
+        currency_context,
+        symbol=fundamental_symbol
     )
 
     auto_special_model = build_auto_special_model(
@@ -19826,6 +19994,19 @@ def load_stock(search_text, cache_version):
             ),
         }
 
+    if midstream_special_model.get("applicable"):
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": None,
+            "multiple": None,
+            "available": False,
+            "note": (
+                "Midstream V2.20.49 validiert zunächst nur die offizielle Cashflow-, "
+                "Dividendendeckungs-, Adjusted-EBITDA-, Verschuldungs- und Backlog-Basis. "
+                "Ein eigener Midstream-Score und Bewertungs-Multiple folgen separat."
+            ),
+        }
+
     if reit_special_model.get("applicable"):
         rs = reit_special_model.get("reit_score") or {}
         rv = reit_special_model.get("reit_valuation") or {}
@@ -19870,6 +20051,11 @@ def load_stock(search_text, cache_version):
     special_control = build_bank_special_control(
         special_control,
         bank_special_model
+    )
+
+    special_control = build_midstream_special_control(
+        special_control,
+        midstream_special_model
     )
 
     special_control = build_reit_special_control(
@@ -22825,119 +23011,99 @@ if selected_symbol:
                 if midstream_model.get("applicable"):
 
                     st.divider()
+                    st.subheader("🛢️ Midstream-Sondermodell V2.20.49 – Primärdatenbasis")
 
-                    st.subheader(
-                        "🛢️ Midstream-Sondermodell V1 – Datenbasis"
-                    )
-
-                    st.info(
-                        "Midstream-Modell erkannt. In V1 werden nur "
-                        "EV/EBITDA-, Cashflow- und Verschuldungsdaten "
-                        "plausibilisiert; es wird noch keine "
-                        "Midstream-Bewertung erzeugt."
-                    )
-
-                    col1, col2 = st.columns(2)
-
-                    with col1:
-
-                        st.metric(
-                            "EBITDA",
-                            format_money(
-                                midstream_model["ebitda"],
-                                financial_currency
-                            )
+                    if midstream_model.get("primary_source_complete"):
+                        st.success(
+                            "Midstream-Primärquellen-Gate bestanden: issuer-definierter "
+                            "Cashflow, Dividendendeckung, Adjusted EBITDA, Verschuldung und "
+                            "Projekt-Backlog sind vollständig validiert."
+                        )
+                    else:
+                        st.warning(
+                            "Midstream-Primärquellen-Gate noch nicht bestanden. Für diese "
+                            "Aktie liegt kein aktueller vollständig verifizierter Snapshot vor."
                         )
 
-                        st.metric(
-                            "Enterprise Value",
-                            format_money(
-                                midstream_model["enterprise_value"],
-                                financial_currency
-                            )
-                        )
-
-                        if midstream_model[
-                            "display_ev_to_ebitda"
-                        ] is not None:
-                            st.metric(
-                                "EV / EBITDA (nur Referenz)",
-                                f"{midstream_model['display_ev_to_ebitda']:.2f}×"
-                            )
-                        else:
-                            st.metric(
-                                "EV / EBITDA (nur Referenz)",
-                                "–"
-                            )
-
-                    with col2:
-
-                        st.metric(
-                            "Nettoschulden",
-                            format_money(
-                                midstream_model["net_debt"],
-                                financial_currency
-                            )
-                        )
-
-                        if midstream_model[
-                            "net_debt_to_ebitda"
-                        ] is not None:
-                            st.metric(
-                                "Netto-Schulden / EBITDA",
-                                f"{midstream_model['net_debt_to_ebitda']:.2f}×"
-                            )
-                        else:
-                            st.metric(
-                                "Netto-Schulden / EBITDA",
-                                "–"
-                            )
-
-                        st.metric(
-                            "Operating Cashflow (nur Kontext)",
-                            format_money(
-                                midstream_model["operating_cashflow"],
-                                financial_currency
-                            )
-                        )
-
-                    st.write(
-                        "**Distributable Cash Flow:** – "
-                        "(nicht separat belastbar verfügbar; Yahoo-Free-"
-                        "Cashflow und Operating Cashflow werden nicht als "
-                        "Ersatz verwendet)"
-                    )
-
-                    if midstream_model.get(
-                        "free_cashflow_reference"
-                    ) is not None:
+                    snapshot = midstream_model.get("snapshot") or {}
+                    gate = midstream_model.get("primary_gate") or {}
+                    if snapshot:
                         st.write(
-                            "**Yahoo-Free-Cashflow nur als Rohdaten-Referenz:** "
-                            f"{format_money(
-                                midstream_model['free_cashflow_reference'],
-                                financial_currency
-                            )}"
+                            "**Datenstand Primärquelle:** "
+                            f"{text_or_dash(snapshot.get('as_of_date'))} "
+                            f"(veröffentlicht {text_or_dash(snapshot.get('published_date'))})"
                         )
 
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        st.metric(
+                            f"{text_or_dash(gate.get('cashflow_metric_name'))} Q2",
+                            format_money(gate.get("fcf_q2_total"), financial_currency)
+                        )
+                        st.metric(
+                            f"{text_or_dash(gate.get('cashflow_metric_name'))} 6M",
+                            format_money(gate.get("fcf_h1_total"), financial_currency)
+                        )
+                        growth = safe_float(gate.get("fcf_h1_growth_pct"))
+                        st.metric("FCF-Wachstum 6M YoY", f"{growth:+.1f} %" if growth is not None else "–")
+                        st.metric(
+                            "Dividenden bezahlt 6M",
+                            format_money(gate.get("dividends_paid_h1_total"), financial_currency)
+                        )
+                        cov = safe_float(gate.get("coverage_h1"))
+                        st.metric("FCF / Dividenden 6M", f"{cov:.2f}×" if cov is not None else "–")
+                        st.metric(
+                            "FCF nach Dividenden 6M",
+                            format_money(gate.get("fcf_after_dividends_h1_total"), financial_currency)
+                        )
+                    with c2:
+                        st.metric(
+                            "Adjusted EBITDA LTM",
+                            format_money(gate.get("adjusted_ebitda_ltm_total"), financial_currency)
+                        )
+                        st.metric(
+                            "Net Debt",
+                            format_money(gate.get("net_debt_total"), financial_currency)
+                        )
+                        lev = safe_float(gate.get("net_debt_to_adjusted_ebitda"))
+                        st.metric("Net Debt / Adjusted EBITDA", f"{lev:.1f}×" if lev is not None else "–")
+                        st.metric(
+                            "Projekt-Backlog",
+                            format_money(gate.get("project_backlog_total"), financial_currency)
+                        )
+                        gas = safe_float(gate.get("project_backlog_natural_gas_share_pct"))
+                        st.metric("Anteil Natural Gas am Backlog", f"{gas:.0f} %" if gas is not None else "–")
+                        pm = safe_float(gate.get("project_backlog_first_year_ebitda_multiple"))
+                        st.metric("Backlog Project EBITDA Multiple", f"{pm:.1f}×" if pm is not None else "–")
+
+                    if gate.get("annualized_dividend_per_share") is not None:
+                        st.write(
+                            "**Annualisierte Dividende:** "
+                            f"{format_eps(gate.get('annualized_dividend_per_share'), financial_currency)} je Aktie"
+                        )
+                    if snapshot.get("project_backlog_power_ldc_share_min_pct") is not None:
+                        st.write(
+                            "**Backlog für Stromerzeugung / Local Distribution:** > "
+                            f"{snapshot.get('project_backlog_power_ldc_share_min_pct'):.0f} %"
+                        )
+                    if snapshot.get("source_note"):
+                        st.caption(snapshot.get("source_note"))
+                    if gate.get("note"):
+                        st.caption(gate.get("note"))
+
+                    st.write("**Yahoo-/Standarddaten nur als Kontext**")
+                    if midstream_model.get("display_ev_to_ebitda") is not None:
+                        st.write(f"**Yahoo EV / EBITDA (Kontext):** {midstream_model.get('display_ev_to_ebitda'):.2f}×")
+                    else:
+                        st.write("**Yahoo EV / EBITDA (Kontext):** –")
                     st.write(
-                        "**Datenreife Sondermodell:** "
-                        f"{midstream_model['readiness']}"
+                        "**Yahoo Free Cashflow (Kontext):** "
+                        f"{format_money(midstream_model.get('free_cashflow_reference'), financial_currency)}"
                     )
-
-                    if midstream_model.get(
-                        "ev_to_ebitda_note"
-                    ):
-                        ev_note = midstream_model[
-                            "ev_to_ebitda_note"
-                        ]
-                        if ev_note.startswith("⚠️"):
-                            st.warning(ev_note)
-                        else:
-                            st.caption(ev_note)
-
-                    st.caption(
-                        midstream_model["note"]
-                    )
+                    st.write(f"**Datenreife Sondermodell:** {midstream_model.get('readiness')}")
+                    if midstream_model.get("ev_to_ebitda_note"):
+                        st.caption(midstream_model.get("ev_to_ebitda_note"))
+                    st.caption(midstream_model.get("note"))
 
                 auto_model = data.get(
                     "auto_special_model",
@@ -23957,6 +24123,71 @@ if selected_symbol:
                         "Verifizierte Spezialdaten werden nach ihrem Gültigkeitsdatum "
                         "nicht stillschweigend weiterverwendet."
                     )
+
+                if special_control.get(
+                    "control_key"
+                ) == "midstream_cashflow_leverage":
+
+                    st.divider()
+                    st.subheader(
+                        "🛢️ Modul 6 – Schritt 3B: Midstream-FCF-, Dividendendeckungs- & Verschuldungsprüfung"
+                    )
+
+                    if special_control.get("implemented"):
+                        checks = special_control.get("checks", {})
+                        snapshot = special_control.get("snapshot") or {}
+                        gate = checks.get("primary_gate") or {}
+                        st.write(
+                            "**Datenstand:** "
+                            f"{text_or_dash(snapshot.get('as_of_date'))} "
+                            f"(veröffentlicht {text_or_dash(snapshot.get('published_date'))})"
+                        )
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            st.metric(
+                                f"{text_or_dash(checks.get('cashflow_metric_name'))} Q2",
+                                format_money(checks.get("fcf_q2_total"), financial_currency)
+                            )
+                            st.metric(
+                                f"{text_or_dash(checks.get('cashflow_metric_name'))} 6M",
+                                format_money(checks.get("fcf_h1_total"), financial_currency)
+                            )
+                            cov2 = safe_float(checks.get("coverage_q2"))
+                            cov6 = safe_float(checks.get("coverage_h1"))
+                            st.metric("FCF / Dividenden Q2", f"{cov2:.2f}×" if cov2 is not None else "–")
+                            st.metric("FCF / Dividenden 6M", f"{cov6:.2f}×" if cov6 is not None else "–")
+                        with c2:
+                            st.metric(
+                                "Adjusted EBITDA LTM",
+                                format_money(checks.get("adjusted_ebitda_ltm_total"), financial_currency)
+                            )
+                            lev = safe_float(checks.get("net_debt_to_adjusted_ebitda"))
+                            st.metric("Net Debt / Adjusted EBITDA", f"{lev:.1f}×" if lev is not None else "–")
+                            st.metric(
+                                "Projekt-Backlog",
+                                format_money(checks.get("project_backlog_total"), financial_currency)
+                            )
+                            pm = safe_float(checks.get("project_backlog_first_year_ebitda_multiple"))
+                            st.metric("Backlog Project EBITDA Multiple", f"{pm:.1f}×" if pm is not None else "–")
+
+                        st.success(
+                            "Midstream-Primärdaten vollständig validiert. Issuer-definierter "
+                            "Cashflow, Dividendendeckung, Adjusted EBITDA, Verschuldung und "
+                            "Projekt-Backlog sind belastbar vorhanden."
+                        )
+                        if gate.get("note"):
+                            st.caption(gate.get("note"))
+                        st.warning(
+                            "Bewertungsfreigabe noch NEIN: V2.20.49 ergänzt bewusst nur die "
+                            "Midstream-Primärdatenbasis. Midstream-Score, EV/Adjusted-EBITDA-"
+                            "Zielkorridor und Fair Value folgen erst im nächsten separaten Schritt."
+                        )
+                        st.caption(
+                            "Primärdatenfreigabe und Bewertungsfreigabe sind getrennt. Das Gate "
+                            "bleibt fail-closed, wenn der offizielle Snapshot veraltet oder unvollständig ist."
+                        )
+                    else:
+                        st.warning(special_control.get("note"))
 
                 if special_control.get(
                     "control_key"
