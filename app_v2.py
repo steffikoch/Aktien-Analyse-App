@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.32: Bank Primary Source Gate – JPMorgan ROTCE/TBV/CET1 werden aus verifizierten Primärquellen eingebunden; Bewertung bleibt noch gesperrt.
+# V2.20.33: Bank FCF Context UX – Bank-Cashflow wird klar als Kontext/Rohdaten gekennzeichnet; Bewertung bleibt unverändert gesperrt.
 
 # =========================================================
 # Hilfsfunktionen
@@ -4054,7 +4054,7 @@ def research_special_event_online(
     symbol,
     company_name,
     website=None,
-    cache_version="v22032",
+    cache_version="v22033",
 ):
     """
     V2.20.32: IR-Year-Navigator plus Bridge Component Evidence Gate research. The issuer website/IR archive is routed before SEC, web search and Yahoo.
@@ -7401,7 +7401,7 @@ def build_insurance_special_model(
 
 
 # =========================================================
-# Banken-Sondermodell V2.20.32 – Primary Source Gate
+# Banken-Sondermodell V2.20.33 – Primary Source Gate + FCF Context UX
 # =========================================================
 
 def get_verified_bank_snapshot(symbol):
@@ -7690,7 +7690,7 @@ def build_bank_special_model(
         "tangible_book_value_available": tangible_book_value is not None and snapshot_fresh,
         "cet1_available": cet1_standardized is not None and snapshot_fresh,
         "note": (
-            "Banken-Sondermodell V2.20.32 lädt verifizierte Primärquellen-"
+            "Banken-Sondermodell V2.20.33 lädt verifizierte Primärquellen-"
             "Kennzahlen für unterstützte Banken. ROTCE, Tangible Book Value "
             "und CET1 werden nicht aus Yahoo-Proxies rekonstruiert. Bei "
             "JPMorgan werden wesentliche 2Q26-Sondergewinne separat gehalten; "
@@ -7745,7 +7745,7 @@ def build_bank_special_control(base_control, bank_model):
             "cet1_advanced_pct": model.get("cet1_advanced_pct"),
         },
         "note": (
-            "Bank-Schritt 3B V2.20.32 hat die Primärdatenbasis vollständig "
+            "Bank-Schritt 3B V2.20.33 hat die Primärdatenbasis vollständig "
             "validiert. Die Datenfreigabe ist bewusst von der späteren "
             "Bewertungsfreigabe getrennt: Ein Bank-Fair-Value wird in dieser "
             "Version noch nicht erzeugt."
@@ -9385,9 +9385,9 @@ def get_special_control(company_type, symbol):
                 "CET1-Kapitalquote",
                 "Sondergewinne / Ertragsqualität"
             ],
-            "status": "Router aktiv – V2.20.32 Primärquellen-Gate",
+            "status": "Router aktiv – V2.20.33 Primärquellen-Gate + FCF-Kontext",
             "note": (
-                "V2.20.32 trennt Bank-Primärdaten von Yahoo-Proxies. Für "
+                "V2.20.33 trennt Bank-Primärdaten von Yahoo-Proxies und kennzeichnet normalen Cashflow-Statement-FCF bei Banken ausschließlich als Kontext/Rohdaten. Für "
                 "unterstützte Banken werden ROTCE, Tangible Book Value und "
                 "CET1 nur aus einem aktuellen verifizierten offiziellen "
                 "Snapshot übernommen. Sondergewinne werden separat markiert. "
@@ -17046,7 +17046,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_bank_primary_source_gate_v22032_20260909"
+CACHE_VERSION = "m6_bank_fcf_context_ux_v22033_20260909"
 
 @st.cache_data(
     ttl=900,
@@ -17994,11 +17994,17 @@ if selected_symbol:
                     )
 
                     fcf_ctx = data.get("fcf_source_context") or {}
-                    fcf_label = (
-                        "Free Cashflow (Cashflow-Statement)"
-                        if fcf_ctx.get("score_eligible")
-                        else "Levered Free Cashflow (Yahoo, Referenz)"
-                    )
+                    is_bank_fcf_context = str((company_type or {}).get("type", "")).strip().lower() == "bank"
+                    if is_bank_fcf_context and fcf_ctx.get("score_eligible"):
+                        fcf_label = "Free Cashflow (Bank-Kontext, Cashflow-Statement)"
+                    elif is_bank_fcf_context:
+                        fcf_label = "Levered Free Cashflow (Bank-Kontext, Yahoo-Referenz)"
+                    else:
+                        fcf_label = (
+                            "Free Cashflow (Cashflow-Statement)"
+                            if fcf_ctx.get("score_eligible")
+                            else "Levered Free Cashflow (Yahoo, Referenz)"
+                        )
                     st.metric(
                         fcf_label,
                         format_money(
@@ -18024,26 +18030,51 @@ if selected_symbol:
                     )
 
                 fcf_ctx = data.get("fcf_source_context") or {}
+                is_bank_fcf_context = str((company_type or {}).get("type", "")).strip().lower() == "bank"
                 if fcf_ctx.get("score_eligible"):
                     source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
-                    st.caption(
-                        "FCF-Bewertungsquelle: " + str(source_text) + ". "
-                        "Für FCF-Marge und Netto-Schulden/FCF wird der nachvollziehbare "
-                        "Cashflow-Statement-Wert verwendet."
-                    )
-                    if fcf_ctx.get("material_divergence"):
-                        st.warning(
-                            "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info zeigt "
-                            f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
-                            f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
-                            f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Für die Bewertung wird ausschließlich der "
-                            "Cashflow-Statement-FCF verwendet; der Levered-FCF-Wert bleibt nur Referenz."
+                    if is_bank_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            "Bei Banken wird dieser Cashflow-Statement-Wert ausschließlich als Kontext angezeigt. "
+                            "Er fließt weder in FCF-Marge oder Netto-Schulden/FCF noch in Bank-Score, "
+                            "Bewertungs-Multiple oder Fair Value ein."
                         )
+                    else:
+                        st.caption(
+                            "FCF-Bewertungsquelle: " + str(source_text) + ". "
+                            "Für FCF-Marge und Netto-Schulden/FCF wird der nachvollziehbare "
+                            "Cashflow-Statement-Wert verwendet."
+                        )
+                    if fcf_ctx.get("material_divergence"):
+                        if is_bank_fcf_context:
+                            st.warning(
+                                "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info zeigt "
+                                f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
+                                f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
+                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Werte bleiben bei Banken reine "
+                                "Kontext-/Rohdaten und haben keinen Einfluss auf die Bankbewertung."
+                            )
+                        else:
+                            st.warning(
+                                "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info zeigt "
+                                f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
+                                f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
+                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Für die Bewertung wird ausschließlich der "
+                                "Cashflow-Statement-FCF verwendet; der Levered-FCF-Wert bleibt nur Referenz."
+                            )
                 elif fcf_ctx.get("status") == "levered_only":
-                    st.warning(
-                        "⚠️ Nur Yahoo Levered Free Cash Flow verfügbar. Dieser Wert wird angezeigt, "
-                        "aber nicht als normaler Cashflow-Statement-FCF für FCF- oder Bilanzpunkte verwendet."
-                    )
+                    if is_bank_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: Nur Yahoo Levered Free Cash Flow verfügbar. "
+                            "Bei Banken bleibt auch dieser Wert reine Referenz und hat keinen Einfluss auf "
+                            "Bank-Score, Bewertungs-Multiple oder Fair Value."
+                        )
+                    else:
+                        st.warning(
+                            "⚠️ Nur Yahoo Levered Free Cash Flow verfügbar. Dieser Wert wird angezeigt, "
+                            "aber nicht als normaler Cashflow-Statement-FCF für FCF- oder Bilanzpunkte verwendet."
+                        )
 
                 st.divider()
 
@@ -19529,7 +19560,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Banken-Sondermodell V2.20.32 – Datenbasis"
+                        "🏦 Banken-Sondermodell V2.20.33 – Datenbasis"
                     )
 
                     if bank_model.get("primary_source_complete"):
