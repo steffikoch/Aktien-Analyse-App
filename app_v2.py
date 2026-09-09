@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.38: Bank TTM Special-Item Coverage Gate + Dual-Anchor Valuation – ROTCE/CET1/TBV-Wachstum/Ertragsqualität steuern P/TBV- und Core-KGV-Anker; Freigabe bleibt fail-closed.
+# V2.20.39: Bank TTM Coverage Integration Fix – vier offizielle Quartale sind die einzige Quelle für Core-TTM-EPS, Core-KGV-Anker und Bank-Freigabe; Cache-Version bewusst angehoben.
 
 # =========================================================
 # Hilfsfunktionen
@@ -7466,8 +7466,10 @@ def build_insurance_special_model(
 
 
 # =========================================================
-# Banken-Sondermodell V2.20.38 – Bank TTM Special-Item Coverage Gate + Dual-Anchor Valuation
+# Banken-Sondermodell V2.20.39 – Bank TTM Special-Item Coverage Gate + Dual-Anchor Valuation
 # =========================================================
+
+BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
 def get_verified_bank_snapshot(symbol):
     """
@@ -7516,7 +7518,7 @@ def get_verified_bank_snapshot(symbol):
         "visa_eps_effect": 1.27,
         "equity_investment_eps_effect": 0.29,
         "significant_items_eps_effect": 1.56,
-        # V2.20.38: full four-quarter TTM special-item coverage from official
+        # V2.20.39: full four-quarter TTM special-item coverage from official
         # JPMorganChase quarterly earnings releases.  Positive effects are gains
         # that increased reported EPS; negative effects are charges that reduced
         # reported EPS.  A quarter with no company-designated significant item
@@ -7757,7 +7759,7 @@ def calculate_bank_core_eps_v1(
 ):
     """Build a fully covered, source-verified Core-TTM EPS basis for banks.
 
-    V2.20.38 requires four consecutive official quarterly observations.  Each
+    V2.20.39 requires four consecutive official quarterly observations.  Each
     quarter must carry reported EPS, Core/ex-significant-items EPS, the signed
     special-item effect and an official source URL.  The official reported EPS
     sum must reconcile to Yahoo TTM EPS within a small rounding tolerance.
@@ -7776,6 +7778,8 @@ def calculate_bank_core_eps_v1(
         "coverage_periods": [],
         "coverage_complete": False,
         "coverage_reconciliation_diff": None,
+        "coverage_count": 0,
+        "integration_version": BANK_TTM_COVERAGE_INTEGRATION_VERSION,
         "confidence": None,
         "note": None,
     }
@@ -7909,6 +7913,8 @@ def calculate_bank_core_eps_v1(
         "coverage_periods": validated_rows,
         "coverage_complete": True,
         "coverage_reconciliation_diff": reconciliation_diff,
+        "coverage_count": len(validated_rows),
+        "integration_version": BANK_TTM_COVERAGE_INTEGRATION_VERSION,
         "confidence": "Hoch",
         "note": (
             f"TTM-Coverage Gate bestanden: {', '.join(expected)} sind einzeln aus offiziellen "
@@ -7977,6 +7983,22 @@ def calculate_bank_valuation_v1(
     normalized_eps = safe_float((bank_core_eps or {}).get("bank_normalized_core_eps"))
     tbv = safe_float(snapshot.get("tangible_book_value_per_share"))
     score = safe_float(bank_score.get("score"))
+
+    coverage_rows = (bank_core_eps or {}).get("coverage_periods") or []
+    coverage_integrated = bool(
+        isinstance(bank_core_eps, dict)
+        and bank_core_eps.get("integration_version") == BANK_TTM_COVERAGE_INTEGRATION_VERSION
+        and bank_core_eps.get("coverage_complete")
+        and safe_float(bank_core_eps.get("coverage_count")) == 4
+        and len(coverage_rows) == 4
+    )
+    if not coverage_integrated:
+        result["note"] = (
+            "Bankbewertung gesperrt: der Core-KGV-Anker stammt nicht aus der aktuell "
+            "integrierten Vier-Quartals-TTM-Abdeckung. Veraltete oder teilbereinigte "
+            "Core-EPS-Pfade werden nicht akzeptiert."
+        )
+        return result
 
     if (
         normalized_eps is None
@@ -8055,7 +8077,7 @@ def build_bank_special_model(
     """
     Bank-specific primary-source, score and dual-anchor valuation block.
 
-    V2.20.38 keeps the verified ROTCE/TBV/CET1 gate and adds a dedicated
+    V2.20.39 keeps the verified ROTCE/TBV/CET1 gate and adds a dedicated
     bank score plus a conservative P/TBV + bank-normalized Core-P/E valuation.
     """
     type_name = str(company_type.get("type", "")).lower()
@@ -8280,7 +8302,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Banken-Sondermodell V2.20.38 lädt verifizierte Primärquellen-"
+            "Banken-Sondermodell V2.20.39 lädt verifizierte Primärquellen-"
             "Kennzahlen und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -8325,6 +8347,10 @@ def build_bank_special_control(base_control, bank_model):
     valuation_released = bool(
         bank_score.get("available")
         and bank_core_eps.get("available")
+        and bank_core_eps.get("integration_version") == BANK_TTM_COVERAGE_INTEGRATION_VERSION
+        and bank_core_eps.get("coverage_complete")
+        and safe_float(bank_core_eps.get("coverage_count")) == 4
+        and len(bank_core_eps.get("coverage_periods") or []) == 4
         and bank_valuation.get("available")
     )
 
@@ -8353,13 +8379,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B V2.20.38 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B V2.20.39 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B V2.20.38 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B V2.20.39 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -9999,9 +10025,9 @@ def get_special_control(company_type, symbol):
                 "CET1-Kapitalquote",
                 "Sondergewinne / Ertragsqualität"
             ],
-            "status": "Router aktiv – V2.20.38 Bank-Score + Dual-Anchor-Bewertung",
+            "status": "Router aktiv – V2.20.39 Bank-Score + Dual-Anchor-Bewertung",
             "note": (
-                "V2.20.38 behält Primärquellen-Gate, FCF-Kontext und Sonderposten-Ampel bei. "
+                "V2.20.39 behält Primärquellen-Gate, FCF-Kontext und Sonderposten-Ampel bei. "
                 "Zusätzlich bewertet der Bank-Score normalisierten ROTCE, CET1, Tangible-Book-"
                 "Wachstum und Ertragsqualität. P/TBV- und bank-normalisierte Core-KGV-Anker werden getrennt berechnet; "
                 "ein Fair Value wird nur bei vollständiger und konsistenter Datenbasis freigegeben."
@@ -16296,7 +16322,7 @@ def calculate_fair_value_v1(
                 )
             return result
 
-    # Bank V2.20.38 – dedicated dual-anchor fair value. This branch is
+    # Bank V2.20.39 – dedicated dual-anchor fair value. This branch is
     # intentionally separate from the generic EPS x single-multiple path.
     if (
         isinstance(special_control, dict)
@@ -17764,7 +17790,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_bank_core_eps_bridge_v22037_20260909"
+CACHE_VERSION = "m6_bank_ttm_coverage_integration_v22039_20260909"
 
 @st.cache_data(
     ttl=900,
@@ -20373,7 +20399,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Banken-Sondermodell V2.20.38 – Datenbasis"
+                        "🏦 Banken-Sondermodell V2.20.39 – Datenbasis"
                     )
 
                     if bank_model.get("primary_source_complete"):
@@ -20525,6 +20551,10 @@ if selected_symbol:
                         st.caption(bank_core_eps_ui.get("note"))
                         coverage_rows = bank_core_eps_ui.get("coverage_periods") or []
                         if coverage_rows:
+                            st.success(
+                                f"TTM-Integration aktiv: {len(coverage_rows)}/4 Quartale · "
+                                f"Integrationsstand {bank_core_eps_ui.get('integration_version')}"
+                            )
                             st.write("**Vier-Quartals-Abdeckung:**")
                             for row in coverage_rows:
                                 st.write(
