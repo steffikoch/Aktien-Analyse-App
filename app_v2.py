@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.36: Bank Score + Dual-Anchor Valuation – ROTCE/CET1/TBV-Wachstum/Ertragsqualität steuern P/TBV- und KGV-Anker; Freigabe bleibt fail-closed.
+# V2.20.37: Bank Core EPS Bridge + Dual-Anchor Valuation – ROTCE/CET1/TBV-Wachstum/Ertragsqualität steuern P/TBV- und Core-KGV-Anker; Freigabe bleibt fail-closed.
 
 # =========================================================
 # Hilfsfunktionen
@@ -5667,7 +5667,7 @@ def classify_company(name, symbol, sector, industry):
     ):
         return {
             "type": "Bank",
-            "method": "KBV / Eigenkapital + normalisiertes KGV",
+            "method": "P/TBV + bank-normalisiertes KGV",
             "confidence_cap": "Mittel bis Hoch"
         }
 
@@ -7466,7 +7466,7 @@ def build_insurance_special_model(
 
 
 # =========================================================
-# Banken-Sondermodell V2.20.36 – Bank Score + Dual-Anchor Valuation
+# Banken-Sondermodell V2.20.37 – Bank Core EPS Bridge + Dual-Anchor Valuation
 # =========================================================
 
 def get_verified_bank_snapshot(symbol):
@@ -7516,6 +7516,13 @@ def get_verified_bank_snapshot(symbol):
         "visa_eps_effect": 1.27,
         "equity_investment_eps_effect": 0.29,
         "significant_items_eps_effect": 1.56,
+        # Time-bounded TTM applicability: the official source verifies the
+        # 2Q26 EPS bridge; the app applies it to the current TTM EPS only while
+        # this pre-next-results snapshot is fresh. It is never carried forward
+        # after the snapshot expires.
+        "special_items_in_current_ttm": True,
+        "ttm_special_items_eps_effect": 1.56,
+        "ttm_special_items_period": "2Q26",
         "source_note": (
             "Offizielle JPMorganChase-2Q26-Daten. Der gemeldete ROTCE von "
             "29 % enthält wesentliche Sondergewinne. Für die normalisierte "
@@ -7684,15 +7691,136 @@ def calculate_bank_score_v1(snapshot, primary_source_complete):
     return result
 
 
+def calculate_bank_core_eps_v1(
+    info,
+    snapshot,
+    eps_normalization,
+    primary_source_complete,
+):
+    """Build a source-verified Core-EPS basis for the bank P/E anchor.
+
+    Material special items are removed from TTM EPS only when an official
+    quarterly EPS bridge is verified and the time-bounded bank snapshot marks
+    that quarter as part of the current TTM window. Forward EPS is not adjusted by assumption. The
+    TTM/Forward weights already selected by the conservative EPS logic are
+    reused so only the verified special-item bridge changes the earnings base.
+    """
+    result = {
+        "available": False,
+        "trailing_eps_reported": None,
+        "ttm_special_items_eps_effect": None,
+        "core_trailing_eps": None,
+        "forward_eps": None,
+        "trailing_weight": None,
+        "forward_weight": None,
+        "bank_normalized_core_eps": None,
+        "bridge_period": None,
+        "confidence": None,
+        "note": None,
+    }
+
+    if not primary_source_complete or not isinstance(snapshot, dict):
+        result["note"] = (
+            "Bank-Core-EPS gesperrt: aktueller verifizierter Primärquellen-Snapshot "
+            "fehlt oder ist abgelaufen."
+        )
+        return result
+
+    trailing = safe_float((info or {}).get("trailingEps"))
+    forward = safe_float((info or {}).get("forwardEps"))
+    significant = safe_float(snapshot.get("ttm_special_items_eps_effect"))
+    reported_q_eps = safe_float(snapshot.get("quarter_eps_reported"))
+    ex_q_eps = safe_float(snapshot.get("quarter_eps_ex_significant_items"))
+    bridge_in_ttm = bool(snapshot.get("special_items_in_current_ttm"))
+
+    if trailing is None or trailing <= 0 or forward is None or forward <= 0:
+        result["note"] = (
+            "Bank-Core-EPS gesperrt: positive TTM- und Forward-EPS müssen gleichzeitig vorliegen."
+        )
+        return result
+
+    if significant is None:
+        result["note"] = "Bank-Core-EPS gesperrt: der verifizierte TTM-Sondereffekt fehlt."
+        return result
+
+    if abs(significant) > 1e-12:
+        if not bridge_in_ttm:
+            result["note"] = (
+                "Bank-Core-EPS gesperrt: der verifizierte Quartals-Sondereffekt ist für "
+                "das aktuelle TTM-Fenster nicht ausdrücklich freigegeben."
+            )
+            return result
+        if reported_q_eps is None or ex_q_eps is None:
+            result["note"] = (
+                "Bank-Core-EPS gesperrt: die offizielle Quartals-EPS-Brücke ist unvollständig."
+            )
+            return result
+        bridge_difference = reported_q_eps - ex_q_eps
+        bridge_tolerance = max(0.05, abs(significant) * 0.05)
+        if abs(bridge_difference - significant) > bridge_tolerance:
+            result["note"] = (
+                "Bank-Core-EPS gesperrt: der ausgewiesene EPS-Sondereffekt stimmt nicht "
+                "mit der offiziellen Reported-/Ex-Significant-Items-Brücke überein."
+            )
+            return result
+
+    trailing_weight = safe_float((eps_normalization or {}).get("eps_used_trailing_weight"))
+    forward_weight = safe_float((eps_normalization or {}).get("eps_used_forward_weight"))
+    if trailing_weight is None or forward_weight is None:
+        result["note"] = (
+            "Bank-Core-EPS gesperrt: die konservativen TTM-/Forward-Gewichte der "
+            "EPS-Normalisierung sind nicht eindeutig verfügbar."
+        )
+        return result
+
+    weight_sum = trailing_weight + forward_weight
+    if abs(weight_sum - 1.0) > 1e-6 or trailing_weight < 0 or forward_weight < 0:
+        result["note"] = "Bank-Core-EPS gesperrt: TTM-/Forward-Gewichte sind nicht konsistent."
+        return result
+
+    # Signed effect: positive special gains are subtracted; negative special
+    # charges are added back by subtracting their negative EPS effect.
+    core_trailing = trailing - significant
+    if core_trailing <= 0:
+        result["note"] = "Bank-Core-EPS gesperrt: das bereinigte Core-TTM-EPS ist nicht positiv."
+        return result
+
+    bank_normalized = trailing_weight * core_trailing + forward_weight * forward
+    if bank_normalized <= 0:
+        result["note"] = "Bank-Core-EPS gesperrt: die bereinigte Gewinnbasis ist nicht positiv."
+        return result
+
+    result.update({
+        "available": True,
+        "trailing_eps_reported": trailing,
+        "ttm_special_items_eps_effect": significant,
+        "core_trailing_eps": core_trailing,
+        "forward_eps": forward,
+        "trailing_weight": trailing_weight,
+        "forward_weight": forward_weight,
+        "bank_normalized_core_eps": bank_normalized,
+        "bridge_period": snapshot.get("ttm_special_items_period"),
+        "confidence": "Hoch",
+        "note": (
+            f"Bank-Core-EPS-Brücke: gemeldetes TTM-EPS {trailing:.2f} minus verifizierter "
+            f"TTM-Sondereffekt {significant:+.2f} = Core-TTM-EPS {core_trailing:.2f}. "
+            f"Danach werden die bereits konservativ festgelegten Gewichte "
+            f"{trailing_weight * 100:.0f} % Core-TTM / {forward_weight * 100:.0f} % Forward "
+            "verwendet. Forward-EPS wird nicht um einen unbekannten zukünftigen Sonderposten bereinigt."
+        ),
+    })
+    return result
+
+
 def calculate_bank_valuation_v1(
     bank_score,
     snapshot,
-    eps_normalization,
+    bank_core_eps,
     pb_consistency_status,
     forward_pe_status,
     source_consistency_note,
 ):
-    """Dual-anchor bank valuation: 60% P/TBV and 40% normalized P/E."""
+    """Dual-anchor bank valuation: 60% P/TBV and 40% bank-normalized Core P/E."""
     result = {
         "available": False,
         "bank_score": None,
@@ -7736,20 +7864,21 @@ def calculate_bank_valuation_v1(
         )
         return result
 
-    normalized_eps = safe_float((eps_normalization or {}).get("normalized_eps"))
+    normalized_eps = safe_float((bank_core_eps or {}).get("bank_normalized_core_eps"))
     tbv = safe_float(snapshot.get("tangible_book_value_per_share"))
     score = safe_float(bank_score.get("score"))
 
     if (
         normalized_eps is None
         or normalized_eps <= 0
-        or not has_usable_positive_earnings_basis(eps_normalization)
+        or not isinstance(bank_core_eps, dict)
+        or not bank_core_eps.get("available")
         or tbv is None
         or tbv <= 0
         or score is None
     ):
         result["note"] = (
-            "Bankbewertung gesperrt: positive normalisierte EPS-Basis und "
+            "Bankbewertung gesperrt: bank-normalisierte Core-EPS-Basis und "
             "verifiziertes Tangible Book Value je Aktie müssen gleichzeitig vorliegen."
         )
         return result
@@ -7797,7 +7926,7 @@ def calculate_bank_valuation_v1(
         "anchor_spread_pct": anchor_spread * 100.0,
         "note": (
             "Bank-Fair-Value V1 kombiniert 60 % Tangible-Book-Value-Anker "
-            "(P/TBV) und 40 % normalisierte Gewinnbasis (KGV). Der Bank-Score "
+            "(P/TBV) und 40 % bank-normalisierte Core-Gewinnbasis (KGV). Der Bank-Score "
             "bestimmt beide Zielkorridore linear. Bei mehr als 25 % Abstand "
             "zwischen den beiden Fair-Value-Ankern bleibt die Bewertung gesperrt."
         ),
@@ -7816,8 +7945,8 @@ def build_bank_special_model(
     """
     Bank-specific primary-source, score and dual-anchor valuation block.
 
-    V2.20.36 keeps the verified ROTCE/TBV/CET1 gate and adds a dedicated
-    bank score plus a conservative P/TBV + normalized-P/E valuation.
+    V2.20.37 keeps the verified ROTCE/TBV/CET1 gate and adds a dedicated
+    bank score plus a conservative P/TBV + bank-normalized Core-P/E valuation.
     """
     type_name = str(company_type.get("type", "")).lower()
 
@@ -7991,10 +8120,16 @@ def build_bank_special_model(
         readiness = "Teilweise" if available_anchors >= 2 else "Unvollständig"
 
     bank_score = calculate_bank_score_v1(snapshot, primary_source_complete)
+    bank_core_eps = calculate_bank_core_eps_v1(
+        info,
+        snapshot,
+        eps_normalization,
+        primary_source_complete,
+    )
     bank_valuation = calculate_bank_valuation_v1(
         bank_score,
         snapshot,
-        eps_normalization,
+        bank_core_eps,
         pb_consistency_status,
         forward_pe_status,
         source_consistency_note,
@@ -8032,12 +8167,13 @@ def build_bank_special_model(
         "tangible_book_value_available": tangible_book_value is not None and snapshot_fresh,
         "cet1_available": cet1_standardized is not None and snapshot_fresh,
         "bank_score": bank_score,
+        "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Banken-Sondermodell V2.20.36 lädt verifizierte Primärquellen-"
+            "Banken-Sondermodell V2.20.37 lädt verifizierte Primärquellen-"
             "Kennzahlen und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
-            "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % normalisiertem KGV "
+            "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % bank-normalisiertem Core-KGV "
             "berechnet. Standard-FCF und Netto-Schulden/FCF bleiben ausgeschlossen."
         )
     }
@@ -8072,10 +8208,12 @@ def build_bank_special_control(base_control, bank_model):
         return control
 
     bank_score = model.get("bank_score") or {}
+    bank_core_eps = model.get("bank_core_eps") or {}
     bank_valuation = model.get("bank_valuation") or {}
 
     valuation_released = bool(
         bank_score.get("available")
+        and bank_core_eps.get("available")
         and bank_valuation.get("available")
     )
 
@@ -8100,16 +8238,17 @@ def build_bank_special_control(base_control, bank_model):
             "cet1_standardized_pct": model.get("cet1_standardized_pct"),
             "cet1_advanced_pct": model.get("cet1_advanced_pct"),
             "bank_score": bank_score,
+            "bank_core_eps": bank_core_eps,
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B V2.20.36 hat Primärdaten, Bank-Score und beide "
+            "Bank-Schritt 3B V2.20.37 hat Primärdaten, Bank-Score, Core-EPS-Brücke und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
-            "wenn P/TBV- und KGV-Anker gleichzeitig belastbar und ausreichend "
+            "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B V2.20.36 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B V2.20.37 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -9749,11 +9888,11 @@ def get_special_control(company_type, symbol):
                 "CET1-Kapitalquote",
                 "Sondergewinne / Ertragsqualität"
             ],
-            "status": "Router aktiv – V2.20.36 Bank-Score + Dual-Anchor-Bewertung",
+            "status": "Router aktiv – V2.20.37 Bank-Score + Dual-Anchor-Bewertung",
             "note": (
-                "V2.20.36 behält Primärquellen-Gate, FCF-Kontext und Sonderposten-Ampel bei. "
+                "V2.20.37 behält Primärquellen-Gate, FCF-Kontext und Sonderposten-Ampel bei. "
                 "Zusätzlich bewertet der Bank-Score normalisierten ROTCE, CET1, Tangible-Book-"
-                "Wachstum und Ertragsqualität. P/TBV- und KGV-Anker werden getrennt berechnet; "
+                "Wachstum und Ertragsqualität. P/TBV- und bank-normalisierte Core-KGV-Anker werden getrennt berechnet; "
                 "ein Fair Value wird nur bei vollständiger und konsistenter Datenbasis freigegeben."
             )
         }
@@ -16046,7 +16185,7 @@ def calculate_fair_value_v1(
                 )
             return result
 
-    # Bank V2.20.36 – dedicated dual-anchor fair value. This branch is
+    # Bank V2.20.37 – dedicated dual-anchor fair value. This branch is
     # intentionally separate from the generic EPS x single-multiple path.
     if (
         isinstance(special_control, dict)
@@ -16145,7 +16284,7 @@ def calculate_fair_value_v1(
             "unit_conversion_applied": bool(unit_notes),
             "unit_note": " ".join(unit_notes) if unit_notes else None,
             "note": (
-                "Bank-Fair-Value V1 = 60 % P/TBV-Anker + 40 % normalisierter KGV-Anker. "
+                "Bank-Fair-Value V1 = 60 % P/TBV-Anker + 40 % bank-normalisierter Core-KGV-Anker. "
                 "Standard-FCF und klassische Netto-Schulden/FCF-Logik werden nicht verwendet."
             ),
         })
@@ -17514,7 +17653,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_bank_score_dual_anchor_v22036_20260909"
+CACHE_VERSION = "m6_bank_core_eps_bridge_v22037_20260909"
 
 @st.cache_data(
     ttl=900,
@@ -18725,14 +18864,22 @@ if selected_symbol:
                     "eps_normalization"
                 ]
 
-                normalized_eps = eps_result[
-                    "normalized_eps"
-                ]
+                bank_model_eps_ui = data.get("bank_special_model") or {}
+                bank_core_eps_ui = bank_model_eps_ui.get("bank_core_eps") or {}
+                bank_core_eps_active = bool(
+                    bank_model_eps_ui.get("applicable") and bank_core_eps_ui.get("available")
+                )
+
+                normalized_eps = (
+                    safe_float(bank_core_eps_ui.get("bank_normalized_core_eps"))
+                    if bank_core_eps_active
+                    else eps_result["normalized_eps"]
+                )
 
                 if normalized_eps is not None:
 
                     st.metric(
-                        "Normalisiertes EPS",
+                        "Bank-normalisiertes Core EPS" if bank_core_eps_active else "Normalisiertes EPS",
                         format_eps(
                             normalized_eps,
                             financial_currency
@@ -18746,14 +18893,25 @@ if selected_symbol:
                         "EPS berechenbar."
                     )
 
-                st.write(
-                    f"**Verwendete Methode:** "
-                    f"{eps_result['method']}"
-                )
+                if bank_core_eps_active:
+                    st.write(
+                        "**Verwendete Methode:** "
+                        f"{bank_core_eps_ui.get('trailing_weight', 0) * 100:.0f} % Core-TTM-EPS + "
+                        f"{bank_core_eps_ui.get('forward_weight', 0) * 100:.0f} % Forward-EPS; "
+                        "TTM-Sonderposten ausschließlich über verifizierte Bank-Primärquellen-Brücke bereinigt"
+                    )
+                    st.info(bank_core_eps_ui.get("note"))
+                else:
+                    st.write(
+                        f"**Verwendete Methode:** "
+                        f"{eps_result['method']}"
+                    )
 
-                confidence = eps_result[
-                    "confidence"
-                ]
+                confidence = (
+                    bank_core_eps_ui.get("confidence")
+                    if bank_core_eps_active
+                    else eps_result["confidence"]
+                )
 
                 if confidence == "Hoch":
 
@@ -18846,7 +19004,12 @@ if selected_symbol:
                         )}"
                     )
 
-                if company_type.get("type") == "REIT / Immobilien":
+                if bank_core_eps_active:
+                    st.caption(
+                        "Für die Bankbewertung ist dieser bank-normalisierte Core-EPS-Wert die "
+                        "Gewinnbasis des KGV-Ankers. Der P/TBV-Anker bleibt davon unabhängig."
+                    )
+                elif company_type.get("type") == "REIT / Immobilien":
                     st.caption(
                         "Das normalisierte EPS wird bei REITs nur "
                         "als Kontext angezeigt. Für die spätere "
@@ -20099,7 +20262,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Banken-Sondermodell V2.20.36 – Datenbasis"
+                        "🏦 Banken-Sondermodell V2.20.37 – Datenbasis"
                     )
 
                     if bank_model.get("primary_source_complete"):
@@ -20223,6 +20386,36 @@ if selected_symbol:
                         st.caption(
                             f"Quelle: {snapshot.get('source_name')} · gültig bis "
                             f"{text_or_dash(snapshot.get('valid_until'))}"
+                        )
+
+                    bank_core_eps_ui = bank_model.get("bank_core_eps") or {}
+                    if bank_core_eps_ui.get("available"):
+                        st.divider()
+                        st.subheader("🧮 Bank Core EPS Bridge")
+                        col_bce1, col_bce2 = st.columns(2)
+                        with col_bce1:
+                            st.metric(
+                                "TTM-EPS gemeldet",
+                                format_eps(bank_core_eps_ui.get("trailing_eps_reported"), financial_currency)
+                            )
+                            st.metric(
+                                "Verifizierter TTM-Sondereffekt",
+                                f"{bank_core_eps_ui.get('ttm_special_items_eps_effect'):+.2f} {financial_currency}"
+                            )
+                        with col_bce2:
+                            st.metric(
+                                "Core-TTM-EPS",
+                                format_eps(bank_core_eps_ui.get("core_trailing_eps"), financial_currency)
+                            )
+                            st.metric(
+                                "Bank-normalisiertes Core EPS",
+                                format_eps(bank_core_eps_ui.get("bank_normalized_core_eps"), financial_currency)
+                            )
+                        st.caption(bank_core_eps_ui.get("note"))
+                    elif bank_model.get("primary_source_complete"):
+                        st.warning(
+                            "Bank Core EPS Bridge nicht freigegeben: "
+                            + text_or_dash(bank_core_eps_ui.get("note"))
                         )
 
                     st.write(
@@ -21393,6 +21586,14 @@ if selected_symbol:
                                 f"{int(bank_score_3b.get('score'))}/100 Punkte"
                             )
 
+                        bank_core_eps_3b = checks.get("bank_core_eps") or {}
+                        if bank_core_eps_3b.get("available"):
+                            st.write(
+                                "**Bank-normalisiertes Core EPS für den KGV-Anker:** "
+                                f"{format_eps(bank_core_eps_3b.get('bank_normalized_core_eps'), financial_currency)}"
+                            )
+                            st.caption(bank_core_eps_3b.get("note"))
+
                         if bank_val_3b.get("available"):
                             st.write(
                                 "**Ziel-P/TBV:** "
@@ -21419,7 +21620,7 @@ if selected_symbol:
 
                         if special_control.get("released"):
                             st.success(
-                                "Bewertungsfreigabe JA: Bank-Score sowie P/TBV- und KGV-Anker "
+                                "Bewertungsfreigabe JA: Bank-Score sowie P/TBV- und Core-KGV-Anker "
                                 "sind vollständig und ausreichend konsistent. Der Dual-Anchor-Fair-Value ist freigegeben."
                             )
                         else:
@@ -21432,8 +21633,8 @@ if selected_symbol:
 
                     st.caption(
                         "Bank-Freigabe bleibt fail-closed: veraltete Primärdaten, Quellenkonflikte, "
-                        "unvollständige Sonderposten-Brücken oder mehr als 25 % Abstand zwischen "
-                        "P/TBV- und KGV-Fair-Value-Anker sperren die Bewertung."
+                        "unvollständige Sonderposten-/Core-EPS-Brücken oder mehr als 25 % Abstand zwischen "
+                        "P/TBV- und Core-KGV-Fair-Value-Anker sperren die Bewertung."
                     )
 
                 if special_control.get(
@@ -23203,7 +23404,7 @@ if selected_symbol:
                     if fair_value.get("valuation_method") == "bank_dual_anchor":
                         st.write(
                             "**Bewertungsformel:** "
-                            "60 % P/TBV-Anker + 40 % normalisierter KGV-Anker"
+                            "60 % P/TBV-Anker + 40 % bank-normalisierter Core-KGV-Anker"
                         )
                         st.write(
                             "**Bank-Score:** "
