@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.35: Bank Special-Item Warning UX – verifizierte Bank-Sonderposten werden in der Sonderereignis-Ampel gelb statt grün dargestellt; Bewertung bleibt unverändert gesperrt.
+# V2.20.36: Bank Score + Dual-Anchor Valuation – ROTCE/CET1/TBV-Wachstum/Ertragsqualität steuern P/TBV- und KGV-Anker; Freigabe bleibt fail-closed.
 
 # =========================================================
 # Hilfsfunktionen
@@ -4858,6 +4858,15 @@ def calculate_profitability_score(
     )
 
     if special_model:
+        special_text = (
+            "Bei Banken wird die generische Margen-/ROE-Profitabilitätslogik nicht verwendet. "
+            "Die Ertragskraft wird im Bank-Score über normalisierten ROTCE und Ertragsqualität bewertet."
+            if "bank" in type_name
+            else (
+                "Für diesen Unternehmenstyp wird später "
+                "eine eigene Profitabilitätslogik verwendet."
+            )
+        )
         return {
             "score": None,
             "raw_score": None,
@@ -4865,10 +4874,7 @@ def calculate_profitability_score(
             "roe_points": None,
             "confidence": "Sondermodell",
             "brake_active": False,
-            "brake_text": (
-                "Für diesen Unternehmenstyp wird später "
-                "eine eigene Profitabilitätslogik verwendet."
-            )
+            "brake_text": special_text
         }
 
     available = [
@@ -7460,7 +7466,7 @@ def build_insurance_special_model(
 
 
 # =========================================================
-# Banken-Sondermodell V2.20.35 – Primary Source Gate + FCF Context + Special-Item Warning UX
+# Banken-Sondermodell V2.20.36 – Bank Score + Dual-Anchor Valuation
 # =========================================================
 
 def get_verified_bank_snapshot(symbol):
@@ -7532,19 +7538,286 @@ def _bank_snapshot_is_fresh(snapshot):
         return False
 
 
+def calculate_bank_score_v1(snapshot, primary_source_complete):
+    """
+    Conservative 100-point bank score based only on bank-specific anchors.
+
+    Components:
+    - normalized ROTCE: 40 points
+    - CET1 capital quality: 25 points
+    - tangible book value growth: 20 points
+    - earnings quality / verified special-item bridge: 15 points
+
+    Generic revenue growth, FCF and net-debt/FCF are deliberately excluded.
+    """
+    result = {
+        "available": False,
+        "score": None,
+        "quality": None,
+        "rotce_points": None,
+        "cet1_points": None,
+        "tbv_growth_points": None,
+        "earnings_quality_points": None,
+        "rotce_normalized_pct": None,
+        "cet1_reference_pct": None,
+        "tbv_growth_yoy_pct": None,
+        "significant_items_share_of_reported_eps": None,
+        "note": None,
+    }
+
+    if not primary_source_complete or not isinstance(snapshot, dict):
+        result["note"] = (
+            "Bank-Score gesperrt: aktueller verifizierter Primärquellen-Snapshot "
+            "mit ROTCE, TBVPS und CET1 fehlt oder ist abgelaufen."
+        )
+        return result
+
+    rotce = safe_float(snapshot.get("rotce_ex_significant_items_pct"))
+    cet1_std = safe_float(snapshot.get("cet1_standardized_pct"))
+    cet1_adv = safe_float(snapshot.get("cet1_advanced_pct"))
+    tbv_growth = safe_float(snapshot.get("tangible_book_value_growth_yoy_pct"))
+
+    cet1_candidates = [x for x in [cet1_std, cet1_adv] if x is not None]
+    cet1_ref = min(cet1_candidates) if cet1_candidates else None
+
+    if rotce is None or cet1_ref is None or tbv_growth is None:
+        result["note"] = (
+            "Bank-Score gesperrt: mindestens eine bankspezifische Kernkomponente "
+            "(normalisierter ROTCE, CET1 oder TBV-Wachstum) fehlt."
+        )
+        return result
+
+    if rotce >= 22.0:
+        rotce_points = 40
+    elif rotce >= 18.0:
+        rotce_points = 36
+    elif rotce >= 15.0:
+        rotce_points = 32
+    elif rotce >= 12.0:
+        rotce_points = 24
+    elif rotce >= 10.0:
+        rotce_points = 16
+    elif rotce >= 8.0:
+        rotce_points = 8
+    else:
+        rotce_points = 0
+
+    if cet1_ref >= 13.5:
+        cet1_points = 25
+    elif cet1_ref >= 12.5:
+        cet1_points = 20
+    elif cet1_ref >= 11.5:
+        cet1_points = 15
+    elif cet1_ref >= 10.5:
+        cet1_points = 8
+    else:
+        cet1_points = 0
+
+    if tbv_growth >= 8.0:
+        tbv_growth_points = 20
+    elif tbv_growth >= 5.0:
+        tbv_growth_points = 15
+    elif tbv_growth >= 2.0:
+        tbv_growth_points = 10
+    elif tbv_growth >= 0.0:
+        tbv_growth_points = 5
+    else:
+        tbv_growth_points = 0
+
+    significant = safe_float(snapshot.get("significant_items_eps_effect"))
+    reported_q_eps = safe_float(snapshot.get("quarter_eps_reported"))
+    ex_q_eps = safe_float(snapshot.get("quarter_eps_ex_significant_items"))
+
+    special_item_ratio = None
+    if significant is None or abs(significant) <= 1e-12:
+        earnings_quality_points = 15
+    else:
+        # A verified official bridge is mandatory when material special items exist.
+        if (
+            reported_q_eps is None
+            or abs(reported_q_eps) <= 1e-12
+            or ex_q_eps is None
+            or rotce is None
+        ):
+            result["note"] = (
+                "Bank-Score gesperrt: wesentliche Sonderposten sind vorhanden, "
+                "aber die offizielle Bereinigungsbrücke ist nicht vollständig."
+            )
+            return result
+
+        special_item_ratio = abs(significant / reported_q_eps)
+        if special_item_ratio <= 0.25:
+            earnings_quality_points = 12
+        elif special_item_ratio <= 0.50:
+            earnings_quality_points = 8
+        else:
+            earnings_quality_points = 4
+
+    total = rotce_points + cet1_points + tbv_growth_points + earnings_quality_points
+    if total >= 85:
+        quality = "Sehr stark"
+    elif total >= 70:
+        quality = "Stark"
+    elif total >= 55:
+        quality = "Ausreichend"
+    else:
+        quality = "Schwach"
+
+    result.update({
+        "available": True,
+        "score": total,
+        "quality": quality,
+        "rotce_points": rotce_points,
+        "cet1_points": cet1_points,
+        "tbv_growth_points": tbv_growth_points,
+        "earnings_quality_points": earnings_quality_points,
+        "rotce_normalized_pct": rotce,
+        "cet1_reference_pct": cet1_ref,
+        "tbv_growth_yoy_pct": tbv_growth,
+        "significant_items_share_of_reported_eps": special_item_ratio,
+        "note": (
+            "Der Bank-Score verwendet ausschließlich bankspezifische Qualitäts- und "
+            "Kapitalanker. Umsatzwachstum, Standard-FCF und Netto-Schulden/FCF "
+            "fließen nicht ein."
+        ),
+    })
+    return result
+
+
+def calculate_bank_valuation_v1(
+    bank_score,
+    snapshot,
+    eps_normalization,
+    pb_consistency_status,
+    forward_pe_status,
+    source_consistency_note,
+):
+    """Dual-anchor bank valuation: 60% P/TBV and 40% normalized P/E."""
+    result = {
+        "available": False,
+        "bank_score": None,
+        "ptbv_corridor_lower": 0.8,
+        "ptbv_corridor_upper": 3.2,
+        "pe_corridor_lower": 8.0,
+        "pe_corridor_upper": 15.0,
+        "target_ptbv": None,
+        "target_pe": None,
+        "tbv_per_share": None,
+        "normalized_eps": None,
+        "fair_value_tbv_financial": None,
+        "fair_value_earnings_financial": None,
+        "fair_value_financial": None,
+        "tbv_weight": 0.60,
+        "earnings_weight": 0.40,
+        "anchor_spread_pct": None,
+        "confidence_cap": "Mittel",
+        "note": None,
+    }
+
+    if not isinstance(bank_score, dict) or not bank_score.get("available"):
+        result["note"] = "Bankbewertung gesperrt: kein vollständiger Bank-Score verfügbar."
+        return result
+
+    if not isinstance(snapshot, dict):
+        result["note"] = "Bankbewertung gesperrt: Primärquellen-Snapshot fehlt."
+        return result
+
+    if pb_consistency_status == "conflict" or forward_pe_status == "conflict":
+        result["note"] = (
+            "Bankbewertung gesperrt: eine Kurs-/Buchwert- oder KGV-"
+            "Plausibilitätsprüfung zeigt einen Einheiten-/Quellenkonflikt."
+        )
+        return result
+
+    if str(source_consistency_note or "").startswith("⚠️"):
+        result["note"] = (
+            "Bankbewertung gesperrt: offizieller Buchwert und Yahoo-Buchwert "
+            "weichen materiell voneinander ab."
+        )
+        return result
+
+    normalized_eps = safe_float((eps_normalization or {}).get("normalized_eps"))
+    tbv = safe_float(snapshot.get("tangible_book_value_per_share"))
+    score = safe_float(bank_score.get("score"))
+
+    if (
+        normalized_eps is None
+        or normalized_eps <= 0
+        or not has_usable_positive_earnings_basis(eps_normalization)
+        or tbv is None
+        or tbv <= 0
+        or score is None
+    ):
+        result["note"] = (
+            "Bankbewertung gesperrt: positive normalisierte EPS-Basis und "
+            "verifiziertes Tangible Book Value je Aktie müssen gleichzeitig vorliegen."
+        )
+        return result
+
+    score_fraction = max(0.0, min(1.0, score / 100.0))
+    target_ptbv = 0.8 + (3.2 - 0.8) * score_fraction
+    target_pe = 8.0 + (15.0 - 8.0) * score_fraction
+
+    fair_tbv = tbv * target_ptbv
+    fair_earnings = normalized_eps * target_pe
+
+    if fair_tbv <= 0 or fair_earnings <= 0:
+        result["note"] = "Bankbewertung gesperrt: mindestens ein Bewertungsanker ist nicht positiv."
+        return result
+
+    anchor_spread = abs(fair_tbv / fair_earnings - 1.0)
+    if anchor_spread > 0.25:
+        result.update({
+            "bank_score": score,
+            "target_ptbv": target_ptbv,
+            "target_pe": target_pe,
+            "tbv_per_share": tbv,
+            "normalized_eps": normalized_eps,
+            "fair_value_tbv_financial": fair_tbv,
+            "fair_value_earnings_financial": fair_earnings,
+            "anchor_spread_pct": anchor_spread * 100.0,
+            "note": (
+                "Bankbewertung gesperrt: P/TBV- und KGV-Anker weichen um mehr als "
+                "25 % voneinander ab. Die beiden Bewertungswege sind nicht ausreichend konsistent."
+            ),
+        })
+        return result
+
+    fair_blended = 0.60 * fair_tbv + 0.40 * fair_earnings
+    result.update({
+        "available": True,
+        "bank_score": score,
+        "target_ptbv": target_ptbv,
+        "target_pe": target_pe,
+        "tbv_per_share": tbv,
+        "normalized_eps": normalized_eps,
+        "fair_value_tbv_financial": fair_tbv,
+        "fair_value_earnings_financial": fair_earnings,
+        "fair_value_financial": fair_blended,
+        "anchor_spread_pct": anchor_spread * 100.0,
+        "note": (
+            "Bank-Fair-Value V1 kombiniert 60 % Tangible-Book-Value-Anker "
+            "(P/TBV) und 40 % normalisierte Gewinnbasis (KGV). Der Bank-Score "
+            "bestimmt beide Zielkorridore linear. Bei mehr als 25 % Abstand "
+            "zwischen den beiden Fair-Value-Ankern bleibt die Bewertung gesperrt."
+        ),
+    })
+    return result
+
+
 def build_bank_special_model(
     company_type,
     info,
     price,
     currency_context,
     symbol=None,
+    eps_normalization=None,
 ):
     """
-    Bank-specific data and primary-source integrity block.
+    Bank-specific primary-source, score and dual-anchor valuation block.
 
-    V2.20.32 adds verified ROTCE, tangible book value and CET1 when an
-    official time-bounded snapshot is available. The block still does not
-    create bank points, a valuation multiple or a fair value.
+    V2.20.36 keeps the verified ROTCE/TBV/CET1 gate and adds a dedicated
+    bank score plus a conservative P/TBV + normalized-P/E valuation.
     """
     type_name = str(company_type.get("type", "")).lower()
 
@@ -7717,6 +7990,16 @@ def build_bank_special_model(
         available_anchors = sum(value is not None for value in anchor_values)
         readiness = "Teilweise" if available_anchors >= 2 else "Unvollständig"
 
+    bank_score = calculate_bank_score_v1(snapshot, primary_source_complete)
+    bank_valuation = calculate_bank_valuation_v1(
+        bank_score,
+        snapshot,
+        eps_normalization,
+        pb_consistency_status,
+        forward_pe_status,
+        source_consistency_note,
+    )
+
     return {
         "applicable": True,
         "price_financial": price_financial,
@@ -7748,14 +8031,14 @@ def build_bank_special_model(
         "rote_available": rote_normalized is not None and snapshot_fresh,
         "tangible_book_value_available": tangible_book_value is not None and snapshot_fresh,
         "cet1_available": cet1_standardized is not None and snapshot_fresh,
+        "bank_score": bank_score,
+        "bank_valuation": bank_valuation,
         "note": (
-            "Banken-Sondermodell V2.20.35 lädt verifizierte Primärquellen-"
-            "Kennzahlen für unterstützte Banken. ROTCE, Tangible Book Value "
-            "und CET1 werden nicht aus Yahoo-Proxies rekonstruiert. Bei "
-            "JPMorgan werden wesentliche 2Q26-Sondergewinne separat gehalten; "
-            "für die Ertragskraft wird der offiziell ausgewiesene ROTCE ex "
-            "significant items gezeigt. Noch keine Bankpunkte, kein "
-            "Bewertungs-Multiple und kein Fair Value."
+            "Banken-Sondermodell V2.20.36 lädt verifizierte Primärquellen-"
+            "Kennzahlen und verwendet ausschließlich bankspezifische Faktoren "
+            "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
+            "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % normalisiertem KGV "
+            "berechnet. Standard-FCF und Netto-Schulden/FCF bleiben ausgeschlossen."
         )
     }
 
@@ -7788,12 +8071,26 @@ def build_bank_special_control(base_control, bank_model):
         })
         return control
 
+    bank_score = model.get("bank_score") or {}
+    bank_valuation = model.get("bank_valuation") or {}
+
+    valuation_released = bool(
+        bank_score.get("available")
+        and bank_valuation.get("available")
+    )
+
     control.update({
         "implemented": True,
-        "released": False,
-        "confidence_cap": "Mittel",
-        "step3b_status": "Primärdaten vollständig – Bewertungslogik noch gesperrt",
-        "overall_status": "Primärdaten vollständig",
+        "released": valuation_released,
+        "confidence_cap": (bank_valuation.get("confidence_cap") or "Mittel"),
+        "step3b_status": (
+            "Bankbewertung freigegeben – Dual-Anchor V1"
+            if valuation_released
+            else "Primärdaten vollständig – Bankbewertung noch gesperrt"
+        ),
+        "overall_status": (
+            "Freigegeben" if valuation_released else "Primärdaten vollständig"
+        ),
         "snapshot": snapshot,
         "checks": {
             "rote_reported_pct": model.get("rote_reported_pct"),
@@ -7802,12 +8099,20 @@ def build_bank_special_control(base_control, bank_model):
             "price_to_tangible_book": model.get("price_to_tangible_book"),
             "cet1_standardized_pct": model.get("cet1_standardized_pct"),
             "cet1_advanced_pct": model.get("cet1_advanced_pct"),
+            "bank_score": bank_score,
+            "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B V2.20.35 hat die Primärdatenbasis vollständig "
-            "validiert. Die Datenfreigabe ist bewusst von der späteren "
-            "Bewertungsfreigabe getrennt: Ein Bank-Fair-Value wird in dieser "
-            "Version noch nicht erzeugt."
+            "Bank-Schritt 3B V2.20.36 hat Primärdaten, Bank-Score und beide "
+            "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
+            "wenn P/TBV- und KGV-Anker gleichzeitig belastbar und ausreichend "
+            "konsistent sind."
+            if valuation_released
+            else (
+                "Bank-Schritt 3B V2.20.36 hat die Primärdatenbasis validiert, "
+                "aber die Bewertungsfreigabe bleibt gesperrt: "
+                + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
+            )
         ),
     })
     return control
@@ -9444,13 +9749,12 @@ def get_special_control(company_type, symbol):
                 "CET1-Kapitalquote",
                 "Sondergewinne / Ertragsqualität"
             ],
-            "status": "Router aktiv – V2.20.35 Primärquellen-Gate + FCF-Kontext + Sonderposten-Ampel",
+            "status": "Router aktiv – V2.20.36 Bank-Score + Dual-Anchor-Bewertung",
             "note": (
-                "V2.20.35 trennt Bank-Primärdaten von Yahoo-Proxies, kennzeichnet normalen Cashflow-Statement-FCF bei Banken ausschließlich als Kontext/Rohdaten und integriert verifizierte Bank-Sonderposten in die Sonderereignis-Ampel. Für "
-                "unterstützte Banken werden ROTCE, Tangible Book Value und "
-                "CET1 nur aus einem aktuellen verifizierten offiziellen "
-                "Snapshot übernommen. Sondergewinne werden separat markiert. "
-                "Die Bewertungslogik bleibt in diesem Schritt noch gesperrt."
+                "V2.20.36 behält Primärquellen-Gate, FCF-Kontext und Sonderposten-Ampel bei. "
+                "Zusätzlich bewertet der Bank-Score normalisierten ROTCE, CET1, Tangible-Book-"
+                "Wachstum und Ertragsqualität. P/TBV- und KGV-Anker werden getrennt berechnet; "
+                "ein Fair Value wird nur bei vollständiger und konsistenter Datenbasis freigegeben."
             )
         }
 
@@ -15742,6 +16046,111 @@ def calculate_fair_value_v1(
                 )
             return result
 
+    # Bank V2.20.36 – dedicated dual-anchor fair value. This branch is
+    # intentionally separate from the generic EPS x single-multiple path.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "bank_book_capital"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        bank_valuation = checks.get("bank_valuation") or {}
+        if not bank_valuation.get("available"):
+            result["note"] = (
+                "Fair Value V1 gesperrt: Die Bank-Spezialkontrolle ist zwar implementiert, "
+                "aber der Dual-Anchor-Bewertungsblock ist nicht vollständig freigegeben."
+            )
+            return result
+
+        fair_value_financial = safe_float(bank_valuation.get("fair_value_financial"))
+        if fair_value_financial is None or fair_value_financial <= 0:
+            result["note"] = "Fair Value V1 gesperrt: Bank-Fair-Value ist nicht positiv verfügbar."
+            return result
+
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = (
+                "Fair Value V1 gesperrt: Die Währungseinheiten der Bankbewertung sind nicht eindeutig."
+            )
+            return result
+
+        share_context = context.get("share_unit_context") or {}
+        share_ratio = 1.0
+        unit_notes = []
+        if share_context.get("conversion_required"):
+            if not share_context.get("conversion_available"):
+                result["note"] = (
+                    "Fair Value V1 gesperrt: Die Bank-Handelsnotierung verwendet eine abweichende "
+                    "Aktieneinheit ohne verifizierte Umrechnung."
+                )
+                return result
+            share_ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
+            if share_ratio is None or share_ratio <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Aktien-/ADR-Verhältnis ist nicht belastbar."
+                return result
+            unit_notes.append(
+                "Aktieneinheit ausdrücklich angeglichen: 1 "
+                f"{share_context.get('quote_unit_name') or 'Handelseinheit'} = "
+                f"{share_ratio:g} {share_context.get('fundamental_unit_name') or 'Fundamentalaktien'}."
+            )
+
+        fair_value_quote = fair_value_financial * share_ratio
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = (
+                    "Fair Value V1 gesperrt: Finanz- und Handelswährung weichen ab, aber die "
+                    "Umrechnung ist nicht belastbar verfügbar."
+                )
+                return result
+            fair_value_quote *= factor
+            if context.get("conversion_kind") == "gbp_pence":
+                unit_notes.append("Währungseinheit ausdrücklich angeglichen: 1 GBP = 100 GBp.")
+            else:
+                fx_symbol = context.get("fx_symbol")
+                unit_notes.append(
+                    f"Währungsumrechnung ausdrücklich angewendet: 1 {financial_currency} = "
+                    f"{factor:.6f} {quote_currency}" + (f" über {fx_symbol}." if fx_symbol else ".")
+                )
+        elif quote_currency != financial_currency:
+            result["note"] = (
+                "Fair Value V1 gesperrt: Finanz- und Handelswährung weichen ab und es liegt "
+                "keine ausdrückliche Umrechnung vor."
+            )
+            return result
+
+        current_price_value = safe_float(current_price)
+        potential_pct = None
+        if current_price_value is not None and current_price_value > 0:
+            potential_pct = (fair_value_quote / current_price_value - 1.0) * 100.0
+
+        result.update({
+            "available": True,
+            "valuation_method": "bank_dual_anchor",
+            "normalized_eps": safe_float(bank_valuation.get("normalized_eps")),
+            "used_multiple": None,
+            "multiple_source": "Bank Dual-Anchor P/TBV + KGV",
+            "fair_value_financial": fair_value_financial,
+            "fair_value_quote": fair_value_quote,
+            "potential_pct": potential_pct,
+            "bank_score": safe_float(bank_valuation.get("bank_score")),
+            "target_ptbv": safe_float(bank_valuation.get("target_ptbv")),
+            "target_pe": safe_float(bank_valuation.get("target_pe")),
+            "fair_value_tbv_financial": safe_float(bank_valuation.get("fair_value_tbv_financial")),
+            "fair_value_earnings_financial": safe_float(bank_valuation.get("fair_value_earnings_financial")),
+            "tbv_weight": safe_float(bank_valuation.get("tbv_weight")),
+            "earnings_weight": safe_float(bank_valuation.get("earnings_weight")),
+            "anchor_spread_pct": safe_float(bank_valuation.get("anchor_spread_pct")),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "Bank-Fair-Value V1 = 60 % P/TBV-Anker + 40 % normalisierter KGV-Anker. "
+                "Standard-FCF und klassische Netto-Schulden/FCF-Logik werden nicht verwendet."
+            ),
+        })
+        return result
+
     if (
         isinstance(special_control, dict)
         and special_control.get("required")
@@ -17105,7 +17514,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_bank_special_item_warning_v22035_20260909"
+CACHE_VERSION = "m6_bank_score_dual_anchor_v22036_20260909"
 
 @st.cache_data(
     ttl=900,
@@ -17366,6 +17775,18 @@ def load_stock(search_text, cache_version):
         earnings_growth
     )
 
+    if str((company_type or {}).get("type", "")).strip().lower() == "bank":
+        growth_score = {
+            **growth_score,
+            "context_score": growth_score.get("score"),
+            "score": None,
+            "note": (
+                "Bei Banken werden Umsatz- und Gewinnwachstum nur als Kontext gezeigt. "
+                "Sie fließen nicht in den Bank-Score ein; maßgeblich sind ROTCE, CET1, "
+                "Tangible-Book-Wachstum und Ertragsqualität."
+            ),
+        }
+
     profitability_score = calculate_profitability_score(
         company_type,
         profit_margin,
@@ -17433,7 +17854,8 @@ def load_stock(search_text, cache_version):
         fundamental_info,
         price,
         currency_context,
-        symbol=fundamental_symbol
+        symbol=fundamental_symbol,
+        eps_normalization=eps_normalization
     )
 
     midstream_special_model = build_midstream_special_model(
@@ -17465,6 +17887,18 @@ def load_stock(search_text, cache_version):
         balance_score,
         eps_normalization
     )
+
+    if bank_special_model.get("applicable"):
+        bank_score_total = safe_float((bank_special_model.get("bank_score") or {}).get("score"))
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": bank_score_total,
+            "note": (
+                "Banken verwenden kein einzelnes Standard-Fundamental-Multiple. "
+                "Der bankspezifische Score steuert getrennte P/TBV- und KGV-Zielkorridore; "
+                "die eigentliche Dual-Anchor-Bewertung erfolgt in Schritt 3B."
+            ),
+        }
 
     peer_group = get_peer_group(
         company_type,
@@ -17667,6 +18101,7 @@ def load_stock(search_text, cache_version):
         "balance_score": balance_score,
         "insurance_special_model": insurance_special_model,
         "bank_special_model": bank_special_model,
+        "bank_score": bank_special_model.get("bank_score") if bank_special_model.get("applicable") else None,
         "midstream_special_model": midstream_special_model,
         "auto_special_model": auto_special_model,
         "reit_special_model": reit_special_model,
@@ -19027,17 +19462,26 @@ if selected_symbol:
 
                 else:
 
-                    st.warning(
-                        "Wachstums-Score derzeit "
-                        "nicht berechenbar."
-                    )
+                    if str((company_type or {}).get("type", "")).strip().lower() == "bank":
+                        st.info(
+                            "Bankmodell: Der generische Umsatz-/Gewinnwachstums-Score "
+                            "wird nicht verwendet. Wachstum bleibt nur Kontext; der "
+                            "bankspezifische 100-Punkte-Score folgt im Bank-Sondermodell."
+                        )
+                        st.caption(growth_result.get("note"))
+                    else:
+                        st.warning(
+                            "Wachstums-Score derzeit "
+                            "nicht berechenbar."
+                        )
 
-                st.caption(
-                    "Modul 5 wird schrittweise aufgebaut. "
-                    "Wachstum liefert maximal 30 Punkte. "
-                    "Danach folgt die Profitabilität. "
-                    "Noch kein Fair Value."
-                )
+                if str((company_type or {}).get("type", "")).strip().lower() != "bank":
+                    st.caption(
+                        "Modul 5 wird schrittweise aufgebaut. "
+                        "Wachstum liefert maximal 30 Punkte. "
+                        "Danach folgt die Profitabilität. "
+                        "Noch kein Fair Value."
+                    )
 
                 st.divider()
 
@@ -19156,13 +19600,14 @@ if selected_symbol:
                         ]
                     )
 
-                st.caption(
-                    "Die Profitabilität basiert derzeit auf "
-                    "aktueller Nettomarge und aktuellem ROE. "
-                    "Historische Margen werden später ergänzt "
-                    "und dürfen aktuelle Verschlechterungen "
-                    "nicht verdecken."
-                )
+                if str((company_type or {}).get("type", "")).strip().lower() != "bank":
+                    st.caption(
+                        "Die Profitabilität basiert derzeit auf "
+                        "aktueller Nettomarge und aktuellem ROE. "
+                        "Historische Margen werden später ergänzt "
+                        "und dürfen aktuelle Verschlechterungen "
+                        "nicht verdecken."
+                    )
 
                 st.divider()
 
@@ -19412,45 +19857,59 @@ if selected_symbol:
 
                 else:
 
-                    if balance_result[
-                        "confidence"
-                    ] == "Sondermodell":
-
-                        st.warning(
-                            "⚠️ Bilanz-Sondermodell erforderlich"
-                        )
-
-                    else:
-
-                        st.info(
-                            "Bilanz-Score derzeit nicht verfügbar"
-                        )
-
-                    if balance_result[
-                        "net_debt"
-                    ] is not None:
-
-                        st.write(
-                            "**Nettoschulden:** "
-                            f"{format_money(
-                                balance_result['net_debt'],
-                                currency
-                            )}"
-                        )
-
-                    st.caption(
-                        balance_result[
-                            "note"
-                        ]
+                    is_bank_balance_ui = (
+                        str((company_type or {}).get("type", "")).strip().lower() == "bank"
                     )
 
-                st.caption(
-                    "Bilanzpunkte: Netto-Cash 15/15; "
-                    "sonst Bewertung über Netto-Schulden/FCF. "
-                    "Banken, Versicherungen, REIT/Immobilien, "
-                    "Autohersteller und Midstream-Unternehmen benötigen "
-                    "Sondermodelle."
-                )
+                    if is_bank_balance_ui:
+                        st.info(
+                            "ℹ️ Bankmodell: Klassische Netto-Schulden/FCF-Logik wird nicht verwendet"
+                        )
+                        st.caption(
+                            "Die Kapitalqualität wird im Bank-Score über CET1 bewertet. "
+                            "Konsolidierte Bank-Cash- und Schuldenwerte werden nicht wie bei Industrieunternehmen interpretiert."
+                        )
+                    else:
+                        if balance_result[
+                            "confidence"
+                        ] == "Sondermodell":
+
+                            st.warning(
+                                "⚠️ Bilanz-Sondermodell erforderlich"
+                            )
+
+                        else:
+
+                            st.info(
+                                "Bilanz-Score derzeit nicht verfügbar"
+                            )
+
+                        if balance_result[
+                            "net_debt"
+                        ] is not None:
+
+                            st.write(
+                                "**Nettoschulden:** "
+                                f"{format_money(
+                                    balance_result['net_debt'],
+                                    currency
+                                )}"
+                            )
+
+                        st.caption(
+                            balance_result[
+                                "note"
+                            ]
+                        )
+
+                if str((company_type or {}).get("type", "")).strip().lower() != "bank":
+                    st.caption(
+                        "Bilanzpunkte: Netto-Cash 15/15; "
+                        "sonst Bewertung über Netto-Schulden/FCF. "
+                        "Banken, Versicherungen, REIT/Immobilien, "
+                        "Autohersteller und Midstream-Unternehmen benötigen "
+                        "Sondermodelle."
+                    )
 
                 insurance_model = data.get(
                     "insurance_special_model",
@@ -19640,7 +20099,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Banken-Sondermodell V2.20.35 – Datenbasis"
+                        "🏦 Banken-Sondermodell V2.20.36 – Datenbasis"
                     )
 
                     if bank_model.get("primary_source_complete"):
@@ -19784,6 +20243,60 @@ if selected_symbol:
                                 st.caption(note)
 
                     st.caption(bank_model["note"])
+
+                    bank_score_ui = bank_model.get("bank_score") or {}
+                    if bank_score_ui.get("available"):
+                        st.divider()
+                        st.subheader("🏦 Bank-Score V1 – Qualität & Kapital")
+                        st.metric(
+                            "Bank-Score",
+                            f"{int(bank_score_ui.get('score'))}/100 Punkte"
+                        )
+                        st.write(
+                            "**Qualitätsstufe:** "
+                            f"{text_or_dash(bank_score_ui.get('quality'))}"
+                        )
+
+                        col_bs1, col_bs2 = st.columns(2)
+                        with col_bs1:
+                            st.write(
+                                "**Normalisierter ROTCE:** "
+                                f"{int(bank_score_ui.get('rotce_points'))}/40 Punkte "
+                                f"bei {bank_score_ui.get('rotce_normalized_pct'):.1f} %"
+                            )
+                            st.write(
+                                "**CET1-Kapitalqualität:** "
+                                f"{int(bank_score_ui.get('cet1_points'))}/25 Punkte "
+                                f"bei {bank_score_ui.get('cet1_reference_pct'):.1f} %"
+                            )
+                        with col_bs2:
+                            st.write(
+                                "**Tangible-Book-Wachstum:** "
+                                f"{int(bank_score_ui.get('tbv_growth_points'))}/20 Punkte "
+                                f"bei {bank_score_ui.get('tbv_growth_yoy_pct'):.1f} % p.a."
+                            )
+                            st.write(
+                                "**Ertragsqualität:** "
+                                f"{int(bank_score_ui.get('earnings_quality_points'))}/15 Punkte"
+                            )
+
+                        special_ratio = safe_float(
+                            bank_score_ui.get("significant_items_share_of_reported_eps")
+                        )
+                        if special_ratio is not None:
+                            st.caption(
+                                "Die verifizierten Sonderposten entsprechen rund "
+                                f"{special_ratio * 100:.1f} % des gemeldeten Quartals-EPS. "
+                                "Da eine offizielle Ex-Significant-Items-Brücke vorliegt, "
+                                "wird die Ertragsqualität konservativ bewertet, aber nicht gesperrt."
+                            )
+
+                        st.caption(bank_score_ui.get("note"))
+                    else:
+                        st.warning(
+                            "Bank-Score noch nicht freigegeben: "
+                            + text_or_dash(bank_score_ui.get("note"))
+                        )
 
                 midstream_model = data.get(
                     "midstream_special_model",
@@ -20245,64 +20758,112 @@ if selected_symbol:
                     "fundamental_multiple"
                 ]
 
-                corridor = multiple_result[
-                    "corridor"
-                ]
-
-                if corridor["available"]:
-
-                    st.write(
-                        "**Bewertungs-Korridor:** "
-                        f"{corridor['lower']:.1f}× bis "
-                        f"{corridor['upper']:.1f}×"
-                    )
-
-                    st.write(
-                        "**Multiple-Methode:** "
-                        f"{corridor['method']}"
-                    )
-
-                else:
-
-                    st.warning(
-                        "Noch kein belastbarer "
-                        "Bewertungs-Korridor verfügbar."
-                    )
-
-                if multiple_result["score"] is not None:
-
-                    st.write(
-                        "**Verwendeter Multiple Score:** "
-                        f"{multiple_result['score']}/100"
-                    )
-
-                if multiple_result["available"]:
-
-                    st.metric(
-                        "Fundamental-Multiple",
-                        f"{multiple_result['multiple']:.2f}×"
-                    )
-
-                    st.success(
-                        "Fundamental-Multiple erfolgreich "
-                        "aus Score und Korridor berechnet."
-                    )
-
-                else:
-
-                    st.info(
-                        "Noch kein Fundamental-Multiple berechenbar."
-                    )
-
-                st.caption(
-                    multiple_result["note"]
+                is_bank_valuation_ui = (
+                    str((company_type or {}).get("type", "")).strip().lower() == "bank"
                 )
 
-                st.caption(
-                    "Schritt 1 berechnet ausschließlich das "
-                    "Fundamental-Multiple. Peer-Check und Fair Value "
-                    "werden in getrennten nachfolgenden Schritten geprüft."
-                )
+                if is_bank_valuation_ui:
+                    bank_model_m6 = data.get("bank_special_model") or {}
+                    bank_score_m6 = bank_model_m6.get("bank_score") or {}
+                    bank_val_m6 = bank_model_m6.get("bank_valuation") or {}
+
+                    if bank_score_m6.get("available"):
+                        st.write(
+                            "**Verwendeter Bank-Score:** "
+                            f"{int(bank_score_m6.get('score'))}/100"
+                        )
+                    else:
+                        st.warning("Noch kein vollständiger Bank-Score verfügbar.")
+
+                    st.write(
+                        "**P/TBV-Korridor:** "
+                        f"{bank_val_m6.get('ptbv_corridor_lower', 0.8):.1f}× bis "
+                        f"{bank_val_m6.get('ptbv_corridor_upper', 3.2):.1f}×"
+                    )
+                    st.write(
+                        "**Normalisierter KGV-Korridor:** "
+                        f"{bank_val_m6.get('pe_corridor_lower', 8.0):.1f}× bis "
+                        f"{bank_val_m6.get('pe_corridor_upper', 15.0):.1f}×"
+                    )
+
+                    target_ptbv = safe_float(bank_val_m6.get("target_ptbv"))
+                    target_pe = safe_float(bank_val_m6.get("target_pe"))
+                    if target_ptbv is not None and target_pe is not None:
+                        st.metric("Ziel-P/TBV", f"{target_ptbv:.2f}×")
+                        st.metric("Ziel-KGV", f"{target_pe:.2f}×")
+                        st.success(
+                            "Bankspezifische Ziel-Multiples aus dem Bank-Score berechnet. "
+                            "Es wird bewusst kein einzelnes Standard-Fundamental-Multiple verwendet."
+                        )
+                    else:
+                        st.info(
+                            "Bank-Zielmultiples noch nicht freigegeben. Die Bewertung bleibt fail-closed."
+                        )
+
+                    st.caption(multiple_result.get("note"))
+                    st.caption(
+                        "Bei Banken werden P/TBV und normalisiertes KGV getrennt geführt. "
+                        "Der Dual-Anchor-Fair-Value folgt erst nach der Bank-Spezialkontrolle in Schritt 3B."
+                    )
+                else:
+                    corridor = multiple_result[
+                        "corridor"
+                    ]
+
+                    if corridor["available"]:
+
+                        st.write(
+                            "**Bewertungs-Korridor:** "
+                            f"{corridor['lower']:.1f}× bis "
+                            f"{corridor['upper']:.1f}×"
+                        )
+
+                        st.write(
+                            "**Multiple-Methode:** "
+                            f"{corridor['method']}"
+                        )
+
+                    else:
+
+                        st.warning(
+                            "Noch kein belastbarer "
+                            "Bewertungs-Korridor verfügbar."
+                        )
+
+                    if multiple_result["score"] is not None:
+
+                        st.write(
+                            "**Verwendeter Multiple Score:** "
+                            f"{multiple_result['score']}/100"
+                        )
+
+                    if multiple_result["available"]:
+
+                        st.metric(
+                            "Fundamental-Multiple",
+                            f"{multiple_result['multiple']:.2f}×"
+                        )
+
+                        st.success(
+                            "Fundamental-Multiple erfolgreich "
+                            "aus Score und Korridor berechnet."
+                        )
+
+                    else:
+
+                        st.info(
+                            "Noch kein Fundamental-Multiple berechenbar."
+                        )
+
+                    st.caption(
+                        multiple_result["note"]
+                    )
+
+                    st.caption(
+                        "Schritt 1 berechnet ausschließlich das "
+                        "Fundamental-Multiple. Peer-Check und Fair Value "
+                        "werden in getrennten nachfolgenden Schritten geprüft."
+                    )
 
                 st.divider()
 
@@ -20796,6 +21357,8 @@ if selected_symbol:
                     if special_control.get("implemented"):
                         checks = special_control.get("checks", {})
                         snapshot = special_control.get("snapshot") or {}
+                        bank_score_3b = checks.get("bank_score") or {}
+                        bank_val_3b = checks.get("bank_valuation") or {}
 
                         st.write(
                             "**Datenstand:** "
@@ -20810,7 +21373,7 @@ if selected_symbol:
                             tbv = safe_float(checks.get("tangible_book_value_per_share"))
                             st.metric("Tangible Book Value je Aktie", format_eps(tbv, financial_currency) if tbv is not None else "–")
                             ptbv = safe_float(checks.get("price_to_tangible_book"))
-                            st.metric("P / Tangible Book", f"{ptbv:.2f}×" if ptbv is not None else "–")
+                            st.metric("Aktuelles P / Tangible Book", f"{ptbv:.2f}×" if ptbv is not None else "–")
                         with col2:
                             rr = safe_float(checks.get("rote_reported_pct"))
                             st.metric("ROTCE gemeldet", f"{rr:.1f} %" if rr is not None else "–")
@@ -20821,20 +21384,56 @@ if selected_symbol:
 
                         st.success(
                             "Bank-Primärdaten vollständig validiert. ROTCE, TBVPS und "
-                            "CET1 sind jetzt belastbar vorhanden."
+                            "CET1 sind belastbar vorhanden."
                         )
-                        st.warning(
-                            "Bewertungsfreigabe noch NEIN: V2.20.35 hält Primärdatenfreigabe "
-                            "und Bewertungsfreigabe weiterhin bewusst getrennt. Bank-Score, "
-                            "P/TBV-/KGV-Korridor und Fair Value werden erst im nächsten Schritt "
-                            "fachlich festgelegt."
-                        )
+
+                        if bank_score_3b.get("available"):
+                            st.metric(
+                                "Bank-Score",
+                                f"{int(bank_score_3b.get('score'))}/100 Punkte"
+                            )
+
+                        if bank_val_3b.get("available"):
+                            st.write(
+                                "**Ziel-P/TBV:** "
+                                f"{bank_val_3b.get('target_ptbv'):.2f}× "
+                                f"innerhalb {bank_val_3b.get('ptbv_corridor_lower'):.1f}–{bank_val_3b.get('ptbv_corridor_upper'):.1f}×"
+                            )
+                            st.write(
+                                "**Ziel-KGV:** "
+                                f"{bank_val_3b.get('target_pe'):.2f}× "
+                                f"innerhalb {bank_val_3b.get('pe_corridor_lower'):.1f}–{bank_val_3b.get('pe_corridor_upper'):.1f}×"
+                            )
+                            st.write(
+                                "**Fair-Value-Anker P/TBV:** "
+                                f"{bank_val_3b.get('fair_value_tbv_financial'):.2f} {financial_currency}"
+                            )
+                            st.write(
+                                "**Fair-Value-Anker KGV:** "
+                                f"{bank_val_3b.get('fair_value_earnings_financial'):.2f} {financial_currency}"
+                            )
+                            st.write(
+                                "**Abstand der beiden Anker:** "
+                                f"{bank_val_3b.get('anchor_spread_pct'):.1f} %"
+                            )
+
+                        if special_control.get("released"):
+                            st.success(
+                                "Bewertungsfreigabe JA: Bank-Score sowie P/TBV- und KGV-Anker "
+                                "sind vollständig und ausreichend konsistent. Der Dual-Anchor-Fair-Value ist freigegeben."
+                            )
+                        else:
+                            st.warning(
+                                "Bewertungsfreigabe NEIN: "
+                                + text_or_dash(bank_val_3b.get("note"))
+                            )
                     else:
                         st.warning(special_control.get("note"))
 
                     st.caption(
-                        "Bank-Primärdatenfreigabe und Bewertungsfreigabe sind getrennt. "
-                        "Ein vollständiger Datensatz allein erzeugt noch keinen Fair Value."
+                        "Bank-Freigabe bleibt fail-closed: veraltete Primärdaten, Quellenkonflikte, "
+                        "unvollständige Sonderposten-Brücken oder mehr als 25 % Abstand zwischen "
+                        "P/TBV- und KGV-Fair-Value-Anker sperren die Bewertung."
                     )
 
                 if special_control.get(
@@ -22601,28 +23200,61 @@ if selected_symbol:
 
                 if fair_value["available"]:
 
-                    st.write(
-                        "**Bewertungsformel:** "
-                        "Normalisiertes EPS × verwendetes Multiple"
-                    )
+                    if fair_value.get("valuation_method") == "bank_dual_anchor":
+                        st.write(
+                            "**Bewertungsformel:** "
+                            "60 % P/TBV-Anker + 40 % normalisierter KGV-Anker"
+                        )
+                        st.write(
+                            "**Bank-Score:** "
+                            f"{fair_value.get('bank_score'):.0f}/100"
+                        )
+                        st.write(
+                            "**Ziel-P/TBV:** "
+                            f"{fair_value.get('target_ptbv'):.2f}×"
+                        )
+                        st.write(
+                            "**Ziel-KGV:** "
+                            f"{fair_value.get('target_pe'):.2f}×"
+                        )
+                        st.write(
+                            "**P/TBV-Fair-Value-Anker:** "
+                            f"{fair_value.get('fair_value_tbv_financial'):.2f} "
+                            f"{fair_value['financial_currency']}"
+                        )
+                        st.write(
+                            "**KGV-Fair-Value-Anker:** "
+                            f"{fair_value.get('fair_value_earnings_financial'):.2f} "
+                            f"{fair_value['financial_currency']}"
+                        )
+                        if fair_value.get("anchor_spread_pct") is not None:
+                            st.write(
+                                "**Abstand der Bewertungsanker:** "
+                                f"{fair_value.get('anchor_spread_pct'):.1f} %"
+                            )
+                    else:
+                        st.write(
+                            "**Bewertungsformel:** "
+                            "Normalisiertes EPS × verwendetes Multiple"
+                        )
 
-                    st.write(
-                        "**Normalisiertes EPS:** "
-                        f"{format_eps(
-                            fair_value['normalized_eps'],
-                            fair_value['financial_currency']
-                        )}"
-                    )
+                        st.write(
+                            "**Normalisiertes EPS:** "
+                            f"{format_eps(
+                                fair_value['normalized_eps'],
+                                fair_value['financial_currency']
+                            )}"
+                        )
 
-                    st.write(
-                        "**Verwendetes Multiple:** "
-                        f"{fair_value['used_multiple']:.2f}×"
-                    )
+                        st.write(
+                            "**Verwendetes Multiple:** "
+                            f"{fair_value['used_multiple']:.2f}×"
+                        )
 
-                    st.write(
-                        "**Multiple-Quelle:** "
-                        f"{fair_value['multiple_source']}"
-                    )
+                        st.write(
+                            "**Multiple-Quelle:** "
+                            f"{fair_value['multiple_source']}"
+                        )
 
                     if fair_value.get(
                         "unit_conversion_applied"
@@ -22668,10 +23300,16 @@ if selected_symbol:
                             f"{potential:+.1f} %"
                         )
 
-                    st.success(
-                        "Fair Value V1 wurde aus der bereits geprüften "
-                        "Gewinnbasis und dem verwendeten Multiple berechnet."
-                    )
+                    if fair_value.get("valuation_method") == "bank_dual_anchor":
+                        st.success(
+                            "Bank-Fair-Value V1 wurde aus zwei unabhängigen, bankspezifischen "
+                            "Bewertungsankern berechnet und erst nach der Schritt-3B-Freigabe veröffentlicht."
+                        )
+                    else:
+                        st.success(
+                            "Fair Value V1 wurde aus der bereits geprüften "
+                            "Gewinnbasis und dem verwendeten Multiple berechnet."
+                        )
 
                 else:
                     st.info(
