@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.39: Bank TTM Coverage Integration Fix – vier offizielle Quartale sind die einzige Quelle für Core-TTM-EPS, Core-KGV-Anker und Bank-Freigabe; Cache-Version bewusst angehoben.
+# V2.20.40: Insurance Primary Source Gate – Allianz 2Q/6M 2026 Core Earnings, Core EPS/Core RoE und Solvency II aus offizieller Primärquelle; Versicherungsbewertung bleibt bewusst gesperrt. Bank V2.20.39 bleibt unverändert.
 
 # =========================================================
 # Hilfsfunktionen
@@ -7098,14 +7098,92 @@ def normalize_eps(
 
 
 # =========================================================
-# Versicherungs-Sondermodell V1 – Datenbasis / Plausibilitätscheck
+# Versicherungs-Sondermodell V2.20.40 – Primary Source Gate
 # =========================================================
+
+def get_verified_insurance_snapshot(symbol):
+    """
+    Time-bounded official primary-source snapshot for supported insurers.
+
+    V2.20.40 starts with Allianz SE / Allianz Group. Unknown insurers
+    deliberately return None. Core earnings, Core EPS/Core RoE and Solvency II
+    are never inferred from Yahoo proxies.
+    """
+    symbol_text = str(symbol or "").upper()
+
+    allianz_symbols = {
+        "ALV.DE", "ALV.F", "ALV.HM", "ALV.DU",
+        "ALV.BE", "ALV.MU", "ALV.SG"
+    }
+    if symbol_text not in allianz_symbols:
+        return None
+
+    return {
+        "company": "Allianz SE / Allianz Group",
+        "as_of_date": "30.06.2026",
+        "published_date": "07.08.2026",
+        # Conservative expiry one day before the scheduled 3Q26 release.
+        "valid_until": "11.11.2026",
+        "source_name": "Allianz Group 2Q & 6M 2026 Earnings Release + Interim Report",
+        "source_url": (
+            "https://www.allianz.com/en/mediacenter/news/media-releases/"
+            "financials/260807-2q-2026-earnings-release.html"
+        ),
+        "interim_report_url": (
+            "https://www.allianz.com/content/dam/onemarketing/azcom/"
+            "Allianz_com/investor-relations/en/results/2026-2q/"
+            "2q-2026-interim-report-allianz.pdf"
+        ),
+        "period_label": "6M 2026",
+        "shareholders_core_net_income": 6.385e9,
+        "shareholders_core_net_income_prior": 5.527e9,
+        "shareholders_core_net_income_growth_pct": 15.5,
+        "shareholders_net_income": 6.285e9,
+        "basic_eps_reported": 16.18,
+        "core_eps_basic": 16.44,
+        "core_eps_basic_prior": 13.99,
+        "core_eps_growth_pct": 17.5,
+        "core_roe_annualized_pct": 20.7,
+        "core_roe_prior_pct": 18.1,
+        "solvency_ii_ratio_pct": 225.0,
+        "solvency_ii_prior_pct": 218.0,
+        "solvency_ii_change_pp": 7.0,
+        "operating_profit": 9.390e9,
+        "underlying_growth_note": (
+            "Allianz weist zusätzlich darauf hin, dass das Wachstum des "
+            "Shareholders' Core Net Income nach Bereinigung bestimmter "
+            "Transaktions-/Divestment-Effekte bei rund 9 % lag. V2.20.40 "
+            "verwendet diesen Hinweis nur als Ertragsqualitäts-Kontext; "
+            "es wird daraus keine zusätzliche EPS-Bereinigung geschätzt."
+        ),
+        "source_note": (
+            "Offizielle Allianz-2Q/6M-2026-Daten. Shareholders' Core Net "
+            "Income, Core EPS, Core RoE und Solvency-II-Quote werden nicht "
+            "aus Yahoo-Feldern rekonstruiert. Die 6M-Werte werden nicht "
+            "annualisiert und erzeugen in V2.20.40 noch keinen Score, "
+            "kein Bewertungs-Multiple und keinen Fair Value."
+        ),
+    }
+
+
+def _insurance_snapshot_is_fresh(snapshot):
+    if not isinstance(snapshot, dict):
+        return False
+    try:
+        valid_until = datetime.strptime(
+            snapshot.get("valid_until"), "%d.%m.%Y"
+        ).date()
+        return datetime.now().date() <= valid_until
+    except Exception:
+        return False
+
 
 def build_insurance_special_model(
     company_type,
     info,
     price,
-    currency_context
+    currency_context,
+    symbol=None
 ):
     """
     Conservative insurer-specific data block.
@@ -7123,6 +7201,34 @@ def build_insurance_special_model(
         return {
             "applicable": False
         }
+
+    snapshot = get_verified_insurance_snapshot(symbol)
+    snapshot_fresh = _insurance_snapshot_is_fresh(snapshot)
+
+    core_net_income = safe_float(
+        (snapshot or {}).get("shareholders_core_net_income")
+    ) if snapshot_fresh else None
+    core_eps = safe_float(
+        (snapshot or {}).get("core_eps_basic")
+    ) if snapshot_fresh else None
+    core_roe = safe_float(
+        (snapshot or {}).get("core_roe_annualized_pct")
+    ) if snapshot_fresh else None
+    solvency_ii = safe_float(
+        (snapshot or {}).get("solvency_ii_ratio_pct")
+    ) if snapshot_fresh else None
+
+    primary_source_complete = bool(
+        snapshot_fresh
+        and core_net_income is not None
+        and core_net_income > 0
+        and core_eps is not None
+        and core_eps > 0
+        and core_roe is not None
+        and core_roe > 0
+        and solvency_ii is not None
+        and solvency_ii > 100
+    )
 
     quote_price = safe_float(price)
     price_financial = convert_quote_price_to_financial_share_unit(
@@ -7426,9 +7532,13 @@ def build_insurance_special_model(
     )
 
     readiness = (
-        "Teilweise"
-        if available_anchors >= 3
-        else "Unvollständig"
+        "Primärdaten vollständig"
+        if primary_source_complete
+        else (
+            "Teilweise"
+            if available_anchors >= 3
+            else "Unvollständig"
+        )
     )
 
     return {
@@ -7451,18 +7561,85 @@ def build_insurance_special_model(
         "calculated_trailing_pe": calculated_trailing_pe,
         "pb_consistency_note": pb_consistency_note,
         "readiness": readiness,
-        "core_earnings_available": False,
-        "solvency_capital_available": False,
+        "snapshot": snapshot,
+        "snapshot_fresh": snapshot_fresh,
+        "primary_source_complete": primary_source_complete,
+        "core_earnings_available": core_net_income is not None and core_eps is not None,
+        "solvency_capital_available": solvency_ii is not None,
+        "shareholders_core_net_income": core_net_income,
+        "core_eps_basic": core_eps,
+        "core_roe_annualized_pct": core_roe,
+        "solvency_ii_ratio_pct": solvency_ii,
+        "shareholders_net_income": safe_float((snapshot or {}).get("shareholders_net_income")) if snapshot_fresh else None,
+        "basic_eps_reported": safe_float((snapshot or {}).get("basic_eps_reported")) if snapshot_fresh else None,
+        "core_eps_growth_pct": safe_float((snapshot or {}).get("core_eps_growth_pct")) if snapshot_fresh else None,
+        "core_net_income_growth_pct": safe_float((snapshot or {}).get("shareholders_core_net_income_growth_pct")) if snapshot_fresh else None,
+        "solvency_ii_prior_pct": safe_float((snapshot or {}).get("solvency_ii_prior_pct")) if snapshot_fresh else None,
+        "solvency_ii_change_pp": safe_float((snapshot or {}).get("solvency_ii_change_pp")) if snapshot_fresh else None,
+        "underlying_growth_note": (snapshot or {}).get("underlying_growth_note") if snapshot_fresh else None,
         "note": (
-            "Versicherungs-Sondermodell V1 bleibt ein reiner Daten- und "
-            "Plausibilitätsblock. Dividendenrendite und KBV werden nur "
-            "angezeigt, wenn ihre Einheit/Datenbasis ausreichend plausibel "
-            "ist. Core Earnings und Solvency-/Kapitalquote werden in der "
-            "aktuellen Datenquelle nicht separat geladen und deshalb nicht "
-            "geschätzt oder durch andere Kennzahlen ersetzt. Noch keine "
-            "Versicherungspunkte, kein Bewertungs-Multiple und kein Fair Value."
+            "Versicherungs-Sondermodell V2.20.40 lädt für unterstützte Versicherer "
+            "Core Earnings/Core EPS, Core RoE und Solvency II ausschließlich aus "
+            "einem aktuellen verifizierten offiziellen Snapshot. Yahoo-ROE, Buchwert, "
+            "KBV, Forward-KGV und Dividende bleiben Kontext/Plausibilitätsanker. "
+            "Die 6M-Core-EPS-Basis wird nicht annualisiert. Noch keine Versicherungspunkte, "
+            "kein Bewertungs-Multiple und kein Fair Value."
         )
     }
+
+
+def build_insurance_special_control(base_control, insurance_model):
+    """Attach a fail-closed insurer step-3B primary-source gate."""
+    control = dict(base_control or {})
+    control.setdefault("router_status", control.get("status"))
+    control.setdefault("router_note", control.get("note"))
+
+    if control.get("control_key") != "insurance_core_capital":
+        return control
+
+    model = insurance_model if isinstance(insurance_model, dict) else {}
+    snapshot = model.get("snapshot")
+
+    if not model.get("primary_source_complete"):
+        control.update({
+            "implemented": False,
+            "released": False,
+            "confidence_cap": "Niedrig",
+            "step3b_status": "Primärdaten unvollständig oder veraltet",
+            "overall_status": "Nicht freigegeben",
+            "snapshot": snapshot,
+            "note": (
+                "Die Versicherungs-Primärdatenprüfung benötigt aktuelle Core Earnings/Core EPS, "
+                "Core RoE und Solvency II aus einer offiziellen Quelle. Fehlende Werte werden "
+                "nicht durch Nettogewinn, Standard-EPS, Yahoo-ROE oder Bilanz-Proxies ersetzt."
+            ),
+        })
+        return control
+
+    control.update({
+        "implemented": True,
+        "released": False,
+        "confidence_cap": "Mittel",
+        "step3b_status": "Primärdaten vollständig – Versicherungsbewertung noch gesperrt",
+        "overall_status": "Primärdaten vollständig",
+        "snapshot": snapshot,
+        "checks": {
+            "shareholders_core_net_income": model.get("shareholders_core_net_income"),
+            "core_eps_basic": model.get("core_eps_basic"),
+            "core_roe_annualized_pct": model.get("core_roe_annualized_pct"),
+            "solvency_ii_ratio_pct": model.get("solvency_ii_ratio_pct"),
+            "core_eps_growth_pct": model.get("core_eps_growth_pct"),
+            "core_net_income_growth_pct": model.get("core_net_income_growth_pct"),
+            "solvency_ii_prior_pct": model.get("solvency_ii_prior_pct"),
+            "solvency_ii_change_pp": model.get("solvency_ii_change_pp"),
+        },
+        "note": (
+            "Versicherungs-Schritt 3B V2.20.40 validiert zunächst nur die offizielle "
+            "Core-Earnings-/Kapitalbasis. Bewertungs-Score, P/B-/Core-KGV-Korridor und "
+            "Fair Value werden bewusst erst in einem separaten Folgeschritt festgelegt."
+        ),
+    })
+    return control
 
 
 # =========================================================
@@ -10048,12 +10225,14 @@ def get_special_control(company_type, symbol):
                 "Solvency- / Kapitalquote",
                 "Ausschüttungsquote"
             ],
-            "status": "Router aktiv – V1 Datenbasis vorhanden",
+            "status": "Router aktiv – V2.20.40 Versicherungs-Primärquellen-Gate",
             "note": (
-                "V1 lädt nur belastbare Basiskennzahlen aus der aktuellen "
-                "Datenquelle. Core Earnings und Solvency-/Kapitalquote "
-                "werden nicht geschätzt. Das Sondermodell verändert noch "
-                "keinen Score und kein Bewertungs-Multiple."
+                "V2.20.40 trennt Yahoo-Kontextkennzahlen von verifizierten "
+                "Versicherungs-Primärdaten. Für unterstützte Versicherer werden "
+                "Core Earnings/Core EPS, Core RoE und Solvency II nur aus einem "
+                "aktuellen offiziellen Snapshot übernommen; fehlende Werte werden "
+                "nicht geschätzt. Bewertungs-Score, Multiple und Fair Value bleiben "
+                "in diesem Schritt gesperrt."
             )
         }
 
@@ -17790,7 +17969,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_bank_ttm_coverage_integration_v22039_20260909"
+CACHE_VERSION = "m6_insurance_primary_source_gate_v22040_20260909"
 
 @st.cache_data(
     ttl=900,
@@ -18122,7 +18301,8 @@ def load_stock(search_text, cache_version):
         company_type,
         fundamental_info,
         price,
-        currency_context
+        currency_context,
+        symbol=fundamental_symbol
     )
 
     bank_special_model = build_bank_special_model(
@@ -18195,6 +18375,11 @@ def load_stock(search_text, cache_version):
     special_control = get_special_control(
         company_type,
         symbol
+    )
+
+    special_control = build_insurance_special_control(
+        special_control,
+        insurance_special_model
     )
 
     special_control = build_bank_special_control(
@@ -18353,7 +18538,12 @@ def load_stock(search_text, cache_version):
                         ". Bei Banken wird ein wiederhergestellter Free Cashflow nur als Kontext geführt; "
                         "die bankspezifischen Kernkennzahlen werden separat geprüft."
                         if str((company_type or {}).get("type", "")).strip().lower() == "bank"
-                        else ". Die für die Kernbewertung benötigten Fundamentaldaten sind wieder verfügbar."
+                        else (
+                            ". Bei Versicherungen wird ein wiederhergestellter Free Cashflow nur als Kontext geführt; "
+                            "Core Earnings/Core EPS, Core RoE und Solvency II werden separat aus Primärquellen geprüft."
+                            if "versicherung" in str((company_type or {}).get("type", "")).strip().lower()
+                            else ". Die für die Kernbewertung benötigten Fundamentaldaten sind wieder verfügbar."
+                        )
                     )
                 )
             )
@@ -20221,14 +20411,13 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🛡️ Versicherungs-Sondermodell V1 – Datenbasis"
+                        "🛡️ Versicherungs-Sondermodell V2.20.40 – Datenbasis"
                     )
 
                     st.info(
-                        "Versicherungsmodell erkannt. In V1 werden nur "
-                        "versicherungstypische Basiskennzahlen und "
-                        "Einheiten plausibilisiert; es wird noch keine "
-                        "Versicherungsbewertung erzeugt."
+                        "Versicherungsmodell erkannt. V2.20.40 ergänzt die Yahoo-Kontextdaten "
+                        "um ein zeitlich begrenztes Primärquellen-Gate für Core Earnings/Core EPS, "
+                        "Core RoE und Solvency II. Es wird noch keine Versicherungsbewertung erzeugt."
                     )
 
                     col1, col2 = st.columns(2)
@@ -20359,17 +20548,85 @@ if selected_symbol:
                             ]
                         )
 
-                    st.write(
-                        "**Core Earnings:** – "
-                        "(nicht separat verfügbar; wird nicht durch "
-                        "Nettogewinn oder Standard-EPS ersetzt)"
-                    )
+                    if insurance_model.get("primary_source_complete"):
+                        st.success(
+                            "Primärquellen-Gate bestanden: Shareholders' Core Net Income, "
+                            "Core EPS/Core RoE und Solvency II sind aus einer aktuellen "
+                            "offiziellen Versicherer-Quelle verifiziert."
+                        )
 
-                    st.write(
-                        "**Solvency- / Kapitalquote:** – "
-                        "(in der aktuellen Datenquelle nicht separat "
-                        "verfügbar; wird nicht geschätzt)"
-                    )
+                        snapshot = insurance_model.get("snapshot") or {}
+                        st.write(
+                            "**Datenstand Primärquelle:** "
+                            f"{text_or_dash(snapshot.get('as_of_date'))} "
+                            f"(veröffentlicht {text_or_dash(snapshot.get('published_date'))})"
+                        )
+
+                        col3, col4 = st.columns(2)
+                        with col3:
+                            cni = safe_float(insurance_model.get("shareholders_core_net_income"))
+                            st.metric(
+                                "Shareholders' Core Net Income (6M)",
+                                format_money(cni, financial_currency) if cni is not None else "–"
+                            )
+                            ceps = safe_float(insurance_model.get("core_eps_basic"))
+                            st.metric(
+                                "Core EPS (6M)",
+                                format_eps(ceps, financial_currency) if ceps is not None else "–"
+                            )
+                            croe = safe_float(insurance_model.get("core_roe_annualized_pct"))
+                            st.metric(
+                                "Core RoE (annualisiert)",
+                                f"{croe:.1f} %" if croe is not None else "–"
+                            )
+                        with col4:
+                            sii = safe_float(insurance_model.get("solvency_ii_ratio_pct"))
+                            st.metric(
+                                "Solvency II",
+                                f"{sii:.0f} %" if sii is not None else "–"
+                            )
+                            cg = safe_float(insurance_model.get("core_net_income_growth_pct"))
+                            st.metric(
+                                "Core-Net-Income-Wachstum (6M YoY)",
+                                f"{cg:.1f} %" if cg is not None else "–"
+                            )
+                            eg = safe_float(insurance_model.get("core_eps_growth_pct"))
+                            st.metric(
+                                "Core-EPS-Wachstum (6M YoY)",
+                                f"{eg:.1f} %" if eg is not None else "–"
+                            )
+
+                        prior_sii = safe_float(insurance_model.get("solvency_ii_prior_pct"))
+                        sii_change = safe_float(insurance_model.get("solvency_ii_change_pp"))
+                        if prior_sii is not None and sii_change is not None:
+                            st.caption(
+                                f"Solvency II: {sii:.0f} % gegenüber {prior_sii:.0f} % zum Vorjahresende "
+                                f"({sii_change:+.0f} Prozentpunkte)."
+                            )
+
+                        if insurance_model.get("underlying_growth_note"):
+                            st.info(insurance_model.get("underlying_growth_note"))
+
+                        st.caption(
+                            f"Quelle: {text_or_dash(snapshot.get('source_name'))} · "
+                            f"gültig bis {text_or_dash(snapshot.get('valid_until'))}"
+                        )
+                    elif insurance_model.get("snapshot") and not insurance_model.get("snapshot_fresh"):
+                        st.warning(
+                            "Der verifizierte Versicherungs-Snapshot ist abgelaufen. "
+                            "Core Earnings/Core EPS, Core RoE und Solvency II werden nicht "
+                            "stillschweigend weiterverwendet."
+                        )
+                    else:
+                        st.write(
+                            "**Core Earnings / Core EPS:** – "
+                            "(kein aktueller verifizierter Primärquellen-Snapshot; wird nicht durch "
+                            "Nettogewinn oder Standard-EPS ersetzt)"
+                        )
+                        st.write(
+                            "**Solvency- / Kapitalquote:** – "
+                            "(kein aktueller verifizierter Primärquellen-Snapshot; wird nicht geschätzt)"
+                        )
 
                     st.write(
                         "**Datenreife Sondermodell:** "
@@ -21686,6 +21943,77 @@ if selected_symbol:
                         "Book-to-Bill verändert den 100-Punkte-Multiple-Score nicht. "
                         "Verifizierte Spezialdaten werden nach ihrem Gültigkeitsdatum "
                         "nicht stillschweigend weiterverwendet."
+                    )
+
+                if special_control.get(
+                    "control_key"
+                ) == "insurance_core_capital":
+
+                    st.divider()
+
+                    st.subheader(
+                        "🛡️ Modul 6 – Schritt 3B: Versicherungs-Core-Earnings- & Kapitalprüfung"
+                    )
+
+                    if special_control.get("implemented"):
+                        checks = special_control.get("checks", {})
+                        snapshot = special_control.get("snapshot") or {}
+
+                        st.write(
+                            "**Datenstand:** "
+                            f"{text_or_dash(snapshot.get('as_of_date'))} "
+                            f"(veröffentlicht {text_or_dash(snapshot.get('published_date'))})"
+                        )
+
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            cni = safe_float(checks.get("shareholders_core_net_income"))
+                            st.metric(
+                                "Shareholders' Core Net Income (6M)",
+                                format_money(cni, financial_currency) if cni is not None else "–"
+                            )
+                            ceps = safe_float(checks.get("core_eps_basic"))
+                            st.metric(
+                                "Core EPS (6M)",
+                                format_eps(ceps, financial_currency) if ceps is not None else "–"
+                            )
+                            croe = safe_float(checks.get("core_roe_annualized_pct"))
+                            st.metric(
+                                "Core RoE (annualisiert)",
+                                f"{croe:.1f} %" if croe is not None else "–"
+                            )
+                        with col2:
+                            sii = safe_float(checks.get("solvency_ii_ratio_pct"))
+                            st.metric(
+                                "Solvency II",
+                                f"{sii:.0f} %" if sii is not None else "–"
+                            )
+                            cg = safe_float(checks.get("core_net_income_growth_pct"))
+                            st.metric(
+                                "Core-Net-Income-Wachstum",
+                                f"{cg:.1f} %" if cg is not None else "–"
+                            )
+                            eg = safe_float(checks.get("core_eps_growth_pct"))
+                            st.metric(
+                                "Core-EPS-Wachstum",
+                                f"{eg:.1f} %" if eg is not None else "–"
+                            )
+
+                        st.success(
+                            "Versicherungs-Primärdaten vollständig validiert. Core Earnings/Core EPS, "
+                            "Core RoE und Solvency II sind belastbar vorhanden."
+                        )
+                        st.warning(
+                            "Bewertungsfreigabe noch NEIN: V2.20.40 ergänzt bewusst nur die "
+                            "Primärdatenbasis. Versicherungs-Score, P/B-/Core-KGV-Korridor und "
+                            "Fair Value werden erst im nächsten Schritt fachlich festgelegt."
+                        )
+                    else:
+                        st.info(special_control.get("note"))
+
+                    st.caption(
+                        "Primärdatenfreigabe und Bewertungsfreigabe sind getrennt. "
+                        "Ein vollständiger Versicherungsdatensatz allein erzeugt noch keinen Fair Value."
                     )
 
                 if special_control.get(
