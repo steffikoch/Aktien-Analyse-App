@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.33: Bank FCF Context UX – Bank-Cashflow wird klar als Kontext/Rohdaten gekennzeichnet; Bewertung bleibt unverändert gesperrt.
+# V2.20.34: Bank FCF Context UX – Bank-Cashflow wird klar als Kontext/Rohdaten gekennzeichnet; Bewertung bleibt unverändert gesperrt.
 
 # =========================================================
 # Hilfsfunktionen
@@ -7401,7 +7401,7 @@ def build_insurance_special_model(
 
 
 # =========================================================
-# Banken-Sondermodell V2.20.33 – Primary Source Gate + FCF Context UX
+# Banken-Sondermodell V2.20.34 – Primary Source Gate + FCF Context UX
 # =========================================================
 
 def get_verified_bank_snapshot(symbol):
@@ -7690,7 +7690,7 @@ def build_bank_special_model(
         "tangible_book_value_available": tangible_book_value is not None and snapshot_fresh,
         "cet1_available": cet1_standardized is not None and snapshot_fresh,
         "note": (
-            "Banken-Sondermodell V2.20.33 lädt verifizierte Primärquellen-"
+            "Banken-Sondermodell V2.20.34 lädt verifizierte Primärquellen-"
             "Kennzahlen für unterstützte Banken. ROTCE, Tangible Book Value "
             "und CET1 werden nicht aus Yahoo-Proxies rekonstruiert. Bei "
             "JPMorgan werden wesentliche 2Q26-Sondergewinne separat gehalten; "
@@ -7745,7 +7745,7 @@ def build_bank_special_control(base_control, bank_model):
             "cet1_advanced_pct": model.get("cet1_advanced_pct"),
         },
         "note": (
-            "Bank-Schritt 3B V2.20.33 hat die Primärdatenbasis vollständig "
+            "Bank-Schritt 3B V2.20.34 hat die Primärdatenbasis vollständig "
             "validiert. Die Datenfreigabe ist bewusst von der späteren "
             "Bewertungsfreigabe getrennt: Ein Bank-Fair-Value wird in dieser "
             "Version noch nicht erzeugt."
@@ -9385,9 +9385,9 @@ def get_special_control(company_type, symbol):
                 "CET1-Kapitalquote",
                 "Sondergewinne / Ertragsqualität"
             ],
-            "status": "Router aktiv – V2.20.33 Primärquellen-Gate + FCF-Kontext",
+            "status": "Router aktiv – V2.20.34 Primärquellen-Gate + FCF-Kontext",
             "note": (
-                "V2.20.33 trennt Bank-Primärdaten von Yahoo-Proxies und kennzeichnet normalen Cashflow-Statement-FCF bei Banken ausschließlich als Kontext/Rohdaten. Für "
+                "V2.20.34 trennt Bank-Primärdaten von Yahoo-Proxies und kennzeichnet normalen Cashflow-Statement-FCF bei Banken ausschließlich als Kontext/Rohdaten. Für "
                 "unterstützte Banken werden ROTCE, Tangible Book Value und "
                 "CET1 nur aus einem aktuellen verifizierten offiziellen "
                 "Snapshot übernommen. Sondergewinne werden separat markiert. "
@@ -17579,7 +17579,12 @@ def load_stock(search_text, cache_version):
                 + (
                     ". Weiterhin fehlend: " + ", ".join(missing_analysis_fields) + "."
                     if missing_analysis_fields
-                    else ". Die für die Kernbewertung benötigten Fundamentaldaten sind wieder verfügbar."
+                    else (
+                        ". Bei Banken wird ein wiederhergestellter Free Cashflow nur als Kontext geführt; "
+                        "die bankspezifischen Kernkennzahlen werden separat geprüft."
+                        if str((company_type or {}).get("type", "")).strip().lower() == "bank"
+                        else ". Die für die Kernbewertung benötigten Fundamentaldaten sind wieder verfügbar."
+                    )
                 )
             )
             if recovered_labels
@@ -19204,32 +19209,47 @@ if selected_symbol:
 
                 else:
 
-                    if fcf_result[
-                        "confidence"
-                    ] == "Sondermodell":
-
-                        st.warning(
-                            "⚠️ FCF-Sondermodell erforderlich"
-                        )
-
-                    else:
-
-                        st.info(
-                            "FCF-Score derzeit nicht verfügbar"
-                        )
-
-                    st.caption(
-                        fcf_result[
-                            "note"
-                        ]
+                    is_bank_model_ui = (
+                        str((company_type or {}).get("type", "")).strip().lower() == "bank"
                     )
 
-                st.caption(
-                    "Die FCF-Punkte basieren auf der aktuellen "
-                    "Free-Cashflow-Marge. Historische FCF-Werte "
-                    "dienen als Trendkontrolle und dürfen einen "
-                    "schwachen aktuellen Cashflow nicht schönrechnen."
-                )
+                    if is_bank_model_ui:
+                        st.info(
+                            "ℹ️ Bankmodell: Free Cashflow ist kein Bewertungsbaustein"
+                        )
+                        st.caption(
+                            "Bei Banken wird Free Cashflow nicht über eine eigene FCF-Punktelogik bewertet. "
+                            "Die Bankbewertung stützt sich stattdessen auf bankspezifische Kennzahlen wie "
+                            "ROTCE/ROE, Tangible Book Value, P/TBV, CET1 und Ertragsqualität."
+                        )
+                    else:
+                        if fcf_result[
+                            "confidence"
+                        ] == "Sondermodell":
+
+                            st.warning(
+                                "⚠️ FCF-Sondermodell erforderlich"
+                            )
+
+                        else:
+
+                            st.info(
+                                "FCF-Score derzeit nicht verfügbar"
+                            )
+
+                        st.caption(
+                            fcf_result[
+                                "note"
+                            ]
+                        )
+
+                if str((company_type or {}).get("type", "")).strip().lower() != "bank":
+                    st.caption(
+                        "Die FCF-Punkte basieren auf der aktuellen "
+                        "Free-Cashflow-Marge. Historische FCF-Werte "
+                        "dienen als Trendkontrolle und dürfen einen "
+                        "schwachen aktuellen Cashflow nicht schönrechnen."
+                    )
 
                 st.divider()
 
@@ -19560,7 +19580,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Banken-Sondermodell V2.20.33 – Datenbasis"
+                        "🏦 Banken-Sondermodell V2.20.34 – Datenbasis"
                     )
 
                     if bank_model.get("primary_source_complete"):
@@ -20744,9 +20764,10 @@ if selected_symbol:
                             "CET1 sind jetzt belastbar vorhanden."
                         )
                         st.warning(
-                            "Bewertungsfreigabe noch NEIN: V2.20.32 ergänzt bewusst "
-                            "nur die Primärdatenbasis. Bank-Score, P/TBV-/KGV-Korridor "
-                            "und Fair Value werden erst im nächsten Schritt fachlich festgelegt."
+                            "Bewertungsfreigabe noch NEIN: V2.20.34 hält Primärdatenfreigabe "
+                            "und Bewertungsfreigabe weiterhin bewusst getrennt. Bank-Score, "
+                            "P/TBV-/KGV-Korridor und Fair Value werden erst im nächsten Schritt "
+                            "fachlich festgelegt."
                         )
                     else:
                         st.warning(special_control.get("note"))
