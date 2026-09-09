@@ -17,14 +17,17 @@ st.set_page_config(
     layout="wide"
 )
 
+APP_BUILD_VERSION = "V2.20.42"
+
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
+st.caption(f"Build {APP_BUILD_VERSION} · Insurance Context Integration Fix")
 
 
-# V2.20.40: Insurance Primary Source Gate – Allianz 2Q/6M 2026 Core Earnings, Core EPS/Core RoE und Solvency II aus offizieller Primärquelle; Versicherungsbewertung bleibt bewusst gesperrt. Bank V2.20.39 bleibt unverändert.
+# V2.20.42: Insurance Context Integration Fix – zentrale Typ-Erkennung erzwingt Versicherungs-Kontextlogik in Datenbasis, Wachstum, FCF und Bilanz. Sichtbarer Build-Marker verhindert Verwechslung mit einer alten extrahierten App. Insurance Primary Source Gate V2.20.40 und Bank V2.20.39 bleiben fachlich unverändert.
 
 # =========================================================
 # Hilfsfunktionen
@@ -34,6 +37,23 @@ def text_or_dash(value):
     if value is None or value == "":
         return "–"
     return str(value)
+
+
+def normalized_company_type_name(company_type):
+    """Return one normalized company-type label for all UI/routing guards."""
+    if isinstance(company_type, dict):
+        raw = company_type.get("type")
+    else:
+        raw = company_type
+    return str(raw or "").strip().lower()
+
+
+def is_bank_company_type(company_type):
+    return normalized_company_type_name(company_type) == "bank"
+
+
+def is_insurance_company_type(company_type):
+    return "versicherung" in normalized_company_type_name(company_type)
 
 
 def format_number(value):
@@ -7578,7 +7598,7 @@ def build_insurance_special_model(
         "solvency_ii_change_pp": safe_float((snapshot or {}).get("solvency_ii_change_pp")) if snapshot_fresh else None,
         "underlying_growth_note": (snapshot or {}).get("underlying_growth_note") if snapshot_fresh else None,
         "note": (
-            "Versicherungs-Sondermodell V2.20.40 lädt für unterstützte Versicherer "
+            "Versicherungs-Sondermodell V2.20.42 lädt für unterstützte Versicherer "
             "Core Earnings/Core EPS, Core RoE und Solvency II ausschließlich aus "
             "einem aktuellen verifizierten offiziellen Snapshot. Yahoo-ROE, Buchwert, "
             "KBV, Forward-KGV und Dividende bleiben Kontext/Plausibilitätsanker. "
@@ -7634,7 +7654,7 @@ def build_insurance_special_control(base_control, insurance_model):
             "solvency_ii_change_pp": model.get("solvency_ii_change_pp"),
         },
         "note": (
-            "Versicherungs-Schritt 3B V2.20.40 validiert zunächst nur die offizielle "
+            "Versicherungs-Schritt 3B V2.20.42 validiert weiterhin nur die offizielle "
             "Core-Earnings-/Kapitalbasis. Bewertungs-Score, P/B-/Core-KGV-Korridor und "
             "Fair Value werden bewusst erst in einem separaten Folgeschritt festgelegt."
         ),
@@ -10225,10 +10245,11 @@ def get_special_control(company_type, symbol):
                 "Solvency- / Kapitalquote",
                 "Ausschüttungsquote"
             ],
-            "status": "Router aktiv – V2.20.40 Versicherungs-Primärquellen-Gate",
+            "status": "Router aktiv – V2.20.42 Versicherungs-Kontext-Integration",
             "note": (
-                "V2.20.40 trennt Yahoo-Kontextkennzahlen von verifizierten "
-                "Versicherungs-Primärdaten. Für unterstützte Versicherer werden "
+                "V2.20.42 trennt Yahoo-Kontextkennzahlen von verifizierten "
+                "Versicherungs-Primärdaten und kennzeichnet generisches Wachstum sowie Cashflow-Statement-FCF "
+                "bei Versicherungen ausschließlich als Kontext. Für unterstützte Versicherer werden "
                 "Core Earnings/Core EPS, Core RoE und Solvency II nur aus einem "
                 "aktuellen offiziellen Snapshot übernommen; fehlende Werte werden "
                 "nicht geschätzt. Bewertungs-Score, Multiple und Fair Value bleiben "
@@ -17969,7 +17990,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_insurance_primary_source_gate_v22040_20260909"
+CACHE_VERSION = "m6_insurance_context_integration_fix_v22042_20260909"
 
 @st.cache_data(
     ttl=900,
@@ -18230,7 +18251,7 @@ def load_stock(search_text, cache_version):
         earnings_growth
     )
 
-    if str((company_type or {}).get("type", "")).strip().lower() == "bank":
+    if is_bank_company_type(company_type):
         growth_score = {
             **growth_score,
             "context_score": growth_score.get("score"),
@@ -18537,11 +18558,11 @@ def load_stock(search_text, cache_version):
                     else (
                         ". Bei Banken wird ein wiederhergestellter Free Cashflow nur als Kontext geführt; "
                         "die bankspezifischen Kernkennzahlen werden separat geprüft."
-                        if str((company_type or {}).get("type", "")).strip().lower() == "bank"
+                        if is_bank_company_type(company_type)
                         else (
                             ". Bei Versicherungen wird ein wiederhergestellter Free Cashflow nur als Kontext geführt; "
                             "Core Earnings/Core EPS, Core RoE und Solvency II werden separat aus Primärquellen geprüft."
-                            if "versicherung" in str((company_type or {}).get("type", "")).strip().lower()
+                            if is_insurance_company_type(company_type)
                             else ". Die für die Kernbewertung benötigten Fundamentaldaten sind wieder verfügbar."
                         )
                     )
@@ -18960,11 +18981,17 @@ if selected_symbol:
                     )
 
                     fcf_ctx = data.get("fcf_source_context") or {}
-                    is_bank_fcf_context = str((company_type or {}).get("type", "")).strip().lower() == "bank"
+                    company_type_ui = normalized_company_type_name(company_type)
+                    is_bank_fcf_context = is_bank_company_type(company_type)
+                    is_insurance_fcf_context = is_insurance_company_type(company_type)
                     if is_bank_fcf_context and fcf_ctx.get("score_eligible"):
                         fcf_label = "Free Cashflow (Bank-Kontext, Cashflow-Statement)"
                     elif is_bank_fcf_context:
                         fcf_label = "Levered Free Cashflow (Bank-Kontext, Yahoo-Referenz)"
+                    elif is_insurance_fcf_context and fcf_ctx.get("score_eligible"):
+                        fcf_label = "Free Cashflow (Versicherungs-Kontext, Cashflow-Statement)"
+                    elif is_insurance_fcf_context:
+                        fcf_label = "Levered Free Cashflow (Versicherungs-Kontext, Yahoo-Referenz)"
                     else:
                         fcf_label = (
                             "Free Cashflow (Cashflow-Statement)"
@@ -18996,7 +19023,9 @@ if selected_symbol:
                     )
 
                 fcf_ctx = data.get("fcf_source_context") or {}
-                is_bank_fcf_context = str((company_type or {}).get("type", "")).strip().lower() == "bank"
+                company_type_ui = normalized_company_type_name(company_type)
+                is_bank_fcf_context = is_bank_company_type(company_type)
+                is_insurance_fcf_context = is_insurance_company_type(company_type)
                 if fcf_ctx.get("score_eligible"):
                     source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
                     if is_bank_fcf_context:
@@ -19004,6 +19033,13 @@ if selected_symbol:
                             "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
                             "Bei Banken wird dieser Cashflow-Statement-Wert ausschließlich als Kontext angezeigt. "
                             "Er fließt weder in FCF-Marge oder Netto-Schulden/FCF noch in Bank-Score, "
+                            "Bewertungs-Multiple oder Fair Value ein."
+                        )
+                    elif is_insurance_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            "Bei Versicherungen wird dieser Cashflow-Statement-Wert ausschließlich als Kontext angezeigt. "
+                            "Er fließt weder in FCF-Marge oder Netto-Schulden/FCF noch in Versicherungs-Score, "
                             "Bewertungs-Multiple oder Fair Value ein."
                         )
                     else:
@@ -19021,6 +19057,14 @@ if selected_symbol:
                                 f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Werte bleiben bei Banken reine "
                                 "Kontext-/Rohdaten und haben keinen Einfluss auf die Bankbewertung."
                             )
+                        elif is_insurance_fcf_context:
+                            st.warning(
+                                "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info zeigt "
+                                f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
+                                f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
+                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Werte bleiben bei Versicherungen reine "
+                                "Kontext-/Rohdaten und haben keinen Einfluss auf die Versicherungsbewertung."
+                            )
                         else:
                             st.warning(
                                 "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info zeigt "
@@ -19035,6 +19079,12 @@ if selected_symbol:
                             "FCF-Kontext/Rohdaten: Nur Yahoo Levered Free Cash Flow verfügbar. "
                             "Bei Banken bleibt auch dieser Wert reine Referenz und hat keinen Einfluss auf "
                             "Bank-Score, Bewertungs-Multiple oder Fair Value."
+                        )
+                    elif is_insurance_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: Nur Yahoo Levered Free Cash Flow verfügbar. "
+                            "Bei Versicherungen bleibt auch dieser Wert reine Referenz und hat keinen Einfluss auf "
+                            "Versicherungs-Score, Bewertungs-Multiple oder Fair Value."
                         )
                     else:
                         st.warning(
@@ -19880,8 +19930,22 @@ if selected_symbol:
                 growth_result = data[
                     "growth_score"
                 ]
+                company_type_score_ui = normalized_company_type_name(company_type)
+                is_bank_score_ui = is_bank_company_type(company_type)
+                is_insurance_score_ui = is_insurance_company_type(company_type)
 
-                if growth_result["score"] is not None:
+                if is_insurance_score_ui:
+                    st.info(
+                        "Versicherungsmodell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. "
+                        "Umsatz- und Yahoo-Gewinnwachstum bleiben ausschließlich Kontext; der spätere "
+                        "Versicherungs-Score stützt sich auf Core-Ertragskraft, Core RoE, Solvency II, "
+                        "Buchwertentwicklung und Ausschüttungsqualität."
+                    )
+                    st.caption(
+                        "Der intern verfügbare Standard-Wachstumsscore hat bei Versicherungen keinen Einfluss "
+                        "auf Bewertungs-Multiple, Fair Value oder Signal."
+                    )
+                elif growth_result["score"] is not None:
 
                     st.metric(
                         "Wachstums-Score",
@@ -19952,7 +20016,7 @@ if selected_symbol:
 
                 else:
 
-                    if str((company_type or {}).get("type", "")).strip().lower() == "bank":
+                    if is_bank_score_ui:
                         st.info(
                             "Bankmodell: Der generische Umsatz-/Gewinnwachstums-Score "
                             "wird nicht verwendet. Wachstum bleibt nur Kontext; der "
@@ -19965,7 +20029,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if str((company_type or {}).get("type", "")).strip().lower() != "bank":
+                if not is_bank_score_ui and not is_insurance_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -20204,9 +20268,9 @@ if selected_symbol:
 
                 else:
 
-                    is_bank_model_ui = (
-                        str((company_type or {}).get("type", "")).strip().lower() == "bank"
-                    )
+                    is_bank_model_ui = is_bank_company_type(company_type)
+
+                    is_insurance_model_ui = is_insurance_company_type(company_type)
 
                     if is_bank_model_ui:
                         st.info(
@@ -20216,6 +20280,15 @@ if selected_symbol:
                             "Bei Banken wird Free Cashflow nicht über eine eigene FCF-Punktelogik bewertet. "
                             "Die Bankbewertung stützt sich stattdessen auf bankspezifische Kennzahlen wie "
                             "ROTCE/ROE, Tangible Book Value, P/TBV, CET1 und Ertragsqualität."
+                        )
+                    elif is_insurance_model_ui:
+                        st.info(
+                            "ℹ️ Versicherungsmodell: Free Cashflow ist kein Bewertungsbaustein"
+                        )
+                        st.caption(
+                            "Bei Versicherungen wird der konsolidierte Cashflow-Statement-FCF nur als Kontext/Rohdaten geführt. "
+                            "Die Versicherungsbewertung stützt sich stattdessen auf Core Earnings/Core EPS, Core RoE, "
+                            "Solvency II, Buchwert/KBV und Ausschüttungsqualität."
                         )
                     else:
                         if fcf_result[
@@ -20238,7 +20311,10 @@ if selected_symbol:
                             ]
                         )
 
-                if str((company_type or {}).get("type", "")).strip().lower() != "bank":
+                if (
+                    not is_bank_company_type(company_type)
+                    and not is_insurance_company_type(company_type)
+                ):
                     st.caption(
                         "Die FCF-Punkte basieren auf der aktuellen "
                         "Free-Cashflow-Marge. Historische FCF-Werte "
@@ -20347,9 +20423,8 @@ if selected_symbol:
 
                 else:
 
-                    is_bank_balance_ui = (
-                        str((company_type or {}).get("type", "")).strip().lower() == "bank"
-                    )
+                    is_bank_balance_ui = is_bank_company_type(company_type)
+                    is_insurance_balance_ui = is_insurance_company_type(company_type)
 
                     if is_bank_balance_ui:
                         st.info(
@@ -20358,6 +20433,15 @@ if selected_symbol:
                         st.caption(
                             "Die Kapitalqualität wird im Bank-Score über CET1 bewertet. "
                             "Konsolidierte Bank-Cash- und Schuldenwerte werden nicht wie bei Industrieunternehmen interpretiert."
+                        )
+                    elif is_insurance_balance_ui:
+                        st.info(
+                            "ℹ️ Versicherungsmodell: Klassische Netto-Schulden/FCF-Logik wird nicht verwendet"
+                        )
+                        st.caption(
+                            "Bei Versicherungen wird die Kapitalqualität nicht über industrielle Netto-Schulden/FCF bewertet. "
+                            "Maßgeblich sind Solvency II, Core RoE, Buchwert-/KBV-Qualität und Ausschüttungsfähigkeit; "
+                            "konsolidierte Cash- und Schuldenwerte bleiben Kontext."
                         )
                     else:
                         if balance_result[
@@ -20392,7 +20476,10 @@ if selected_symbol:
                             ]
                         )
 
-                if str((company_type or {}).get("type", "")).strip().lower() != "bank":
+                if (
+                    not is_bank_company_type(company_type)
+                    and not is_insurance_company_type(company_type)
+                ):
                     st.caption(
                         "Bilanzpunkte: Netto-Cash 15/15; "
                         "sonst Bewertung über Netto-Schulden/FCF. "
@@ -20411,12 +20498,12 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🛡️ Versicherungs-Sondermodell V2.20.40 – Datenbasis"
+                        "🛡️ Versicherungs-Sondermodell V2.20.42 – Datenbasis"
                     )
 
                     st.info(
-                        "Versicherungsmodell erkannt. V2.20.40 ergänzt die Yahoo-Kontextdaten "
-                        "um ein zeitlich begrenztes Primärquellen-Gate für Core Earnings/Core EPS, "
+                        "Versicherungsmodell erkannt. V2.20.42 übernimmt das Primärquellen-Gate aus V2.20.40 und trennt "
+                        "Yahoo-Kontextdaten klar von den verifizierten Primärdaten für Core Earnings/Core EPS, "
                         "Core RoE und Solvency II. Es wird noch keine Versicherungsbewertung erzeugt."
                     )
 
@@ -22004,8 +22091,8 @@ if selected_symbol:
                             "Core RoE und Solvency II sind belastbar vorhanden."
                         )
                         st.warning(
-                            "Bewertungsfreigabe noch NEIN: V2.20.40 ergänzt bewusst nur die "
-                            "Primärdatenbasis. Versicherungs-Score, P/B-/Core-KGV-Korridor und "
+                            "Bewertungsfreigabe noch NEIN: V2.20.42 hält die verifizierte Primärdatenbasis unverändert "
+                            "und bereinigt ausschließlich die Kontextdarstellung. Versicherungs-Score, P/B-/Core-KGV-Korridor und "
                             "Fair Value werden erst im nächsten Schritt fachlich festgelegt."
                         )
                     else:
