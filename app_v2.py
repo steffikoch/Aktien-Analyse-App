@@ -24,7 +24,7 @@ st.caption(
 )
 
 
-# V2.20.31: FCF Source Integrity Guard UX – operative FCF-Warnung wird klar von Datenquellenabweichungen getrennt.
+# V2.20.32: Bank Primary Source Gate – JPMorgan ROTCE/TBV/CET1 werden aus verifizierten Primärquellen eingebunden; Bewertung bleibt noch gesperrt.
 
 # =========================================================
 # Hilfsfunktionen
@@ -230,7 +230,7 @@ def build_currency_context(
 
 
 # =========================================================
-# V2.20.31 – Verifizierte ADR-/Aktieneinheiten
+# V2.20.32 – Verifizierte ADR-/Aktieneinheiten
 # =========================================================
 
 VERIFIED_SHARE_UNIT_ROUTES = {
@@ -1543,7 +1543,7 @@ def _bridge_value_matches(observed, expected):
 
 def _extract_adjustment_components_from_html(html, target_year=None, bridge_values=None):
     """
-    V2.20.31 Bridge Component Evidence Gate.
+    V2.20.32 Bridge Component Evidence Gate.
 
     A row is accepted as an EPS adjustment component only when it lies inside the
     same target-year GAAP-to-adjusted EPS reconciliation bounded by a GAAP EPS row
@@ -1740,7 +1740,7 @@ def _adjustment_context_is_concrete(text, match_start, match_end):
 
 def _build_adjustment_recurrence_review(text, bridge_values=None, structured_components=None):
     """
-    V2.20.31 conservative evidence review.
+    V2.20.32 conservative evidence review.
 
     Only quantitatively confirmed rows from the validated GAAP-to-adjusted EPS
     reconciliation are allowed into ``components``. Concrete text mentions are
@@ -2329,7 +2329,7 @@ def _router_financial_release_filter_url(url):
 
 
 def _router_archive_visible_years(rows):
-    """V2.20.31: show only publication/result years, not guidance years embedded in headlines."""
+    """V2.20.32: show only publication/result years, not guidance years embedded in headlines."""
     years = set()
     for row in rows or []:
         title = _clean_text(row.get("title"))
@@ -3338,12 +3338,12 @@ def _build_historical_recurrence_summary(
 
 
 # =========================================================
-# V2.20.31 – Bridge Component Evidence Gate
+# V2.20.32 – Bridge Component Evidence Gate
 # =========================================================
 
 def _build_adjustment_component_analysis(historical_review):
     """
-    V2.20.31 multi-year Bridge Component Evidence Gate.
+    V2.20.32 multi-year Bridge Component Evidence Gate.
 
     Only components that were quantitatively confirmed inside a validated
     GAAP-to-adjusted EPS reconciliation participate in recurrence classification.
@@ -4054,10 +4054,10 @@ def research_special_event_online(
     symbol,
     company_name,
     website=None,
-    cache_version="v22031",
+    cache_version="v22032",
 ):
     """
-    V2.20.31: IR-Year-Navigator plus Bridge Component Evidence Gate research. The issuer website/IR archive is routed before SEC, web search and Yahoo.
+    V2.20.32: IR-Year-Navigator plus Bridge Component Evidence Gate research. The issuer website/IR archive is routed before SEC, web search and Yahoo.
 
     Source priority remains company/IR -> SEC -> web -> Yahoo. Unrelated search
     results are rejected before they can become evidence. A quantitative EPS
@@ -4159,7 +4159,7 @@ def research_special_event_online(
         page_html = item.get("preloaded_html") or ""
         page_text = item.get("preloaded_text") or ""
 
-        # Load at most four additional documents. V2.20.31 keeps the HTML for
+        # Load at most four additional documents. V2.20.32 keeps the HTML for
         # structured GAAP-to-adjusted reconciliation-table parsing, so there is
         # no second network request for the component analysis.
         if (
@@ -4353,7 +4353,7 @@ def research_special_event_online(
         else None
     )
 
-    # V2.20.31: once the annual bridge history is validated, evidence-gate the
+    # V2.20.32: once the annual bridge history is validated, evidence-gate the
     # individual reconciliation components across years. This is still a hard
     # diagnostic gate: no replacement EPS and no Fair-Value release.
     adjustment_component_analysis = _build_adjustment_component_analysis(
@@ -7401,26 +7401,93 @@ def build_insurance_special_model(
 
 
 # =========================================================
-# Banken-Sondermodell V1 – Datenbasis / Plausibilitätscheck
+# Banken-Sondermodell V2.20.32 – Primary Source Gate
 # =========================================================
+
+def get_verified_bank_snapshot(symbol):
+    """
+    Return a time-bounded primary-source snapshot for banks that have been
+    manually verified from official investor-relations materials.
+
+    Unknown banks deliberately return None. No ROTCE, TBV or CET1 value is
+    inferred from Yahoo fields or from ordinary book value.
+    """
+    symbol_text = str(symbol or "").upper()
+
+    if symbol_text != "JPM":
+        return None
+
+    return {
+        "company": "JPMorgan Chase & Co.",
+        "as_of_date": "30.06.2026",
+        "published_date": "14.07.2026",
+        "valid_until": "13.10.2026",
+        "source_name": "JPMorganChase 2Q26 Earnings Press Release & Earnings Supplement",
+        "source_url": (
+            "https://www.jpmorganchase.com/content/dam/jpmc/"
+            "jpmorgan-chase-and-co/investor-relations/documents/"
+            "quarterly-earnings/2026/2nd-quarter/"
+            "6cded9fd-a164-4e6c-8cff-377357cf105c.pdf"
+        ),
+        "supplement_url": (
+            "https://www.jpmorganchase.com/content/dam/jpmc/"
+            "jpmorgan-chase-and-co/investor-relations/documents/"
+            "quarterly-earnings/2026/2nd-quarter/"
+            "c9c097af-34e9-4aae-92d2-909a2ab7c083.pdf"
+        ),
+        "book_value_per_share": 133.01,
+        "tangible_book_value_per_share": 113.35,
+        "book_value_growth_yoy_pct": 9.0,
+        "tangible_book_value_growth_yoy_pct": 10.0,
+        "roe_reported_pct": 24.0,
+        "rotce_reported_pct": 29.0,
+        "rotce_ex_significant_items_pct": 23.0,
+        "cet1_standardized_pct": 14.1,
+        "cet1_advanced_pct": 14.2,
+        "cet1_capital": 303e9,
+        "standardized_rwa": 2.1e12,
+        "quarter_eps_reported": 7.70,
+        "quarter_eps_ex_significant_items": 6.14,
+        "visa_eps_effect": 1.27,
+        "equity_investment_eps_effect": 0.29,
+        "significant_items_eps_effect": 1.56,
+        "source_note": (
+            "Offizielle JPMorganChase-2Q26-Daten. Der gemeldete ROTCE von "
+            "29 % enthält wesentliche Sondergewinne. Für die normalisierte "
+            "Ertragskraft wird deshalb der von JPMorgan selbst ausgewiesene "
+            "ROTCE ex significant items von 23 % separat geführt. TBVPS und "
+            "CET1 werden nicht aus Yahoo-Feldern geschätzt."
+        ),
+    }
+
+
+def _bank_snapshot_is_fresh(snapshot):
+    if not isinstance(snapshot, dict):
+        return False
+    try:
+        valid_until = datetime.strptime(
+            snapshot.get("valid_until"), "%d.%m.%Y"
+        ).date()
+        return datetime.now().date() <= valid_until
+    except Exception:
+        return False
+
 
 def build_bank_special_model(
     company_type,
     info,
     price,
-    currency_context
+    currency_context,
+    symbol=None,
 ):
     """
-    Conservative bank-specific data block.
+    Bank-specific data and primary-source integrity block.
 
-    It does not create a new score, valuation multiple or fair value.
-    It only prepares bank-relevant Yahoo fields and checks whether
-    book-value and P/E references are unit-consistent. RoTE, tangible
-    book value and CET1 are not estimated or replaced by proxies.
+    V2.20.32 adds verified ROTCE, tangible book value and CET1 when an
+    official time-bounded snapshot is available. The block still does not
+    create bank points, a valuation multiple or a fair value.
     """
-    type_name = str(
-        company_type.get("type", "")
-    ).lower()
+    type_name = str(company_type.get("type", "")).lower()
 
     if "bank" not in type_name:
         return {
@@ -7433,33 +7500,15 @@ def build_bank_special_model(
         currency_context
     )
 
-    book_value = safe_float(
-        info.get("bookValue")
-    )
-    roe = safe_float(
-        info.get("returnOnEquity")
-    )
-    trailing_eps = safe_float(
-        info.get("trailingEps")
-    )
-    forward_eps = safe_float(
-        info.get("forwardEps")
-    )
-    yahoo_price_to_book = safe_float(
-        info.get("priceToBook")
-    )
-    yahoo_forward_pe = safe_float(
-        info.get("forwardPE")
-    )
+    book_value = safe_float(info.get("bookValue"))
+    roe = safe_float(info.get("returnOnEquity"))
+    trailing_eps = safe_float(info.get("trailingEps"))
+    forward_eps = safe_float(info.get("forwardEps"))
+    yahoo_price_to_book = safe_float(info.get("priceToBook"))
+    yahoo_forward_pe = safe_float(info.get("forwardPE"))
     if yahoo_forward_pe is None:
-        yahoo_forward_pe = safe_float(
-            info.get("forwardPe")
-        )
+        yahoo_forward_pe = safe_float(info.get("forwardPe"))
 
-    # -----------------------------------------------------
-    # KBV: Kurs/Buchwert nur dann anzeigen, wenn Yahoo-KBV
-    # als zweiter Anker innerhalb 20 % bestätigt.
-    # -----------------------------------------------------
     calculated_price_to_book = None
     if (
         price_financial is not None
@@ -7467,9 +7516,7 @@ def build_bank_special_model(
         and book_value is not None
         and book_value > 0
     ):
-        calculated_price_to_book = (
-            price_financial / book_value
-        )
+        calculated_price_to_book = price_financial / book_value
 
     pb_display_value = None
     pb_consistency_status = "unverified"
@@ -7477,49 +7524,32 @@ def build_bank_special_model(
 
     if calculated_price_to_book is None:
         pb_consistency_note = (
-            "KBV konnte aus Kurs und Buchwert je Aktie nicht "
-            "belastbar berechnet werden. Es wird kein Wert geschätzt."
+            "KBV konnte aus Kurs und Buchwert je Aktie nicht belastbar "
+            "berechnet werden. Es wird kein Wert geschätzt."
         )
-
-    elif (
-        yahoo_price_to_book is not None
-        and yahoo_price_to_book > 0
-    ):
-        pb_deviation = abs(
-            calculated_price_to_book
-            / yahoo_price_to_book
-            - 1.0
-        )
-
+    elif yahoo_price_to_book is not None and yahoo_price_to_book > 0:
+        pb_deviation = abs(calculated_price_to_book / yahoo_price_to_book - 1.0)
         if pb_deviation <= 0.20:
             pb_display_value = calculated_price_to_book
             pb_consistency_status = "plausible"
             pb_consistency_note = (
                 "KBV-Plausibilitätscheck bestanden: Das aus Kurs und "
                 "Buchwert je Aktie berechnete KBV liegt innerhalb von "
-                "20 % des separat gemeldeten Yahoo-KBV. Der Wert bleibt "
-                "nur eine Datenbasis und erzeugt noch keine Bankbewertung."
+                "20 % des separat gemeldeten Yahoo-KBV."
             )
         else:
             pb_consistency_status = "conflict"
             pb_consistency_note = (
                 "⚠️ KBV-Einheiten/Plausibilität widersprüchlich: Das aus "
                 "Kurs und Buchwert je Aktie berechnete KBV weicht um mehr "
-                "als 20 % vom separat gemeldeten Yahoo-KBV ab. Deshalb wird "
-                "das KBV nicht als belastbare Kennzahl angezeigt."
+                "als 20 % vom separat gemeldeten Yahoo-KBV ab."
             )
-
     else:
         pb_consistency_note = (
             "KBV konnte zwar aus Kurs und Buchwert je Aktie berechnet werden, "
-            "aber ein zweiter Yahoo-KBV-Anker fehlt. Der Wert wird deshalb "
-            "nicht als belastbar angezeigt und nicht für eine Bewertung verwendet."
+            "aber ein zweiter Yahoo-KBV-Anker fehlt."
         )
 
-    # -----------------------------------------------------
-    # Forward-KGV: ebenfalls nur als Referenz und nur bei
-    # ausreichender Übereinstimmung mit Yahoo-forwardPE.
-    # -----------------------------------------------------
     calculated_forward_pe = None
     if (
         price_financial is not None
@@ -7527,9 +7557,7 @@ def build_bank_special_model(
         and forward_eps is not None
         and forward_eps > 0
     ):
-        calculated_forward_pe = (
-            price_financial / forward_eps
-        )
+        calculated_forward_pe = price_financial / forward_eps
 
     forward_pe_display = None
     forward_pe_status = "unverified"
@@ -7540,38 +7568,25 @@ def build_bank_special_model(
             "Forward-KGV konnte aus Kurs und Forward-EPS nicht belastbar "
             "berechnet werden. Es wird kein Wert geschätzt."
         )
-
-    elif (
-        yahoo_forward_pe is not None
-        and yahoo_forward_pe > 0
-    ):
-        pe_deviation = abs(
-            calculated_forward_pe
-            / yahoo_forward_pe
-            - 1.0
-        )
-
+    elif yahoo_forward_pe is not None and yahoo_forward_pe > 0:
+        pe_deviation = abs(calculated_forward_pe / yahoo_forward_pe - 1.0)
         if pe_deviation <= 0.20:
             forward_pe_display = calculated_forward_pe
             forward_pe_status = "plausible"
             forward_pe_note = (
                 "Forward-KGV-Plausibilitätscheck bestanden: Kurs/Forward-EPS "
-                "und Yahoo-forwardPE liegen innerhalb von 20 % beieinander. "
-                "Das KGV bleibt eine reine Referenz und erzeugt noch keine Bewertung."
+                "und Yahoo-forwardPE liegen innerhalb von 20 % beieinander."
             )
         else:
             forward_pe_status = "conflict"
             forward_pe_note = (
                 "⚠️ Forward-KGV nicht belastbar: Das aus Kurs und Forward-EPS "
-                "berechnete KGV weicht um mehr als 20 % vom Yahoo-forwardPE ab. "
-                "Der Wert wird deshalb nicht für das Sondermodell verwendet."
+                "berechnete KGV weicht um mehr als 20 % vom Yahoo-forwardPE ab."
             )
-
     else:
         forward_pe_note = (
             "Forward-KGV konnte berechnet werden, aber ein separater Yahoo-"
-            "forwardPE-Anker fehlt. Der Wert wird deshalb nicht als belastbar "
-            "angezeigt und nicht für eine Bewertung verwendet."
+            "forwardPE-Anker fehlt."
         )
 
     calculated_trailing_pe = None
@@ -7581,25 +7596,67 @@ def build_bank_special_model(
         and trailing_eps is not None
         and trailing_eps > 0
     ):
-        calculated_trailing_pe = (
-            price_financial / trailing_eps
-        )
+        calculated_trailing_pe = price_financial / trailing_eps
 
-    anchor_values = [
-        roe,
-        pb_display_value,
-        forward_pe_display
-    ]
-    available_anchors = sum(
-        value is not None
-        for value in anchor_values
-    )
+    snapshot = get_verified_bank_snapshot(symbol)
+    snapshot_fresh = _bank_snapshot_is_fresh(snapshot)
 
-    readiness = (
-        "Teilweise"
-        if available_anchors >= 2
-        else "Unvollständig"
-    )
+    primary_book_value = None
+    tangible_book_value = None
+    rote_reported = None
+    rote_normalized = None
+    cet1_standardized = None
+    cet1_advanced = None
+    price_to_tangible_book = None
+    source_consistency_note = None
+    primary_source_complete = False
+
+    if snapshot is not None:
+        primary_book_value = safe_float(snapshot.get("book_value_per_share"))
+        tangible_book_value = safe_float(snapshot.get("tangible_book_value_per_share"))
+        rote_reported = safe_float(snapshot.get("rotce_reported_pct"))
+        rote_normalized = safe_float(snapshot.get("rotce_ex_significant_items_pct"))
+        cet1_standardized = safe_float(snapshot.get("cet1_standardized_pct"))
+        cet1_advanced = safe_float(snapshot.get("cet1_advanced_pct"))
+
+        if (
+            price_financial is not None
+            and price_financial > 0
+            and tangible_book_value is not None
+            and tangible_book_value > 0
+        ):
+            price_to_tangible_book = price_financial / tangible_book_value
+
+        if book_value is not None and primary_book_value is not None and primary_book_value > 0:
+            source_deviation = abs(book_value / primary_book_value - 1.0)
+            if source_deviation <= 0.05:
+                source_consistency_note = (
+                    "Primärquellen-Abgleich bestanden: Yahoo-Buchwert je Aktie "
+                    "und offizieller JPMorgan-Buchwert liegen innerhalb von 5 %."
+                )
+            else:
+                source_consistency_note = (
+                    "⚠️ Primärquellen-Abweichung: Yahoo-Buchwert je Aktie und "
+                    "offizieller Buchwert weichen um mehr als 5 % voneinander ab."
+                )
+
+        primary_source_complete = all(
+            value is not None
+            for value in [
+                tangible_book_value,
+                rote_normalized,
+                cet1_standardized,
+            ]
+        ) and snapshot_fresh
+
+    if primary_source_complete:
+        readiness = "Primärdaten vollständig"
+    elif snapshot is not None and not snapshot_fresh:
+        readiness = "Primärdaten veraltet"
+    else:
+        anchor_values = [roe, pb_display_value, forward_pe_display]
+        available_anchors = sum(value is not None for value in anchor_values)
+        readiness = "Teilweise" if available_anchors >= 2 else "Unvollständig"
 
     return {
         "applicable": True,
@@ -7617,20 +7674,84 @@ def build_bank_special_model(
         "forward_pe_status": forward_pe_status,
         "forward_pe_note": forward_pe_note,
         "calculated_trailing_pe": calculated_trailing_pe,
+        "snapshot": snapshot,
+        "snapshot_fresh": snapshot_fresh,
+        "primary_source_complete": primary_source_complete,
+        "primary_book_value_per_share": primary_book_value,
+        "tangible_book_value_per_share": tangible_book_value,
+        "price_to_tangible_book": price_to_tangible_book,
+        "rote_reported_pct": rote_reported,
+        "rote_normalized_pct": rote_normalized,
+        "cet1_standardized_pct": cet1_standardized,
+        "cet1_advanced_pct": cet1_advanced,
+        "source_consistency_note": source_consistency_note,
         "readiness": readiness,
-        "rote_available": False,
-        "tangible_book_value_available": False,
-        "cet1_available": False,
+        "rote_available": rote_normalized is not None and snapshot_fresh,
+        "tangible_book_value_available": tangible_book_value is not None and snapshot_fresh,
+        "cet1_available": cet1_standardized is not None and snapshot_fresh,
         "note": (
-            "Banken-Sondermodell V1 bleibt ein reiner Daten- und "
-            "Plausibilitätsblock. ROE, Buchwert/KBV und Forward-KGV werden "
-            "nur als belastbare Basiskennzahlen angezeigt. RoTE, Tangible "
-            "Book Value und CET1 werden in der aktuellen Datenquelle nicht "
-            "separat belastbar geladen und deshalb nicht geschätzt oder durch "
-            "ROE bzw. normalen Buchwert ersetzt. Noch keine Bankpunkte, kein "
+            "Banken-Sondermodell V2.20.32 lädt verifizierte Primärquellen-"
+            "Kennzahlen für unterstützte Banken. ROTCE, Tangible Book Value "
+            "und CET1 werden nicht aus Yahoo-Proxies rekonstruiert. Bei "
+            "JPMorgan werden wesentliche 2Q26-Sondergewinne separat gehalten; "
+            "für die Ertragskraft wird der offiziell ausgewiesene ROTCE ex "
+            "significant items gezeigt. Noch keine Bankpunkte, kein "
             "Bewertungs-Multiple und kein Fair Value."
         )
     }
+
+
+def build_bank_special_control(base_control, bank_model):
+    """Attach a fail-closed Bank step 3B primary-source gate."""
+    control = dict(base_control or {})
+    control.setdefault("router_status", control.get("status"))
+    control.setdefault("router_note", control.get("note"))
+
+    if control.get("control_key") != "bank_book_capital":
+        return control
+
+    model = bank_model if isinstance(bank_model, dict) else {}
+    snapshot = model.get("snapshot")
+
+    if not model.get("primary_source_complete"):
+        control.update({
+            "implemented": False,
+            "released": False,
+            "confidence_cap": "Niedrig",
+            "step3b_status": "Primärdaten unvollständig oder veraltet",
+            "overall_status": "Nicht freigegeben",
+            "snapshot": snapshot,
+            "note": (
+                "Die Bank-Primärdatenprüfung benötigt aktuellen ROTCE, TBVPS "
+                "und CET1 aus einer offiziellen Quelle. Fehlende Werte werden "
+                "nicht durch ROE, normalen Buchwert oder Yahoo-Proxies ersetzt."
+            ),
+        })
+        return control
+
+    control.update({
+        "implemented": True,
+        "released": False,
+        "confidence_cap": "Mittel",
+        "step3b_status": "Primärdaten vollständig – Bewertungslogik noch gesperrt",
+        "overall_status": "Primärdaten vollständig",
+        "snapshot": snapshot,
+        "checks": {
+            "rote_reported_pct": model.get("rote_reported_pct"),
+            "rote_normalized_pct": model.get("rote_normalized_pct"),
+            "tangible_book_value_per_share": model.get("tangible_book_value_per_share"),
+            "price_to_tangible_book": model.get("price_to_tangible_book"),
+            "cet1_standardized_pct": model.get("cet1_standardized_pct"),
+            "cet1_advanced_pct": model.get("cet1_advanced_pct"),
+        },
+        "note": (
+            "Bank-Schritt 3B V2.20.32 hat die Primärdatenbasis vollständig "
+            "validiert. Die Datenfreigabe ist bewusst von der späteren "
+            "Bewertungsfreigabe getrennt: Ein Bank-Fair-Value wird in dieser "
+            "Version noch nicht erzeugt."
+        ),
+    })
+    return control
 
 
 # =========================================================
@@ -9259,17 +9380,18 @@ def get_special_control(company_type, symbol):
             ),
             "planned_checks": [
                 "Normalisiertes / Core EPS",
-                "RoTE / ROE",
-                "Tangible Book Value / KBV",
-                "CET1-Kapitalquote"
+                "ROTCE ex significant items / ROE",
+                "Tangible Book Value / P-TBV",
+                "CET1-Kapitalquote",
+                "Sondergewinne / Ertragsqualität"
             ],
-            "status": "Router aktiv – V1 Datenbasis vorhanden",
+            "status": "Router aktiv – V2.20.32 Primärquellen-Gate",
             "note": (
-                "V1 lädt nur belastbare Basiskennzahlen aus der aktuellen "
-                "Datenquelle. RoTE, Tangible Book Value und CET1 werden "
-                "nicht geschätzt oder durch ungeeignete Standardkennzahlen "
-                "ersetzt. Das Sondermodell verändert noch keinen Score und "
-                "kein Bewertungs-Multiple."
+                "V2.20.32 trennt Bank-Primärdaten von Yahoo-Proxies. Für "
+                "unterstützte Banken werden ROTCE, Tangible Book Value und "
+                "CET1 nur aus einem aktuellen verifizierten offiziellen "
+                "Snapshot übernommen. Sondergewinne werden separat markiert. "
+                "Die Bewertungslogik bleibt in diesem Schritt noch gesperrt."
             )
         }
 
@@ -15659,7 +15781,7 @@ def calculate_fair_value_v1(
         )
         return result
 
-    # V2.20.31 – Currency and per-share units are two independent dimensions.
+    # V2.20.32 – Currency and per-share units are two independent dimensions.
     # A Toyota ordinary-share fair value, for example, must first be scaled to
     # the 10 common shares represented by one TM ADS/ADR and only then compared
     # with the USD ADR quote. Neither factor may be silently assumed.
@@ -15786,7 +15908,7 @@ def resolve_fundamental_symbol(selected_symbol, company_name=None):
     symbol = str(selected_symbol or "").strip().upper()
     name = str(company_name or "").strip().upper()
 
-    # V2.20.31 – verified ADR/share-unit routes. These must be handled
+    # V2.20.32 – verified ADR/share-unit routes. These must be handled
     # before the ordinary secondary-listing routes because the selected quote
     # unit is not one-for-one with the primary common share.
     share_unit_route = VERIFIED_SHARE_UNIT_ROUTES.get(symbol)
@@ -16754,7 +16876,7 @@ def _merge_missing_fundamentals(info, recovery):
     return merged, used
 
 def reconcile_free_cashflow_sources(raw_info, merged_info, recovery):
-    """V2.20.31 – keep Yahoo Levered FCF separate from statement FCF.
+    """V2.20.32 – keep Yahoo Levered FCF separate from statement FCF.
 
     Yahoo's quoteSummary/info field ``freeCashflow`` is presented on Yahoo's
     statistics page as *Levered Free Cash Flow (ttm)*. The app's FCF-margin and
@@ -16924,7 +17046,7 @@ def load_fx_conversion(
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_fcf_source_integrity_guard_v22031_20260909"
+CACHE_VERSION = "m6_bank_primary_source_gate_v22032_20260909"
 
 @st.cache_data(
     ttl=900,
@@ -17251,7 +17373,8 @@ def load_stock(search_text, cache_version):
         company_type,
         fundamental_info,
         price,
-        currency_context
+        currency_context,
+        symbol=fundamental_symbol
     )
 
     midstream_special_model = build_midstream_special_model(
@@ -17303,6 +17426,11 @@ def load_stock(search_text, cache_version):
     special_control = get_special_control(
         company_type,
         symbol
+    )
+
+    special_control = build_bank_special_control(
+        special_control,
+        bank_special_model
     )
 
     special_control = build_defense_special_control(
@@ -18293,7 +18421,7 @@ if selected_symbol:
                     ir_router_ui = research.get("ir_router") or {}
                     if ir_router_ui.get("available"):
                         st.info(
-                            "🏢 **IR Year Navigator V2.20.31 aktiv:** Unternehmens-/IR-Seiten werden zuerst geprüft. "
+                            "🏢 **IR Year Navigator V2.20.32 aktiv:** Unternehmens-/IR-Seiten werden zuerst geprüft. "
                             "Der kanonische Release-Archivindex wird als Parent validiert; für die historische Suche wird anschließend bevorzugt "
                             "das unternehmenseigene Financial-Releases-Archiv gezielt weitergeblättert. Sobald alle Zieljahre gefunden sind, "
                             "stoppt die Navigation. Detailseiten und Annual-Report-/Filings-Bereiche bleiben getrennt."
@@ -18422,7 +18550,7 @@ if selected_symbol:
 
                     adjustment_review = research.get("adjustment_recurrence_review") or {}
                     if adjustment_review:
-                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.31**")
+                        st.write("**🧾 Bereinigungs-/Wiederkehrbarkeits-Prüfung V2.20.32**")
                         review_level = adjustment_review.get("status_level")
                         review_status = text_or_dash(adjustment_review.get("status"))
                         if review_level == "Rot":
@@ -18471,7 +18599,7 @@ if selected_symbol:
 
                         st.error(
                             "**Automatische EPS-Normalisierungsfreigabe: NEIN.** Kein erkannter "
-                            "Bereinigungsposten wird in V2.20.31 automatisch zum Bewertungs-EPS addiert; Kontext-Hinweise haben grundsätzlich keinen EPS-Einfluss."
+                            "Bereinigungsposten wird in V2.20.32 automatisch zum Bewertungs-EPS addiert; Kontext-Hinweise haben grundsätzlich keinen EPS-Einfluss."
                         )
                         st.caption(
                             "Nächster Prüfschritt: "
@@ -18481,7 +18609,7 @@ if selected_symbol:
 
                     historical_review = research.get("historical_recurrence_review") or {}
                     if historical_review:
-                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.31**")
+                        st.write("**📚 Historische Wiederkehrbarkeits-Prüfung V2.20.32**")
                         hist_level = historical_review.get("status_level")
                         hist_status = text_or_dash(historical_review.get("status"))
                         if hist_level == "Rot":
@@ -18570,7 +18698,7 @@ if selected_symbol:
 
                     component_analysis = research.get("adjustment_component_analysis") or {}
                     if component_analysis:
-                        st.write("**🧩 Bridge Component Evidence Gate V2.20.31**")
+                        st.write("**🧩 Bridge Component Evidence Gate V2.20.32**")
                         comp_level = component_analysis.get("status_level")
                         comp_status = text_or_dash(component_analysis.get("status"))
                         if comp_level == "Rot":
@@ -18709,13 +18837,13 @@ if selected_symbol:
 
                     if research.get("quantitative_eps_bridge_found"):
                         st.info(
-                            "Eine quantitative EPS-Brücke wurde nach V2.20.31-Regeln periodenvalidiert, historisch auf Wiederholung geprüft und anschließend durch den Bridge Component Evidence Gate gefiltert. Der IR-Year-Navigator validiert zuerst den kanonischen offiziellen Release-Archivindex und navigiert danach bevorzugt durch das unternehmenseigene Financial-Releases-Archiv, bis die benötigten Volljahre gefunden sind oder das Zeitbudget endet. Nur Komponenten innerhalb einer periodenvalidierten GAAP→Adjusted-EPS-Reconciliation werden quantitativ akzeptiert; reine Kontextfunde bleiben ohne EPS-Einfluss; Detailseiten bleiben als Archive gesperrt und Annual-Report-/Filings-Bereiche getrennt. "
+                            "Eine quantitative EPS-Brücke wurde nach V2.20.32-Regeln periodenvalidiert, historisch auf Wiederholung geprüft und anschließend durch den Bridge Component Evidence Gate gefiltert. Der IR-Year-Navigator validiert zuerst den kanonischen offiziellen Release-Archivindex und navigiert danach bevorzugt durch das unternehmenseigene Financial-Releases-Archiv, bis die benötigten Volljahre gefunden sind oder das Zeitbudget endet. Nur Komponenten innerhalb einer periodenvalidierten GAAP→Adjusted-EPS-Reconciliation werden quantitativ akzeptiert; reine Kontextfunde bleiben ohne EPS-Einfluss; Detailseiten bleiben als Archive gesperrt und Annual-Report-/Filings-Bereiche getrennt. "
                             "Sie wird weiterhin **nicht automatisch als bereinigtes EPS übernommen**."
                         )
 
                     st.error(
                         "**Freigabestatus: GESPERRT.** Die Komponenten-/Wiederkehrbarkeits-Prüfung darf in "
-                        "V2.20.31 den Fair Value noch nicht selbst entsperren."
+                        "V2.20.32 den Fair Value noch nicht selbst entsperren."
                     )
                     st.write("**Nächster Schritt:** " + text_or_dash(research.get("next_step")))
 
@@ -19401,148 +19529,150 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Banken-Sondermodell V1 – Datenbasis"
+                        "🏦 Banken-Sondermodell V2.20.32 – Datenbasis"
                     )
 
-                    st.info(
-                        "Bankmodell erkannt. In V1 werden nur "
-                        "bankspezifische Basiskennzahlen und ihre "
-                        "Einheiten/Plausibilität geprüft; es wird noch "
-                        "keine Bankbewertung erzeugt."
-                    )
+                    if bank_model.get("primary_source_complete"):
+                        st.success(
+                            "Primärquellen-Gate bestanden: aktueller ROTCE, "
+                            "Tangible Book Value und CET1 sind aus einer "
+                            "offiziellen Bankquelle verifiziert."
+                        )
+                    elif bank_model.get("snapshot") and not bank_model.get("snapshot_fresh"):
+                        st.warning(
+                            "Der verifizierte Bank-Snapshot ist abgelaufen. "
+                            "Die Spezialdaten werden nicht stillschweigend weiterverwendet."
+                        )
+                    else:
+                        st.info(
+                            "Bankmodell erkannt. Für diese Bank liegt noch kein "
+                            "vollständiger verifizierter Primärquellen-Snapshot vor."
+                        )
 
                     col1, col2 = st.columns(2)
 
                     with col1:
-
                         if bank_model["roe"] is not None:
                             st.metric(
-                                "ROE",
+                                "ROE (Yahoo-Kontext)",
                                 f"{bank_model['roe'] * 100:.1f} %"
                             )
                         else:
-                            st.metric(
-                                "ROE",
-                                "–"
-                            )
+                            st.metric("ROE (Yahoo-Kontext)", "–")
 
-                        if bank_model[
-                            "book_value_per_share"
-                        ] is not None:
+                        if bank_model["book_value_per_share"] is not None:
                             st.metric(
                                 "Buchwert je Aktie",
                                 format_eps(
-                                    bank_model[
-                                        "book_value_per_share"
-                                    ],
+                                    bank_model["book_value_per_share"],
                                     financial_currency
                                 )
                             )
                         else:
-                            st.metric(
-                                "Buchwert je Aktie",
-                                "–"
-                            )
+                            st.metric("Buchwert je Aktie", "–")
 
-                        if bank_model[
-                            "display_price_to_book"
-                        ] is not None:
+                        if bank_model["display_price_to_book"] is not None:
                             st.metric(
                                 "KBV aus Kurs / Buchwert",
                                 f"{bank_model['display_price_to_book']:.2f}×"
                             )
                         else:
-                            st.metric(
-                                "KBV aus Kurs / Buchwert",
-                                "–"
-                            )
+                            st.metric("KBV aus Kurs / Buchwert", "–")
+
+                        tbv = bank_model.get("tangible_book_value_per_share")
+                        st.metric(
+                            "Tangible Book Value je Aktie",
+                            format_eps(tbv, financial_currency) if tbv is not None else "–"
+                        )
+
+                        ptbv = bank_model.get("price_to_tangible_book")
+                        st.metric(
+                            "P / Tangible Book",
+                            f"{ptbv:.2f}×" if ptbv is not None else "–"
+                        )
 
                     with col2:
-
-                        if bank_model[
-                            "display_forward_pe"
-                        ] is not None:
+                        if bank_model["display_forward_pe"] is not None:
                             st.metric(
                                 "Forward-KGV (nur Referenz)",
                                 f"{bank_model['display_forward_pe']:.2f}×"
                             )
                         else:
-                            st.metric(
-                                "Forward-KGV (nur Referenz)",
-                                "–"
+                            st.metric("Forward-KGV (nur Referenz)", "–")
+
+                        rote_reported = bank_model.get("rote_reported_pct")
+                        st.metric(
+                            "ROTCE gemeldet",
+                            f"{rote_reported:.1f} %" if rote_reported is not None else "–"
+                        )
+
+                        rote_normalized = bank_model.get("rote_normalized_pct")
+                        st.metric(
+                            "ROTCE ex significant items",
+                            f"{rote_normalized:.1f} %" if rote_normalized is not None else "–"
+                        )
+
+                        cet1_std = bank_model.get("cet1_standardized_pct")
+                        st.metric(
+                            "CET1 – Standardized",
+                            f"{cet1_std:.1f} %" if cet1_std is not None else "–"
+                        )
+
+                        cet1_adv = bank_model.get("cet1_advanced_pct")
+                        st.metric(
+                            "CET1 – Advanced",
+                            f"{cet1_adv:.1f} %" if cet1_adv is not None else "–"
+                        )
+
+                    snapshot = bank_model.get("snapshot") or {}
+                    if snapshot:
+                        st.write(
+                            "**Datenstand Primärquelle:** "
+                            f"{text_or_dash(snapshot.get('as_of_date'))} "
+                            f"(veröffentlicht {text_or_dash(snapshot.get('published_date'))})"
+                        )
+
+                        significant = safe_float(snapshot.get("significant_items_eps_effect"))
+                        reported_q_eps = safe_float(snapshot.get("quarter_eps_reported"))
+                        ex_q_eps = safe_float(snapshot.get("quarter_eps_ex_significant_items"))
+                        if significant is not None:
+                            st.warning(
+                                "2Q26 enthält wesentliche Sondergewinne: "
+                                f"+{significant:.2f} USD EPS insgesamt. "
+                                + (
+                                    f"Gemeldetes Quartals-EPS {reported_q_eps:.2f} USD, "
+                                    f"ex significant items {ex_q_eps:.2f} USD. "
+                                    if reported_q_eps is not None and ex_q_eps is not None
+                                    else ""
+                                )
+                                + "Für die Ertragsqualitätsprüfung wird der gemeldete "
+                                "ROTCE von 29 % deshalb nicht blind als normalisiert behandelt."
                             )
 
-                        st.metric(
-                            "RoTE",
-                            "–"
+                        st.info(snapshot.get("source_note"))
+                        st.caption(
+                            f"Quelle: {snapshot.get('source_name')} · gültig bis "
+                            f"{text_or_dash(snapshot.get('valid_until'))}"
                         )
-
-                        st.metric(
-                            "CET1-Kapitalquote",
-                            "–"
-                        )
-
-                    if data[
-                        "currency_context"
-                    ].get("mixed_units"):
-                        price_financial = bank_model.get(
-                            "price_financial"
-                        )
-                        if price_financial is not None:
-                            st.write(
-                                "**Kurs für fundamentale Verhältniskennzahlen:** "
-                                f"{price_financial:,.4f} {financial_currency} "
-                                "(explizit aus der Pence-Notierung umgerechnet)"
-                            )
-
-                    st.write(
-                        "**Tangible Book Value / TBV:** – "
-                        "(nicht separat belastbar verfügbar; normaler "
-                        "Buchwert wird nicht als Ersatz verwendet)"
-                    )
-
-                    st.write(
-                        "**RoTE:** – "
-                        "(nicht separat verfügbar; ROE wird nicht als "
-                        "identischer Ersatzwert behandelt)"
-                    )
-
-                    st.write(
-                        "**CET1-Kapitalquote:** – "
-                        "(in der aktuellen Datenquelle nicht separat "
-                        "verfügbar; wird nicht geschätzt)"
-                    )
 
                     st.write(
                         "**Datenreife Sondermodell:** "
                         f"{bank_model['readiness']}"
                     )
 
-                    if bank_model.get(
-                        "pb_consistency_note"
-                    ):
-                        pb_note = bank_model[
-                            "pb_consistency_note"
-                        ]
-                        if pb_note.startswith("⚠️"):
-                            st.warning(pb_note)
-                        else:
-                            st.caption(pb_note)
+                    for key in [
+                        "source_consistency_note",
+                        "pb_consistency_note",
+                        "forward_pe_note",
+                    ]:
+                        note = bank_model.get(key)
+                        if note:
+                            if str(note).startswith("⚠️"):
+                                st.warning(note)
+                            else:
+                                st.caption(note)
 
-                    if bank_model.get(
-                        "forward_pe_note"
-                    ):
-                        pe_note = bank_model[
-                            "forward_pe_note"
-                        ]
-                        if pe_note.startswith("⚠️"):
-                            st.warning(pe_note)
-                        else:
-                            st.caption(pe_note)
-
-                    st.caption(
-                        bank_model["note"]
-                    )
+                    st.caption(bank_model["note"])
 
                 midstream_model = data.get(
                     "midstream_special_model",
@@ -20540,6 +20670,59 @@ if selected_symbol:
                         "Book-to-Bill verändert den 100-Punkte-Multiple-Score nicht. "
                         "Verifizierte Spezialdaten werden nach ihrem Gültigkeitsdatum "
                         "nicht stillschweigend weiterverwendet."
+                    )
+
+                if special_control.get(
+                    "control_key"
+                ) == "bank_book_capital":
+
+                    st.divider()
+
+                    st.subheader(
+                        "🏦 Modul 6 – Schritt 3B: Bank-Ertrags- & Kapitalprüfung"
+                    )
+
+                    if special_control.get("implemented"):
+                        checks = special_control.get("checks", {})
+                        snapshot = special_control.get("snapshot") or {}
+
+                        st.write(
+                            "**Datenstand:** "
+                            f"{text_or_dash(snapshot.get('as_of_date'))} "
+                            f"(veröffentlicht {text_or_dash(snapshot.get('published_date'))})"
+                        )
+
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            rv = safe_float(checks.get("rote_normalized_pct"))
+                            st.metric("Normalisierter ROTCE", f"{rv:.1f} %" if rv is not None else "–")
+                            tbv = safe_float(checks.get("tangible_book_value_per_share"))
+                            st.metric("Tangible Book Value je Aktie", format_eps(tbv, financial_currency) if tbv is not None else "–")
+                            ptbv = safe_float(checks.get("price_to_tangible_book"))
+                            st.metric("P / Tangible Book", f"{ptbv:.2f}×" if ptbv is not None else "–")
+                        with col2:
+                            rr = safe_float(checks.get("rote_reported_pct"))
+                            st.metric("ROTCE gemeldet", f"{rr:.1f} %" if rr is not None else "–")
+                            cs = safe_float(checks.get("cet1_standardized_pct"))
+                            st.metric("CET1 Standardized", f"{cs:.1f} %" if cs is not None else "–")
+                            ca = safe_float(checks.get("cet1_advanced_pct"))
+                            st.metric("CET1 Advanced", f"{ca:.1f} %" if ca is not None else "–")
+
+                        st.success(
+                            "Bank-Primärdaten vollständig validiert. ROTCE, TBVPS und "
+                            "CET1 sind jetzt belastbar vorhanden."
+                        )
+                        st.warning(
+                            "Bewertungsfreigabe noch NEIN: V2.20.32 ergänzt bewusst "
+                            "nur die Primärdatenbasis. Bank-Score, P/TBV-/KGV-Korridor "
+                            "und Fair Value werden erst im nächsten Schritt fachlich festgelegt."
+                        )
+                    else:
+                        st.warning(special_control.get("note"))
+
+                    st.caption(
+                        "Bank-Primärdatenfreigabe und Bewertungsfreigabe sind getrennt. "
+                        "Ein vollständiger Datensatz allein erzeugt noch keinen Fair Value."
                     )
 
                 if special_control.get(
