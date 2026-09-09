@@ -17,17 +17,17 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.46"
+APP_BUILD_VERSION = "V2.20.47"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · REIT Quality Score + P/AFFO Valuation Anchor")
+st.caption(f"Build {APP_BUILD_VERSION} · Currency Display Engine + REIT Consistency Fix")
 
 
-# V2.20.46: REIT Quality Score + P/AFFO Valuation Anchor – Realty Income. V2.20.45 primary-source gate preserved; Insurance V2.20.44, Bank V2.20.39 and other frozen specialist models remain preserved.
+# V2.20.47: Currency Display Engine + REIT Consistency Fix. Valuation logic remains in native currencies; only presentation is converted. REIT V2.20.46 valuation is preserved, while stale V2.20.45 UI text is cleaned up. Insurance V2.20.44, Bank V2.20.39 and other frozen specialist models remain preserved.
 
 # =========================================================
 # Hilfsfunktionen
@@ -87,25 +87,27 @@ def format_number(value):
 
 
 def format_money(value, currency):
-    formatted = format_number(value)
+    converted_value, display_currency = transform_value_for_display(value, currency)
+    formatted = format_number(converted_value)
 
     if formatted == "–":
         return "–"
 
-    return f"{formatted} {currency}"
+    return f"{formatted} {display_currency}"
 
 
 def format_eps(value, currency):
-    if value is None:
+    converted_value, display_currency = transform_value_for_display(value, currency)
+    if converted_value is None:
         return "–"
 
     try:
-        value = float(value)
+        converted_value = float(converted_value)
 
-        if pd.isna(value):
+        if pd.isna(converted_value):
             return "–"
 
-        return f"{value:,.2f} {currency}"
+        return f"{converted_value:,.2f} {display_currency}"
 
     except Exception:
         return "–"
@@ -138,6 +140,156 @@ def safe_float(value):
 
     except Exception:
         return None
+
+
+DISPLAY_CURRENCY_SESSION_KEY = "_v22047_display_currency_context"
+
+
+def _normalize_currency_code(code):
+    raw = str(code or "").strip()
+    if raw.upper() == "GBX":
+        return "GBp"
+    return raw
+
+
+def set_display_currency_context(context):
+    """Store presentation-only FX context. Valuation inputs remain untouched."""
+    try:
+        st.session_state[DISPLAY_CURRENCY_SESSION_KEY] = dict(context or {})
+    except Exception:
+        pass
+
+
+def get_display_currency_context():
+    try:
+        value = st.session_state.get(DISPLAY_CURRENCY_SESSION_KEY, {})
+        return value if isinstance(value, dict) else {}
+    except Exception:
+        return {}
+
+
+def transform_value_for_display(value, source_currency):
+    """Convert one monetary display value without changing model calculations."""
+    numeric = safe_float(value)
+    source = _normalize_currency_code(source_currency)
+    if numeric is None:
+        return None, source or text_or_dash(source_currency)
+
+    context = get_display_currency_context()
+    if not context.get("enabled"):
+        return numeric, source or text_or_dash(source_currency)
+
+    target = _normalize_currency_code(context.get("target_currency"))
+    rates = context.get("rates") if isinstance(context.get("rates"), dict) else {}
+    rate_info = rates.get(source) if source else None
+
+    # Lazy-load additional source currencies used by specialist modules (for
+    # example hard-coded USD/oz mining primary-source values) without making
+    # every stock load fetch all possible FX pairs up front.
+    if (
+        source
+        and target
+        and source != target
+        and not isinstance(rate_info, dict)
+        and context.get("cache_version")
+    ):
+        try:
+            rate_info = load_fx_conversion(source, target, context.get("cache_version"))
+            context.setdefault("rates", {})[source] = rate_info
+            set_display_currency_context(context)
+        except Exception:
+            rate_info = None
+
+    factor = safe_float((rate_info or {}).get("factor")) if isinstance(rate_info, dict) else None
+
+    if source == target:
+        factor = 1.0
+
+    if not target or factor is None or factor <= 0:
+        return numeric, source or text_or_dash(source_currency)
+
+    return numeric * factor, target
+
+
+def format_currency_value(value, currency, decimals=2, signed=False):
+    converted_value, display_currency = transform_value_for_display(value, currency)
+    if converted_value is None:
+        return "–"
+    sign = "+" if signed else ""
+    return f"{converted_value:{sign},.{int(decimals)}f} {display_currency}"
+
+
+def format_currency_range(low, high, currency, decimals=2):
+    low_value, low_currency = transform_value_for_display(low, currency)
+    high_value, high_currency = transform_value_for_display(high, currency)
+    if low_value is None or high_value is None:
+        return "–"
+    display_currency = high_currency if high_currency == low_currency else low_currency
+    return f"{low_value:,.{int(decimals)}f} – {high_value:,.{int(decimals)}f} {display_currency}"
+
+
+def format_currency_per_unit(value, currency, unit_suffix, decimals=2, signed=False):
+    converted_value, display_currency = transform_value_for_display(value, currency)
+    if converted_value is None:
+        return "–"
+    sign = "+" if signed else ""
+    suffix = str(unit_suffix or "").strip()
+    return f"{converted_value:{sign},.{int(decimals)}f} {display_currency}/{suffix}"
+
+
+def format_musd(value_musd, decimals=2):
+    value = safe_float(value_musd)
+    if value is None:
+        return "–"
+    return format_money(value * 1_000_000.0, "USD")
+
+
+def format_source_unit_value(value, unit_label, decimals=2, signed=False):
+    unit = str(unit_label or "").strip()
+    if "/" in unit:
+        prefix, suffix = unit.split("/", 1)
+        prefix = _normalize_currency_code(prefix)
+        if prefix in {"USD", "EUR", "GBP", "GBp", "CHF", "JPY", "CAD", "AUD", "SEK", "NOK", "DKK"}:
+            return format_currency_per_unit(value, prefix, suffix, decimals, signed=signed)
+    normalized = _normalize_currency_code(unit)
+    if normalized in {"USD", "EUR", "GBP", "GBp", "CHF", "JPY", "CAD", "AUD", "SEK", "NOK", "DKK"}:
+        return format_currency_value(value, normalized, decimals, signed=signed)
+    numeric = safe_float(value)
+    if numeric is None:
+        return "–"
+    sign = "+" if signed else ""
+    return f"{numeric:{sign},.{int(decimals)}f} {unit}".strip()
+
+
+def format_source_unit_range(low, high, unit_label, decimals=2):
+    unit = str(unit_label or "").strip()
+    if "/" in unit:
+        prefix, suffix = unit.split("/", 1)
+        prefix = _normalize_currency_code(prefix)
+        if prefix in {"USD", "EUR", "GBP", "GBp", "CHF", "JPY", "CAD", "AUD", "SEK", "NOK", "DKK"}:
+            low_text = format_currency_per_unit(low, prefix, suffix, decimals)
+            high_value, high_currency = transform_value_for_display(high, prefix)
+            low_value, low_currency = transform_value_for_display(low, prefix)
+            if low_value is None or high_value is None:
+                return "–"
+            shown_currency = high_currency if high_currency == low_currency else low_currency
+            return f"{low_value:,.{int(decimals)}f} – {high_value:,.{int(decimals)}f} {shown_currency}/{suffix}"
+    low_value = safe_float(low)
+    high_value = safe_float(high)
+    if low_value is None or high_value is None:
+        return "–"
+    return f"{low_value:,.{int(decimals)}f} – {high_value:,.{int(decimals)}f} {unit}".strip()
+
+
+def display_currency_code(source_currency):
+    """Return the currently shown currency code for labels around monetary values."""
+    source = _normalize_currency_code(source_currency)
+    context = get_display_currency_context()
+    if context.get("enabled") and context.get("target_currency"):
+        rate_info = (context.get("rates") or {}).get(source)
+        if source == context.get("target_currency") or (isinstance(rate_info, dict) and safe_float(rate_info.get("factor"))):
+            return context.get("target_currency")
+    return source or text_or_dash(source_currency)
 
 
 def build_currency_context(
@@ -8791,7 +8943,7 @@ def calculate_bank_valuation_v1(
         "tbv_weight": 0.60,
         "earnings_weight": 0.40,
         "anchor_spread_pct": None,
-        "confidence_cap": "Mittel",
+        "confidence_cap": "Mittel bis Hoch",
         "note": None,
     }
 
@@ -9576,7 +9728,7 @@ def build_auto_special_model(
 
 
 # =========================================================
-# REIT-/Immobilien-Sondermodell V2.20.45 – Primary Source FFO/AFFO Gate
+# REIT-/Immobilien-Sondermodell V2.20.47 – Primary Source + Quality Score + P/AFFO Gate
 # =========================================================
 
 REIT_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22046_reit_quality_paffo"
@@ -9585,7 +9737,7 @@ REIT_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22046_reit_quality_paffo"
 def get_verified_reit_snapshot(symbol):
     """Time-bounded official REIT snapshot for supported REITs.
 
-    V2.20.45 starts with Realty Income (NYSE: O). Unknown REITs deliberately
+    V2.20.47 starts with Realty Income (NYSE: O). Unknown REITs deliberately
     return None. AFFO/FFO, payout, occupancy and leverage are never inferred
     from standard EPS, standard free cash flow or generic EBITDA proxies.
     """
@@ -9655,8 +9807,9 @@ def get_verified_reit_snapshot(symbol):
             "Offizielle Realty-Income-Q2/6M-2026-Daten. FFO, Normalized FFO, AFFO, "
             "AFFO-Ausschüttungsquote, Belegung und Net Debt/Annualized Pro Forma Adjusted "
             "EBITDAre werden nicht aus Yahoo-EPS, Standard-Free-Cashflow oder generischen "
-            "Bilanz-/EBITDA-Proxies rekonstruiert. V2.20.45 baut ausschließlich die "
-            "Primärdatenbasis auf; REIT-Score, P/AFFO-Korridor, NAV und Fair Value bleiben gesperrt."
+            "Bilanz-/EBITDA-Proxies rekonstruiert. V2.20.47 nutzt diese Primärdatenbasis "
+            "für den freigegebenen REIT-Quality-Score und den P/AFFO-Anker. NAV bleibt ohne "
+            "belastbare Primärquelle gesperrt."
         ),
     }
 
@@ -9748,14 +9901,13 @@ def build_reit_primary_source_gate(snapshot):
         "note": (
             "REIT-Primärquellen-Gate bestanden: aktuelles FFO/AFFO, AFFO-Ausschüttungsquote, "
             "Belegung, Restlaufzeit und Net Debt/Annualized Pro Forma Adjusted EBITDAre "
-            "stammen aus den offiziellen Realty-Income-Q2/6M-2026-Unterlagen. "
-            "Noch kein REIT-Score und keine Bewertung."
+            "stammen aus den offiziellen Realty-Income-Q2/6M-2026-Unterlagen."
         ),
     })
     return result
 
 def build_reit_quality_score(primary_gate, snapshot=None):
-    """V2.20.46 REIT-only 100-point quality score from official primary data."""
+    """V2.20.47 REIT-only 100-point quality score from official primary data."""
     gate = primary_gate if isinstance(primary_gate, dict) else {}
     snap = snapshot if isinstance(snapshot, dict) else {}
     result = {"available": False, "score": None, "quality_level": None, "components": {}, "note": None}
@@ -9809,7 +9961,7 @@ def build_reit_paffo_valuation(primary_gate, reit_score, price_financial=None):
     fv=affo*target
     current_paffo=price/affo if price is not None and price>0 else None
     result.update({"available":True,"target_paffo":target,"corridor_low":low,"corridor_high":high,"affo_basis":affo,"fair_value_financial":fv,"current_paffo":current_paffo,
-        "note":"V2.20.46 nutzt den Mittelwert der offiziellen 2026-AFFO-Guidance als Ertragsbasis. Der 100-Punkte-REIT-Score steuert einen konservativen P/AFFO-Zielanker; der Zielkorridor beträgt ±1,0×. NAV bleibt bis zu einer belastbaren Primärquelle gesperrt."})
+        "note":"V2.20.47 nutzt den Mittelwert der offiziellen 2026-AFFO-Guidance als Ertragsbasis. Der 100-Punkte-REIT-Score steuert einen konservativen P/AFFO-Zielanker; der Zielkorridor beträgt ±1,0×. NAV bleibt bis zu einer belastbaren Primärquelle gesperrt."})
     return result
 
 
@@ -9823,11 +9975,11 @@ def build_reit_special_model(
     """
     Conservative REIT / real-estate data block.
 
-    V2.20.45 adds a time-bounded official primary-source gate for supported
-    REITs while preserving Yahoo values only as context. It does not create
-    a REIT score, valuation multiple or fair value. FFO/AFFO are never
-    reconstructed from net income, depreciation, standard FCF or operating
-    cash flow.
+    V2.20.47 keeps the time-bounded official primary-source gate for supported
+    REITs, adds the released REIT quality score and P/AFFO anchor, and preserves
+    Yahoo values only as context. FFO/AFFO are never reconstructed from net
+    income, depreciation, standard FCF or operating cash flow; NAV remains locked
+    until a verified primary source is available.
     """
     type_name = str(
         company_type.get("type", "")
@@ -10088,19 +10240,19 @@ def build_reit_special_model(
         "property_value_available": False,
         "readiness": readiness,
         "note": (
-            "REIT-/Immobilien-Sondermodell V2.20.45 verwendet für unterstützte REITs "
+            "REIT-/Immobilien-Sondermodell V2.20.47 verwendet für unterstützte REITs "
             "verifizierte offizielle FFO-/AFFO-, Ausschüttungs-, Belegungs- und "
             "Verschuldungsdaten als Primärbasis. Yahoo-FFO/AFFO, EV/EBITDA und "
             "konsolidierte Netto-Schulden bleiben reine Kontext-/Plausibilitätswerte. "
             "FFO/AFFO werden nicht aus Nettogewinn, Abschreibungen, Standard-FCF oder "
-            "Operating Cashflow rekonstruiert. NAV/EPRA NTA wird nicht geschätzt. "
-            "Noch kein REIT-Score, kein P/AFFO-Zielkorridor und kein Fair Value."
+            "Operating Cashflow rekonstruiert. Der eigene REIT-Score steuert den "
+            "P/AFFO-Zielanker; NAV/EPRA NTA bleibt ohne belastbare Primärquelle gesperrt."
         )
     }
 
 
 def build_reit_special_control(base_control, reit_model):
-    """Attach the V2.20.45 fail-closed REIT primary-source gate to step 3B."""
+    """Attach the fail-closed REIT primary-source, quality-score and P/AFFO gate to step 3B."""
     control = dict(base_control or {})
     control.setdefault("router_status", control.get("status"))
     control.setdefault("router_note", control.get("note"))
@@ -10133,7 +10285,7 @@ def build_reit_special_control(base_control, reit_model):
     control.update({
         "implemented": True,
         "released": bool((model.get("reit_score") or {}).get("available") and (model.get("reit_valuation") or {}).get("available")),
-        "confidence_cap": "Mittel",
+        "confidence_cap": "Mittel bis Hoch",
         "step3b_status": "REIT-Score + P/AFFO-Anker freigegeben",
         "overall_status": "REIT-Bewertung freigegeben",
         "snapshot": snapshot,
@@ -10156,7 +10308,7 @@ def build_reit_special_control(base_control, reit_model):
             "reit_valuation": model.get("reit_valuation") or {},
         },
         "note": (
-            "REIT-Schritt 3B V2.20.46 validiert die aktuelle offizielle FFO/AFFO-"
+            "REIT-Schritt 3B V2.20.47 validiert die aktuelle offizielle FFO/AFFO-"
             "Ertragsbasis, AFFO-Ausschüttungsdeckung, Belegung, Restlaufzeit und "
             "Net Debt/Annualized Pro Forma Adjusted EBITDAre. Der eigene REIT-Score und "
             "P/AFFO-Anker sind freigegeben; NAV bleibt ohne belastbare Primärquelle gesperrt."
@@ -11168,16 +11320,17 @@ def get_special_control(company_type, symbol):
                 "Net Debt / Annualized Pro Forma Adjusted EBITDAre",
                 "Portfolio-Belegung / Restlaufzeit",
                 "Same-Store-Rent-Wachstum",
-                "später: P/AFFO / NAV"
+                "P/AFFO-Zielanker",
+                "später optional: NAV nur aus belastbarer Primärquelle"
             ],
-            "status": "Router aktiv – V2.20.45 REIT-Primärquellen-Gate",
+            "status": "Router aktiv – V2.20.47 REIT-Quality-/P/AFFO-Gate",
             "note": (
-                "V2.20.45 trennt Yahoo-Kontextkennzahlen von verifizierten REIT-Primärdaten. "
+                "V2.20.47 trennt Yahoo-Kontextkennzahlen von verifizierten REIT-Primärdaten. "
                 "Für unterstützte REITs werden FFO/AFFO, Ausschüttungsdeckung, Belegung und "
                 "Net Debt/Annualized Pro Forma Adjusted EBITDAre nur aus einem aktuellen "
                 "offiziellen Snapshot übernommen. Standard-EPS, Yahoo-Free-Cashflow und "
                 "generische EBITDA-/Bilanzwerte dürfen diese Kernkennzahlen nicht ersetzen. "
-                "REIT-Score, P/AFFO-Korridor, NAV und Fair Value bleiben gesperrt."
+                "Bei bestandenem Gate werden REIT-Score und P/AFFO-Anker freigegeben; NAV bleibt separat gesperrt."
             )
         }
 
@@ -17069,11 +17222,16 @@ def calculate_valuation_confidence(
         return result
 
     min_rank = min(value[0] for value in components.values())
-    final_level = {1: "Niedrig", 2: "Mittel", 3: "Hoch"}[min_rank]
     limiting = [
         name for name, value in components.items()
         if value[0] == min_rank
     ]
+    if is_reit_valuation and min_rank == 3 and any(
+        components[name][1] == "Mittel bis Hoch" for name in limiting
+    ):
+        final_level = "Mittel bis Hoch"
+    else:
+        final_level = {1: "Niedrig", 2: "Mittel", 3: "Hoch"}[min_rank]
 
     result.update({
         "available": True,
@@ -17094,6 +17252,8 @@ def calculate_valuation_confidence(
 def get_zone_thresholds(confidence):
     if confidence == "Hoch":
         return {"fair_band": 0.075, "strong_threshold": 0.15}
+    if confidence == "Mittel bis Hoch":
+        return {"fair_band": 0.085, "strong_threshold": 0.175}
     if confidence == "Mittel":
         return {"fair_band": 0.10, "strong_threshold": 0.20}
     if confidence == "Niedrig":
@@ -17328,7 +17488,7 @@ def generate_holding_signal(
         return result
 
     if zone in ["Stark unterbewertet", "Unterbewertet"]:
-        if fundamental in ["Stark", "Ausreichend"] and confidence in ["Hoch", "Mittel"]:
+        if fundamental in ["Stark", "Ausreichend"] and confidence in ["Hoch", "Mittel bis Hoch", "Mittel"]:
             result.update({"signal": "Nachkaufen", "reason": "Unterbewertung bei ausreichender fundamentaler Basis und Bewertungssicherheit."})
         else:
             result.update({"signal": "Halten", "reason": "Bewertung attraktiv, aber Qualität oder Sicherheit begrenzen einen Nachkauf."})
@@ -17708,7 +17868,7 @@ def calculate_fair_value_v1(
         })
         return result
 
-    # REIT V2.20.46 – dedicated P/AFFO fair value. NAV remains intentionally locked.
+    # REIT V2.20.47 – dedicated P/AFFO fair value. NAV remains intentionally locked.
     if (
         isinstance(special_control, dict)
         and special_control.get("control_key") == "reit_ffo_affo_leverage"
@@ -19021,49 +19181,78 @@ def load_fx_conversion(
     to_currency,
     cache_version
 ):
-    """Load an explicit current FX factor: 1 from_currency -> to_currency."""
+    """Load an explicit current FX factor: 1 from_currency -> to_currency.
+
+    V2.20.47 also returns a quote timestamp when Yahoo provides one and
+    supports GBp through an explicit GBP bridge. The returned rate is used
+    only for presentation unless an existing valuation unit-alignment path
+    explicitly calls this function.
+    """
     _ = cache_version
 
-    source = str(from_currency or "").strip()
-    target = str(to_currency or "").strip()
-
-    if source.upper() == "GBX":
-        source = "GBp"
-    if target.upper() == "GBX":
-        target = "GBp"
+    source = _normalize_currency_code(from_currency)
+    target = _normalize_currency_code(to_currency)
+    retrieved_at = datetime.now().astimezone().isoformat(timespec="seconds")
 
     if not source or not target:
-        return {"available": False, "factor": None, "symbol": None}
+        return {
+            "available": False, "factor": None, "symbol": None,
+            "as_of": None, "retrieved_at": retrieved_at
+        }
 
     if source == target:
-        return {"available": True, "factor": 1.0, "symbol": None}
+        return {
+            "available": True, "factor": 1.0, "symbol": None,
+            "as_of": None, "retrieved_at": retrieved_at
+        }
 
-    if source == "GBP" and target == "GBp":
-        return {"available": True, "factor": 100.0, "symbol": None}
+    # Normalize pence to GBP before market FX, then convert back when GBp is
+    # the target. This avoids treating GBp as a standalone FX currency.
+    source_market = "GBP" if source == "GBp" else source
+    target_market = "GBP" if target == "GBp" else target
+    source_unit_factor = 0.01 if source == "GBp" else 1.0
+    target_unit_factor = 100.0 if target == "GBp" else 1.0
 
-    if source == "GBp" and target == "GBP":
-        return {"available": True, "factor": 0.01, "symbol": None}
+    if source_market == target_market:
+        factor = source_unit_factor * target_unit_factor
+        return {
+            "available": True,
+            "factor": factor,
+            "symbol": "GBP/GBp Einheitenumrechnung",
+            "as_of": None,
+            "retrieved_at": retrieved_at,
+        }
 
-    # GBp is not a standalone FX currency. Other combinations involving GBp
-    # require a two-step conversion and are intentionally not guessed here.
-    if source == "GBp" or target == "GBp":
-        return {"available": False, "factor": None, "symbol": None}
+    direct_symbol = f"{source_market}{target_market}=X"
+    inverse_symbol = f"{target_market}{source_market}=X"
 
-    direct_symbol = f"{source}{target}=X"
-    inverse_symbol = f"{target}{source}=X"
+    def _timestamp_text(value):
+        try:
+            if hasattr(value, "to_pydatetime"):
+                value = value.to_pydatetime()
+            if isinstance(value, datetime):
+                if value.tzinfo is None:
+                    return value.isoformat(timespec="seconds")
+                return value.astimezone().isoformat(timespec="seconds")
+            return str(value) if value is not None else None
+        except Exception:
+            return None
 
     def last_rate(symbol):
-        try:
-            ticker = yf.Ticker(symbol)
-            history = ticker.history(period="5d")
-            if history is not None and not history.empty and "Close" in history:
-                close = history["Close"].dropna()
-                if not close.empty:
-                    value = safe_float(close.iloc[-1])
-                    if value is not None and value > 0:
-                        return value
-        except Exception:
-            pass
+        # Prefer intraday timestamps so the UI can show a meaningful FX data
+        # stand. Fall back to daily history and then quoteSummary/info.
+        for period, interval in (("5d", "1h"), ("5d", "1d")):
+            try:
+                ticker = yf.Ticker(symbol)
+                history = ticker.history(period=period, interval=interval)
+                if history is not None and not history.empty and "Close" in history:
+                    close = history["Close"].dropna()
+                    if not close.empty:
+                        value = safe_float(close.iloc[-1])
+                        if value is not None and value > 0:
+                            return value, _timestamp_text(close.index[-1])
+            except Exception:
+                pass
 
         try:
             info = yf.Ticker(symbol).info or {}
@@ -19072,37 +19261,104 @@ def load_fx_conversion(
                 or info.get("currentPrice")
                 or info.get("previousClose")
             )
+            market_time = info.get("regularMarketTime")
+            as_of = None
+            if market_time is not None:
+                try:
+                    as_of = datetime.fromtimestamp(float(market_time)).astimezone().isoformat(timespec="seconds")
+                except Exception:
+                    as_of = None
             if value is not None and value > 0:
-                return value
+                return value, as_of
         except Exception:
             pass
 
-        return None
+        return None, None
 
-    direct = last_rate(direct_symbol)
+    direct, direct_as_of = last_rate(direct_symbol)
     if direct is not None:
         return {
             "available": True,
-            "factor": direct,
-            "symbol": direct_symbol
+            "factor": direct * source_unit_factor * target_unit_factor,
+            "symbol": direct_symbol,
+            "as_of": direct_as_of,
+            "retrieved_at": retrieved_at,
         }
 
-    inverse = last_rate(inverse_symbol)
+    inverse, inverse_as_of = last_rate(inverse_symbol)
     if inverse is not None and inverse > 0:
         return {
             "available": True,
-            "factor": 1.0 / inverse,
-            "symbol": inverse_symbol + " (invertiert)"
+            "factor": (1.0 / inverse) * source_unit_factor * target_unit_factor,
+            "symbol": inverse_symbol + " (invertiert)",
+            "as_of": inverse_as_of,
+            "retrieved_at": retrieved_at,
         }
 
-    return {"available": False, "factor": None, "symbol": None}
+    return {
+        "available": False, "factor": None, "symbol": None,
+        "as_of": None, "retrieved_at": retrieved_at
+    }
+
+
+def build_display_currency_context(target_currency, source_currencies, cache_version):
+    """Build one fail-closed presentation FX context for all shown currencies."""
+    target = _normalize_currency_code(target_currency)
+    sources = []
+    for item in source_currencies or []:
+        code = _normalize_currency_code(item)
+        if code and code not in sources:
+            sources.append(code)
+
+    result = {
+        "enabled": False,
+        "target_currency": target,
+        "rates": {},
+        "available": False,
+        "missing_sources": [],
+        "as_of_values": [],
+        "retrieved_at_values": [],
+        "cache_version": cache_version,
+    }
+
+    if not target:
+        result["available"] = True
+        return result
+
+    for source in sources:
+        fx = load_fx_conversion(source, target, cache_version)
+        result["rates"][source] = fx
+        if not fx.get("available") or safe_float(fx.get("factor")) is None:
+            result["missing_sources"].append(source)
+        if fx.get("as_of"):
+            result["as_of_values"].append(fx.get("as_of"))
+        if fx.get("retrieved_at"):
+            result["retrieved_at_values"].append(fx.get("retrieved_at"))
+
+    if not result["missing_sources"]:
+        result["enabled"] = True
+        result["available"] = True
+
+    return result
+
+
+def _format_fx_timestamp(value):
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value))
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone()
+        return parsed.strftime("%d.%m.%Y %H:%M")
+    except Exception:
+        return str(value)
 
 
 # =========================================================
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_reit_quality_paffo_v22046_20260909"
+CACHE_VERSION = "m6_currency_display_reit_consistency_v22047_20260909"
 
 @st.cache_data(
     ttl=900,
@@ -19514,7 +19770,7 @@ def load_stock(search_text, cache_version):
             "multiple": safe_float(rv.get("target_paffo")),
             "available": bool(rs.get("available") and rv.get("available")),
             "note": (
-                "REITs verwenden kein Standard-EPS-/FCF-Multiple. V2.20.46 verwendet den "
+                "REITs verwenden kein Standard-EPS-/FCF-Multiple. V2.20.47 verwendet den "
                 "eigenen 100-Punkte-REIT-Score und einen scoregesteuerten P/AFFO-Anker. "
                 "NAV bleibt ohne belastbare Primärquelle gesperrt."
             ),
@@ -19974,7 +20230,7 @@ if selected_symbol:
                 with col2:
 
                     st.write(
-                        f"**Währung:** {currency}"
+                        f"**Handelswährung:** {currency}"
                     )
 
                     st.write(
@@ -20034,6 +20290,93 @@ if selected_symbol:
                             currency_context.get("note")
                         )
 
+                st.subheader("💱 Anzeige-Währung")
+                display_choice = st.selectbox(
+                    "Monetäre Werte anzeigen in",
+                    [
+                        "EUR",
+                        "Originalwährungen",
+                        "USD",
+                        "CHF",
+                        "GBP",
+                        "JPY",
+                        "CAD",
+                        "AUD",
+                        "SEK",
+                        "NOK",
+                        "DKK",
+                    ],
+                    index=0,
+                    key="display_currency_selector_v22047",
+                    help=(
+                        "Die Bewertungslogik rechnet weiterhin in den Original-/Quellwährungen. "
+                        "Nur die Anzeige wird mit einem expliziten FX-Kurs umgerechnet."
+                    ),
+                )
+
+                if display_choice == "Originalwährungen":
+                    display_currency_context = {
+                        "enabled": False,
+                        "available": True,
+                        "target_currency": None,
+                        "rates": {},
+                    }
+                    set_display_currency_context(display_currency_context)
+                    st.caption(
+                        f"Anzeige unverändert in Originalwährungen · Handelswährung: {currency} · "
+                        f"Berichtswährung: {financial_currency}"
+                    )
+                else:
+                    display_currency_context = build_display_currency_context(
+                        display_choice,
+                        [currency, financial_currency],
+                        CACHE_VERSION,
+                    )
+                    set_display_currency_context(display_currency_context)
+
+                    if display_currency_context.get("enabled"):
+                        st.success(
+                            f"Anzeige-Währung: {display_choice}. Bewertungslogik und Scores bleiben "
+                            "unverändert in ihren Originaleinheiten."
+                        )
+                        st.caption(
+                            f"Original-Handelswährung: {currency} · Berichtswährung: {financial_currency}"
+                        )
+                        fx_lines = []
+                        for source_code, fx in (display_currency_context.get("rates") or {}).items():
+                            factor = safe_float((fx or {}).get("factor"))
+                            if factor is None:
+                                continue
+                            if source_code == display_choice:
+                                continue
+                            fx_lines.append(
+                                f"1 {source_code} = {factor:.6f} {display_choice}"
+                            )
+                        if fx_lines:
+                            st.write("**Verwendeter FX-Kurs:** " + " · ".join(fx_lines))
+
+                        as_of_values = display_currency_context.get("as_of_values") or []
+                        retrieved_values = display_currency_context.get("retrieved_at_values") or []
+                        if as_of_values:
+                            shown_as_of = _format_fx_timestamp(sorted(as_of_values)[-1])
+                            st.caption(f"FX-Datenstand: {shown_as_of}")
+                        elif retrieved_values:
+                            shown_retrieved = _format_fx_timestamp(sorted(retrieved_values)[-1])
+                            st.caption(f"FX abgerufen: {shown_retrieved}")
+                    else:
+                        missing = ", ".join(display_currency_context.get("missing_sources") or [])
+                        st.warning(
+                            f"FX-Umrechnung nach {display_choice} ist nicht vollständig verfügbar"
+                            + (f" ({missing})" if missing else "")
+                            + ". Deshalb bleiben die Originalwährungen sichtbar; die Bewertung wird nicht geschätzt."
+                        )
+                        set_display_currency_context({
+                            "enabled": False,
+                            "available": False,
+                            "target_currency": None,
+                            "rates": {},
+                        })
+
                 st.divider()
 
                 st.subheader(
@@ -20068,8 +20411,7 @@ if selected_symbol:
 
                     st.metric(
                         "Kurs",
-                        f"{data['price']:,.2f} "
-                        f"{currency}"
+                        format_currency_value(data["price"], currency, 2)
                     )
 
                 else:
@@ -21642,6 +21984,7 @@ if selected_symbol:
 
                     is_bank_balance_ui = is_bank_company_type(company_type)
                     is_insurance_balance_ui = is_insurance_company_type(company_type)
+                    is_reit_balance_ui = is_reit_company_type(company_type)
 
                     if is_bank_balance_ui:
                         st.info(
@@ -21659,6 +22002,15 @@ if selected_symbol:
                             "Bei Versicherungen wird die Kapitalqualität nicht über industrielle Netto-Schulden/FCF bewertet. "
                             "Maßgeblich sind Solvency II, Core RoE, Buchwert-/KBV-Qualität und Ausschüttungsfähigkeit; "
                             "konsolidierte Cash- und Schuldenwerte bleiben Kontext."
+                        )
+                    elif is_reit_balance_ui:
+                        st.info(
+                            "ℹ️ REIT-Bilanzmodell: Net Debt / Adjusted EBITDAre wird im eigenen REIT-Score bewertet"
+                        )
+                        st.caption(
+                            "Die industrielle Netto-Schulden/FCF-Logik ist für REITs deaktiviert. "
+                            "Maßgeblich ist die verifizierte REIT-Verschuldungskennzahl Net Debt / "
+                            "Annualized Pro Forma Adjusted EBITDAre; konsolidierte Yahoo-Schulden bleiben nur Kontext."
                         )
                     else:
                         if balance_result[
@@ -21696,6 +22048,7 @@ if selected_symbol:
                 if (
                     not is_bank_company_type(company_type)
                     and not is_insurance_company_type(company_type)
+                    and not is_reit_company_type(company_type)
                 ):
                     st.caption(
                         "Bilanzpunkte: Netto-Cash 15/15; "
@@ -21828,7 +22181,7 @@ if selected_symbol:
                         if price_financial is not None:
                             st.write(
                                 "**Kurs für fundamentale Verhältniskennzahlen:** "
-                                f"{price_financial:,.4f} {financial_currency} "
+                                f"{format_currency_value(price_financial, financial_currency, 4)} "
                                 "(explizit aus der Pence-Notierung umgerechnet)"
                             )
 
@@ -22231,10 +22584,14 @@ if selected_symbol:
                         if significant is not None:
                             st.warning(
                                 "2Q26 enthält wesentliche Sondergewinne: "
-                                f"+{significant:.2f} USD EPS insgesamt. "
+                                + format_currency_value(significant, financial_currency, 2, signed=True)
+                                + " EPS insgesamt. "
                                 + (
-                                    f"Gemeldetes Quartals-EPS {reported_q_eps:.2f} USD, "
-                                    f"ex significant items {ex_q_eps:.2f} USD. "
+                                    "Gemeldetes Quartals-EPS "
+                                    + format_currency_value(reported_q_eps, financial_currency, 2)
+                                    + ", ex significant items "
+                                    + format_currency_value(ex_q_eps, financial_currency, 2)
+                                    + ". "
                                     if reported_q_eps is not None and ex_q_eps is not None
                                     else ""
                                 )
@@ -22260,7 +22617,7 @@ if selected_symbol:
                             )
                             st.metric(
                                 "Saldierter TTM-Sondereffekt",
-                                f"{bank_core_eps_ui.get('ttm_special_items_eps_effect'):+.2f} {financial_currency}"
+                                format_currency_value(bank_core_eps_ui.get('ttm_special_items_eps_effect'), financial_currency, 2, signed=True)
                             )
                         with col_bce2:
                             st.metric(
@@ -22281,10 +22638,13 @@ if selected_symbol:
                             st.write("**Vier-Quartals-Abdeckung:**")
                             for row in coverage_rows:
                                 st.write(
-                                    f"• {row.get('period')}: reported {row.get('reported_eps'):.2f} USD · "
-                                    f"Core/ex significant items {row.get('core_eps'):.2f} USD · "
-                                    f"Sondereffekt {row.get('special_items_eps_effect'):+.2f} USD · "
-                                    f"{row.get('special_item_status')}"
+                                    f"• {row.get('period')}: reported "
+                                    + format_currency_value(row.get("reported_eps"), financial_currency, 2)
+                                    + " · Core/ex significant items "
+                                    + format_currency_value(row.get("core_eps"), financial_currency, 2)
+                                    + " · Sondereffekt "
+                                    + format_currency_value(row.get("special_items_eps_effect"), financial_currency, 2, signed=True)
+                                    + f" · {row.get('special_item_status')}"
                                 )
                     elif bank_model.get("primary_source_complete"):
                         st.warning(
@@ -22648,14 +23008,15 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏢 REIT-/Immobilien-Sondermodell V2.20.46 – Qualität & P/AFFO"
+                        "🏢 REIT-/Immobilien-Sondermodell V2.20.47 – Qualität & P/AFFO"
                     )
 
                     st.info(
-                        "REIT-/Immobilien-Modell erkannt. V2.20.45 verwendet für unterstützte REITs "
+                        "REIT-/Immobilien-Modell erkannt. V2.20.47 verwendet für unterstützte REITs "
                         "aktuelle offizielle FFO/AFFO-, Ausschüttungs-, Belegungs- und Verschuldungsdaten "
                         "als Primärbasis. Yahoo-FFO/AFFO, EV/EBITDA und konsolidierte Bilanzwerte bleiben "
-                        "nur Kontext. Es wird noch keine REIT-Bewertung erzeugt."
+                        "nur Kontext. Bei bestandenem Primärquellen-Gate werden REIT-Quality-Score und "
+                        "P/AFFO-Anker für den Fair Value freigegeben; NAV bleibt separat gesperrt."
                     )
 
                     primary_gate_ui = reit_model.get("primary_gate") or {}
@@ -22706,7 +23067,7 @@ if selected_symbol:
                             st.metric(
                                 "AFFO-Guidance 2026",
                                 (
-                                    f"{g_low:.2f} – {g_high:.2f} {financial_currency}"
+                                    format_currency_range(g_low, g_high, financial_currency, 2)
                                     if g_low is not None and g_high is not None
                                     else "–"
                                 )
@@ -22742,7 +23103,7 @@ if selected_symbol:
                             st.caption(
                                 f"Rent recapture Q2 2026: {rent_recapture:.1f} %. "
                                 f"Annualisierte Dividende zum 30.06.2026: "
-                                f"{safe_float(snapshot_ui.get('annualized_dividend_per_share')):.3f} {financial_currency} je Aktie."
+                                f"{format_currency_value(snapshot_ui.get('annualized_dividend_per_share'), financial_currency, 3)} je Aktie."
                             )
 
                         st.info(primary_gate_ui.get("note"))
@@ -22929,7 +23290,7 @@ if selected_symbol:
                         if guide_mid is not None:
                             st.write(
                                 "**Offizieller AFFO-Guidance-Mittelwert 2026:** "
-                                f"{guide_mid:.3f} {financial_currency} je Aktie"
+                                f"{format_currency_value(guide_mid, financial_currency, 3)} je Aktie"
                             )
                     else:
                         st.warning(
@@ -22937,17 +23298,34 @@ if selected_symbol:
                             "Die Bewertung bleibt fail-closed."
                         )
 
-                    st.info(
-                        "P/AFFO-/P/FFO-Zielkorridore sind in V2.20.45 noch nicht fachlich "
-                        "freigegeben. Deshalb wird bewusst kein Standard-Fundamental-Multiple "
-                        "und kein Fair Value berechnet."
-                    )
+                    reit_score_m6 = reit_model_m6.get("reit_score") or {}
+                    reit_val_m6 = reit_model_m6.get("reit_valuation") or {}
+                    if reit_score_m6.get("available") and reit_val_m6.get("available"):
+                        st.write(
+                            "**REIT-Quality-Score:** "
+                            f"{reit_score_m6.get('score'):.0f}/100 · {reit_score_m6.get('quality_level')}"
+                        )
+                        st.write(
+                            "**P/AFFO-Zielkorridor:** "
+                            f"{reit_val_m6.get('corridor_low'):.2f}× – {reit_val_m6.get('corridor_high'):.2f}×"
+                        )
+                        st.metric(
+                            "Ziel-P/AFFO",
+                            f"{reit_val_m6.get('target_paffo'):.2f}×"
+                        )
+                        st.success(
+                            "REIT-Bewertungsanker freigegeben. Der eigene REIT-Score steuert den "
+                            "P/AFFO-Anker; Standard-EPS-/FCF-Multiples bleiben deaktiviert."
+                        )
+                    else:
+                        st.warning(
+                            "REIT-Score oder P/AFFO-Anker noch nicht vollständig verfügbar. "
+                            "Die Bewertung bleibt fail-closed."
+                        )
                     st.caption(multiple_result.get("note"))
                     st.caption(
-                        "Der nächste REIT-Schritt baut einen eigenen Qualitäts-/Bilanz-Score "
-                        "und einen P/AFFO-Anker auf. Ein NAV-Anker wird nur ergänzt, wenn eine "
-                        "belastbare und vergleichbare Primärquelle vorhanden ist; NAV wird nicht "
-                        "aus Buchwert oder Enterprise Value geschätzt."
+                        "Ein NAV-Anker wird nur ergänzt, wenn eine belastbare und vergleichbare "
+                        "Primärquelle vorhanden ist; NAV wird nicht aus Buchwert oder Enterprise Value geschätzt."
                     )
                 else:
                     corridor = multiple_result[
@@ -23543,7 +23921,7 @@ if selected_symbol:
                             st.metric(
                                 "AFFO-Guidance 2026",
                                 (
-                                    f"{g_low:.2f} – {g_high:.2f} {financial_currency}"
+                                    format_currency_range(g_low, g_high, financial_currency, 2)
                                     if g_low is not None and g_high is not None else "–"
                                 )
                             )
@@ -23799,11 +24177,11 @@ if selected_symbol:
                             )
                             st.write(
                                 "**Fair-Value-Anker P/TBV:** "
-                                f"{bank_val_3b.get('fair_value_tbv_financial'):.2f} {financial_currency}"
+                                + format_currency_value(bank_val_3b.get('fair_value_tbv_financial'), financial_currency, 2)
                             )
                             st.write(
                                 "**Fair-Value-Anker KGV:** "
-                                f"{bank_val_3b.get('fair_value_earnings_financial'):.2f} {financial_currency}"
+                                + format_currency_value(bank_val_3b.get('fair_value_earnings_financial'), financial_currency, 2)
                             )
                             st.write(
                                 "**Abstand der beiden Anker:** "
@@ -24080,24 +24458,43 @@ if selected_symbol:
                                 )
                                 actual_display = mining_snapshot.get("actual_aisc_display")
 
-                                if aisc_display:
+                                display_fx_enabled = bool(get_display_currency_context().get("enabled"))
+                                if aisc_low is not None and aisc_high is not None and display_fx_enabled:
+                                    st.metric(
+                                        aisc_label,
+                                        format_source_unit_range(aisc_low, aisc_high, aisc_unit, 2)
+                                    )
+                                elif aisc_display:
                                     st.metric(aisc_label, aisc_display)
                                 elif aisc_low is not None and aisc_high is not None:
                                     st.metric(
                                         aisc_label,
-                                        f"{aisc_low:.2f} – {aisc_high:.2f} {aisc_unit}"
+                                        format_source_unit_range(aisc_low, aisc_high, aisc_unit, 2)
                                     )
-                                if prev_aisc_display:
+                                if aisc_prev_low is not None and aisc_prev_high is not None and display_fx_enabled:
+                                    st.write(
+                                        "**Vorherige AISC-Guidance:** "
+                                        + format_source_unit_range(aisc_prev_low, aisc_prev_high, aisc_unit, 2)
+                                    )
+                                elif prev_aisc_display:
                                     st.write(f"**Vorherige AISC-Guidance:** {prev_aisc_display}")
                                 elif aisc_prev_low is not None and aisc_prev_high is not None:
                                     st.write(
                                         "**Vorherige AISC-Guidance:** "
-                                        f"{aisc_prev_low:.2f} – {aisc_prev_high:.2f} {aisc_unit}"
+                                        + format_source_unit_range(aisc_prev_low, aisc_prev_high, aisc_unit, 2)
                                     )
-                                if actual_display:
+                                if q2_aisc is not None and display_fx_enabled:
+                                    st.write(
+                                        f"**{actual_label}:** "
+                                        + format_source_unit_value(q2_aisc, aisc_unit, 2)
+                                    )
+                                elif actual_display:
                                     st.write(f"**{actual_label}:** {actual_display}")
                                 elif q2_aisc is not None:
-                                    st.write(f"**{actual_label}:** {q2_aisc:.2f} {aisc_unit}")
+                                    st.write(
+                                        f"**{actual_label}:** "
+                                        + format_source_unit_value(q2_aisc, aisc_unit, 2)
+                                    )
                                 if operating.get("aisc_improvement_pct") is not None:
                                     st.write(
                                         "**AISC-Guidance Veränderung ggü. vorher:** "
@@ -24152,12 +24549,12 @@ if selected_symbol:
                                 if normalized_price is not None:
                                     st.metric(
                                         "Normalisierter Rohstoffpreis",
-                                        f"{normalized_price:.2f} {unit}"
+                                        format_source_unit_value(normalized_price, unit, 2)
                                     )
                                 if current_reference is not None:
                                     st.metric(
                                         "Aktuelle Preisreferenz",
-                                        f"{current_reference:.2f} {unit}"
+                                        format_source_unit_value(current_reference, unit, 2)
                                     )
                                 premium = commodity_cycle.get("premium_to_normalized_pct")
                                 if premium is not None:
@@ -24178,17 +24575,17 @@ if selected_symbol:
                                     if aisc_mid is not None:
                                         st.metric(
                                             "AISC-/Kosten-Mittelpunkt",
-                                            f"{aisc_mid:.2f} {unit}"
+                                            format_source_unit_value(aisc_mid, unit, 2)
                                         )
                                     if norm_margin is not None:
                                         st.metric(
                                             "Normalisierte Margin-Reserve",
-                                            f"{norm_margin:.2f} {unit}"
+                                            format_source_unit_value(norm_margin, unit, 2)
                                         )
                                     if current_margin is not None:
                                         st.write(
                                             "**Aktuelle Margin-Reserve:** "
-                                            f"{current_margin:.2f} {unit}"
+                                            + format_source_unit_value(current_margin, unit, 2)
                                         )
                                     st.write(
                                         "**Normalisierte Margentragfähigkeit:** "
@@ -24206,11 +24603,11 @@ if selected_symbol:
                             annual = commodity_cycle.get("annual_averages") or []
                             if annual:
                                 annual_text = " · ".join(
-                                    f"{item['year']}: {item['average']:.2f}"
+                                    f"{item['year']}: " + format_source_unit_value(item['average'], unit, 2)
                                     for item in annual
                                 )
                                 st.caption(
-                                    f"Jahresdurchschnittspreise ({unit}): {annual_text}. "
+                                    f"Jahresdurchschnittspreise: {annual_text}. "
                                     f"Methode: {commodity_cycle.get('method', '–')}."
                                 )
                             if commodity_cycle.get("reason"):
@@ -24242,12 +24639,12 @@ if selected_symbol:
                                 if earnings_translation.get("margin_adjusted_ttm_eps") is not None:
                                     st.metric(
                                         "Margenadjustiertes TTM-EPS",
-                                        f"{earnings_translation['margin_adjusted_ttm_eps']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                        format_eps(earnings_translation['margin_adjusted_ttm_eps'], financial_currency)
                                     )
                                 if earnings_translation.get("cycle_normalized_eps") is not None:
                                     st.write(
                                         "**Mehrjahres-/Zyklus-EPS:** "
-                                        f"{earnings_translation['cycle_normalized_eps']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                        + format_eps(earnings_translation['cycle_normalized_eps'], financial_currency)
                                     )
                                 if earnings_translation.get("eps_convergence_pct") is not None:
                                     st.write(
@@ -24259,12 +24656,12 @@ if selected_symbol:
                                 if earnings_translation.get("sustainable_eps") is not None:
                                     st.metric(
                                         "Plausibilisierte nachhaltige EPS-Basis",
-                                        f"{earnings_translation['sustainable_eps']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                        format_eps(earnings_translation['sustainable_eps'], financial_currency)
                                     )
                                 if earnings_translation.get("normalized_fcf_per_share") is not None:
                                     st.metric(
                                         "Normalisierter FCF je Aktie (Kontrolle)",
-                                        f"{earnings_translation['normalized_fcf_per_share']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                        format_eps(earnings_translation['normalized_fcf_per_share'], financial_currency)
                                     )
                                 st.write(
                                     "**FCF-Unterstützung:** "
@@ -24295,12 +24692,12 @@ if selected_symbol:
                                 if earnings_translation.get("margin_adjusted_ttm_eps") is not None:
                                     st.metric(
                                         "Margenadjustiertes TTM-EPS",
-                                        f"{earnings_translation['margin_adjusted_ttm_eps']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                        format_eps(earnings_translation['margin_adjusted_ttm_eps'], financial_currency)
                                     )
                                 if earnings_translation.get("cycle_normalized_eps") is not None:
                                     st.write(
                                         "**Mehrjahres-/Zyklus-EPS:** "
-                                        f"{earnings_translation['cycle_normalized_eps']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                        + format_eps(earnings_translation['cycle_normalized_eps'], financial_currency)
                                     )
                                 if earnings_translation.get("eps_convergence_pct") is not None:
                                     st.write(
@@ -24312,7 +24709,7 @@ if selected_symbol:
                                 if earnings_translation.get("normalized_fcf_per_share") is not None:
                                     st.metric(
                                         "Normalisierter FCF je Aktie (Kontrolle)",
-                                        f"{earnings_translation['normalized_fcf_per_share']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                        format_eps(earnings_translation['normalized_fcf_per_share'], financial_currency)
                                     )
                                 regular_cycle_blocked = bool((checks.get("cycle_eps") or {}).get("structural_break_blocked"))
                                 fcf_support_display = (
@@ -24354,7 +24751,7 @@ if selected_symbol:
                                 if structural_fallback.get("normalized_margin_pool_musd") is not None:
                                     st.metric(
                                         "Normalisierter Primärrohstoff-Margenpool",
-                                        f"{structural_fallback['normalized_margin_pool_musd'] / 1000.0:.2f} Mrd. USD"
+                                        format_musd(structural_fallback['normalized_margin_pool_musd'])
                                     )
                                 if structural_fallback.get("used_margin_factor") is not None:
                                     st.write(
@@ -24364,18 +24761,18 @@ if selected_symbol:
                                 if structural_fallback.get("margin_adjusted_ttm_eps") is not None:
                                     st.metric(
                                         "Margenadjustiertes TTM-EPS (Fallback)",
-                                        f"{structural_fallback['margin_adjusted_ttm_eps']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                        format_eps(structural_fallback['margin_adjusted_ttm_eps'], financial_currency)
                                     )
                             with fb2:
                                 if structural_fallback.get("current_fcf_per_share") is not None:
                                     st.metric(
                                         "Aktueller FCF je Aktie (Cash-Conversion)",
-                                        f"{structural_fallback['current_fcf_per_share']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                        format_eps(structural_fallback['current_fcf_per_share'], financial_currency)
                                     )
                                 if structural_fallback.get("normalized_fcf_per_share") is not None:
                                     st.metric(
                                         "Mit gleichem Faktor skalierter FCF je Aktie",
-                                        f"{structural_fallback['normalized_fcf_per_share']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                        format_eps(structural_fallback['normalized_fcf_per_share'], financial_currency)
                                     )
                                 if structural_fallback.get("cash_conversion_gap_pct") is not None:
                                     st.write(
@@ -24396,7 +24793,7 @@ if selected_symbol:
                                 if structural_fallback.get("valuation_earnings_per_share") is not None:
                                     st.metric(
                                         "Alternative Ertragsbasis je Aktie",
-                                        f"{structural_fallback['valuation_earnings_per_share']:.2f} {data.get('financial_currency') or data.get('currency') or ''}"
+                                        format_eps(structural_fallback['valuation_earnings_per_share'], financial_currency)
                                     )
                             if structural_fallback.get("available", False):
                                 st.success(
@@ -24480,7 +24877,7 @@ if selected_symbol:
                                 if reserve_price_basis is not None:
                                     st.metric(
                                         f"{commodity_label}preis-Basis der Reserven",
-                                        f"{reserve_price_basis:.2f} USD/oz"
+                                        format_currency_per_unit(reserve_price_basis, "USD", "oz", 2)
                                     )
                                 if asset_nav_control.get("reserve_price_alignment_pct") is not None:
                                     st.write(
@@ -24626,16 +25023,16 @@ if selected_symbol:
                                             npv = safe_float(trs.get("native_after_tax_npv_musd"))
                                             fcf = safe_float(trs.get("native_fcf_musd"))
                                             if npv is not None:
-                                                st.write(f"Native TRS-NPV-Referenz: {npv/1000.0:.2f} Mrd. USD")
+                                                st.write("Native TRS-NPV-Referenz: " + format_musd(npv))
                                             if fcf is not None:
-                                                st.write(f"Native TRS-FCF: {fcf/1000.0:.2f} Mrd. USD")
+                                                st.write("Native TRS-FCF: " + format_musd(fcf))
                                         with t3:
                                             capex = safe_float(trs.get("lom_capital_musd"))
                                             opex = safe_float(trs.get("lom_operating_cost_musd"))
                                             if capex is not None:
-                                                st.write(f"LOM-Kapital: {capex/1000.0:.2f} Mrd. USD")
+                                                st.write("LOM-Kapital: " + format_musd(capex))
                                             if opex is not None:
-                                                st.write(f"LOM-Betriebskosten: {opex/1000.0:.2f} Mrd. USD")
+                                                st.write("LOM-Betriebskosten: " + format_musd(opex))
                                         st.caption(
                                             "Produktionspfad: ja · Betriebskosten: ja · CapEx: ja · Steuern/Royalties: ja · "
                                             "jährliche Cashflows: ja. " + str(trs.get("note") or "")
@@ -24736,16 +25133,22 @@ if selected_symbol:
                                             st.caption(
                                                 f"Expansion 2: {int(tanami_gate.get('expansion_shaft_m') or 0):,} m Schacht · "
                                                 f"{safe_float(tanami_gate.get('expansion_capacity_mtpa')) or 0.0:.1f} Mt/a · "
-                                                f"Commercial Production {tanami_gate.get('commercial_production_target') or '–'} · "
-                                                f"Projektkosten {(safe_float(tanami_gate.get('expansion_total_capex_low_musd')) or 0.0)/1000.0:.1f}–"
-                                                f"{(safe_float(tanami_gate.get('expansion_total_capex_high_musd')) or 0.0)/1000.0:.1f} Mrd. USD."
+                                                f"Commercial Production {tanami_gate.get('commercial_production_target') or '–'} · Projektkosten "
+                                                + format_musd(safe_float(tanami_gate.get('expansion_total_capex_low_musd')) or 0.0)
+                                                + " – "
+                                                + format_musd(safe_float(tanami_gate.get('expansion_total_capex_high_musd')) or 0.0)
+                                                + "."
                                             )
                                             st.caption(
-                                                f"2026 Site-Run-rate: {safe_float(guide.get('production_koz')) or 0.0:.0f} koz · "
-                                                f"CAS {safe_float(guide.get('cas_usd_oz')) or 0.0:,.0f} USD/oz · "
-                                                f"AISC {safe_float(guide.get('aisc_usd_oz')) or 0.0:,.0f} USD/oz · "
-                                                f"Sustaining CapEx {safe_float(guide.get('sustaining_capex_musd')) or 0.0:.0f} Mio. USD · "
-                                                f"Development CapEx {safe_float(guide.get('development_capex_musd')) or 0.0:.0f} Mio. USD."
+                                                f"2026 Site-Run-rate: {safe_float(guide.get('production_koz')) or 0.0:.0f} koz · CAS "
+                                                + format_currency_per_unit(safe_float(guide.get('cas_usd_oz')) or 0.0, "USD", "oz", 0)
+                                                + " · AISC "
+                                                + format_currency_per_unit(safe_float(guide.get('aisc_usd_oz')) or 0.0, "USD", "oz", 0)
+                                                + " · Sustaining CapEx "
+                                                + format_musd(safe_float(guide.get('sustaining_capex_musd')) or 0.0)
+                                                + " · Development CapEx "
+                                                + format_musd(safe_float(guide.get('development_capex_musd')) or 0.0)
+                                                + "."
                                             )
                                             for block in tanami_gate.get("source_blocks", []):
                                                 st.write(f"• **{block.get('block', '–')}** – **{block.get('status', '–')}**")
@@ -24806,17 +25209,21 @@ if selected_symbol:
 
                                             mguide = merian_gate.get("guidance_2026") or {}
                                             st.caption(
-                                                f"2026 Site-Run-rate: {safe_float(mguide.get('production_koz')) or 0.0:.0f} koz · "
-                                                f"CAS {safe_float(mguide.get('cas_usd_oz')) or 0.0:,.0f} USD/oz · "
-                                                f"AISC {safe_float(mguide.get('aisc_usd_oz')) or 0.0:,.0f} USD/oz. "
-                                                "FY25-Reserven sind bereits zurechenbar; 75 % Eigentum nicht nochmals auf die Reserveabdeckung anwenden."
+                                                f"2026 Site-Run-rate: {safe_float(mguide.get('production_koz')) or 0.0:.0f} koz · CAS "
+                                                + format_currency_per_unit(safe_float(mguide.get('cas_usd_oz')) or 0.0, "USD", "oz", 0)
+                                                + " · AISC "
+                                                + format_currency_per_unit(safe_float(mguide.get('aisc_usd_oz')) or 0.0, "USD", "oz", 0)
+                                                + ". FY25-Reserven sind bereits zurechenbar; 75 % Eigentum nicht nochmals auf die Reserveabdeckung anwenden."
                                             )
                                             econ = merian_gate.get("economic_anchor_2025") or {}
                                             st.caption(
-                                                f"2025 Economic Run-rate-Anker: {safe_float(econ.get('production_koz')) or 0.0:.0f} koz · "
-                                                f"Umsatz {safe_float(econ.get('revenue_musd')) or 0.0:.0f} Mio. USD · "
-                                                f"Ergebnis vor Steuern {safe_float(econ.get('pretax_profit_musd')) or 0.0:.0f} Mio. USD · "
-                                                f"Taxes borne {safe_float(econ.get('taxes_borne_musd')) or 0.0:.0f} Mio. USD. Nur Plausibilitäts-/Run-rate-Anker."
+                                                f"2025 Economic Run-rate-Anker: {safe_float(econ.get('production_koz')) or 0.0:.0f} koz · Umsatz "
+                                                + format_musd(safe_float(econ.get('revenue_musd')) or 0.0)
+                                                + " · Ergebnis vor Steuern "
+                                                + format_musd(safe_float(econ.get('pretax_profit_musd')) or 0.0)
+                                                + " · Taxes borne "
+                                                + format_musd(safe_float(econ.get('taxes_borne_musd')) or 0.0)
+                                                + ". Nur Plausibilitäts-/Run-rate-Anker."
                                             )
                                             for block in merian_gate.get("source_blocks", []):
                                                 st.write(f"• **{block.get('block', '–')}** – **{block.get('status', '–')}**")
@@ -24842,7 +25249,7 @@ if selected_symbol:
                                                 st.metric("TRS effektiv", penasquito_gate.get("trs_effective_date") or "–")
                                             with pg2:
                                                 native_npv = safe_float(penasquito_gate.get("native_npv_musd"))
-                                                st.metric("TRS-NPV8 · 100%", f"{native_npv/1000.0:.2f} Mrd. USD" if native_npv is not None else "–")
+                                                st.metric("TRS-NPV8 · 100%", format_musd(native_npv) if native_npv is not None else "–")
                                             with pg3:
                                                 st.metric("Materielle Metalle", f"{int(penasquito_gate.get('material_metal_count') or 0)}/4")
                                             with pg4:
@@ -24855,8 +25262,9 @@ if selected_symbol:
                                                 f"TRS-Cashflows: {int(penasquito_gate.get('annualized_cashflow_start_year') or 0)}–"
                                                 f"{int(penasquito_gate.get('annualized_cashflow_end_year') or 0)} · aktiver Betrieb bis "
                                                 f"{int(penasquito_gate.get('active_operations_end_year') or 0)} · Closure bis "
-                                                f"{int(penasquito_gate.get('closure_end_year') or 0)}. "
-                                                f"Closure 2033–2073: ca. {(safe_float(penasquito_gate.get('closure_cost_2033_2073_musd')) or 0.0)/1000.0:.1f} Mrd. USD."
+                                                f"{int(penasquito_gate.get('closure_end_year') or 0)}. Closure 2033–2073: ca. "
+                                                + format_musd(safe_float(penasquito_gate.get('closure_cost_2033_2073_musd')) or 0.0)
+                                                + "."
                                             )
                                             st.caption(penasquito_gate.get("gross_reference_note") or "")
 
@@ -24867,11 +25275,15 @@ if selected_symbol:
                                                 guide_price = safe_float(metal.get("guidance_2026_price_assumption"))
                                                 share = safe_float(metal.get("gross_reference_share_pct"))
                                                 reserve_change = safe_float(metal.get("reserve_change_pct"))
-                                                norm_text = f"{norm:.2f} {metal.get('unit')}" if norm is not None else "–"
+                                                norm_text = format_source_unit_value(norm, metal.get("unit"), 2) if norm is not None else "–"
                                                 st.write(
-                                                    f"• **{metal.get('label')}** · Materialitätsreferenz {share:.1f}% · "
-                                                    f"TRS 2023 {trs_price:.2f} {metal.get('unit')} · 2025 Reserve-Basis {reserve_price:.2f} · "
-                                                    f"2026 Guidance-Annahme {guide_price:.2f} · Modell-Zyklusnormal {norm_text}"
+                                                    f"• **{metal.get('label')}** · Materialitätsreferenz {share:.1f}% · TRS 2023 "
+                                                    + format_source_unit_value(trs_price, metal.get("unit"), 2)
+                                                    + " · 2025 Reserve-Basis "
+                                                    + format_source_unit_value(reserve_price, metal.get("unit"), 2)
+                                                    + " · 2026 Guidance-Annahme "
+                                                    + format_source_unit_value(guide_price, metal.get("unit"), 2)
+                                                    + " · Modell-Zyklusnormal " + norm_text
                                                 )
                                                 reserve_2023 = safe_float(metal.get("reserve_2023"))
                                                 reserve_2025 = safe_float(metal.get("reserve_2025"))
@@ -24890,17 +25302,19 @@ if selected_symbol:
                                                     cycle_premium = safe_float(metal.get("cycle_premium_to_normalized_pct"))
                                                     if current_ref is not None and cycle_premium is not None:
                                                         st.caption(
-                                                            f"Aktuelle 3-Monats-Referenz: {current_ref:.2f} {metal.get('unit')} · "
-                                                            f"{cycle_premium:+.1f} % vs. Zyklusnormal · {metal.get('cycle_price_status') or '–'}."
+                                                            "Aktuelle 3-Monats-Referenz: "
+                                                            + format_source_unit_value(current_ref, metal.get("unit"), 2)
+                                                            + f" · {cycle_premium:+.1f} % vs. Zyklusnormal · {metal.get('cycle_price_status') or '–'}."
                                                         )
                                                     annuals = metal.get("cycle_annual_averages") or []
                                                     if annuals:
                                                         annual_text = " · ".join(
-                                                            f"{int(item.get('year'))}: {safe_float(item.get('average')):.2f}"
+                                                            f"{int(item.get('year'))}: "
+                                                            + format_source_unit_value(safe_float(item.get('average')), metal.get("unit"), 2)
                                                             for item in annuals
                                                             if safe_float(item.get('average')) is not None
                                                         )
-                                                        st.caption(f"5-Jahres-Jahrespreise ({metal.get('unit')}): {annual_text}.")
+                                                        st.caption(f"5-Jahres-Jahrespreise: {annual_text}.")
                                                     source_name = metal.get("cycle_source_name")
                                                     annual_id = metal.get("cycle_annual_series_id")
                                                     monthly_id = metal.get("cycle_monthly_series_id")
@@ -24920,37 +25334,44 @@ if selected_symbol:
                                                 sb1, sb2, sb3, sb4 = st.columns(4)
                                                 with sb1:
                                                     val = safe_float(stream_bridge.get("normalized_market_price_usd_oz"))
-                                                    st.metric("Silber-Zyklusnormal · Markt", f"{val:.2f} USD/oz" if val is not None else "–")
+                                                    st.metric("Silber-Zyklusnormal · Markt", format_currency_per_unit(val, "USD", "oz", 2) if val is not None else "–")
                                                 with sb2:
                                                     val = safe_float(stream_bridge.get("current_delivery_payment_usd_oz"))
-                                                    st.metric("Wheaton-Lieferpreis", f"{val:.2f} USD/oz" if val is not None else "–")
+                                                    st.metric("Wheaton-Lieferpreis", format_currency_per_unit(val, "USD", "oz", 2) if val is not None else "–")
                                                 with sb3:
                                                     val = safe_float(stream_bridge.get("normalized_blended_price_usd_oz"))
-                                                    st.metric("Stream-adjustierter Zykluspreis", f"{val:.2f} USD/oz" if val is not None else "–")
+                                                    st.metric("Stream-adjustierter Zykluspreis", format_currency_per_unit(val, "USD", "oz", 2) if val is not None else "–")
                                                 with sb4:
                                                     val = safe_float(stream_bridge.get("normalized_stream_haircut_pct"))
                                                     st.metric("Stream-Haircut vs. Markt", f"-{val:.1f} %" if val is not None else "–")
                                                 st.caption(
                                                     f"Preisbrücke auf payable/delivered Silberbasis: {safe_float(stream_bridge.get('unstreamed_pct')) or 0.0:.0f} % zum Marktpreis + "
-                                                    f"{safe_float(stream_bridge.get('stream_pct')) or 0.0:.0f} % Stream zum niedrigeren Vertrags-/Marktpreis. "
-                                                    f"Originale Vertragsbasis {safe_float(stream_bridge.get('contract_base_payment_usd_oz')) or 0.0:.2f} USD/oz; "
-                                                    f"aktuell verifizierter Lieferpreis {safe_float(stream_bridge.get('current_delivery_payment_usd_oz')) or 0.0:.2f} USD/oz; "
-                                                    f"jährliche Inflationsanpassung laut Newmont bis {safe_float(stream_bridge.get('annual_inflation_cap_pct')) or 0.0:.2f} %."
+                                                    f"{safe_float(stream_bridge.get('stream_pct')) or 0.0:.0f} % Stream zum niedrigeren Vertrags-/Marktpreis. Originale Vertragsbasis "
+                                                    + format_currency_per_unit(safe_float(stream_bridge.get('contract_base_payment_usd_oz')) or 0.0, "USD", "oz", 2)
+                                                    + "; aktuell verifizierter Lieferpreis "
+                                                    + format_currency_per_unit(safe_float(stream_bridge.get('current_delivery_payment_usd_oz')) or 0.0, "USD", "oz", 2)
+                                                    + f"; jährliche Inflationsanpassung laut Newmont bis {safe_float(stream_bridge.get('annual_inflation_cap_pct')) or 0.0:.2f} %."
                                                 )
                                                 current_ref = safe_float(stream_bridge.get("current_market_reference_usd_oz"))
                                                 current_blended = safe_float(stream_bridge.get("current_blended_price_usd_oz"))
                                                 current_haircut = safe_float(stream_bridge.get("current_stream_haircut_pct"))
                                                 if current_ref is not None and current_blended is not None and current_haircut is not None:
                                                     st.caption(
-                                                        f"Aktuelle Silber-Referenz: {current_ref:.2f} USD/oz → stream-adjustierte Preisreferenz "
-                                                        f"{current_blended:.2f} USD/oz (Haircut {current_haircut:.1f} %)."
+                                                        "Aktuelle Silber-Referenz: "
+                                                        + format_currency_per_unit(current_ref, "USD", "oz", 2)
+                                                        + " → stream-adjustierte Preisreferenz "
+                                                        + format_currency_per_unit(current_blended, "USD", "oz", 2)
+                                                        + f" (Haircut {current_haircut:.1f} %)."
                                                     )
                                                 guide_ref = safe_float(stream_bridge.get("guidance_market_assumption_usd_oz"))
                                                 guide_blended = safe_float(stream_bridge.get("guidance_blended_price_usd_oz"))
                                                 if guide_ref is not None and guide_blended is not None:
                                                     st.caption(
-                                                        f"2026 Guidance-Silberpreis-Annahme: {guide_ref:.2f} USD/oz → reine Stream-Preisbrücke "
-                                                        f"{guide_blended:.2f} USD/oz. Das ist keine Umsatz- oder NAV-Prognose."
+                                                        "2026 Guidance-Silberpreis-Annahme: "
+                                                        + format_currency_per_unit(guide_ref, "USD", "oz", 2)
+                                                        + " → reine Stream-Preisbrücke "
+                                                        + format_currency_per_unit(guide_blended, "USD", "oz", 2)
+                                                        + ". Das ist keine Umsatz- oder NAV-Prognose."
                                                     )
                                                 st.caption(stream_bridge.get("note") or "")
                                                 st.caption("Quelle Vertrags-/Lieferpreis: " + str(stream_bridge.get("payment_source") or "–"))
@@ -24971,10 +25392,10 @@ if selected_symbol:
                                                 cl5, cl6, cl7, cl8 = st.columns(4)
                                                 with cl5:
                                                     opex = safe_float(current_lom.get("remaining_lom_opex_musd"))
-                                                    st.metric("Rest-LOM Opex", f"{opex/1000.0:.2f} Mrd. USD" if opex is not None else "–")
+                                                    st.metric("Rest-LOM Opex", format_musd(opex) if opex is not None else "–")
                                                 with cl6:
                                                     capex = safe_float(current_lom.get("remaining_lom_capex_musd"))
-                                                    st.metric("Rest-LOM CapEx", f"{capex/1000.0:.2f} Mrd. USD" if capex is not None else "–")
+                                                    st.metric("Rest-LOM CapEx", format_musd(capex) if capex is not None else "–")
                                                 with cl7:
                                                     st.metric("Annualisierter Current-CF", "Freigegeben" if current_lom.get("annual_cashflow_ready") else "Gesperrt")
                                                 with cl8:
@@ -25116,7 +25537,7 @@ if selected_symbol:
                                         st.metric("8%-Vergleich", f"{int(phase2.get('common_nav_released_asset_count') or 0)}/{int(phase2.get('asset_count') or 0)}")
                                     partial_sotp = safe_float(phase2.get("partial_portfolio_sotp_nav_musd"))
                                     if partial_sotp is not None:
-                                        st.metric("Teil-SOTP der aktuell aggregationsfähigen Phase-2-Assets", f"{partial_sotp/1000.0:.2f} Mrd. USD")
+                                        st.metric("Teil-SOTP der aktuell aggregationsfähigen Phase-2-Assets", format_musd(partial_sotp))
                                         st.caption("Nur diagnostischer Teil-SOTP; kein Managed-Operations-Gesamt-NAV und kein Newmont-Fair-Value.")
                                     st.caption(phase2.get("portfolio_aggregation_policy_status") or "")
                                     st.caption(phase2.get("note") or "")
@@ -25171,23 +25592,23 @@ if selected_symbol:
                                         n1, n2, n3, n4 = st.columns(4)
                                         with n1:
                                             val = safe_float(nav_asset.get("native_trs_npv_musd_100pct"))
-                                            st.metric("Native TRS-NPV · 100% Projekt", f"{(val or 0.0)/1000.0:.2f} Mrd. USD" if val is not None else "–")
+                                            st.metric("Native TRS-NPV · 100% Projekt", format_musd(val) if val is not None else "–")
                                         with n2:
                                             val = safe_float(nav_asset.get("native_trs_npv_musd_owned"))
-                                            st.metric("Native TRS-NPV · Newmont-Anteil", f"{(val or 0.0)/1000.0:.2f} Mrd. USD" if val is not None else "–")
+                                            st.metric("Native TRS-NPV · Newmont-Anteil", format_musd(val) if val is not None else "–")
                                         with n3:
                                             val = safe_float(nav_asset.get("normalized_nav_native_rate_musd_owned"))
-                                            st.metric("Normalisiert · Anteil · TRS-Rate", f"{(val or 0.0)/1000.0:.2f} Mrd. USD" if val is not None else "–")
+                                            st.metric("Normalisiert · Anteil · TRS-Rate", format_musd(val) if val is not None else "–")
                                         with n4:
                                             val = safe_float(nav_asset.get("normalized_nav_common_rate_musd_owned"))
-                                            st.metric("Vergleichs-NAV · Anteil · 8 %", f"{(val or 0.0)/1000.0:.2f} Mrd. USD" if nav_asset.get("common_nav_released") and val is not None else "–")
+                                            st.metric("Vergleichs-NAV · Anteil · 8 %", format_musd(val) if nav_asset.get("common_nav_released") and val is not None else "–")
                                         delta = safe_float(nav_asset.get("delta_vs_native_owned_pct"))
                                         st.caption("Preisnormalisierung vs. nativem Newmont-Anteil: " + (f"{delta:+.1f} %" if delta is not None else "–"))
 
                                         q1, q2, q3 = st.columns(3)
                                         with q1:
                                             raw_npv = safe_float(nav_asset.get("raw_rounded_series_npv_musd_100pct"))
-                                            st.metric("Rekonstruierter NPV · 100% Projekt", f"{(raw_npv or 0.0)/1000.0:.2f} Mrd. USD" if raw_npv is not None else "–")
+                                            st.metric("Rekonstruierter NPV · 100% Projekt", format_musd(raw_npv) if raw_npv is not None else "–")
                                         with q2:
                                             raw_diff = safe_float(nav_asset.get("raw_vs_official_npv_pct"))
                                             st.metric("Rekonstruiert vs. offiziell · 100%", f"{raw_diff:+.1f} %" if raw_diff is not None else "–")
@@ -25198,22 +25619,22 @@ if selected_symbol:
                                             raw_owned = safe_float(nav_asset.get("raw_rounded_series_npv_musd_owned"))
                                             st.caption(
                                                 "Rekonstruktionsprüfung auf 100%-Projektbasis; erst danach Newmont-Anteil. "
-                                                + (f"Rekonstruierter NPV nach Anteil: {raw_owned/1000.0:.2f} Mrd. USD." if raw_owned is not None else "")
+                                                + (("Rekonstruierter NPV nach Anteil: " + format_musd(raw_owned) + ".") if raw_owned is not None else "")
                                             )
 
                                         sp1, sp2, sp3, sp4 = st.columns(4)
                                         with sp1:
                                             npv_gap = safe_float(nav_asset.get("raw_npv_gap_musd"))
-                                            st.metric("NPV-Abstand · 100%", f"{npv_gap:.0f} Mio. USD" if npv_gap is not None else "–")
+                                            st.metric("NPV-Abstand · 100%", format_musd(npv_gap) if npv_gap is not None else "–")
                                         with sp2:
                                             robust_band = safe_float(nav_asset.get("robustness_band_musd"))
-                                            st.metric("Robustheitsband", f"±{robust_band:.0f} Mio. USD" if robust_band is not None else "–")
+                                            st.metric("Robustheitsband", ("±" + format_musd(robust_band)) if robust_band is not None else "–")
                                         with sp3:
                                             robust_usage = safe_float(nav_asset.get("robustness_usage_pct"))
                                             st.metric("Robustheits-Auslastung", f"{robust_usage:.1f} %" if robust_usage is not None else "–")
                                         with sp4:
                                             precision_band = safe_float(nav_asset.get("source_precision_band_musd"))
-                                            st.metric("Worst-Case-Rundungsband", f"±{precision_band:.0f} Mio. USD" if precision_band is not None else "–")
+                                            st.metric("Worst-Case-Rundungsband", ("±" + format_musd(precision_band)) if precision_band is not None else "–")
                                         st.write(
                                             f"**Native-TRS-NAV:** {'Freigegeben' if nav_asset.get('native_nav_released') else 'Gesperrt'} · "
                                             f"**Portfolio-Aggregations-NAV:** {'Freigegeben' if nav_asset.get('portfolio_aggregation_nav_released') else 'Gesperrt'} · "
@@ -25238,9 +25659,9 @@ if selected_symbol:
                                         if annual_step is not None or npv_step is not None:
                                             st.caption(
                                                 "Quellenpräzision: jährliche FCF-Tabelle "
-                                                + (f"{annual_step:.1f} Mrd. USD Schritte" if annual_step is not None else "–")
+                                                + ((format_money(annual_step * 1_000_000_000.0, "USD") + " Schritte") if annual_step is not None else "–")
                                                 + " · native NPV-Angabe "
-                                                + (f"{npv_step:.1f} Mrd. USD Schritte" if npv_step is not None else "–")
+                                                + ((format_money(npv_step * 1_000_000_000.0, "USD") + " Schritte") if npv_step is not None else "–")
                                                 + ". Robustheits- und Worst-Case-Band werden auf 100%-Projektbasis über den jeweiligen TRS-Diskontsatz berechnet."
                                             )
 
@@ -25252,8 +25673,11 @@ if selected_symbol:
                                             unit = metal.get("unit") or ""
                                             if metal.get("normalized") and base is not None and norm is not None:
                                                 metal_parts.append(
-                                                    f"{metal.get('label')}: TRS {base:.2f} → Modell {norm:.2f} {unit} "
-                                                    f"({safe_float(metal.get('price_gap_pct')) or 0.0:+.1f} %; Brutto-Metallumsatz ~{share or 0.0:.1f} %)"
+                                                    f"{metal.get('label')}: TRS "
+                                                    + format_source_unit_value(base, unit, 2)
+                                                    + " → Modell "
+                                                    + format_source_unit_value(norm, unit, 2)
+                                                    + f" ({safe_float(metal.get('price_gap_pct')) or 0.0:+.1f} %; Brutto-Metallumsatz ~{share or 0.0:.1f} %)"
                                                 )
                                             else:
                                                 metal_parts.append(
@@ -25289,7 +25713,7 @@ if selected_symbol:
                                     )
                                     aisc = safe_float(asset.get("aisc_2026_usd_oz"))
                                     if aisc is not None:
-                                        line += f" · AISC {aisc:,.0f} USD/oz"
+                                        line += " · AISC " + format_currency_per_unit(aisc, "USD", "oz", 0)
                                     st.write(line)
                                     st.caption(
                                         f"Reserve-/Langlebigkeitsnachweis: {asset.get('reserve_life_evidence', '–')} · "
@@ -25340,7 +25764,7 @@ if selected_symbol:
                             for detail in asset_nav_control.get("nav_details", []):
                                 npv_value = detail.get("normalized_sensitivity_npv_musd")
                                 npv_text = (
-                                    f"{npv_value:,.0f} Mio. USD"
+                                    format_musd(npv_value)
                                     if npv_value is not None
                                     else "–"
                                 )
@@ -25356,23 +25780,23 @@ if selected_symbol:
                                 if asset_nav_control.get("technical_nav_sum_musd") is not None:
                                     st.metric(
                                         "Summe technischer Mine-NPV-Anker",
-                                        f"{asset_nav_control['technical_nav_sum_musd'] / 1000.0:.2f} Mrd. USD"
+                                        format_musd(asset_nav_control['technical_nav_sum_musd'])
                                     )
                                 if asset_nav_control.get("equity_nav_anchor_musd") is not None:
                                     st.metric(
                                         "Equity-NAV-Referenz inkl. Netto-Cash/-Schulden",
-                                        f"{asset_nav_control['equity_nav_anchor_musd'] / 1000.0:.2f} Mrd. USD"
+                                        format_musd(asset_nav_control['equity_nav_anchor_musd'])
                                     )
                             with navsum2:
                                 if asset_nav_control.get("nav_anchor_per_share") is not None:
                                     st.metric(
                                         "NAV-Referenz je Aktie",
-                                        f"{asset_nav_control['nav_anchor_per_share']:.2f} USD"
+                                        format_currency_value(asset_nav_control['nav_anchor_per_share'], "USD", 2)
                                     )
                                 if asset_nav_control.get("earnings_value_per_share") is not None:
                                     st.metric(
                                         "Ertragswert-Referenz je Aktie",
-                                        f"{asset_nav_control['earnings_value_per_share']:.2f} USD"
+                                        format_currency_value(asset_nav_control['earnings_value_per_share'], "USD", 2)
                                     )
                                 if asset_nav_control.get("earnings_nav_gap_pct") is not None:
                                     st.write(
@@ -25409,7 +25833,7 @@ if selected_symbol:
                                 if normalized_mine_nav.get("commercial_nav_sum_musd") is not None:
                                     st.metric(
                                         "Run-rate Mine-NAV – berechenbare Kernminen",
-                                        f"{normalized_mine_nav['commercial_nav_sum_musd'] / 1000.0:.2f} Mrd. USD"
+                                        format_musd(normalized_mine_nav['commercial_nav_sum_musd'])
                                     )
                                 if normalized_mine_nav.get("commercial_reserve_coverage_pct") is not None:
                                     st.metric(
@@ -25426,7 +25850,7 @@ if selected_symbol:
                             ]:
                                 value = safe_float(bp.get(metal))
                                 if value is not None:
-                                    bp_text.append(f"{label}: {value:.2f} {unit}")
+                                    bp_text.append(f"{label}: " + format_source_unit_value(value, unit, 2))
                             if bp_text:
                                 st.caption(
                                     "Normalisierte Nebenmetallpreise aus der aktuellen Reservebasis: "
@@ -25448,26 +25872,26 @@ if selected_symbol:
                                     if mine.get("normalized_aisc_after_byproduct_per_oz") is not None:
                                         st.metric(
                                             "Normalisiertes AISC-Äquivalent",
-                                            f"{mine['normalized_aisc_after_byproduct_per_oz']:.2f} USD/oz"
+                                            format_currency_per_unit(mine['normalized_aisc_after_byproduct_per_oz'], "USD", "oz", 2)
                                         )
                                     if mine.get("normalized_margin_per_oz") is not None:
                                         st.write(
-                                            f"Normalisierte Margin: {mine['normalized_margin_per_oz']:.2f} USD/oz"
+                                            "Normalisierte Margin: " + format_currency_per_unit(mine['normalized_margin_per_oz'], "USD", "oz", 2)
                                         )
                                 with mc3:
                                     if mine.get("run_rate_nav_musd") is not None:
                                         st.metric(
                                             "Run-rate DCF",
-                                            f"{mine['run_rate_nav_musd']:,.0f} Mio. USD"
+                                            format_musd(mine['run_rate_nav_musd'])
                                         )
                                     if mine.get("technical_reference_musd") is not None:
                                         st.write(
-                                            f"Technischer Referenz-NPV: {mine['technical_reference_musd']:,.0f} Mio. USD"
+                                            "Technischer Referenz-NPV: " + format_musd(mine['technical_reference_musd'])
                                         )
                                 if mine.get("excluded_byproduct_credit_musd"):
                                     st.caption(
                                         "Nicht normalisierbare Nebenproduktgutschriften wurden konservativ "
-                                        f"mit 0 angesetzt: {mine['excluded_byproduct_credit_musd']:.1f} Mio. USD."
+                                        "mit 0 angesetzt: " + format_musd(mine['excluded_byproduct_credit_musd']) + "."
                                     )
                                 if mine.get("run_rate_vs_technical_gap_pct") is not None:
                                     st.caption(
@@ -25612,13 +26036,19 @@ if selected_symbol:
                         )
                         st.write(
                             "**P/TBV-Fair-Value-Anker:** "
-                            f"{fair_value.get('fair_value_tbv_financial'):.2f} "
-                            f"{fair_value['financial_currency']}"
+                            + format_currency_value(
+                                fair_value.get("fair_value_tbv_financial"),
+                                fair_value["financial_currency"],
+                                2,
+                            )
                         )
                         st.write(
                             "**KGV-Fair-Value-Anker:** "
-                            f"{fair_value.get('fair_value_earnings_financial'):.2f} "
-                            f"{fair_value['financial_currency']}"
+                            + format_currency_value(
+                                fair_value.get("fair_value_earnings_financial"),
+                                fair_value["financial_currency"],
+                                2,
+                            )
                         )
                         if fair_value.get("anchor_spread_pct") is not None:
                             st.write(
@@ -25636,11 +26066,15 @@ if selected_symbol:
                         )
                         st.write(
                             "**Offizieller Buchwert je Aktie:** "
-                            f"{fair_value.get('official_bvps'):.2f} {fair_value['financial_currency']}"
+                            + format_currency_value(
+                                fair_value.get("official_bvps"), fair_value["financial_currency"], 2
+                            )
                         )
                         st.write(
                             "**Core-TTM-EPS:** "
-                            f"{fair_value.get('core_ttm_eps'):.2f} {fair_value['financial_currency']}"
+                            + format_currency_value(
+                                fair_value.get("core_ttm_eps"), fair_value["financial_currency"], 2
+                            )
                         )
                         st.write(
                             "**Ziel-P/B:** "
@@ -25652,13 +26086,19 @@ if selected_symbol:
                         )
                         st.write(
                             "**Buchwert/P-B-Fair-Value-Anker:** "
-                            f"{fair_value.get('fair_value_book_financial'):.2f} "
-                            f"{fair_value['financial_currency']}"
+                            + format_currency_value(
+                                fair_value.get("fair_value_book_financial"),
+                                fair_value["financial_currency"],
+                                2,
+                            )
                         )
                         st.write(
                             "**Core-KGV-Fair-Value-Anker:** "
-                            f"{fair_value.get('fair_value_core_pe_financial'):.2f} "
-                            f"{fair_value['financial_currency']}"
+                            + format_currency_value(
+                                fair_value.get("fair_value_core_pe_financial"),
+                                fair_value["financial_currency"],
+                                2,
+                            )
                         )
                         if fair_value.get("anchor_spread_pct") is not None:
                             st.write(
@@ -25668,7 +26108,12 @@ if selected_symbol:
                     elif fair_value.get("valuation_method") == "reit_paffo":
                         st.write("**Bewertungsformel:** Offizieller AFFO-Guidance-Mittelwert × scoregesteuertes Ziel-P/AFFO")
                         st.write(f"**REIT-Score:** {fair_value.get('reit_score'):.0f}/100 · {fair_value.get('reit_quality_level')}")
-                        st.write(f"**AFFO-Basis 2026:** {fair_value.get('affo_basis'):.3f} {fair_value['financial_currency']}")
+                        st.write(
+                            "**AFFO-Basis 2026:** "
+                            + format_currency_value(
+                                fair_value.get("affo_basis"), fair_value["financial_currency"], 3
+                            )
+                        )
                         st.write(f"**Aktuelles P/AFFO:** {fair_value.get('current_paffo'):.2f}×")
                         st.write(f"**Ziel-P/AFFO:** {fair_value.get('target_paffo'):.2f}×")
                         st.write(f"**P/AFFO-Zielkorridor:** {fair_value.get('paffo_corridor_low'):.2f}× – {fair_value.get('paffo_corridor_high'):.2f}×")
@@ -25702,8 +26147,11 @@ if selected_symbol:
                     ):
                         st.write(
                             "**Fair Value vor Einheitenangleichung:** "
-                            f"{fair_value['fair_value_financial']:.2f} "
-                            f"{fair_value['financial_currency']}"
+                            + format_currency_value(
+                                fair_value["fair_value_financial"],
+                                fair_value["financial_currency"],
+                                2,
+                            )
                         )
 
                         st.info(
@@ -25712,9 +26160,10 @@ if selected_symbol:
 
                     st.metric(
                         "Fair Value V1",
-                        (
-                            f"{fair_value['fair_value_quote']:.2f} "
-                            f"{fair_value['quote_currency']}"
+                        format_currency_value(
+                            fair_value["fair_value_quote"],
+                            fair_value["quote_currency"],
+                            2,
                         )
                     )
 
@@ -25723,8 +26172,11 @@ if selected_symbol:
                     ] is not None:
                         st.write(
                             "**Aktueller Kurs:** "
-                            f"{fair_value['current_price']:.2f} "
-                            f"{fair_value['quote_currency']}"
+                            + format_currency_value(
+                                fair_value["current_price"],
+                                fair_value["quote_currency"],
+                                2,
+                            )
                         )
 
                     if fair_value[
@@ -25750,6 +26202,11 @@ if selected_symbol:
                         st.success(
                             "Versicherungs-Fair-Value V1 wurde aus zwei unabhängigen, versicherungsspezifischen "
                             "Bewertungsankern berechnet und erst nach der Schritt-3B-Freigabe veröffentlicht."
+                        )
+                    elif fair_value.get("valuation_method") == "reit_paffo":
+                        st.success(
+                            "REIT-Fair-Value V1 wurde aus der verifizierten offiziellen AFFO-Guidance-Basis "
+                            "und dem scoregesteuerten P/AFFO-Zielanker berechnet."
                         )
                     else:
                         st.success(
@@ -25833,37 +26290,49 @@ if selected_symbol:
                             f"**{distance_label}:** {distance_text}"
                         )
 
+                    zone_currency = fair_value.get("quote_currency", currency)
                     st.write(
                         "**Stark unterbewertet:** ≤ "
-                        f"{valuation_zone['strong_undervaluation_limit']:.2f} "
-                        f"{fair_value.get('quote_currency', currency)}"
+                        + format_currency_value(
+                            valuation_zone["strong_undervaluation_limit"], zone_currency, 2
+                        )
                     )
 
                     st.write(
                         "**Unterbewertet:** "
-                        f"{valuation_zone['strong_undervaluation_limit']:.2f} – "
-                        f"{valuation_zone['fair_lower']:.2f} "
-                        f"{fair_value.get('quote_currency', currency)}"
+                        + format_currency_range(
+                            valuation_zone["strong_undervaluation_limit"],
+                            valuation_zone["fair_lower"],
+                            zone_currency,
+                            2,
+                        )
                     )
 
                     st.write(
                         "**Fair bewertet:** "
-                        f"{valuation_zone['fair_lower']:.2f} – "
-                        f"{valuation_zone['fair_upper']:.2f} "
-                        f"{fair_value.get('quote_currency', currency)}"
+                        + format_currency_range(
+                            valuation_zone["fair_lower"],
+                            valuation_zone["fair_upper"],
+                            zone_currency,
+                            2,
+                        )
                     )
 
                     st.write(
                         "**Überbewertet:** "
-                        f"{valuation_zone['fair_upper']:.2f} – "
-                        f"{valuation_zone['strong_overvaluation_limit']:.2f} "
-                        f"{fair_value.get('quote_currency', currency)}"
+                        + format_currency_range(
+                            valuation_zone["fair_upper"],
+                            valuation_zone["strong_overvaluation_limit"],
+                            zone_currency,
+                            2,
+                        )
                     )
 
                     st.write(
                         "**Stark überbewertet:** ≥ "
-                        f"{valuation_zone['strong_overvaluation_limit']:.2f} "
-                        f"{fair_value.get('quote_currency', currency)}"
+                        + format_currency_value(
+                            valuation_zone["strong_overvaluation_limit"], zone_currency, 2
+                        )
                     )
 
                     st.caption(
