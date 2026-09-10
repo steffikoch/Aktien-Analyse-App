@@ -17,14 +17,14 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.61"
+APP_BUILD_VERSION = "V2.20.62"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · Semicap Normalized Peer Comparability & Valuation Safety Gate")
+st.caption(f"Build {APP_BUILD_VERSION} · NVIDIA Primary Source AI Demand, Margin & Concentration Gate")
 
 
 # V2.20.52: Midstream Peer Safety Cap & Comparability Gate. Separates market-reference peers from adjustment-eligible peers. Automatic peer adjustment requires at least three peers with sufficiently comparable corporate structure AND issuer-adjusted EBITDA basis. Generic Yahoo EV/EBITDA remains reference-only. If a future gate passes, the multiple proposal and the resulting equity fair-value effect are each capped at ±5 %. The 100-point Midstream score and official KMI Adjusted EBITDA / Net Debt / share-count bridge remain unchanged.
@@ -37,6 +37,7 @@ st.caption(f"Build {APP_BUILD_VERSION} · Semicap Normalized Peer Comparability 
 # V2.20.59: Semicap Quality Score & Forward-Earnings Credibility Gate. Adds a dedicated 100-point ASML/Semicap quality score using only verified Q1/Q2/FY guidance, Installed Base Management, EUV/High-NA mix, FCF/liquidity, demand visibility, capacity plans and execution versus prior guidance. Adds a separate Forward-Earnings Credibility Gate: Yahoo Forward/+1Y EPS is not treated as FY2026 guidance; it is checked against an explicitly mechanical FY2026 earnings proxy derived from official H1 EPS, FY sales guidance and gross-margin guidance. No target multiple or fair value is released yet. Semicap peers remain reference-only.
 # V2.20.60: Semicap Quality-Adjusted P/E Valuation Anchor. The credibility-weighted Semicap earnings reference is the only earnings basis; the primary-source Semicap Quality Score alone selects a conservative P/E target/corridor. For ASML score >=90 this is 30x with a 27x–33x corridor. AMAT/LRCX/KLAC remain reference-only and cannot change the valuation. Standard normalized EPS and Yahoo FCF/EV-EBITDA remain context-only. Also restores the frozen Rheinmetall classification method text.
 # V2.20.61: Semicap Normalized Peer Comparability & Valuation Safety Gate. AMAT/LRCX/KLAC reported Forward-P/E values remain market references unless at least three peers pass product/tool-mix, normalized-earnings-basis and cycle/visibility comparability gates. Any future eligible peer overlay is capped at ±5% on both target P/E and resulting fair value. Semicap valuation confidence is driven by the dedicated Earnings-Credibility Gate, not the generic TTM/Forward EPS-divergence warning. ASML zone-distance display now uses the same (Fair Value - Price) / Price convention as the Fair Value block without changing frozen modules.
+# V2.20.62: NVIDIA Primary Source AI Demand, Margin & Concentration Gate. First supported Fabless/AI issuer: NVIDIA (NVDA). Uses a time-bounded official Q2 FY2027 snapshot for revenue, Data Center/Hyperscale/ACIE mix, gross margin, official FCF, balance-sheet liquidity, inventory/customer-advance visibility, customer concentration, China/export-control exposure, GAAP/non-GAAP EPS quality and Q3 guidance. Generic Yahoo growth/profitability/FCF/balance scores and standard EPS normalization are context-only; no AI Quality Score, target multiple or fair value is released yet.
 
 # =========================================================
 # Hilfsfunktionen
@@ -76,6 +77,10 @@ def is_midstream_company_type(company_type):
 
 def is_semicap_lithography_company_type(company_type):
     return "halbleiterausrüstung / lithografie" in normalized_company_type_name(company_type)
+
+
+def is_nvidia_ai_growth_company_type(company_type):
+    return "halbleiter / fabless / ai-wachstum" in normalized_company_type_name(company_type)
 
 
 def format_number(value):
@@ -5347,7 +5352,8 @@ def is_special_fcf_model(company_type):
         "immobilien",
         "autohersteller",
         "midstream",
-        "halbleiterausrüstung / lithografie"
+        "halbleiterausrüstung / lithografie",
+        "halbleiter / fabless / ai-wachstum"
     ]
 
     return any(
@@ -5527,7 +5533,8 @@ def is_special_balance_model(company_type):
         "immobilien",
         "autohersteller",
         "midstream",
-        "halbleiterausrüstung / lithografie"
+        "halbleiterausrüstung / lithografie",
+        "halbleiter / fabless / ai-wachstum"
     ]
 
     return any(
@@ -5936,8 +5943,8 @@ def classify_company(name, symbol, sector, industry):
         return {
             "type": "Halbleiter / Fabless / AI-Wachstum",
             "method": (
-                "Forward EPS + KGV + "
-                "Wachstumsdauer-/Margenkontrolle"
+                "AI-Demand-/Margen-/Konzentrationskontrolle + später "
+                "credibility-geprüfte Earnings-Basis und Quality-KGV"
             ),
             "confidence_cap": "Mittel bis Hoch"
         }
@@ -10921,6 +10928,229 @@ def build_auto_special_control(base_control, auto_model):
     return control
 
 
+
+# =========================================================
+# Halbleiter / Fabless / AI-Wachstum V2.20.62 – NVIDIA Primary Source Gate
+# =========================================================
+
+NVIDIA_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22062_nvidia_q2fy27_ai_demand_margin_concentration_gate"
+
+
+def get_verified_nvidia_snapshot(symbol):
+    """Time-bounded official NVIDIA Q2 FY2027 primary-source snapshot."""
+    symbol_text = str(symbol or "").upper()
+    if symbol_text != "NVDA":
+        return None
+
+    return {
+        "company": "NVIDIA Corporation",
+        "symbol": "NVDA",
+        "as_of_date": "26.07.2026",
+        "published_date": "26.08.2026",
+        "valid_until": "24.11.2026",
+        "currency": "USD",
+        "source": "NVIDIA Q2 FY2027 Financial Results + Form 10-Q",
+        "source_url": "https://investor.nvidia.com/news/press-release-details/2026/NVIDIA-Announces-Financial-Results-for-Second-Quarter-Fiscal-2027/default.aspx",
+        "source_10q_url": "https://investor.nvidia.com/files/doc_financials/2027/NVDA-2027-Q2-10Q-Final-including-exhibits.pdf",
+        # Q2 FY27 / official reported values
+        "q2_revenue_total": 96.221e9,
+        "q2_revenue_qoq_growth_pct": 18.0,
+        "q2_revenue_yoy_growth_pct": 106.0,
+        "q2_data_center_revenue_total": 89.023e9,
+        "q2_data_center_qoq_growth_pct": 18.0,
+        "q2_data_center_yoy_growth_pct": 117.0,
+        "q2_hyperscale_revenue_total": 48.710e9,
+        "q2_hyperscale_qoq_growth_pct": 13.0,
+        "q2_hyperscale_yoy_growth_pct": 102.0,
+        "q2_acie_revenue_total": 40.313e9,
+        "q2_acie_qoq_growth_pct": 25.0,
+        "q2_acie_yoy_growth_pct": 138.0,
+        "q2_edge_computing_revenue_total": 7.198e9,
+        "q2_gaap_gross_margin_pct": 75.0,
+        "q2_non_gaap_gross_margin_pct": 75.0,
+        "q2_gaap_eps": 2.46,
+        "q2_non_gaap_eps": 2.22,
+        "q2_gaap_net_income_total": 59.688e9,
+        "q2_non_gaap_net_income_total": 53.954e9,
+        "q2_equity_securities_gains_total": 7.771e9,
+        "h1_equity_securities_gains_total": 23.707e9,
+        "q2_operating_cashflow_total": 24.077e9,
+        "q2_free_cashflow_total": 21.341e9,
+        "h1_free_cashflow_total": 69.895e9,
+        # Balance sheet / demand visibility
+        "cash_and_cash_equivalents_total": 22.443e9,
+        "marketable_debt_securities_total": 34.143e9,
+        "marketable_equity_securities_total": 42.783e9,
+        "short_term_debt_total": 1.000e9,
+        "long_term_debt_total": 32.366e9,
+        "inventory_total": 31.575e9,
+        "inventory_fy_end_total": 21.403e9,
+        "customer_advances_balance_total": 2.8e9,
+        "customer_advances_fy_end_total": 0.160e9,
+        "h1_customer_advances_additions_total": 15.6e9,
+        "h1_customer_advances_prior_total": 7.5e9,
+        "q2_largest_direct_customer_revenue_share_pct": 16.0,
+        "h1_direct_customer_shares_pct": [16.0, 15.0, 13.0],
+        # Platform / supply / geopolitics
+        "blackwell_architecture_revenue_status": "Vast majority of revenue",
+        "vera_rubin_status": "Ramping into full production",
+        "china_data_center_share_pct_lt": 1.0,
+        "q3_china_data_center_compute_assumed": False,
+        # Q3 FY27 outlook
+        "q3_revenue_midpoint_total": 108.0e9,
+        "q3_revenue_range_pct": 2.0,
+        "q3_gaap_gross_margin_mid_pct": 74.0,
+        "q3_non_gaap_gross_margin_mid_pct": 74.0,
+        "q3_gross_margin_range_pp": 0.5,
+        "source_note": (
+            "Offizielle NVIDIA-Q2-FY2027-Primärdaten aus Earnings Release und Form 10-Q. "
+            "V2.20.62 trennt operative AI-Nachfrage, Margen, Cashflow, Bestands-/Kundenvorauszahlungsdaten, "
+            "Kundenkonzentration, China-/Exportkontrollrisiko und GAAP/non-GAAP-Ertragsqualität. "
+            "Yahoo-Forward-EPS, Yahoo-FCF und generische Scores bleiben Kontext. Ein AI-Quality-Score, "
+            "eine normalisierte Earnings-Basis, ein Zielmultiple und Fair Value werden noch nicht freigegeben."
+        ),
+    }
+
+
+def _nvidia_snapshot_is_fresh(snapshot):
+    if not isinstance(snapshot, dict):
+        return False
+    try:
+        valid_until = datetime.strptime(snapshot.get("valid_until"), "%d.%m.%Y").date()
+        return datetime.now().date() <= valid_until
+    except Exception:
+        return False
+
+
+def build_nvidia_primary_source_gate(snapshot):
+    result = {
+        "available": False,
+        "integration_version": NVIDIA_PRIMARY_SOURCE_INTEGRATION_VERSION,
+        "note": None,
+    }
+    if not isinstance(snapshot, dict):
+        result["note"] = "NVIDIA-Primärquellen-Gate nicht verfügbar: kein verifizierter aktueller Q2-FY2027-Snapshot."
+        return result
+
+    required_positive = [
+        "q2_revenue_total", "q2_data_center_revenue_total", "q2_gaap_gross_margin_pct",
+        "q2_gaap_eps", "q2_non_gaap_eps", "q2_free_cashflow_total",
+        "cash_and_cash_equivalents_total", "marketable_debt_securities_total",
+        "inventory_total", "inventory_fy_end_total", "q3_revenue_midpoint_total",
+        "q3_gaap_gross_margin_mid_pct", "q2_largest_direct_customer_revenue_share_pct",
+    ]
+    vals = {k: safe_float(snapshot.get(k)) for k in required_positive}
+    if any(v is None or v <= 0 for v in vals.values()):
+        result["note"] = (
+            "NVIDIA-Primärquellen-Gate gesperrt: mindestens eine Pflichtkomponente aus Umsatz/Data Center, "
+            "Gross Margin, EPS-Qualität, FCF, Liquidität, Inventory, Q3-Guidance oder Kundenkonzentration fehlt."
+        )
+        return result
+
+    q2_rev = vals["q2_revenue_total"]
+    dc_rev = vals["q2_data_center_revenue_total"]
+    q2_fcf = vals["q2_free_cashflow_total"]
+    inv = vals["inventory_total"]
+    inv_prev = vals["inventory_fy_end_total"]
+    q3_rev = vals["q3_revenue_midpoint_total"]
+    gaap_eps = vals["q2_gaap_eps"]
+    non_gaap_eps = vals["q2_non_gaap_eps"]
+    cash_debt_sec = safe_float(snapshot.get("cash_and_cash_equivalents_total")) + safe_float(snapshot.get("marketable_debt_securities_total"))
+    gross_debt = safe_float(snapshot.get("short_term_debt_total")) + safe_float(snapshot.get("long_term_debt_total"))
+    h1_adv = safe_float(snapshot.get("h1_customer_advances_additions_total"))
+    h1_adv_prior = safe_float(snapshot.get("h1_customer_advances_prior_total"))
+
+    result.update({
+        "available": True,
+        **{k: snapshot.get(k) for k in snapshot.keys() if k not in {"source_note"}},
+        "data_center_share_q2_pct": dc_rev / q2_rev * 100.0,
+        "q2_fcf_margin_pct": q2_fcf / q2_rev * 100.0,
+        "inventory_growth_since_fy_end_pct": (inv / inv_prev - 1.0) * 100.0,
+        "q3_revenue_midpoint_qoq_growth_pct": (q3_rev / q2_rev - 1.0) * 100.0,
+        "gaap_vs_non_gaap_eps_premium_pct": (gaap_eps / non_gaap_eps - 1.0) * 100.0,
+        "cash_plus_marketable_debt_securities_total": cash_debt_sec,
+        "gross_debt_total": gross_debt,
+        "net_liquid_financial_assets_ex_equities_total": cash_debt_sec - gross_debt,
+        "h1_customer_advances_growth_pct": ((h1_adv / h1_adv_prior - 1.0) * 100.0) if h1_adv and h1_adv_prior else None,
+        "note": (
+            "NVIDIA-Primärquellen-Gate bestanden: Q2-FY2027-Umsatz, Data-Center-/Kundenmix, Gross Margin, "
+            "offizieller FCF, Bilanz-/Inventory-Daten, Kundenvorauszahlungen, GAAP/non-GAAP-EPS-Qualität, "
+            "China-Kontext und Q3-Guidance sind validiert. V2.20.62 erzeugt daraus bewusst noch keinen "
+            "AI-Quality-Score, keine Earnings-Basis, kein Ziel-KGV und keinen Fair Value."
+        ),
+    })
+    return result
+
+
+def build_nvidia_special_model(company_type, info, currency_context, symbol=None):
+    if not is_nvidia_ai_growth_company_type(company_type):
+        return {"applicable": False}
+    snapshot = get_verified_nvidia_snapshot(symbol)
+    snapshot_fresh = _nvidia_snapshot_is_fresh(snapshot)
+    gate = build_nvidia_primary_source_gate(snapshot)
+    complete = bool(snapshot_fresh and gate.get("available"))
+    return {
+        "applicable": True,
+        "snapshot": snapshot,
+        "snapshot_fresh": snapshot_fresh,
+        "primary_source_complete": complete,
+        "primary_gate": gate,
+        "integration_version": NVIDIA_PRIMARY_SOURCE_INTEGRATION_VERSION,
+        "yahoo_trailing_eps_context": safe_float(info.get("trailingEps")),
+        "yahoo_forward_eps_context": safe_float(info.get("forwardEps")),
+        "yahoo_free_cashflow_context": safe_float(info.get("freeCashflow")),
+        "yahoo_ev_to_ebitda_context": safe_float(info.get("enterpriseToEbitda")),
+        "readiness": "Primärdaten vollständig" if complete else "Unvollständig",
+        "note": (
+            "NVIDIA/Fabless-AI-Sondermodell V2.20.62 verwendet ausschließlich aktuelle offizielle Q2-FY2027-Daten "
+            "für das Primary-Source-Gate. Generische Yahoo-Scores und Standard-EPS-Normalisierung bleiben Kontext. "
+            "Ein eigener AI-Quality-Score, Forward-Earnings-Credibility-Gate und Bewertungsanker folgen separat."
+        ),
+    }
+
+
+def build_nvidia_special_control(base_control, nvidia_model):
+    control = dict(base_control or {})
+    control.setdefault("router_status", control.get("status"))
+    control.setdefault("router_note", control.get("note"))
+    if control.get("control_key") != "ai_growth_margin":
+        return control
+    model = nvidia_model if isinstance(nvidia_model, dict) else {}
+    gate = model.get("primary_gate") or {}
+    snapshot = model.get("snapshot")
+    if not model.get("primary_source_complete"):
+        control.update({
+            "implemented": False,
+            "released": False,
+            "confidence_cap": "Niedrig",
+            "step3b_status": "NVIDIA-Primärdaten unvollständig oder veraltet",
+            "overall_status": "Nicht freigegeben",
+            "snapshot": snapshot,
+            "checks": {"primary_gate": gate, **gate},
+            "note": (
+                "Die NVIDIA-Spezialkontrolle benötigt einen aktuellen offiziellen Q2/Folgesnapshot für AI-Nachfrage, "
+                "Gross Margin, FCF, Liquidität/Inventory, Kundenkonzentration, China-Risiko und Guidance. "
+                "Fehlende Pflichtdaten werden nicht aus Yahoo oder Schätzungen ersetzt."
+            ),
+        })
+        return control
+    control.update({
+        "implemented": True,
+        "released": False,
+        "confidence_cap": "Mittel",
+        "step3b_status": "NVIDIA Primary-Source-Gate bestanden – Score/Bewertung noch gesperrt",
+        "overall_status": "Primärdaten freigegeben; Bewertung noch nicht freigegeben",
+        "snapshot": snapshot,
+        "checks": {"primary_gate": gate, **gate},
+        "note": (
+            "V2.20.62 validiert die aktuelle NVIDIA-Q2-FY2027-Primärdatenbasis und trennt Nachfrage, Marge, "
+            "Cashflow, Kunden-/Inventory-Risiken und GAAP/non-GAAP-Earnings-Qualität. Bewertungsfreigabe bleibt NEIN, "
+            "bis ein eigener AI-Quality-Score und eine belastbare Earnings-Credibility-/Valuation-Logik implementiert sind."
+        ),
+    })
+    return control
+
+
 # =========================================================
 # Halbleiterausrüstung / Lithografie V2.20.61 – Semicap Quality-Adjusted P/E Valuation Anchor
 # =========================================================
@@ -12592,6 +12822,12 @@ def get_peer_group(company_type, symbol):
                     )
                     if key == "autohersteller / zyklisch"
                     else (
+                        "NVIDIA-/Fabless-AI-Peer-Gruppe automatisch ausgewählt. V2.20.62 behandelt AVGO, AMD, QCOM und MRVL "
+                        "nur als Markt-Referenzen. Ihre Yahoo-Forward-KGVs dürfen ohne eine später definierte AI-/Earnings-" 
+                        "Comparability-Logik weder Earnings-Basis noch Fair Value verändern."
+                    )
+                    if key == "halbleiter / fabless / ai-wachstum"
+                    else (
                         "Peer-Gruppe automatisch aus dem Unternehmenstyp "
                         "ausgewählt. In Schritt 2A werden noch keine Peer-"
                         "Kennzahlen geladen und das Fundamental-Multiple "
@@ -13639,15 +13875,25 @@ def get_special_control(company_type, symbol):
         return {
             "required": True,
             "control_key": "ai_growth_margin",
-            "control_name": (
-                "AI-Wachstumsdauer- / Margenkontrolle"
-            ),
-            "planned_checks": [],
-            "status": "Router aktiv",
+            "control_name": "NVIDIA / AI-Nachfrage-, Margen-, Konzentrations- & Earnings-Qualitätskontrolle",
+            "planned_checks": [
+                "Offizieller Q2-Umsatz / Data-Center-Anteil",
+                "Hyperscale vs. AI Clouds/Industrial/Enterprise",
+                "Gross Margin + Q3-Guidance",
+                "Offizieller Free Cash Flow / Liquidität",
+                "Inventory- und Kundenvorauszahlungs-Visibilität",
+                "Kundenkonzentration",
+                "China-/Exportkontrollrisiko",
+                "GAAP vs. non-GAAP EPS / Equity-Gains",
+                "Blackwell-/Vera-Rubin-Produktübergang",
+                "später: AI Quality Score & Forward-Earnings-Credibility",
+                "später: eigener NVIDIA-/Fabless-AI-Bewertungsanker",
+            ],
+            "status": "Router aktiv – V2.20.62 NVIDIA-Primary-Source-Gate",
             "note": (
-                "Die konkrete Nvidia-Spezialkontrolle wird "
-                "erst später fachlich definiert und mit "
-                "belastbaren Daten umgesetzt."
+                "V2.20.62 validiert aktuelle offizielle NVIDIA-Q2-FY2027-Daten für AI-Nachfrage, Margen, FCF, "
+                "Inventory/Kundenvorauszahlungen, Kundenkonzentration, China-Risiken und Earnings-Qualität. "
+                "Generische Yahoo-Scores, Standard-EPS und Peer-KGVs werden noch nicht als Bewertungsanker freigegeben."
             )
         }
 
@@ -22453,6 +22699,12 @@ def load_stock(search_text, cache_version):
         profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None,
             "brake_text": "Bei ASML/Lithografie wird die generische Nettomargen-/ROE-Punktelogik nicht verwendet; maßgeblich sind Gross Margin/Guidance, Installed Base, Demand Visibility, EUV/High-NA, FCF/Liquidität, Kapazität und Execution im eigenen Semicap-Score."}
 
+    if is_nvidia_ai_growth_company_type(company_type):
+        growth_score = {**growth_score, "context_score": growth_score.get("score"), "score": None,
+            "note": "Bei NVIDIA/Fabless-AI bleiben generisches Yahoo-Umsatz-/Gewinnwachstum Kontext. V2.20.62 validiert zuerst die offizielle AI-Demand-/Margin-/Concentration-Primärdatenbasis."}
+        profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None,
+            "brake_text": "Bei NVIDIA/Fabless-AI wird die generische Nettomargen-/ROE-Punktelogik nicht verwendet; maßgeblich werden später Gross Margin, Data-Center-Mix, FCF, Demand Visibility, Konzentration und Earnings-Qualität im eigenen AI-Score."}
+
     score_fcf_input = (
         free_cashflow
         if is_special_fcf_model(company_type)
@@ -22535,6 +22787,10 @@ def load_stock(search_text, cache_version):
     )
 
     semicap_special_model = build_semicap_special_model(
+        company_type, fundamental_info, currency_context, symbol=fundamental_symbol
+    )
+
+    nvidia_special_model = build_nvidia_special_model(
         company_type, fundamental_info, currency_context, symbol=fundamental_symbol
     )
 
@@ -22626,6 +22882,20 @@ def load_stock(search_text, cache_version):
                 "ASML/Lithografie V2.20.61 verwendet kein generisches EPS-/FCF-Multiple. Das Forward-Earnings-Credibility-Gate "
                 "liefert die einzige Earnings-Basis; der primärquellenbasierte Semicap-Quality-Score bestimmt ausschließlich Ziel-KGV und Korridor. "
                 "AMAT/LRCX/KLAC bleiben ohne bestandenes Normalized Comparability Gate reine Referenz und verändern das Multiple nicht."
+            ),
+        }
+
+    if nvidia_special_model.get("applicable"):
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": None,
+            "multiple": None,
+            "available": False,
+            "earnings_basis_usable": False,
+            "note": (
+                "NVIDIA/Fabless-AI V2.20.62 verwendet noch kein generisches EPS-/FCF-Multiple. "
+                "Das aktuelle Primary-Source-Gate validiert nur AI-Nachfrage, Margen, FCF, Konzentration, "
+                "China-Risiko und Earnings-Qualität. Ein eigener AI-Quality-Score und Bewertungsanker folgen separat."
             ),
         }
 
@@ -22737,6 +23007,10 @@ def load_stock(search_text, cache_version):
         special_control, semicap_special_model
     )
 
+    special_control = build_nvidia_special_control(
+        special_control, nvidia_special_model
+    )
+
     special_control = build_reit_special_control(
         special_control,
         reit_special_model
@@ -22829,6 +23103,32 @@ def load_stock(search_text, cache_version):
                     "der Quality Score bestimmt davon getrennt das Ziel-KGV."
                 ),
             }
+
+
+    if (
+        nvidia_special_model.get("applicable")
+        and nvidia_special_model.get("primary_source_complete")
+        and str((special_event_warning or {}).get("level") or "") != "Rot"
+    ):
+        nv_gate_event = nvidia_special_model.get("primary_gate") or {}
+        eq_gain = safe_float(nv_gate_event.get("q2_equity_securities_gains_total"))
+        cust_share = safe_float(nv_gate_event.get("q2_largest_direct_customer_revenue_share_pct"))
+        special_event_warning = {
+            "level": "Gelb",
+            "icon": "🟡",
+            "title": "NVIDIA Earnings-Qualität, Kundenkonzentration & China-Risiko – Spezialgate aktiv",
+            "requires_research": False,
+            "valuation_usable": False,
+            "reason": (
+                f"Die offizielle Q2-FY2027-Primärquelle weist {eq_gain/1e9:.2f} Mrd. USD Equity-Securities-Gewinne aus; "
+                f"ein direkter Kunde steht für {cust_share:.0f} % des Quartalsumsatzes. Zusätzlich unterstellt die Q3-Guidance "
+                "keinen Data-Center-Compute-Umsatz aus China. Diese Punkte werden getrennt von der operativen AI-Nachfrage geführt."
+            ),
+            "action": (
+                "V2.20.62 hat die aktuellen Risiken bereits aus NVIDIA-Primärquellen getrennt erfasst. "
+                "Ein Bewertungsanker bleibt dennoch gesperrt, bis AI-Quality-Score und Forward-Earnings-Credibility separat implementiert sind."
+            ),
+        }
 
 
     fair_value = calculate_fair_value_v1(
@@ -22985,6 +23285,7 @@ def load_stock(search_text, cache_version):
         "midstream_special_model": midstream_special_model,
         "auto_special_model": auto_special_model,
         "semicap_special_model": semicap_special_model,
+        "nvidia_special_model": nvidia_special_model,
         "reit_special_model": reit_special_model,
         "fundamental_multiple": fundamental_multiple,
         "peer_group": peer_group,
@@ -23515,6 +23816,7 @@ if selected_symbol:
                 is_midstream_fcf_context = is_midstream_company_type(company_type)
                 is_auto_fcf_context = "autohersteller" in company_type_ui
                 is_semicap_fcf_context = is_semicap_lithography_company_type(company_type)
+                is_nvidia_fcf_context = is_nvidia_ai_growth_company_type(company_type)
                 if fcf_ctx.get("score_eligible"):
                     source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
                     if is_bank_fcf_context:
@@ -23557,6 +23859,12 @@ if selected_symbol:
                             "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
                             "Bei ASML/Lithografie bleibt dieser Yahoo-TTM-FCF reine Kontextinformation. Der Semicap-Quality-Score verwendet "
                             "ausschließlich den verifizierten offiziellen Q2-Free-Cashflow; Yahoo-FCF steuert weder Score noch Earnings-Gate oder späteren Fair Value."
+                        )
+                    elif is_nvidia_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            "Bei NVIDIA/Fabless-AI bleibt dieser Yahoo-TTM-FCF reine Kontextinformation. V2.20.62 verwendet für das Primary-Source-Gate "
+                            "ausschließlich den von NVIDIA ausgewiesenen Q2-FY2027-Free-Cashflow; Yahoo-FCF steuert weder Score noch Fair Value."
                         )
                     else:
                         st.caption(
@@ -23605,6 +23913,12 @@ if selected_symbol:
                                 f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Yahoo-Werte bleiben beim Autohersteller reine "
                                 "Kontext-/Rohdaten; maßgeblich ist der offizielle Free Cash Flow des Industriegeschäfts."
                             )
+                        elif is_nvidia_fcf_context:
+                            st.warning(
+                                "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info und Cashflow-Statement liefern abweichende FCF-Kontextwerte. "
+                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Für NVIDIA V2.20.62 bleiben beide Yahoo-Werte reine Kontextdaten; "
+                                "maßgeblich im Primary-Source-Gate ist ausschließlich der offiziell ausgewiesene Q2-FY2027-Free-Cashflow."
+                            )
                         else:
                             st.warning(
                                 "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info zeigt "
@@ -23630,6 +23944,11 @@ if selected_symbol:
                         st.caption(
                             "FCF-Kontext/Rohdaten: Nur Yahoo Levered Free Cash Flow verfügbar. "
                             "Beim Autohersteller bleibt dieser Wert reine Referenz; er ersetzt keinen offiziellen Industrie-FCF."
+                        )
+                    elif is_nvidia_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: Nur Yahoo Levered Free Cash Flow verfügbar. "
+                            "Bei NVIDIA bleibt dieser Wert reine Referenz; V2.20.62 verwendet ausschließlich den offiziellen Q2-FY2027-FCF im Primary-Source-Gate."
                         )
                     else:
                         st.warning(
@@ -23813,7 +24132,7 @@ if selected_symbol:
                     normalized_eps_label = "Versicherungs-Core-TTM-EPS"
                 else:
                     normalized_eps = eps_result["normalized_eps"]
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if is_semicap_lithography_company_type(company_type) else "Normalisiertes EPS")
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type)) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -23856,6 +24175,11 @@ if selected_symbol:
                         st.info(
                             "ASML/Lithografie: Diese Standard-Normalisierung bleibt nur Kontext. V2.20.61 verwendet für den Semicap-Pfad ausschließlich die "
                             "credibility-gewichtete Semicap-Earnings-Referenz; das Standard-EPS wird weder mit ihr vermischt noch als Fair-Value-Basis verwendet."
+                        )
+                    elif is_nvidia_ai_growth_company_type(company_type):
+                        st.info(
+                            "NVIDIA/Fabless-AI: Diese Standard-Normalisierung bleibt in V2.20.62 ausschließlich Kontext. "
+                            "Vor einer Bewertung wird zunächst eine eigene AI-Earnings-Credibility-/Normalisierungslogik definiert; das Standard-EPS ist nicht freigegeben."
                         )
 
                 confidence = (
@@ -23987,6 +24311,11 @@ if selected_symbol:
                         "Das Standard-normalisierte EPS ist bei ASML ausschließlich Kontext und keine Bewertungsbasis. "
                         "Für den Semicap-Fair-Value darf nur die separat geprüfte credibility-gewichtete Earnings-Referenz aus dem "
                         "Forward-Earnings-Credibility-Gate verwendet werden."
+                    )
+                elif is_nvidia_ai_growth_company_type(company_type):
+                    st.caption(
+                        "Das Standard-normalisierte EPS ist bei NVIDIA in V2.20.62 ausschließlich Kontext. "
+                        "Das neue Primary-Source-Gate gibt noch keine Earnings-Basis frei; ein späteres AI-Earnings-Credibility-Gate muss diese separat bestimmen."
                     )
                 elif eps_result.get("normalization_blocked_by_structural_break"):
                     st.caption(
@@ -24556,8 +24885,12 @@ if selected_symbol:
                 is_midstream_score_ui = is_midstream_company_type(company_type)
                 is_auto_score_ui = "autohersteller" in normalized_company_type_name(company_type)
                 is_semicap_score_ui = is_semicap_lithography_company_type(company_type)
+                is_nvidia_score_ui = is_nvidia_ai_growth_company_type(company_type)
 
-                if is_semicap_score_ui:
+                if is_nvidia_score_ui:
+                    st.info("NVIDIA/Fabless-AI-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.62 validiert zunächst die offizielle AI-Demand-/Margin-/Concentration-Primärdatenbasis.")
+                    st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf das NVIDIA Primary-Source-Gate oder einen späteren AI-Quality-Score.")
+                elif is_semicap_score_ui:
                     st.info("ASML/Lithografie-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.61 verwendet stattdessen den eigenen primärquellenbasierten Semicap-Quality-Score.")
                     st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf den Semicap-Quality-Score oder das Forward-Earnings-Credibility-Gate.")
                 elif is_auto_score_ui:
@@ -24664,7 +24997,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui:
+                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -24687,8 +25020,11 @@ if selected_symbol:
                 is_midstream_profitability_ui = is_midstream_company_type(company_type)
                 is_auto_profitability_ui = "autohersteller" in normalized_company_type_name(company_type)
                 is_semicap_profitability_ui = is_semicap_lithography_company_type(company_type)
+                is_nvidia_profitability_ui = is_nvidia_ai_growth_company_type(company_type)
 
-                if is_semicap_profitability_ui:
+                if is_nvidia_profitability_ui:
+                    st.info("NVIDIA/Fabless-AI-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. V2.20.62 führt die offizielle Q2-Gross-Margin und Q3-Margen-Guidance sowie Earnings-Quality-Risiken getrennt.")
+                elif is_semicap_profitability_ui:
                     st.info("ASML/Lithografie-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. V2.20.61 bewertet Profitabilitätsqualität über Gross Margin und Guidance im eigenen Semicap-Quality-Score.")
                 elif is_auto_profitability_ui:
                     st.info("Automotive-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. Ertragsqualität wird über Cars/Vans Adjusted RoS und Financial Services Adjusted RoE im eigenen Automotive-Quality-Score beurteilt.")
@@ -24826,6 +25162,7 @@ if selected_symbol:
                     and not is_midstream_company_type(company_type)
                     and "autohersteller" not in str(company_type.get("type", "")).lower()
                     and not is_semicap_lithography_company_type(company_type)
+                    and not is_nvidia_ai_growth_company_type(company_type)
                 ):
                     st.caption(
                         "Die Profitabilität basiert derzeit auf "
@@ -24947,8 +25284,12 @@ if selected_symbol:
                     is_midstream_model_ui = is_midstream_company_type(company_type)
                     is_auto_model_ui = "autohersteller" in str(company_type.get("type", "")).lower()
                     is_semicap_model_ui = is_semicap_lithography_company_type(company_type)
+                    is_nvidia_model_ui = is_nvidia_ai_growth_company_type(company_type)
 
-                    if is_semicap_model_ui:
+                    if is_nvidia_model_ui:
+                        st.info("ℹ️ NVIDIA/Fabless-AI-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
+                        st.caption("V2.20.62 verwendet ausschließlich den von NVIDIA ausgewiesenen Q2-FY2027-Free-Cashflow im Primary-Source-Gate. Yahoo-TTM-FCF bleibt Kontext; ein AI-FCF-Score und Fair Value folgen noch nicht.")
+                    elif is_semicap_model_ui:
                         st.info("ℹ️ ASML/Lithografie-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
                         st.caption("V2.20.61 verwendet ausschließlich den offiziellen Q2-Free-Cashflow als FCF-/Liquiditätskomponente des Semicap-Quality-Scores. Yahoo-TTM-FCF bleibt Kontext und ist kein direkter Fair-Value-Baustein.")
                     elif is_auto_model_ui:
@@ -25121,8 +25462,12 @@ if selected_symbol:
                     is_midstream_balance_ui = is_midstream_company_type(company_type)
                     is_auto_balance_ui = "autohersteller" in str(company_type.get("type", "")).lower()
                     is_semicap_balance_ui = is_semicap_lithography_company_type(company_type)
+                    is_nvidia_balance_ui = is_nvidia_ai_growth_company_type(company_type)
 
-                    if is_semicap_balance_ui:
+                    if is_nvidia_balance_ui:
+                        st.info("ℹ️ NVIDIA/Fabless-AI-Modell: Standard-Netto-Schulden/FCF-Score ist noch kein Bewertungsbaustein")
+                        st.caption("V2.20.62 validiert Cash, Marketable Debt Securities, Bruttoschulden und Inventory aus der offiziellen NVIDIA-Bilanz getrennt. Ein eigener AI-Kapitalqualitäts-Score folgt separat.")
+                    elif is_semicap_balance_ui:
                         st.info("ℹ️ ASML/Lithografie-Modell: Standard-Netto-Schulden/FCF-Score ist kein freigegebener Bewertungsbaustein")
                         st.caption("V2.20.61 verwendet die offizielle Cash-/Short-term-Investments-Position ausschließlich in der FCF-/Liquiditätskomponente des Semicap-Quality-Scores. Der generische Netto-Schulden/FCF-Score bleibt deaktiviert und beeinflusst den Fair Value nicht.")
                     elif is_auto_balance_ui:
@@ -26316,6 +26661,57 @@ if selected_symbol:
                         st.warning("Bewertungsfreigabe noch NEIN: Der Semicap-Bewertungsanker ist nicht vollständig freigegeben.")
                     st.caption(semicap_model.get("note"))
 
+                nvidia_model = data.get("nvidia_special_model", {"applicable": False})
+                if nvidia_model.get("applicable"):
+                    st.divider()
+                    st.subheader("🧠 Halbleiter-/AI-Sondermodell V2.20.62 – NVIDIA Demand, Margin & Concentration Primärdaten")
+                    nv_snap = nvidia_model.get("snapshot") or {}
+                    nv_gate = nvidia_model.get("primary_gate") or {}
+                    if nvidia_model.get("primary_source_complete"):
+                        st.success("NVIDIA-Primärquellen-Gate bestanden: Q2-FY2027-Umsatz/Data Center, Margen, offizieller FCF, Bilanz/Inventory, Kundenkonzentration, China-Kontext und Q3-Guidance sind validiert.")
+                    else:
+                        st.warning(nv_gate.get("note") or "NVIDIA-Primärquellen-Gate nicht bestanden.")
+                    if nv_snap:
+                        st.write(f"**Datenstand Primärquelle:** {text_or_dash(nv_snap.get('as_of_date'))} (veröffentlicht {text_or_dash(nv_snap.get('published_date'))})")
+                    if nv_gate.get("available"):
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            st.metric("Q2 FY27 Umsatz", format_money(nv_gate.get("q2_revenue_total"), financial_currency))
+                            st.write(f"**QoQ / YoY:** +{nv_gate.get('q2_revenue_qoq_growth_pct'):.0f} % / +{nv_gate.get('q2_revenue_yoy_growth_pct'):.0f} %")
+                            st.metric("Data Center Umsatz", format_money(nv_gate.get("q2_data_center_revenue_total"), financial_currency))
+                            st.write(f"**Data-Center-Anteil:** {nv_gate.get('data_center_share_q2_pct'):.1f} % · YoY +{nv_gate.get('q2_data_center_yoy_growth_pct'):.0f} %")
+                            st.metric("Hyperscale", format_money(nv_gate.get("q2_hyperscale_revenue_total"), financial_currency))
+                            st.metric("AI Clouds / Industrial / Enterprise", format_money(nv_gate.get("q2_acie_revenue_total"), financial_currency))
+                            st.metric("Q2 GAAP Gross Margin", f"{nv_gate.get('q2_gaap_gross_margin_pct'):.1f} %")
+                        with c2:
+                            st.metric("Offizieller Q2 Free Cash Flow", format_money(nv_gate.get("q2_free_cashflow_total"), financial_currency))
+                            st.write(f"**Q2-FCF-Marge:** {nv_gate.get('q2_fcf_margin_pct'):.1f} %")
+                            st.metric("Cash + Marketable Debt Securities", format_money(nv_gate.get("cash_plus_marketable_debt_securities_total"), financial_currency))
+                            st.metric("Bruttoschulden", format_money(nv_gate.get("gross_debt_total"), financial_currency))
+                            st.metric("Inventory", format_money(nv_gate.get("inventory_total"), financial_currency))
+                            st.write(f"**Inventory seit FY-Ende:** +{nv_gate.get('inventory_growth_since_fy_end_pct'):.1f} %")
+                            st.metric("Kundenvorauszahlungen – Endbestand", format_money(nv_gate.get("customer_advances_balance_total"), financial_currency))
+                        st.write(f"**Größter direkter Kunde Q2:** {nv_gate.get('q2_largest_direct_customer_revenue_share_pct'):.0f} % des Gesamtumsatzes")
+                        st.write(f"**GAAP EPS / non-GAAP EPS Q2:** {nv_gate.get('q2_gaap_eps'):.2f} / {nv_gate.get('q2_non_gaap_eps'):.2f} USD · GAAP-Prämie {nv_gate.get('gaap_vs_non_gaap_eps_premium_pct'):.1f} %")
+                        st.write("**Equity-Securities-Gewinne Q2 / H1:** " + format_money(nv_gate.get("q2_equity_securities_gains_total"), financial_currency) + " / " + format_money(nv_gate.get("h1_equity_securities_gains_total"), financial_currency))
+                        st.write(f"**Blackwell-Status:** {text_or_dash(nv_gate.get('blackwell_architecture_revenue_status'))}")
+                        st.write(f"**Vera Rubin:** {text_or_dash(nv_gate.get('vera_rubin_status'))}")
+                        st.write(f"**China Data Center Q2:** < {nv_gate.get('china_data_center_share_pct_lt'):.0f} % · Q3-Guidance unterstellt keinen China Data-Center-Compute-Umsatz")
+                        q3_mid = safe_float(nv_gate.get("q3_revenue_midpoint_total")); q3_range = safe_float(nv_gate.get("q3_revenue_range_pct"))
+                        if q3_mid is not None and q3_range is not None:
+                            st.write("**Q3 FY27 Umsatz-Guidance:** " + format_money(q3_mid, financial_currency) + f" ± {q3_range:.0f} % · Midpoint QoQ +{nv_gate.get('q3_revenue_midpoint_qoq_growth_pct'):.1f} %")
+                        st.write(f"**Q3 FY27 Gross-Margin-Guidance:** {nv_gate.get('q3_gaap_gross_margin_mid_pct'):.1f} % ± {nv_gate.get('q3_gross_margin_range_pp'):.1f} %-Pkt.")
+                        st.caption(nv_gate.get("note"))
+                    st.write("**Yahoo-/Standarddaten nur als Kontext**")
+                    st.write("**Yahoo TTM-EPS (Kontext):** " + format_eps(nvidia_model.get("yahoo_trailing_eps_context"), financial_currency))
+                    st.write("**Yahoo Forward-EPS (Kontext):** " + format_eps(nvidia_model.get("yahoo_forward_eps_context"), financial_currency))
+                    st.write("**Yahoo Free Cashflow (Kontext):** " + format_money(nvidia_model.get("yahoo_free_cashflow_context"), financial_currency))
+                    yev_nv = safe_float(nvidia_model.get("yahoo_ev_to_ebitda_context"))
+                    st.write("**Yahoo EV / EBITDA (Kontext):** " + (f"{yev_nv:.2f}×" if yev_nv is not None else "–"))
+                    st.write(f"**Datenreife Sondermodell:** {nvidia_model.get('readiness')}")
+                    st.warning("Bewertungsfreigabe noch NEIN: V2.20.62 validiert nur die NVIDIA-Primärdatenbasis. AI-Quality-Score, Earnings-Credibility, Zielmultiple und Fair Value folgen separat.")
+                    st.caption(nvidia_model.get("note"))
+
                 reit_model = data.get(
                     "reit_special_model",
                     {"applicable": False}
@@ -26509,6 +26905,7 @@ if selected_symbol:
                 is_midstream_valuation_ui = is_midstream_company_type(company_type)
                 is_auto_valuation_ui = "autohersteller" in normalized_company_type_name(company_type)
                 is_semicap_valuation_ui = is_semicap_lithography_company_type(company_type)
+                is_nvidia_valuation_ui = is_nvidia_ai_growth_company_type(company_type)
 
                 if is_bank_valuation_ui:
                     bank_model_m6 = data.get("bank_special_model") or {}
@@ -26597,6 +26994,22 @@ if selected_symbol:
                         "Core-TTM-EPS/Core-KGV getrennt geführt. Der Dual-Anchor-Fair-Value "
                         "folgt erst nach Schritt 3B."
                     )
+                elif is_nvidia_valuation_ui:
+                    nv_m6 = data.get("nvidia_special_model") or {}
+                    nv_gate_m6 = nv_m6.get("primary_gate") or {}
+                    if nv_m6.get("primary_source_complete") and nv_gate_m6.get("available"):
+                        st.success("NVIDIA-Primärdaten vollständig: Q2-FY2027-AI-Nachfrage, Gross Margin, FCF, Inventory/Kundenvorauszahlungen, Konzentration, China-Kontext und Q3-Guidance sind belastbar vorhanden.")
+                        st.write(f"**Q2 Umsatz / Data Center:** {format_money(nv_gate_m6.get('q2_revenue_total'), financial_currency)} / {format_money(nv_gate_m6.get('q2_data_center_revenue_total'), financial_currency)}")
+                        st.write(f"**Data-Center-Anteil:** {nv_gate_m6.get('data_center_share_q2_pct'):.1f} %")
+                        st.write(f"**Q2 Gross Margin:** {nv_gate_m6.get('q2_gaap_gross_margin_pct'):.1f} %")
+                        st.write(f"**Q2-FCF-Marge:** {nv_gate_m6.get('q2_fcf_margin_pct'):.1f} %")
+                        st.write(f"**Größter direkter Kunde:** {nv_gate_m6.get('q2_largest_direct_customer_revenue_share_pct'):.0f} %")
+                        st.write("**Q3-China-Annahme:** kein Data-Center-Compute-Umsatz")
+                    else:
+                        st.warning("NVIDIA-Primärdaten unvollständig oder veraltet; Bewertung bleibt fail-closed.")
+                    st.warning("Noch kein NVIDIA-/AI-Fundamental-Multiple: V2.20.62 endet bewusst nach dem Primary-Source Demand/Margin/Concentration Gate. AI-Quality-Score, Earnings-Credibility und Bewertungsanker folgen separat.")
+                    st.caption(multiple_result.get("note"))
+                    st.caption("AVGO/AMD/QCOM/MRVL bleiben in V2.20.62 Markt-Referenzen und dürfen ohne AI-spezifische normalisierte Vergleichsbasis keinen NVIDIA-Fair-Value erzeugen.")
                 elif is_semicap_valuation_ui:
                     semicap_m6 = data.get("semicap_special_model") or {}
                     gate_sc_m6 = semicap_m6.get("primary_gate") or {}
@@ -27260,6 +27673,37 @@ if selected_symbol:
                             st.success("Bewertungsfreigabe JA: V2.20.61 gibt die quality-adjustierte Semicap-KGV-Bewertung frei. Ein nicht bestandenes Peer-Comparability-Gate blockiert nicht, sondern verhindert ausschließlich jede automatische Peer-Anpassung.")
                         else:
                             st.warning(val_sc3.get("note") or "Bewertungsfreigabe noch NEIN: Semicap-Bewertungsanker nicht vollständig.")
+                    else:
+                        st.warning(special_control.get("note"))
+
+                if special_control.get(
+                    "control_key"
+                ) == "ai_growth_margin":
+                    st.divider()
+                    st.subheader("🧠 Modul 6 – Schritt 3B: NVIDIA AI-Demand-, Margin-, Konzentrations- & Earnings-Qualitätsprüfung")
+                    if special_control.get("implemented"):
+                        checks_nv = special_control.get("checks", {})
+                        snap_nv3 = special_control.get("snapshot") or {}
+                        st.write(f"**Datenstand:** {text_or_dash(snap_nv3.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_nv3.get('published_date'))})")
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            st.metric("Q2 FY27 Umsatz", format_money(checks_nv.get("q2_revenue_total"), financial_currency))
+                            st.metric("Data Center", format_money(checks_nv.get("q2_data_center_revenue_total"), financial_currency))
+                            st.write(f"**Data-Center-Anteil:** {checks_nv.get('data_center_share_q2_pct'):.1f} %")
+                            st.metric("Q2 Gross Margin", f"{checks_nv.get('q2_gaap_gross_margin_pct'):.1f} %")
+                            st.metric("Offizieller Q2 FCF", format_money(checks_nv.get("q2_free_cashflow_total"), financial_currency))
+                        with c2:
+                            st.metric("Inventory", format_money(checks_nv.get("inventory_total"), financial_currency))
+                            st.write(f"**Inventory seit FY-Ende:** +{checks_nv.get('inventory_growth_since_fy_end_pct'):.1f} %")
+                            st.metric("Kundenvorauszahlungen", format_money(checks_nv.get("customer_advances_balance_total"), financial_currency))
+                            st.write(f"**Größter direkter Kunde:** {checks_nv.get('q2_largest_direct_customer_revenue_share_pct'):.0f} %")
+                            st.write(f"**China Data Center Q2:** < {checks_nv.get('china_data_center_share_pct_lt'):.0f} %")
+                        st.write(f"**GAAP EPS / non-GAAP EPS:** {checks_nv.get('q2_gaap_eps'):.2f} / {checks_nv.get('q2_non_gaap_eps'):.2f} USD")
+                        st.write("**Equity-Securities-Gewinne Q2:** " + format_money(checks_nv.get("q2_equity_securities_gains_total"), financial_currency))
+                        st.write("**Q3-Umsatz-Guidance:** " + format_money(checks_nv.get("q3_revenue_midpoint_total"), financial_currency) + f" ± {checks_nv.get('q3_revenue_range_pct'):.0f} %")
+                        st.write(f"**Q3-Gross-Margin-Guidance:** {checks_nv.get('q3_gaap_gross_margin_mid_pct'):.1f} % ± {checks_nv.get('q3_gross_margin_range_pp'):.1f} %-Pkt.")
+                        st.success("NVIDIA-Primärdaten vollständig validiert. Operative AI-Nachfrage, Margen, FCF, Konzentration, China-Risiko und Earnings-Qualität sind für den nächsten AI-Spezialschritt belastbar getrennt.")
+                        st.warning("Bewertungsfreigabe noch NEIN: V2.20.62 gibt nur das Primary-Source-Gate frei. AI-Quality-Score, Earnings-Credibility, Zielmultiple und Fair Value bleiben gesperrt.")
                     else:
                         st.warning(special_control.get("note"))
 
