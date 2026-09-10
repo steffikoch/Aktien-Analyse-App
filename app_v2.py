@@ -17,14 +17,14 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.66"
+APP_BUILD_VERSION = "V2.20.67"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · NVIDIA FCF Conversion & Normalized Peer Safety Gate")
+st.caption(f"Build {APP_BUILD_VERSION} · NVIDIA Freeze & Status Consistency Cleanup")
 
 
 # V2.20.52: Midstream Peer Safety Cap & Comparability Gate. Separates market-reference peers from adjustment-eligible peers. Automatic peer adjustment requires at least three peers with sufficiently comparable corporate structure AND issuer-adjusted EBITDA basis. Generic Yahoo EV/EBITDA remains reference-only. If a future gate passes, the multiple proposal and the resulting equity fair-value effect are each capped at ±5 %. The 100-point Midstream score and official KMI Adjusted EBITDA / Net Debt / share-count bridge remain unchanged.
@@ -42,6 +42,7 @@ st.caption(f"Build {APP_BUILD_VERSION} · NVIDIA FCF Conversion & Normalized Pee
 # V2.20.64: NVIDIA Earnings Horizon Alignment & Demand Quality Gate. Adds official Q3 non-GAAP OpEx/tax/share-count inputs, a transparent operating-EPS bridge, DSO/customer-terms and commitment-quality controls, and blocks all automatic blending of Yahoo Forward-EPS while its horizon/accounting basis is not confirmed. Supply commitments remain visibility signals, never backlog. No target multiple or fair value is released yet.
 # V2.20.65: NVIDIA Quality-Adjusted Operating P/E Valuation Anchor. Releases a dedicated NVIDIA/Fabless-AI fair value only after the primary-source, Demand-Quality, AI-Quality and Earnings-Horizon gates are complete. The sole earnings basis is the mechanical FY27 operating EPS proxy built from official H1 non-GAAP EPS plus the transparent Q3/Q4 bridge; Yahoo Forward-EPS remains reference-only. The AI Quality Score alone selects a conservative target P/E and corridor (84/100 -> 28x, 25x-31x), avoiding extra margin/demand/concentration caps that would double count score inputs. AVGO/AMD/QCOM/MRVL remain reference-only; no peer overlay or separate FCF valuation adjustment is released yet.
 # V2.20.66: NVIDIA FCF Conversion & Normalized Peer Safety Gate. Adds a downside-only primary-source H1 FCF conversion/yield safety gate and a fail-closed normalized peer comparability gate for AVGO/AMD/QCOM/MRVL. H1 FCF is checked against official H1 non-GAAP net income and against the implied equity value; it can cap or block but never raise fair value. Peer adjustment requires at least three AI/business-mix, normalized-earnings and cycle/demand comparable peers, with independent ±5% caps on target P/E and fair-value effect.
+# V2.20.67: NVIDIA Freeze & Status Consistency Cleanup. No valuation mechanics changed. Removes stale pre-release wording after the V2.20.66 FCF/peer safety gates were activated, aligns current NVIDIA build labels/router text, and states consistently that FY27 operating EPS, 28x quality P/E, normalized-peer safety and H1-FCF safety are already active. Scores, gates, fair value, zones and signals are unchanged.
 
 # =========================================================
 # Hilfsfunktionen
@@ -10934,10 +10935,10 @@ def build_auto_special_control(base_control, auto_model):
 
 
 # =========================================================
-# Halbleiter / Fabless / AI-Wachstum V2.20.64 – NVIDIA Earnings Horizon Alignment + Demand Quality
+# Halbleiter / Fabless / AI-Wachstum V2.20.67 – NVIDIA Freeze & Status Consistency
 # =========================================================
 
-NVIDIA_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22066_nvidia_fcf_conversion_normalized_peer_safety_gate"
+NVIDIA_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22067_nvidia_freeze_status_consistency_cleanup"
 
 
 def get_verified_nvidia_snapshot(symbol):
@@ -11038,11 +11039,11 @@ def get_verified_nvidia_snapshot(symbol):
         "current_numeric_backlog_released": False,
         "source_note": (
             "Offizielle NVIDIA-Q2-FY2027-Primärdaten aus Earnings Release und Form 10-Q. "
-            "V2.20.66 trennt operative AI-Nachfrage, Margen, Cashflow, Bestands-/Kundenvorauszahlungsdaten, "
+            "V2.20.67 trennt operative AI-Nachfrage, Margen, Cashflow, Bestands-/Kundenvorauszahlungsdaten, "
             "Kundenkonzentration, China-/Exportkontrollrisiko und GAAP/non-GAAP-Ertragsqualität. Zusätzlich werden "
             "DSO/erweiterte Zahlungsziele, die Anpassbarkeit von Supply-/Capacity-Commitments sowie Q3 non-GAAP OpEx, "
             "FY27-Steuer-Midpoint und verwässerte Aktienzahl für einen transparenten Operating-EPS-Proxy geprüft. "
-            "Yahoo Forward-EPS bleibt ohne bestätigten Zeitraum/Basis reference-only; der Bewertungsanker wird nur nach den separaten FCF-/Peer-Safety-Gates freigegeben."
+            "Yahoo Forward-EPS bleibt ohne bestätigten Zeitraum/Basis reference-only. Der NVIDIA-Bewertungsanker ist nur dann freigegeben, wenn AI-Quality, Demand-/Horizon-Gates sowie die aktiven FCF-/Normalized-Peer-Safety-Gates vollständig bestehen."
         ),
     }
 
@@ -11120,9 +11121,9 @@ def build_nvidia_primary_source_gate(snapshot):
         "note": (
             "NVIDIA-Primärquellen-Gate bestanden: Q2-FY2027-Umsatz, Data-Center-/Kundenmix, Gross Margin, "
             "offizieller FCF, Bilanz-/Inventory-Daten, Kundenvorauszahlungen, GAAP/non-GAAP-EPS-Qualität, "
-            "China-Kontext und Q3-Guidance sind validiert. V2.20.66 ergänzt DSO/Payment-Terms, Commitment-Qualität "
+            "China-Kontext und Q3-Guidance sind validiert. V2.20.67 ergänzt DSO/Payment-Terms, Commitment-Qualität "
             "und die vollständige Q3-Operating-EPS-Brücke. Yahoo Forward-EPS bleibt ohne bestätigten Zeitraum/Basis "
-            "reference-only; Ziel-KGV und Fair Value bleiben bewusst gesperrt."
+            "reference-only. Dieses Primärquellen-Gate allein erzeugt keinen Fair Value; die finale V2.20.67-Bewertung wird nur nach vollständig bestandenen AI-Quality-, Demand-/Horizon- und FCF-/Peer-Safety-Gates freigegeben."
         ),
     })
     return result
@@ -11375,7 +11376,7 @@ def build_nvidia_ai_quality_score(primary_gate, snapshot, demand_quality_gate=No
         "equity_gains_share_of_gaap_net_income_pct": equity_gain_share,
         "demand_quality_score": safe_float(dq.get("score")),
         "note": (
-            "Der NVIDIA AI-Quality-Score verwendet ausschließlich verifizierte Primärdaten. V2.20.66 deckelt Demand Visibility "
+            "Der NVIDIA AI-Quality-Score verwendet ausschließlich verifizierte Primärdaten. V2.20.67 deckelt Demand Visibility "
             "und Inventory/Commitment/Working-Capital-Qualität über das separate Demand-Quality-Gate. Customer Advances und "
             "Supply-/Capacity-Commitments sind Nachfrage-/Vorbereitungssignale, ausdrücklich kein Backlog; 60 Tage DSO, Inventory-Aufbau, "
             "Kunden-/Data-Center-Konzentration, China-Annahme und Equity-Securities-Gewinne begrenzen den Score."
@@ -11478,7 +11479,7 @@ def build_nvidia_forward_earnings_credibility_gate(primary_gate, snapshot, info,
         "demand_quality_support_points": demand_quality_points,
         "horizon_alignment_points": horizon_points,
         "note": (
-            "V2.20.66 berechnet den Q3-Operating-EPS-Proxy transparent aus offizieller Q3-Umsatzguidance × non-GAAP-Gross-Margin "
+            "V2.20.67 berechnet den Q3-Operating-EPS-Proxy transparent aus offizieller Q3-Umsatzguidance × non-GAAP-Gross-Margin "
             "minus non-GAAP-OpEx, danach mit dem FY27-non-GAAP-Steuer-Midpoint und der Q2-verwässerten Aktienzahl. Der FY27-Proxy ist "
             "H1 non-GAAP Ist + Q3-Proxy + flache Q4-Annahme auf Q3-Niveau und keine NVIDIA-EPS-Guidance. Yahoo Forward-EPS bleibt "
             "reference-only, solange dessen Fiskalhorizont und Rechnungslegungsbasis nicht ausreichend bestätigt sind; deshalb 0 % Forward-/100 % Proxy-Gewichtung."
@@ -11488,14 +11489,14 @@ def build_nvidia_forward_earnings_credibility_gate(primary_gate, snapshot, info,
 
 
 def build_nvidia_valuation_anchor(ai_quality_score, earnings_horizon_gate, demand_quality_gate=None):
-    """V2.20.66 NVIDIA/Fabless-AI quality-adjusted operating P/E anchor.
+    """V2.20.67 NVIDIA/Fabless-AI quality-adjusted operating P/E anchor.
 
     Roles are intentionally non-overlapping:
     - Earnings-Horizon Alignment provides the sole FY27 operating EPS basis.
     - AI Quality Score alone selects target P/E and corridor.
     - Demand/margin/concentration/working-capital inputs are already inside the score and
       therefore do not apply additional multiple caps.
-    - Yahoo Forward-EPS, Yahoo FCF/EV-EBITDA and peers remain outside the fundamental anchor before V2.20.66 safety gates.
+    - Yahoo Forward-EPS, Yahoo FCF/EV-EBITDA and peers remain outside the fundamental anchor before V2.20.67 safety gates.
     """
     result = {
         "available": False,
@@ -11542,7 +11543,7 @@ def build_nvidia_valuation_anchor(ai_quality_score, earnings_horizon_gate, deman
         return result
     if abs(forward_weight) > 1e-12 or abs(proxy_weight - 1.0) > 1e-12:
         result.update({"score": score, "earnings_reference": earnings_ref})
-        result["note"] = "NVIDIA-Bewertungsanker gesperrt: V2.20.66 erlaubt nur die 100%-FY27-Operating-Proxy-Basis; Yahoo Forward-EPS darf nicht eingemischt werden."
+        result["note"] = "NVIDIA-Bewertungsanker gesperrt: V2.20.67 erlaubt nur die 100%-FY27-Operating-Proxy-Basis; Yahoo Forward-EPS darf nicht eingemischt werden."
         return result
 
     # Score-only P/E table. No additional demand, margin, China, concentration or
@@ -11583,11 +11584,11 @@ def build_nvidia_valuation_anchor(ai_quality_score, earnings_horizon_gate, deman
         "peer_overlay_applied": False,
         "fcf_overlay_allowed": True,
         "note": (
-            "NVIDIA V2.20.66 trennt die Rollen strikt: Der mechanische FY27-Operating-EPS-Proxy aus dem Earnings-Horizon-Gate "
+            "NVIDIA V2.20.67 trennt die Rollen strikt: Der mechanische FY27-Operating-EPS-Proxy aus dem Earnings-Horizon-Gate "
             "ist die einzige Earnings-Basis; der primärquellenbasierte AI-Quality-Score bestimmt allein Ziel-KGV und Korridor. "
             "Demand Quality, Gross Margin, Konzentration, China, Inventory/Commitments und Working Capital werden nicht nochmals "
             "als Multiple-Caps angewendet, weil sie bereits im Quality Score enthalten sind. Yahoo Forward-EPS, Yahoo-FCF/EV-EBITDA "
-            "und Yahoo-FCF/EV-EBITDA bleiben außerhalb des Fair Values. V2.20.66 wendet danach ausschließlich die separaten FCF-/Peer-Safety-Gates an."
+            "und Yahoo-FCF/EV-EBITDA bleiben außerhalb des Fair Values. Die separaten FCF-/Normalized-Peer-Safety-Gates sind in V2.20.67 aktiv und werden nach dem Fundamentalaner angewendet."
         ),
     })
     return result
@@ -11726,10 +11727,10 @@ def build_nvidia_special_model(company_type, info, currency_context, symbol=None
             else ("AI Score + Demand/Horizon Gates vollständig" if score_and_earnings_complete else ("Primärdaten vollständig" if complete else "Unvollständig"))
         ),
         "note": (
-            "NVIDIA/Fabless-AI-Sondermodell V2.20.66 verwendet aktuelle offizielle Q1/Q2-FY2027-Daten, Q3-Guidance und den Q2-Earnings-Call. "
+            "NVIDIA/Fabless-AI-Sondermodell V2.20.67 verwendet aktuelle offizielle Q1/Q2-FY2027-Daten, Q3-Guidance und den Q2-Earnings-Call. "
             "Demand Quality trennt Advances/Supply Commitments von echtem Backlog; das Earnings-Horizon-Gate liefert ausschließlich den mechanischen FY27-Operating-EPS-Proxy. "
             "Bei bestandenem Mindestgate bestimmt der AI-Quality-Score allein das quality-adjustierte Operating-KGV. Yahoo Forward-EPS bleibt reference-only; "
-            "Yahoo-FCF/EV-EBITDA und Peers bleiben außerhalb des Fair Values. FCF-/Peer-Safety werden in V2.20.66 nach dem Peer-Check angewendet."
+            "Yahoo-FCF/EV-EBITDA bleibt außerhalb des Fair Values. Normalized-Peer-Safety und H1-FCF-Safety sind in V2.20.67 aktiv und werden nach dem Fundamentalaner angewendet."
         ),
     }
 
@@ -11807,7 +11808,7 @@ def build_nvidia_special_control(base_control, nvidia_model):
         "snapshot": snapshot,
         "checks": common_checks,
         "note": (
-            "V2.20.66 gibt den NVIDIA-/Fabless-AI-Bewertungsanker nur frei, wenn Primärdaten, Demand Quality, AI Quality, Earnings-Horizon-Alignment sowie FCF-/Peer-Safety vollständig sind, "
+            "V2.20.67 gibt den NVIDIA-/Fabless-AI-Bewertungsanker nur frei, wenn Primärdaten, Demand Quality, AI Quality, Earnings-Horizon-Alignment sowie FCF-/Peer-Safety vollständig sind, "
             "die Operating-Credibility mindestens 75/100 und Demand Quality mindestens 50/100 erreichen. Der mechanische FY27-Operating-EPS-Proxy ist die einzige Earnings-Basis; "
             "der AI-Quality-Score bestimmt allein Ziel-KGV und Korridor. Yahoo Forward-EPS bleibt reference-only. FCF-Safety ist downside-only; Peer-Overlay benötigt mindestens drei voll vergleichbare normalisierte Peers und duale ±5-%-Caps."
         ),
@@ -13486,9 +13487,9 @@ def get_peer_group(company_type, symbol):
                     )
                     if key == "autohersteller / zyklisch"
                     else (
-                        "NVIDIA-/Fabless-AI-Peer-Gruppe automatisch ausgewählt. V2.20.66 behandelt AVGO, AMD, QCOM und MRVL weiter "
-                        "nur als Markt-Referenzen. Ihre Yahoo-Forward-KGVs dürfen ohne eine später definierte AI-/Earnings-" 
-                        "Comparability-Logik weder die diagnostische Earnings-Referenz noch einen späteren Fair Value verändern."
+                        "NVIDIA-/Fabless-AI-Peer-Gruppe automatisch ausgewählt. V2.20.67 behandelt AVGO, AMD, QCOM und MRVL weiter "
+                        "nur als Markt-Referenzen. Ihre Yahoo-Forward-KGVs dürfen ohne bestandenes NVIDIA Normalized Comparability Gate " 
+                        "weder die FY27-Operating-Earnings-Basis noch Ziel-KGV oder Fair Value verändern."
                     )
                     if key == "halbleiter / fabless / ai-wachstum"
                     else (
@@ -14662,13 +14663,13 @@ def get_special_control(company_type, symbol):
                 "AI Quality Score / Demand-Quality Gate",
                 "Earnings Horizon Alignment / Operating-EPS-Proxy",
                 "Quality-adjustierter NVIDIA-/Fabless-AI Operating-KGV-Bewertungsanker",
-                "später: NVIDIA FCF-/Normalized-Peer-Safety-Gates",
+                "NVIDIA FCF-/Normalized-Peer-Safety-Gates – aktiv",
             ],
-            "status": "Router aktiv – V2.20.66 NVIDIA-FCF-Conversion-/Normalized-Peer-Safety-Gate",
+            "status": "Router aktiv – V2.20.67 NVIDIA-FCF-Conversion-/Normalized-Peer-Safety-Gate",
             "note": (
-                "V2.20.66 validiert aktuelle offizielle NVIDIA-Q1/Q2-FY2027-Daten, Q3-Guidance und Q2-Call-Kontext. Demand Quality bewertet Advances, "
+                "V2.20.67 validiert aktuelle offizielle NVIDIA-Q1/Q2-FY2027-Daten, Q3-Guidance und Q2-Call-Kontext. Demand Quality bewertet Advances, "
                 "Supply Commitments, Inventory und DSO ohne daraus Backlog zu machen. Das Earnings-Horizon-Gate liefert den mechanischen FY27-Operating-EPS-Proxy als einzige Earnings-Basis; "
-                "der AI-Quality-Score bestimmt allein Ziel-KGV/Korridor. Yahoo Forward-EPS bleibt reference-only; separate FCF-/Peer-Safety-Gates folgen später."
+                "der AI-Quality-Score bestimmt allein Ziel-KGV/Korridor. Yahoo Forward-EPS bleibt reference-only; H1-FCF-Safety und Normalized-Peer-Safety sind in V2.20.67 vollständig aktiv."
             )
         }
 
@@ -21773,7 +21774,7 @@ def calculate_fair_value_v1(
                 "NVIDIA-Fair-Value V1 = mechanischer FY27-Operating-EPS-Proxy × scoregesteuertes quality-adjustiertes Operating-KGV. "
                 "Yahoo Forward-EPS bleibt wegen unbestätigtem Horizont/Basis reference-only. Demand Quality, Margen, Konzentration, China und Working Capital "
                 "werden nicht nochmals als Multiple-Caps angewendet, weil sie bereits im AI-Quality-Score enthalten sind. Yahoo-FCF/EV-EBITDA sowie AVGO/AMD/QCOM/MRVL "
-                "bleiben außerhalb des Fair Values; separate FCF-/Peer-Safety-Gates folgen später."
+                "bleiben außerhalb des Fair Values; die FCF-/Normalized-Peer-Safety-Gates sind in V2.20.67 bereits aktiv."
             ),
         })
         return result
@@ -23582,7 +23583,7 @@ def load_stock(search_text, cache_version):
 
     if is_nvidia_ai_growth_company_type(company_type):
         growth_score = {**growth_score, "context_score": growth_score.get("score"), "score": None,
-            "note": "Bei NVIDIA/Fabless-AI bleiben generisches Yahoo-Umsatz-/Gewinnwachstum Kontext. V2.20.66 verwendet stattdessen den primärquellenbasierten AI-Quality-Score mit Demand-Quality-Caps."}
+            "note": "Bei NVIDIA/Fabless-AI bleiben generisches Yahoo-Umsatz-/Gewinnwachstum Kontext. V2.20.67 verwendet stattdessen den primärquellenbasierten AI-Quality-Score mit Demand-Quality-Caps."}
         profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None,
             "brake_text": "Bei NVIDIA/Fabless-AI wird die generische Nettomargen-/ROE-Punktelogik nicht verwendet; maßgeblich sind Gross Margin, AI-Demand/Execution, FCF/Liquidität, Produkttransition, Visibilität, Konzentration, Inventory und Earnings-Qualität im eigenen AI-Score."}
 
@@ -23776,9 +23777,9 @@ def load_stock(search_text, cache_version):
             "available": bool(nv_score_fm.get("available") and nv_val_fm.get("available")),
             "earnings_basis_usable": bool(nv_val_fm.get("available")),
             "note": (
-                "NVIDIA/Fabless-AI V2.20.66 verwendet kein generisches EPS-/FCF-Multiple. Das Earnings-Horizon-Gate liefert ausschließlich den mechanischen FY27-Operating-EPS-Proxy; "
+                "NVIDIA/Fabless-AI V2.20.67 verwendet kein generisches EPS-/FCF-Multiple. Das Earnings-Horizon-Gate liefert ausschließlich den mechanischen FY27-Operating-EPS-Proxy; "
                 "der primärquellenbasierte AI-Quality-Score bestimmt allein Ziel-KGV und Korridor. Demand-/Margin-/Konzentrationsfaktoren werden nicht nochmals gekappt. "
-                "Yahoo Forward-EPS bleibt reference-only; Peer-/FCF-Safety wirken ausschließlich über die V2.20.66-Sicherheitsgates."
+                "Yahoo Forward-EPS bleibt reference-only; Peer-/FCF-Safety wirken ausschließlich über die V2.20.67-Sicherheitsgates."
             ),
         }
 
@@ -23879,7 +23880,7 @@ def load_stock(search_text, cache_version):
             "multiple": safe_float(nv_final_val.get("target_pe")),
             "available": bool(nv_final_val.get("available") and nvidia_special_model.get("valuation_anchor_complete")),
             "note": (
-                "NVIDIA/Fabless-AI V2.20.66: Earnings-Horizon liefert die FY27-Operating-EPS-Basis, AI Quality den Fundamentalaner. "
+                "NVIDIA/Fabless-AI V2.20.67: Earnings-Horizon liefert die FY27-Operating-EPS-Basis, AI Quality den Fundamentalaner. "
                 "Normalized Peer Comparability darf nur unter dualen ±5-%-Caps wirken; danach prüft offizieller H1-FCF Conversion und implizite Yield downside-only."
             ),
         }
@@ -24034,8 +24035,8 @@ def load_stock(search_text, cache_version):
                 + gap_text + f" Q2 weist zudem {eq_gain/1e9:.2f} Mrd. USD Equity-Securities-Gewinne, {dso_nv:.0f} Tage DSO und {cust_share:.0f} % Umsatzanteil des größten direkten Kunden aus."
             ),
             "action": (
-                "Keine automatische Mischung von Yahoo Forward-EPS und FY27-Proxy. V2.20.66 verwendet 0 % Forward / 100 % mechanischen FY27-Operating-Proxy; "
-                "Ziel-KGV und Fair Value bleiben bis zum separaten NVIDIA-Bewertungsanker gesperrt."
+                "Keine automatische Mischung von Yahoo Forward-EPS und FY27-Proxy. V2.20.67 verwendet 0 % Forward / 100 % mechanischen FY27-Operating-Proxy. "
+                "Der NVIDIA-Bewertungsanker ist freigegeben, sofern AI-Quality, Demand-/Horizon-Alignment sowie die aktiven H1-FCF- und Normalized-Peer-Safety-Gates bestehen."
             ),
         }
 
@@ -24772,7 +24773,7 @@ if selected_symbol:
                     elif is_nvidia_fcf_context:
                         st.caption(
                             "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
-                            "Bei NVIDIA/Fabless-AI bleibt dieser Yahoo-TTM-FCF reine Kontextinformation. V2.20.66 verwendet für den AI-Quality-Score "
+                            "Bei NVIDIA/Fabless-AI bleibt dieser Yahoo-TTM-FCF reine Kontextinformation. V2.20.67 verwendet für den AI-Quality-Score "
                             "ausschließlich den von NVIDIA ausgewiesenen Q2-FY2027-Free-Cashflow; Yahoo-FCF steuert weder AI-Quality-Score noch Earnings-Gate oder Fair Value."
                         )
                     else:
@@ -24825,7 +24826,7 @@ if selected_symbol:
                         elif is_nvidia_fcf_context:
                             st.warning(
                                 "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info und Cashflow-Statement liefern abweichende FCF-Kontextwerte. "
-                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Für NVIDIA V2.20.66 bleiben beide Yahoo-Werte reine Kontextdaten; "
+                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Für NVIDIA V2.20.67 bleiben beide Yahoo-Werte reine Kontextdaten; "
                                 "maßgeblich im AI-Quality-Score ist ausschließlich der offiziell ausgewiesene Q2-FY2027-Free-Cashflow."
                             )
                         else:
@@ -24857,7 +24858,7 @@ if selected_symbol:
                     elif is_nvidia_fcf_context:
                         st.caption(
                             "FCF-Kontext/Rohdaten: Nur Yahoo Levered Free Cash Flow verfügbar. "
-                            "Bei NVIDIA bleibt dieser Wert reine Referenz; V2.20.66 verwendet ausschließlich den offiziellen Q2-FY2027-FCF in der FCF-/Liquiditätskomponente des AI-Quality-Scores."
+                            "Bei NVIDIA bleibt dieser Wert reine Referenz; V2.20.67 verwendet ausschließlich den offiziellen Q2-FY2027-FCF in der FCF-/Liquiditätskomponente des AI-Quality-Scores."
                         )
                     else:
                         st.warning(
@@ -25087,7 +25088,7 @@ if selected_symbol:
                         )
                     elif is_nvidia_ai_growth_company_type(company_type):
                         st.info(
-                            "NVIDIA/Fabless-AI: Diese Standard-Normalisierung bleibt in V2.20.66 ausschließlich Kontext. "
+                            "NVIDIA/Fabless-AI: Diese Standard-Normalisierung bleibt in V2.20.67 ausschließlich Kontext. "
                             "Das Earnings-Horizon-Alignment verwendet eine separate operative FY27-Proxy-Basis; das Standard-EPS bleibt für NVIDIA nicht freigegeben."
                         )
 
@@ -25225,8 +25226,8 @@ if selected_symbol:
                     )
                 elif is_nvidia_ai_growth_company_type(company_type):
                     st.caption(
-                        "Das Standard-normalisierte EPS ist bei NVIDIA in V2.20.66 ausschließlich Kontext und keine Earnings-Basis. "
-                        "Für den AI-Pfad wird diagnostisch nur der separat hergeleitete FY27-Operating-EPS-Proxy verwendet; Yahoo Forward-EPS bleibt ohne bestätigten Horizont reference-only. Ein Ziel-KGV/Fair Value ist noch nicht freigegeben."
+                        "Das Standard-normalisierte EPS ist bei NVIDIA in V2.20.67 ausschließlich Kontext und keine Earnings-Basis. "
+                        "Für den AI-Pfad wird ausschließlich der separat hergeleitete FY27-Operating-EPS-Proxy verwendet; Yahoo Forward-EPS bleibt ohne bestätigten Horizont reference-only. Das Standard-EPS steuert weder das freigegebene NVIDIA-Ziel-KGV noch den Fair Value."
                     )
                 elif eps_result.get("normalization_blocked_by_structural_break"):
                     st.caption(
@@ -25799,7 +25800,7 @@ if selected_symbol:
                 is_nvidia_score_ui = is_nvidia_ai_growth_company_type(company_type)
 
                 if is_nvidia_score_ui:
-                    st.info("NVIDIA/Fabless-AI-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.66 verwendet den eigenen primärquellenbasierten AI-Quality-Score sowie Demand-Quality- und Earnings-Horizon-Gates.")
+                    st.info("NVIDIA/Fabless-AI-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.67 verwendet den eigenen primärquellenbasierten AI-Quality-Score sowie Demand-Quality- und Earnings-Horizon-Gates.")
                     st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf den NVIDIA AI-Quality-Score oder das Earnings-Horizon-Alignment-Gate.")
                 elif is_semicap_score_ui:
                     st.info("ASML/Lithografie-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.61 verwendet stattdessen den eigenen primärquellenbasierten Semicap-Quality-Score.")
@@ -25934,7 +25935,7 @@ if selected_symbol:
                 is_nvidia_profitability_ui = is_nvidia_ai_growth_company_type(company_type)
 
                 if is_nvidia_profitability_ui:
-                    st.info("NVIDIA/Fabless-AI-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. V2.20.66 bewertet Gross-Margin-Resilienz und Earnings-Quality-Risiken im eigenen AI-Quality-Score.")
+                    st.info("NVIDIA/Fabless-AI-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. V2.20.67 bewertet Gross-Margin-Resilienz und Earnings-Quality-Risiken im eigenen AI-Quality-Score.")
                 elif is_semicap_profitability_ui:
                     st.info("ASML/Lithografie-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. V2.20.61 bewertet Profitabilitätsqualität über Gross Margin und Guidance im eigenen Semicap-Quality-Score.")
                 elif is_auto_profitability_ui:
@@ -26199,7 +26200,7 @@ if selected_symbol:
 
                     if is_nvidia_model_ui:
                         st.info("ℹ️ NVIDIA/Fabless-AI-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
-                        st.caption("V2.20.66 verwendet ausschließlich den von NVIDIA ausgewiesenen Q2-FY2027-Free-Cashflow in der FCF-/Liquiditätskomponente des AI-Quality-Scores. Yahoo-TTM-FCF bleibt Kontext und beeinflusst weder Demand-/Horizon-Gates noch Fair Value.")
+                        st.caption("V2.20.67 verwendet ausschließlich den von NVIDIA ausgewiesenen Q2-FY2027-Free-Cashflow in der FCF-/Liquiditätskomponente des AI-Quality-Scores. Yahoo-TTM-FCF bleibt Kontext und beeinflusst weder Demand-/Horizon-Gates noch Fair Value.")
                     elif is_semicap_model_ui:
                         st.info("ℹ️ ASML/Lithografie-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
                         st.caption("V2.20.61 verwendet ausschließlich den offiziellen Q2-Free-Cashflow als FCF-/Liquiditätskomponente des Semicap-Quality-Scores. Yahoo-TTM-FCF bleibt Kontext und ist kein direkter Fair-Value-Baustein.")
@@ -26378,7 +26379,7 @@ if selected_symbol:
 
                     if is_nvidia_balance_ui:
                         st.info("ℹ️ NVIDIA/Fabless-AI-Modell: Standard-Netto-Schulden/FCF-Score ist kein Bewertungsbaustein")
-                        st.caption("V2.20.66 bewertet Liquidität sowie Inventory-/Commitment-/Working-Capital-Qualität innerhalb des primärquellenbasierten AI-Quality-Scores und Demand-Quality-Gates. Die generische Netto-Schulden/FCF-Punktelogik bleibt deaktiviert.")
+                        st.caption("V2.20.67 bewertet Liquidität sowie Inventory-/Commitment-/Working-Capital-Qualität innerhalb des primärquellenbasierten AI-Quality-Scores und Demand-Quality-Gates. Die generische Netto-Schulden/FCF-Punktelogik bleibt deaktiviert.")
                     elif is_semicap_balance_ui:
                         st.info("ℹ️ ASML/Lithografie-Modell: Standard-Netto-Schulden/FCF-Score ist kein freigegebener Bewertungsbaustein")
                         st.caption("V2.20.61 verwendet die offizielle Cash-/Short-term-Investments-Position ausschließlich in der FCF-/Liquiditätskomponente des Semicap-Quality-Scores. Der generische Netto-Schulden/FCF-Score bleibt deaktiviert und beeinflusst den Fair Value nicht.")
@@ -27577,7 +27578,7 @@ if selected_symbol:
                 nvidia_model = data.get("nvidia_special_model", {"applicable": False})
                 if nvidia_model.get("applicable"):
                     st.divider()
-                    st.subheader("🧠 Halbleiter-/AI-Sondermodell V2.20.66 – NVIDIA FCF Conversion & Normalized Peer Safety")
+                    st.subheader("🧠 Halbleiter-/AI-Sondermodell V2.20.67 – NVIDIA FCF Conversion & Normalized Peer Safety")
                     nv_snap = nvidia_model.get("snapshot") or {}
                     nv_gate = nvidia_model.get("primary_gate") or {}
                     nv_demand = nvidia_model.get("demand_quality_gate") or {}
@@ -27664,7 +27665,7 @@ if selected_symbol:
                         st.caption(nv_cred.get("note"))
 
                     if nv_val.get("available"):
-                        st.write("**NVIDIA Bewertungsanker V2.20.66**")
+                        st.write("**NVIDIA Bewertungsanker V2.20.67**")
                         st.write("**Einzige Earnings-Basis:** " + format_eps(nv_val.get("earnings_reference"), financial_currency))
                         st.write(f"**Score-gesteuertes Ziel-KGV:** {nv_val.get('target_pe'):.2f}×")
                         st.write(f"**NVIDIA Operating-KGV-Zielkorridor:** {nv_val.get('corridor_low'):.2f}× – {nv_val.get('corridor_high'):.2f}×")
@@ -27688,7 +27689,7 @@ if selected_symbol:
                     st.write("**Yahoo EV / EBITDA (Kontext):** " + (f"{yev_nv:.2f}×" if yev_nv is not None else "–"))
                     st.write(f"**Datenreife Sondermodell:** {nvidia_model.get('readiness')}")
                     if nvidia_model.get("valuation_anchor_complete"):
-                        st.success("Bewertungsfreigabe JA: V2.20.66 gibt den NVIDIA-Operating-KGV-Anker erst nach H1-FCF-Safety und Normalized-Peer-Safety frei.")
+                        st.success("Bewertungsfreigabe JA: V2.20.67 gibt den NVIDIA-Operating-KGV-Anker erst nach H1-FCF-Safety und Normalized-Peer-Safety frei.")
                     elif nvidia_model.get("score_and_earnings_gate_complete"):
                         st.warning("Bewertungsfreigabe noch NEIN: AI-/Demand-/Horizon-Gates sind vollständig, aber der NVIDIA-Bewertungsanker ist nicht freigegeben.")
                     st.caption(nvidia_model.get("note"))
@@ -28013,7 +28014,7 @@ if selected_symbol:
                     else:
                         st.warning("NVIDIA-/AI-Fundamental-Multiple noch nicht belastbar freigegeben.")
                     st.caption(multiple_result.get("note"))
-                    st.caption("AVGO/AMD/QCOM/MRVL sind in V2.20.66 Referenz-Peers; ohne bestandenes Comparability Gate bleibt der Median wirkungslos. Das Normalized Peer Comparability Gate ist aktiv; ohne mindestens 3 voll vergleichbare Peers bleibt der Referenzmedian ohne Einfluss.")
+                    st.caption("AVGO/AMD/QCOM/MRVL sind in V2.20.67 Referenz-Peers; ohne bestandenes Comparability Gate bleibt der Median wirkungslos. Das Normalized Peer Comparability Gate ist aktiv; ohne mindestens 3 voll vergleichbare Peers bleibt der Referenzmedian ohne Einfluss.")
                 elif is_semicap_valuation_ui:
                     semicap_m6 = data.get("semicap_special_model") or {}
                     gate_sc_m6 = semicap_m6.get("primary_gate") or {}
@@ -28755,7 +28756,7 @@ if selected_symbol:
                             if fcf3.get("available"):
                                 st.write(f"**H1-FCF-Conversion:** {fcf3.get('h1_fcf_conversion_pct'):.1f} % · **FCF-Yield:** {fcf3.get('implied_annualized_fcf_yield_pct'):.2f} %")
                                 st.write(f"**FCF-Safety:** {'BESTANDEN' if fcf3.get('passed') else 'NICHT BESTANDEN'}")
-                            st.success("Bewertungsfreigabe JA: V2.20.66 gibt die quality-adjustierte Operating-KGV-Bewertung nach FCF-/Peer-Safety frei. Yahoo Forward-EPS bleibt reference-only; Peer-/FCF-Safety wirken ausschließlich über die V2.20.66-Sicherheitsgates.")
+                            st.success("Bewertungsfreigabe JA: V2.20.67 gibt die quality-adjustierte Operating-KGV-Bewertung nach FCF-/Peer-Safety frei. Yahoo Forward-EPS bleibt reference-only; Peer-/FCF-Safety wirken ausschließlich über die V2.20.67-Sicherheitsgates.")
                         else:
                             st.warning("Bewertungsfreigabe noch NEIN: NVIDIA-Operating-P/E-Anker nicht vollständig freigegeben.")
                         st.caption("Das Gate bleibt fail-closed, wenn der offizielle Snapshot veraltet/unvollständig ist oder die operative Earnings-Basis nicht belastbar bestimmt werden kann. Equity-Securities-Gewinne werden nicht als nachhaltige operative EPS-Basis extrapoliert.")
@@ -31451,7 +31452,7 @@ if selected_symbol:
                             st.write(f"**H1-FCF-Conversion:** {fair_value.get('h1_fcf_conversion_pct'):.1f} % · Minimum 60 %")
                             st.write(f"**Implizite annualisierte H1-FCF-Rendite:** {fair_value.get('implied_annualized_fcf_yield_pct'):.2f} % · Minimum {fair_value.get('minimum_fcf_yield_pct'):.1f} %")
                             st.write(f"**FCF-Safety Gate:** {'BESTANDEN' if fair_value.get('fcf_safety_passed') else 'NICHT BESTANDEN'}")
-                        st.caption("Demand Quality, Gross Margin, Konzentration, China und Working Capital werden nicht nochmals als Multiple-Caps verwendet. Yahoo Forward-EPS und Yahoo-FCF/EV-EBITDA bleiben außerhalb des Fair Values; Peer-Werte dürfen in V2.20.66 nur nach bestandenem Normalized Comparability Gate wirken.")
+                        st.caption("Demand Quality, Gross Margin, Konzentration, China und Working Capital werden nicht nochmals als Multiple-Caps verwendet. Yahoo Forward-EPS und Yahoo-FCF/EV-EBITDA bleiben außerhalb des Fair Values; Peer-Werte dürfen in V2.20.67 nur nach bestandenem Normalized Comparability Gate wirken.")
                     elif fair_value.get("valuation_method") == "reit_paffo":
                         st.write("**Bewertungsformel:** Offizieller AFFO-Guidance-Mittelwert × scoregesteuertes Ziel-P/AFFO")
                         st.write(f"**REIT-Score:** {fair_value.get('reit_score'):.0f}/100 · {fair_value.get('reit_quality_level')}")
