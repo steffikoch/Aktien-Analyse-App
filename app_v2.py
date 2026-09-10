@@ -17,14 +17,14 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.58"
+APP_BUILD_VERSION = "V2.20.59"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · ASML Primary Source Demand & Visibility Gate")
+st.caption(f"Build {APP_BUILD_VERSION} · Semicap Quality Score & Forward-Earnings Credibility Gate")
 
 
 # V2.20.52: Midstream Peer Safety Cap & Comparability Gate. Separates market-reference peers from adjustment-eligible peers. Automatic peer adjustment requires at least three peers with sufficiently comparable corporate structure AND issuer-adjusted EBITDA basis. Generic Yahoo EV/EBITDA remains reference-only. If a future gate passes, the multiple proposal and the resulting equity fair-value effect are each capped at ±5 %. The 100-point Midstream score and official KMI Adjusted EBITDA / Net Debt / share-count bridge remain unchanged.
@@ -34,6 +34,7 @@ st.caption(f"Build {APP_BUILD_VERSION} · ASML Primary Source Demand & Visibilit
 # V2.20.56: Automotive Valuation De-Duplication & FCF Plausibility Gate. Separates roles cleanly: Cycle Compression determines the sole EPS basis; Automotive Quality Score alone determines the target cycle P/E. Cars margin and cycle status no longer apply a second/third multiple cap. Adds a downward-only industrial-FCF plausibility gate using official H1 industrial FCF and a minimum implied FCF yield; the gate can cap or block but never lift fair value. Known disclosed automotive one-offs now turn the special-event light yellow instead of green.
 # V2.20.57: Automotive Normalized Peer Comparability & Valuation Safety Gate. BMW, Stellantis and Toyota Yahoo Forward-P/E values are loaded only as market references unless at least three peers have both sufficiently comparable OEM/captive-finance structure and a cycle-normalized earnings basis comparable with the analyzed issuer. Automatic peer adjustment is fail-closed; if a future comparability gate passes, both the target P/E proposal and final automotive fair-value effect are capped at ±5 %. The industrial-FCF downside gate remains in force after any peer proposal.
 # V2.20.58: ASML Primary Source Demand & Visibility Gate. First supported semiconductor-equipment issuer: ASML Holding (ASML / ASML.AS). Uses a time-bounded official Q2 2026 snapshot for sales, gross margin, Installed Base Management, FCF/liquidity, EUV/system mix and current Q3/FY26 guidance. Numeric bookings/backlog are not reconstructed when the current verified source set does not provide a comparable current figure. No semicap score, target multiple or fair value is released yet.
+# V2.20.59: Semicap Quality Score & Forward-Earnings Credibility Gate. Adds a dedicated 100-point ASML/Semicap quality score using only verified Q1/Q2/FY guidance, Installed Base Management, EUV/High-NA mix, FCF/liquidity, demand visibility, capacity plans and execution versus prior guidance. Adds a separate Forward-Earnings Credibility Gate: Yahoo Forward/+1Y EPS is not treated as FY2026 guidance; it is checked against an explicitly mechanical FY2026 earnings proxy derived from official H1 EPS, FY sales guidance and gross-margin guidance. No target multiple or fair value is released yet. Semicap peers remain reference-only.
 
 # =========================================================
 # Hilfsfunktionen
@@ -240,6 +241,26 @@ def format_currency_range(low, high, currency, decimals=2):
         return "–"
     display_currency = high_currency if high_currency == low_currency else low_currency
     return f"{low_value:,.{int(decimals)}f} – {high_value:,.{int(decimals)}f} {display_currency}"
+
+
+def format_money_range(low, high, currency, decimals=1):
+    """Compact display-currency-aware monetary range, e.g. 11.0–12.0 Mrd. EUR."""
+    low_value, low_currency = transform_value_for_display(low, currency)
+    high_value, high_currency = transform_value_for_display(high, currency)
+    if low_value is None or high_value is None:
+        return "–"
+    display_currency = high_currency if high_currency == low_currency else low_currency
+    magnitude = max(abs(low_value), abs(high_value))
+    if magnitude >= 1_000_000_000_000:
+        scale, label = 1_000_000_000_000, "Bio."
+    elif magnitude >= 1_000_000_000:
+        scale, label = 1_000_000_000, "Mrd."
+    elif magnitude >= 1_000_000:
+        scale, label = 1_000_000, "Mio."
+    else:
+        scale, label = 1.0, ""
+    suffix = f" {label}" if label else ""
+    return f"{low_value/scale:,.{int(decimals)}f}–{high_value/scale:,.{int(decimals)}f}{suffix} {display_currency}"
 
 
 def format_currency_per_unit(value, currency, unit_suffix, decimals=2, signed=False):
@@ -5826,8 +5847,8 @@ def classify_company(name, symbol, sector, industry):
         return {
             "type": "Defense / stark wachsend",
             "method": (
-                "Normalisiertes EPS + KGV + "
-                "Auftrags-/Visibilitätskontrolle"
+                "Semicap Quality Score + Forward-Earnings-Credibility; "
+                "später eigener KGV-Bewertungsanker"
             ),
             "confidence_cap": "Mittel bis Hoch"
         }
@@ -10899,10 +10920,10 @@ def build_auto_special_control(base_control, auto_model):
 
 
 # =========================================================
-# Halbleiterausrüstung / Lithografie V2.20.58 – ASML Primary Source Demand & Visibility Gate
+# Halbleiterausrüstung / Lithografie V2.20.59 – Semicap Quality Score & Forward-Earnings Credibility Gate
 # =========================================================
 
-SEMICAP_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22058_asml_q2_2026_demand_visibility"
+SEMICAP_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22059_asml_quality_forward_credibility"
 
 
 def get_verified_semicap_snapshot(symbol):
@@ -10926,6 +10947,22 @@ def get_verified_semicap_snapshot(symbol):
         "q2_gross_margin_pct": 54.0,
         "q2_net_income_total": 2.918e9,
         "q2_basic_eps": 7.59,
+        # Official prior-period anchors used only for score/credibility diagnostics.
+        "q1_2026_total_net_sales_total": 8.767e9,
+        "q1_2026_gross_margin_pct": 53.0,
+        "q1_2026_basic_eps": 7.15,
+        "fy2025_total_net_sales_total": 32.667e9,
+        "fy2025_gross_margin_pct": 52.8,
+        "fy2025_basic_eps": 24.73,
+        # Q1 outlook for Q2/FY26, so V2.20.59 can measure subsequent execution/uplift.
+        "q1_outlook_q2_sales_low_total": 8.4e9,
+        "q1_outlook_q2_sales_high_total": 9.0e9,
+        "q1_outlook_q2_gross_margin_low_pct": 51.0,
+        "q1_outlook_q2_gross_margin_high_pct": 52.0,
+        "q1_outlook_fy2026_sales_low_total": 36.0e9,
+        "q1_outlook_fy2026_sales_high_total": 40.0e9,
+        "q1_outlook_fy2026_gross_margin_low_pct": 51.0,
+        "q1_outlook_fy2026_gross_margin_high_pct": 53.0,
         "q2_cash_and_short_term_investments_total": 7.582e9,
         "q2_free_cash_flow_total": 1.3e9,
         "q2_new_lithography_units": 86,
@@ -10951,11 +10988,11 @@ def get_verified_semicap_snapshot(symbol):
         "planned_capacity_increase_2027_pct": 30.0,
         "potential_additional_capacity_increase_2028_pct": 30.0,
         "source_note": (
-            "Offizielle ASML-Q2-2026-Primärdaten. V2.20.58 verwendet Umsatz, Bruttomarge, Installed Base Management, "
-            "FCF/Liquidität, EUV-/Systemmix und die aktuelle Q3-/FY26-Guidance direkt aus dem ASML-Ergebnispaket. "
+            "Offizielle ASML-Q1/Q2-2026- und FY2025-Primärdaten. V2.20.59 verwendet Umsatz, Bruttomarge, Installed Base Management, "
+            "FCF/Liquidität, EUV-/Systemmix, aktuelle Guidance sowie die Q1-Ausgangsguidance für einen transparenten Execution-/Guidance-Uplift-Check. "
             "Der H1-Auftragseingang wird nur mit der offiziellen qualitativen Aussage 'extremely strong' geführt. "
-            "Ein numerischer Q2-Net-Bookings- oder aktueller Backlog-Wert wird nicht aus älteren Quartalen, Yahoo-Daten "
-            "oder Kapazitätsplänen rekonstruiert. Noch kein Semicap-Score, kein Ziel-KGV und kein Fair Value."
+            "Ein numerischer aktueller Net-Bookings- oder Backlog-Wert wird nicht aus älteren Quartalen, Yahoo-Daten oder Kapazitätsplänen rekonstruiert. "
+            "V2.20.59 gibt Quality Score und Forward-Earnings-Credibility-Diagnose frei, aber noch kein Ziel-KGV und keinen Fair Value."
         ),
     }
 
@@ -11015,11 +11052,290 @@ def build_semicap_primary_source_gate(snapshot):
         "note": (
             "ASML-Primärquellen-Gate bestanden: aktuelle Q2-2026-Umsatz-/Margen-, Installed-Base-, FCF-/Liquiditäts-, "
             "Systemmix- und Q3/FY26-Guidance-Daten sind validiert. Numerische Net Bookings und ein aktueller Backlog "
-            "werden nicht erfunden; die aktuelle Auftragsvisibilität bleibt in V2.20.58 qualitativ getrennt."
+            "werden nicht erfunden; die aktuelle Auftragsvisibilität bleibt in V2.20.59 qualitativ getrennt."
         ),
     })
     return result
 
+
+
+def build_semicap_quality_score(primary_gate, snapshot):
+    """Dedicated 100-point ASML/Semicap score from verified primary-source inputs only."""
+    result = {
+        "available": False,
+        "score": None,
+        "quality_level": "Nicht verfügbar",
+        "gross_margin_points": 0,
+        "installed_base_points": 0,
+        "demand_visibility_points": 0,
+        "technology_mix_points": 0,
+        "fcf_liquidity_points": 0,
+        "capacity_visibility_points": 0,
+        "execution_points": 0,
+        "note": None,
+    }
+    gate = primary_gate if isinstance(primary_gate, dict) else {}
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    if not gate.get("available"):
+        result["note"] = "Semicap-Quality-Score gesperrt: Primärquellen-Gate nicht bestanden."
+        return result
+
+    q2_sales = safe_float(gate.get("q2_total_net_sales_total"))
+    q2_gm = safe_float(gate.get("q2_gross_margin_pct"))
+    ibm_share = safe_float(gate.get("installed_base_management_share_q2_pct"))
+    q2_fcf = safe_float(gate.get("q2_free_cash_flow_total"))
+    cash = safe_float(gate.get("q2_cash_and_short_term_investments_total"))
+    euv_share = safe_float(gate.get("q2_euv_system_sales_share_pct"))
+    high_na_units = safe_float(gate.get("q2_high_na_system_sales_units"))
+    cap_growth = safe_float(gate.get("planned_capacity_increase_2027_pct"))
+    fy_gm_low = safe_float(gate.get("fy2026_gross_margin_low_pct"))
+    fy_gm_high = safe_float(gate.get("fy2026_gross_margin_high_pct"))
+    q1_q2_sales_high = safe_float(snap.get("q1_outlook_q2_sales_high_total"))
+    q1_q2_gm_high = safe_float(snap.get("q1_outlook_q2_gross_margin_high_pct"))
+
+    required = [q2_sales, q2_gm, ibm_share, q2_fcf, cash, euv_share, high_na_units, cap_growth,
+                fy_gm_low, fy_gm_high, q1_q2_sales_high, q1_q2_gm_high]
+    if any(v is None for v in required) or q2_sales <= 0:
+        result["note"] = "Semicap-Quality-Score gesperrt: mindestens eine verifizierte Score-Komponente fehlt."
+        return result
+
+    fy_gm_mid = (fy_gm_low + fy_gm_high) / 2.0
+    fcf_margin_pct = q2_fcf / q2_sales * 100.0
+    demand_text = str(gate.get("h1_order_intake_status") or "").strip().lower()
+    numeric_visibility = bool(gate.get("numeric_order_visibility_available"))
+
+    # 1) Gross margin + official FY guidance: max 20.
+    if q2_gm >= 53.0 and fy_gm_mid >= 54.0:
+        gm_points = 20
+    elif q2_gm >= 50.0 and fy_gm_mid >= 52.0:
+        gm_points = 16
+    elif q2_gm >= 47.0:
+        gm_points = 11
+    else:
+        gm_points = 6
+
+    # 2) Installed Base Management share: max 15.
+    if ibm_share >= 25.0:
+        ibm_points = 15
+    elif ibm_share >= 20.0:
+        ibm_points = 12
+    elif ibm_share >= 15.0:
+        ibm_points = 8
+    else:
+        ibm_points = 4
+
+    # 3) Demand visibility: max 20. Missing current numeric bookings/backlog deliberately caps at 15.
+    if "extremely strong" in demand_text or "very strong" in demand_text:
+        demand_points = 20 if numeric_visibility else 15
+    elif "strong" in demand_text:
+        demand_points = 16 if numeric_visibility else 12
+    else:
+        demand_points = 6
+
+    # 4) EUV/High-NA technology mix: max 15.
+    if euv_share >= 50.0 and high_na_units >= 1:
+        tech_points = 15
+    elif euv_share >= 40.0:
+        tech_points = 12
+    elif euv_share >= 25.0:
+        tech_points = 8
+    else:
+        tech_points = 4
+
+    # 5) FCF/liquidity: max 15; only official Q2 FCF and official cash/ST investments are used.
+    if fcf_margin_pct >= 15.0 and cash >= 5e9:
+        fcf_points = 15
+    elif fcf_margin_pct >= 10.0 and cash >= 5e9:
+        fcf_points = 12
+    elif q2_fcf > 0 and cash > 0:
+        fcf_points = 8
+    else:
+        fcf_points = 2
+
+    # 6) Capacity / longer-term visibility: max 10.
+    low_na_cap = safe_float(gate.get("low_na_euv_capacity_2026_units"))
+    duv_cap = safe_float(gate.get("duv_immersion_capacity_2026_units"))
+    if cap_growth >= 25.0 and low_na_cap and duv_cap:
+        capacity_points = 10
+    elif cap_growth >= 15.0:
+        capacity_points = 7
+    else:
+        capacity_points = 3
+
+    # 7) Execution versus the immediately preceding official Q2 guidance: max 5.
+    sales_beat = q2_sales > q1_q2_sales_high
+    gm_beat = q2_gm > q1_q2_gm_high
+    execution_points = 5 if sales_beat and gm_beat else (3 if sales_beat or gm_beat else 1)
+
+    score = int(gm_points + ibm_points + demand_points + tech_points + fcf_points + capacity_points + execution_points)
+    if score >= 90:
+        level = "Sehr hoch"
+    elif score >= 80:
+        level = "Hoch"
+    elif score >= 65:
+        level = "Gut"
+    elif score >= 50:
+        level = "Mittel"
+    else:
+        level = "Niedrig"
+
+    result.update({
+        "available": True,
+        "score": score,
+        "quality_level": level,
+        "gross_margin_points": gm_points,
+        "installed_base_points": ibm_points,
+        "demand_visibility_points": demand_points,
+        "technology_mix_points": tech_points,
+        "fcf_liquidity_points": fcf_points,
+        "capacity_visibility_points": capacity_points,
+        "execution_points": execution_points,
+        "q2_fcf_margin_pct": fcf_margin_pct,
+        "numeric_order_visibility_cap_active": not numeric_visibility,
+        "note": (
+            "Der Semicap-Quality-Score verwendet ausschließlich verifizierte ASML-Primärdaten. "
+            "Da aktuelle numerische Bookings/Backlog nicht als direkt vergleichbare Primärzahl freigegeben sind, "
+            "ist die Demand-Visibility-Komponente trotz der offiziellen Aussage 'extremely strong' auf 15/20 begrenzt."
+        ),
+    })
+    return result
+
+
+def build_semicap_forward_earnings_credibility_gate(primary_gate, snapshot, info):
+    """Check next-fiscal/forward EPS against official execution and guidance without treating it as FY2026 guidance."""
+    result = {
+        "available": False,
+        "status": "Nicht verfügbar",
+        "credibility_score": None,
+        "forward_weight": None,
+        "official_proxy_weight": None,
+        "fy2026_eps_proxy": None,
+        "diagnostic_earnings_reference": None,
+        "note": None,
+    }
+    gate = primary_gate if isinstance(primary_gate, dict) else {}
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    info = info if isinstance(info, dict) else {}
+    if not gate.get("available"):
+        result["note"] = "Forward-Earnings-Credibility-Gate gesperrt: Primärquellen-Gate nicht bestanden."
+        return result
+
+    forward_eps = safe_float(info.get("forwardEps"))
+    q1_eps = safe_float(snap.get("q1_2026_basic_eps"))
+    q2_eps = safe_float(gate.get("q2_basic_eps"))
+    fy2025_eps = safe_float(snap.get("fy2025_basic_eps"))
+    q1_sales = safe_float(snap.get("q1_2026_total_net_sales_total"))
+    q2_sales = safe_float(gate.get("q2_total_net_sales_total"))
+    q1_gm = safe_float(snap.get("q1_2026_gross_margin_pct"))
+    q2_gm = safe_float(gate.get("q2_gross_margin_pct"))
+    fy_sales_low = safe_float(gate.get("fy2026_net_sales_low_total"))
+    fy_sales_high = safe_float(gate.get("fy2026_net_sales_high_total"))
+    fy_gm_low = safe_float(gate.get("fy2026_gross_margin_low_pct"))
+    fy_gm_high = safe_float(gate.get("fy2026_gross_margin_high_pct"))
+    q1_fy_sales_low = safe_float(snap.get("q1_outlook_fy2026_sales_low_total"))
+    q1_fy_sales_high = safe_float(snap.get("q1_outlook_fy2026_sales_high_total"))
+    q1_fy_gm_low = safe_float(snap.get("q1_outlook_fy2026_gross_margin_low_pct"))
+    q1_fy_gm_high = safe_float(snap.get("q1_outlook_fy2026_gross_margin_high_pct"))
+    q1_q2_sales_high = safe_float(snap.get("q1_outlook_q2_sales_high_total"))
+    q1_q2_gm_high = safe_float(snap.get("q1_outlook_q2_gross_margin_high_pct"))
+    cap_growth = safe_float(gate.get("planned_capacity_increase_2027_pct"))
+
+    required = [forward_eps, q1_eps, q2_eps, fy2025_eps, q1_sales, q2_sales, q1_gm, q2_gm,
+                fy_sales_low, fy_sales_high, fy_gm_low, fy_gm_high,
+                q1_fy_sales_low, q1_fy_sales_high, q1_fy_gm_low, q1_fy_gm_high,
+                q1_q2_sales_high, q1_q2_gm_high, cap_growth]
+    if any(v is None for v in required) or min(forward_eps, q1_eps, q2_eps, fy2025_eps, q1_sales, q2_sales) <= 0:
+        result["note"] = "Forward-Earnings-Credibility-Gate gesperrt: mindestens eine verifizierte Earnings-/Guidance-Komponente fehlt."
+        return result
+
+    h1_eps = q1_eps + q2_eps
+    h1_sales = q1_sales + q2_sales
+    h1_gross_profit = q1_sales * (q1_gm / 100.0) + q2_sales * (q2_gm / 100.0)
+    h1_gm_pct = h1_gross_profit / h1_sales * 100.0
+    fy_sales_mid = (fy_sales_low + fy_sales_high) / 2.0
+    fy_gm_mid = (fy_gm_low + fy_gm_high) / 2.0
+    q1_fy_sales_mid = (q1_fy_sales_low + q1_fy_sales_high) / 2.0
+    q1_fy_gm_mid = (q1_fy_gm_low + q1_fy_gm_high) / 2.0
+
+    # Mechanical diagnostic only: scale achieved H1 EPS by official FY sales and gross-margin midpoints.
+    # This is deliberately NOT described as company EPS guidance or analyst consensus.
+    fy2026_eps_proxy = h1_eps * (fy_sales_mid / h1_sales) * (fy_gm_mid / h1_gm_pct)
+    forward_stretch_pct = (forward_eps / fy2026_eps_proxy - 1.0) * 100.0
+    fy_sales_guidance_uplift_pct = (fy_sales_mid / q1_fy_sales_mid - 1.0) * 100.0
+    fy_gm_guidance_uplift_pp = fy_gm_mid - q1_fy_gm_mid
+    q2_sales_vs_prior_high_pct = (q2_sales / q1_q2_sales_high - 1.0) * 100.0
+    q2_gm_vs_prior_high_pp = q2_gm - q1_q2_gm_high
+    q2_eps_growth_qoq_pct = (q2_eps / q1_eps - 1.0) * 100.0
+    fy2026_proxy_vs_fy2025_pct = (fy2026_eps_proxy / fy2025_eps - 1.0) * 100.0
+
+    # Credibility score: official execution/guidance can support a forward view, but cannot become FY2027 guidance.
+    execution_points = 20 if (q2_sales > q1_q2_sales_high and q2_gm > q1_q2_gm_high) else 12
+    guidance_points = 25 if (fy_sales_guidance_uplift_pct >= 10.0 and fy_gm_guidance_uplift_pp >= 2.0) else (18 if fy_sales_guidance_uplift_pct > 0 else 8)
+    demand_text = str(gate.get("h1_order_intake_status") or "").lower()
+    numeric_visibility = bool(gate.get("numeric_order_visibility_available"))
+    demand_points = 20 if ("extremely strong" in demand_text and numeric_visibility) else (15 if "strong" in demand_text else 7)
+    capacity_points = 15 if cap_growth >= 30.0 else (10 if cap_growth >= 20.0 else 5)
+    if forward_stretch_pct <= 20.0:
+        stretch_points = 20
+    elif forward_stretch_pct <= 30.0:
+        stretch_points = 15
+    elif forward_stretch_pct <= 40.0:
+        stretch_points = 10
+    elif forward_stretch_pct <= 50.0:
+        stretch_points = 5
+    else:
+        stretch_points = 0
+    score = int(execution_points + guidance_points + demand_points + capacity_points + stretch_points)
+
+    # Even a high operating score does not fully validate a +1Y EPS estimate when the stretch is large and no 2027 earnings guidance exists.
+    if score >= 85 and forward_stretch_pct <= 30.0:
+        status = "Hoch bestätigt"
+        forward_weight = 0.70
+    elif score >= 70:
+        status = "Teilweise bestätigt"
+        forward_weight = 0.60
+    elif score >= 55:
+        status = "Begrenzt bestätigt"
+        forward_weight = 0.50
+    else:
+        status = "Schwach bestätigt"
+        forward_weight = 0.40
+    proxy_weight = 1.0 - forward_weight
+    diagnostic_reference = forward_weight * forward_eps + proxy_weight * fy2026_eps_proxy
+
+    result.update({
+        "available": True,
+        "status": status,
+        "credibility_score": score,
+        "forward_eps": forward_eps,
+        "h1_eps": h1_eps,
+        "h1_sales_total": h1_sales,
+        "h1_weighted_gross_margin_pct": h1_gm_pct,
+        "fy2026_sales_guidance_mid_total": fy_sales_mid,
+        "fy2026_gross_margin_guidance_mid_pct": fy_gm_mid,
+        "fy2026_eps_proxy": fy2026_eps_proxy,
+        "forward_stretch_pct": forward_stretch_pct,
+        "fy_sales_guidance_uplift_pct": fy_sales_guidance_uplift_pct,
+        "fy_gm_guidance_uplift_pp": fy_gm_guidance_uplift_pp,
+        "q2_sales_vs_prior_high_pct": q2_sales_vs_prior_high_pct,
+        "q2_gm_vs_prior_high_pp": q2_gm_vs_prior_high_pp,
+        "q2_eps_growth_qoq_pct": q2_eps_growth_qoq_pct,
+        "fy2026_proxy_vs_fy2025_pct": fy2026_proxy_vs_fy2025_pct,
+        "execution_points": execution_points,
+        "guidance_points": guidance_points,
+        "demand_visibility_points": demand_points,
+        "capacity_support_points": capacity_points,
+        "forward_stretch_points": stretch_points,
+        "forward_weight": forward_weight,
+        "official_proxy_weight": proxy_weight,
+        "diagnostic_earnings_reference": diagnostic_reference,
+        "note": (
+            "Yahoo Forward-EPS wird als Forward-/+1Y-Konsens geführt und ausdrücklich nicht mit der ASML-FY2026-Guidance gleichgesetzt. "
+            "Der FY2026-EPS-Proxy ist eine mechanische Diagnose aus erreichtem H1-EPS sowie offiziellen FY-Umsatz- und Gross-Margin-Mittelpunkten, "
+            "keine Unternehmensprognose. Ohne aktuelle numerische Bookings/Backlog und ohne FY2027-EPS-Guidance darf das Gate den Forward-Konsens nur teilweise bestätigen."
+        ),
+    })
+    return result
 
 def build_semicap_special_model(company_type, info, currency_context, symbol=None):
     if not is_semicap_lithography_company_type(company_type):
@@ -11028,19 +11344,25 @@ def build_semicap_special_model(company_type, info, currency_context, symbol=Non
     snapshot_fresh = _semicap_snapshot_is_fresh(snapshot)
     gate = build_semicap_primary_source_gate(snapshot)
     complete = bool(snapshot_fresh and gate.get("available"))
+    semicap_score = build_semicap_quality_score(gate, snapshot) if complete else {"available": False}
+    forward_credibility = build_semicap_forward_earnings_credibility_gate(gate, snapshot, info) if complete else {"available": False}
+    score_ready = bool(semicap_score.get("available") and forward_credibility.get("available"))
     return {
         "applicable": True, "snapshot": snapshot, "snapshot_fresh": snapshot_fresh,
         "primary_source_complete": complete, "primary_gate": gate,
+        "semicap_score": semicap_score,
+        "forward_earnings_credibility": forward_credibility,
+        "score_and_earnings_gate_complete": bool(complete and score_ready),
         "integration_version": SEMICAP_PRIMARY_SOURCE_INTEGRATION_VERSION,
         "yahoo_trailing_eps_context": safe_float(info.get("trailingEps")),
         "yahoo_forward_eps_context": safe_float(info.get("forwardEps")),
         "yahoo_free_cashflow_context": safe_float(info.get("freeCashflow")),
         "yahoo_ev_to_ebitda_context": safe_float(info.get("enterpriseToEbitda")),
-        "readiness": "Primärdaten vollständig" if complete else "Unvollständig",
+        "readiness": "Score + Earnings Gate vollständig" if complete and score_ready else ("Primärdaten vollständig" if complete else "Unvollständig"),
         "note": (
-            "Halbleiterausrüstung-/Lithografie-Sondermodell V2.20.58 trennt verifizierte ASML-Primärdaten von Yahoo-Kontextwerten. "
-            "Der aktuelle Q2/FY26-Demand-&-Visibility-Snapshot ist die einzige Basis des Gates. Semicap-Quality-Score, "
-            "Zielmultiple und Fair Value bleiben bewusst gesperrt."
+            "Halbleiterausrüstung-/Lithografie-Sondermodell V2.20.59 trennt verifizierte ASML-Primärdaten von Yahoo-Kontextwerten. "
+            "Der eigene Semicap-Quality-Score ist primärquellenbasiert. Das Forward-Earnings-Credibility-Gate prüft den Yahoo Forward-/+1Y-Konsens "
+            "gegen aktuelle Ausführung und Guidance, ohne ihn als FY2026-Guidance auszugeben. Zielmultiple und Fair Value bleiben bewusst gesperrt."
         ),
     }
 
@@ -11054,6 +11376,8 @@ def build_semicap_special_control(base_control, semicap_model):
     model = semicap_model if isinstance(semicap_model, dict) else {}
     snapshot = model.get("snapshot")
     gate = model.get("primary_gate") or {}
+    semicap_score = model.get("semicap_score") or {}
+    earnings_gate = model.get("forward_earnings_credibility") or {}
     if not model.get("primary_source_complete"):
         control.update({
             "implemented": False, "released": False, "confidence_cap": "Niedrig",
@@ -11066,15 +11390,25 @@ def build_semicap_special_control(base_control, semicap_model):
             ),
         })
         return control
+    if not model.get("score_and_earnings_gate_complete"):
+        control.update({
+            "implemented": False, "released": False, "confidence_cap": "Niedrig",
+            "step3b_status": "Semicap Score/Earnings Gate unvollständig", "overall_status": "Nicht freigegeben",
+            "snapshot": snapshot,
+            "checks": {"primary_gate": gate, "semicap_score": semicap_score, "forward_earnings_credibility": earnings_gate, **gate},
+            "note": "Primärdaten vorhanden, aber Semicap-Quality-Score oder Forward-Earnings-Credibility-Gate ist nicht vollständig. Bewertung bleibt fail-closed.",
+        })
+        return control
     control.update({
         "implemented": True, "released": False, "confidence_cap": "Mittel",
-        "step3b_status": "ASML-Primärdaten validiert – Semicap-Bewertungsmodell noch gesperrt",
-        "overall_status": "Primärdaten freigegeben / Bewertung gesperrt",
-        "snapshot": snapshot, "checks": {"primary_gate": gate, **gate},
+        "step3b_status": "ASML Quality Score + Forward-Earnings-Credibility freigegeben – Bewertungsanker noch gesperrt",
+        "overall_status": "Score/Earnings Gate freigegeben / Bewertung gesperrt",
+        "snapshot": snapshot,
+        "checks": {"primary_gate": gate, "semicap_score": semicap_score, "forward_earnings_credibility": earnings_gate, **gate},
         "note": (
-            "V2.20.58 validiert die ASML-Q2-2026-Primärdatenbasis. Numerische Bookings/Backlog werden ohne direkt vergleichbare "
-            "aktuelle Primärquelle nicht rekonstruiert. Semicap-Score, Zielmultiple und Fair Value folgen separat; bis dahin "
-            "bleibt die Bewertung fail-closed."
+            "V2.20.59 validiert Primärdaten, Semicap-Quality-Score und Forward-Earnings-Credibility. Numerische Bookings/Backlog werden ohne "
+            "direkt vergleichbare aktuelle Primärquelle nicht rekonstruiert. Die diagnostische Earnings-Referenz ist noch kein Fair Value; "
+            "Zielmultiple und Fair Value bleiben bis zum separaten Bewertungsanker fail-closed."
         ),
     })
     return control
@@ -12782,6 +13116,29 @@ def calculate_peer_check(
             peer_group, fundamental_multiple, cache_version
         )
 
+    if "halbleiterausrüstung / lithografie" in type_name:
+        result["method_supported"] = True
+        for peer in peer_group.get("peers", []):
+            peer_data = load_peer_forward_pe(peer["symbol"], cache_version)
+            result["peer_rows"].append({
+                "symbol": peer["symbol"], "name": peer["name"],
+                "usable": peer_data["usable"], "forward_pe": peer_data["forward_pe"],
+                "source": peer_data.get("source"), "reason": peer_data["reason"],
+                "reference_only": True,
+            })
+        usable_values = [row["forward_pe"] for row in result["peer_rows"] if row.get("usable") and row.get("forward_pe") is not None]
+        result["usable_count"] = len(usable_values)
+        if usable_values:
+            result["peer_median"] = float(pd.Series(usable_values).median())
+        result["adjusted_multiple"] = fundamental_multiple
+        result["applied"] = False
+        result["note"] = (
+            "ASML-Semicap-Peers bleiben in V2.20.59 reine Markt-Referenz. AMAT, LRCX und KLAC besitzen andere Tool-/Produktmixe; "
+            "ihre Yahoo-Forward-KGVs sind nicht gegen eine ASML-spezifisch normalisierte Earnings-Basis vergleichbar. "
+            "Daher keine automatische Peer-Anpassung – auch dann nicht, wenn drei KGVs verfügbar sind."
+        )
+        return result
+
     if not peer_forward_pe_is_supported(company_type):
         result["note"] = (
             "Für diesen Unternehmenstyp wird kein einfaches "
@@ -12964,14 +13321,15 @@ def get_special_control(company_type, symbol):
                 "Free Cash Flow / Liquidität",
                 "Auftragseingang / Backlog nur bei direkt vergleichbarer Primärquelle",
                 "Kapazitätsplanung EUV / DUV",
-                "später: Semicap Quality Score & Bewertungsanker"
+                "Semicap Quality Score",
+                "Forward-Earnings-Credibility Gate",
+                "später: eigener Semicap-Bewertungsanker"
             ],
-            "status": "Router aktiv – V2.20.58 ASML-Primärquellen-/Demand-Visibility-Gate",
+            "status": "Router aktiv – V2.20.59 Semicap-Quality-/Forward-Earnings-Credibility-Gate",
             "note": (
-                "V2.20.58 validiert bei ASML aktuelle offizielle Q2-2026-Umsatz-, Margen-, Installed-Base-, FCF-/Liquiditäts-, "
-                "Systemmix- und Guidance-Daten. Die qualitative Aussage zum starken H1-Auftragseingang wird getrennt geführt; "
-                "numerische Bookings oder Backlog werden ohne aktuelle vergleichbare Primärquelle nicht rekonstruiert. "
-                "Score, Zielmultiple und Fair Value bleiben noch gesperrt."
+                "V2.20.59 validiert bei ASML aktuelle offizielle Q1/Q2-2026-/FY2025-Anker, Guidance, Installed Base, FCF/Liquidität und Systemmix. "
+                "Der eigene Semicap-Quality-Score ist freigegeben. Der Forward-/+1Y-EPS-Konsens wird separat gegen offizielle Execution, Guidance und Kapazitätspläne geprüft; "
+                "numerische aktuelle Bookings/Backlog werden nicht rekonstruiert. Zielmultiple und Fair Value bleiben noch gesperrt."
             )
         }
 
@@ -21688,9 +22046,9 @@ def load_stock(search_text, cache_version):
 
     if is_semicap_lithography_company_type(company_type):
         growth_score = {**growth_score, "context_score": growth_score.get("score"), "score": None,
-            "note": "Bei ASML/Lithografie bleiben generisches Yahoo-Umsatz-/Gewinnwachstum Kontext. V2.20.58 validiert zunächst nur die offizielle Demand-/Visibility-Primärdatenbasis."}
+            "note": "Bei ASML/Lithografie bleiben generisches Yahoo-Umsatz-/Gewinnwachstum Kontext. V2.20.59 verwendet stattdessen den primärquellenbasierten Semicap-Quality-Score."}
         profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None,
-            "brake_text": "Bei ASML/Lithografie wird die generische Nettomargen-/ROE-Punktelogik für die Spezialbewertung nicht verwendet; maßgeblich werden später Gross Margin, Nachfragevisibilität und technologische Qualität."}
+            "brake_text": "Bei ASML/Lithografie wird die generische Nettomargen-/ROE-Punktelogik nicht verwendet; maßgeblich sind Gross Margin/Guidance, Installed Base, Demand Visibility, EUV/High-NA, FCF/Liquidität, Kapazität und Execution im eigenen Semicap-Score."}
 
     score_fcf_input = (
         free_cashflow
@@ -21853,10 +22211,11 @@ def load_stock(search_text, cache_version):
         }
 
     if semicap_special_model.get("applicable"):
-        fundamental_multiple = {**fundamental_multiple, "score": None, "multiple": None, "available": False,
-            "note": ("ASML/Lithografie V2.20.58 validiert zunächst nur die offizielle Demand-/Visibility-Primärdatenbasis. "
-                     "Generische Yahoo-Scores und Standard-KGVs werden nicht als Semicap-Bewertungsanker freigegeben. "
-                     "Ein eigener Quality Score und Bewertungsanker folgen separat.")}
+        scs = semicap_special_model.get("semicap_score") or {}
+        fundamental_multiple = {**fundamental_multiple, "score": safe_float(scs.get("score")), "multiple": None, "available": False,
+            "note": ("ASML/Lithografie V2.20.59 verwendet den eigenen primärquellenbasierten Semicap-Quality-Score. "
+                     "Das Forward-Earnings-Credibility-Gate liefert nur eine diagnostische Earnings-Referenz. "
+                     "Generische Yahoo-Scores, Standard-KGVs und ein Fair Value bleiben noch gesperrt.")}
 
     if reit_special_model.get("applicable"):
         rs = reit_special_model.get("reit_score") or {}
@@ -22015,6 +22374,31 @@ def load_stock(search_text, cache_version):
                     "Keine zusätzliche Sonderrecherche erforderlich: Die aktuellen Mercedes-Benz-Primärdaten benennen "
                     "die Effekte bereits. Cycle Compression, Automotive-Quality-Score und Industrie-FCF-Plausibilitätsgate "
                     "berücksichtigen sie konservativ; die Bewertungsfreigabe bleibt davon getrennt."
+                ),
+            }
+
+
+    if (
+        semicap_special_model.get("applicable")
+        and semicap_special_model.get("score_and_earnings_gate_complete")
+        and str((special_event_warning or {}).get("level") or "") != "Rot"
+    ):
+        semicap_cred_event = semicap_special_model.get("forward_earnings_credibility") or {}
+        stretch_event = safe_float(semicap_cred_event.get("forward_stretch_pct"))
+        if stretch_event is not None and stretch_event > 30.0:
+            special_event_warning = {
+                "level": "Gelb",
+                "icon": "🟡",
+                "title": "ASML Forward-Earnings-Credibility Gate aktiv",
+                "requires_research": False,
+                "valuation_usable": True,
+                "reason": (
+                    f"Der Yahoo Forward-/+1Y-EPS-Konsens liegt {stretch_event:.1f} % über dem mechanischen FY2026-EPS-Proxy aus offiziellen ASML-Daten. "
+                    "Die Abweichung wird deshalb nicht als einfache EPS-Anomalie behandelt, sondern gegen Guidance-Uplift, Execution, Nachfragevisibilität und 2027-Kapazitätsplanung geprüft."
+                ),
+                "action": (
+                    "Keine automatische Hochstufung auf den vollen Forward-EPS. V2.20.59 verwendet für den nächsten Semicap-Schritt nur die konservativ gewichtete diagnostische Earnings-Referenz; "
+                    "Zielmultiple und Fair Value bleiben weiterhin gesperrt."
                 ),
             }
 
@@ -22702,6 +23086,7 @@ if selected_symbol:
                 is_reit_fcf_context = is_reit_company_type(company_type)
                 is_midstream_fcf_context = is_midstream_company_type(company_type)
                 is_auto_fcf_context = "autohersteller" in company_type_ui
+                is_semicap_fcf_context = is_semicap_lithography_company_type(company_type)
                 if fcf_ctx.get("score_eligible"):
                     source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
                     if is_bank_fcf_context:
@@ -22738,6 +23123,12 @@ if selected_symbol:
                             "Bei Autoherstellern wird dieser konsolidierte Yahoo-/Cashflow-Statement-FCF ausschließlich als Kontext angezeigt. "
                             "Er darf den offiziellen Free Cash Flow des Industriegeschäfts nicht ersetzen, weil captive Financial Services "
                             "in den Konzernzahlen enthalten sein können."
+                        )
+                    elif is_semicap_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            "Bei ASML/Lithografie bleibt dieser Yahoo-TTM-FCF reine Kontextinformation. Der Semicap-Quality-Score verwendet "
+                            "ausschließlich den verifizierten offiziellen Q2-Free-Cashflow; Yahoo-FCF steuert weder Score noch Earnings-Gate oder späteren Fair Value."
                         )
                     else:
                         st.caption(
@@ -22994,7 +23385,7 @@ if selected_symbol:
                     normalized_eps_label = "Versicherungs-Core-TTM-EPS"
                 else:
                     normalized_eps = eps_result["normalized_eps"]
-                    normalized_eps_label = "Normalisiertes EPS"
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if is_semicap_lithography_company_type(company_type) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -23033,6 +23424,11 @@ if selected_symbol:
                         f"**Verwendete Methode:** "
                         f"{eps_result['method']}"
                     )
+                    if is_semicap_lithography_company_type(company_type):
+                        st.info(
+                            "ASML/Lithografie: Diese Standard-Normalisierung bleibt nur Kontext. V2.20.59 setzt für den Semicap-Pfad ein eigenes "
+                            "Forward-Earnings-Credibility-Gate ein; dessen diagnostische Earnings-Referenz wird nicht mit dem Standard-EPS vermischt."
+                        )
 
                 confidence = (
                     bank_core_eps_ui.get("confidence")
@@ -23728,8 +24124,8 @@ if selected_symbol:
                 is_semicap_score_ui = is_semicap_lithography_company_type(company_type)
 
                 if is_semicap_score_ui:
-                    st.info("ASML/Lithografie-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.58 validiert zunächst die offizielle Demand-/Visibility-Primärdatenbasis.")
-                    st.caption("Yahoo-Wachstumswerte bleiben Kontext. Ein eigener Semicap-Quality-Score und Bewertungsanker folgen separat.")
+                    st.info("ASML/Lithografie-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.59 verwendet stattdessen den eigenen primärquellenbasierten Semicap-Quality-Score.")
+                    st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf den Semicap-Quality-Score oder das Forward-Earnings-Credibility-Gate.")
                 elif is_auto_score_ui:
                     st.info("Automotive-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. Der eigene Automotive-Quality-Score basiert auf Industrie-FCF-Resilienz, Industrie-Netto-Liquidität, Cars/Vans-Margen, Financial Services, Kapitalallokation und FCF-Einmaleffekt-Qualität.")
                     st.caption("Yahoo-Umsatz-/Gewinnwachstum bleibt Kontext und hat keinen Einfluss auf den Automotive-Quality-Score oder das Cycle Compression Gate.")
@@ -23859,7 +24255,7 @@ if selected_symbol:
                 is_semicap_profitability_ui = is_semicap_lithography_company_type(company_type)
 
                 if is_semicap_profitability_ui:
-                    st.info("ASML/Lithografie-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. V2.20.58 führt Gross Margin und aktuelle Guidance als verifizierte Primärdaten; die Semicap-Score-Logik folgt separat.")
+                    st.info("ASML/Lithografie-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. V2.20.59 bewertet Profitabilitätsqualität über Gross Margin und Guidance im eigenen Semicap-Quality-Score.")
                 elif is_auto_profitability_ui:
                     st.info("Automotive-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. Ertragsqualität wird über Cars/Vans Adjusted RoS und Financial Services Adjusted RoE im eigenen Automotive-Quality-Score beurteilt.")
                 elif is_midstream_profitability_ui:
@@ -24120,7 +24516,7 @@ if selected_symbol:
 
                     if is_semicap_model_ui:
                         st.info("ℹ️ ASML/Lithografie-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
-                        st.caption("V2.20.58 verwendet den offiziell von ASML genannten Q2-Free-Cashflow nur als Primärdaten-/Liquiditätskomponente. Ein Semicap-FCF-Score oder Fair Value folgt noch nicht.")
+                        st.caption("V2.20.59 verwendet ausschließlich den offiziellen Q2-Free-Cashflow als FCF-/Liquiditätskomponente des Semicap-Quality-Scores. Yahoo-TTM-FCF bleibt Kontext; ein Fair Value folgt noch nicht.")
                     elif is_auto_model_ui:
                         st.info("ℹ️ Autohersteller-Modell: Konzern-Free-Cashflow ist kein Industrie-Bewertungsbaustein")
                         st.caption("Maßgeblich ist der verifizierte Free Cash Flow des Industriegeschäfts aus der offiziellen Primärquelle. Konsolidierter Yahoo-FCF bleibt nur Kontext, weil captive Financial Services enthalten sein können.")
@@ -24294,7 +24690,7 @@ if selected_symbol:
 
                     if is_semicap_balance_ui:
                         st.info("ℹ️ ASML/Lithografie-Modell: Standard-Netto-Schulden/FCF-Score ist kein freigegebener Bewertungsbaustein")
-                        st.caption("V2.20.58 führt die offizielle Cash-/Short-term-Investments-Position als Liquiditätskontext. Die spätere Semicap-Kapitalqualitätslogik wird separat definiert.")
+                        st.caption("V2.20.59 verwendet die offizielle Cash-/Short-term-Investments-Position ausschließlich in der FCF-/Liquiditätskomponente des Semicap-Quality-Scores. Der generische Netto-Schulden/FCF-Score bleibt deaktiviert.")
                     elif is_auto_balance_ui:
                         st.info("ℹ️ Autohersteller-Bilanzmodell: Industrie-Netto-Liquidität wird separat geprüft")
                         st.caption("Die konsolidierte Netto-Schulden/FCF-Logik ist für Autohersteller deaktiviert. Maßgeblich ist die verifizierte Netto-Liquidität bzw. Nettoverschuldung des Industriegeschäfts; Financial-Services-Finanzierung bleibt getrennt.")
@@ -25387,11 +25783,13 @@ if selected_symbol:
                 semicap_model = data.get("semicap_special_model", {"applicable": False})
                 if semicap_model.get("applicable"):
                     st.divider()
-                    st.subheader("🔬 Halbleiterausrüstung-Sondermodell V2.20.58 – ASML Demand & Visibility Primärdaten")
+                    st.subheader("🔬 Halbleiterausrüstung-Sondermodell V2.20.59 – Quality Score & Forward-Earnings Credibility")
                     snapshot_sc = semicap_model.get("snapshot") or {}
                     gate_sc = semicap_model.get("primary_gate") or {}
+                    score_sc = semicap_model.get("semicap_score") or {}
+                    cred_sc = semicap_model.get("forward_earnings_credibility") or {}
                     if semicap_model.get("primary_source_complete"):
-                        st.success("ASML-Primärquellen-Gate bestanden: Q2-Umsatz, Gross Margin, Installed Base Management, FCF/Liquidität, Systemmix und aktuelle Guidance sind validiert.")
+                        st.success("ASML-Primärquellen-Gate bestanden: Q1/Q2-Ausführung, Gross Margin, Installed Base, FCF/Liquidität, Systemmix und aktuelle Guidance sind validiert.")
                     else:
                         st.warning(gate_sc.get("note") or "ASML-Primärquellen-Gate nicht bestanden.")
                     if snapshot_sc:
@@ -25415,20 +25813,49 @@ if selected_symbol:
                             st.write("**High-NA-Systemverkäufe Q2:** " + (f"{gate_sc.get('q2_high_na_system_sales_units'):.0f}" if gate_sc.get('q2_high_na_system_sales_units') is not None else "–"))
                             st.write(f"**H1-Auftragseingang laut ASML:** {text_or_dash(gate_sc.get('h1_order_intake_status'))}")
                             st.write("**Numerische aktuelle Bookings/Backlog-Freigabe:** NEIN – keine Rekonstruktion")
-                        st.write("**Q3-2026-Umsatz-Guidance:** " + format_currency_range(gate_sc.get("q3_2026_net_sales_low_total"), gate_sc.get("q3_2026_net_sales_high_total"), financial_currency, 1))
+                        q3_low = safe_float(gate_sc.get("q3_2026_net_sales_low_total")); q3_high = safe_float(gate_sc.get("q3_2026_net_sales_high_total"))
+                        fy_low = safe_float(gate_sc.get("fy2026_net_sales_low_total")); fy_high = safe_float(gate_sc.get("fy2026_net_sales_high_total"))
+                        st.write("**Q3-2026-Umsatz-Guidance:** " + format_money_range(q3_low, q3_high, financial_currency, 1))
                         st.write(f"**Q3-2026-Gross-Margin-Guidance:** {gate_sc.get('q3_2026_gross_margin_low_pct'):.0f}–{gate_sc.get('q3_2026_gross_margin_high_pct'):.0f} %")
-                        st.write("**FY2026-Umsatz-Guidance:** " + format_currency_range(gate_sc.get("fy2026_net_sales_low_total"), gate_sc.get("fy2026_net_sales_high_total"), financial_currency, 1))
+                        st.write("**FY2026-Umsatz-Guidance:** " + format_money_range(fy_low, fy_high, financial_currency, 0))
                         st.write(f"**FY2026-Gross-Margin-Guidance:** {gate_sc.get('fy2026_gross_margin_low_pct'):.0f}–{gate_sc.get('fy2026_gross_margin_high_pct'):.0f} %")
                         st.write(f"**2026 Low-NA-EUV-Kapazität:** ca. {gate_sc.get('low_na_euv_capacity_2026_units'):.0f} · 2027 geplant +{gate_sc.get('planned_capacity_increase_2027_pct'):.0f} %")
                         st.write(f"**2026 DUV-Immersion-Kapazität:** ca. {gate_sc.get('duv_immersion_capacity_2026_units'):.0f} · 2027 geplant +{gate_sc.get('planned_capacity_increase_2027_pct'):.0f} %")
                         st.caption(gate_sc.get("note"))
+
+                    if score_sc.get("available"):
+                        st.write("**Semicap-Quality-Score**")
+                        st.metric("Quality Score", f"{score_sc.get('score'):.0f}/100 Punkte")
+                        st.write(f"**Qualitätsstufe:** {score_sc.get('quality_level')}")
+                        st.write(f"**Gross Margin + Guidance:** {score_sc.get('gross_margin_points')}/20")
+                        st.write(f"**Installed Base Management:** {score_sc.get('installed_base_points')}/15")
+                        st.write(f"**Demand Visibility:** {score_sc.get('demand_visibility_points')}/20")
+                        st.write(f"**EUV / High-NA Technologie-Mix:** {score_sc.get('technology_mix_points')}/15")
+                        st.write(f"**FCF / Liquidität:** {score_sc.get('fcf_liquidity_points')}/15")
+                        st.write(f"**Kapazitäts-/Langfrist-Visibilität:** {score_sc.get('capacity_visibility_points')}/10")
+                        st.write(f"**Execution vs. vorherige Guidance:** {score_sc.get('execution_points')}/5")
+                        st.write(f"**Q2-FCF-Marge:** {score_sc.get('q2_fcf_margin_pct'):.1f} %")
+                        st.caption(score_sc.get("note"))
+
+                    if cred_sc.get("available"):
+                        st.write("**Forward-Earnings-Credibility Gate**")
+                        st.write(f"**Status:** {cred_sc.get('status')} · {cred_sc.get('credibility_score'):.0f}/100")
+                        st.write("**Yahoo Forward-/+1Y-EPS:** " + format_eps(cred_sc.get("forward_eps"), financial_currency))
+                        st.write("**Mechanischer FY2026-EPS-Proxy (keine Unternehmensguidance):** " + format_eps(cred_sc.get("fy2026_eps_proxy"), financial_currency))
+                        st.write(f"**Forward-Stretch ggü. FY2026-Proxy:** {cred_sc.get('forward_stretch_pct'):.1f} %")
+                        st.write(f"**FY2026-Umsatz-Guidance-Midpoint-Anhebung seit Q1:** +{cred_sc.get('fy_sales_guidance_uplift_pct'):.1f} %")
+                        st.write(f"**FY2026-Gross-Margin-Midpoint-Anhebung seit Q1:** +{cred_sc.get('fy_gm_guidance_uplift_pp'):.1f} %-Pkt.")
+                        st.write(f"**Forward-/Proxy-Gewichtung:** {cred_sc.get('forward_weight')*100:.0f} % / {cred_sc.get('official_proxy_weight')*100:.0f} %")
+                        st.metric("Diagnostische Semicap-Earnings-Referenz", format_eps(cred_sc.get("diagnostic_earnings_reference"), financial_currency))
+                        st.caption(cred_sc.get("note"))
+
                     st.write("**Yahoo-/Standarddaten nur als Kontext**")
-                    st.write("**Yahoo Forward-EPS (Kontext):** " + format_eps(semicap_model.get("yahoo_forward_eps_context"), financial_currency))
+                    st.write("**Standard-EPS-Normalisierung (nur Kontext):** " + format_eps(data.get("eps_normalization", {}).get("normalized_eps"), financial_currency))
                     st.write("**Yahoo Free Cashflow (Kontext):** " + format_money(semicap_model.get("yahoo_free_cashflow_context"), financial_currency))
                     yev_sc = safe_float(semicap_model.get("yahoo_ev_to_ebitda_context"))
                     st.write("**Yahoo EV / EBITDA (Kontext):** " + (f"{yev_sc:.2f}×" if yev_sc is not None else "–"))
                     st.write(f"**Datenreife Sondermodell:** {semicap_model.get('readiness')}")
-                    st.warning("Bewertungsfreigabe noch NEIN: V2.20.58 ergänzt bewusst nur die ASML-Primärdatenbasis. Semicap-Quality-Score, Zielmultiple und Fair Value folgen separat.")
+                    st.warning("Bewertungsfreigabe noch NEIN: V2.20.59 gibt Semicap-Quality-Score und Forward-Earnings-Credibility frei, aber noch kein Zielmultiple und keinen Fair Value.")
                     st.caption(semicap_model.get("note"))
 
                 reit_model = data.get(
@@ -25715,13 +26142,22 @@ if selected_symbol:
                 elif is_semicap_valuation_ui:
                     semicap_m6 = data.get("semicap_special_model") or {}
                     gate_sc_m6 = semicap_m6.get("primary_gate") or {}
+                    score_sc_m6 = semicap_m6.get("semicap_score") or {}
+                    cred_sc_m6 = semicap_m6.get("forward_earnings_credibility") or {}
                     if semicap_m6.get("primary_source_complete") and gate_sc_m6.get("available"):
-                        st.success("ASML-Primärdaten vollständig: Q2-Umsatz, Gross Margin, Installed Base Management, FCF/Liquidität, Systemmix und aktuelle Guidance sind belastbar vorhanden.")
+                        st.success("ASML-Primärdaten vollständig: Q1/Q2-Ausführung, Gross Margin, Installed Base Management, FCF/Liquidität, Systemmix und aktuelle Guidance sind belastbar vorhanden.")
                     else:
                         st.warning("ASML-Primärdaten unvollständig oder veraltet; Bewertung bleibt fail-closed.")
-                    st.info("Noch kein Semicap-Fundamental-Multiple: V2.20.58 endet bewusst nach dem Demand-/Visibility-Primärquellen-Gate. Ein eigener Quality Score und Bewertungsanker folgen separat.")
+                    if score_sc_m6.get("available"):
+                        st.write(f"**Semicap-Quality-Score:** {score_sc_m6.get('score'):.0f}/100 · {score_sc_m6.get('quality_level')}")
+                    if cred_sc_m6.get("available"):
+                        st.write(f"**Forward-Earnings-Credibility:** {cred_sc_m6.get('status')} · {cred_sc_m6.get('credibility_score'):.0f}/100")
+                        st.write("**Mechanischer FY2026-EPS-Proxy:** " + format_eps(cred_sc_m6.get("fy2026_eps_proxy"), financial_currency))
+                        st.write("**Diagnostische Semicap-Earnings-Referenz:** " + format_eps(cred_sc_m6.get("diagnostic_earnings_reference"), financial_currency))
+                        st.write(f"**Forward-/Proxy-Gewichtung:** {cred_sc_m6.get('forward_weight')*100:.0f} % / {cred_sc_m6.get('official_proxy_weight')*100:.0f} %")
+                    st.info("Noch kein Semicap-Fundamental-Multiple: V2.20.59 endet bewusst nach Quality Score und Forward-Earnings-Credibility Gate. Zielmultiple und Fair Value folgen separat.")
                     st.caption(multiple_result.get("note"))
-                    st.caption("Numerische Bookings/Backlog werden ohne aktuelle direkt vergleichbare Primärquelle nicht rekonstruiert.")
+                    st.caption("AMAT/LRCX/KLAC sowie aktuelle numerische Bookings/Backlog bleiben ohne normalisierte Vergleichsbasis reine Referenz.")
                 elif is_auto_valuation_ui:
                     auto_m6 = data.get("auto_special_model") or {}
                     auto_score_m6 = auto_m6.get("automotive_score") or {}
@@ -26282,10 +26718,12 @@ if selected_symbol:
                     "control_key"
                 ) == "semicap_order_visibility":
                     st.divider()
-                    st.subheader("🔬 Modul 6 – Schritt 3B: ASML Nachfrage-, Guidance- & Visibilitätsprüfung")
+                    st.subheader("🔬 Modul 6 – Schritt 3B: ASML Quality-, Earnings- & Visibilitätsprüfung")
                     if special_control.get("implemented"):
                         checks_sc = special_control.get("checks", {})
                         snap_sc3 = special_control.get("snapshot") or {}
+                        score_sc3 = checks_sc.get("semicap_score") or {}
+                        cred_sc3 = checks_sc.get("forward_earnings_credibility") or {}
                         st.write(f"**Datenstand:** {text_or_dash(snap_sc3.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_sc3.get('published_date'))})")
                         c1, c2 = st.columns(2)
                         with c1:
@@ -26299,9 +26737,18 @@ if selected_symbol:
                             st.metric("EUV-Systeme Q2", f"{checks_sc.get('q2_euv_units'):.0f}" if checks_sc.get('q2_euv_units') is not None else "–")
                             st.write(f"**H1-Auftragseingang:** {text_or_dash(checks_sc.get('h1_order_intake_status'))}")
                             st.write("**Aktuelle numerische Bookings/Backlog:** nicht als Bewertungsdaten freigegeben")
-                        st.success("ASML-Primärdaten vollständig validiert. Operative Q2-Daten, FCF/Liquidität, Systemmix und Guidance sind für den nächsten Semicap-Schritt belastbar vorhanden.")
-                        st.caption((checks_sc.get("primary_gate") or {}).get("note") or special_control.get("note"))
-                        st.warning("Bewertungsfreigabe noch NEIN: Semicap-Score, Zielmultiple und Fair Value sind in V2.20.58 bewusst noch gesperrt.")
+                        st.success("ASML-Primärdaten vollständig validiert. Quality Score und Forward-Earnings-Credibility Gate sind für den nächsten Semicap-Schritt freigegeben.")
+                        if score_sc3.get("available"):
+                            st.metric("Semicap-Quality-Score", f"{score_sc3.get('score'):.0f}/100 · {score_sc3.get('quality_level')}")
+                        if cred_sc3.get("available"):
+                            st.write(f"**Forward-Earnings-Credibility:** {cred_sc3.get('status')} · {cred_sc3.get('credibility_score'):.0f}/100")
+                            st.write("**Yahoo Forward-/+1Y-EPS:** " + format_eps(cred_sc3.get("forward_eps"), financial_currency))
+                            st.write("**Mechanischer FY2026-EPS-Proxy:** " + format_eps(cred_sc3.get("fy2026_eps_proxy"), financial_currency))
+                            st.write(f"**Forward-Stretch:** {cred_sc3.get('forward_stretch_pct'):.1f} %")
+                            st.write(f"**Forward-/Proxy-Gewichtung:** {cred_sc3.get('forward_weight')*100:.0f} % / {cred_sc3.get('official_proxy_weight')*100:.0f} %")
+                            st.metric("Diagnostische Earnings-Referenz", format_eps(cred_sc3.get("diagnostic_earnings_reference"), financial_currency))
+                            st.caption(cred_sc3.get("note"))
+                        st.warning("Bewertungsfreigabe noch NEIN: V2.20.59 gibt Score und Earnings-Credibility frei, aber noch kein Zielmultiple und keinen Fair Value.")
                     else:
                         st.warning(special_control.get("note"))
 
