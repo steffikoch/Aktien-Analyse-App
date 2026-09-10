@@ -17,14 +17,14 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.64"
+APP_BUILD_VERSION = "V2.20.65"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · NVIDIA Earnings Horizon Alignment & Demand Quality Gate")
+st.caption(f"Build {APP_BUILD_VERSION} · NVIDIA Quality-Adjusted Operating P/E Valuation Anchor")
 
 
 # V2.20.52: Midstream Peer Safety Cap & Comparability Gate. Separates market-reference peers from adjustment-eligible peers. Automatic peer adjustment requires at least three peers with sufficiently comparable corporate structure AND issuer-adjusted EBITDA basis. Generic Yahoo EV/EBITDA remains reference-only. If a future gate passes, the multiple proposal and the resulting equity fair-value effect are each capped at ±5 %. The 100-point Midstream score and official KMI Adjusted EBITDA / Net Debt / share-count bridge remain unchanged.
@@ -40,6 +40,7 @@ st.caption(f"Build {APP_BUILD_VERSION} · NVIDIA Earnings Horizon Alignment & De
 # V2.20.62: NVIDIA Primary Source AI Demand, Margin & Concentration Gate. First supported Fabless/AI issuer: NVIDIA (NVDA). Uses a time-bounded official Q2 FY2027 snapshot for revenue, Data Center/Hyperscale/ACIE mix, gross margin, official FCF, balance-sheet liquidity, inventory/customer-advance visibility, customer concentration, China/export-control exposure, GAAP/non-GAAP EPS quality and Q3 guidance. Generic Yahoo growth/profitability/FCF/balance scores and standard EPS normalization are context-only; no AI Quality Score, target multiple or fair value is released yet.
 # V2.20.63: NVIDIA AI Quality Score & Forward-Earnings Credibility Gate. Adds a primary-source-only 100-point AI score and a non-GAAP operating-earnings credibility bridge using Q1+Q2 actual EPS plus Q3 revenue/margin guidance. Yahoo Forward-EPS is provider-period consensus only and is capped by stretch versus a mechanical FY27 operating proxy. Generic FCF/balance score footers are removed for NVIDIA, NVIDIA primary-source per-share values obey the frozen display-currency engine, and no target multiple or fair value is released yet.
 # V2.20.64: NVIDIA Earnings Horizon Alignment & Demand Quality Gate. Adds official Q3 non-GAAP OpEx/tax/share-count inputs, a transparent operating-EPS bridge, DSO/customer-terms and commitment-quality controls, and blocks all automatic blending of Yahoo Forward-EPS while its horizon/accounting basis is not confirmed. Supply commitments remain visibility signals, never backlog. No target multiple or fair value is released yet.
+# V2.20.65: NVIDIA Quality-Adjusted Operating P/E Valuation Anchor. Releases a dedicated NVIDIA/Fabless-AI fair value only after the primary-source, Demand-Quality, AI-Quality and Earnings-Horizon gates are complete. The sole earnings basis is the mechanical FY27 operating EPS proxy built from official H1 non-GAAP EPS plus the transparent Q3/Q4 bridge; Yahoo Forward-EPS remains reference-only. The AI Quality Score alone selects a conservative target P/E and corridor (84/100 -> 28x, 25x-31x), avoiding extra margin/demand/concentration caps that would double count score inputs. AVGO/AMD/QCOM/MRVL remain reference-only; no peer overlay or separate FCF valuation adjustment is released yet.
 
 # =========================================================
 # Hilfsfunktionen
@@ -10935,7 +10936,7 @@ def build_auto_special_control(base_control, auto_model):
 # Halbleiter / Fabless / AI-Wachstum V2.20.64 – NVIDIA Earnings Horizon Alignment + Demand Quality
 # =========================================================
 
-NVIDIA_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22064_nvidia_earnings_horizon_alignment_demand_quality_gate"
+NVIDIA_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22065_nvidia_quality_adjusted_operating_pe_valuation_anchor"
 
 
 def get_verified_nvidia_snapshot(symbol):
@@ -11034,7 +11035,7 @@ def get_verified_nvidia_snapshot(symbol):
         "current_numeric_backlog_released": False,
         "source_note": (
             "Offizielle NVIDIA-Q2-FY2027-Primärdaten aus Earnings Release und Form 10-Q. "
-            "V2.20.64 trennt operative AI-Nachfrage, Margen, Cashflow, Bestands-/Kundenvorauszahlungsdaten, "
+            "V2.20.65 trennt operative AI-Nachfrage, Margen, Cashflow, Bestands-/Kundenvorauszahlungsdaten, "
             "Kundenkonzentration, China-/Exportkontrollrisiko und GAAP/non-GAAP-Ertragsqualität. Zusätzlich werden "
             "DSO/erweiterte Zahlungsziele, die Anpassbarkeit von Supply-/Capacity-Commitments sowie Q3 non-GAAP OpEx, "
             "FY27-Steuer-Midpoint und verwässerte Aktienzahl für einen transparenten Operating-EPS-Proxy geprüft. "
@@ -11116,7 +11117,7 @@ def build_nvidia_primary_source_gate(snapshot):
         "note": (
             "NVIDIA-Primärquellen-Gate bestanden: Q2-FY2027-Umsatz, Data-Center-/Kundenmix, Gross Margin, "
             "offizieller FCF, Bilanz-/Inventory-Daten, Kundenvorauszahlungen, GAAP/non-GAAP-EPS-Qualität, "
-            "China-Kontext und Q3-Guidance sind validiert. V2.20.64 ergänzt DSO/Payment-Terms, Commitment-Qualität "
+            "China-Kontext und Q3-Guidance sind validiert. V2.20.65 ergänzt DSO/Payment-Terms, Commitment-Qualität "
             "und die vollständige Q3-Operating-EPS-Brücke. Yahoo Forward-EPS bleibt ohne bestätigten Zeitraum/Basis "
             "reference-only; Ziel-KGV und Fair Value bleiben bewusst gesperrt."
         ),
@@ -11371,7 +11372,7 @@ def build_nvidia_ai_quality_score(primary_gate, snapshot, demand_quality_gate=No
         "equity_gains_share_of_gaap_net_income_pct": equity_gain_share,
         "demand_quality_score": safe_float(dq.get("score")),
         "note": (
-            "Der NVIDIA AI-Quality-Score verwendet ausschließlich verifizierte Primärdaten. V2.20.64 deckelt Demand Visibility "
+            "Der NVIDIA AI-Quality-Score verwendet ausschließlich verifizierte Primärdaten. V2.20.65 deckelt Demand Visibility "
             "und Inventory/Commitment/Working-Capital-Qualität über das separate Demand-Quality-Gate. Customer Advances und "
             "Supply-/Capacity-Commitments sind Nachfrage-/Vorbereitungssignale, ausdrücklich kein Backlog; 60 Tage DSO, Inventory-Aufbau, "
             "Kunden-/Data-Center-Konzentration, China-Annahme und Equity-Securities-Gewinne begrenzen den Score."
@@ -11474,10 +11475,116 @@ def build_nvidia_forward_earnings_credibility_gate(primary_gate, snapshot, info,
         "demand_quality_support_points": demand_quality_points,
         "horizon_alignment_points": horizon_points,
         "note": (
-            "V2.20.64 berechnet den Q3-Operating-EPS-Proxy transparent aus offizieller Q3-Umsatzguidance × non-GAAP-Gross-Margin "
+            "V2.20.65 berechnet den Q3-Operating-EPS-Proxy transparent aus offizieller Q3-Umsatzguidance × non-GAAP-Gross-Margin "
             "minus non-GAAP-OpEx, danach mit dem FY27-non-GAAP-Steuer-Midpoint und der Q2-verwässerten Aktienzahl. Der FY27-Proxy ist "
             "H1 non-GAAP Ist + Q3-Proxy + flache Q4-Annahme auf Q3-Niveau und keine NVIDIA-EPS-Guidance. Yahoo Forward-EPS bleibt "
             "reference-only, solange dessen Fiskalhorizont und Rechnungslegungsbasis nicht ausreichend bestätigt sind; deshalb 0 % Forward-/100 % Proxy-Gewichtung."
+        ),
+    })
+    return result
+
+
+def build_nvidia_valuation_anchor(ai_quality_score, earnings_horizon_gate, demand_quality_gate=None):
+    """V2.20.65 NVIDIA/Fabless-AI quality-adjusted operating P/E anchor.
+
+    Roles are intentionally non-overlapping:
+    - Earnings-Horizon Alignment provides the sole FY27 operating EPS basis.
+    - AI Quality Score alone selects target P/E and corridor.
+    - Demand/margin/concentration/working-capital inputs are already inside the score and
+      therefore do not apply additional multiple caps.
+    - Yahoo Forward-EPS, Yahoo FCF/EV-EBITDA and peers remain outside fair value in V2.20.65.
+    """
+    result = {
+        "available": False,
+        "earnings_reference": None,
+        "score": None,
+        "score_target_pe": None,
+        "target_pe": None,
+        "corridor_low": None,
+        "corridor_high": None,
+        "fair_value_financial": None,
+        "peer_overlay_allowed": False,
+        "peer_overlay_applied": False,
+        "fcf_overlay_allowed": False,
+        "note": None,
+    }
+    score_data = ai_quality_score if isinstance(ai_quality_score, dict) else {}
+    cred = earnings_horizon_gate if isinstance(earnings_horizon_gate, dict) else {}
+    demand = demand_quality_gate if isinstance(demand_quality_gate, dict) else {}
+
+    if not score_data.get("available") or not cred.get("available") or not demand.get("available"):
+        result["note"] = "NVIDIA-Bewertungsanker gesperrt: AI-Quality-, Demand-Quality- oder Earnings-Horizon-Gate fehlt."
+        return result
+
+    score = safe_float(score_data.get("score"))
+    demand_score = safe_float(demand.get("score"))
+    credibility_score = safe_float(cred.get("credibility_score"))
+    earnings_ref = safe_float(cred.get("fy27_operating_eps_proxy"))
+    forward_weight = safe_float(cred.get("forward_weight"))
+    proxy_weight = safe_float(cred.get("official_proxy_weight"))
+
+    if any(v is None for v in [score, demand_score, credibility_score, earnings_ref, forward_weight, proxy_weight]) or earnings_ref <= 0:
+        result["note"] = "NVIDIA-Bewertungsanker gesperrt: Score, Demand Quality, Credibility oder FY27-Operating-EPS-Proxy ist nicht belastbar verfügbar."
+        return result
+
+    # Fail closed unless the operative proxy is sufficiently supported. The Yahoo forward
+    # consensus remains 0%-weighted until its fiscal horizon/accounting basis is verified.
+    if credibility_score < 75.0:
+        result.update({"score": score, "earnings_reference": earnings_ref, "credibility_score": credibility_score})
+        result["note"] = f"NVIDIA-Bewertungsanker gesperrt: Earnings-Horizon/Operating-Credibility {credibility_score:.0f}/100 liegt unter dem Mindestwert 75/100."
+        return result
+    if demand_score < 50.0:
+        result.update({"score": score, "earnings_reference": earnings_ref, "demand_quality_score": demand_score})
+        result["note"] = f"NVIDIA-Bewertungsanker gesperrt: Demand-Quality {demand_score:.0f}/100 liegt unter dem Mindestwert 50/100."
+        return result
+    if abs(forward_weight) > 1e-12 or abs(proxy_weight - 1.0) > 1e-12:
+        result.update({"score": score, "earnings_reference": earnings_ref})
+        result["note"] = "NVIDIA-Bewertungsanker gesperrt: V2.20.65 erlaubt nur die 100%-FY27-Operating-Proxy-Basis; Yahoo Forward-EPS darf nicht eingemischt werden."
+        return result
+
+    # Score-only P/E table. No additional demand, margin, China, concentration or
+    # working-capital cap is applied here, because those dimensions already affect
+    # the AI Quality Score. This prevents double counting.
+    if score >= 90.0:
+        target_pe, low, high = 30.0, 27.0, 33.0
+    elif score >= 85.0:
+        target_pe, low, high = 29.0, 26.0, 32.0
+    elif score >= 80.0:
+        target_pe, low, high = 28.0, 25.0, 31.0
+    elif score >= 70.0:
+        target_pe, low, high = 25.0, 22.0, 28.0
+    elif score >= 60.0:
+        target_pe, low, high = 22.0, 19.0, 25.0
+    else:
+        target_pe, low, high = 18.0, 15.0, 21.0
+
+    fair_value = earnings_ref * target_pe
+    result.update({
+        "available": True,
+        "earnings_reference": earnings_ref,
+        "score": score,
+        "quality_level": score_data.get("quality_level"),
+        "demand_quality_score": demand_score,
+        "demand_quality_status": demand.get("status"),
+        "credibility_score": credibility_score,
+        "credibility_status": cred.get("status"),
+        "forward_horizon_alignment_status": cred.get("forward_horizon_alignment_status"),
+        "forward_weight": forward_weight,
+        "official_proxy_weight": proxy_weight,
+        "score_target_pe": target_pe,
+        "target_pe": target_pe,
+        "corridor_low": low,
+        "corridor_high": high,
+        "fair_value_financial": fair_value,
+        "peer_overlay_allowed": False,
+        "peer_overlay_applied": False,
+        "fcf_overlay_allowed": False,
+        "note": (
+            "NVIDIA V2.20.65 trennt die Rollen strikt: Der mechanische FY27-Operating-EPS-Proxy aus dem Earnings-Horizon-Gate "
+            "ist die einzige Earnings-Basis; der primärquellenbasierte AI-Quality-Score bestimmt allein Ziel-KGV und Korridor. "
+            "Demand Quality, Gross Margin, Konzentration, China, Inventory/Commitments und Working Capital werden nicht nochmals "
+            "als Multiple-Caps angewendet, weil sie bereits im Quality Score enthalten sind. Yahoo Forward-EPS, Yahoo-FCF/EV-EBITDA "
+            "und AVGO/AMD/QCOM/MRVL bleiben außerhalb des Fair Values; FCF-/Peer-Safety folgen separat."
         ),
     })
     return result
@@ -11493,6 +11600,8 @@ def build_nvidia_special_model(company_type, info, currency_context, symbol=None
     ai_score = build_nvidia_ai_quality_score(gate, snapshot, demand_quality) if complete else {"available": False}
     earnings_gate = build_nvidia_forward_earnings_credibility_gate(gate, snapshot, info, demand_quality) if complete else {"available": False}
     score_and_earnings_complete = bool(complete and demand_quality.get("available") and ai_score.get("available") and earnings_gate.get("available"))
+    nvidia_valuation = build_nvidia_valuation_anchor(ai_score, earnings_gate, demand_quality) if score_and_earnings_complete else {"available": False}
+    valuation_ready = bool(nvidia_valuation.get("available"))
     return {
         "applicable": True,
         "snapshot": snapshot,
@@ -11503,20 +11612,26 @@ def build_nvidia_special_model(company_type, info, currency_context, symbol=None
         "ai_quality_score": ai_score,
         "forward_earnings_credibility": earnings_gate,
         "earnings_horizon_alignment": earnings_gate,
+        "nvidia_valuation": nvidia_valuation,
         "score_and_earnings_gate_complete": score_and_earnings_complete,
+        "valuation_anchor_complete": bool(complete and score_and_earnings_complete and valuation_ready),
         "integration_version": NVIDIA_PRIMARY_SOURCE_INTEGRATION_VERSION,
         "yahoo_trailing_eps_context": safe_float(info.get("trailingEps")),
         "yahoo_forward_eps_context": safe_float(info.get("forwardEps")),
         "yahoo_free_cashflow_context": safe_float(info.get("freeCashflow")),
         "yahoo_ev_to_ebitda_context": safe_float(info.get("enterpriseToEbitda")),
-        "readiness": "AI Score + Demand/Horizon Gates vollständig" if score_and_earnings_complete else ("Primärdaten vollständig" if complete else "Unvollständig"),
+        "readiness": (
+            "Bewertungsanker vollständig" if complete and score_and_earnings_complete and valuation_ready
+            else ("AI Score + Demand/Horizon Gates vollständig" if score_and_earnings_complete else ("Primärdaten vollständig" if complete else "Unvollständig"))
+        ),
         "note": (
-            "NVIDIA/Fabless-AI-Sondermodell V2.20.64 verwendet aktuelle offizielle Q1/Q2-FY2027-Daten, Q3-Guidance und den Q2-Earnings-Call. "
-            "Das Demand-Quality-Gate trennt Customer Advances/Supply Commitments von echtem Backlog und berücksichtigt DSO/Payment-Terms. "
-            "Das Earnings-Horizon-Gate baut einen transparenten operativen FY27-EPS-Proxy; Yahoo Forward-EPS bleibt bei unbekanntem Zeitraum/Basis "
-            "reference-only und erhält 0 % Gewicht. Standard-EPS, Yahoo-FCF und generische Scores bleiben Kontext. Zielmultiple und Fair Value folgen separat."
+            "NVIDIA/Fabless-AI-Sondermodell V2.20.65 verwendet aktuelle offizielle Q1/Q2-FY2027-Daten, Q3-Guidance und den Q2-Earnings-Call. "
+            "Demand Quality trennt Advances/Supply Commitments von echtem Backlog; das Earnings-Horizon-Gate liefert ausschließlich den mechanischen FY27-Operating-EPS-Proxy. "
+            "Bei bestandenem Mindestgate bestimmt der AI-Quality-Score allein das quality-adjustierte Operating-KGV. Yahoo Forward-EPS bleibt reference-only; "
+            "Yahoo-FCF/EV-EBITDA und Peers bleiben außerhalb des Fair Values. Separate FCF-/Peer-Safety-Gates folgen später."
         ),
     }
+
 
 def build_nvidia_special_control(base_control, nvidia_model):
     control = dict(base_control or {})
@@ -11527,6 +11642,19 @@ def build_nvidia_special_control(base_control, nvidia_model):
     model = nvidia_model if isinstance(nvidia_model, dict) else {}
     gate = model.get("primary_gate") or {}
     snapshot = model.get("snapshot")
+    demand_quality = model.get("demand_quality_gate") or {}
+    ai_score = model.get("ai_quality_score") or {}
+    earnings_gate = model.get("forward_earnings_credibility") or {}
+    valuation = model.get("nvidia_valuation") or {}
+    common_checks = {
+        "primary_gate": gate,
+        "demand_quality_gate": demand_quality,
+        "ai_quality_score": ai_score,
+        "forward_earnings_credibility": earnings_gate,
+        "earnings_horizon_alignment": earnings_gate,
+        "nvidia_valuation": valuation,
+        **gate,
+    }
     if not model.get("primary_source_complete"):
         control.update({
             "implemented": False,
@@ -11538,14 +11666,10 @@ def build_nvidia_special_control(base_control, nvidia_model):
             "checks": {"primary_gate": gate, **gate},
             "note": (
                 "Die NVIDIA-Spezialkontrolle benötigt einen aktuellen offiziellen Q2/Folgesnapshot für AI-Nachfrage, "
-                "Gross Margin, FCF, Liquidität/Inventory, Kundenkonzentration, China-Risiko und Guidance. "
-                "Fehlende Pflichtdaten werden nicht aus Yahoo oder Schätzungen ersetzt."
+                "Gross Margin, FCF, Liquidität/Inventory, Kundenkonzentration, China-Risiko und Guidance. Fehlende Pflichtdaten werden nicht aus Yahoo oder Schätzungen ersetzt."
             ),
         })
         return control
-    demand_quality = model.get("demand_quality_gate") or {}
-    ai_score = model.get("ai_quality_score") or {}
-    earnings_gate = model.get("forward_earnings_credibility") or {}
     if not model.get("score_and_earnings_gate_complete"):
         control.update({
             "implemented": False,
@@ -11554,22 +11678,35 @@ def build_nvidia_special_control(base_control, nvidia_model):
             "step3b_status": "NVIDIA AI-Score/Demand-/Horizon-Gate unvollständig",
             "overall_status": "Nicht freigegeben",
             "snapshot": snapshot,
-            "checks": {"primary_gate": gate, "demand_quality_gate": demand_quality, "ai_quality_score": ai_score, "forward_earnings_credibility": earnings_gate, **gate},
+            "checks": common_checks,
             "note": "NVIDIA-Primärdaten sind vorhanden, aber AI-Quality-Score, Demand-Quality- oder Earnings-Horizon-Gate ist unvollständig. Bewertung bleibt fail-closed.",
         })
         return control
+    if not model.get("valuation_anchor_complete"):
+        control.update({
+            "implemented": True,
+            "released": False,
+            "confidence_cap": "Niedrig",
+            "step3b_status": "NVIDIA AI-/Demand-/Horizon-Gates vollständig – Bewertungsanker gesperrt",
+            "overall_status": "Bewertungsanker nicht freigegeben",
+            "snapshot": snapshot,
+            "checks": common_checks,
+            "note": valuation.get("note") or "NVIDIA-Operating-P/E-Bewertungsanker nicht freigegeben. Bewertung bleibt fail-closed.",
+        })
+        return control
+
     control.update({
         "implemented": True,
-        "released": False,
+        "released": True,
         "confidence_cap": "Mittel",
-        "step3b_status": "NVIDIA AI-Quality-Score + Demand-Quality + Earnings-Horizon-Alignment freigegeben – Bewertung noch gesperrt",
-        "overall_status": "Score/Demand/Horizon Gates freigegeben; Bewertung noch nicht freigegeben",
+        "step3b_status": "NVIDIA AI Quality + Earnings-Horizon + quality-adjustierter Operating-KGV-Anker freigegeben",
+        "overall_status": "Bewertung freigegeben",
         "snapshot": snapshot,
-        "checks": {"primary_gate": gate, "demand_quality_gate": demand_quality, "ai_quality_score": ai_score, "forward_earnings_credibility": earnings_gate, **gate},
+        "checks": common_checks,
         "note": (
-            "V2.20.64 gibt NVIDIA AI-Quality-Score, Demand-Quality und Earnings-Horizon-Alignment frei. Die diagnostische FY27-Operating-Earnings-Referenz "
-            "basiert ausschließlich auf dem offiziellen/mechanischen Proxy; Yahoo Forward-EPS ist reference-only. Bewertungsfreigabe bleibt NEIN, bis ein separater "
-            "NVIDIA-/Fabless-AI-Bewertungsanker implementiert und geprüft ist."
+            "V2.20.65 gibt den NVIDIA-/Fabless-AI-Bewertungsanker nur frei, wenn Primärdaten, Demand Quality, AI Quality und Earnings-Horizon-Alignment vollständig sind, "
+            "die Operating-Credibility mindestens 75/100 und Demand Quality mindestens 50/100 erreichen. Der mechanische FY27-Operating-EPS-Proxy ist die einzige Earnings-Basis; "
+            "der AI-Quality-Score bestimmt allein Ziel-KGV und Korridor. Yahoo Forward-EPS, separate FCF-Anpassungen und Peer-Overlays bleiben gesperrt."
         ),
     })
     return control
@@ -14051,6 +14188,58 @@ def apply_semicap_peer_overlay(semicap_valuation, peer_check):
     })
     return sv
 
+
+def _calculate_nvidia_reference_peer_check(peer_group, fundamental_multiple, cache_version):
+    """V2.20.65 market-reference peer readout only; no NVIDIA peer overlay yet."""
+    result = {
+        "method_supported": True,
+        "metric": "NVIDIA Forward P/E reference",
+        "peer_rows": [],
+        "usable_count": 0,
+        "adjustment_eligible_count": 0,
+        "comparability_gate_passed": False,
+        "peer_median": None,
+        "adjustment_pct": 0.0,
+        "adjusted_multiple": safe_float(fundamental_multiple),
+        "applied": False,
+        "note": None,
+    }
+    structure_map = {
+        "AVGO": "Diversified semiconductors + infrastructure software",
+        "AMD": "CPU/GPU + Data Center semiconductor platform",
+        "QCOM": "Wireless/edge semiconductor platform",
+        "MRVL": "Data-infrastructure semiconductor platform",
+    }
+    values = []
+    for peer in (peer_group or {}).get("peers", []):
+        pdata = load_peer_forward_pe(peer.get("symbol"), cache_version)
+        value = safe_float(pdata.get("forward_pe"))
+        usable = bool(pdata.get("usable") and value is not None and value > 0)
+        if usable:
+            values.append(value)
+        result["peer_rows"].append({
+            "symbol": peer.get("symbol"),
+            "name": peer.get("name"),
+            "usable": usable,
+            "forward_pe": value,
+            "source": pdata.get("source"),
+            "reason": pdata.get("reason"),
+            "structure": structure_map.get(str(peer.get("symbol") or "").upper(), "Fabless/semiconductor peer"),
+            "earnings_basis_comparable": False,
+            "ai_demand_cycle_comparable": False,
+            "adjustment_eligible": False,
+        })
+    result["usable_count"] = len(values)
+    if values:
+        result["peer_median"] = float(pd.Series(values).median())
+    result["note"] = (
+        "NVIDIA V2.20.65 führt AVGO/AMD/QCOM/MRVL nur als Markt-Referenzen. Ihre Yahoo-Forward-KGVs besitzen keine gegen NVIDIAs mechanischen FY27-Operating-EPS-Proxy "
+        "normalisierte Earnings-Basis und keine ausreichend vergleichbare AI-Nachfrage-/Produktzyklusdefinition. Deshalb 0 anpassungsberechtigte Peers und keine automatische Peer-Anpassung. "
+        "Ein eigenes NVIDIA Normalized Peer Comparability/Safety Gate folgt separat."
+    )
+    return result
+
+
 def calculate_peer_check(
     company_type,
     peer_group,
@@ -14097,6 +14286,11 @@ def calculate_peer_check(
 
     if "halbleiterausrüstung / lithografie" in type_name:
         return _calculate_semicap_peer_overlay(
+            peer_group, fundamental_multiple, cache_version
+        )
+
+    if "halbleiter / fabless / ai-wachstum" in type_name:
+        return _calculate_nvidia_reference_peer_check(
             peer_group, fundamental_multiple, cache_version
         )
 
@@ -14313,13 +14507,14 @@ def get_special_control(company_type, symbol):
                 "Blackwell-/Vera-Rubin-Produktübergang",
                 "AI Quality Score / Demand-Quality Gate",
                 "Earnings Horizon Alignment / Operating-EPS-Proxy",
-                "später: eigener NVIDIA-/Fabless-AI-Bewertungsanker",
+                "Quality-adjustierter NVIDIA-/Fabless-AI Operating-KGV-Bewertungsanker",
+                "später: NVIDIA FCF-/Normalized-Peer-Safety-Gates",
             ],
-            "status": "Router aktiv – V2.20.64 NVIDIA-Earnings-Horizon-/Demand-Quality-Gate",
+            "status": "Router aktiv – V2.20.65 NVIDIA-Quality-Adjusted-Operating-P/E-Valuation-Gate",
             "note": (
-                "V2.20.64 validiert aktuelle offizielle NVIDIA-Q1/Q2-FY2027-Daten, Q3-Guidance und Q2-Call-Kontext. Demand Quality bewertet Advances, "
-                "Supply Commitments, Inventory und DSO ohne daraus Backlog zu machen. Das Earnings-Horizon-Gate verwendet eine transparente FY27-Operating-EPS-Brücke; "
-                "Yahoo Forward-EPS bleibt ohne bestätigten Zeitraum/Basis reference-only. Zielmultiple und Fair Value sind noch gesperrt."
+                "V2.20.65 validiert aktuelle offizielle NVIDIA-Q1/Q2-FY2027-Daten, Q3-Guidance und Q2-Call-Kontext. Demand Quality bewertet Advances, "
+                "Supply Commitments, Inventory und DSO ohne daraus Backlog zu machen. Das Earnings-Horizon-Gate liefert den mechanischen FY27-Operating-EPS-Proxy als einzige Earnings-Basis; "
+                "der AI-Quality-Score bestimmt allein Ziel-KGV/Korridor. Yahoo Forward-EPS bleibt reference-only; separate FCF-/Peer-Safety-Gates folgen später."
             )
         }
 
@@ -20356,6 +20551,7 @@ def calculate_valuation_confidence(
     is_reit_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "reit_paffo"
     is_auto_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "automotive_quality_cycle_pe"
     is_semicap_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "semicap_quality_adjusted_pe"
+    is_nvidia_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "nvidia_ai_quality_operating_pe"
     if is_auto_valuation:
         cycle_status = str(fair_value.get("cycle_status") or "")
         cycle_level = "Mittel" if cycle_status in {"Stark", "Mittel"} else "Mittel bis Hoch"
@@ -20369,13 +20565,17 @@ def calculate_valuation_confidence(
         else:
             earnings_level = "Niedrig"
         components["Semicap-Earnings-Referenz"] = (_confidence_rank_value(earnings_level), earnings_level)
+    elif is_nvidia_valuation:
+        cred_score = safe_float(fair_value.get("earnings_credibility_score"))
+        earnings_level = "Mittel bis Hoch" if cred_score is not None and cred_score >= 90 else ("Mittel" if cred_score is not None and cred_score >= 75 else "Niedrig")
+        components["NVIDIA FY27 Operating-Earnings-Basis"] = (_confidence_rank_value(earnings_level), earnings_level)
     elif not is_reit_valuation:
         eps_level = (eps_normalization or {}).get("confidence")
         eps_rank = _confidence_rank_value(eps_level)
         if eps_rank is not None:
             components["EPS-Normalisierung"] = (eps_rank, eps_level)
 
-    if isinstance(peer_check, dict) and peer_check.get("method_supported") and not is_semicap_valuation:
+    if isinstance(peer_check, dict) and peer_check.get("method_supported") and not is_semicap_valuation and not is_nvidia_valuation:
         usable_peers = int(peer_check.get("usable_count") or 0)
         peer_level = "Hoch" if peer_check.get("applied") and usable_peers >= 3 else "Mittel"
         components["Peer-Check"] = (_confidence_rank_value(peer_level), peer_level)
@@ -21319,6 +21519,91 @@ def calculate_fair_value_v1(
                 "Semicap-Fair-Value V1 = credibility-gewichtete Semicap-Earnings-Referenz × scoregesteuertes quality-adjustiertes KGV. "
                 "Standard-normalisiertes EPS ist nicht die Bewertungsbasis. AMAT/LRCX/KLAC dürfen nur nach bestandenem Normalized Comparability Gate wirken; "
                 "Multiple- und Fair-Value-Effekt sind jeweils auf ±5 % begrenzt. Yahoo-FCF und Yahoo-EV/EBITDA bleiben außerhalb der Fair-Value-Rechnung."
+            ),
+        })
+        return result
+
+    # NVIDIA / Fabless-AI V2.20.65 – FY27 operating EPS proxy x score-driven quality P/E.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "ai_growth_margin"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        nv = checks.get("nvidia_valuation") or {}
+        ns = checks.get("ai_quality_score") or {}
+        dq = checks.get("demand_quality_gate") or {}
+        cred = checks.get("forward_earnings_credibility") or checks.get("earnings_horizon_alignment") or {}
+        fv = safe_float(nv.get("fair_value_financial"))
+        if not nv.get("available") or fv is None or fv <= 0:
+            result["note"] = "Fair Value V1 gesperrt: NVIDIA quality-adjustierter Operating-P/E-Anker nicht vollständig verfügbar."
+            return result
+
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der NVIDIA-Bewertung sind nicht eindeutig."
+            return result
+        fvq = fv
+        unit_notes = []
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = "Fair Value V1 gesperrt: NVIDIA-Währungsumrechnung nicht belastbar verfügbar."
+                return result
+            fvq *= factor
+            unit_notes.append(
+                f"Währungsangleichung für den Fair-Value/Kurs-Vergleich: Fundamentaldaten in {financial_currency} "
+                f"→ Handelswährung {quote_currency} mit 1 {financial_currency} = {factor:.6f} {quote_currency}. "
+                f"Der Handelskurs liegt bereits in {quote_currency} vor."
+            )
+        elif quote_currency != financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+
+        cp = safe_float(current_price)
+        potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+        earnings_ref = safe_float(nv.get("earnings_reference"))
+        price_financial = convert_quote_price_to_financial_share_unit(cp, context) if cp is not None and cp > 0 else None
+        current_pe = None
+        if price_financial is not None and earnings_ref is not None and earnings_ref > 0:
+            current_pe = price_financial / earnings_ref
+
+        result.update({
+            "available": True,
+            "valuation_method": "nvidia_ai_quality_operating_pe",
+            "normalized_eps": earnings_ref,
+            "used_multiple": safe_float(nv.get("target_pe")),
+            "multiple_source": "NVIDIA AI Quality Score → quality-adjustiertes Operating-KGV; Earnings-Horizon Alignment → FY27 Operating-EPS-Basis",
+            "fair_value_financial": fv,
+            "fair_value_quote": fvq,
+            "potential_pct": potential,
+            "nvidia_ai_score": safe_float(ns.get("score")),
+            "nvidia_quality_level": ns.get("quality_level"),
+            "demand_quality_score": safe_float(dq.get("score")),
+            "demand_quality_status": dq.get("status"),
+            "earnings_credibility_status": cred.get("status"),
+            "earnings_credibility_score": safe_float(cred.get("credibility_score")),
+            "forward_horizon_alignment_status": cred.get("forward_horizon_alignment_status"),
+            "fy27_operating_eps_proxy": safe_float(cred.get("fy27_operating_eps_proxy")),
+            "nvidia_earnings_reference": earnings_ref,
+            "forward_eps_context": safe_float(cred.get("forward_eps")),
+            "forward_weight": safe_float(cred.get("forward_weight")),
+            "official_proxy_weight": safe_float(cred.get("official_proxy_weight")),
+            "target_pe": safe_float(nv.get("target_pe")),
+            "score_target_pe": safe_float(nv.get("score_target_pe") or nv.get("target_pe")),
+            "pe_corridor_low": safe_float(nv.get("corridor_low")),
+            "pe_corridor_high": safe_float(nv.get("corridor_high")),
+            "current_pe_on_nvidia_reference": current_pe,
+            "peer_overlay_applied": False,
+            "fcf_overlay_applied": False,
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "NVIDIA-Fair-Value V1 = mechanischer FY27-Operating-EPS-Proxy × scoregesteuertes quality-adjustiertes Operating-KGV. "
+                "Yahoo Forward-EPS bleibt wegen unbestätigtem Horizont/Basis reference-only. Demand Quality, Margen, Konzentration, China und Working Capital "
+                "werden nicht nochmals als Multiple-Caps angewendet, weil sie bereits im AI-Quality-Score enthalten sind. Yahoo-FCF/EV-EBITDA sowie AVGO/AMD/QCOM/MRVL "
+                "bleiben außerhalb des Fair Values; separate FCF-/Peer-Safety-Gates folgen später."
             ),
         })
         return result
@@ -23313,16 +23598,17 @@ def load_stock(search_text, cache_version):
 
     if nvidia_special_model.get("applicable"):
         nv_score_fm = nvidia_special_model.get("ai_quality_score") or {}
-        nv_earn_fm = nvidia_special_model.get("forward_earnings_credibility") or {}
+        nv_val_fm = nvidia_special_model.get("nvidia_valuation") or {}
         fundamental_multiple = {
             **fundamental_multiple,
             "score": safe_float(nv_score_fm.get("score")),
-            "multiple": None,
-            "available": False,
-            "earnings_basis_usable": False,
+            "multiple": safe_float(nv_val_fm.get("target_pe")),
+            "available": bool(nv_score_fm.get("available") and nv_val_fm.get("available")),
+            "earnings_basis_usable": bool(nv_val_fm.get("available")),
             "note": (
-                "NVIDIA/Fabless-AI V2.20.64 verwendet kein generisches EPS-/FCF-Multiple. AI-Quality-Score, Demand-Quality-Gate und Earnings-Horizon-Alignment "
-                "sind freigegeben; der mechanische FY27-Operating-EPS-Proxy ist diagnostisch, Yahoo Forward-EPS reference-only. Ein eigener NVIDIA-/Fabless-AI-Bewertungsanker folgt separat."
+                "NVIDIA/Fabless-AI V2.20.65 verwendet kein generisches EPS-/FCF-Multiple. Das Earnings-Horizon-Gate liefert ausschließlich den mechanischen FY27-Operating-EPS-Proxy; "
+                "der primärquellenbasierte AI-Quality-Score bestimmt allein Ziel-KGV und Korridor. Demand-/Margin-/Konzentrationsfaktoren werden nicht nochmals gekappt. "
+                "Yahoo Forward-EPS und Peer-/FCF-Overlays bleiben außerhalb des Fair Values."
             ),
         }
 
@@ -23555,7 +23841,7 @@ def load_stock(search_text, cache_version):
                 + gap_text + f" Q2 weist zudem {eq_gain/1e9:.2f} Mrd. USD Equity-Securities-Gewinne, {dso_nv:.0f} Tage DSO und {cust_share:.0f} % Umsatzanteil des größten direkten Kunden aus."
             ),
             "action": (
-                "Keine automatische Mischung von Yahoo Forward-EPS und FY27-Proxy. V2.20.64 verwendet diagnostisch 0 % Forward / 100 % mechanischen FY27-Operating-Proxy; "
+                "Keine automatische Mischung von Yahoo Forward-EPS und FY27-Proxy. V2.20.65 verwendet 0 % Forward / 100 % mechanischen FY27-Operating-Proxy; "
                 "Ziel-KGV und Fair Value bleiben bis zum separaten NVIDIA-Bewertungsanker gesperrt."
             ),
         }
@@ -25321,7 +25607,7 @@ if selected_symbol:
 
                 if is_nvidia_score_ui:
                     st.info("NVIDIA/Fabless-AI-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.64 verwendet den eigenen primärquellenbasierten AI-Quality-Score sowie Demand-Quality- und Earnings-Horizon-Gates.")
-                    st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf den NVIDIA AI-Quality-Score oder das Forward-Earnings-Credibility-Gate.")
+                    st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf den NVIDIA AI-Quality-Score oder das Earnings-Horizon-Alignment-Gate.")
                 elif is_semicap_score_ui:
                     st.info("ASML/Lithografie-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.61 verwendet stattdessen den eigenen primärquellenbasierten Semicap-Quality-Score.")
                     st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf den Semicap-Quality-Score oder das Forward-Earnings-Credibility-Gate.")
@@ -27098,12 +27384,13 @@ if selected_symbol:
                 nvidia_model = data.get("nvidia_special_model", {"applicable": False})
                 if nvidia_model.get("applicable"):
                     st.divider()
-                    st.subheader("🧠 Halbleiter-/AI-Sondermodell V2.20.64 – NVIDIA Earnings Horizon & Demand Quality")
+                    st.subheader("🧠 Halbleiter-/AI-Sondermodell V2.20.65 – NVIDIA Quality-Adjusted Operating P/E")
                     nv_snap = nvidia_model.get("snapshot") or {}
                     nv_gate = nvidia_model.get("primary_gate") or {}
                     nv_demand = nvidia_model.get("demand_quality_gate") or {}
                     nv_score = nvidia_model.get("ai_quality_score") or {}
                     nv_cred = nvidia_model.get("forward_earnings_credibility") or {}
+                    nv_val = nvidia_model.get("nvidia_valuation") or {}
                     if nvidia_model.get("primary_source_complete"):
                         st.success("NVIDIA-Primärquellen-Gate bestanden: Q1/Q2-FY2027-Execution, AI-Nachfrage, Margen, offizieller FCF, Bilanz/Inventory, Konzentration, China-Kontext und Q3-Guidance sind validiert.")
                     else:
@@ -27183,15 +27470,25 @@ if selected_symbol:
                         st.metric("Diagnostische FY27 Operating-Earnings-Referenz", format_eps(nv_cred.get("diagnostic_ai_earnings_reference"), financial_currency))
                         st.caption(nv_cred.get("note"))
 
+                    if nv_val.get("available"):
+                        st.write("**NVIDIA Bewertungsanker V2.20.65**")
+                        st.write("**Einzige Earnings-Basis:** " + format_eps(nv_val.get("earnings_reference"), financial_currency))
+                        st.write(f"**Score-gesteuertes Ziel-KGV:** {nv_val.get('target_pe'):.2f}×")
+                        st.write(f"**NVIDIA Operating-KGV-Zielkorridor:** {nv_val.get('corridor_low'):.2f}× – {nv_val.get('corridor_high'):.2f}×")
+                        st.metric("Fundamentaler NVIDIA-Fair-Value", format_eps(nv_val.get("fair_value_financial"), financial_currency))
+                        st.success("Bewertungsanker freigegeben: Earnings-Horizon-Alignment liefert ausschließlich den FY27-Operating-EPS-Proxy; der AI-Quality-Score bestimmt allein Ziel-KGV/Korridor. Keine zusätzlichen Demand-/Margin-/Concentration-Caps.")
+                        st.caption(nv_val.get("note"))
+
                     st.write("**Yahoo-/Standarddaten nur als Kontext**")
                     st.write("**Standard-EPS-Normalisierung (nur Kontext):** " + format_eps(data.get("eps_normalization", {}).get("normalized_eps"), financial_currency))
                     st.write("**Yahoo Free Cashflow (Kontext):** " + format_money(nvidia_model.get("yahoo_free_cashflow_context"), financial_currency))
                     yev_nv = safe_float(nvidia_model.get("yahoo_ev_to_ebitda_context"))
                     st.write("**Yahoo EV / EBITDA (Kontext):** " + (f"{yev_nv:.2f}×" if yev_nv is not None else "–"))
                     st.write(f"**Datenreife Sondermodell:** {nvidia_model.get('readiness')}")
-                    if nvidia_model.get("score_and_earnings_gate_complete"):
-                        st.success("V2.20.64 gibt AI-Quality-Score, Demand-Quality und Earnings-Horizon-Alignment frei. Yahoo Forward-EPS bleibt reference-only; die diagnostische FY27-Operating-Referenz basiert zu 100 % auf dem mechanischen offiziellen Proxy.")
-                    st.warning("Bewertungsfreigabe noch NEIN: Ziel-KGV, Bewertungs-Korridor und Fair Value bleiben bis zum separaten NVIDIA-/Fabless-AI-Bewertungsanker gesperrt.")
+                    if nvidia_model.get("valuation_anchor_complete"):
+                        st.success("Bewertungsfreigabe JA: V2.20.65 gibt den FY27-Operating-EPS-Proxy als einzige Earnings-Basis und den scoregesteuerten NVIDIA-Operating-KGV-Anker frei.")
+                    elif nvidia_model.get("score_and_earnings_gate_complete"):
+                        st.warning("Bewertungsfreigabe noch NEIN: AI-/Demand-/Horizon-Gates sind vollständig, aber der NVIDIA-Bewertungsanker ist nicht freigegeben.")
                     st.caption(nvidia_model.get("note"))
 
                 reit_model = data.get(
@@ -27497,9 +27794,17 @@ if selected_symbol:
                         st.write("**Mechanischer FY27 Operating-EPS-Proxy:** " + format_eps(nv_cred_m6.get("fy27_operating_eps_proxy"), financial_currency))
                         st.write("**Diagnostische FY27 Operating-Earnings-Referenz:** " + format_eps(nv_cred_m6.get("diagnostic_ai_earnings_reference"), financial_currency))
                         st.write(f"**Forward-/Proxy-Gewichtung:** {nv_cred_m6.get('forward_weight')*100:.0f} % / {nv_cred_m6.get('official_proxy_weight')*100:.0f} %")
-                    st.warning("Noch kein NVIDIA-/AI-Fundamental-Multiple: V2.20.64 endet bewusst nach AI-Quality-, Demand-Quality- und Earnings-Horizon-Gates. Ziel-KGV und Fair Value folgen separat.")
+                    nv_val_m6 = nv_m6.get("nvidia_valuation") or {}
+                    if nv_val_m6.get("available"):
+                        st.metric("Score-gesteuertes NVIDIA-Ziel-KGV", f"{nv_val_m6.get('target_pe'):.2f}×")
+                        st.write(f"**NVIDIA Operating-KGV-Zielkorridor:** {nv_val_m6.get('corridor_low'):.2f}× – {nv_val_m6.get('corridor_high'):.2f}×")
+                        st.write("**FY27 Operating-Earnings-Basis:** " + format_eps(nv_val_m6.get("earnings_reference"), financial_currency))
+                        st.write("**Fundamentaler NVIDIA-Fair-Value:** " + format_eps(nv_val_m6.get("fair_value_financial"), financial_currency))
+                        st.success("NVIDIA-Bewertungsanker freigegeben. Earnings-Horizon liefert nur die Earnings-Basis; AI Quality bestimmt nur Ziel-KGV/Korridor.")
+                    else:
+                        st.warning("NVIDIA-/AI-Fundamental-Multiple noch nicht belastbar freigegeben.")
                     st.caption(multiple_result.get("note"))
-                    st.caption("AVGO/AMD/QCOM/MRVL bleiben Markt-Referenzen und dürfen ohne AI-spezifische normalisierte Vergleichsbasis keinen NVIDIA-Fair-Value erzeugen.")
+                    st.caption("AVGO/AMD/QCOM/MRVL bleiben in V2.20.65 reine Markt-Referenzen. Ein normalisiertes NVIDIA-Peer-/Safety-Gate folgt separat und verändert den aktuellen Fair Value noch nicht.")
                 elif is_semicap_valuation_ui:
                     semicap_m6 = data.get("semicap_special_model") or {}
                     gate_sc_m6 = semicap_m6.get("primary_gate") or {}
@@ -27838,6 +28143,7 @@ if selected_symbol:
                 is_midstream_peer_metric = peer_check.get("metric") == "EV/EBITDA"
                 is_automotive_peer_metric = peer_check.get("metric") == "Automotive Forward P/E reference"
                 is_semicap_peer_metric = peer_check.get("metric") == "Semicap Forward P/E reference"
+                is_nvidia_peer_metric = peer_check.get("metric") == "NVIDIA Forward P/E reference"
 
                 if not peer_check[
                     "method_supported"
@@ -27851,7 +28157,7 @@ if selected_symbol:
 
                     st.write(
                         "**Geladene Peer-EV/EBITDA-Werte:**"
-                        if is_midstream_peer_metric else ("**Automotive Peer-Forward-KGVs (Referenz):**" if is_automotive_peer_metric else ("**Semicap Peer-Forward-KGVs (Referenz):**" if is_semicap_peer_metric else "**Geladene Peer-KGVs:**"))
+                        if is_midstream_peer_metric else ("**Automotive Peer-Forward-KGVs (Referenz):**" if is_automotive_peer_metric else ("**Semicap Peer-Forward-KGVs (Referenz):**" if is_semicap_peer_metric else ("**NVIDIA Peer-Forward-KGVs (Referenz):**" if is_nvidia_peer_metric else "**Geladene Peer-KGVs:**")))
                     )
 
                     for row in peer_check["peer_rows"]:
@@ -27882,6 +28188,15 @@ if selected_symbol:
                                     f"• {row['name']} ({row['symbol']}): {peer_value:.2f}×{source_text} "
                                     f"· {structure} · {basis} · {visibility} · {eligibility}"
                                 )
+                            elif is_nvidia_peer_metric:
+                                eligibility = "voll vergleichbar" if row.get("adjustment_eligible") else "nur Referenz"
+                                structure = row.get("structure") or "Semiconductor-Struktur"
+                                basis = "normalisierte AI-Earnings" if row.get("earnings_basis_comparable") else "Yahoo Forward-EPS"
+                                ai_cycle = "AI-Nachfrage/Zyklus vergleichbar" if row.get("ai_demand_cycle_comparable") else "AI-Nachfrage/Zyklus nicht normalisiert"
+                                st.write(
+                                    f"• {row['name']} ({row['symbol']}): {peer_value:.2f}×{source_text} "
+                                    f"· {structure} · {basis} · {ai_cycle} · {eligibility}"
+                                )
                             else:
                                 st.write(
                                     f"• {row['name']} ({row['symbol']}): "
@@ -27891,10 +28206,10 @@ if selected_symbol:
                             st.write(f"• {row['name']} ({row['symbol']}): –")
 
                     st.write(
-                        ("**Brauchbare Referenz-Peer-Daten:** " if (is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric) else "**Brauchbare Peer-Daten:** ")
+                        ("**Brauchbare Referenz-Peer-Daten:** " if (is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric) else "**Brauchbare Peer-Daten:** ")
                         + f"{peer_check['usable_count']}"
                     )
-                    if is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric:
+                    if is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric:
                         st.write(
                             "**Für automatische Anpassung voll vergleichbar:** "
                             f"{peer_check.get('adjustment_eligible_count', 0)}"
@@ -27909,13 +28224,16 @@ if selected_symbol:
                                 )
                             )
                         else:
-                            st.warning(
-                                "Comparability Gate nicht bestanden: Referenzmedian bleibt ohne Einfluss auf Zielmultiple und Fair Value."
-                            )
+                            if is_nvidia_peer_metric:
+                                st.warning("NVIDIA-Peers sind in V2.20.65 nur Referenz: 0 normalisierte Anpassungs-Peers; keine automatische Peer-Anpassung.")
+                            else:
+                                st.warning(
+                                    "Comparability Gate nicht bestanden: Referenzmedian bleibt ohne Einfluss auf Zielmultiple und Fair Value."
+                                )
 
                     if peer_check["peer_median"] is not None:
                         st.metric(
-                            "Peer-Median EV/EBITDA" if is_midstream_peer_metric else ("Automotive Referenzmedian Forward-KGV" if is_automotive_peer_metric else ("Semicap Referenzmedian Forward-KGV" if is_semicap_peer_metric else "Peer-Median Forward-KGV")),
+                            "Peer-Median EV/EBITDA" if is_midstream_peer_metric else ("Automotive Referenzmedian Forward-KGV" if is_automotive_peer_metric else ("Semicap Referenzmedian Forward-KGV" if is_semicap_peer_metric else ("NVIDIA Referenzmedian Forward-KGV" if is_nvidia_peer_metric else "Peer-Median Forward-KGV"))),
                             f"{peer_check['peer_median']:.2f}×"
                         )
 
@@ -27936,7 +28254,7 @@ if selected_symbol:
                         st.metric(
                             "Peer-kontrolliertes EV/Adjusted EBITDA"
                             if peer_check.get("metric") == "EV/EBITDA"
-                            else ("Peer-kontrolliertes Automotive-Ziel-KGV" if is_automotive_peer_metric else ("Peer-kontrolliertes Semicap-Ziel-KGV" if is_semicap_peer_metric else "Peer-kontrolliertes Multiple")),
+                            else ("Peer-kontrolliertes Automotive-Ziel-KGV" if is_automotive_peer_metric else ("Peer-kontrolliertes Semicap-Ziel-KGV" if is_semicap_peer_metric else ("Peer-kontrolliertes NVIDIA-Ziel-KGV" if is_nvidia_peer_metric else "Peer-kontrolliertes Multiple"))),
                             f"{peer_check['adjusted_multiple']:.2f}×"
                         )
 
@@ -27983,8 +28301,11 @@ if selected_symbol:
                             if is_automotive_peer_metric else (
                                 "Mindestens 3 produkt-/toolmix-, earnings- und zyklus-/visibilitätsvergleichbare normalisierte Peers sind für eine automatische Semicap-Anpassung Pflicht; "
                                 "der Median wird statt des Durchschnitts verwendet."
-                                if is_semicap_peer_metric else
-                                "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
+                                if is_semicap_peer_metric else (
+                                    "NVIDIA V2.20.65 zeigt Peers nur als Markt-Referenz. Eine automatische Anpassung ist erst nach einem separaten AI-/Earnings-Comparability-Safety-Gate zulässig."
+                                    if is_nvidia_peer_metric else
+                                    "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
+                                )
                             )
                         )
                     )
@@ -28170,13 +28491,14 @@ if selected_symbol:
                     "control_key"
                 ) == "ai_growth_margin":
                     st.divider()
-                    st.subheader("🧠 Modul 6 – Schritt 3B: NVIDIA AI-Quality-, Demand-Quality- & Earnings-Horizon-Prüfung")
+                    st.subheader("🧠 Modul 6 – Schritt 3B: NVIDIA AI-Quality-, Earnings-Horizon- & Operating-KGV-Prüfung")
                     if special_control.get("implemented"):
                         checks_nv = special_control.get("checks", {})
                         snap_nv3 = special_control.get("snapshot") or {}
                         demand_nv3 = checks_nv.get("demand_quality_gate") or {}
                         score_nv3 = checks_nv.get("ai_quality_score") or {}
                         cred_nv3 = checks_nv.get("forward_earnings_credibility") or {}
+                        val_nv3 = checks_nv.get("nvidia_valuation") or {}
                         st.write(f"**Datenstand:** {text_or_dash(snap_nv3.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_nv3.get('published_date'))})")
                         c1, c2 = st.columns(2)
                         with c1:
@@ -28213,7 +28535,13 @@ if selected_symbol:
                                 st.write(f"**Yahoo-Forward numerischer Abstand (nur Referenz):** {gap3:+.1f} %")
                             st.write(f"**Forward-/Proxy-Gewichtung:** {cred_nv3.get('forward_weight')*100:.0f} % / {cred_nv3.get('official_proxy_weight')*100:.0f} %")
                             st.metric("Diagnostische FY27 Operating-Earnings-Referenz", format_eps(cred_nv3.get("diagnostic_ai_earnings_reference"), financial_currency))
-                        st.warning("Bewertungsfreigabe noch NEIN: V2.20.64 gibt AI-Quality, Demand-Quality und Earnings-Horizon-Alignment frei, aber noch kein Zielmultiple und keinen Fair Value.")
+                        if val_nv3.get("available"):
+                            st.write(f"**Score-gesteuertes Ziel-KGV:** {val_nv3.get('target_pe'):.2f}×")
+                            st.write(f"**Zielkorridor:** {val_nv3.get('corridor_low'):.2f}× – {val_nv3.get('corridor_high'):.2f}×")
+                            st.write("**Fundamentaler NVIDIA-Fair-Value:** " + format_eps(val_nv3.get("fair_value_financial"), financial_currency))
+                            st.success("Bewertungsfreigabe JA: V2.20.65 gibt die quality-adjustierte Operating-KGV-Bewertung frei. Yahoo Forward-EPS und Peer-/FCF-Overlays bleiben außerhalb des Fair Values.")
+                        else:
+                            st.warning("Bewertungsfreigabe noch NEIN: NVIDIA-Operating-P/E-Anker nicht vollständig freigegeben.")
                         st.caption("Das Gate bleibt fail-closed, wenn der offizielle Snapshot veraltet/unvollständig ist oder die operative Earnings-Basis nicht belastbar bestimmt werden kann. Equity-Securities-Gewinne werden nicht als nachhaltige operative EPS-Basis extrapoliert.")
                     else:
                         st.warning(special_control.get("note"))
@@ -30883,6 +31211,21 @@ if selected_symbol:
                             st.write(f"**Tatsächliche Peer-Multiple-Anpassung:** {fair_value.get('peer_adjustment_pct')*100:+.2f} %")
                             st.write(f"**Fair-Value-Effekt nach Safety-Cap:** {fair_value.get('peer_fair_value_effect_used_pct'):+.2f} %")
                         st.caption("AMAT/LRCX/KLAC bleiben ohne bestandene Normalized Comparability reine Markt-Referenz. Bei späterer Freigabe gelten ±5-%-Multiple- und ±5-%-Fair-Value-Safety-Caps.")
+                    elif fair_value.get("valuation_method") == "nvidia_ai_quality_operating_pe":
+                        st.write("**Bewertungsformel:** Mechanischer FY27 Operating-EPS-Proxy × scoregesteuertes quality-adjustiertes NVIDIA Operating-KGV")
+                        st.write(f"**NVIDIA AI-Quality-Score:** {fair_value.get('nvidia_ai_score'):.0f}/100 · {fair_value.get('nvidia_quality_level')}")
+                        st.write(f"**Demand-Quality:** {fair_value.get('demand_quality_status')} · {fair_value.get('demand_quality_score'):.0f}/100")
+                        st.write(f"**Earnings-Horizon/Operating-Credibility:** {fair_value.get('earnings_credibility_status')} · {fair_value.get('earnings_credibility_score'):.0f}/100")
+                        st.write("**FY27 Operating-EPS-Proxy / einzige Earnings-Basis:** " + format_eps(fair_value.get("nvidia_earnings_reference"), fair_value["financial_currency"]))
+                        fw = safe_float(fair_value.get("forward_weight")); pw = safe_float(fair_value.get("official_proxy_weight"))
+                        if fw is not None and pw is not None:
+                            st.write(f"**Yahoo-Forward-/Proxy-Gewichtung:** {fw*100:.0f} % / {pw*100:.0f} %")
+                        cpe = safe_float(fair_value.get("current_pe_on_nvidia_reference"))
+                        if cpe is not None:
+                            st.write(f"**Aktuelles KGV auf FY27-Operating-Earnings-Basis:** {cpe:.2f}×")
+                        st.write(f"**Score-gesteuertes Ziel-KGV:** {fair_value.get('target_pe'):.2f}×")
+                        st.write(f"**NVIDIA Operating-KGV-Zielkorridor:** {fair_value.get('pe_corridor_low'):.2f}× – {fair_value.get('pe_corridor_high'):.2f}×")
+                        st.caption("Demand Quality, Gross Margin, Konzentration, China und Working Capital werden nicht nochmals als Multiple-Caps verwendet. Yahoo Forward-EPS, Yahoo-FCF/EV-EBITDA sowie AVGO/AMD/QCOM/MRVL bleiben in V2.20.65 außerhalb des Fair Values.")
                     elif fair_value.get("valuation_method") == "reit_paffo":
                         st.write("**Bewertungsformel:** Offizieller AFFO-Guidance-Mittelwert × scoregesteuertes Ziel-P/AFFO")
                         st.write(f"**REIT-Score:** {fair_value.get('reit_score'):.0f}/100 · {fair_value.get('reit_quality_level')}")
@@ -30987,6 +31330,11 @@ if selected_symbol:
                             "Semicap-Fair-Value V1 wurde aus der credibility-gewichteten Earnings-Referenz und dem "
                             "scoregesteuerten quality-adjustierten KGV berechnet. Ein Peer-Overlay darf nur nach bestandenem Normalized Comparability Gate und unter dualen ±5-%-Safety-Caps wirken."
                         )
+                    elif fair_value.get("valuation_method") == "nvidia_ai_quality_operating_pe":
+                        st.success(
+                            "NVIDIA-Fair-Value V1 wurde aus dem mechanischen FY27-Operating-EPS-Proxy und dem scoregesteuerten "
+                            "quality-adjustierten Operating-KGV berechnet. Yahoo Forward-EPS und Peer-/FCF-Overlays bleiben außerhalb der Bewertung."
+                        )
                     elif fair_value.get("valuation_method") == "reit_paffo":
                         st.success(
                             "REIT-Fair-Value V1 wurde aus der verifizierten offiziellen AFFO-Guidance-Basis "
@@ -31033,6 +31381,15 @@ if selected_symbol:
                                 "Diese Spezialkontrolle bestimmt die Sicherheit der Semicap-Earnings-Basis; die generische "
                                 "TTM-/Forward-EPS-Divergenz wird hier nicht nochmals als separater Sicherheitsabzug gewertet."
                             )
+                    elif fair_value.get("valuation_method") == "nvidia_ai_quality_operating_pe":
+                        cred_score_conf = safe_float(fair_value.get("earnings_credibility_score"))
+                        cred_status_conf = fair_value.get("earnings_credibility_status")
+                        if cred_score_conf is not None:
+                            st.info(
+                                f"NVIDIA Earnings-Horizon/Operating-Credibility: {cred_status_conf} · {cred_score_conf:.0f}/100. "
+                                "Diese Spezialkontrolle bestimmt die Sicherheit der FY27-Operating-Earnings-Basis; die generische TTM-/Forward-EPS-Divergenz "
+                                "wird nicht nochmals als separater Sicherheitsabzug gewertet."
+                            )
                     else:
                         eps_confidence_note = data.get(
                             "eps_normalization", {}
@@ -31062,7 +31419,7 @@ if selected_symbol:
                     )
 
                     if valuation_zone.get("price_vs_fair_value_pct") is not None:
-                        if fair_value.get("valuation_method") == "semicap_quality_adjusted_pe" and fair_value.get("potential_pct") is not None:
+                        if fair_value.get("valuation_method") in {"semicap_quality_adjusted_pe", "nvidia_ai_quality_operating_pe"} and fair_value.get("potential_pct") is not None:
                             # Semicap V2.20.61: use the exact same (FV - Price) / Price convention
                             # as the Fair Value block. Frozen modules keep their existing zone display.
                             price_distance = safe_float(fair_value.get("potential_pct"))
