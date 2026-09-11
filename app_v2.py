@@ -17,14 +17,14 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.70"
+APP_BUILD_VERSION = "V2.20.71"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · Kratos Earnings Adjustment Quality & Owner-Operating Earnings Gate")
+st.caption(f"Build {APP_BUILD_VERSION} · Kratos FY26 Owner-Operating Profitability Bridge & 2027 Horizon Lock")
 
 
 # V2.20.52: Midstream Peer Safety Cap & Comparability Gate. Separates market-reference peers from adjustment-eligible peers. Automatic peer adjustment requires at least three peers with sufficiently comparable corporate structure AND issuer-adjusted EBITDA basis. Generic Yahoo EV/EBITDA remains reference-only. If a future gate passes, the multiple proposal and the resulting equity fair-value effect are each capped at ±5 %. The 100-point Midstream score and official KMI Adjusted EBITDA / Net Debt / share-count bridge remain unchanged.
@@ -45,6 +45,7 @@ st.caption(f"Build {APP_BUILD_VERSION} · Kratos Earnings Adjustment Quality & O
 # V2.20.67: NVIDIA Freeze & Status Consistency Cleanup. No valuation mechanics changed. Removes stale pre-release wording after the V2.20.66 FCF/peer safety gates were activated, aligns current NVIDIA build labels/router text, and states consistently that FY27 operating EPS, 28x quality P/E, normalized-peer safety and H1-FCF safety are already active. Scores, gates, fair value, zones and signals are unchanged.
 # V2.20.69: Kratos Defense-Tech Classification & Primary-Source Growth/Earnings Credibility Gate. Adds an explicit Kratos business-model classification (Defense Technology / Unmanned & Advanced Systems), a current Q2/H1 2026 official-data snapshot for backlog/funded backlog, book-to-bill, revenue coverage, margin guidance, adjusted-vs-GAAP earnings and investment-driven FCF, plus a fail-closed Kratos peer-comparability lock. Standard EPS remains context-only for KTOS and no Kratos fair value is released yet. Frozen Defense/Rheinmetall logic is preserved.
 # V2.20.70: Kratos Earnings Adjustment Quality & Owner-Operating Earnings Gate. Decomposes the official H1 non-GAAP bridge into recurring economic costs versus potentially normalizable acquisition items. Depreciation, stock-based compensation and capitalized contract/development amortization are never auto-added back; acquired-intangible amortization is shown only as a conditional diagnostic because official future amortization remains material. Acquisition/restructuring items may be normalized only when separately disclosed, and contingent-acquisition gains are neutralized. Produces a conservative owner-operating H1 EPS diagnostic range, but still releases no Kratos earnings basis, target multiple or fair value. Also disambiguates total-backlog/FY26 coverage from H2 coverage. Frozen Defense/Rheinmetall logic is preserved.
+# V2.20.71: Kratos FY26 Owner-Operating Profitability Bridge & 2027 Horizon Lock. Adds the current official FY26 revenue/Operating-Income/Depreciation/Amortization/SBC/Adjusted-EBITDA guidance bridge, explicitly shows that the midpoint reconciliation is dominated by addbacks, and creates a strict owner-operating EBIT range plus a conditional upper diagnostic that may normalize only disclosed acquired-intangible amortization. The company's expected ~100 bp 2027 Adjusted-EBITDA-margin uplift is displayed as horizon context only; without full 2027 revenue/operating-income/EPS guidance no 2027 earnings basis, target multiple or fair value is released. The generic 18x-30x P/E corridor is marked not applicable for KTOS. Frozen Defense/Rheinmetall and all previously frozen specialist models are preserved.
 
 # =========================================================
 # Hilfsfunktionen
@@ -5880,8 +5881,8 @@ def classify_company(name, symbol, sector, industry):
         return {
             "type": "Defense / stark wachsend / Defense Technology / Unmanned & Advanced Systems",
             "method": (
-                "Primärquellenbasierte Defense-Growth-/Earnings-Credibility-Kontrolle; "
-                "Bewertungsanker erst nach freigegebener operativer Earnings-Basis"
+                "Primärquellenbasierte Defense-Growth-/Owner-Operating-Kontrolle + 2027-Horizon-Lock; "
+                "Bewertungsanker erst nach freigegebener operativer 2027-Earnings-Basis"
             ),
             "confidence_cap": "Mittel",
             "business_model": "Produkt- und technologieorientierter Defense-Tech-Anbieter",
@@ -13494,7 +13495,7 @@ def get_peer_group(company_type, symbol):
                 "target_symbol": own_symbol,
                 "note": (
                     (
-                        "Kratos Defense-Tech-Peer-Lock aktiv: BAE Systems, Leonardo, Thales und Saab sind in V2.20.70 nur Markt-Referenzen. "
+                        "Kratos Defense-Tech-Peer-Lock aktiv: BAE Systems, Leonardo, Thales und Saab sind in V2.20.71 nur Markt-Referenzen. "
                         "Ohne normalisierte Vergleichbarkeit von Wachstumsphase, Produkt-/Technologiemix, Margenprofil und Earnings-Basis darf ihr Forward-KGV-Median das KTOS-Multiple nicht verändern."
                     )
                     if own_symbol == "KTOS" and key == "defense / stark wachsend"
@@ -14692,14 +14693,17 @@ def get_special_control(company_type, symbol):
                 "Q2/H1 Adjusted EBITDA + FY26-Guidance",
                 "GAAP vs. Adjusted EPS / Non-GAAP-Brücke",
                 "Owner-Operating Addback Quality: D&A / SBC / Contract-Amortisation / Intangibles",
+                "FY26 Guidance Bridge: Operating Income -> D&A -> SBC -> Adjusted EBITDA",
+                "Strikter FY26 Owner-Operating-EBIT-Korridor + bedingte Intangible-Obergrenze",
+                "2027 Adjusted-EBITDA-Margenrichtung nur als Kontext; keine 2027 Earnings ohne Vollguidance",
                 "FY26 Free-Cash-Flow Use / Wachstumsinvestitionen",
                 "Normalized Peer Comparability Lock",
-                "später: freigegebene operative Kratos-Earnings-Basis + Bewertungsanker",
+                "später: freigegebene operative 2027-Kratos-Earnings-Basis + Bewertungsanker",
             ],
-            "status": "Router aktiv – V2.20.70 Kratos Owner-Operating Earnings Quality Gate",
+            "status": "Router aktiv – V2.20.71 Kratos FY26 Owner-Operating Profitability Bridge & 2027 Horizon Lock",
             "note": (
-                "V2.20.70 nutzt für KTOS ausschließlich aktuelle offizielle Q2/H1-2026-Kratos-Daten. "
-                "Growth/Visibility, Non-GAAP-Addback-Qualität und Owner-Operating-Earnings werden getrennt geprüft; Standard-EPS und reife Defense-Peers dürfen keinen Fair Value freigeben."
+                "V2.20.71 nutzt für KTOS ausschließlich aktuelle offizielle Q2/H1-2026-Kratos-Daten und die aktuelle FY26-Guidance. "
+                "Growth/Visibility, Addback-Qualität und FY26 Owner-Operating-Profitabilität werden getrennt geprüft. Die erwartete 2027 Adjusted-EBITDA-Margenverbesserung bleibt ohne vollständige 2027 Umsatz-/Operating-Income-/EPS-Guidance reiner Horizont-Kontext; Standard-EPS und reife Defense-Peers dürfen keinen Fair Value freigeben."
             ),
         }
 
@@ -15042,8 +15046,8 @@ def get_verified_defense_snapshot(symbol):
             "source_note": (
                 "Offizielle Kratos-Q2/H1-2026-Daten. Total Backlog und Funded Backlog werden getrennt; "
                 "die 35-%-FY2026-Backlog-Realisierung ist Unternehmensangabe aus dem 10-Q und wird nicht als garantierter Umsatz behandelt. "
-                "V2.20.70 zerlegt die offizielle Non-GAAP-Brücke in wirtschaftlich wiederkehrende und potenziell normalisierbare Positionen. "
-                "Es wird weiterhin keine einzelne Kratos-Earnings-Basis und kein Fair Value freigegeben."
+                "V2.20.71 zerlegt die offizielle Non-GAAP-Brücke in wirtschaftlich wiederkehrende und potenziell normalisierbare Positionen und ergänzt die offizielle FY26-Profitabilitäts-Guidance-Brücke. "
+                "Die erwartete 2027 Adjusted-EBITDA-Margenverbesserung wird ohne vollständige 2027 Umsatz-/Operating-Income-/EPS-Guidance nicht in Earnings umgerechnet; es wird weiterhin keine Kratos-Earnings-Basis und kein Fair Value freigegeben."
             ),
             "sec_source_url": "https://www.sec.gov/Archives/edgar/data/1069258/000106925826000077/ktos-20260628.htm",
             "business_model": "Technology, hardware, products, systems and software for defense, national security and commercial markets",
@@ -15102,6 +15106,17 @@ def get_verified_defense_snapshot(symbol):
             "h1_adjusted_ebitda_previous": 55.0e6,
             "fy26_adjusted_ebitda_guidance_low": 173e6,
             "fy26_adjusted_ebitda_guidance_high": 176e6,
+            "fy26_operating_income_guidance_low": 16e6,
+            "fy26_operating_income_guidance_high": 22e6,
+            "fy26_depreciation_guidance_low": 48e6,
+            "fy26_depreciation_guidance_high": 50e6,
+            "fy26_amortization_guidance_low": 43e6,
+            "fy26_amortization_guidance_high": 46e6,
+            "fy26_stock_compensation_guidance_low": 60e6,
+            "fy26_stock_compensation_guidance_high": 64e6,
+            "fy27_adjusted_ebitda_margin_uplift_pp": 1.0,
+            "fy27_full_guidance_available": False,
+            "fy27_guidance_timing": "mit den Q3-FY2026-Ergebnissen",
             "current_margin": 76.9 / 829.8 * 100.0,
             "comparable_previous_margin": 55.0 / 654.1 * 100.0,
             "latest_quarter_margin": 38.2 / 458.8 * 100.0,
@@ -15366,6 +15381,8 @@ def build_defense_special_control(base_control, company_type, symbol):
     kratos_growth = None
     kratos_earnings = None
     kratos_owner_operating = None
+    kratos_profitability_bridge = None
+    kratos_2027_horizon = None
     kratos_cashflow = None
     if symbol_text == "KTOS":
         funded = safe_float(snapshot.get("funded_backlog_current"))
@@ -15413,14 +15430,14 @@ def build_defense_special_control(base_control, company_type, symbol):
             "earnings_basis_released": False,
             "status": "Nicht als Bewertungsbasis freigegeben",
             "reason": (
-                "Q2/H1 Adjusted EPS liegt wesentlich über GAAP EPS. V2.20.70 prüft deshalb jede Non-GAAP-Anpassung einzeln: "
+                "Q2/H1 Adjusted EPS liegt wesentlich über GAAP EPS. V2.20.71 prüft deshalb jede Non-GAAP-Anpassung einzeln: "
                 "Depreciation, Stock-Based Compensation und Contract/Development-Amortisation bleiben wirtschaftliche Kosten; "
                 "akquisitionsbedingte Intangible-Amortisation wird wegen der weiterhin hohen offiziellen Amortisationsplanung nicht automatisch herausgerechnet. "
                 "Yahoo Forward-EPS bleibt reference-only, bis eine einzelne belastbare operative Earnings-Basis separat freigegeben ist."
             ),
         }
 
-        # V2.20.70 Owner-Operating Earnings Adjustment Quality Gate.
+        # V2.20.71 Owner-Operating Earnings Adjustment Quality Gate.
         # Start from the company's official H1 adjusted pre-tax bridge, then put recurring
         # economic costs back. This is diagnostic only; no valuation earnings basis is released.
         adj_pre_tax = safe_float(snapshot.get("h1_adjusted_pre_tax_income"))
@@ -15482,9 +15499,119 @@ def build_defense_special_control(base_control, company_type, symbol):
             },
             "reason": (
                 "Die Company-Adjusted-EPS-Brücke addiert auch Depreciation, SBC und Contract/Development-Amortisation zurück. "
-                "V2.20.70 behandelt diese Positionen nicht als kostenlose Addbacks. Acquired-Intangible-Amortisation bleibt wegen offiziell erwarteter "
+                "V2.20.71 behandelt diese Positionen nicht als kostenlose Addbacks. Acquired-Intangible-Amortisation bleibt wegen offiziell erwarteter "
                 "Amortisation von 21,3 Mio. USD im Rest 2026 und 40,2 Mio. USD 2027 automatisch gesperrt und wird nur als bedingte Obergrenze gezeigt. "
                 "Daher entsteht bewusst nur eine diagnostische H1-EPS-Spanne und noch keine Bewertungsbasis."
+            ),
+        }
+
+        # V2.20.71 FY26 Owner-Operating Profitability Bridge & 2027 Horizon Lock.
+        # The official FY26 midpoint reconciles Operating Income to Adjusted EBITDA via
+        # Depreciation + Amortization + SBC. These are not treated as free economic earnings.
+        fy26_rev_low = safe_float(snapshot.get("revenue_guidance_low"))
+        fy26_rev_high = safe_float(snapshot.get("revenue_guidance_high"))
+        fy26_rev_mid = (fy26_rev_low + fy26_rev_high) / 2.0 if None not in [fy26_rev_low, fy26_rev_high] else None
+        oi_low = safe_float(snapshot.get("fy26_operating_income_guidance_low"))
+        oi_high = safe_float(snapshot.get("fy26_operating_income_guidance_high"))
+        dep_low = safe_float(snapshot.get("fy26_depreciation_guidance_low"))
+        dep_high = safe_float(snapshot.get("fy26_depreciation_guidance_high"))
+        amort_low = safe_float(snapshot.get("fy26_amortization_guidance_low"))
+        amort_high = safe_float(snapshot.get("fy26_amortization_guidance_high"))
+        sbc_low = safe_float(snapshot.get("fy26_stock_compensation_guidance_low"))
+        sbc_high = safe_float(snapshot.get("fy26_stock_compensation_guidance_high"))
+        adj_ebitda_low = safe_float(snapshot.get("fy26_adjusted_ebitda_guidance_low"))
+        adj_ebitda_high = safe_float(snapshot.get("fy26_adjusted_ebitda_guidance_high"))
+
+        def _mid(lo, hi):
+            return (lo + hi) / 2.0 if None not in [lo, hi] else None
+
+        oi_mid = _mid(oi_low, oi_high)
+        dep_mid = _mid(dep_low, dep_high)
+        amort_mid = _mid(amort_low, amort_high)
+        sbc_mid = _mid(sbc_low, sbc_high)
+        adj_ebitda_mid = _mid(adj_ebitda_low, adj_ebitda_high)
+        bridge_sum_mid = None
+        if None not in [oi_mid, dep_mid, amort_mid, sbc_mid]:
+            bridge_sum_mid = oi_mid + dep_mid + amort_mid + sbc_mid
+        bridge_gap_mid = bridge_sum_mid - adj_ebitda_mid if None not in [bridge_sum_mid, adj_ebitda_mid] else None
+        total_addbacks_mid = dep_mid + amort_mid + sbc_mid if None not in [dep_mid, amort_mid, sbc_mid] else None
+        addbacks_share_adj_ebitda_pct = total_addbacks_mid / adj_ebitda_mid * 100.0 if total_addbacks_mid is not None and adj_ebitda_mid not in [None, 0] else None
+        sbc_share_adj_ebitda_pct = sbc_mid / adj_ebitda_mid * 100.0 if sbc_mid is not None and adj_ebitda_mid not in [None, 0] else None
+
+        acquired_intangible_fy26 = None
+        if intang_amort is not None and safe_float(snapshot.get("future_intangible_amortization_remainder_2026")) is not None:
+            acquired_intangible_fy26 = intang_amort + safe_float(snapshot.get("future_intangible_amortization_remainder_2026"))
+
+        strict_ebit_low = oi_low
+        strict_ebit_high = oi_high
+        conditional_ebit_low = oi_low + acquired_intangible_fy26 if oi_low is not None and acquired_intangible_fy26 is not None else None
+        conditional_ebit_high = oi_high + acquired_intangible_fy26 if oi_high is not None and acquired_intangible_fy26 is not None else None
+        strict_margin_low = strict_ebit_low / fy26_rev_high * 100.0 if strict_ebit_low is not None and fy26_rev_high not in [None, 0] else None
+        strict_margin_high = strict_ebit_high / fy26_rev_low * 100.0 if strict_ebit_high is not None and fy26_rev_low not in [None, 0] else None
+        conditional_margin_low = conditional_ebit_low / fy26_rev_high * 100.0 if conditional_ebit_low is not None and fy26_rev_high not in [None, 0] else None
+        conditional_margin_high = conditional_ebit_high / fy26_rev_low * 100.0 if conditional_ebit_high is not None and fy26_rev_low not in [None, 0] else None
+        adj_ebitda_margin_mid = adj_ebitda_mid / fy26_rev_mid * 100.0 if adj_ebitda_mid is not None and fy26_rev_mid not in [None, 0] else None
+
+        kratos_profitability_bridge = {
+            "available": all(v is not None for v in [fy26_rev_low, fy26_rev_high, oi_low, oi_high, dep_low, dep_high, amort_low, amort_high, sbc_low, sbc_high, adj_ebitda_low, adj_ebitda_high]),
+            "fy26_revenue_low": fy26_rev_low,
+            "fy26_revenue_high": fy26_rev_high,
+            "fy26_revenue_mid": fy26_rev_mid,
+            "operating_income_low": oi_low,
+            "operating_income_high": oi_high,
+            "operating_income_mid": oi_mid,
+            "depreciation_low": dep_low,
+            "depreciation_high": dep_high,
+            "depreciation_mid": dep_mid,
+            "amortization_low": amort_low,
+            "amortization_high": amort_high,
+            "amortization_mid": amort_mid,
+            "stock_comp_low": sbc_low,
+            "stock_comp_high": sbc_high,
+            "stock_comp_mid": sbc_mid,
+            "adjusted_ebitda_low": adj_ebitda_low,
+            "adjusted_ebitda_high": adj_ebitda_high,
+            "adjusted_ebitda_mid": adj_ebitda_mid,
+            "bridge_sum_mid": bridge_sum_mid,
+            "bridge_gap_mid": bridge_gap_mid,
+            "total_addbacks_mid": total_addbacks_mid,
+            "addbacks_share_adj_ebitda_pct": addbacks_share_adj_ebitda_pct,
+            "sbc_share_adj_ebitda_pct": sbc_share_adj_ebitda_pct,
+            "acquired_intangible_amortization_fy26_diagnostic": acquired_intangible_fy26,
+            "strict_owner_operating_ebit_low": strict_ebit_low,
+            "strict_owner_operating_ebit_high": strict_ebit_high,
+            "strict_owner_operating_margin_low_pct": strict_margin_low,
+            "strict_owner_operating_margin_high_pct": strict_margin_high,
+            "conditional_owner_operating_ebit_low": conditional_ebit_low,
+            "conditional_owner_operating_ebit_high": conditional_ebit_high,
+            "conditional_owner_operating_margin_low_pct": conditional_margin_low,
+            "conditional_owner_operating_margin_high_pct": conditional_margin_high,
+            "adjusted_ebitda_margin_mid_pct": adj_ebitda_margin_mid,
+            "earnings_basis_released": False,
+            "status": "FY26 Profitabilitätsbrücke bestätigt · keine Bewertungsbasis",
+            "reason": (
+                "Die FY26-Guidance zeigt, dass Operating Income + Depreciation + Amortization + SBC am Mittelpunkt praktisch vollständig zum Adjusted EBITDA überleitet. "
+                "Depreciation, SBC und Contract/Development-Amortisation bleiben daher wirtschaftliche Kosten. Der strikte Owner-Operating-EBIT-Korridor bleibt auf der offiziellen Operating-Income-Guidance; "
+                "nur die separat identifizierte acquired-intangible amortization darf als bedingte obere Diagnose gezeigt werden. Diese Obergrenze ist keine freigegebene Earnings-Basis."
+            ),
+        }
+
+        fy27_margin_uplift_pp = safe_float(snapshot.get("fy27_adjusted_ebitda_margin_uplift_pp"))
+        fy27_indicated_adj_ebitda_margin = adj_ebitda_margin_mid + fy27_margin_uplift_pp if adj_ebitda_margin_mid is not None and fy27_margin_uplift_pp is not None else None
+        kratos_2027_horizon = {
+            "full_guidance_available": bool(snapshot.get("fy27_full_guidance_available")),
+            "guidance_timing": snapshot.get("fy27_guidance_timing"),
+            "fy26_adjusted_ebitda_margin_mid_pct": adj_ebitda_margin_mid,
+            "expected_adjusted_ebitda_margin_uplift_pp": fy27_margin_uplift_pp,
+            "indicated_2027_adjusted_ebitda_margin_pct": fy27_indicated_adj_ebitda_margin,
+            "revenue_guidance_available": False,
+            "operating_income_guidance_available": False,
+            "eps_guidance_available": False,
+            "earnings_basis_released": False,
+            "status": "GESPERRT – keine 2027 operative Earnings-Basis",
+            "reason": (
+                "Kratos erwartet für 2027 eine weitere Verbesserung der Adjusted-EBITDA-Marge um rund 100 Basispunkte gegenüber 2026, hat aber noch keine vollständige 2027 Umsatz-, Operating-Income- oder EPS-Guidance veröffentlicht. "
+                "Die Margenrichtung wird deshalb nicht in Umsatz, EBIT, EPS oder Fair Value extrapoliert. Ein 2027 Bewertungsanker bleibt fail-closed bis zur angekündigten Vollguidance."
             ),
         }
 
@@ -15537,6 +15664,8 @@ def build_defense_special_control(base_control, company_type, symbol):
         "kratos_growth_visibility": kratos_growth,
         "kratos_earnings_credibility": kratos_earnings,
         "kratos_owner_operating_earnings": kratos_owner_operating if symbol_text == "KTOS" else None,
+        "kratos_fy26_profitability_bridge": kratos_profitability_bridge if symbol_text == "KTOS" else None,
+        "kratos_2027_horizon_lock": kratos_2027_horizon if symbol_text == "KTOS" else None,
         "kratos_cashflow_context": kratos_cashflow,
     }
 
@@ -15576,14 +15705,14 @@ def build_defense_special_control(base_control, company_type, symbol):
         released = True
         confidence_cap = "Mittel"
 
-    # KTOS V2.20.70: primary-source growth/visibility and owner-operating adjustment quality are usable,
-    # but valuation remains deliberately fail-closed until a single operating earnings basis is released.
-    # This does not alter Rheinmetall.
+    # KTOS V2.20.71: primary-source growth/visibility, owner-operating adjustment quality and the
+    # FY26 profitability bridge are usable, but valuation remains deliberately fail-closed because
+    # a 2027 operating earnings horizon is not yet company-guided. This does not alter Rheinmetall.
     if symbol_text == "KTOS":
         if not snapshot_fresh:
             overall_status = "Daten veraltet"
         else:
-            overall_status = "Growth/Visibility bestätigt · Owner-Operating-Earnings nur diagnostisch"
+            overall_status = "FY26 Growth/Owner-Operating bestätigt · 2027 Earnings-Horizont gesperrt"
         released = False
         confidence_cap = "Niedrig"
 
@@ -15592,7 +15721,7 @@ def build_defense_special_control(base_control, company_type, symbol):
         "released": released,
         "confidence_cap": confidence_cap,
         "step3b_status": (
-            "Kratos Primärdaten + Addback-Quality vollständig – Owner-Operating-Earnings noch nicht als Bewertungsbasis freigegeben"
+            "Kratos FY26 Primärdaten + Profitabilitätsbrücke vollständig – 2027 Earnings-Horizont noch gesperrt"
             if symbol_text == "KTOS" and snapshot_fresh
             else (
                 "Schritt 3B vollständig – Fair Value freigegeben"
@@ -15606,10 +15735,10 @@ def build_defense_special_control(base_control, company_type, symbol):
         "checks": checks,
         "note": (
             (
-                "V2.20.70 klassifiziert Kratos als Defense-Tech-/Unmanned-&-Advanced-Systems-Anbieter und validiert Backlog/Funded Backlog, "
+                "V2.20.71 klassifiziert Kratos als Defense-Tech-/Unmanned-&-Advanced-Systems-Anbieter und validiert Backlog/Funded Backlog, "
                 "Book-to-Bill, H2-Revenue-Coverage, Margen-/Guidance-Entwicklung und den investitionsbelasteten FCF. Zusätzlich zerlegt das Owner-Operating Gate "
-                "die Adjusted-EPS-Addbacks nach wirtschaftlicher Qualität. Die Spezialkontrolle verändert den 100-Punkte-Multiple-Score nicht. "
-                "Ein Kratos-Fair-Value bleibt gesperrt, bis eine einzelne operative Earnings-Basis freigegeben ist."
+                "die Adjusted-EPS-Addbacks nach wirtschaftlicher Qualität und die FY26-Guidance-Brücke zeigt Operating Income, D&A, SBC und Adjusted EBITDA getrennt. "
+                "Die Spezialkontrolle verändert den 100-Punkte-Multiple-Score nicht. Ein Kratos-Fair-Value bleibt gesperrt, bis eine belastbare operative 2027-Earnings-Basis aus vollständiger Unternehmensguidance ableitbar ist."
             )
             if symbol_text == "KTOS"
             else (
@@ -24064,16 +24193,25 @@ def load_stock(search_text, cache_version):
     )
 
     if str(fundamental_symbol or "").upper() == "KTOS":
+        diagnostic_corridor = fundamental_multiple.get("corridor")
         fundamental_multiple = {
             **fundamental_multiple,
             "diagnostic_score": safe_float(fundamental_multiple.get("score")),
+            "diagnostic_corridor": diagnostic_corridor,
+            "corridor": {
+                "available": False,
+                "lower": None,
+                "upper": None,
+                "method": "Nicht anwendbar – Kratos Defense-Tech / 2027 Horizon Lock",
+                "note": "Der generische 18–30×-KGV-Korridor ist für KTOS nicht freigegeben.",
+            },
             "multiple": None,
             "available": False,
             "earnings_basis_usable": False,
             "note": (
-                "Kratos V2.20.70: Der generische 100-Punkte-Score bleibt Diagnosekontext, aber es wird noch kein Fundamental-Multiple freigegeben. "
-                "Die Standard-EPS-Basis ist wegen der großen GAAP-/Adjusted-EPS-Differenz nicht als Kratos-Earnings-Basis zugelassen; "
-                "das Owner-Operating-Gate liefert zunächst nur eine diagnostische H1-EPS-Spanne; ein Bewertungsanker folgt separat."
+                "Kratos V2.20.71: Der generische 100-Punkte-Score bleibt Diagnosekontext; der generische 18–30×-KGV-Korridor ist für KTOS ausdrücklich nicht anwendbar. "
+                "Die Standard-EPS-Basis ist wegen der großen GAAP-/Adjusted-EPS-Differenz nicht zugelassen. Das Owner-Operating-Gate und die FY26-Profitabilitätsbrücke liefern nur Diagnosegrenzen; "
+                "ohne vollständige 2027 Umsatz-/Operating-Income-/EPS-Guidance bleibt der Bewertungsanker gesperrt."
             ),
         }
 
@@ -24437,13 +24575,13 @@ def load_stock(search_text, cache_version):
             "requires_research": False,
             "valuation_usable": False,
             "reason": (
-                "Kratos weist für Q2/H1 eine große Differenz zwischen GAAP- und Adjusted EPS aus. V2.20.70 zerlegt die Non-GAAP-Addbacks deshalb nach wirtschaftlicher Qualität; "
-                "Depreciation, SBC und Contract/Development-Amortisation werden nicht automatisch herausgerechnet. Gleichzeitig bleibt FY26 Free Cash Flow laut Unternehmensguidance negativ. "
-                "Die Primärdaten und eine Owner-Operating-H1-Diagnosespanne sind vorhanden, aber noch keine einzelne operative Kratos-Earnings-Basis ist als Bewertungsanker freigegeben."
+                "Kratos weist für Q2/H1 eine große Differenz zwischen GAAP- und Adjusted EPS aus. V2.20.71 zerlegt die Non-GAAP-Addbacks deshalb nach wirtschaftlicher Qualität und stellt zusätzlich die FY26 Operating-Income→D&A/SBC→Adjusted-EBITDA-Brücke transparent dar. "
+                "Depreciation, SBC und Contract/Development-Amortisation werden nicht automatisch herausgerechnet. Gleichzeitig bleibt FY26 Free Cash Flow negativ und die erwartete 2027 Margenverbesserung ist noch nicht durch vollständige 2027 Umsatz-/Operating-Income-/EPS-Guidance unterlegt. "
+                "Daher bleibt die operative 2027-Earnings-Basis gesperrt."
             ),
             "action": (
-                "Keine zusätzliche Ad-hoc-Sonderrecherche erforderlich: V2.20.70 hat Press Release und 10-Q-Addback-Daten eingebunden. "
-                "Company-Adjusted-EPS, Standard-EPS und Yahoo Forward-EPS bleiben ohne freigegebene Owner-Operating-Basis Kontext/reference-only; Fair Value bleibt gesperrt."
+                "Keine zusätzliche Ad-hoc-Sonderrecherche für FY26 erforderlich: V2.20.71 hat Press Release, 10-Q-Addbacks und FY26-Guidance eingebunden. "
+                "Company-Adjusted-EPS, Standard-EPS und Yahoo Forward-EPS bleiben Kontext/reference-only. Der Fair Value bleibt bis zur angekündigten vollständigen 2027-Guidance und einer daraus belastbar ableitbaren operativen Earnings-Basis gesperrt."
             ),
         }
 
@@ -25501,7 +25639,7 @@ if selected_symbol:
                     )
                     if str(data.get("symbol") or "").upper() == "KTOS":
                         st.info(
-                            "Kratos/Defense-Tech: Diese Standard-Normalisierung bleibt in V2.20.70 ausschließlich Kontext. "
+                            "Kratos/Defense-Tech: Diese Standard-Normalisierung bleibt in V2.20.71 ausschließlich Kontext. "
                             "Die große GAAP-/Adjusted-EPS-Differenz wird im Kratos Owner-Operating Earnings Gate separat geprüft; das Standard-EPS ist nicht als Kratos-Bewertungsbasis freigegeben."
                         )
                     elif is_semicap_lithography_company_type(company_type):
@@ -25647,7 +25785,7 @@ if selected_symbol:
                     )
                 elif str(data.get("symbol") or "").upper() == "KTOS":
                     st.caption(
-                        "Das Standard-normalisierte EPS ist bei Kratos in V2.20.70 ausschließlich Kontext. Q2/H1 GAAP-/Adjusted-EPS und die einzelnen Addbacks werden im Primary-Source Owner-Operating Earnings Gate getrennt. "
+                        "Das Standard-normalisierte EPS ist bei Kratos in V2.20.71 ausschließlich Kontext. Q2/H1 GAAP-/Adjusted-EPS und die einzelnen Addbacks werden im Primary-Source Owner-Operating Earnings Gate getrennt. "
                         "Bis eine eigene operative Kratos-Earnings-Basis freigegeben ist, steuert dieses Standard-EPS weder Peer-Anpassung noch Fair Value."
                     )
                 elif is_semicap_lithography_company_type(company_type):
@@ -26234,7 +26372,7 @@ if selected_symbol:
 
                 if is_kratos_score_ui:
                     st.info(
-                        "Kratos/Defense-Tech: Die folgenden generischen 100-Punkte-Multiple-Score-Komponenten bleiben in V2.20.70 reine Diagnosewerte. "
+                        "Kratos/Defense-Tech: Die folgenden generischen 100-Punkte-Multiple-Score-Komponenten bleiben in V2.20.71 reine Diagnosewerte. "
                         "Sie bestimmen weder eine Kratos-Earnings-Basis noch ein Fundamental-Multiple oder einen Fair Value. Maßgeblich ist zunächst das primärquellenbasierte Growth-/Backlog-/Owner-Operating-Earnings-Gate."
                     )
 
@@ -26807,7 +26945,7 @@ if selected_symbol:
                         )
                         if str(selected_symbol or "").upper() == "KTOS":
                             st.caption(
-                                "Kratos V2.20.70: Dieser generische Multiple Score ist ausschließlich Diagnosekontext. "
+                                "Kratos V2.20.71: Dieser generische Multiple Score ist ausschließlich Diagnosekontext. "
                                 "Die App setzt daraus bewusst kein Kratos-Multiple und keinen Fair Value frei."
                             )
 
@@ -28666,6 +28804,20 @@ if selected_symbol:
                         "Ein NAV-Anker wird nur ergänzt, wenn eine belastbare und vergleichbare "
                         "Primärquelle vorhanden ist; NAV wird nicht aus Buchwert oder Enterprise Value geschätzt."
                     )
+                elif str(data.get("symbol") or "").upper() == "KTOS":
+                    st.warning(
+                        "Kratos Defense-Tech: Der generische 18–30×-KGV-Korridor ist nicht anwendbar. "
+                        "V2.20.71 zeigt ihn nicht als Bewertungsrahmen, weil weder Standard-EPS noch eine vollständige 2027 operative Earnings-Basis freigegeben sind."
+                    )
+                    diagnostic_score = safe_float(multiple_result.get("diagnostic_score"))
+                    if diagnostic_score is not None:
+                        st.write(f"**Generischer Multiple-Score – nur Diagnose:** {diagnostic_score:.0f}/100")
+                    st.info("Noch kein Kratos-Fundamental-Multiple berechenbar.")
+                    st.caption(multiple_result.get("note"))
+                    st.caption(
+                        "Der nächste Bewertungsanker darf erst nach belastbarer 2027 Umsatz-/Operating-Income-/EPS-Basis definiert werden. "
+                        "FY26 Owner-Operating-Profitabilität und die 2027 Adjusted-EBITDA-Margenrichtung bleiben bis dahin Diagnose."
+                    )
                 else:
                     corridor = multiple_result[
                         "corridor"
@@ -28968,7 +29120,7 @@ if selected_symbol:
                                 if is_semicap_peer_metric else (
                                     "Mindestens 3 AI-/Geschäftsmix-, earnings- und Nachfrage-/Zyklus-vergleichbare normalisierte Peers sind für eine automatische NVIDIA-Anpassung Pflicht; Median statt Durchschnitt, duale ±5-%-Caps."
                                     if is_nvidia_peer_metric else (
-                                        "Kratos V2.20.70: Reife Defense-Primes bleiben reference-only, bis mindestens 3 Peers bei Wachstumsphase, Produkt-/Technologiemix, Margenprofil und normalisierter Earnings-Basis vergleichbar sind."
+                                        "Kratos V2.20.71: Reife Defense-Primes bleiben reference-only, bis mindestens 3 Peers bei Wachstumsphase, Produkt-/Technologiemix, Margenprofil und normalisierter Earnings-Basis vergleichbar sind."
                                         if is_kratos_peer_metric else
                                         "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
                                     )
@@ -29228,7 +29380,7 @@ if selected_symbol:
 
                     if str(selected_symbol or "").upper() == "KTOS":
                         st.subheader(
-                            "🛡️ Modul 6 – Schritt 3B: Kratos Defense-Tech Growth-, Backlog- & Owner-Operating-Earnings-Prüfung"
+                            "🛡️ Modul 6 – Schritt 3B: Kratos Defense-Tech Growth-, FY26-Owner-Operating- & 2027-Horizon-Prüfung"
                         )
                     else:
                         st.subheader(
@@ -29396,7 +29548,7 @@ if selected_symbol:
                             st.caption(ke.get("reason"))
 
                             ko = checks.get("kratos_owner_operating_earnings") or {}
-                            st.markdown("**Owner-Operating Earnings Adjustment Quality Gate V2.20.70**")
+                            st.markdown("**Owner-Operating Earnings Adjustment Quality Gate V2.20.71**")
                             if ko.get("adjusted_pre_tax_income") is not None:
                                 st.write(f"**Company Adjusted H1 Pre-Tax Income:** {format_money(ko.get('adjusted_pre_tax_income'), financial_currency)}")
                             if ko.get("diagnostic_tax_rate_pct") is not None:
@@ -29437,6 +29589,84 @@ if selected_symbol:
                             st.write(f"**Owner-Operating-Gate:** {ko.get('status', '–')}")
                             st.caption(ko.get("reason"))
 
+                            kp = checks.get("kratos_fy26_profitability_bridge") or {}
+                            st.markdown("**FY26 Owner-Operating Profitability Bridge V2.20.71**")
+                            if kp.get("available"):
+                                st.write(
+                                    "**FY26 Umsatz-Guidance:** "
+                                    + format_money(kp.get("fy26_revenue_low"), financial_currency)
+                                    + " – "
+                                    + format_money(kp.get("fy26_revenue_high"), financial_currency)
+                                )
+                                st.write(
+                                    "**FY26 Operating-Income-Guidance:** "
+                                    + format_money(kp.get("operating_income_low"), financial_currency)
+                                    + " – "
+                                    + format_money(kp.get("operating_income_high"), financial_currency)
+                                )
+                                st.write(
+                                    "**FY26 Depreciation / Amortization / SBC:** "
+                                    + format_money(kp.get("depreciation_low"), financial_currency) + "–" + format_money(kp.get("depreciation_high"), financial_currency)
+                                    + " / " + format_money(kp.get("amortization_low"), financial_currency) + "–" + format_money(kp.get("amortization_high"), financial_currency)
+                                    + " / " + format_money(kp.get("stock_comp_low"), financial_currency) + "–" + format_money(kp.get("stock_comp_high"), financial_currency)
+                                )
+                                st.write(
+                                    "**FY26 Adjusted-EBITDA-Guidance:** "
+                                    + format_money(kp.get("adjusted_ebitda_low"), financial_currency)
+                                    + " – "
+                                    + format_money(kp.get("adjusted_ebitda_high"), financial_currency)
+                                )
+                                if kp.get("bridge_sum_mid") is not None and kp.get("adjusted_ebitda_mid") is not None:
+                                    st.write(
+                                        "**Midpoint-Brückencheck:** Operating Income + Depreciation + Amortization + SBC = "
+                                        + format_money(kp.get("bridge_sum_mid"), financial_currency)
+                                        + " vs. Adjusted EBITDA "
+                                        + format_money(kp.get("adjusted_ebitda_mid"), financial_currency)
+                                    )
+                                if kp.get("bridge_gap_mid") is not None:
+                                    st.write("**Brückenabweichung Midpoint:** " + format_money(kp.get("bridge_gap_mid"), financial_currency))
+                                if kp.get("addbacks_share_adj_ebitda_pct") is not None:
+                                    st.write(f"**D&A + SBC als Anteil am Adjusted EBITDA (Midpoint):** {kp.get('addbacks_share_adj_ebitda_pct'):.1f} %")
+                                if kp.get("sbc_share_adj_ebitda_pct") is not None:
+                                    st.write(f"**SBC-Anteil am Adjusted EBITDA (Midpoint):** {kp.get('sbc_share_adj_ebitda_pct'):.1f} %")
+                                st.write(
+                                    "**Strikter FY26 Owner-Operating-EBIT-Korridor:** "
+                                    + format_money(kp.get("strict_owner_operating_ebit_low"), financial_currency)
+                                    + " – "
+                                    + format_money(kp.get("strict_owner_operating_ebit_high"), financial_currency)
+                                )
+                                if kp.get("strict_owner_operating_margin_low_pct") is not None and kp.get("strict_owner_operating_margin_high_pct") is not None:
+                                    st.write(f"**Strikte Owner-Operating-Marge:** {kp.get('strict_owner_operating_margin_low_pct'):.1f} % – {kp.get('strict_owner_operating_margin_high_pct'):.1f} %")
+                                if kp.get("acquired_intangible_amortization_fy26_diagnostic") is not None:
+                                    st.write(
+                                        "**FY26 Acquired-Intangible-Amortisation – nur bedingte Diagnose:** "
+                                        + format_money(kp.get("acquired_intangible_amortization_fy26_diagnostic"), financial_currency)
+                                    )
+                                st.write(
+                                    "**Bedingte obere Owner-Operating-EBIT-Diagnose:** "
+                                    + format_money(kp.get("conditional_owner_operating_ebit_low"), financial_currency)
+                                    + " – "
+                                    + format_money(kp.get("conditional_owner_operating_ebit_high"), financial_currency)
+                                )
+                                if kp.get("conditional_owner_operating_margin_low_pct") is not None and kp.get("conditional_owner_operating_margin_high_pct") is not None:
+                                    st.write(f"**Bedingte obere Owner-Operating-Marge:** {kp.get('conditional_owner_operating_margin_low_pct'):.1f} % – {kp.get('conditional_owner_operating_margin_high_pct'):.1f} %")
+                                st.write(f"**Profitabilitätsbrücke:** {kp.get('status', '–')}")
+                                st.caption(kp.get("reason"))
+                            else:
+                                st.warning("FY26-Profitabilitätsbrücke unvollständig; Kratos-Bewertung bleibt gesperrt.")
+
+                            kh = checks.get("kratos_2027_horizon_lock") or {}
+                            st.markdown("**2027 Horizon Lock**")
+                            if kh.get("fy26_adjusted_ebitda_margin_mid_pct") is not None:
+                                st.write(f"**FY26 Adjusted-EBITDA-Marge Midpoint:** {kh.get('fy26_adjusted_ebitda_margin_mid_pct'):.1f} %")
+                            if kh.get("expected_adjusted_ebitda_margin_uplift_pp") is not None:
+                                st.write(f"**Unternehmenserwartung 2027:** +{kh.get('expected_adjusted_ebitda_margin_uplift_pp'):.1f} Prozentpunkt Adjusted-EBITDA-Marge")
+                            if kh.get("indicated_2027_adjusted_ebitda_margin_pct") is not None:
+                                st.write(f"**Nur rechnerischer Margen-Horizont:** ca. {kh.get('indicated_2027_adjusted_ebitda_margin_pct'):.1f} % Adjusted EBITDA · keine Earnings-Basis")
+                            st.write(f"**Vollständige 2027-Guidance:** {'vorhanden' if kh.get('full_guidance_available') else 'noch nicht vorhanden'} · angekündigt {kh.get('guidance_timing', '–')}")
+                            st.write(f"**2027 Earnings-Horizon:** {kh.get('status', '–')}")
+                            st.caption(kh.get("reason"))
+
                             st.markdown("**FCF-/Investitionskontext**")
                             if kc.get("fy26_fcf_use_low") is not None and kc.get("fy26_fcf_use_high") is not None:
                                 st.write(f"**FY26 Free-Cash-Flow Use Guidance:** −{format_money(kc.get('fy26_fcf_use_low'), financial_currency)} bis −{format_money(kc.get('fy26_fcf_use_high'), financial_currency)}")
@@ -29456,8 +29686,8 @@ if selected_symbol:
                         else:
                             if str(snapshot.get("model_variant") or "").startswith("kratos"):
                                 st.warning(
-                                    "Kratos V2.20.70: Growth-/Visibility- und Addback-Quality-Primärdaten sind validiert. Das Owner-Operating Gate liefert nur eine diagnostische H1-EPS-Spanne; "
-                                    "eine einzelne operative Earnings-Basis ist noch nicht freigegeben. Standard-EPS und reife Defense-Peers bleiben Kontext; der Fair Value bleibt gesperrt."
+                                    "Kratos V2.20.71: Growth-/Visibility-, Addback-Quality- und FY26-Profitabilitätsdaten sind validiert. Owner-Operating-H1 und FY26-EBIT-Korridor bleiben Diagnose; "
+                                    "die erwartete 2027 Margenverbesserung wird ohne vollständige 2027 Umsatz-/Operating-Income-/EPS-Guidance nicht in Earnings extrapoliert. Standard-EPS und reife Defense-Peers bleiben Kontext; der Fair Value bleibt gesperrt."
                                 )
                             else:
                                 st.warning(
@@ -29474,8 +29704,8 @@ if selected_symbol:
                         "Backlog und Funded/Feste-Auftrags-Komponenten werden bewusst getrennt. "
                         "Book-to-Bill verändert den 100-Punkte-Multiple-Score nicht. "
                         "Verifizierte Spezialdaten werden nach ihrem Gültigkeitsdatum nicht stillschweigend weiterverwendet. "
-                        "Für KTOS ersetzt Company-Adjusted-EPS weder automatisch GAAP EPS noch das Standard-normalisierte EPS. V2.20.70 klassifiziert die Addbacks einzeln; "
-                        "die Owner-Operating-H1-Spanne ist Diagnose und keine freigegebene Earnings-Basis."
+                        "Für KTOS ersetzt Company-Adjusted-EPS weder automatisch GAAP EPS noch das Standard-normalisierte EPS. V2.20.71 klassifiziert die Addbacks einzeln, zeigt die FY26-Guidance-Brücke transparent und hält den 2027-Horizont fail-closed; "
+                        "Owner-Operating-H1-Spanne, FY26-EBIT-Korridor und der rechnerische 2027-Margenhorizont sind Diagnose und keine freigegebene Earnings-Basis."
                     )
 
                 if special_control.get(
