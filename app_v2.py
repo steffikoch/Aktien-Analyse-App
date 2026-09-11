@@ -17,14 +17,14 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.69"
+APP_BUILD_VERSION = "V2.20.70"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · Kratos Defense-Tech UI Symbol Scope Hotfix")
+st.caption(f"Build {APP_BUILD_VERSION} · Kratos Earnings Adjustment Quality & Owner-Operating Earnings Gate")
 
 
 # V2.20.52: Midstream Peer Safety Cap & Comparability Gate. Separates market-reference peers from adjustment-eligible peers. Automatic peer adjustment requires at least three peers with sufficiently comparable corporate structure AND issuer-adjusted EBITDA basis. Generic Yahoo EV/EBITDA remains reference-only. If a future gate passes, the multiple proposal and the resulting equity fair-value effect are each capped at ±5 %. The 100-point Midstream score and official KMI Adjusted EBITDA / Net Debt / share-count bridge remain unchanged.
@@ -44,6 +44,7 @@ st.caption(f"Build {APP_BUILD_VERSION} · Kratos Defense-Tech UI Symbol Scope Ho
 # V2.20.66: NVIDIA FCF Conversion & Normalized Peer Safety Gate. Adds a downside-only primary-source H1 FCF conversion/yield safety gate and a fail-closed normalized peer comparability gate for AVGO/AMD/QCOM/MRVL. H1 FCF is checked against official H1 non-GAAP net income and against the implied equity value; it can cap or block but never raise fair value. Peer adjustment requires at least three AI/business-mix, normalized-earnings and cycle/demand comparable peers, with independent ±5% caps on target P/E and fair-value effect.
 # V2.20.67: NVIDIA Freeze & Status Consistency Cleanup. No valuation mechanics changed. Removes stale pre-release wording after the V2.20.66 FCF/peer safety gates were activated, aligns current NVIDIA build labels/router text, and states consistently that FY27 operating EPS, 28x quality P/E, normalized-peer safety and H1-FCF safety are already active. Scores, gates, fair value, zones and signals are unchanged.
 # V2.20.69: Kratos Defense-Tech Classification & Primary-Source Growth/Earnings Credibility Gate. Adds an explicit Kratos business-model classification (Defense Technology / Unmanned & Advanced Systems), a current Q2/H1 2026 official-data snapshot for backlog/funded backlog, book-to-bill, revenue coverage, margin guidance, adjusted-vs-GAAP earnings and investment-driven FCF, plus a fail-closed Kratos peer-comparability lock. Standard EPS remains context-only for KTOS and no Kratos fair value is released yet. Frozen Defense/Rheinmetall logic is preserved.
+# V2.20.70: Kratos Earnings Adjustment Quality & Owner-Operating Earnings Gate. Decomposes the official H1 non-GAAP bridge into recurring economic costs versus potentially normalizable acquisition items. Depreciation, stock-based compensation and capitalized contract/development amortization are never auto-added back; acquired-intangible amortization is shown only as a conditional diagnostic because official future amortization remains material. Acquisition/restructuring items may be normalized only when separately disclosed, and contingent-acquisition gains are neutralized. Produces a conservative owner-operating H1 EPS diagnostic range, but still releases no Kratos earnings basis, target multiple or fair value. Also disambiguates total-backlog/FY26 coverage from H2 coverage. Frozen Defense/Rheinmetall logic is preserved.
 
 # =========================================================
 # Hilfsfunktionen
@@ -13493,7 +13494,7 @@ def get_peer_group(company_type, symbol):
                 "target_symbol": own_symbol,
                 "note": (
                     (
-                        "Kratos Defense-Tech-Peer-Lock aktiv: BAE Systems, Leonardo, Thales und Saab sind in V2.20.69 nur Markt-Referenzen. "
+                        "Kratos Defense-Tech-Peer-Lock aktiv: BAE Systems, Leonardo, Thales und Saab sind in V2.20.70 nur Markt-Referenzen. "
                         "Ohne normalisierte Vergleichbarkeit von Wachstumsphase, Produkt-/Technologiemix, Margenprofil und Earnings-Basis darf ihr Forward-KGV-Median das KTOS-Multiple nicht verändern."
                     )
                     if own_symbol == "KTOS" and key == "defense / stark wachsend"
@@ -14682,7 +14683,7 @@ def get_special_control(company_type, symbol):
         return {
             "required": True,
             "control_key": "defense_order_visibility",
-            "control_name": "Kratos Defense-Tech / Growth-, Backlog- & Earnings-Credibility-Kontrolle",
+            "control_name": "Kratos Defense-Tech / Growth-, Backlog- & Owner-Operating-Earnings-Kontrolle",
             "planned_checks": [
                 "Business-Model: KGS + Unmanned Systems / Defense Technology",
                 "Backlog + Funded/Unfunded Backlog",
@@ -14690,14 +14691,15 @@ def get_special_control(company_type, symbol):
                 "FY26-Backlog-Realisierung / H2-Revenue-Coverage",
                 "Q2/H1 Adjusted EBITDA + FY26-Guidance",
                 "GAAP vs. Adjusted EPS / Non-GAAP-Brücke",
+                "Owner-Operating Addback Quality: D&A / SBC / Contract-Amortisation / Intangibles",
                 "FY26 Free-Cash-Flow Use / Wachstumsinvestitionen",
                 "Normalized Peer Comparability Lock",
-                "später: operative Kratos-Earnings-Basis + Bewertungsanker",
+                "später: freigegebene operative Kratos-Earnings-Basis + Bewertungsanker",
             ],
-            "status": "Router aktiv – V2.20.69 Kratos Primary-Source Growth/Earnings-Credibility Gate",
+            "status": "Router aktiv – V2.20.70 Kratos Owner-Operating Earnings Quality Gate",
             "note": (
-                "V2.20.69 nutzt für KTOS ausschließlich aktuelle offizielle Q2/H1-2026-Kratos-Daten. "
-                "Growth/Visibility wird von der Earnings-Credibility getrennt; Standard-EPS und reife Defense-Peers dürfen keinen Fair Value freigeben."
+                "V2.20.70 nutzt für KTOS ausschließlich aktuelle offizielle Q2/H1-2026-Kratos-Daten. "
+                "Growth/Visibility, Non-GAAP-Addback-Qualität und Owner-Operating-Earnings werden getrennt geprüft; Standard-EPS und reife Defense-Peers dürfen keinen Fair Value freigeben."
             ),
         }
 
@@ -15040,8 +15042,10 @@ def get_verified_defense_snapshot(symbol):
             "source_note": (
                 "Offizielle Kratos-Q2/H1-2026-Daten. Total Backlog und Funded Backlog werden getrennt; "
                 "die 35-%-FY2026-Backlog-Realisierung ist Unternehmensangabe aus dem 10-Q und wird nicht als garantierter Umsatz behandelt. "
-                "Adjusted EPS/EBITDA werden wegen wesentlicher Non-GAAP-Anpassungen nur als Earnings-Credibility-Kontext geführt; keine Kratos-Earnings-Basis ist in V2.20.69 freigegeben."
+                "V2.20.70 zerlegt die offizielle Non-GAAP-Brücke in wirtschaftlich wiederkehrende und potenziell normalisierbare Positionen. "
+                "Es wird weiterhin keine einzelne Kratos-Earnings-Basis und kein Fair Value freigegeben."
             ),
+            "sec_source_url": "https://www.sec.gov/Archives/edgar/data/1069258/000106925826000077/ktos-20260628.htm",
             "business_model": "Technology, hardware, products, systems and software for defense, national security and commercial markets",
             "core_segments": "Kratos Government Solutions (KGS) + Unmanned Systems (KUS)",
             "backlog_current": 2.084e9,
@@ -15083,6 +15087,16 @@ def get_verified_defense_snapshot(symbol):
             "q2_diluted_shares": 190.1e6,
             "q2_stock_compensation": 16.3e6,
             "h1_stock_compensation": 31.3e6,
+            "h1_adjusted_pre_tax_income": 91.6e6,
+            "h1_non_gaap_income_taxes": 17.5e6,
+            "h1_depreciation": 23.0e6,
+            "h1_intangible_amortization": 15.9e6,
+            "h1_contract_development_amortization": 4.2e6,
+            "h1_acquisition_restructuring_items": 2.7e6,
+            "h1_contingent_acquisition_consideration_reversal": 2.0e6,
+            "h1_foreign_transaction_gain": 0.3e6,
+            "future_intangible_amortization_remainder_2026": 21.3e6,
+            "future_intangible_amortization_2027": 40.2e6,
             "q2_adjusted_ebitda": 38.2e6,
             "h1_adjusted_ebitda": 76.9e6,
             "h1_adjusted_ebitda_previous": 55.0e6,
@@ -15351,6 +15365,7 @@ def build_defense_special_control(base_control, company_type, symbol):
 
     kratos_growth = None
     kratos_earnings = None
+    kratos_owner_operating = None
     kratos_cashflow = None
     if symbol_text == "KTOS":
         funded = safe_float(snapshot.get("funded_backlog_current"))
@@ -15398,11 +15413,81 @@ def build_defense_special_control(base_control, company_type, symbol):
             "earnings_basis_released": False,
             "status": "Nicht als Bewertungsbasis freigegeben",
             "reason": (
-                "Q2/H1 Adjusted EPS liegt wesentlich über GAAP EPS; die Non-GAAP-Brücke enthält u. a. Abschreibung/Amortisation, "
-                "Stock-Based Compensation sowie Akquisitions-/Restrukturierungsposten. Kratos gibt keine FY26-Adjusted-EPS-Guidance. "
-                "Yahoo Forward-EPS bleibt deshalb reference-only, bis eine belastbare operative Earnings-Basis separat definiert ist."
+                "Q2/H1 Adjusted EPS liegt wesentlich über GAAP EPS. V2.20.70 prüft deshalb jede Non-GAAP-Anpassung einzeln: "
+                "Depreciation, Stock-Based Compensation und Contract/Development-Amortisation bleiben wirtschaftliche Kosten; "
+                "akquisitionsbedingte Intangible-Amortisation wird wegen der weiterhin hohen offiziellen Amortisationsplanung nicht automatisch herausgerechnet. "
+                "Yahoo Forward-EPS bleibt reference-only, bis eine einzelne belastbare operative Earnings-Basis separat freigegeben ist."
             ),
         }
+
+        # V2.20.70 Owner-Operating Earnings Adjustment Quality Gate.
+        # Start from the company's official H1 adjusted pre-tax bridge, then put recurring
+        # economic costs back. This is diagnostic only; no valuation earnings basis is released.
+        adj_pre_tax = safe_float(snapshot.get("h1_adjusted_pre_tax_income"))
+        ng_tax = safe_float(snapshot.get("h1_non_gaap_income_taxes"))
+        dep = safe_float(snapshot.get("h1_depreciation"))
+        sbc = safe_float(snapshot.get("h1_stock_compensation"))
+        intang_amort = safe_float(snapshot.get("h1_intangible_amortization"))
+        contract_amort = safe_float(snapshot.get("h1_contract_development_amortization"))
+        acq_restruct = safe_float(snapshot.get("h1_acquisition_restructuring_items"))
+        contingent_reversal = safe_float(snapshot.get("h1_contingent_acquisition_consideration_reversal"))
+        diluted_shares = safe_float(snapshot.get("h1_diluted_shares"))
+        owner_tax_rate = ng_tax / adj_pre_tax if ng_tax is not None and adj_pre_tax not in [None, 0] else None
+
+        strict_pre_tax = None
+        strict_net_income = None
+        strict_eps = None
+        conditional_pre_tax = None
+        conditional_net_income = None
+        conditional_eps = None
+        if None not in [adj_pre_tax, dep, sbc, intang_amort, contract_amort]:
+            strict_pre_tax = adj_pre_tax - dep - sbc - intang_amort - contract_amort
+            conditional_pre_tax = strict_pre_tax + intang_amort
+            if owner_tax_rate is not None and 0 <= owner_tax_rate < 1:
+                strict_net_income = strict_pre_tax * (1.0 - owner_tax_rate)
+                conditional_net_income = conditional_pre_tax * (1.0 - owner_tax_rate)
+                if diluted_shares not in [None, 0]:
+                    strict_eps = strict_net_income / diluted_shares
+                    conditional_eps = conditional_net_income / diluted_shares
+
+        kratos_owner_operating = {
+            "status": "Teilweise bestätigt · keine Bewertungsbasis",
+            "earnings_basis_released": False,
+            "adjusted_pre_tax_income": adj_pre_tax,
+            "non_gaap_tax": ng_tax,
+            "diagnostic_tax_rate_pct": owner_tax_rate * 100.0 if owner_tax_rate is not None else None,
+            "depreciation": dep,
+            "stock_compensation": sbc,
+            "contract_development_amortization": contract_amort,
+            "intangible_amortization": intang_amort,
+            "acquisition_restructuring": acq_restruct,
+            "contingent_consideration_reversal": contingent_reversal,
+            "future_intangible_amortization_remainder_2026": safe_float(snapshot.get("future_intangible_amortization_remainder_2026")),
+            "future_intangible_amortization_2027": safe_float(snapshot.get("future_intangible_amortization_2027")),
+            "strict_owner_pre_tax": strict_pre_tax,
+            "strict_owner_net_income": strict_net_income,
+            "strict_owner_eps": strict_eps,
+            "conditional_owner_pre_tax": conditional_pre_tax,
+            "conditional_owner_net_income": conditional_net_income,
+            "conditional_owner_eps": conditional_eps,
+            "range_low_eps": strict_eps,
+            "range_high_eps": conditional_eps,
+            "normalization_policy": {
+                "Depreciation": "0 % Auto-Addback · wirtschaftliche Wiederbeschaffungskosten",
+                "Stock-Based Compensation": "0 % Auto-Addback · reale Verwässerung/Compensation",
+                "Contract/Development-Amortisation": "0 % Auto-Addback · kapitalisierte Entwicklungs-/Vertragskosten",
+                "Acquired Intangible Amortisation": "0 % automatische Freigabe · nur bedingte Obergrenze",
+                "Acquisition/Restructuring": "normalisierbar, sofern separat und nicht wiederkehrend",
+                "Contingent Acquisition Consideration Reversal": "Gewinn wird neutralisiert, nicht als operative Earnings gezählt",
+            },
+            "reason": (
+                "Die Company-Adjusted-EPS-Brücke addiert auch Depreciation, SBC und Contract/Development-Amortisation zurück. "
+                "V2.20.70 behandelt diese Positionen nicht als kostenlose Addbacks. Acquired-Intangible-Amortisation bleibt wegen offiziell erwarteter "
+                "Amortisation von 21,3 Mio. USD im Rest 2026 und 40,2 Mio. USD 2027 automatisch gesperrt und wird nur als bedingte Obergrenze gezeigt. "
+                "Daher entsteht bewusst nur eine diagnostische H1-EPS-Spanne und noch keine Bewertungsbasis."
+            ),
+        }
+
         kratos_cashflow = {
             "q2_fcf_use": safe_float(snapshot.get("q2_fcf_use")),
             "fy26_fcf_use_low": safe_float(snapshot.get("fy26_fcf_use_low")),
@@ -15451,6 +15536,7 @@ def build_defense_special_control(base_control, company_type, symbol):
         "margin_trend": margin,
         "kratos_growth_visibility": kratos_growth,
         "kratos_earnings_credibility": kratos_earnings,
+        "kratos_owner_operating_earnings": kratos_owner_operating if symbol_text == "KTOS" else None,
         "kratos_cashflow_context": kratos_cashflow,
     }
 
@@ -15490,14 +15576,14 @@ def build_defense_special_control(base_control, company_type, symbol):
         released = True
         confidence_cap = "Mittel"
 
-    # KTOS V2.20.69: the primary-source growth/visibility snapshot is usable,
-    # but the valuation remains deliberately fail-closed until a dedicated
-    # operating earnings basis is defined. This does not alter Rheinmetall.
+    # KTOS V2.20.70: primary-source growth/visibility and owner-operating adjustment quality are usable,
+    # but valuation remains deliberately fail-closed until a single operating earnings basis is released.
+    # This does not alter Rheinmetall.
     if symbol_text == "KTOS":
         if not snapshot_fresh:
             overall_status = "Daten veraltet"
         else:
-            overall_status = "Growth/Visibility bestätigt · Earnings-Basis noch gesperrt"
+            overall_status = "Growth/Visibility bestätigt · Owner-Operating-Earnings nur diagnostisch"
         released = False
         confidence_cap = "Niedrig"
 
@@ -15506,7 +15592,7 @@ def build_defense_special_control(base_control, company_type, symbol):
         "released": released,
         "confidence_cap": confidence_cap,
         "step3b_status": (
-            "Kratos Primärdaten vollständig – Earnings-Credibility noch nicht als Bewertungsbasis freigegeben"
+            "Kratos Primärdaten + Addback-Quality vollständig – Owner-Operating-Earnings noch nicht als Bewertungsbasis freigegeben"
             if symbol_text == "KTOS" and snapshot_fresh
             else (
                 "Schritt 3B vollständig – Fair Value freigegeben"
@@ -15520,9 +15606,10 @@ def build_defense_special_control(base_control, company_type, symbol):
         "checks": checks,
         "note": (
             (
-                "V2.20.69 klassifiziert Kratos als Defense-Tech-/Unmanned-&-Advanced-Systems-Anbieter und validiert Backlog/Funded Backlog, "
-                "Book-to-Bill, H2-Revenue-Coverage, Margen-/Guidance-Entwicklung, Adjusted-vs-GAAP-Earnings sowie den investitionsbelasteten FCF. "
-                "Die Spezialkontrolle verändert den 100-Punkte-Multiple-Score nicht. Ein Kratos-Fair-Value bleibt gesperrt, bis eine eigene operative Earnings-Basis freigegeben ist."
+                "V2.20.70 klassifiziert Kratos als Defense-Tech-/Unmanned-&-Advanced-Systems-Anbieter und validiert Backlog/Funded Backlog, "
+                "Book-to-Bill, H2-Revenue-Coverage, Margen-/Guidance-Entwicklung und den investitionsbelasteten FCF. Zusätzlich zerlegt das Owner-Operating Gate "
+                "die Adjusted-EPS-Addbacks nach wirtschaftlicher Qualität. Die Spezialkontrolle verändert den 100-Punkte-Multiple-Score nicht. "
+                "Ein Kratos-Fair-Value bleibt gesperrt, bis eine einzelne operative Earnings-Basis freigegeben ist."
             )
             if symbol_text == "KTOS"
             else (
@@ -23984,9 +24071,9 @@ def load_stock(search_text, cache_version):
             "available": False,
             "earnings_basis_usable": False,
             "note": (
-                "Kratos V2.20.69: Der generische 100-Punkte-Score bleibt Diagnosekontext, aber es wird noch kein Fundamental-Multiple freigegeben. "
+                "Kratos V2.20.70: Der generische 100-Punkte-Score bleibt Diagnosekontext, aber es wird noch kein Fundamental-Multiple freigegeben. "
                 "Die Standard-EPS-Basis ist wegen der großen GAAP-/Adjusted-EPS-Differenz nicht als Kratos-Earnings-Basis zugelassen; "
-                "ein eigener Defense-Tech-Earnings-/Bewertungsanker folgt separat."
+                "das Owner-Operating-Gate liefert zunächst nur eine diagnostische H1-EPS-Spanne; ein Bewertungsanker folgt separat."
             ),
         }
 
@@ -24346,17 +24433,17 @@ def load_stock(search_text, cache_version):
         special_event_warning = {
             "level": "Gelb",
             "icon": "🟡",
-            "title": "Kratos Earnings-Credibility & Growth-Investment Gate aktiv",
+            "title": "Kratos Owner-Operating Earnings & Growth-Investment Gate aktiv",
             "requires_research": False,
             "valuation_usable": False,
             "reason": (
-                "Kratos weist für Q2/H1 eine große Differenz zwischen GAAP- und Adjusted EPS aus; zugleich ist FY26 Free Cash Flow laut Unternehmensguidance negativ, "
-                "während Produktion, Inventory, Working Capital und Kapazität für starkes Wachstum hochgefahren werden. Die aktuellen Primärdaten sind geladen, "
-                "aber noch keine operative Kratos-Earnings-Basis ist als Bewertungsanker freigegeben."
+                "Kratos weist für Q2/H1 eine große Differenz zwischen GAAP- und Adjusted EPS aus. V2.20.70 zerlegt die Non-GAAP-Addbacks deshalb nach wirtschaftlicher Qualität; "
+                "Depreciation, SBC und Contract/Development-Amortisation werden nicht automatisch herausgerechnet. Gleichzeitig bleibt FY26 Free Cash Flow laut Unternehmensguidance negativ. "
+                "Die Primärdaten und eine Owner-Operating-H1-Diagnosespanne sind vorhanden, aber noch keine einzelne operative Kratos-Earnings-Basis ist als Bewertungsanker freigegeben."
             ),
             "action": (
-                "Keine zusätzliche Ad-hoc-Sonderrecherche erforderlich: V2.20.69 hat die aktuelle Kratos-Primärquelle bereits eingebunden. "
-                "Standard-normalisiertes EPS und Yahoo Forward-EPS bleiben Kontext/reference-only; Fair Value bleibt bis zum separaten Earnings-Normalisierungs-/Bewertungsanker gesperrt."
+                "Keine zusätzliche Ad-hoc-Sonderrecherche erforderlich: V2.20.70 hat Press Release und 10-Q-Addback-Daten eingebunden. "
+                "Company-Adjusted-EPS, Standard-EPS und Yahoo Forward-EPS bleiben ohne freigegebene Owner-Operating-Basis Kontext/reference-only; Fair Value bleibt gesperrt."
             ),
         }
 
@@ -25414,8 +25501,8 @@ if selected_symbol:
                     )
                     if str(data.get("symbol") or "").upper() == "KTOS":
                         st.info(
-                            "Kratos/Defense-Tech: Diese Standard-Normalisierung bleibt in V2.20.69 ausschließlich Kontext. "
-                            "Die große GAAP-/Adjusted-EPS-Differenz wird im Kratos Earnings-Credibility Gate separat geprüft; das Standard-EPS ist nicht als Kratos-Bewertungsbasis freigegeben."
+                            "Kratos/Defense-Tech: Diese Standard-Normalisierung bleibt in V2.20.70 ausschließlich Kontext. "
+                            "Die große GAAP-/Adjusted-EPS-Differenz wird im Kratos Owner-Operating Earnings Gate separat geprüft; das Standard-EPS ist nicht als Kratos-Bewertungsbasis freigegeben."
                         )
                     elif is_semicap_lithography_company_type(company_type):
                         st.info(
@@ -25560,7 +25647,7 @@ if selected_symbol:
                     )
                 elif str(data.get("symbol") or "").upper() == "KTOS":
                     st.caption(
-                        "Das Standard-normalisierte EPS ist bei Kratos in V2.20.69 ausschließlich Kontext. Q2/H1 GAAP- und Adjusted-EPS werden im Primary-Source Earnings-Credibility Gate getrennt. "
+                        "Das Standard-normalisierte EPS ist bei Kratos in V2.20.70 ausschließlich Kontext. Q2/H1 GAAP-/Adjusted-EPS und die einzelnen Addbacks werden im Primary-Source Owner-Operating Earnings Gate getrennt. "
                         "Bis eine eigene operative Kratos-Earnings-Basis freigegeben ist, steuert dieses Standard-EPS weder Peer-Anpassung noch Fair Value."
                     )
                 elif is_semicap_lithography_company_type(company_type):
@@ -26147,8 +26234,8 @@ if selected_symbol:
 
                 if is_kratos_score_ui:
                     st.info(
-                        "Kratos/Defense-Tech: Die folgenden generischen 100-Punkte-Multiple-Score-Komponenten bleiben in V2.20.69 reine Diagnosewerte. "
-                        "Sie bestimmen weder eine Kratos-Earnings-Basis noch ein Fundamental-Multiple oder einen Fair Value. Maßgeblich ist zunächst das primärquellenbasierte Growth-/Backlog-/Earnings-Credibility-Gate."
+                        "Kratos/Defense-Tech: Die folgenden generischen 100-Punkte-Multiple-Score-Komponenten bleiben in V2.20.70 reine Diagnosewerte. "
+                        "Sie bestimmen weder eine Kratos-Earnings-Basis noch ein Fundamental-Multiple oder einen Fair Value. Maßgeblich ist zunächst das primärquellenbasierte Growth-/Backlog-/Owner-Operating-Earnings-Gate."
                     )
 
                 if is_nvidia_score_ui:
@@ -26720,7 +26807,7 @@ if selected_symbol:
                         )
                         if str(selected_symbol or "").upper() == "KTOS":
                             st.caption(
-                                "Kratos V2.20.69: Dieser generische Multiple Score ist ausschließlich Diagnosekontext. "
+                                "Kratos V2.20.70: Dieser generische Multiple Score ist ausschließlich Diagnosekontext. "
                                 "Die App setzt daraus bewusst kein Kratos-Multiple und keinen Fair Value frei."
                             )
 
@@ -28881,7 +28968,7 @@ if selected_symbol:
                                 if is_semicap_peer_metric else (
                                     "Mindestens 3 AI-/Geschäftsmix-, earnings- und Nachfrage-/Zyklus-vergleichbare normalisierte Peers sind für eine automatische NVIDIA-Anpassung Pflicht; Median statt Durchschnitt, duale ±5-%-Caps."
                                     if is_nvidia_peer_metric else (
-                                        "Kratos V2.20.69: Reife Defense-Primes bleiben reference-only, bis mindestens 3 Peers bei Wachstumsphase, Produkt-/Technologiemix, Margenprofil und normalisierter Earnings-Basis vergleichbar sind."
+                                        "Kratos V2.20.70: Reife Defense-Primes bleiben reference-only, bis mindestens 3 Peers bei Wachstumsphase, Produkt-/Technologiemix, Margenprofil und normalisierter Earnings-Basis vergleichbar sind."
                                         if is_kratos_peer_metric else
                                         "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
                                     )
@@ -29141,7 +29228,7 @@ if selected_symbol:
 
                     if str(selected_symbol or "").upper() == "KTOS":
                         st.subheader(
-                            "🛡️ Modul 6 – Schritt 3B: Kratos Defense-Tech Growth-, Backlog- & Earnings-Credibility-Prüfung"
+                            "🛡️ Modul 6 – Schritt 3B: Kratos Defense-Tech Growth-, Backlog- & Owner-Operating-Earnings-Prüfung"
                         )
                     else:
                         st.subheader(
@@ -29190,13 +29277,13 @@ if selected_symbol:
 
                             if coverage.get("value") is not None:
                                 st.metric(
-                                    "Revenue Coverage",
+                                    "Total Backlog / FY26-Umsatz-Midpoint" if str(snapshot.get("model_variant") or "").startswith("kratos") else "Revenue Coverage",
                                     f"{coverage['value']:.2f}×"
                                 )
 
                             st.write(
-                                "**Coverage-Status:** "
-                                f"{coverage.get('status', '–')}"
+                                ("**Gesamt-Backlog-Coverage-Status:** " if str(snapshot.get("model_variant") or "").startswith("kratos") else "**Coverage-Status:** ")
+                                + f"{coverage.get('status', '–')}"
                             )
 
                             fixed_orders_value = format_money(
@@ -29244,7 +29331,7 @@ if selected_symbol:
 
                             if near_term.get("value_pct") is not None:
                                 st.metric(
-                                    "H2-Backlog-Abdeckung" if str(snapshot.get("model_variant") or "").startswith("kratos") else "Kurzfristig feste Abdeckung",
+                                    "H2-Umsatzabdeckung (35%-Backlog-Annahme)" if str(snapshot.get("model_variant") or "").startswith("kratos") else "Kurzfristig feste Abdeckung",
                                     f"{near_term['value_pct']:.0f} %"
                                 )
 
@@ -29307,6 +29394,49 @@ if selected_symbol:
                                 st.write(f"**H1 Adjusted Net Income / GAAP Net Income:** {ke.get('adjusted_to_gaap_net_income_multiple'):.2f}×")
                             st.write(f"**Status Earnings-Basis:** {ke.get('status', '–')}")
                             st.caption(ke.get("reason"))
+
+                            ko = checks.get("kratos_owner_operating_earnings") or {}
+                            st.markdown("**Owner-Operating Earnings Adjustment Quality Gate V2.20.70**")
+                            if ko.get("adjusted_pre_tax_income") is not None:
+                                st.write(f"**Company Adjusted H1 Pre-Tax Income:** {format_money(ko.get('adjusted_pre_tax_income'), financial_currency)}")
+                            if ko.get("diagnostic_tax_rate_pct") is not None:
+                                st.write(f"**Non-GAAP-Steuersatz der offiziellen Brücke (nur Diagnose):** {ko.get('diagnostic_tax_rate_pct'):.1f} %")
+                            st.write("**Automatische Addback-Politik:**")
+                            for label, policy in (ko.get("normalization_policy") or {}).items():
+                                st.write(f"• {label}: {policy}")
+                            if ko.get("future_intangible_amortization_remainder_2026") is not None and ko.get("future_intangible_amortization_2027") is not None:
+                                st.write(
+                                    "**Offizielle künftige Acquired-Intangible-Amortisation:** "
+                                    + format_money(ko.get("future_intangible_amortization_remainder_2026"), financial_currency)
+                                    + " Rest 2026 · "
+                                    + format_money(ko.get("future_intangible_amortization_2027"), financial_currency)
+                                    + " 2027"
+                                )
+                            if ko.get("strict_owner_eps") is not None:
+                                st.write(
+                                    "**Strikte H1 Owner-Operating-EPS-Diagnose:** "
+                                    + format_eps(ko.get("strict_owner_eps"), financial_currency)
+                                    + " · Depreciation, SBC, Contract/Development- und Intangible-Amortisation als Kosten belassen"
+                                )
+                            if ko.get("conditional_owner_eps") is not None:
+                                st.write(
+                                    "**Bedingte H1 Obergrenze bei vollständiger Normalisierung der Acquired-Intangible-Amortisation:** "
+                                    + format_eps(ko.get("conditional_owner_eps"), financial_currency)
+                                )
+                            if ko.get("range_low_eps") is not None and ko.get("range_high_eps") is not None:
+                                st.write(
+                                    "**Diagnostische H1 Owner-Operating-EPS-Spanne:** "
+                                    + format_eps(ko.get("range_low_eps"), financial_currency)
+                                    + " – "
+                                    + format_eps(ko.get("range_high_eps"), financial_currency)
+                                )
+                                st.caption(
+                                    f"Primärquellen-Rohwerte der Diagnosespanne: {ko.get('range_low_eps'):.3f}–{ko.get('range_high_eps'):.3f} USD je Aktie. "
+                                    "Keine Annualisierung und keine Bewertungsbasis."
+                                )
+                            st.write(f"**Owner-Operating-Gate:** {ko.get('status', '–')}")
+                            st.caption(ko.get("reason"))
+
                             st.markdown("**FCF-/Investitionskontext**")
                             if kc.get("fy26_fcf_use_low") is not None and kc.get("fy26_fcf_use_high") is not None:
                                 st.write(f"**FY26 Free-Cash-Flow Use Guidance:** −{format_money(kc.get('fy26_fcf_use_low'), financial_currency)} bis −{format_money(kc.get('fy26_fcf_use_high'), financial_currency)}")
@@ -29326,8 +29456,8 @@ if selected_symbol:
                         else:
                             if str(snapshot.get("model_variant") or "").startswith("kratos"):
                                 st.warning(
-                                    "Kratos V2.20.69: Growth-/Visibility-Primärdaten sind validiert, aber die operative Earnings-Basis ist noch nicht freigegeben. "
-                                    "Standard-EPS und reife Defense-Peers bleiben Kontext; der Fair Value bleibt gesperrt."
+                                    "Kratos V2.20.70: Growth-/Visibility- und Addback-Quality-Primärdaten sind validiert. Das Owner-Operating Gate liefert nur eine diagnostische H1-EPS-Spanne; "
+                                    "eine einzelne operative Earnings-Basis ist noch nicht freigegeben. Standard-EPS und reife Defense-Peers bleiben Kontext; der Fair Value bleibt gesperrt."
                                 )
                             else:
                                 st.warning(
@@ -29344,7 +29474,8 @@ if selected_symbol:
                         "Backlog und Funded/Feste-Auftrags-Komponenten werden bewusst getrennt. "
                         "Book-to-Bill verändert den 100-Punkte-Multiple-Score nicht. "
                         "Verifizierte Spezialdaten werden nach ihrem Gültigkeitsdatum nicht stillschweigend weiterverwendet. "
-                        "Für KTOS ersetzt Adjusted EPS weder automatisch GAAP EPS noch das Standard-normalisierte EPS; eine eigene Earnings-Basis folgt separat."
+                        "Für KTOS ersetzt Company-Adjusted-EPS weder automatisch GAAP EPS noch das Standard-normalisierte EPS. V2.20.70 klassifiziert die Addbacks einzeln; "
+                        "die Owner-Operating-H1-Spanne ist Diagnose und keine freigegebene Earnings-Basis."
                     )
 
                 if special_control.get(
