@@ -17,14 +17,14 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.67"
+APP_BUILD_VERSION = "V2.20.68"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · NVIDIA Freeze & Status Consistency Cleanup")
+st.caption(f"Build {APP_BUILD_VERSION} · Kratos Defense-Tech Classification & Primary-Source Growth/Earnings Credibility Gate")
 
 
 # V2.20.52: Midstream Peer Safety Cap & Comparability Gate. Separates market-reference peers from adjustment-eligible peers. Automatic peer adjustment requires at least three peers with sufficiently comparable corporate structure AND issuer-adjusted EBITDA basis. Generic Yahoo EV/EBITDA remains reference-only. If a future gate passes, the multiple proposal and the resulting equity fair-value effect are each capped at ±5 %. The 100-point Midstream score and official KMI Adjusted EBITDA / Net Debt / share-count bridge remain unchanged.
@@ -43,6 +43,7 @@ st.caption(f"Build {APP_BUILD_VERSION} · NVIDIA Freeze & Status Consistency Cle
 # V2.20.65: NVIDIA Quality-Adjusted Operating P/E Valuation Anchor. Releases a dedicated NVIDIA/Fabless-AI fair value only after the primary-source, Demand-Quality, AI-Quality and Earnings-Horizon gates are complete. The sole earnings basis is the mechanical FY27 operating EPS proxy built from official H1 non-GAAP EPS plus the transparent Q3/Q4 bridge; Yahoo Forward-EPS remains reference-only. The AI Quality Score alone selects a conservative target P/E and corridor (84/100 -> 28x, 25x-31x), avoiding extra margin/demand/concentration caps that would double count score inputs. AVGO/AMD/QCOM/MRVL remain reference-only; no peer overlay or separate FCF valuation adjustment is released yet.
 # V2.20.66: NVIDIA FCF Conversion & Normalized Peer Safety Gate. Adds a downside-only primary-source H1 FCF conversion/yield safety gate and a fail-closed normalized peer comparability gate for AVGO/AMD/QCOM/MRVL. H1 FCF is checked against official H1 non-GAAP net income and against the implied equity value; it can cap or block but never raise fair value. Peer adjustment requires at least three AI/business-mix, normalized-earnings and cycle/demand comparable peers, with independent ±5% caps on target P/E and fair-value effect.
 # V2.20.67: NVIDIA Freeze & Status Consistency Cleanup. No valuation mechanics changed. Removes stale pre-release wording after the V2.20.66 FCF/peer safety gates were activated, aligns current NVIDIA build labels/router text, and states consistently that FY27 operating EPS, 28x quality P/E, normalized-peer safety and H1-FCF safety are already active. Scores, gates, fair value, zones and signals are unchanged.
+# V2.20.68: Kratos Defense-Tech Classification & Primary-Source Growth/Earnings Credibility Gate. Adds an explicit Kratos business-model classification (Defense Technology / Unmanned & Advanced Systems), a current Q2/H1 2026 official-data snapshot for backlog/funded backlog, book-to-bill, revenue coverage, margin guidance, adjusted-vs-GAAP earnings and investment-driven FCF, plus a fail-closed Kratos peer-comparability lock. Standard EPS remains context-only for KTOS and no Kratos fair value is released yet. Frozen Defense/Rheinmetall logic is preserved.
 
 # =========================================================
 # Hilfsfunktionen
@@ -5867,6 +5868,31 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel bis Hoch"
         }
 
+    # Kratos: eigener Defense-Tech-Untertyp. Das Präfix "Defense / stark wachsend"
+    # bleibt bewusst erhalten, damit der bestehende Defense-Router greift; die
+    # zusätzliche Klassifizierung beschreibt das tatsächliche Geschäftsmodell.
+    if (
+        symbol_text == "KTOS"
+        or "kratos defense" in name_text
+        or "kratos defense & security solutions" in name_text
+    ):
+        return {
+            "type": "Defense / stark wachsend / Defense Technology / Unmanned & Advanced Systems",
+            "method": (
+                "Primärquellenbasierte Defense-Growth-/Earnings-Credibility-Kontrolle; "
+                "Bewertungsanker erst nach freigegebener operativer Earnings-Basis"
+            ),
+            "confidence_cap": "Mittel",
+            "business_model": "Produkt- und technologieorientierter Defense-Tech-Anbieter",
+            "core_segments": "Kratos Government Solutions (KGS) + Unmanned Systems (KUS)",
+            "focus_areas": (
+                "Unmanned Systems / taktische Jet-Drohnen · Hyperschall & Raketen · "
+                "Turbinen/Antrieb · C5ISR · Space/Satellite · Microwave Electronics"
+            ),
+            "customer_profile": "Starker US-Government-/National-Security-Fokus; zusätzlich internationale und kommerzielle Kunden",
+            "company_profile": "Wachstumsorientierter Defense-Tech-Anbieter; kein klassischer großer Defense-Prime",
+        }
+
     # Weitere klar erkennbare Defense-Fälle.
     defense_name_terms = [
         "defense",
@@ -5875,7 +5901,6 @@ def classify_company(name, symbol, sector, industry):
         "ordnance"
     ]
     known_defense_symbols = [
-        "KTOS",
         "BA.L",
         "LDO.MI",
         "HO.PA",
@@ -13465,8 +13490,14 @@ def get_peer_group(company_type, symbol):
                 "available": len(filtered) > 0,
                 "peers": filtered,
                 "count": len(filtered),
+                "target_symbol": own_symbol,
                 "note": (
                     (
+                        "Kratos Defense-Tech-Peer-Lock aktiv: BAE Systems, Leonardo, Thales und Saab sind in V2.20.68 nur Markt-Referenzen. "
+                        "Ohne normalisierte Vergleichbarkeit von Wachstumsphase, Produkt-/Technologiemix, Margenprofil und Earnings-Basis darf ihr Forward-KGV-Median das KTOS-Multiple nicht verändern."
+                    )
+                    if own_symbol == "KTOS" and key == "defense / stark wachsend"
+                    else (
                         "Autozulieferer-Peer-Gruppe automatisch ausgewählt. "
                         "Die Peers dienen später als vorsichtiger Forward-KGV-"
                         "Realitätscheck; die zyklus-normalisierte EPS-Basis "
@@ -14395,6 +14426,56 @@ def apply_nvidia_peer_overlay(nvidia_valuation, peer_check):
     return v
 
 
+def _calculate_kratos_peer_reference(peer_group, fundamental_multiple, cache_version):
+    """V2.20.68 fail-closed peer reference for Kratos Defense-Tech.
+
+    Mature diversified defense primes are useful market context but are not
+    automatically comparable with Kratos' growth-stage product/technology mix.
+    """
+    result = {
+        "method_supported": True,
+        "metric": "Kratos Defense-Tech Forward P/E reference",
+        "peer_rows": [],
+        "usable_count": 0,
+        "adjustment_eligible_count": 0,
+        "peer_median": None,
+        "comparability_gate_passed": False,
+        "adjustment_pct": 0.0,
+        "adjusted_multiple": safe_float(fundamental_multiple),
+        "applied": False,
+        "note": None,
+    }
+    for peer in (peer_group or {}).get("peers", []):
+        pdx = dict(load_peer_forward_pe(peer.get("symbol"), cache_version) or {})
+        result["peer_rows"].append({
+            "symbol": peer.get("symbol"),
+            "name": peer.get("name"),
+            "usable": bool(pdx.get("usable")),
+            "forward_pe": safe_float(pdx.get("forward_pe")),
+            "source": pdx.get("source"),
+            "reason": pdx.get("reason"),
+            "structure": "Mature diversified defense prime",
+            "growth_stage_comparable": False,
+            "earnings_basis_comparable": False,
+            "product_mix_comparable": False,
+            "margin_profile_comparable": False,
+            "adjustment_eligible": False,
+        })
+    refs = [
+        r["forward_pe"] for r in result["peer_rows"]
+        if r.get("usable") and r.get("forward_pe") is not None and r.get("forward_pe") > 0
+    ]
+    result["usable_count"] = len(refs)
+    if refs:
+        result["peer_median"] = float(pd.Series(refs).median())
+    result["note"] = (
+        "Kratos Normalized Comparability Gate nicht bestanden: BAE Systems, Leonardo, Thales und Saab besitzen keine gegen Kratos' "
+        "Wachstumsphase, Produkt-/Technologiemix, Margenprofil und noch nicht freigegebene operative Earnings-Basis normalisierte Vergleichbarkeit. "
+        "Alle Peer-KGVs bleiben reine Markt-Referenzen; 0/4 Anpassungs-Peers und keine automatische ±5-%-Absenkung."
+    )
+    return result
+
+
 def calculate_peer_check(
     company_type,
     peer_group,
@@ -14428,6 +14509,11 @@ def calculate_peer_check(
                 "Keine automatische Peer-Gruppe verfügbar."
             )
         return result
+
+    if (peer_group or {}).get("target_symbol") == "KTOS" and "defense / stark wachsend" in type_name:
+        return _calculate_kratos_peer_reference(
+            peer_group, fundamental_multiple, cache_version
+        )
 
     if "midstream" in type_name:
         return _calculate_midstream_peer_overlay(
@@ -14591,6 +14677,29 @@ def get_special_control(company_type, symbol):
     # fachlich vereinbarte Spezialkontrollen.
     # Er lädt noch keine Spezialdaten und verändert
     # weder Multiple Score noch Bewertungs-Multiple.
+
+    if symbol_text == "KTOS":
+        return {
+            "required": True,
+            "control_key": "defense_order_visibility",
+            "control_name": "Kratos Defense-Tech / Growth-, Backlog- & Earnings-Credibility-Kontrolle",
+            "planned_checks": [
+                "Business-Model: KGS + Unmanned Systems / Defense Technology",
+                "Backlog + Funded/Unfunded Backlog",
+                "Q2- und LTM-Book-to-Bill",
+                "FY26-Backlog-Realisierung / H2-Revenue-Coverage",
+                "Q2/H1 Adjusted EBITDA + FY26-Guidance",
+                "GAAP vs. Adjusted EPS / Non-GAAP-Brücke",
+                "FY26 Free-Cash-Flow Use / Wachstumsinvestitionen",
+                "Normalized Peer Comparability Lock",
+                "später: operative Kratos-Earnings-Basis + Bewertungsanker",
+            ],
+            "status": "Router aktiv – V2.20.68 Kratos Primary-Source Growth/Earnings-Credibility Gate",
+            "note": (
+                "V2.20.68 nutzt für KTOS ausschließlich aktuelle offizielle Q2/H1-2026-Kratos-Daten. "
+                "Growth/Visibility wird von der Earnings-Credibility getrennt; Standard-EPS und reife Defense-Peers dürfen keinen Fair Value freigeben."
+            ),
+        }
 
     if (
         "defense / stark wachsend" in type_name
@@ -14916,6 +15025,85 @@ def get_verified_defense_snapshot(symbol):
 
     symbol_text = str(symbol or "").upper()
 
+    if symbol_text == "KTOS":
+        # Official Kratos Q2/H1 2026 press release (04.08.2026) + 10-Q
+        # for the quarter ended 28.06.2026. Values are stored in USD and are
+        # display-converted by the frozen Currency Engine only at render time.
+        return {
+            "company": "Kratos Defense & Security Solutions, Inc.",
+            "model_variant": "kratos_defense_tech_growth_credibility",
+            "published_date": "04.08.2026",
+            "as_of_date": "28.06.2026",
+            "valid_until": "02.11.2026",
+            "source_name": "Kratos Q2/H1 2026 Financial Results + Form 10-Q",
+            "source_url": "https://www.kratosdefense.com/newsroom/kratos-reports-second-quarter-2026-financial-results",
+            "source_note": (
+                "Offizielle Kratos-Q2/H1-2026-Daten. Total Backlog und Funded Backlog werden getrennt; "
+                "die 35-%-FY2026-Backlog-Realisierung ist Unternehmensangabe aus dem 10-Q und wird nicht als garantierter Umsatz behandelt. "
+                "Adjusted EPS/EBITDA werden wegen wesentlicher Non-GAAP-Anpassungen nur als Earnings-Credibility-Kontext geführt; keine Kratos-Earnings-Basis ist in V2.20.68 freigegeben."
+            ),
+            "business_model": "Technology, hardware, products, systems and software for defense, national security and commercial markets",
+            "core_segments": "Kratos Government Solutions (KGS) + Unmanned Systems (KUS)",
+            "backlog_current": 2.084e9,
+            "backlog_previous": 1.414e9,
+            "funded_backlog_current": 1.572e9,
+            "funded_backlog_previous": 1.125e9,
+            "unfunded_backlog_current": 512.7e6,
+            "fixed_order_backlog_current": 1.572e9,
+            "fixed_order_backlog_previous": 1.125e9,
+            "bid_proposal_pipeline_current": 15.0e9,
+            "bid_proposal_pipeline_previous_q": 14.3e9,
+            "revenue_q2": 458.8e6,
+            "revenue_q2_yoy_pct": 30.5,
+            "organic_revenue_q2_yoy_pct": 19.1,
+            "revenue_h1": 829.8e6,
+            "revenue_guidance_low": 1.750e9,
+            "revenue_guidance_high": 1.810e9,
+            "q3_revenue_guidance_low": 460e6,
+            "q3_revenue_guidance_high": 480e6,
+            "q3_organic_growth_low_pct": 19.0,
+            "q3_organic_growth_high_pct": 25.0,
+            "q4_organic_growth_low_pct": 19.0,
+            "q4_organic_growth_high_pct": 31.0,
+            "book_to_bill_lower_bound": 1.1,
+            "book_to_bill_is_lower_bound": False,
+            "book_to_bill_period": "Q2 2026",
+            "ltm_book_to_bill": 1.3,
+            "bookings_q2": 492.2e6,
+            "bookings_ltm": 1.990e9,
+            "backlog_expected_revenue_fy26_pct": 35.0,
+            "backlog_expected_revenue_fy27_pct": 35.0,
+            "q2_gaap_eps": 0.02,
+            "q2_adjusted_eps": 0.21,
+            "h1_gaap_eps": 0.09,
+            "h1_adjusted_eps": 0.40,
+            "h1_gaap_net_income": 16.3e6,
+            "h1_adjusted_net_income": 74.1e6,
+            "h1_diluted_shares": 184.8e6,
+            "q2_diluted_shares": 190.1e6,
+            "q2_stock_compensation": 16.3e6,
+            "h1_stock_compensation": 31.3e6,
+            "q2_adjusted_ebitda": 38.2e6,
+            "h1_adjusted_ebitda": 76.9e6,
+            "h1_adjusted_ebitda_previous": 55.0e6,
+            "fy26_adjusted_ebitda_guidance_low": 173e6,
+            "fy26_adjusted_ebitda_guidance_high": 176e6,
+            "current_margin": 76.9 / 829.8 * 100.0,
+            "comparable_previous_margin": 55.0 / 654.1 * 100.0,
+            "latest_quarter_margin": 38.2 / 458.8 * 100.0,
+            "guidance_margin": ((173.0 + 176.0) / 2.0) / ((1750.0 + 1810.0) / 2.0) * 100.0,
+            "fy26_operating_cashflow_guidance_low": 30e6,
+            "fy26_operating_cashflow_guidance_high": 50e6,
+            "fy26_capex_guidance_low": 125e6,
+            "fy26_capex_guidance_high": 135e6,
+            "fy26_fcf_use_low": 85e6,
+            "fy26_fcf_use_high": 105e6,
+            "q2_fcf_use": 18.9e6,
+            "q2_capex": 17.2e6,
+            "cash_balance": 1.4376e9,
+            "near_term_horizon": "Rest FY2026",
+        }
+
     if symbol_text not in ["RHM.DE", "RHM.F", "RNMBY", "RNMBF"]:
         return None
 
@@ -15084,6 +15272,7 @@ def evaluate_defense_margin_trend(
 def build_defense_special_control(base_control, company_type, symbol):
     """Enrich the 3A router result with Defense step 3B when verified data exist."""
 
+    symbol_text = str(symbol or "").upper().strip()
     control = dict(base_control or {})
     control.setdefault("router_status", control.get("status"))
     control.setdefault("router_note", control.get("note"))
@@ -15160,6 +15349,75 @@ def build_defense_special_control(base_control, company_type, symbol):
         snapshot.get("guidance_margin"),
     )
 
+    kratos_growth = None
+    kratos_earnings = None
+    kratos_cashflow = None
+    if symbol_text == "KTOS":
+        funded = safe_float(snapshot.get("funded_backlog_current"))
+        unfunded = safe_float(snapshot.get("unfunded_backlog_current"))
+        funded_share = funded / backlog_current * 100.0 if funded is not None and backlog_current not in [None, 0] else None
+        h1_revenue = safe_float(snapshot.get("revenue_h1"))
+        fy_mid = revenue_base
+        h2_needed = fy_mid - h1_revenue if fy_mid is not None and h1_revenue is not None else None
+        backlog_fy26_pct = safe_float(snapshot.get("backlog_expected_revenue_fy26_pct"))
+        backlog_fy26_amount = backlog_current * backlog_fy26_pct / 100.0 if backlog_current is not None and backlog_fy26_pct is not None else None
+        h2_backlog_coverage_pct = backlog_fy26_amount / h2_needed * 100.0 if backlog_fy26_amount is not None and h2_needed not in [None, 0] and h2_needed > 0 else None
+        q2_gaap = safe_float(snapshot.get("q2_gaap_eps")); q2_adj = safe_float(snapshot.get("q2_adjusted_eps"))
+        h1_gaap = safe_float(snapshot.get("h1_gaap_eps")); h1_adj = safe_float(snapshot.get("h1_adjusted_eps"))
+        h1_gaap_ni = safe_float(snapshot.get("h1_gaap_net_income")); h1_adj_ni = safe_float(snapshot.get("h1_adjusted_net_income"))
+        adjusted_to_gaap_ni = h1_adj_ni / h1_gaap_ni if h1_adj_ni is not None and h1_gaap_ni not in [None, 0] else None
+        if h2_backlog_coverage_pct is not None:
+            near_term_coverage = h2_backlog_coverage_pct
+        kratos_growth = {
+            "funded_backlog": funded,
+            "unfunded_backlog": unfunded,
+            "funded_share_pct": funded_share,
+            "ltm_book_to_bill": safe_float(snapshot.get("ltm_book_to_bill")),
+            "bid_proposal_pipeline": safe_float(snapshot.get("bid_proposal_pipeline_current")),
+            "q2_revenue": safe_float(snapshot.get("revenue_q2")),
+            "q2_revenue_yoy_pct": safe_float(snapshot.get("revenue_q2_yoy_pct")),
+            "q2_organic_growth_pct": safe_float(snapshot.get("organic_revenue_q2_yoy_pct")),
+            "h1_revenue": h1_revenue,
+            "fy26_revenue_mid": fy_mid,
+            "h2_revenue_needed": h2_needed,
+            "backlog_expected_fy26_amount": backlog_fy26_amount,
+            "h2_backlog_coverage_pct": h2_backlog_coverage_pct,
+            "q3_revenue_low": safe_float(snapshot.get("q3_revenue_guidance_low")),
+            "q3_revenue_high": safe_float(snapshot.get("q3_revenue_guidance_high")),
+            "q3_organic_growth_low_pct": safe_float(snapshot.get("q3_organic_growth_low_pct")),
+            "q3_organic_growth_high_pct": safe_float(snapshot.get("q3_organic_growth_high_pct")),
+            "visibility_status": "Stark, aber nicht backlog-garantiert" if h2_backlog_coverage_pct is not None and h2_backlog_coverage_pct >= 65.0 else "Begrenzt",
+        }
+        kratos_earnings = {
+            "q2_gaap_eps": q2_gaap, "q2_adjusted_eps": q2_adj,
+            "h1_gaap_eps": h1_gaap, "h1_adjusted_eps": h1_adj,
+            "h1_gaap_net_income": h1_gaap_ni, "h1_adjusted_net_income": h1_adj_ni,
+            "adjusted_to_gaap_net_income_multiple": adjusted_to_gaap_ni,
+            "h1_stock_compensation": safe_float(snapshot.get("h1_stock_compensation")),
+            "fy_adjusted_eps_guidance_available": False,
+            "earnings_basis_released": False,
+            "status": "Nicht als Bewertungsbasis freigegeben",
+            "reason": (
+                "Q2/H1 Adjusted EPS liegt wesentlich über GAAP EPS; die Non-GAAP-Brücke enthält u. a. Abschreibung/Amortisation, "
+                "Stock-Based Compensation sowie Akquisitions-/Restrukturierungsposten. Kratos gibt keine FY26-Adjusted-EPS-Guidance. "
+                "Yahoo Forward-EPS bleibt deshalb reference-only, bis eine belastbare operative Earnings-Basis separat definiert ist."
+            ),
+        }
+        kratos_cashflow = {
+            "q2_fcf_use": safe_float(snapshot.get("q2_fcf_use")),
+            "fy26_fcf_use_low": safe_float(snapshot.get("fy26_fcf_use_low")),
+            "fy26_fcf_use_high": safe_float(snapshot.get("fy26_fcf_use_high")),
+            "fy26_ocf_low": safe_float(snapshot.get("fy26_operating_cashflow_guidance_low")),
+            "fy26_ocf_high": safe_float(snapshot.get("fy26_operating_cashflow_guidance_high")),
+            "fy26_capex_low": safe_float(snapshot.get("fy26_capex_guidance_low")),
+            "fy26_capex_high": safe_float(snapshot.get("fy26_capex_guidance_high")),
+            "status": "Investitions-/Working-Capital-belastet",
+            "note": (
+                "Negativer FCF wird nicht als normalisierte Earnings-Basis verwendet. Kratos führt den FY26-FCF-Abfluss selbst auf Produktionshochlauf, "
+                "Working Capital, Inventory und Kapazitäts-/Entwicklungsinvestitionen zurück; der Abfluss bleibt dennoch ein reales Cashflow-Risiko."
+            ),
+        }
+
     checks = {
         "backlog": {
             "value": backlog_current,
@@ -15191,6 +15449,9 @@ def build_defense_special_control(base_control, company_type, symbol):
             "status": _defense_near_term_status(near_term_coverage),
         },
         "margin_trend": margin,
+        "kratos_growth_visibility": kratos_growth,
+        "kratos_earnings_credibility": kratos_earnings,
+        "kratos_cashflow_context": kratos_cashflow,
     }
 
     core_statuses = [
@@ -15229,23 +15490,45 @@ def build_defense_special_control(base_control, company_type, symbol):
         released = True
         confidence_cap = "Mittel"
 
+    # KTOS V2.20.68: the primary-source growth/visibility snapshot is usable,
+    # but the valuation remains deliberately fail-closed until a dedicated
+    # operating earnings basis is defined. This does not alter Rheinmetall.
+    if symbol_text == "KTOS":
+        if not snapshot_fresh:
+            overall_status = "Daten veraltet"
+        else:
+            overall_status = "Growth/Visibility bestätigt · Earnings-Basis noch gesperrt"
+        released = False
+        confidence_cap = "Niedrig"
+
     control.update({
         "implemented": True,
         "released": released,
         "confidence_cap": confidence_cap,
         "step3b_status": (
-            "Schritt 3B vollständig – Fair Value freigegeben"
-            if released
-            else "Schritt 3B nicht freigegeben"
+            "Kratos Primärdaten vollständig – Earnings-Credibility noch nicht als Bewertungsbasis freigegeben"
+            if symbol_text == "KTOS" and snapshot_fresh
+            else (
+                "Schritt 3B vollständig – Fair Value freigegeben"
+                if released
+                else "Schritt 3B nicht freigegeben"
+            )
         ),
         "overall_status": overall_status,
         "snapshot_fresh": snapshot_fresh,
         "snapshot": snapshot,
         "checks": checks,
         "note": (
-            "Die Defense-Spezialkontrolle prüft Backlog, Revenue Coverage, "
-            "Fixed Orders, Book-to-Bill und Margentrend. Sie verändert den "
-            "100-Punkte-Multiple-Score nicht."
+            (
+                "V2.20.68 klassifiziert Kratos als Defense-Tech-/Unmanned-&-Advanced-Systems-Anbieter und validiert Backlog/Funded Backlog, "
+                "Book-to-Bill, H2-Revenue-Coverage, Margen-/Guidance-Entwicklung, Adjusted-vs-GAAP-Earnings sowie den investitionsbelasteten FCF. "
+                "Die Spezialkontrolle verändert den 100-Punkte-Multiple-Score nicht. Ein Kratos-Fair-Value bleibt gesperrt, bis eine eigene operative Earnings-Basis freigegeben ist."
+            )
+            if symbol_text == "KTOS"
+            else (
+                "Die Defense-Spezialkontrolle prüft Backlog, Revenue Coverage, Fixed Orders, Book-to-Bill und Margentrend. "
+                "Sie verändert den 100-Punkte-Multiple-Score nicht."
+            )
         ),
     })
 
@@ -23693,6 +23976,20 @@ def load_stock(search_text, cache_version):
         eps_normalization
     )
 
+    if str(fundamental_symbol or "").upper() == "KTOS":
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "diagnostic_score": safe_float(fundamental_multiple.get("score")),
+            "multiple": None,
+            "available": False,
+            "earnings_basis_usable": False,
+            "note": (
+                "Kratos V2.20.68: Der generische 100-Punkte-Score bleibt Diagnosekontext, aber es wird noch kein Fundamental-Multiple freigegeben. "
+                "Die Standard-EPS-Basis ist wegen der großen GAAP-/Adjusted-EPS-Differenz nicht als Kratos-Earnings-Basis zugelassen; "
+                "ein eigener Defense-Tech-Earnings-/Bewertungsanker folgt separat."
+            ),
+        }
+
     if bank_special_model.get("applicable"):
         bank_score_total = safe_float((bank_special_model.get("bank_score") or {}).get("score"))
         fundamental_multiple = {
@@ -24037,6 +24334,29 @@ def load_stock(search_text, cache_version):
             "action": (
                 "Keine automatische Mischung von Yahoo Forward-EPS und FY27-Proxy. V2.20.67 verwendet 0 % Forward / 100 % mechanischen FY27-Operating-Proxy. "
                 "Der NVIDIA-Bewertungsanker ist freigegeben, sofern AI-Quality, Demand-/Horizon-Alignment sowie die aktiven H1-FCF- und Normalized-Peer-Safety-Gates bestehen."
+            ),
+        }
+
+
+    if (
+        str(symbol or "").upper() == "KTOS"
+        and special_control.get("implemented")
+        and str((special_event_warning or {}).get("level") or "") != "Rot"
+    ):
+        special_event_warning = {
+            "level": "Gelb",
+            "icon": "🟡",
+            "title": "Kratos Earnings-Credibility & Growth-Investment Gate aktiv",
+            "requires_research": False,
+            "valuation_usable": False,
+            "reason": (
+                "Kratos weist für Q2/H1 eine große Differenz zwischen GAAP- und Adjusted EPS aus; zugleich ist FY26 Free Cash Flow laut Unternehmensguidance negativ, "
+                "während Produktion, Inventory, Working Capital und Kapazität für starkes Wachstum hochgefahren werden. Die aktuellen Primärdaten sind geladen, "
+                "aber noch keine operative Kratos-Earnings-Basis ist als Bewertungsanker freigegeben."
+            ),
+            "action": (
+                "Keine zusätzliche Ad-hoc-Sonderrecherche erforderlich: V2.20.68 hat die aktuelle Kratos-Primärquelle bereits eingebunden. "
+                "Standard-normalisiertes EPS und Yahoo Forward-EPS bleiben Kontext/reference-only; Fair Value bleibt bis zum separaten Earnings-Normalisierungs-/Bewertungsanker gesperrt."
             ),
         }
 
@@ -24602,6 +24922,17 @@ if selected_symbol:
                     f"{company_type['confidence_cap']}"
                 )
 
+                if company_type.get("business_model"):
+                    st.write(f"**Geschäftsmodell:** {company_type['business_model']}")
+                if company_type.get("core_segments"):
+                    st.write(f"**Kernsegmente:** {company_type['core_segments']}")
+                if company_type.get("focus_areas"):
+                    st.write(f"**Schwerpunkte:** {company_type['focus_areas']}")
+                if company_type.get("customer_profile"):
+                    st.write(f"**Kundenstruktur:** {company_type['customer_profile']}")
+                if company_type.get("company_profile"):
+                    st.write(f"**Unternehmensprofil:** {company_type['company_profile']}")
+
                 st.divider()
 
                 st.subheader("Aktueller Kurs")
@@ -25081,7 +25412,12 @@ if selected_symbol:
                         f"**Verwendete Methode:** "
                         f"{eps_result['method']}"
                     )
-                    if is_semicap_lithography_company_type(company_type):
+                    if str(data.get("symbol") or "").upper() == "KTOS":
+                        st.info(
+                            "Kratos/Defense-Tech: Diese Standard-Normalisierung bleibt in V2.20.68 ausschließlich Kontext. "
+                            "Die große GAAP-/Adjusted-EPS-Differenz wird im Kratos Earnings-Credibility Gate separat geprüft; das Standard-EPS ist nicht als Kratos-Bewertungsbasis freigegeben."
+                        )
+                    elif is_semicap_lithography_company_type(company_type):
                         st.info(
                             "ASML/Lithografie: Diese Standard-Normalisierung bleibt nur Kontext. V2.20.61 verwendet für den Semicap-Pfad ausschließlich die "
                             "credibility-gewichtete Semicap-Earnings-Referenz; das Standard-EPS wird weder mit ihr vermischt noch als Fair-Value-Basis verwendet."
@@ -25124,13 +25460,17 @@ if selected_symbol:
                     )
 
                 if eps_result.get("eps_divergence_note"):
-                    if is_nvidia_ai_growth_company_type(company_type):
+                    if str(data.get("symbol") or "").upper() == "KTOS":
+                        st.caption("Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) + " Diese Divergenz steuert das Kratos-Sondermodell nicht; GAAP/Adjusted-EPS werden separat geprüft.")
+                    elif is_nvidia_ai_growth_company_type(company_type):
                         st.caption("Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) + " Diese Divergenz steuert das NVIDIA-Sondermodell nicht.")
                     else:
                         st.warning(eps_result["eps_divergence_note"])
 
                 if eps_result.get("confidence_note"):
-                    if is_nvidia_ai_growth_company_type(company_type):
+                    if str(data.get("symbol") or "").upper() == "KTOS":
+                        st.caption("Standardpfad-Sicherheit nur Kontext; das Kratos-Sondermodell verwendet Primärquellen für Growth/Visibility und Earnings-Credibility.")
+                    elif is_nvidia_ai_growth_company_type(company_type):
                         st.caption("Standardpfad-Sicherheit nur Kontext; das NVIDIA-Sondermodell verwendet eigene Demand-/Horizon-Gates.")
                     else:
                         st.warning(eps_result["confidence_note"])
@@ -25217,6 +25557,11 @@ if selected_symbol:
                         "V2.20.57 prüft es weiter unten mit dem Cycle Compression Gate gegen Forward-/TTM-EPS "
                         "und die aktuelle Cars-Marge. Die komprimierte EPS-Basis ist danach ausschließlich die "
                         "Gewinnbasis; das Ziel-KGV wird separat nur aus dem Automotive-Quality-Score abgeleitet."
+                    )
+                elif str(data.get("symbol") or "").upper() == "KTOS":
+                    st.caption(
+                        "Das Standard-normalisierte EPS ist bei Kratos in V2.20.68 ausschließlich Kontext. Q2/H1 GAAP- und Adjusted-EPS werden im Primary-Source Earnings-Credibility Gate getrennt. "
+                        "Bis eine eigene operative Kratos-Earnings-Basis freigegeben ist, steuert dieses Standard-EPS weder Peer-Anpassung noch Fair Value."
                     )
                 elif is_semicap_lithography_company_type(company_type):
                     st.caption(
@@ -25798,6 +26143,13 @@ if selected_symbol:
                 is_auto_score_ui = "autohersteller" in normalized_company_type_name(company_type)
                 is_semicap_score_ui = is_semicap_lithography_company_type(company_type)
                 is_nvidia_score_ui = is_nvidia_ai_growth_company_type(company_type)
+                is_kratos_score_ui = str(symbol or "").upper() == "KTOS"
+
+                if is_kratos_score_ui:
+                    st.info(
+                        "Kratos/Defense-Tech: Die folgenden generischen 100-Punkte-Multiple-Score-Komponenten bleiben in V2.20.68 reine Diagnosewerte. "
+                        "Sie bestimmen weder eine Kratos-Earnings-Basis noch ein Fundamental-Multiple oder einen Fair Value. Maßgeblich ist zunächst das primärquellenbasierte Growth-/Backlog-/Earnings-Credibility-Gate."
+                    )
 
                 if is_nvidia_score_ui:
                     st.info("NVIDIA/Fabless-AI-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.67 verwendet den eigenen primärquellenbasierten AI-Quality-Score sowie Demand-Quality- und Earnings-Horizon-Gates.")
@@ -26366,6 +26718,11 @@ if selected_symbol:
                             f"Multiple Score gesamt: "
                             f"**{total_score_100}/100 Punkte**"
                         )
+                        if str(symbol or "").upper() == "KTOS":
+                            st.caption(
+                                "Kratos V2.20.68: Dieser generische Multiple Score ist ausschließlich Diagnosekontext. "
+                                "Die App setzt daraus bewusst kein Kratos-Multiple und keinen Fair Value frei."
+                            )
 
                 else:
 
@@ -28354,6 +28711,7 @@ if selected_symbol:
                 is_automotive_peer_metric = peer_check.get("metric") == "Automotive Forward P/E reference"
                 is_semicap_peer_metric = peer_check.get("metric") == "Semicap Forward P/E reference"
                 is_nvidia_peer_metric = peer_check.get("metric") == "NVIDIA Forward P/E reference"
+                is_kratos_peer_metric = peer_check.get("metric") == "Kratos Defense-Tech Forward P/E reference"
 
                 if not peer_check[
                     "method_supported"
@@ -28367,7 +28725,7 @@ if selected_symbol:
 
                     st.write(
                         "**Geladene Peer-EV/EBITDA-Werte:**"
-                        if is_midstream_peer_metric else ("**Automotive Peer-Forward-KGVs (Referenz):**" if is_automotive_peer_metric else ("**Semicap Peer-Forward-KGVs (Referenz):**" if is_semicap_peer_metric else ("**NVIDIA Peer-Forward-KGVs (Referenz):**" if is_nvidia_peer_metric else "**Geladene Peer-KGVs:**")))
+                        if is_midstream_peer_metric else ("**Automotive Peer-Forward-KGVs (Referenz):**" if is_automotive_peer_metric else ("**Semicap Peer-Forward-KGVs (Referenz):**" if is_semicap_peer_metric else ("**NVIDIA Peer-Forward-KGVs (Referenz):**" if is_nvidia_peer_metric else ("**Kratos Defense-Tech Peer-Forward-KGVs (Referenz):**" if is_kratos_peer_metric else "**Geladene Peer-KGVs:**"))))
                     )
 
                     for row in peer_check["peer_rows"]:
@@ -28407,6 +28765,13 @@ if selected_symbol:
                                     f"• {row['name']} ({row['symbol']}): {peer_value:.2f}×{source_text} "
                                     f"· {structure} · {basis} · {ai_cycle} · {eligibility}"
                                 )
+                            elif is_kratos_peer_metric:
+                                eligibility = "voll vergleichbar" if row.get("adjustment_eligible") else "nur Referenz"
+                                structure = row.get("structure") or "Defense-Struktur"
+                                st.write(
+                                    f"• {row['name']} ({row['symbol']}): {peer_value:.2f}×{source_text} "
+                                    f"· {structure} · Wachstum/Earnings nicht normalisiert · {eligibility}"
+                                )
                             else:
                                 st.write(
                                     f"• {row['name']} ({row['symbol']}): "
@@ -28416,10 +28781,10 @@ if selected_symbol:
                             st.write(f"• {row['name']} ({row['symbol']}): –")
 
                     st.write(
-                        ("**Brauchbare Referenz-Peer-Daten:** " if (is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric) else "**Brauchbare Peer-Daten:** ")
+                        ("**Brauchbare Referenz-Peer-Daten:** " if (is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric or is_kratos_peer_metric) else "**Brauchbare Peer-Daten:** ")
                         + f"{peer_check['usable_count']}"
                     )
-                    if is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric:
+                    if is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric or is_kratos_peer_metric:
                         st.write(
                             "**Für automatische Anpassung voll vergleichbar:** "
                             f"{peer_check.get('adjustment_eligible_count', 0)}"
@@ -28436,6 +28801,8 @@ if selected_symbol:
                         else:
                             if is_nvidia_peer_metric:
                                 st.warning("NVIDIA Normalized Comparability Gate nicht bestanden: Referenzmedian bleibt ohne Einfluss auf Ziel-KGV und Fair Value.")
+                            elif is_kratos_peer_metric:
+                                st.warning("Kratos Normalized Comparability Gate nicht bestanden: 0/4 Anpassungs-Peers. Referenzmedian bleibt ohne Einfluss auf Multiple und Fair Value.")
                             else:
                                 st.warning(
                                     "Comparability Gate nicht bestanden: Referenzmedian bleibt ohne Einfluss auf Zielmultiple und Fair Value."
@@ -28443,7 +28810,7 @@ if selected_symbol:
 
                     if peer_check["peer_median"] is not None:
                         st.metric(
-                            "Peer-Median EV/EBITDA" if is_midstream_peer_metric else ("Automotive Referenzmedian Forward-KGV" if is_automotive_peer_metric else ("Semicap Referenzmedian Forward-KGV" if is_semicap_peer_metric else ("NVIDIA Referenzmedian Forward-KGV" if is_nvidia_peer_metric else "Peer-Median Forward-KGV"))),
+                            "Peer-Median EV/EBITDA" if is_midstream_peer_metric else ("Automotive Referenzmedian Forward-KGV" if is_automotive_peer_metric else ("Semicap Referenzmedian Forward-KGV" if is_semicap_peer_metric else ("NVIDIA Referenzmedian Forward-KGV" if is_nvidia_peer_metric else ("Kratos Referenzmedian Forward-KGV" if is_kratos_peer_metric else "Peer-Median Forward-KGV")))),
                             f"{peer_check['peer_median']:.2f}×"
                         )
 
@@ -28513,8 +28880,11 @@ if selected_symbol:
                                 "der Median wird statt des Durchschnitts verwendet."
                                 if is_semicap_peer_metric else (
                                     "Mindestens 3 AI-/Geschäftsmix-, earnings- und Nachfrage-/Zyklus-vergleichbare normalisierte Peers sind für eine automatische NVIDIA-Anpassung Pflicht; Median statt Durchschnitt, duale ±5-%-Caps."
-                                    if is_nvidia_peer_metric else
-                                    "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
+                                    if is_nvidia_peer_metric else (
+                                        "Kratos V2.20.68: Reife Defense-Primes bleiben reference-only, bis mindestens 3 Peers bei Wachstumsphase, Produkt-/Technologiemix, Margenprofil und normalisierter Earnings-Basis vergleichbar sind."
+                                        if is_kratos_peer_metric else
+                                        "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
+                                    )
                                 )
                             )
                         )
@@ -28769,10 +29139,15 @@ if selected_symbol:
 
                     st.divider()
 
-                    st.subheader(
-                        "🛡️ Modul 6 – Schritt 3B: "
-                        "Defense-Auftrags- & Visibilitätskontrolle"
-                    )
+                    if str(symbol or "").upper() == "KTOS":
+                        st.subheader(
+                            "🛡️ Modul 6 – Schritt 3B: Kratos Defense-Tech Growth-, Backlog- & Earnings-Credibility-Prüfung"
+                        )
+                    else:
+                        st.subheader(
+                            "🛡️ Modul 6 – Schritt 3B: "
+                            "Defense-Auftrags- & Visibilitätskontrolle"
+                        )
 
                     if special_control.get("implemented"):
                         snapshot = special_control.get("snapshot", {})
@@ -28832,14 +29207,14 @@ if selected_symbol:
                                 fixed_orders_value = f"≈ {fixed_orders_value}"
 
                             st.metric(
-                                "Fester Auftragsbestand",
+                                "Funded Backlog" if str(snapshot.get("model_variant") or "").startswith("kratos") else "Fester Auftragsbestand",
                                 fixed_orders_value
                             )
 
                             if fixed_orders.get("share_pct") is not None:
                                 st.write(
-                                    "**Anteil feste Aufträge am Backlog:** "
-                                    f"{fixed_orders['share_pct']:.1f} %"
+                                    ("**Funded-Anteil am Backlog:** " if str(snapshot.get("model_variant") or "").startswith("kratos") else "**Anteil feste Aufträge am Backlog:** ")
+                                    + f"{fixed_orders['share_pct']:.1f} %"
                                 )
 
                             if fixed_orders.get("share_change_pp") is not None:
@@ -28849,8 +29224,8 @@ if selected_symbol:
                                 )
 
                             st.write(
-                                "**Fixed-Orders-Status:** "
-                                f"{fixed_orders.get('status', '–')}"
+                                ("**Funded-Backlog-Status:** " if str(snapshot.get("model_variant") or "").startswith("kratos") else "**Fixed-Orders-Status:** ")
+                                + f"{fixed_orders.get('status', '–')}"
                             )
 
                         with col2:
@@ -28869,7 +29244,7 @@ if selected_symbol:
 
                             if near_term.get("value_pct") is not None:
                                 st.metric(
-                                    "Kurzfristig feste Abdeckung",
+                                    "H2-Backlog-Abdeckung" if str(snapshot.get("model_variant") or "").startswith("kratos") else "Kurzfristig feste Abdeckung",
                                     f"{near_term['value_pct']:.0f} %"
                                 )
 
@@ -28880,7 +29255,7 @@ if selected_symbol:
 
                             if margin_trend.get("current_margin") is not None:
                                 st.metric(
-                                    "Operative Marge H1",
+                                    "Adjusted-EBITDA-Marge H1" if str(snapshot.get("model_variant") or "").startswith("kratos") else "Operative Marge H1",
                                     f"{margin_trend['current_margin']:.1f} %"
                                 )
 
@@ -28907,6 +29282,37 @@ if selected_symbol:
                                 f"{margin_trend.get('overall_status', '–')}"
                             )
 
+                        if str(snapshot.get("model_variant") or "").startswith("kratos"):
+                            kg = checks.get("kratos_growth_visibility") or {}
+                            ke = checks.get("kratos_earnings_credibility") or {}
+                            kc = checks.get("kratos_cashflow_context") or {}
+                            st.markdown("**Kratos Defense-Tech Growth & Visibility**")
+                            st.write(f"**Geschäftsmodell:** {text_or_dash(snapshot.get('business_model'))}")
+                            st.write(f"**Kernsegmente:** {text_or_dash(snapshot.get('core_segments'))}")
+                            if kg.get("funded_backlog") is not None:
+                                st.write(f"**Funded / Unfunded Backlog:** {format_money(kg.get('funded_backlog'), financial_currency)} / {format_money(kg.get('unfunded_backlog'), financial_currency)}")
+                            if kg.get("ltm_book_to_bill") is not None:
+                                st.write(f"**Book-to-Bill Q2 / LTM:** {book_to_bill.get('value'):.1f}× / {kg.get('ltm_book_to_bill'):.1f}×")
+                            if kg.get("q2_revenue") is not None:
+                                st.write(f"**Q2 Umsatz / YoY / organisch:** {format_money(kg.get('q2_revenue'), financial_currency)} · {kg.get('q2_revenue_yoy_pct'):+.1f} % · {kg.get('q2_organic_growth_pct'):+.1f} %")
+                            if kg.get("h2_backlog_coverage_pct") is not None:
+                                st.write(f"**Mechanische H2-Umsatzabdeckung durch die von Kratos für FY26 erwarteten 35 % des Backlogs:** {kg.get('h2_backlog_coverage_pct'):.1f} %")
+                                st.caption("Diese Abdeckung ist eine Diagnose gegen die FY26-Guidance und keine Umsatzgarantie.")
+                            if kg.get("q3_revenue_low") is not None and kg.get("q3_revenue_high") is not None:
+                                st.write(f"**Q3-Umsatz-Guidance:** {format_money_range(kg.get('q3_revenue_low'), kg.get('q3_revenue_high'), financial_currency)}")
+                            st.markdown("**Earnings-Credibility Gate**")
+                            st.write(f"**Q2 GAAP / Adjusted EPS:** {format_eps(ke.get('q2_gaap_eps'), financial_currency)} / {format_eps(ke.get('q2_adjusted_eps'), financial_currency)}")
+                            st.write(f"**H1 GAAP / Adjusted EPS:** {format_eps(ke.get('h1_gaap_eps'), financial_currency)} / {format_eps(ke.get('h1_adjusted_eps'), financial_currency)}")
+                            if ke.get("adjusted_to_gaap_net_income_multiple") is not None:
+                                st.write(f"**H1 Adjusted Net Income / GAAP Net Income:** {ke.get('adjusted_to_gaap_net_income_multiple'):.2f}×")
+                            st.write(f"**Status Earnings-Basis:** {ke.get('status', '–')}")
+                            st.caption(ke.get("reason"))
+                            st.markdown("**FCF-/Investitionskontext**")
+                            if kc.get("fy26_fcf_use_low") is not None and kc.get("fy26_fcf_use_high") is not None:
+                                st.write(f"**FY26 Free-Cash-Flow Use Guidance:** −{format_money(kc.get('fy26_fcf_use_low'), financial_currency)} bis −{format_money(kc.get('fy26_fcf_use_high'), financial_currency)}")
+                            st.write(f"**Status:** {kc.get('status', '–')}")
+                            st.caption(kc.get("note"))
+
                         st.info(
                             snapshot.get("source_note")
                         )
@@ -28918,10 +29324,16 @@ if selected_symbol:
                                 "Spezialkontrolle bestanden. Fair Value freigegeben."
                             )
                         else:
-                            st.warning(
-                                "Defense-Spezialkontrolle nicht freigegeben. "
-                                "Der Fair Value bleibt gesperrt."
-                            )
+                            if str(snapshot.get("model_variant") or "").startswith("kratos"):
+                                st.warning(
+                                    "Kratos V2.20.68: Growth-/Visibility-Primärdaten sind validiert, aber die operative Earnings-Basis ist noch nicht freigegeben. "
+                                    "Standard-EPS und reife Defense-Peers bleiben Kontext; der Fair Value bleibt gesperrt."
+                                )
+                            else:
+                                st.warning(
+                                    "Defense-Spezialkontrolle nicht freigegeben. "
+                                    "Der Fair Value bleibt gesperrt."
+                                )
 
                     else:
                         st.info(
@@ -28929,10 +29341,10 @@ if selected_symbol:
                         )
 
                     st.caption(
-                        "Backlog und feste Aufträge werden bewusst getrennt. "
+                        "Backlog und Funded/Feste-Auftrags-Komponenten werden bewusst getrennt. "
                         "Book-to-Bill verändert den 100-Punkte-Multiple-Score nicht. "
-                        "Verifizierte Spezialdaten werden nach ihrem Gültigkeitsdatum "
-                        "nicht stillschweigend weiterverwendet."
+                        "Verifizierte Spezialdaten werden nach ihrem Gültigkeitsdatum nicht stillschweigend weiterverwendet. "
+                        "Für KTOS ersetzt Adjusted EPS weder automatisch GAAP EPS noch das Standard-normalisierte EPS; eine eigene Earnings-Basis folgt separat."
                     )
 
                 if special_control.get(
