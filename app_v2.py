@@ -17,14 +17,14 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.72"
+APP_BUILD_VERSION = "V2.20.73"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
     "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · Kratos Horizon Lock & Status Consistency Cleanup")
+st.caption(f"Build {APP_BUILD_VERSION} · Baker Hughes Energy Technology Classification & Post-Chart Primary Source Gate")
 
 
 # V2.20.52: Midstream Peer Safety Cap & Comparability Gate. Separates market-reference peers from adjustment-eligible peers. Automatic peer adjustment requires at least three peers with sufficiently comparable corporate structure AND issuer-adjusted EBITDA basis. Generic Yahoo EV/EBITDA remains reference-only. If a future gate passes, the multiple proposal and the resulting equity fair-value effect are each capped at ±5 %. The 100-point Midstream score and official KMI Adjusted EBITDA / Net Debt / share-count bridge remain unchanged.
@@ -45,7 +45,7 @@ st.caption(f"Build {APP_BUILD_VERSION} · Kratos Horizon Lock & Status Consisten
 # V2.20.67: NVIDIA Freeze & Status Consistency Cleanup. No valuation mechanics changed. Removes stale pre-release wording after the V2.20.66 FCF/peer safety gates were activated, aligns current NVIDIA build labels/router text, and states consistently that FY27 operating EPS, 28x quality P/E, normalized-peer safety and H1-FCF safety are already active. Scores, gates, fair value, zones and signals are unchanged.
 # V2.20.69: Kratos Defense-Tech Classification & Primary-Source Growth/Earnings Credibility Gate. Adds an explicit Kratos business-model classification (Defense Technology / Unmanned & Advanced Systems), a current Q2/H1 2026 official-data snapshot for backlog/funded backlog, book-to-bill, revenue coverage, margin guidance, adjusted-vs-GAAP earnings and investment-driven FCF, plus a fail-closed Kratos peer-comparability lock. Standard EPS remains context-only for KTOS and no Kratos fair value is released yet. Frozen Defense/Rheinmetall logic is preserved.
 # V2.20.70: Kratos Earnings Adjustment Quality & Owner-Operating Earnings Gate. Decomposes the official H1 non-GAAP bridge into recurring economic costs versus potentially normalizable acquisition items. Depreciation, stock-based compensation and capitalized contract/development amortization are never auto-added back; acquired-intangible amortization is shown only as a conditional diagnostic because official future amortization remains material. Acquisition/restructuring items may be normalized only when separately disclosed, and contingent-acquisition gains are neutralized. Produces a conservative owner-operating H1 EPS diagnostic range, but still releases no Kratos earnings basis, target multiple or fair value. Also disambiguates total-backlog/FY26 coverage from H2 coverage. Frozen Defense/Rheinmetall logic is preserved.
-# V2.20.72: Kratos Horizon Lock & Status Consistency Cleanup. No valuation mechanics changed. Clarifies that the Kratos special control is already implemented and that fair value remains blocked because sufficiently complete official FY27 primary data/guidance for a robust owner-operating earnings basis are not yet available. An explicit company EPS guide is not required if future official FY27 disclosures provide enough revenue/profitability/addback inputs to reconstruct the basis conservatively. Frozen Defense/Rheinmetall and all previously frozen specialist models are preserved.
+# V2.20.73: Baker Hughes Energy Technology Classification & Post-Chart Primary Source Gate. BKR is routed away from generic oil-producer/cyclical valuation into a fail-closed Energy Technology model. Q2 OFSE/IET orders, RPO, segment margins, official FCF and the July 2026 Chart acquisition / financing structural break are shown from primary sources. Generic FCF/balance scores, 8–13x oil & gas KGV, oil-major peers, Fair Value and signals are blocked until a reliable post-Chart earnings/capital-structure basis exists. Frozen Kratos, Defense/Rheinmetall and all previously frozen specialist models are preserved.
 
 # =========================================================
 # Hilfsfunktionen
@@ -5345,6 +5345,15 @@ def calculate_profitability_score(
 
 
 # =========================================================
+# Baker Hughes / Energy Technology helper
+# =========================================================
+
+def is_baker_hughes_energy_tech_company_type(company_type):
+    type_name = str((company_type or {}).get("type", "")).lower()
+    return "energy technology / oilfield services" in type_name
+
+
+# =========================================================
 # Modul 5 – Multiple Score: Free Cashflow
 # =========================================================
 
@@ -5361,7 +5370,8 @@ def is_special_fcf_model(company_type):
         "autohersteller",
         "midstream",
         "halbleiterausrüstung / lithografie",
-        "halbleiter / fabless / ai-wachstum"
+        "halbleiter / fabless / ai-wachstum",
+        "energy technology / oilfield services"
     ]
 
     return any(
@@ -5542,7 +5552,8 @@ def is_special_balance_model(company_type):
         "autohersteller",
         "midstream",
         "halbleiterausrüstung / lithografie",
-        "halbleiter / fabless / ai-wachstum"
+        "halbleiter / fabless / ai-wachstum",
+        "energy technology / oilfield services"
     ]
 
     return any(
@@ -6085,6 +6096,20 @@ def classify_company(name, symbol, sector, industry):
             "type": "Autohersteller / zyklisch",
             "method": "Cycle-compressed EPS + Automotive Quality Score; Industrie-FCF-Plausibilitätsgate + Industrie-Netto-Liquiditätskontrolle",
             "confidence_cap": "Mittel"
+        }
+
+    # Baker Hughes: hybrid energy-technology platform, not an integrated oil producer.
+    # Q2 2026 is pre-Chart while the current market quote is post-Chart close (16.07.2026).
+    if symbol_text == "BKR" or "baker hughes" in name_text:
+        return {
+            "type": "Energy Technology / Oilfield Services + Industrial & Energy Technology + Chart",
+            "method": "Primärquellenbasierte Segment-/Orders-/RPO-Kontrolle + Post-Chart Leverage Gate; Bewertungsanker erst nach belastbarer Post-Chart Earnings-/Kapitalstruktur",
+            "confidence_cap": "Mittel",
+            "business_model": "Energy-Technology-Anbieter für Öl-/Gas-Service, LNG/Gas-Infrastruktur, Power und industrielle Technologien; kein integrierter Ölproduzent",
+            "core_segments": "Oilfield Services & Equipment (OFSE) + Industrial & Energy Technology (IET) + Chart seit 16.07.2026",
+            "focus_areas": "Oilfield Services & Equipment · LNG/Gas Technology · Power Systems · Industrial Technology · Chart Thermal Management / Air & Gas Handling / Lifecycle Services",
+            "customer_profile": "Globale Energie-, LNG-, Gasinfrastruktur-, Industrie-, Data-Center- und Upstream-Kunden",
+            "company_profile": "Hybride Energy-Technology-Plattform mit OFSE und wachsendem IET/Chart; wesentlicher Post-Q2-Strukturbruch durch Chart-Übernahme",
         }
 
     # Öl & Gas – nach dem spezifischen Midstream-Router.
@@ -13171,7 +13196,8 @@ def get_valuation_corridor(company_type):
         "photonik",
         "elektrische luftfahrt",
         "reifes saas",
-        "vertical saas"
+        "vertical saas",
+        "energy technology / oilfield services"
     ]
 
     if any(
@@ -13476,6 +13502,29 @@ def get_peer_group(company_type, symbol):
     ]
 
     own_symbol = str(symbol or "").upper()
+
+    if own_symbol == "BKR" and "energy technology / oilfield services" in type_name:
+        peers = [
+            ("SLB", "SLB"),
+            ("HAL", "Halliburton"),
+            ("FTI", "TechnipFMC"),
+            ("GEV", "GE Vernova"),
+        ]
+        filtered = [
+            {"symbol": ps, "name": pn}
+            for ps, pn in peers
+            if ps.upper() != own_symbol
+        ]
+        return {
+            "available": True,
+            "peers": filtered,
+            "count": len(filtered),
+            "target_symbol": own_symbol,
+            "note": (
+                "Baker-Hughes-Component-Peer-Lock aktiv: SLB, Halliburton, TechnipFMC und GE Vernova bilden nur Teilaspekte von OFSE bzw. IET ab. "
+                "Ohne normalisierte Post-Chart Earnings-, Segmentmix- und Kapitalstruktur-Vergleichbarkeit darf kein Peer-Median das BKR-Multiple oder einen Fair Value verändern."
+            ),
+        }
 
     for key, peers in peer_groups:
         if key in type_name:
@@ -14428,6 +14477,62 @@ def apply_nvidia_peer_overlay(nvidia_valuation, peer_check):
     return v
 
 
+def _calculate_baker_hughes_peer_reference(peer_group, fundamental_multiple, cache_version):
+    """V2.20.73 component-reference peer gate for post-Chart Baker Hughes.
+
+    SLB/HAL/FTI are primarily OFSE comparables; GEV is an IET/power reference.
+    None is automatically comparable to the combined post-Chart platform.
+    """
+    result = {
+        "method_supported": True,
+        "metric": "Baker Hughes Component Forward P/E reference",
+        "peer_rows": [],
+        "usable_count": 0,
+        "adjustment_eligible_count": 0,
+        "peer_median": None,
+        "comparability_gate_passed": False,
+        "adjustment_pct": 0.0,
+        "adjusted_multiple": safe_float(fundamental_multiple),
+        "applied": False,
+        "note": None,
+    }
+    structures = {
+        "SLB": "OFSE / oilfield services reference",
+        "HAL": "OFSE / oilfield services reference",
+        "FTI": "Subsea / surface energy technology reference",
+        "GEV": "Power / industrial energy technology reference",
+    }
+    for peer in (peer_group or {}).get("peers", []):
+        pdx = dict(load_peer_forward_pe(peer.get("symbol"), cache_version) or {})
+        sym = str(peer.get("symbol") or "").upper()
+        result["peer_rows"].append({
+            "symbol": peer.get("symbol"),
+            "name": peer.get("name"),
+            "usable": bool(pdx.get("usable")),
+            "forward_pe": safe_float(pdx.get("forward_pe")),
+            "source": pdx.get("source"),
+            "reason": pdx.get("reason"),
+            "structure": structures.get(sym, "Partial business-model reference"),
+            "post_chart_structure_comparable": False,
+            "earnings_basis_comparable": False,
+            "segment_mix_comparable": False,
+            "capital_structure_comparable": False,
+            "adjustment_eligible": False,
+        })
+    refs = [
+        r["forward_pe"] for r in result["peer_rows"]
+        if r.get("usable") and r.get("forward_pe") is not None and r.get("forward_pe") > 0
+    ]
+    result["usable_count"] = len(refs)
+    if refs:
+        result["peer_median"] = float(pd.Series(refs).median())
+    result["note"] = (
+        "Baker Hughes Component Comparability Gate nicht bestanden: Die Referenzen bilden jeweils nur OFSE-, Subsea- oder IET/Power-Teile ab und besitzen keine gegen die kombinierte Post-Chart-Plattform normalisierte Earnings- und Kapitalstrukturbasis. "
+        "Daher 0/4 Anpassungs-Peers; Referenz-KGVs verändern weder Multiple noch Fair Value."
+    )
+    return result
+
+
 def _calculate_kratos_peer_reference(peer_group, fundamental_multiple, cache_version):
     """V2.20.69 fail-closed peer reference for Kratos Defense-Tech.
 
@@ -14511,6 +14616,11 @@ def calculate_peer_check(
                 "Keine automatische Peer-Gruppe verfügbar."
             )
         return result
+
+    if (peer_group or {}).get("target_symbol") == "BKR" and "energy technology / oilfield services" in type_name:
+        return _calculate_baker_hughes_peer_reference(
+            peer_group, fundamental_multiple, cache_version
+        )
 
     if (peer_group or {}).get("target_symbol") == "KTOS" and "defense / stark wachsend" in type_name:
         return _calculate_kratos_peer_reference(
@@ -14679,6 +14789,32 @@ def get_special_control(company_type, symbol):
     # fachlich vereinbarte Spezialkontrollen.
     # Er lädt noch keine Spezialdaten und verändert
     # weder Multiple Score noch Bewertungs-Multiple.
+
+    if symbol_text == "BKR" or "energy technology / oilfield services" in type_name:
+        return {
+            "required": True,
+            "control_key": "bkr_post_chart_energy_technology",
+            "control_name": "Baker Hughes / Post-Chart Energy-Technology-, Segment-, RPO- & Leverage-Kontrolle",
+            "planned_checks": [
+                "Business-Model: OFSE + IET + Chart seit 16.07.2026",
+                "Q2 Orders / Book-to-Bill / RPO aus Primärquelle",
+                "OFSE Umsatz / Orders / Adjusted EBITDA / Marge",
+                "IET Umsatz / Orders / Adjusted EBITDA / Marge",
+                "Offizieller Q2 Free Cash Flow / FCF-Marge",
+                "Chart-Closing nach Q2: Structural Break",
+                "Chart FY2025 Revenue + Synergy Target",
+                "30.06. Cash/Debt nur als Transaktionsfinanzierungs-Kontext",
+                "Post-Chart Leverage / Kapitalstruktur erst mit belastbarer Datenbasis",
+                "Component Peer Comparability Lock: SLB/HAL/FTI/GEV",
+                "später: Post-Chart Earnings-/Leverage-Basis + Bewertungsanker",
+            ],
+            "status": "Router aktiv – V2.20.73 Baker Hughes Post-Chart Primary Source Gate",
+            "note": (
+                "V2.20.73 behandelt Baker Hughes als Energy-Technology-Plattform statt als integrierten Ölproduzenten. "
+                "Q2 2026 bildet OFSE/IET vor der Chart-Übernahme ab, während der aktuelle Kurs bereits nach dem Closing vom 16.07.2026 liegt. "
+                "Deshalb bleiben generischer Öl-&-Gas-KGV-Pfad, Standard-FCF/Bilanz-Score und Fair Value gesperrt, bis eine belastbare Post-Chart Earnings- und Kapitalstrukturbasis vorliegt."
+            ),
+        }
 
     if symbol_text == "KTOS":
         return {
@@ -15013,6 +15149,187 @@ def get_special_control(company_type, symbol):
             "vereinbart. Es wird nichts geschätzt oder erfunden."
         )
     }
+
+
+# =========================================================
+# Modul 6 – Schritt 3B: Baker Hughes Post-Chart Primary Source Gate
+# =========================================================
+
+def get_verified_baker_hughes_snapshot(symbol):
+    """Curated official Baker Hughes Q2 2026 + Chart-closing snapshot in USD.
+
+    Q2 ended 30.06.2026. Chart Industries closed on 16.07.2026, therefore the
+    operating quarter is pre-Chart while the market quote is post-Chart.
+    """
+    if str(symbol or "").upper().strip() != "BKR":
+        return None
+    return {
+        "company": "Baker Hughes Company",
+        "published_date": "26.07.2026",
+        "as_of_date": "30.06.2026",
+        "source_name": "Baker Hughes Q2 2026 Results + Form 10-Q + Chart Industries acquisition completion",
+        "source_url": "https://investors.bakerhughes.com/news/press-releases/news-details/2026/Baker-Hughes-Announces-Second-Quarter-2026-Results/default.aspx",
+        "sec_source_url": "https://www.sec.gov/Archives/edgar/data/1701605/000170160526000023/bkr-20260630.htm",
+        "chart_close_source_url": "https://investors.bakerhughes.com/news/press-releases/news-details/2026/Baker-Hughes-Completes-Acquisition-of-Chart-Industries/default.aspx",
+        "q2_orders": 10.501e9,
+        "q2_revenue": 6.742e9,
+        "q2_book_to_bill": 1.6,
+        "rpo_total": 40.1e9,
+        "iet_rpo": 37.1e9,
+        "ofse_rpo": 3.0e9,
+        "q2_gaap_eps": 0.68,
+        "q2_adjusted_eps": 0.64,
+        "q2_adjusted_ebitda": 1.231e9,
+        "q2_operating_cash_flow": 1.345e9,
+        "q2_free_cash_flow": 1.109e9,
+        "q2_net_capex": 236e6,
+        "q2_equity_securities_fair_value_gain": 125e6,
+        "q2_transaction_costs": 30e6,
+        "ofse_orders": 3.413e9,
+        "ofse_revenue": 3.451e9,
+        "ofse_revenue_yoy_pct": -5.0,
+        "ofse_adjusted_ebitda": 605e6,
+        "ofse_adjusted_ebitda_margin_pct": 17.5,
+        "iet_orders": 7.088e9,
+        "iet_revenue": 3.291e9,
+        "iet_orders_yoy_pct": 101.0,
+        "iet_adjusted_ebitda": 678e6,
+        "iet_adjusted_ebitda_margin_pct": 20.6,
+        "chart_close_date": "16.07.2026",
+        "chart_fy2025_revenue": 4.3e9,
+        "chart_synergy_target_annual": 325e6,
+        "chart_synergy_timing": "bis Jahr 3",
+        "chart_transaction_enterprise_value": 13.6e9,
+        "target_net_leverage_low": 1.0,
+        "target_net_leverage_high": 1.5,
+        "target_net_leverage_timing": "innerhalb von 24 Monaten",
+        "q2_cash": 15.727e9,
+        "q2_short_term_debt": 0.774e9,
+        "q2_long_term_debt": 15.479e9,
+        "q2_total_debt": 16.253e9,
+        "fy2025_total_debt": 6.087e9,
+        "march_2026_usd_notes": 6.5e9,
+        "march_2026_eur_notes_eur": 3.0e9,
+        "july_term_loans_total": 2.0e9,
+        "structural_break": "Chart Industries acquisition closed after Q2 on 16.07.2026",
+    }
+
+
+def build_baker_hughes_special_control(base_control, company_type, symbol):
+    control = dict(base_control or {})
+    control.setdefault("router_status", control.get("status"))
+    control.setdefault("router_note", control.get("note"))
+    if control.get("control_key") != "bkr_post_chart_energy_technology":
+        return control
+
+    snapshot = get_verified_baker_hughes_snapshot(symbol)
+    if snapshot is None:
+        control.update({
+            "implemented": False,
+            "released": False,
+            "complete": False,
+            "confidence_cap": "Niedrig",
+            "step3b_status": "BKR-Primärdaten fehlen",
+            "note": "Baker-Hughes-Spezialroute erkannt, aber kein verifizierter Primärdaten-Snapshot verfügbar. Fair Value bleibt gesperrt.",
+        })
+        return control
+
+    # Internal freshness policy: specialist primary-source snapshots are not
+    # silently used beyond 120 days from their publication date.
+    try:
+        pub = datetime.strptime(snapshot["published_date"], "%d.%m.%Y").date()
+        age_days = (datetime.now().date() - pub).days
+        snapshot_fresh = 0 <= age_days <= 120
+    except Exception:
+        age_days = None
+        snapshot_fresh = False
+
+    revenue = safe_float(snapshot.get("q2_revenue"))
+    fcf = safe_float(snapshot.get("q2_free_cash_flow"))
+    rpo = safe_float(snapshot.get("rpo_total"))
+    iet_rpo = safe_float(snapshot.get("iet_rpo"))
+    q2_debt = safe_float(snapshot.get("q2_total_debt"))
+    q2_cash = safe_float(snapshot.get("q2_cash"))
+
+    fcf_margin_pct = (fcf / revenue * 100.0) if fcf is not None and revenue not in [None, 0] else None
+    rpo_revenue_multiple = (rpo / revenue) if rpo is not None and revenue not in [None, 0] else None
+    iet_rpo_share_pct = (iet_rpo / rpo * 100.0) if iet_rpo is not None and rpo not in [None, 0] else None
+    q2_transaction_net_debt = (q2_debt - q2_cash) if q2_debt is not None and q2_cash is not None else None
+
+    complete = all(x is not None for x in [
+        safe_float(snapshot.get("q2_orders")), revenue, safe_float(snapshot.get("q2_book_to_bill")),
+        rpo, iet_rpo, safe_float(snapshot.get("ofse_revenue")), safe_float(snapshot.get("iet_revenue")),
+        fcf, q2_cash, q2_debt, safe_float(snapshot.get("chart_fy2025_revenue")),
+        safe_float(snapshot.get("chart_transaction_enterprise_value")),
+    ]) and snapshot_fresh
+
+    checks = {
+        "q2_orders": safe_float(snapshot.get("q2_orders")),
+        "q2_revenue": revenue,
+        "q2_book_to_bill": safe_float(snapshot.get("q2_book_to_bill")),
+        "rpo_total": rpo,
+        "iet_rpo": iet_rpo,
+        "ofse_rpo": safe_float(snapshot.get("ofse_rpo")),
+        "rpo_to_q2_revenue": rpo_revenue_multiple,
+        "iet_rpo_share_pct": iet_rpo_share_pct,
+        "q2_gaap_eps": safe_float(snapshot.get("q2_gaap_eps")),
+        "q2_adjusted_eps": safe_float(snapshot.get("q2_adjusted_eps")),
+        "q2_adjusted_ebitda": safe_float(snapshot.get("q2_adjusted_ebitda")),
+        "q2_operating_cash_flow": safe_float(snapshot.get("q2_operating_cash_flow")),
+        "q2_free_cash_flow": fcf,
+        "q2_fcf_margin_pct": fcf_margin_pct,
+        "q2_net_capex": safe_float(snapshot.get("q2_net_capex")),
+        "q2_equity_securities_fair_value_gain": safe_float(snapshot.get("q2_equity_securities_fair_value_gain")),
+        "q2_transaction_costs": safe_float(snapshot.get("q2_transaction_costs")),
+        "ofse_orders": safe_float(snapshot.get("ofse_orders")),
+        "ofse_revenue": safe_float(snapshot.get("ofse_revenue")),
+        "ofse_revenue_yoy_pct": safe_float(snapshot.get("ofse_revenue_yoy_pct")),
+        "ofse_adjusted_ebitda": safe_float(snapshot.get("ofse_adjusted_ebitda")),
+        "ofse_adjusted_ebitda_margin_pct": safe_float(snapshot.get("ofse_adjusted_ebitda_margin_pct")),
+        "iet_orders": safe_float(snapshot.get("iet_orders")),
+        "iet_revenue": safe_float(snapshot.get("iet_revenue")),
+        "iet_orders_yoy_pct": safe_float(snapshot.get("iet_orders_yoy_pct")),
+        "iet_adjusted_ebitda": safe_float(snapshot.get("iet_adjusted_ebitda")),
+        "iet_adjusted_ebitda_margin_pct": safe_float(snapshot.get("iet_adjusted_ebitda_margin_pct")),
+        "chart_close_date": snapshot.get("chart_close_date"),
+        "chart_fy2025_revenue": safe_float(snapshot.get("chart_fy2025_revenue")),
+        "chart_synergy_target_annual": safe_float(snapshot.get("chart_synergy_target_annual")),
+        "chart_synergy_timing": snapshot.get("chart_synergy_timing"),
+        "chart_transaction_enterprise_value": safe_float(snapshot.get("chart_transaction_enterprise_value")),
+        "target_net_leverage_low": safe_float(snapshot.get("target_net_leverage_low")),
+        "target_net_leverage_high": safe_float(snapshot.get("target_net_leverage_high")),
+        "target_net_leverage_timing": snapshot.get("target_net_leverage_timing"),
+        "q2_cash": q2_cash,
+        "q2_total_debt": q2_debt,
+        "q2_transaction_net_debt": q2_transaction_net_debt,
+        "fy2025_total_debt": safe_float(snapshot.get("fy2025_total_debt")),
+        "march_2026_usd_notes": safe_float(snapshot.get("march_2026_usd_notes")),
+        "march_2026_eur_notes_eur": safe_float(snapshot.get("march_2026_eur_notes_eur")),
+        "july_term_loans_total": safe_float(snapshot.get("july_term_loans_total")),
+        "post_chart_earnings_basis_released": False,
+        "post_chart_leverage_basis_released": False,
+        "structural_break": snapshot.get("structural_break"),
+    }
+
+    control.update({
+        "implemented": True,
+        "released": False,
+        "complete": bool(complete),
+        "confidence_cap": "Mittel",
+        "step3b_status": "Primärdaten vollständig · Post-Chart Bewertungsbasis noch gesperrt" if complete else "Primärdaten-Gate unvollständig/veraltet",
+        "snapshot": snapshot,
+        "checks": checks,
+        "snapshot_fresh": snapshot_fresh,
+        "snapshot_age_days": age_days,
+        "overall_status": "Post-Chart Structural-Break Gate aktiv",
+        "note": (
+            "Baker Hughes Q2 2026 Primärdaten für OFSE/IET, Orders, RPO, Cashflow und Transaktionsfinanzierung sind validiert. "
+            "Chart schloss jedoch erst am 16.07.2026; damit ist Q2 operativ pre-Chart, während der heutige Börsenkurs post-Chart ist. "
+            "Die 30.06.-Cash-/Debt-Werte enthalten Transaktionsfinanzierung und dürfen nicht als aktuelle Netto-Cash-/Leverage-Basis interpretiert werden. "
+            "V2.20.73 bleibt daher fail-closed: kein Fair Value, bis konsolidierte Post-Chart Earnings/Cashflow/Leverage ausreichend belastbar sind."
+        ),
+    })
+    return control
 
 
 # =========================================================
@@ -23773,7 +24090,7 @@ def _format_fx_timestamp(value):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "m6_midstream_quality_ev_ebitda_v22050_20260909"
+CACHE_VERSION = "bkr_energy_technology_post_chart_gate_v22073_20260911"
 
 @st.cache_data(
     ttl=900,
@@ -24086,6 +24403,12 @@ def load_stock(search_text, cache_version):
         profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None,
             "brake_text": "Bei NVIDIA/Fabless-AI wird die generische Nettomargen-/ROE-Punktelogik nicht verwendet; maßgeblich sind Gross Margin, AI-Demand/Execution, FCF/Liquidität, Produkttransition, Visibilität, Konzentration, Inventory und Earnings-Qualität im eigenen AI-Score."}
 
+    if is_baker_hughes_energy_tech_company_type(company_type):
+        growth_score = {**growth_score, "context_score": growth_score.get("score"), "score": None,
+            "note": "Bei Baker Hughes bleiben generisches Yahoo-Umsatz-/Gewinnwachstum Diagnosekontext. V2.20.73 bewertet stattdessen OFSE/IET Orders, RPO, Segmententwicklung und den Post-Chart-Strukturbruch aus Primärquellen."}
+        profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None,
+            "brake_text": "Bei Baker Hughes wird die generische Nettomargen-/ROE-Punktelogik nicht als Bewertungsbaustein verwendet; Q2 OFSE/IET Adjusted-EBITDA-Margen und eine spätere konsolidierte Post-Chart Profitabilitätsbasis werden separat geprüft."}
+
     score_fcf_input = (
         free_cashflow
         if is_special_fcf_model(company_type)
@@ -24212,6 +24535,26 @@ def load_stock(search_text, cache_version):
                 "Kratos V2.20.72: Der generische 100-Punkte-Score bleibt Diagnosekontext; der generische 18–30×-KGV-Korridor ist für KTOS ausdrücklich nicht anwendbar. "
                 "Die Standard-EPS-Basis ist wegen der großen GAAP-/Adjusted-EPS-Differenz nicht zugelassen. Das Owner-Operating-Gate und die FY26-Profitabilitätsbrücke liefern nur Diagnosegrenzen; "
                 "ohne ausreichend vollständige offizielle FY27-Primärdaten/Guidance für eine belastbare Owner-Operating-Earnings-Basis bleibt der Bewertungsanker gesperrt."
+            ),
+        }
+
+    if str(fundamental_symbol or "").upper() == "BKR":
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "diagnostic_score": safe_float(fundamental_multiple.get("score")),
+            "corridor": {
+                "available": False,
+                "lower": None,
+                "upper": None,
+                "method": "Nicht anwendbar – Baker Hughes Post-Chart Energy Technology",
+                "note": "Der generische 8–13× Öl-&-Gas-KGV-Korridor ist für BKR nicht freigegeben.",
+            },
+            "multiple": None,
+            "available": False,
+            "earnings_basis_usable": False,
+            "note": (
+                "Baker Hughes V2.20.73: Der generische Öl-&-Gas-Zykluspfad ist nicht anwendbar. Q2 2026 ist operativ pre-Chart, der aktuelle Kurs post-Chart. "
+                "Ohne belastbare konsolidierte Post-Chart Earnings-/Cashflow-/Leverage-Basis wird kein Fundamental-Multiple geschätzt."
             ),
         }
 
@@ -24412,6 +24755,12 @@ def load_stock(search_text, cache_version):
         symbol
     )
 
+    special_control = build_baker_hughes_special_control(
+        special_control,
+        company_type,
+        fundamental_symbol
+    )
+
     special_control = build_insurance_special_control(
         special_control,
         insurance_special_model
@@ -24559,6 +24908,28 @@ def load_stock(search_text, cache_version):
             "action": (
                 "Keine automatische Mischung von Yahoo Forward-EPS und FY27-Proxy. V2.20.67 verwendet 0 % Forward / 100 % mechanischen FY27-Operating-Proxy. "
                 "Der NVIDIA-Bewertungsanker ist freigegeben, sofern AI-Quality, Demand-/Horizon-Alignment sowie die aktiven H1-FCF- und Normalized-Peer-Safety-Gates bestehen."
+            ),
+        }
+
+
+    if (
+        str(fundamental_symbol or "").upper() == "BKR"
+        and special_control.get("implemented")
+        and str((special_event_warning or {}).get("level") or "") != "Rot"
+    ):
+        special_event_warning = {
+            "level": "Gelb",
+            "icon": "🟡",
+            "title": "Baker Hughes Post-Chart Structural-Break Gate aktiv",
+            "requires_research": False,
+            "valuation_usable": False,
+            "reason": (
+                "Q2 2026 bildet OFSE und IET vor dem Chart-Closing ab, während Chart Industries am 16.07.2026 übernommen wurde und der heutige Börsenkurs bereits die neue Konzernstruktur reflektiert. "
+                "Zusätzlich enthalten die 30.06.-Cash-/Debt-Werte bereits wesentliche Transaktionsfinanzierung und sind keine normale Netto-Cash-Basis."
+            ),
+            "action": (
+                "V2.20.73 nutzt Q2 Orders/RPO/Segmentmargen und offiziellen FCF nur als Primärdaten-/Qualitätsbasis. Standard-EPS, generischer FCF/Bilanz-Score, Ölproduzenten-KGV und Fair Value bleiben gesperrt, "
+                "bis eine belastbare konsolidierte Post-Chart Earnings-/Cashflow-/Leverage-Basis vorliegt."
             ),
         }
 
@@ -25283,6 +25654,7 @@ if selected_symbol:
                 is_auto_fcf_context = "autohersteller" in company_type_ui
                 is_semicap_fcf_context = is_semicap_lithography_company_type(company_type)
                 is_nvidia_fcf_context = is_nvidia_ai_growth_company_type(company_type)
+                is_bkr_fcf_context = is_baker_hughes_energy_tech_company_type(company_type)
                 if fcf_ctx.get("score_eligible"):
                     source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
                     if is_bank_fcf_context:
@@ -25331,6 +25703,12 @@ if selected_symbol:
                             "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
                             "Bei NVIDIA/Fabless-AI bleibt dieser Yahoo-TTM-FCF reine Kontextinformation. V2.20.67 verwendet für den AI-Quality-Score "
                             "ausschließlich den von NVIDIA ausgewiesenen Q2-FY2027-Free-Cashflow; Yahoo-FCF steuert weder AI-Quality-Score noch Earnings-Gate oder Fair Value."
+                        )
+                    elif is_bkr_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            "Bei Baker Hughes bleibt dieser Yahoo-TTM-FCF reine Kontextinformation. V2.20.73 verwendet im Post-Chart Primary-Source Gate den offiziell ausgewiesenen Q2-Free-Cashflow; "
+                            "Yahoo-FCF steuert weder Score, Leverage noch Fair Value."
                         )
                     else:
                         st.caption(
@@ -25384,6 +25762,12 @@ if selected_symbol:
                                 "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info und Cashflow-Statement liefern abweichende FCF-Kontextwerte. "
                                 f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Für NVIDIA V2.20.67 bleiben beide Yahoo-Werte reine Kontextdaten; "
                                 "maßgeblich im AI-Quality-Score ist ausschließlich der offiziell ausgewiesene Q2-FY2027-Free-Cashflow."
+                            )
+                        elif is_bkr_fcf_context:
+                            st.warning(
+                                "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info und Cashflow-Statement liefern abweichende FCF-Kontextwerte. "
+                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Für Baker Hughes V2.20.73 bleiben beide Yahoo-Werte reine Kontextdaten; "
+                                "maßgeblich im Post-Chart Primary-Source Gate ist ausschließlich der offiziell ausgewiesene Q2-Free-Cashflow."
                             )
                         else:
                             st.warning(
@@ -25598,7 +25982,7 @@ if selected_symbol:
                     normalized_eps_label = "Versicherungs-Core-TTM-EPS"
                 else:
                     normalized_eps = eps_result["normalized_eps"]
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type)) else "Normalisiertes EPS")
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type)) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -25637,7 +26021,12 @@ if selected_symbol:
                         f"**Verwendete Methode:** "
                         f"{eps_result['method']}"
                     )
-                    if str(data.get("symbol") or "").upper() == "KTOS":
+                    if str(data.get("symbol") or "").upper() == "BKR":
+                        st.info(
+                            "Baker Hughes/Energy Technology: Diese Standard-Normalisierung bleibt in V2.20.73 ausschließlich Kontext. "
+                            "Q2 ist pre-Chart, der aktuelle Kurs post-Chart; eine konsolidierte Post-Chart Earnings-Basis ist noch nicht freigegeben."
+                        )
+                    elif str(data.get("symbol") or "").upper() == "KTOS":
                         st.info(
                             "Kratos/Defense-Tech: Diese Standard-Normalisierung bleibt in V2.20.72 ausschließlich Kontext. "
                             "Die große GAAP-/Adjusted-EPS-Differenz wird im Kratos Owner-Operating Earnings Gate separat geprüft; das Standard-EPS ist nicht als Kratos-Bewertungsbasis freigegeben."
@@ -25782,6 +26171,11 @@ if selected_symbol:
                         "V2.20.57 prüft es weiter unten mit dem Cycle Compression Gate gegen Forward-/TTM-EPS "
                         "und die aktuelle Cars-Marge. Die komprimierte EPS-Basis ist danach ausschließlich die "
                         "Gewinnbasis; das Ziel-KGV wird separat nur aus dem Automotive-Quality-Score abgeleitet."
+                    )
+                elif str(data.get("symbol") or "").upper() == "BKR":
+                    st.caption(
+                        "Das Standard-normalisierte EPS ist bei Baker Hughes in V2.20.73 ausschließlich Kontext. Der Post-Chart-Strukturbruch verhindert eine direkte Verwendung der pre-Chart Historie/TTM-Basis für einen KGV-Fair-Value; "
+                        "ein Bewertungsanker bleibt bis zu belastbaren konsolidierten Post-Chart Earnings-/Leverage-Daten gesperrt."
                     )
                 elif str(data.get("symbol") or "").upper() == "KTOS":
                     st.caption(
@@ -26369,6 +26763,13 @@ if selected_symbol:
                 is_semicap_score_ui = is_semicap_lithography_company_type(company_type)
                 is_nvidia_score_ui = is_nvidia_ai_growth_company_type(company_type)
                 is_kratos_score_ui = str(selected_symbol or "").upper() == "KTOS"
+                is_bkr_score_ui = str(selected_symbol or "").upper() == "BKR"
+
+                if is_bkr_score_ui:
+                    st.info(
+                        "Baker Hughes/Energy Technology: Die generischen 100-Punkte-Multiple-Score-Komponenten bleiben in V2.20.73 Diagnosekontext. "
+                        "Maßgeblich sind OFSE/IET Orders, RPO, Segmentmargen, offizieller FCF und die Post-Chart Kapitalstrukturkontrolle; daraus wird noch kein Multiple oder Fair Value freigegeben."
+                    )
 
                 if is_kratos_score_ui:
                     st.info(
@@ -26376,7 +26777,10 @@ if selected_symbol:
                         "Sie bestimmen weder eine Kratos-Earnings-Basis noch ein Fundamental-Multiple oder einen Fair Value. Maßgeblich ist zunächst das primärquellenbasierte Growth-/Backlog-/Owner-Operating-Earnings-Gate."
                     )
 
-                if is_nvidia_score_ui:
+                if is_bkr_score_ui:
+                    st.info("Baker Hughes/Post-Chart-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.73 bewertet Q2 Orders/RPO und OFSE/IET Segmententwicklung aus Primärquellen.")
+                    st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf einen späteren Post-Chart Bewertungsanker.")
+                elif is_nvidia_score_ui:
                     st.info("NVIDIA/Fabless-AI-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.67 verwendet den eigenen primärquellenbasierten AI-Quality-Score sowie Demand-Quality- und Earnings-Horizon-Gates.")
                     st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf den NVIDIA AI-Quality-Score oder das Earnings-Horizon-Alignment-Gate.")
                 elif is_semicap_score_ui:
@@ -26486,7 +26890,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui:
+                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -26510,8 +26914,11 @@ if selected_symbol:
                 is_auto_profitability_ui = "autohersteller" in normalized_company_type_name(company_type)
                 is_semicap_profitability_ui = is_semicap_lithography_company_type(company_type)
                 is_nvidia_profitability_ui = is_nvidia_ai_growth_company_type(company_type)
+                is_bkr_profitability_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
-                if is_nvidia_profitability_ui:
+                if is_bkr_profitability_ui:
+                    st.info("Baker Hughes/Post-Chart-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. Q2 OFSE-/IET-Adjusted-EBITDA-Margen werden separat aus der Primärquelle gezeigt; eine konsolidierte Post-Chart Profitabilitätsbasis folgt später.")
+                elif is_nvidia_profitability_ui:
                     st.info("NVIDIA/Fabless-AI-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. V2.20.67 bewertet Gross-Margin-Resilienz und Earnings-Quality-Risiken im eigenen AI-Quality-Score.")
                 elif is_semicap_profitability_ui:
                     st.info("ASML/Lithografie-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. V2.20.61 bewertet Profitabilitätsqualität über Gross Margin und Guidance im eigenen Semicap-Quality-Score.")
@@ -26652,6 +27059,7 @@ if selected_symbol:
                     and "autohersteller" not in str(company_type.get("type", "")).lower()
                     and not is_semicap_lithography_company_type(company_type)
                     and not is_nvidia_ai_growth_company_type(company_type)
+                    and not is_baker_hughes_energy_tech_company_type(company_type)
                 ):
                     st.caption(
                         "Die Profitabilität basiert derzeit auf "
@@ -26774,8 +27182,12 @@ if selected_symbol:
                     is_auto_model_ui = "autohersteller" in str(company_type.get("type", "")).lower()
                     is_semicap_model_ui = is_semicap_lithography_company_type(company_type)
                     is_nvidia_model_ui = is_nvidia_ai_growth_company_type(company_type)
+                    is_bkr_model_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
-                    if is_nvidia_model_ui:
+                    if is_bkr_model_ui:
+                        st.info("ℹ️ Baker Hughes/Post-Chart-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
+                        st.caption("V2.20.73 verwendet den offiziell ausgewiesenen Q2-Free-Cashflow im Primärdaten-Gate. Yahoo-TTM-FCF bleibt Kontext; Q2-FCF wird nicht auf das post-Chart Gesamtunternehmen hochgerechnet.")
+                    elif is_nvidia_model_ui:
                         st.info("ℹ️ NVIDIA/Fabless-AI-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
                         st.caption("V2.20.67 verwendet ausschließlich den von NVIDIA ausgewiesenen Q2-FY2027-Free-Cashflow in der FCF-/Liquiditätskomponente des AI-Quality-Scores. Yahoo-TTM-FCF bleibt Kontext und beeinflusst weder Demand-/Horizon-Gates noch Fair Value.")
                     elif is_semicap_model_ui:
@@ -26837,6 +27249,7 @@ if selected_symbol:
                     and "autohersteller" not in normalized_company_type_name(company_type)
                     and not is_semicap_lithography_company_type(company_type)
                     and not is_nvidia_ai_growth_company_type(company_type)
+                    and not is_baker_hughes_energy_tech_company_type(company_type)
                 ):
                     st.caption(
                         "Die FCF-Punkte basieren auf der aktuellen "
@@ -26958,8 +27371,12 @@ if selected_symbol:
                     is_auto_balance_ui = "autohersteller" in str(company_type.get("type", "")).lower()
                     is_semicap_balance_ui = is_semicap_lithography_company_type(company_type)
                     is_nvidia_balance_ui = is_nvidia_ai_growth_company_type(company_type)
+                    is_bkr_balance_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
-                    if is_nvidia_balance_ui:
+                    if is_bkr_balance_ui:
+                        st.info("ℹ️ Baker Hughes/Post-Chart-Modell: Standard-Netto-Schulden/FCF-Score ist gesperrt")
+                        st.caption("Die 30.06.2026 Cash-/Debt-Werte enthalten wesentliche Chart-Transaktionsfinanzierung. Sie dürfen nicht als aktuelle operative Netto-Cash-/Leverage-Basis interpretiert werden; Post-Chart Leverage wird separat geprüft.")
+                    elif is_nvidia_balance_ui:
                         st.info("ℹ️ NVIDIA/Fabless-AI-Modell: Standard-Netto-Schulden/FCF-Score ist kein Bewertungsbaustein")
                         st.caption("V2.20.67 bewertet Liquidität sowie Inventory-/Commitment-/Working-Capital-Qualität innerhalb des primärquellenbasierten AI-Quality-Scores und Demand-Quality-Gates. Die generische Netto-Schulden/FCF-Punktelogik bleibt deaktiviert.")
                     elif is_semicap_balance_ui:
@@ -28470,6 +28887,7 @@ if selected_symbol:
                 is_auto_valuation_ui = "autohersteller" in normalized_company_type_name(company_type)
                 is_semicap_valuation_ui = is_semicap_lithography_company_type(company_type)
                 is_nvidia_valuation_ui = is_nvidia_ai_growth_company_type(company_type)
+                is_bkr_valuation_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                 if is_bank_valuation_ui:
                     bank_model_m6 = data.get("bank_special_model") or {}
@@ -28804,6 +29222,14 @@ if selected_symbol:
                         "Ein NAV-Anker wird nur ergänzt, wenn eine belastbare und vergleichbare "
                         "Primärquelle vorhanden ist; NAV wird nicht aus Buchwert oder Enterprise Value geschätzt."
                     )
+                elif is_bkr_valuation_ui:
+                    st.warning(
+                        "Baker Hughes/Energy Technology: Der generische 8–13× Öl-&-Gas-KGV-Korridor ist nicht anwendbar. "
+                        "Q2 2026 ist pre-Chart, während der aktuelle Kurs die seit 16.07.2026 bestehende Post-Chart-Struktur reflektiert."
+                    )
+                    st.info("Noch kein Baker-Hughes-Fundamental-Multiple berechenbar.")
+                    st.caption(multiple_result.get("note"))
+                    st.caption("Ein Bewertungsanker darf erst aus einer belastbaren konsolidierten Post-Chart Earnings-/Cashflow-/Kapitalstrukturbasis abgeleitet werden; der aktuelle Yahoo-Forward-EPS bleibt reference-only.")
                 elif str(data.get("symbol") or "").upper() == "KTOS":
                     st.warning(
                         "Kratos Defense-Tech: Der generische 18–30×-KGV-Korridor ist nicht anwendbar. "
@@ -28951,6 +29377,7 @@ if selected_symbol:
                 is_semicap_peer_metric = peer_check.get("metric") == "Semicap Forward P/E reference"
                 is_nvidia_peer_metric = peer_check.get("metric") == "NVIDIA Forward P/E reference"
                 is_kratos_peer_metric = peer_check.get("metric") == "Kratos Defense-Tech Forward P/E reference"
+                is_bkr_peer_metric = peer_check.get("metric") == "Baker Hughes Component Forward P/E reference"
 
                 if not peer_check[
                     "method_supported"
@@ -28964,7 +29391,7 @@ if selected_symbol:
 
                     st.write(
                         "**Geladene Peer-EV/EBITDA-Werte:**"
-                        if is_midstream_peer_metric else ("**Automotive Peer-Forward-KGVs (Referenz):**" if is_automotive_peer_metric else ("**Semicap Peer-Forward-KGVs (Referenz):**" if is_semicap_peer_metric else ("**NVIDIA Peer-Forward-KGVs (Referenz):**" if is_nvidia_peer_metric else ("**Kratos Defense-Tech Peer-Forward-KGVs (Referenz):**" if is_kratos_peer_metric else "**Geladene Peer-KGVs:**"))))
+                        if is_midstream_peer_metric else ("**Automotive Peer-Forward-KGVs (Referenz):**" if is_automotive_peer_metric else ("**Semicap Peer-Forward-KGVs (Referenz):**" if is_semicap_peer_metric else ("**NVIDIA Peer-Forward-KGVs (Referenz):**" if is_nvidia_peer_metric else ("**Kratos Defense-Tech Peer-Forward-KGVs (Referenz):**" if is_kratos_peer_metric else ("**Baker Hughes Component Peer-Forward-KGVs (Referenz):**" if is_bkr_peer_metric else "**Geladene Peer-KGVs:**")))))
                     )
 
                     for row in peer_check["peer_rows"]:
@@ -29004,6 +29431,13 @@ if selected_symbol:
                                     f"• {row['name']} ({row['symbol']}): {peer_value:.2f}×{source_text} "
                                     f"· {structure} · {basis} · {ai_cycle} · {eligibility}"
                                 )
+                            elif is_bkr_peer_metric:
+                                eligibility = "voll vergleichbar" if row.get("adjustment_eligible") else "nur Referenz"
+                                structure = row.get("structure") or "Teilsegment-Referenz"
+                                st.write(
+                                    f"• {row['name']} ({row['symbol']}): {peer_value:.2f}×{source_text} "
+                                    f"· {structure} · Post-Chart Earnings/Segmentmix nicht normalisiert · {eligibility}"
+                                )
                             elif is_kratos_peer_metric:
                                 eligibility = "voll vergleichbar" if row.get("adjustment_eligible") else "nur Referenz"
                                 structure = row.get("structure") or "Defense-Struktur"
@@ -29020,10 +29454,10 @@ if selected_symbol:
                             st.write(f"• {row['name']} ({row['symbol']}): –")
 
                     st.write(
-                        ("**Brauchbare Referenz-Peer-Daten:** " if (is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric or is_kratos_peer_metric) else "**Brauchbare Peer-Daten:** ")
+                        ("**Brauchbare Referenz-Peer-Daten:** " if (is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric or is_kratos_peer_metric or is_bkr_peer_metric) else "**Brauchbare Peer-Daten:** ")
                         + f"{peer_check['usable_count']}"
                     )
-                    if is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric or is_kratos_peer_metric:
+                    if is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric or is_kratos_peer_metric or is_bkr_peer_metric:
                         st.write(
                             "**Für automatische Anpassung voll vergleichbar:** "
                             f"{peer_check.get('adjustment_eligible_count', 0)}"
@@ -29040,6 +29474,8 @@ if selected_symbol:
                         else:
                             if is_nvidia_peer_metric:
                                 st.warning("NVIDIA Normalized Comparability Gate nicht bestanden: Referenzmedian bleibt ohne Einfluss auf Ziel-KGV und Fair Value.")
+                            elif is_bkr_peer_metric:
+                                st.warning("Baker Hughes Component Comparability Gate nicht bestanden: 0/4 Anpassungs-Peers. Referenzmedian bleibt ohne Einfluss auf Multiple und Fair Value.")
                             elif is_kratos_peer_metric:
                                 st.warning("Kratos Normalized Comparability Gate nicht bestanden: 0/4 Anpassungs-Peers. Referenzmedian bleibt ohne Einfluss auf Multiple und Fair Value.")
                             else:
@@ -29049,7 +29485,7 @@ if selected_symbol:
 
                     if peer_check["peer_median"] is not None:
                         st.metric(
-                            "Peer-Median EV/EBITDA" if is_midstream_peer_metric else ("Automotive Referenzmedian Forward-KGV" if is_automotive_peer_metric else ("Semicap Referenzmedian Forward-KGV" if is_semicap_peer_metric else ("NVIDIA Referenzmedian Forward-KGV" if is_nvidia_peer_metric else ("Kratos Referenzmedian Forward-KGV" if is_kratos_peer_metric else "Peer-Median Forward-KGV")))),
+                            "Peer-Median EV/EBITDA" if is_midstream_peer_metric else ("Automotive Referenzmedian Forward-KGV" if is_automotive_peer_metric else ("Semicap Referenzmedian Forward-KGV" if is_semicap_peer_metric else ("NVIDIA Referenzmedian Forward-KGV" if is_nvidia_peer_metric else ("Kratos Referenzmedian Forward-KGV" if is_kratos_peer_metric else ("Baker Hughes Component-Referenzmedian Forward-KGV" if is_bkr_peer_metric else "Peer-Median Forward-KGV"))))),
                             f"{peer_check['peer_median']:.2f}×"
                         )
 
@@ -29121,8 +29557,11 @@ if selected_symbol:
                                     "Mindestens 3 AI-/Geschäftsmix-, earnings- und Nachfrage-/Zyklus-vergleichbare normalisierte Peers sind für eine automatische NVIDIA-Anpassung Pflicht; Median statt Durchschnitt, duale ±5-%-Caps."
                                     if is_nvidia_peer_metric else (
                                         "Kratos V2.20.72: Reife Defense-Primes bleiben reference-only, bis mindestens 3 Peers bei Wachstumsphase, Produkt-/Technologiemix, Margenprofil und normalisierter Earnings-Basis vergleichbar sind."
-                                        if is_kratos_peer_metric else
-                                        "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
+                                        if is_kratos_peer_metric else (
+                                            "Baker Hughes V2.20.73: SLB/HAL/FTI/GEV bleiben Teilsegment-Referenzen. Eine automatische Anpassung wäre erst bei mindestens 3 voll vergleichbaren Post-Chart Peers mit normalisierter Earnings-/Kapitalstrukturbasis zulässig."
+                                            if is_bkr_peer_metric else
+                                            "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
+                                        )
                                     )
                                 )
                             )
@@ -29250,6 +29689,73 @@ if selected_symbol:
                         "nachfolgenden Fair-Value-Schritt, solange sie noch "
                         "nicht vollständig implementiert und freigegeben sind."
                     )
+
+                if special_control.get(
+                    "control_key"
+                ) == "bkr_post_chart_energy_technology":
+                    st.divider()
+                    st.subheader("⚙️ Modul 6 – Schritt 3B: Baker Hughes Energy-Technology & Post-Chart-Prüfung")
+                    if special_control.get("implemented"):
+                        checks_bkr = special_control.get("checks") or {}
+                        snap_bkr = special_control.get("snapshot") or {}
+                        st.write(f"**Datenstand operatives Q2:** {text_or_dash(snap_bkr.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_bkr.get('published_date'))})")
+                        st.success("Baker-Hughes-Q2-Primärdaten für OFSE/IET, Orders, RPO und Cashflow sind validiert. Chart wird als Post-Q2-Strukturbruch separat geführt.")
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            st.metric("Q2 Orders", format_money(checks_bkr.get("q2_orders"), "USD"))
+                            st.metric("Q2 Umsatz", format_money(checks_bkr.get("q2_revenue"), "USD"))
+                            btb_bkr = safe_float(checks_bkr.get("q2_book_to_bill"))
+                            st.metric("Q2 Book-to-Bill", f"{btb_bkr:.1f}×" if btb_bkr is not None else "–")
+                            st.metric("Total RPO", format_money(checks_bkr.get("rpo_total"), "USD"))
+                        with c2:
+                            st.metric("IET RPO", format_money(checks_bkr.get("iet_rpo"), "USD"))
+                            iet_share_bkr = safe_float(checks_bkr.get("iet_rpo_share_pct"))
+                            st.metric("IET-Anteil am RPO", f"{iet_share_bkr:.1f} %" if iet_share_bkr is not None else "–")
+                            rpo_mult_bkr = safe_float(checks_bkr.get("rpo_to_q2_revenue"))
+                            st.metric("RPO / Q2-Umsatz", f"{rpo_mult_bkr:.2f}×" if rpo_mult_bkr is not None else "–")
+                            fcf_margin_bkr = safe_float(checks_bkr.get("q2_fcf_margin_pct"))
+                            st.metric("Offizielle Q2-FCF-Marge", f"{fcf_margin_bkr:.1f} %" if fcf_margin_bkr is not None else "–")
+
+                        st.markdown("**Segmenttrennung Q2 – pre-Chart**")
+                        st.write(
+                            "**OFSE:** Umsatz " + format_money(checks_bkr.get("ofse_revenue"), "USD")
+                            + " · Orders " + format_money(checks_bkr.get("ofse_orders"), "USD")
+                            + f" · Adjusted-EBITDA-Marge {safe_float(checks_bkr.get('ofse_adjusted_ebitda_margin_pct')):.1f} %"
+                        )
+                        st.write(
+                            "**IET:** Umsatz " + format_money(checks_bkr.get("iet_revenue"), "USD")
+                            + " · Orders " + format_money(checks_bkr.get("iet_orders"), "USD")
+                            + f" · Adjusted-EBITDA-Marge {safe_float(checks_bkr.get('iet_adjusted_ebitda_margin_pct')):.1f} %"
+                        )
+                        st.write("**Offizieller Q2 Free Cash Flow:** " + format_money(checks_bkr.get("q2_free_cash_flow"), "USD"))
+                        st.write("**Q2 GAAP / Adjusted EPS:** " + format_eps(checks_bkr.get("q2_gaap_eps"), "USD") + " / " + format_eps(checks_bkr.get("q2_adjusted_eps"), "USD"))
+                        st.caption("RPO ist ein Visibilitätsindikator und wird nicht als Umsatzgarantie oder als Fair-Value-Baustein hochgerechnet.")
+
+                        st.markdown("**Chart Industries – Post-Q2 Structural Break**")
+                        st.write(f"**Closing:** {text_or_dash(checks_bkr.get('chart_close_date'))} · nach dem Q2-Stichtag")
+                        st.write("**Chart FY2025 Umsatz:** " + format_money(checks_bkr.get("chart_fy2025_revenue"), "USD"))
+                        st.write("**Transaktions-EV:** " + format_money(checks_bkr.get("chart_transaction_enterprise_value"), "USD"))
+                        st.write("**Kostensynergie-Ziel:** " + format_money(checks_bkr.get("chart_synergy_target_annual"), "USD") + f" jährlich · {text_or_dash(checks_bkr.get('chart_synergy_timing'))}")
+                        lev_low = safe_float(checks_bkr.get("target_net_leverage_low")); lev_high = safe_float(checks_bkr.get("target_net_leverage_high"))
+                        if lev_low is not None and lev_high is not None:
+                            st.write(f"**Post-Deal Net-Leverage-Ziel:** {lev_low:.1f}×–{lev_high:.1f}× · {text_or_dash(checks_bkr.get('target_net_leverage_timing'))}")
+
+                        st.markdown("**30.06.-Bilanz – Transaktionsfinanzierungs-Kontext, keine aktuelle Netto-Cash-Basis**")
+                        st.write("**Cash & Equivalents 30.06.:** " + format_money(checks_bkr.get("q2_cash"), "USD"))
+                        st.write("**Total Debt 30.06.:** " + format_money(checks_bkr.get("q2_total_debt"), "USD"))
+                        st.write("**Mechanische Nettoverschuldung 30.06.:** " + format_money(checks_bkr.get("q2_transaction_net_debt"), "USD"))
+                        st.warning(
+                            "Die 30.06.-Bilanz liegt vor dem Chart-Closing und enthält bereits wesentliche Akquisitionsfinanzierung bzw. dafür gehaltene Liquidität. "
+                            "Sie darf weder als 'praktisch schuldenfrei' noch als belastbare heutige Post-Chart-Leverage interpretiert werden."
+                        )
+                        st.write(f"**Component Comparability Gate:** 0/4 voll vergleichbar · SLB/HAL/FTI/GEV nur Teilsegment-Referenzen")
+                        st.warning(
+                            "Bewertungsfreigabe noch NEIN: V2.20.73 validiert die pre-Chart Q2-Qualität und den Post-Chart Strukturbruch, "
+                            "gibt aber noch keine konsolidierte Post-Chart Earnings-/Cashflow-/Leverage-Basis, kein Zielmultiple und keinen Fair Value frei."
+                        )
+                        st.caption(special_control.get("note"))
+                    else:
+                        st.info(special_control.get("note"))
 
                 if special_control.get(
                     "control_key"
