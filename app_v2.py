@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.78"
+APP_BUILD_VERSION = "V2.20.79"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Selected-Ticker Resolver Stability Hotfix"
+    f"Build {APP_BUILD_VERSION} · Generic Primary-Source Adjusted-TTM Reconstructor"
 )
 
 
@@ -57,6 +57,8 @@ st.caption(
 # V2.20.77: Accounting Basis Alignment & Adjusted-TTM Reconstruction V1. Adds a fail-closed same-basis EPS bridge before generic normalization. For a verified issuer, an adjusted/core/operating TTM may replace raw provider GAAP TTM only when (1) the issuer has a time-bounded quantitative primary-source TTM reconstruction, (2) the current-FY anchor is official guidance on the same earnings basis, and (3) all required periods are present. Raw GAAP TTM remains visible. IQVIA and TransUnion are the first supported generic issuers. A successfully resolved horizon correction no longer turns the special-event light yellow by itself; yellow is reserved for unresolved material divergence or a material guidance/consensus conflict.
 
 # V2.20.78: Selected-Ticker Resolver Stability Hotfix. Once the user has explicitly selected an equity from the Yahoo-backed suggestion list, the selected ticker is treated as the validated navigation key and is passed directly into full-data loading. The app no longer performs a second Yahoo Search lookup for that already-selected symbol before loading quote/fundamental data. This removes transient false negatives such as EMN being visible and selected in the dropdown but then rejected as "not uniquely found" when the duplicate search call returns empty. Valuation mechanics are unchanged. Also cleans the duplicated Accounting-Basis UI prefix and labels aligned EPS normalization as Adjusted/Core TTM + Current-FY when the same-basis bridge is active.
+
+# V2.20.79: Generic Primary-Source Adjusted-TTM Reconstructor. Replaces issuer-only reconstruction as the sole expansion path with a reusable, fail-closed period engine. For material TTM/current-FY EPS gaps, the app can discover same-company primary earnings releases, read explicitly labelled Adjusted/Core/Operating EPS from period-matched HTML tables, and reconstruct trailing adjusted EPS as prior FY minus the same prior-year completed quarters plus current-year completed quarters. FY/quarter labels, accounting-basis family, source-domain ownership and period completeness must all match; otherwise no substitution occurs. Official same-basis guidance remains High-confidence. When only a current-FY analyst consensus exists, an adjusted/normalized basis may be inferred only under a strict plausibility gate (current-FY consensus materially closer to reconstructed adjusted TTM than raw GAAP TTM, bounded stretch, current-FY horizon confirmed); confidence is capped at Medium and no specialist valuation corridor is released. Existing IQV/TRU verified bridges remain regression fallbacks, not the generic algorithm.
 
 # =========================================================
 # Hilfsfunktionen
@@ -1495,7 +1497,7 @@ def _period_markers(text, include_comparatives=False):
         (r"\b(20\d{2})\s+(?:full[-\s]?year|fiscal\s+year|annual)\b", lambda m: f"FY {m.group(1)}"),
         (r"\breports?\s+(20\d{2})\s+(?:full[-\s]?year\s+)?results\b", lambda m: f"FY {m.group(1)}"),
         (r"\b(?:annual|full[-\s]?year)\s+results(?:\s+for)?\s*(20\d{2})\b", lambda m: f"FY {m.group(1)}"),
-        (r"\b(first|second|third|fourth)\s+quarter(?:\s+(?:of|ended))?\s*(20\d{2})\b",
+        (r"\b(first|second|third|fourth)[-\s]+quarter(?:\s+(?:of|ended))?\s*(20\d{2})\b",
          lambda m: f"Q{('first','second','third','fourth').index(m.group(1).lower()) + 1} {m.group(2)}"),
         (r"\bq([1-4])\s*[-/]?\s*(20\d{2})\b", lambda m: f"Q{m.group(1)} {m.group(2)}"),
         (r"\b(?:year\s+ended|year\s+ending)\s+[^.]{0,45}?(20\d{2})\b", lambda m: f"FY {m.group(1)}"),
@@ -23867,6 +23869,352 @@ def build_eps_horizon_alignment(symbol, raw_forward_eps, analyst_context):
 
 
 
+# =========================================================
+# V2.20.79 – Generic Primary-Source Adjusted-TTM Reconstructor
+# =========================================================
+
+def _generic_eps_period_aliases(period):
+    p = str(period or "").strip().upper()
+    m = re.fullmatch(r"FY\s+(20\d{2})", p)
+    if m:
+        year = int(m.group(1))
+        yy = str(year)[-2:]
+        return [
+            f"fy{yy}", f"fy {year}", f"fy{year}", f"full year {year}",
+            f"fiscal year {year}", str(year),
+        ]
+    m = re.fullmatch(r"Q([1-4])\s+(20\d{2})", p)
+    if m:
+        q = int(m.group(1))
+        year = int(m.group(2))
+        yy = str(year)[-2:]
+        words = ["first", "second", "third", "fourth"]
+        return [
+            f"q{q} {year}", f"q{q}{yy}", f"{q}q{yy}", f"{q}q {year}",
+            f"{words[q-1]} quarter {year}", f"{words[q-1]}-quarter {year}",
+        ]
+    return [p.lower()] if p else []
+
+
+def _generic_parse_eps_number(value):
+    raw = str(value or "").strip().replace("$", "").replace("€", "")
+    raw = raw.replace("*", "").replace("†", "").replace("‡", "")
+    negative = raw.startswith("(") and raw.endswith(")")
+    raw = raw.strip("() ").replace(",", "")
+    m = re.search(r"-?\d+(?:\.\d+)?", raw)
+    if not m:
+        return None
+    try:
+        out = float(m.group(0))
+    except Exception:
+        return None
+    if negative:
+        out = -abs(out)
+    if abs(out) > 100:
+        return None
+    return out
+
+
+def _generic_eps_basis_from_label(label):
+    t = _clean_text(label).lower()
+    if "adjusted" in t or "non-gaap" in t or "non gaap" in t:
+        return "Adjusted EPS", "adjusted"
+    if "core" in t and ("eps" in t or "earnings per" in t):
+        return "Core EPS", "core"
+    if "operating" in t and ("eps" in t or "earnings per" in t):
+        return "Operating EPS", "operating"
+    return None, None
+
+
+def _generic_primary_eps_from_html(html, expected_period, title=None):
+    """Extract one explicitly labelled adjusted/core/operating EPS table cell.
+
+    The requested period must be identifiable in the table header. If the
+    table mixes quarter and full-year columns, the exact requested column wins;
+    the function never assumes the first numeric cell is the desired period.
+    """
+    if not html or not expected_period:
+        return None
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:
+        return None
+
+    aliases = [a.lower().replace("–", "-") for a in _generic_eps_period_aliases(expected_period)]
+    candidates = []
+    for table in soup.find_all("table"):
+        rows = []
+        for tr in table.find_all("tr"):
+            cells = [_clean_text(c.get_text(" ", strip=True)) for c in tr.find_all(["th", "td"])]
+            if cells:
+                rows.append(cells)
+        if not rows:
+            continue
+
+        for ridx, row in enumerate(rows):
+            if not row:
+                continue
+            basis_label, family = _generic_eps_basis_from_label(row[0])
+            if not family:
+                continue
+            if len(row) < 2:
+                continue
+
+            # Build a header text per column from up to four rows above the EPS
+            # line. This handles simple and multi-row tables without guessing.
+            header_by_col = []
+            for cidx in range(len(row)):
+                bits = []
+                for hrow in rows[max(0, ridx - 4):ridx]:
+                    if cidx < len(hrow):
+                        bits.append(hrow[cidx])
+                header_by_col.append(_clean_text(" ".join(bits)).lower().replace("–", "-"))
+
+            exact_columns = []
+            for cidx in range(1, len(row)):
+                h = header_by_col[cidx] if cidx < len(header_by_col) else ""
+                if any(alias and alias in h for alias in aliases):
+                    exact_columns.append(cidx)
+
+            # Fallback only when the document title itself identifies exactly
+            # the requested quarter and the table is a simple current/prior pair.
+            if not exact_columns:
+                title_period = _document_period_from_title(title)
+                if title_period == expected_period and len(row) in (2, 3):
+                    exact_columns = [1]
+
+            for cidx in exact_columns:
+                value = _generic_parse_eps_number(row[cidx] if cidx < len(row) else None)
+                if value is None or value <= 0:
+                    continue
+                score = 100
+                header = header_by_col[cidx] if cidx < len(header_by_col) else ""
+                if any(alias and alias in header for alias in aliases):
+                    score += 40
+                if "diluted" in row[0].lower():
+                    score += 10
+                candidates.append({
+                    "period": expected_period,
+                    "eps": value,
+                    "basis": basis_label,
+                    "basis_family": family,
+                    "row_label": row[0],
+                    "column_header": header,
+                    "score": score,
+                })
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda r: r.get("score", 0), reverse=True)
+    return candidates[0]
+
+
+def _generic_period_search_phrases(period):
+    p = str(period or "").strip().upper()
+    fy = re.fullmatch(r"FY\s+(20\d{2})", p)
+    if fy:
+        y = fy.group(1)
+        return [f'"full-year {y}"', f'"full year {y}"', f'"{y} results"']
+    q = re.fullmatch(r"Q([1-4])\s+(20\d{2})", p)
+    if q:
+        n, y = int(q.group(1)), q.group(2)
+        word = ["first", "second", "third", "fourth"][n - 1]
+        return [f'"{word}-quarter {y}"', f'"{word} quarter {y}"', f'"Q{n} {y}"']
+    return [f'"{period}"']
+
+
+def _discover_primary_adjusted_eps_period(company_domain, company_name, period, deadline=None):
+    """Find one same-company primary release and extract the requested EPS period."""
+    if not company_domain or not period or not _research_budget_ok(deadline, reserve=0.8):
+        return None
+    seen = set()
+    for phrase in _generic_period_search_phrases(period):
+        if not _research_budget_ok(deadline, reserve=0.8):
+            break
+        query = f'site:{company_domain} "{company_name}" {phrase} "adjusted" "earnings per diluted share"'
+        results = _duckduckgo_html_search(query, max_results=4, deadline=deadline)
+        for item in results[:4]:
+            if not _research_budget_ok(deadline, reserve=0.7):
+                break
+            url = _clean_text(item.get("url"))
+            if not url or url in seen or not _host_belongs_to_company_family(url, company_domain):
+                continue
+            seen.add(url)
+            html, final_url = _fetch_html(url, timeout=2.4, deadline=deadline)
+            if not html:
+                continue
+            final_url = final_url or url
+            page_text = _html_to_text(html)
+            if not _source_matches_company(
+                item, page_text, company_name, "", company_domain, True
+            ):
+                continue
+            parsed = _generic_primary_eps_from_html(
+                html,
+                expected_period=period,
+                title=item.get("title") or _historical_title_hint_from_url(final_url),
+            )
+            if not parsed:
+                continue
+            return {
+                **parsed,
+                "url": final_url,
+                "title": item.get("title") or _historical_title_hint_from_url(final_url),
+                "source": "Unternehmens-/IR-Primärquelle",
+            }
+    return None
+
+
+def reconstruct_adjusted_ttm_from_period_records(records, current_fy, completed_quarters):
+    """Pure period engine: FY(t-1) - Q1..Qn(t-1) + Q1..Qn(t).
+
+    Every record must carry an explicit period, positive EPS and identical
+    accounting-basis family. Missing periods or mixed basis families fail closed.
+    """
+    try:
+        current_fy = int(current_fy)
+        completed_quarters = int(completed_quarters)
+    except Exception:
+        return None
+    if completed_quarters < 1 or completed_quarters > 3:
+        return None
+    rows = {str(r.get("period")): r for r in (records or []) if isinstance(r, dict)}
+    required = [f"FY {current_fy - 1}"]
+    required += [f"Q{q} {current_fy - 1}" for q in range(1, completed_quarters + 1)]
+    required += [f"Q{q} {current_fy}" for q in range(1, completed_quarters + 1)]
+    if any(p not in rows for p in required):
+        return None
+
+    families = {rows[p].get("basis_family") for p in required}
+    if None in families or len(families) != 1:
+        return None
+    family = next(iter(families))
+    basis_labels = [rows[p].get("basis") for p in required if rows[p].get("basis")]
+    values = {p: safe_float(rows[p].get("eps")) for p in required}
+    if any(v is None or v <= 0 for v in values.values()):
+        return None
+
+    fy_eps = values[f"FY {current_fy - 1}"]
+    prior_partial = sum(values[f"Q{q} {current_fy - 1}"] for q in range(1, completed_quarters + 1))
+    current_partial = sum(values[f"Q{q} {current_fy}"] for q in range(1, completed_quarters + 1))
+    adjusted_ttm = fy_eps - prior_partial + current_partial
+    if adjusted_ttm <= 0 or adjusted_ttm > 100:
+        return None
+
+    source_urls = list(dict.fromkeys(rows[p].get("url") for p in required if rows[p].get("url")))
+    source_titles = list(dict.fromkeys(rows[p].get("title") for p in required if rows[p].get("title")))
+    q_label = "+".join(f"Q{q}" for q in range(1, completed_quarters + 1))
+    basis = basis_labels[0] if basis_labels else family.title() + " EPS"
+    return {
+        "basis": basis,
+        "basis_family": family,
+        "as_of": f"{current_fy}-Q{completed_quarters}",
+        "method": (
+            f"FY{current_fy - 1} {basis} - {q_label} {current_fy - 1} {basis} "
+            f"+ {q_label} {current_fy} {basis}"
+        ),
+        "fy_prior": fy_eps,
+        "prior_partial": prior_partial,
+        "current_partial": current_partial,
+        "adjusted_ttm_eps": adjusted_ttm,
+        "source_name": " · ".join(source_titles[:3]) if source_titles else "Primärquellen-Rekonstruktion",
+        "source_urls": source_urls,
+        "period_records": [rows[p] for p in required],
+        "generic_reconstructor": True,
+        "completed_quarters": completed_quarters,
+    }
+
+
+def _calendar_completed_quarter_hint(today=None):
+    d = today or datetime.now().date()
+    # Allow normal reporting lag: Q1 is usually available from May, Q2 from
+    # August, Q3 from November. Q4 is handled by the next full-year report.
+    if d.month >= 11:
+        return 3
+    if d.month >= 8:
+        return 2
+    if d.month >= 5:
+        return 1
+    return 0
+
+
+@st.cache_data(ttl=21600, show_spinner=False)
+def discover_generic_primary_adjusted_ttm(
+    symbol,
+    company_name,
+    website,
+    current_fy,
+    cache_version="v22079",
+):
+    """Discover a generic calendar-FY Adjusted/Core/Operating TTM bridge.
+
+    This is intentionally bounded and fail-closed. It never guesses fiscal
+    calendars. If current_fy is not the current calendar year, automatic
+    reconstruction is deferred to a future fiscal-calendar-aware version.
+    """
+    _ = cache_version
+    try:
+        current_fy = int(current_fy)
+    except Exception:
+        return None
+    today = datetime.now().date()
+    if current_fy != today.year:
+        return None
+    completed = _calendar_completed_quarter_hint(today)
+    if completed <= 0:
+        return None
+    domain = _extract_company_domain(website)
+    if not domain:
+        return None
+
+    deadline = time.monotonic() + 16.0
+    # Try the latest expected quarter first; if it is not yet published for a
+    # particular issuer, fall back one quarter rather than guessing values.
+    for n in range(completed, 0, -1):
+        periods = [f"FY {current_fy - 1}"]
+        periods += [f"Q{q} {current_fy - 1}" for q in range(1, n + 1)]
+        periods += [f"Q{q} {current_fy}" for q in range(1, n + 1)]
+        records = []
+        failed = False
+        for period in periods:
+            row = _discover_primary_adjusted_eps_period(
+                domain, company_name, period, deadline=deadline
+            )
+            if row is None:
+                failed = True
+                break
+            records.append(row)
+        if failed:
+            continue
+        snapshot = reconstruct_adjusted_ttm_from_period_records(records, current_fy, n)
+        if snapshot:
+            snapshot["valid_until"] = f"{current_fy}-12-31"
+            snapshot["symbol"] = str(symbol or "").upper()
+            snapshot["company_domain"] = domain
+            return snapshot
+    return None
+
+
+def _should_try_generic_adjusted_ttm(company_type, raw_ttm, current_fy_eps, website, symbol):
+    if _verified_adjusted_ttm_snapshot(symbol) is not None:
+        return False
+    raw = safe_float(raw_ttm)
+    fwd = safe_float(current_fy_eps)
+    if raw is None or fwd is None or raw <= 0 or fwd <= 0 or not website:
+        return False
+    gap = abs(fwd / raw - 1.0)
+    if gap < 0.25:
+        return False
+    name = normalized_company_type_name(company_type)
+    # Existing dedicated owner-earnings models retain their own frozen paths.
+    frozen_tokens = [
+        "bank", "versicherung", "reit", "immobilien", "autohersteller",
+        "halbleiterausrüstung", "halbleiter / fabless / ai-wachstum",
+        "defense technology", "energy technology",
+    ]
+    return not any(token in name for token in frozen_tokens)
+
+
 # V2.20.77 – time-bounded, quantitative primary-source TTM bridges.
 # These rows are deliberately issuer-specific and fail-closed. A row does not
 # become a valuation basis merely because an adjusted number exists: the
@@ -23943,7 +24291,7 @@ def _verified_adjusted_ttm_snapshot(symbol):
     return {**row, "adjusted_ttm_eps": calculated}
 
 
-def build_eps_accounting_basis_alignment(symbol, raw_trailing_eps, valuation_forward_eps, horizon_alignment):
+def build_eps_accounting_basis_alignment(symbol, raw_trailing_eps, valuation_forward_eps, horizon_alignment, generic_snapshot=None):
     """V2.20.77 – align TTM and current-FY EPS to the same accounting basis.
 
     Fail-closed rule: automatic substitution is allowed only when the current-FY
@@ -23955,7 +24303,7 @@ def build_eps_accounting_basis_alignment(symbol, raw_trailing_eps, valuation_for
     forward = safe_float(valuation_forward_eps)
     horizon = horizon_alignment if isinstance(horizon_alignment, dict) else {}
     guidance = horizon.get("guidance") or {}
-    snapshot = _verified_adjusted_ttm_snapshot(symbol)
+    snapshot = _verified_adjusted_ttm_snapshot(symbol) or (generic_snapshot if isinstance(generic_snapshot, dict) else None)
 
     result = {
         "active": False,
@@ -23971,11 +24319,55 @@ def build_eps_accounting_basis_alignment(symbol, raw_trailing_eps, valuation_for
         "blocked_by_basis_mismatch": False,
     }
 
-    if snapshot is None or not guidance:
+    if snapshot is None:
         return result
 
-    ttm_family = _eps_basis_family(snapshot.get("basis"))
-    forward_family = _eps_basis_family(guidance.get("basis"))
+    ttm_family = snapshot.get("basis_family") or _eps_basis_family(snapshot.get("basis"))
+
+    # High-confidence path: official current-FY guidance explicitly uses the
+    # same earnings basis as the reconstructed TTM.
+    if guidance:
+        forward_family = _eps_basis_family(guidance.get("basis"))
+    else:
+        forward_family = None
+
+    # Medium-confidence generic path: when no company EPS range exists, a
+    # current-FY analyst consensus may be treated as normalized/adjusted only
+    # when the reconstructed adjusted TTM explains the consensus materially
+    # better than raw GAAP TTM and the stretch remains bounded. This can improve
+    # diagnostics but never releases a specialist valuation corridor by itself.
+    if not guidance:
+        adjusted_ttm = safe_float(snapshot.get("adjusted_ttm_eps"))
+        current_consensus = safe_float(horizon.get("current_fy_eps"))
+        if adjusted_ttm is None or adjusted_ttm <= 0 or current_consensus is None or current_consensus <= 0:
+            return result
+        raw_gap = abs(current_consensus / raw_ttm - 1.0) if raw_ttm and raw_ttm > 0 else None
+        adjusted_gap = abs(current_consensus / adjusted_ttm - 1.0)
+        improvement = (raw_gap - adjusted_gap) if raw_gap is not None else None
+        if adjusted_gap > 0.45 or improvement is None or improvement < 0.12:
+            result["note"] = (
+                "Primärquellen liefern eine bereinigte TTM-Basis, aber die Accounting-Basis des "
+                "Current-FY-Analystenkonsenses ist nicht ausreichend eindeutig. Keine automatische Umschaltung."
+            )
+            return result
+        result.update({
+            "active": True,
+            "valuation_trailing_eps": adjusted_ttm,
+            "ttm_basis": snapshot.get("basis"),
+            "forward_basis": "Current-FY Analyst Consensus (normalisierte Basis plausibilisiert)",
+            "basis_family": ttm_family,
+            "confidence": "Mittel",
+            "consensus_basis_inferred": True,
+            "note": (
+                f"{snapshot.get('basis')} TTM wurde periodenrein aus Primärquellen rekonstruiert "
+                f"({snapshot.get('method')}). Für das aktuelle FY liegt keine gleichartige EPS-Guidance vor; "
+                f"der 0Y-Analystenkonsens wird nur deshalb als normalisierte Vergleichsbasis zugelassen, "
+                f"weil er deutlich näher an der rekonstruierten TTM-Basis liegt als am Provider-GAAP-TTM. "
+                f"Sicherheit bleibt auf Mittel begrenzt; Provider-GAAP-TTM bleibt Kontext."
+            ),
+        })
+        return result
+
     if not ttm_family or not forward_family or ttm_family != forward_family:
         result["blocked_by_basis_mismatch"] = True
         result["note"] = (
@@ -25197,7 +25589,7 @@ def build_selected_stock_result(selected_symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "selected_ticker_resolver_v22078_20260912"
+CACHE_VERSION = "generic_adjusted_ttm_v22079_20260912"
 
 @st.cache_data(
     ttl=900,
@@ -25412,11 +25804,31 @@ def load_stock(selected_symbol, cache_version):
     valuation_forward_eps = safe_float(
         eps_horizon_alignment.get("valuation_forward_eps")
     )
+    generic_adjusted_ttm_snapshot = None
+    company_website_for_eps = fundamental_info.get("website") or quote_info.get("website")
+    current_fy_for_generic = None
+    if (eps_horizon_alignment.get("guidance") or {}).get("fiscal_year"):
+        current_fy_for_generic = (eps_horizon_alignment.get("guidance") or {}).get("fiscal_year")
+    elif safe_float(eps_horizon_alignment.get("current_fy_eps")) is not None:
+        current_fy_for_generic = datetime.now().year
+
+    if _should_try_generic_adjusted_ttm(
+        company_type, trailing_eps, valuation_forward_eps, company_website_for_eps, fundamental_symbol
+    ) and current_fy_for_generic is not None:
+        generic_adjusted_ttm_snapshot = discover_generic_primary_adjusted_ttm(
+            fundamental_symbol,
+            name,
+            company_website_for_eps,
+            current_fy_for_generic,
+            CACHE_VERSION,
+        )
+
     eps_basis_alignment = build_eps_accounting_basis_alignment(
         fundamental_symbol,
         trailing_eps,
         valuation_forward_eps,
         eps_horizon_alignment,
+        generic_snapshot=generic_adjusted_ttm_snapshot,
     )
     valuation_trailing_eps = safe_float(
         eps_basis_alignment.get("valuation_trailing_eps")
@@ -25476,6 +25888,14 @@ def load_stock(selected_symbol, cache_version):
         earnings_growth,
         structural_break=structural_break
     )
+    # V2.20.79: a generic reconstructed TTM paired only with a plausibilized
+    # analyst-consensus basis is intentionally capped at Medium confidence.
+    # An official same-basis guidance bridge can retain the normalizer's High
+    # confidence when all other inputs support it.
+    if eps_basis_alignment.get("active") and eps_basis_alignment.get("confidence") == "Mittel":
+        if eps_normalization.get("confidence") == "Hoch":
+            eps_normalization["confidence"] = "Mittel"
+
     eps_normalization.update({
         "eps_horizon_alignment_active": bool(eps_horizon_alignment.get("active")),
         "eps_horizon_alignment_note": eps_horizon_alignment.get("note"),
@@ -25498,6 +25918,8 @@ def load_stock(selected_symbol, cache_version):
         "eps_basis_family": eps_basis_alignment.get("basis_family"),
         "eps_basis_alignment_confidence": eps_basis_alignment.get("confidence"),
         "eps_adjusted_ttm_snapshot": eps_basis_alignment.get("snapshot"),
+        "eps_adjusted_ttm_generic": bool((eps_basis_alignment.get("snapshot") or {}).get("generic_reconstructor")),
+        "eps_consensus_basis_inferred": bool(eps_basis_alignment.get("consensus_basis_inferred")),
     })
 
     growth_score = calculate_growth_score(
@@ -25591,7 +26013,7 @@ def load_stock(selected_symbol, cache_version):
             "context_score": profitability_score.get("score"),
             "score": None,
             "brake_text": (profitability_score.get("brake_text") or "") +
-                " V2.20.77: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
+                " V2.20.79: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
         }
 
     score_fcf_input = (
@@ -26910,22 +27332,32 @@ if selected_symbol:
                     if horizon_bits:
                         st.caption("EPS-Horizonte: " + " · ".join(horizon_bits))
                     if eps_horizon_ui.get("note"):
-                        st.info("🧭 **Earnings Horizon Alignment V2.20.78:** " + text_or_dash(eps_horizon_ui.get("note")))
+                        st.info("🧭 **Earnings Horizon Alignment V2.20.79:** " + text_or_dash(eps_horizon_ui.get("note")))
 
                 eps_basis_ui = data.get("eps_basis_alignment") or {}
                 if eps_basis_ui.get("active"):
                     st.success(
-                        "🧮 **Accounting Basis Alignment V2.20.78:** "
+                        "🧮 **Accounting Basis Alignment V2.20.79:** "
                         + text_or_dash(eps_basis_ui.get("note"))
                     )
                     basis_snapshot_ui = eps_basis_ui.get("snapshot") or {}
                     if basis_snapshot_ui.get("source_name"):
+                        source_prefix = (
+                            "Generische Adjusted-TTM-Primärbasis: "
+                            if basis_snapshot_ui.get("generic_reconstructor")
+                            else "Adjusted-TTM-Primärbasis: "
+                        )
                         st.caption(
-                            "Adjusted-TTM-Primärbasis: "
+                            source_prefix
                             + str(basis_snapshot_ui.get("source_name"))
                             + " · Bewertungs-TTM: "
                             + format_eps(eps_basis_ui.get("valuation_trailing_eps"), financial_currency)
                         )
+                        if eps_basis_ui.get("consensus_basis_inferred"):
+                            st.caption(
+                                "Current-FY Accounting-Basis: Analystenkonsens nur plausibilisiert, nicht durch "
+                                "eine offizielle EPS-Guidance bestätigt. Bewertungssicherheit deshalb höchstens Mittel."
+                            )
 
                 fcf_ctx = data.get("fcf_source_context") or {}
                 company_type_ui = normalized_company_type_name(company_type)
