@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.76"
+APP_BUILD_VERSION = "V2.20.77"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Earnings Horizon Alignment, Primary Guidance Guard & Classification V2"
+    f"Build {APP_BUILD_VERSION} · Accounting Basis Alignment & Adjusted-TTM Reconstruction"
 )
 
 
@@ -53,6 +53,8 @@ st.caption(
 # V2.20.75: External Analyst Reality Check & Conflict Brake. Keeps the app's own Fair Value and fundamental signal fully independent, then compares them with Yahoo's current analyst target consensus and recommendation context. A full Reality Check requires a valid mean target and at least three analyst opinions; >=5 is high-quality, 3–4 medium, <3/unknown remains non-binding. Large same-direction valuation gaps and opposite directions can trigger a CONFLICT flag. Only a sufficiently broad external conflict may brake aggressive buy/add or reduce/sell actions; analyst consensus never raises the app's Fair Value or creates a buy/sell signal by itself.
 
 # V2.20.76: Earnings Horizon Alignment, Primary Guidance Guard & Classification V2. Generic valuation no longer treats Yahoo +1Y analyst EPS as the default current valuation horizon. The app loads 0Y/current-FY and +1Y separately, can use fresh time-bounded official EPS guidance for a small verified issuer set as the current-FY anchor, and keeps +1Y strictly as context. Raw provider Forward-EPS remains visible. IR navigation now accepts verified investor-relations subdomains within the issuer domain family. Classification is tightened for regulated electric utilities, credit bureaus/data analytics, specialty chemicals/materials, athletic-apparel turnarounds, solar manufacturing/policy-sensitive issuers and Mondelez/global snacks. Utilities and new uncalibrated specialist types are fail-closed for generic growth/FCF/balance scoring and generic valuation corridors.
+
+# V2.20.77: Accounting Basis Alignment & Adjusted-TTM Reconstruction V1. Adds a fail-closed same-basis EPS bridge before generic normalization. For a verified issuer, an adjusted/core/operating TTM may replace raw provider GAAP TTM only when (1) the issuer has a time-bounded quantitative primary-source TTM reconstruction, (2) the current-FY anchor is official guidance on the same earnings basis, and (3) all required periods are present. Raw GAAP TTM remains visible. IQVIA and TransUnion are the first supported generic issuers. A successfully resolved horizon correction no longer turns the special-event light yellow by itself; yellow is reserved for unresolved material divergence or a material guidance/consensus conflict.
 
 # =========================================================
 # Hilfsfunktionen
@@ -1056,7 +1058,11 @@ def build_special_event_warning(eps_normalization, bank_special_model=None, insu
     eps_divergence_active = bool(eps.get("eps_divergence_note"))
 
     yellow_reasons = []
-    if eps.get("eps_horizon_alignment_active") and eps.get("eps_horizon_alignment_note"):
+    if (
+        eps.get("eps_horizon_alignment_active")
+        and eps.get("eps_horizon_alignment_attention")
+        and eps.get("eps_horizon_alignment_note")
+    ):
         yellow_reasons.append(str(eps.get("eps_horizon_alignment_note")))
     if structural_break_active:
         yellow_reasons.append("bestätigte Strukturänderung wird bereits berücksichtigt")
@@ -23850,9 +23856,150 @@ def build_eps_horizon_alignment(symbol, raw_forward_eps, analyst_context):
         "primary_guidance_override": official_override,
         "guidance": guidance,
         "guidance_consensus_gap": guidance_consensus_gap,
+        "attention_required": bool(
+            (guidance_consensus_gap is not None and guidance_consensus_gap >= 0.20)
+            or (used is not None and guidance is None and current_fy is None)
+        ),
         "note": "; ".join(note_parts) if note_parts else None,
     }
 
+
+
+# V2.20.77 – time-bounded, quantitative primary-source TTM bridges.
+# These rows are deliberately issuer-specific and fail-closed. A row does not
+# become a valuation basis merely because an adjusted number exists: the
+# current-FY anchor must be official guidance on the same named earnings basis.
+VERIFIED_ADJUSTED_TTM_COVERAGE = {
+    "IQV": {
+        "basis": "Adjusted EPS",
+        "as_of": "2026-06-30",
+        "valid_until": "2026-12-31",
+        "method": "FY2025 Adjusted EPS - H1 2025 Adjusted EPS + H1 2026 Adjusted EPS",
+        "fy_2025": 11.92,
+        "prior_partial": 5.50,
+        "current_partial": 6.04,
+        "expected_adjusted_ttm": 12.46,
+        "source_name": "IQVIA FY2025 + Q2/H1 2025 + Q2/H1 2026 earnings releases",
+        "source_urls": [
+            "https://www.iqvia.com/newsroom/2026/02/iqvia-reports-fourth-quarter-and-full-year-2025-results-issues-full-year-2026-guidance",
+            "https://www.iqvia.com/newsroom/2025/07/iqvia-reports-second-quarter-2025-results",
+            "https://www.iqvia.com/newsroom/2026/07/iqvia-reports-second-quarter-2026-results",
+        ],
+    },
+    "TRU": {
+        "basis": "Adjusted EPS",
+        "as_of": "2026-06-30",
+        "valid_until": "2026-12-31",
+        "method": "FY2025 Adjusted EPS - H1 2025 Adjusted EPS + H1 2026 Adjusted EPS",
+        "fy_2025": 4.30,
+        "prior_partial": 2.13,
+        "current_partial": 2.41,
+        "expected_adjusted_ttm": 4.58,
+        "source_name": "TransUnion FY2025 + Q2/H1 2026 primary-source earnings materials",
+        "source_urls": [
+            "https://investors.transunion.com/~/media/Files/T/Transunion-IR-V2/reports-and-presentations/q4-2025-earnings-release.pdf",
+            "https://investors.transunion.com/~/media/Files/T/Transunion-IR-V2/reports-and-presentations/q2-2026-earnings-release.pdf",
+        ],
+    },
+}
+
+
+def _eps_basis_family(label):
+    text = str(label or "").strip().lower()
+    if not text:
+        return None
+    if "adjusted" in text or "non-gaap" in text or "non gaap" in text:
+        return "adjusted"
+    if "core" in text:
+        return "core"
+    if "operating" in text:
+        return "operating"
+    if "gaap" in text or "reported" in text:
+        return "gaap"
+    return None
+
+
+def _verified_adjusted_ttm_snapshot(symbol):
+    row = VERIFIED_ADJUSTED_TTM_COVERAGE.get(str(symbol or "").upper())
+    if not isinstance(row, dict):
+        return None
+    today = datetime.now().date().isoformat()
+    if row.get("valid_until") and today > str(row.get("valid_until")):
+        return None
+    fy = safe_float(row.get("fy_2025"))
+    prior = safe_float(row.get("prior_partial"))
+    current = safe_float(row.get("current_partial"))
+    expected = safe_float(row.get("expected_adjusted_ttm"))
+    urls = row.get("source_urls") or []
+    if None in (fy, prior, current) or not urls:
+        return None
+    calculated = fy - prior + current
+    if calculated <= 0:
+        return None
+    if expected is not None and abs(calculated - expected) > 0.03:
+        return None
+    return {**row, "adjusted_ttm_eps": calculated}
+
+
+def build_eps_accounting_basis_alignment(symbol, raw_trailing_eps, valuation_forward_eps, horizon_alignment):
+    """V2.20.77 – align TTM and current-FY EPS to the same accounting basis.
+
+    Fail-closed rule: automatic substitution is allowed only when the current-FY
+    valuation anchor is fresh official guidance and the verified TTM bridge uses
+    the same earnings-basis family. Raw provider TTM is always preserved as
+    context and never overwritten in the data record.
+    """
+    raw_ttm = safe_float(raw_trailing_eps)
+    forward = safe_float(valuation_forward_eps)
+    horizon = horizon_alignment if isinstance(horizon_alignment, dict) else {}
+    guidance = horizon.get("guidance") or {}
+    snapshot = _verified_adjusted_ttm_snapshot(symbol)
+
+    result = {
+        "active": False,
+        "valuation_trailing_eps": raw_ttm,
+        "raw_trailing_eps": raw_ttm,
+        "valuation_forward_eps": forward,
+        "ttm_basis": "Provider/GAAP TTM",
+        "forward_basis": guidance.get("basis") if guidance else None,
+        "basis_family": None,
+        "snapshot": snapshot,
+        "confidence": "Nicht bestätigt",
+        "note": None,
+        "blocked_by_basis_mismatch": False,
+    }
+
+    if snapshot is None or not guidance:
+        return result
+
+    ttm_family = _eps_basis_family(snapshot.get("basis"))
+    forward_family = _eps_basis_family(guidance.get("basis"))
+    if not ttm_family or not forward_family or ttm_family != forward_family:
+        result["blocked_by_basis_mismatch"] = True
+        result["note"] = (
+            "Accounting-Basis nicht automatisch angeglichen: verifizierte TTM-Brücke und "
+            "Current-FY-Primär-Guidance liegen nicht auf derselben Earnings-Basis."
+        )
+        return result
+
+    adjusted_ttm = safe_float(snapshot.get("adjusted_ttm_eps"))
+    if adjusted_ttm is None or adjusted_ttm <= 0 or forward is None or forward <= 0:
+        return result
+
+    result.update({
+        "active": True,
+        "valuation_trailing_eps": adjusted_ttm,
+        "ttm_basis": snapshot.get("basis"),
+        "forward_basis": guidance.get("basis"),
+        "basis_family": ttm_family,
+        "confidence": "Hoch",
+        "note": (
+            f"Accounting Basis Alignment V2.20.77: {snapshot.get('basis')} TTM wurde aus "
+            f"Primärquellen rekonstruiert ({snapshot.get('method')}) und mit der "
+            f"Current-FY-Guidance auf derselben Basis verglichen. Provider-GAAP-TTM bleibt nur Kontext."
+        ),
+    })
+    return result
 
 
 def _safe_mapping(value):
@@ -25232,6 +25379,15 @@ def load_stock(search_text, cache_version):
     valuation_forward_eps = safe_float(
         eps_horizon_alignment.get("valuation_forward_eps")
     )
+    eps_basis_alignment = build_eps_accounting_basis_alignment(
+        fundamental_symbol,
+        trailing_eps,
+        valuation_forward_eps,
+        eps_horizon_alignment,
+    )
+    valuation_trailing_eps = safe_float(
+        eps_basis_alignment.get("valuation_trailing_eps")
+    )
     revenue = safe_float(
         fundamental_info.get("totalRevenue")
     )
@@ -25280,7 +25436,7 @@ def load_stock(search_text, cache_version):
 
     eps_normalization = normalize_eps(
         company_type,
-        trailing_eps,
+        valuation_trailing_eps,
         valuation_forward_eps,
         historical["eps"],
         revenue_growth,
@@ -25299,6 +25455,16 @@ def load_stock(search_text, cache_version):
         "primary_guidance": eps_horizon_alignment.get("guidance"),
         "raw_forward_matches_next_fy": bool(eps_horizon_alignment.get("raw_matches_next_fy")),
         "guidance_consensus_gap": eps_horizon_alignment.get("guidance_consensus_gap"),
+        "eps_horizon_alignment_attention": bool(eps_horizon_alignment.get("attention_required")),
+        "eps_accounting_basis_alignment_active": bool(eps_basis_alignment.get("active")),
+        "eps_accounting_basis_alignment_note": eps_basis_alignment.get("note"),
+        "eps_trailing_raw_provider": eps_basis_alignment.get("raw_trailing_eps"),
+        "eps_trailing_valuation_basis": eps_basis_alignment.get("valuation_trailing_eps"),
+        "eps_trailing_valuation_basis_label": eps_basis_alignment.get("ttm_basis"),
+        "eps_forward_basis_label": eps_basis_alignment.get("forward_basis"),
+        "eps_basis_family": eps_basis_alignment.get("basis_family"),
+        "eps_basis_alignment_confidence": eps_basis_alignment.get("confidence"),
+        "eps_adjusted_ttm_snapshot": eps_basis_alignment.get("snapshot"),
     })
 
     growth_score = calculate_growth_score(
@@ -25385,14 +25551,14 @@ def load_stock(search_text, cache_version):
             "context_score": growth_score.get("score"),
             "score": None,
             "note": (growth_score.get("note") or "") +
-                " Dieser V2.20.76-Untertyp ist noch fail-closed; generische Wachstumspunkte bleiben Diagnosekontext."
+                " Dieser V2.20.77-Untertyp ist noch fail-closed; generische Wachstumspunkte bleiben Diagnosekontext."
         }
         profitability_score = {
             **profitability_score,
             "context_score": profitability_score.get("score"),
             "score": None,
             "brake_text": (profitability_score.get("brake_text") or "") +
-                " V2.20.76: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
+                " V2.20.77: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
         }
 
     score_fcf_input = (
@@ -26070,8 +26236,10 @@ def load_stock(search_text, cache_version):
         "market_cap": fundamental_info.get("marketCap"),
         "trailing_eps": trailing_eps,
         "forward_eps": forward_eps,
+        "valuation_trailing_eps": valuation_trailing_eps,
         "valuation_forward_eps": valuation_forward_eps,
         "eps_horizon_alignment": eps_horizon_alignment,
+        "eps_basis_alignment": eps_basis_alignment,
 
         "revenue": revenue,
         "net_income": net_income,
@@ -26595,12 +26763,22 @@ if selected_symbol:
                     )
 
                     st.metric(
-                        "EPS aktuell (TTM)",
+                        "EPS aktuell (TTM, Provider/GAAP)",
                         format_eps(
                             data["trailing_eps"],
                             financial_currency
                         )
                     )
+
+                    basis_ui = data.get("eps_basis_alignment") or {}
+                    if basis_ui.get("active"):
+                        st.metric(
+                            "EPS Bewertungsbasis (Adjusted/Core TTM)",
+                            format_eps(
+                                data.get("valuation_trailing_eps"),
+                                financial_currency
+                            )
+                        )
 
                     st.metric(
                         "EPS Bewertungsbasis (aktuelles FY)",
@@ -26699,7 +26877,22 @@ if selected_symbol:
                     if horizon_bits:
                         st.caption("EPS-Horizonte: " + " · ".join(horizon_bits))
                     if eps_horizon_ui.get("note"):
-                        st.info("🧭 **Earnings Horizon Alignment V2.20.76:** " + text_or_dash(eps_horizon_ui.get("note")))
+                        st.info("🧭 **Earnings Horizon Alignment V2.20.77:** " + text_or_dash(eps_horizon_ui.get("note")))
+
+                eps_basis_ui = data.get("eps_basis_alignment") or {}
+                if eps_basis_ui.get("active"):
+                    st.success(
+                        "🧮 **Accounting Basis Alignment V2.20.77:** "
+                        + text_or_dash(eps_basis_ui.get("note"))
+                    )
+                    basis_snapshot_ui = eps_basis_ui.get("snapshot") or {}
+                    if basis_snapshot_ui.get("source_name"):
+                        st.caption(
+                            "Adjusted-TTM-Primärbasis: "
+                            + str(basis_snapshot_ui.get("source_name"))
+                            + " · Bewertungs-TTM: "
+                            + format_eps(eps_basis_ui.get("valuation_trailing_eps"), financial_currency)
+                        )
 
                 fcf_ctx = data.get("fcf_source_context") or {}
                 company_type_ui = normalized_company_type_name(company_type)
