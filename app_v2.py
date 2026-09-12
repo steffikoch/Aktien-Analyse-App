@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.81"
+APP_BUILD_VERSION = "V2.20.82"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Financial Table EPS & Period Normalization"
+    f"Build {APP_BUILD_VERSION} · Rendered-Text EPS Fallback & Live Parser Diagnostics"
 )
 
 
@@ -61,6 +61,7 @@ st.caption(
 # V2.20.79: Generic Primary-Source Adjusted-TTM Reconstructor. Replaces issuer-only reconstruction as the sole expansion path with a reusable, fail-closed period engine. For material TTM/current-FY EPS gaps, the app can discover same-company primary earnings releases, read explicitly labelled Adjusted/Core/Operating EPS from period-matched HTML tables, and reconstruct trailing adjusted EPS as prior FY minus the same prior-year completed quarters plus current-year completed quarters. FY/quarter labels, accounting-basis family, source-domain ownership and period completeness must all match; otherwise no substitution occurs. Official same-basis guidance remains High-confidence. When only a current-FY analyst consensus exists, an adjusted/normalized basis may be inferred only under a strict plausibility gate (current-FY consensus materially closer to reconstructed adjusted TTM than raw GAAP TTM, bounded stretch, current-FY horizon confirmed); confidence is capped at Medium and no specialist valuation corridor is released. Existing IQV/TRU verified bridges remain regression fallbacks, not the generic algorithm.
 # V2.20.80: IR-Routed Adjusted-TTM Discovery & Diagnostics. Generic adjusted-TTM recovery now routes through the existing same-company IR Year Navigator before any external site-search fallback. One current-quarter release is parsed for both current- and prior-year quarter EPS, reducing the normal H1 bridge from five independent searches to three official documents (prior FY, current Q1, current Q2). Period/basis/source-domain validation remains fail-closed. Discovery diagnostics are retained even when reconstruction fails, showing router status, attempted documents, periods found and missing instead of silently falling back to GAAP TTM. Valuation formulas are unchanged.
 # V2.20.81: Financial Table EPS & Period Normalization. The generic primary-source parser now recognizes FY25/FY 2025, 1Q26/Q1 2026/2Q26 style headers, year-only current/prior columns when the document title fixes the quarter, and EPS row-label variants such as adjusted earnings per diluted share. Period headers are collected table-wide instead of only four rows above the EPS line. Repeated document fetches are cached within one discovery run and diagnostic rows are deduplicated. Valuation formulas remain unchanged.
+# V2.20.82: Rendered-Text EPS Fallback & Live Parser Diagnostics. When an official issuer release loads successfully but does not expose its financial grid as literal HTML <table> elements, the generic primary-source engine now performs a strict rendered-text fallback. It pairs nearby FY/Q shorthand headers with the explicitly labelled Adjusted/Core/Operating diluted-EPS row, preserves column order, and requires the requested canonical period before accepting a value. The normal table parser remains primary. Diagnostics now report parser mode and page-text availability so live failures no longer collapse into the ambiguous “keine passende EPS-Zeile” state. Valuation formulas remain unchanged.
 
 # =========================================================
 # Hilfsfunktionen
@@ -24140,6 +24141,120 @@ def _generic_primary_eps_from_html(html, expected_period, title=None):
     candidates.sort(key=lambda r: r.get("score", 0), reverse=True)
     return candidates[0]
 
+def _generic_primary_eps_from_rendered_text(page_text, expected_period, title=None):
+    """Strict fallback for issuer pages whose rendered financial grid is not a literal HTML table.
+
+    The fallback accepts only explicitly labelled Adjusted/Core/Operating EPS rows and
+    only when a nearby ordered period-header sequence can be paired with the row's
+    first numeric cells. It never infers a missing prior period from value order alone.
+    """
+    text = _clean_text(page_text)
+    expected = _clean_text(expected_period).upper()
+    if not text or not _generic_period_components(expected):
+        return None
+
+    # Match only per-share non-GAAP rows. Keep the expression short enough that an
+    # unrelated adjusted metric cannot bridge into a later EPS phrase.
+    label_re = re.compile(
+        r"(?P<label>(?:adjusted|core|operating|non[- ]?gaap)\s+"
+        r"(?:earnings\s+per\s+diluted\s+share|diluted\s+earnings\s+per\s+share|"
+        r"earnings\s+per\s+share|diluted\s+eps|eps))\s*[*†‡]*",
+        re.IGNORECASE,
+    )
+
+    def period_tokens(segment):
+        found = []
+        token_re = re.compile(
+            r"\b(?:FY\s*[' -]?(?:\d{2}|20\d{2})|[1-4]Q\s*[' -]?(?:\d{2}|20\d{2})|"
+            r"Q[1-4]\s*[' -]?(?:\d{2}|20\d{2}))\b",
+            re.IGNORECASE,
+        )
+        for m in token_re.finditer(segment):
+            labels = _generic_periods_from_header_cell(m.group(0), title=title)
+            for label in labels:
+                found.append((m.start(), label, m.group(0)))
+        return found
+
+    candidates = []
+    for lm in label_re.finditer(text):
+        label = _clean_text(lm.group("label"))
+        basis_label, family = _generic_eps_basis_from_label(label)
+        if not family:
+            continue
+
+        # Financial headers normally sit shortly before the EPS row. Restrict the
+        # window so a quarter mentioned in narrative prose cannot become a header.
+        pre = text[max(0, lm.start() - 900):lm.start()]
+        tokens = period_tokens(pre)
+        headers = []
+        if tokens:
+            # Prefer the most recent header cluster. A new cluster is assumed when
+            # shorthand tokens are separated by more than 180 rendered characters.
+            cluster = [tokens[-1]]
+            for item in reversed(tokens[:-1]):
+                if cluster[0][0] - item[0] > 180:
+                    break
+                cluster.insert(0, item)
+            for _, canon, raw in cluster:
+                if canon not in [h[0] for h in headers]:
+                    headers.append((canon, raw))
+
+        # Some renderers flatten a Q release to year-only columns (2026 | 2025).
+        # Accept those only when the document title fixes the quarter/full-year family.
+        if not headers:
+            ctx = _generic_title_period_context(title)
+            if ctx and (ctx.get("quarter") or ctx.get("full_year")):
+                year_hits = list(re.finditer(r"\b20\d{2}\b", pre[-320:]))
+                years = []
+                for ym in year_hits[-4:]:
+                    y = int(ym.group(0))
+                    if y not in years:
+                        years.append(y)
+                for y in years[-2:]:
+                    canon = f"Q{ctx['quarter']} {y}" if ctx.get("quarter") else f"FY {y}"
+                    headers.append((canon, str(y)))
+
+        if not headers or expected not in [h[0] for h in headers]:
+            continue
+
+        # Values immediately following the EPS label belong to the row in rendered
+        # order. Limit both distance and count; do not scan into later metrics.
+        after = text[lm.end():lm.end() + 220]
+        num_re = re.compile(r"(?<![A-Za-z0-9])(?:\(\s*)?-?\$?\s*\d{1,2}(?:\.\d{1,4})?(?:\s*\))?")
+        values = []
+        for nm in num_re.finditer(after):
+            val = _generic_parse_eps_number(nm.group(0))
+            if val is None:
+                continue
+            values.append(val)
+            if len(values) >= len(headers):
+                break
+        if len(values) < len(headers):
+            continue
+
+        for idx, (canon, raw_header) in enumerate(headers):
+            if canon != expected:
+                continue
+            value = values[idx]
+            if value <= 0 or value > 100:
+                continue
+            candidates.append({
+                "period": expected,
+                "eps": value,
+                "basis": basis_label,
+                "basis_family": family,
+                "row_label": label,
+                "column_header": raw_header,
+                "score": 80 + (10 if "diluted" in label.lower() else 0),
+                "parser_mode": "rendered-text-fallback",
+            })
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda r: r.get("score", 0), reverse=True)
+    return candidates[0]
+
+
 def _generic_period_search_phrases(period):
     p = str(period or "").strip().upper()
     fy = re.fullmatch(r"FY\s+(20\d{2})", p)
@@ -24284,17 +24399,34 @@ def _fetch_generic_period_records_from_candidate(
     found = []
     cur = _generic_primary_eps_from_html(html, expected_period=current_period, title=title)
     if cur:
+        cur.setdefault("parser_mode", "html-table")
+    elif page_text:
+        cur = _generic_primary_eps_from_rendered_text(page_text, expected_period=current_period, title=title)
+    if cur:
         found.append({**cur, "url": final_url, "title": title, "source": source})
     if prior_period:
         prev = _generic_primary_eps_from_html(html, expected_period=prior_period, title=title)
+        if prev:
+            prev.setdefault("parser_mode", "html-table")
+        elif page_text:
+            prev = _generic_primary_eps_from_rendered_text(page_text, expected_period=prior_period, title=title)
         if prev:
             found.append({**prev, "url": final_url, "title": title, "source": source})
     if prior_period and len(found) == 2 and found[0].get("basis_family") != found[1].get("basis_family"):
         _generic_diag_attempt(diag, current_period, final_url, source, "verworfen", "Current/Prior Accounting-Basis stimmt nicht überein")
         return []
+    parser_modes = list(dict.fromkeys(r.get("parser_mode") for r in found if r.get("parser_mode")))
+    diag_note = None
+    if found:
+        diag_note = "Parser: " + ", ".join(parser_modes or ["unbekannt"])
+    elif page_text:
+        diag_note = f"Seitentext vorhanden ({len(page_text)} Zeichen), aber keine periodenreine EPS-Zeile erkannt"
+    else:
+        diag_note = "Kein auswertbarer Seitentext"
     _generic_diag_attempt(
         diag, current_period, final_url, source,
         "EPS gefunden" if found else "keine passende EPS-Zeile",
+        note=diag_note,
         found_periods=[r.get("period") for r in found],
     )
     return found
@@ -24479,7 +24611,7 @@ def discover_generic_primary_adjusted_ttm(
     company_name,
     website,
     current_fy,
-    cache_version="v22081",
+    cache_version="v22082",
 ):
     """IR-routed, bounded, fail-closed calendar-FY adjusted/core/operating TTM discovery."""
     _ = cache_version
@@ -26378,7 +26510,7 @@ def load_stock(selected_symbol, cache_version):
             "context_score": profitability_score.get("score"),
             "score": None,
             "brake_text": (profitability_score.get("brake_text") or "") +
-                " V2.20.80: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
+                " V2.20.82: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
         }
 
     score_fcf_input = (
@@ -27697,12 +27829,12 @@ if selected_symbol:
                     if horizon_bits:
                         st.caption("EPS-Horizonte: " + " · ".join(horizon_bits))
                     if eps_horizon_ui.get("note"):
-                        st.info("🧭 **Earnings Horizon Alignment V2.20.80:** " + text_or_dash(eps_horizon_ui.get("note")))
+                        st.info("🧭 **Earnings Horizon Alignment V2.20.82:** " + text_or_dash(eps_horizon_ui.get("note")))
 
                 eps_basis_ui = data.get("eps_basis_alignment") or {}
                 if eps_basis_ui.get("active"):
                     st.success(
-                        "🧮 **Accounting Basis Alignment V2.20.80:** "
+                        "🧮 **Accounting Basis Alignment V2.20.82:** "
                         + text_or_dash(eps_basis_ui.get("note"))
                     )
                     basis_snapshot_ui = eps_basis_ui.get("snapshot") or {}
