@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.77"
+APP_BUILD_VERSION = "V2.20.78"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Accounting Basis Alignment & Adjusted-TTM Reconstruction"
+    f"Build {APP_BUILD_VERSION} · Selected-Ticker Resolver Stability Hotfix"
 )
 
 
@@ -55,6 +55,8 @@ st.caption(
 # V2.20.76: Earnings Horizon Alignment, Primary Guidance Guard & Classification V2. Generic valuation no longer treats Yahoo +1Y analyst EPS as the default current valuation horizon. The app loads 0Y/current-FY and +1Y separately, can use fresh time-bounded official EPS guidance for a small verified issuer set as the current-FY anchor, and keeps +1Y strictly as context. Raw provider Forward-EPS remains visible. IR navigation now accepts verified investor-relations subdomains within the issuer domain family. Classification is tightened for regulated electric utilities, credit bureaus/data analytics, specialty chemicals/materials, athletic-apparel turnarounds, solar manufacturing/policy-sensitive issuers and Mondelez/global snacks. Utilities and new uncalibrated specialist types are fail-closed for generic growth/FCF/balance scoring and generic valuation corridors.
 
 # V2.20.77: Accounting Basis Alignment & Adjusted-TTM Reconstruction V1. Adds a fail-closed same-basis EPS bridge before generic normalization. For a verified issuer, an adjusted/core/operating TTM may replace raw provider GAAP TTM only when (1) the issuer has a time-bounded quantitative primary-source TTM reconstruction, (2) the current-FY anchor is official guidance on the same earnings basis, and (3) all required periods are present. Raw GAAP TTM remains visible. IQVIA and TransUnion are the first supported generic issuers. A successfully resolved horizon correction no longer turns the special-event light yellow by itself; yellow is reserved for unresolved material divergence or a material guidance/consensus conflict.
+
+# V2.20.78: Selected-Ticker Resolver Stability Hotfix. Once the user has explicitly selected an equity from the Yahoo-backed suggestion list, the selected ticker is treated as the validated navigation key and is passed directly into full-data loading. The app no longer performs a second Yahoo Search lookup for that already-selected symbol before loading quote/fundamental data. This removes transient false negatives such as EMN being visible and selected in the dropdown but then rejected as "not uniquely found" when the duplicate search call returns empty. Valuation mechanics are unchanged. Also cleans the duplicated Accounting-Basis UI prefix and labels aligned EPS normalization as Adjusted/Core TTM + Current-FY when the same-basis bridge is active.
 
 # =========================================================
 # Hilfsfunktionen
@@ -23994,9 +23996,9 @@ def build_eps_accounting_basis_alignment(symbol, raw_trailing_eps, valuation_for
         "basis_family": ttm_family,
         "confidence": "Hoch",
         "note": (
-            f"Accounting Basis Alignment V2.20.77: {snapshot.get('basis')} TTM wurde aus "
-            f"Primärquellen rekonstruiert ({snapshot.get('method')}) und mit der "
-            f"Current-FY-Guidance auf derselben Basis verglichen. Provider-GAAP-TTM bleibt nur Kontext."
+            f"{snapshot.get('basis')} TTM wurde aus Primärquellen rekonstruiert "
+            f"({snapshot.get('method')}) und mit der Current-FY-Guidance auf derselben "
+            f"Basis verglichen. Provider-GAAP-TTM bleibt nur Kontext."
         ),
     })
     return result
@@ -25164,20 +25166,51 @@ def _format_fx_timestamp(value):
 
 
 # =========================================================
+# Bereits ausgewählten Ticker direkt übernehmen
+# =========================================================
+
+def build_selected_stock_result(selected_symbol):
+    """Return a minimal validated result for an explicitly selected ticker.
+
+    The UI suggestion list is already the ambiguity-resolution step. Re-running
+    Yahoo Search for the selected symbol adds no safety and can fail transiently,
+    causing a valid selection to be rejected. Full quote/fundamental validation
+    still happens through yfinance.Ticker immediately afterwards.
+    """
+    symbol = str(selected_symbol or "").strip().upper()
+    if not symbol:
+        return None
+
+    # Yahoo equity symbols commonly contain letters/digits plus dot/hyphen.
+    # Keep a few Yahoo-native symbol characters for international/class shares.
+    if not re.fullmatch(r"[A-Z0-9][A-Z0-9.\-^=]{0,24}", symbol):
+        return None
+
+    return {
+        "symbol": symbol,
+        "quoteType": "EQUITY",
+        "_selected_explicitly": True,
+    }
+
+
+# =========================================================
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "external_reality_check_v22075_20260912"
+CACHE_VERSION = "selected_ticker_resolver_v22078_20260912"
 
 @st.cache_data(
     ttl=900,
     show_spinner=False
 )
-def load_stock(search_text, cache_version):
+def load_stock(selected_symbol, cache_version):
 
     _ = cache_version
 
-    result = find_stock(search_text)
+    # The UI selectbox already resolved ambiguity. Do not perform a second
+    # Yahoo Search request for the same symbol; transient search failures must
+    # not invalidate an explicit selection.
+    result = build_selected_stock_result(selected_symbol)
 
     if not result:
         return None
@@ -26877,12 +26910,12 @@ if selected_symbol:
                     if horizon_bits:
                         st.caption("EPS-Horizonte: " + " · ".join(horizon_bits))
                     if eps_horizon_ui.get("note"):
-                        st.info("🧭 **Earnings Horizon Alignment V2.20.77:** " + text_or_dash(eps_horizon_ui.get("note")))
+                        st.info("🧭 **Earnings Horizon Alignment V2.20.78:** " + text_or_dash(eps_horizon_ui.get("note")))
 
                 eps_basis_ui = data.get("eps_basis_alignment") or {}
                 if eps_basis_ui.get("active"):
                     st.success(
-                        "🧮 **Accounting Basis Alignment V2.20.77:** "
+                        "🧮 **Accounting Basis Alignment V2.20.78:** "
                         + text_or_dash(eps_basis_ui.get("note"))
                     )
                     basis_snapshot_ui = eps_basis_ui.get("snapshot") or {}
@@ -27266,9 +27299,18 @@ if selected_symbol:
                     )
                     st.info(insurance_core_coverage_ui.get("note"))
                 else:
+                    eps_method_display = eps_result['method']
+                    eps_basis_display = data.get("eps_basis_alignment") or {}
+                    if eps_basis_display.get("active"):
+                        eps_method_display = (
+                            str(eps_method_display)
+                            .replace("TTM-EPS", "Adjusted/Core TTM-EPS")
+                            .replace("Forward-EPS", "Current-FY Adjusted/Core EPS")
+                            .replace("Current-FY-EPS", "Current-FY Adjusted/Core EPS")
+                        )
                     st.write(
                         f"**Verwendete Methode:** "
-                        f"{eps_result['method']}"
+                        f"{eps_method_display}"
                     )
                     if str(data.get("symbol") or "").upper() == "BKR":
                         st.info(
