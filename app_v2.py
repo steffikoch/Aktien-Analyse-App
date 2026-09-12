@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.89"
+APP_BUILD_VERSION = "V2.20.90"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Latest-Period Accounting Basis Hard Gate & Sibling Release Discovery"
+    f"Build {APP_BUILD_VERSION} · Adjusted-Earnings Specialist Valuation V1 (TRU / IQV / EMN)"
 )
 
 
@@ -66,6 +66,8 @@ st.caption(
 # V2.20.84: Semantic Earnings-Release Allow-List. Generic adjusted-TTM discovery now requires both a reporting-period anchor and a genuine financial/earnings-results anchor in the candidate title/URL. Ordinary corporate news (products, sustainability, approvals, personnel, etc.) is hard-rejected before HTTP/parser work even when its URL contains the target year. The same guard is re-applied immediately before fetch, and web-fallback candidates with non-positive semantic scores are removed. Valuation formulas remain unchanged.
 # V2.20.86: Generic adjusted-TTM discovery now reserves an independent network budget after IR-router discovery. The router may no longer consume the complete reconstruction budget before exact FY/Q1/Q2 earnings-release fallback queries can run. Diagnostics expose accepted router-candidate counts and web-fallback attempts per period. Valuation formulas remain unchanged.
 # V2.20.87: Latest Reported Period Completeness Guard. Generic adjusted-TTM reconstruction may no longer downgrade silently from the latest expected reported quarter (e.g. Q2 after the normal August reporting lag) to an older Q1 bridge and mark it successful. The latest expected Current/Prior quarter pair is mandatory for valuation substitution; an older partial bridge is diagnosis-only. The fallback network budget is modestly expanded and current-period result queries prioritize company+period+results semantics. Valuation formulas remain unchanged.
+
+# V2.20.90: Adjusted-Earnings Specialist Valuation V1 for TransUnion, IQVIA and Eastman. Adds issuer-verified Q2/FY2026 primary-source snapshots, subtype-specific 100-point quality scores and conservative score-driven Adjusted-Earnings P/E corridors. The already-aligned normalized EPS remains the sole earnings basis; Yahoo GAAP TTM, generic FCF/balance scores and analyst targets do not enter the fair value. Reality Check remains external-only.
 
 # =========================================================
 # Hilfsfunktionen
@@ -13425,6 +13427,424 @@ def build_reit_special_control(base_control, reit_model):
     return control
 
 
+
+# =========================================================
+# V2.20.90 – Adjusted-Earnings Specialist Valuation V1
+# TRU / IQV / EMN
+# =========================================================
+
+def is_adjusted_earnings_specialist_type(company_type):
+    type_name = normalized_company_type_name(company_type)
+    return any(term in type_name for term in [
+        "credit bureau / data & analytics",
+        "healthcare / diagnostics & research / cro + data",
+        "specialty materials / specialty chemicals",
+    ])
+
+
+def get_verified_adjusted_earnings_specialist_snapshot(symbol):
+    """Time-bounded Q2/FY2026 primary-source operating snapshots.
+
+    These values are not analyst targets and are not valuation outputs. They
+    are issuer-reported operating/guidance inputs used only by the specialist
+    quality score. The earnings basis itself still comes from the already
+    aligned EPS-normalization engine.
+    """
+    sym = str(symbol or "").upper().strip()
+
+    if sym == "TRU":
+        return {
+            "symbol": "TRU",
+            "company": "TransUnion",
+            "as_of_date": "30.06.2026",
+            "published_date": "28.07.2026",
+            "source_name": "TransUnion Q2 2026 Earnings Release + Q2 2026 Earnings Presentation",
+            "source_url": "https://investors.transunion.com/~/media/Files/T/Transunion-IR-V2/reports-and-presentations/q2-2026-earnings-release.pdf",
+            "organic_cc_growth_guidance_mid_pct": 8.5,
+            "reported_revenue_growth_guidance_mid_pct": 12.5,
+            "adjusted_ebitda_margin_guidance_mid_pct": 35.3,
+            "adjusted_eps_growth_guidance_mid_pct": 11.5,
+            "leverage_ratio": 2.6,
+            "q2_organic_cc_growth_pct": 10.0,
+            "q2_adjusted_ebitda_margin_pct": 34.8,
+            "q2_adjusted_eps": 1.23,
+            "q2_gaap_eps": 0.74,
+            "fy_adjusted_eps_guidance_low": 4.75,
+            "fy_adjusted_eps_guidance_high": 4.83,
+            "fy_gaap_eps_guidance_low": 4.15,
+            "fy_gaap_eps_guidance_high": 4.22,
+            "note": "FY2026-Guidance: 8–9 % organisches CC-Wachstum, 35,2–35,4 % Adjusted-EBITDA-Marge, 11–12 % Adjusted-EPS-Wachstum; Leverage Ratio 2,6×.",
+        }
+
+    if sym == "IQV":
+        return {
+            "symbol": "IQV",
+            "company": "IQVIA Holdings Inc.",
+            "as_of_date": "30.06.2026",
+            "published_date": "22.07.2026",
+            "source_name": "IQVIA Q2 2026 Results",
+            "source_url": "https://ir.iqvia.com/press-releases/press-release-details/2026/IQVIA-Reports-Second-Quarter-2026-Results/default.aspx",
+            "revenue_growth_guidance_mid_pct": 6.5,
+            "q2_constant_currency_revenue_growth_pct": 8.5,
+            "fy_revenue_guidance_mid": 17.375e9,
+            "fy_adjusted_ebitda_guidance_mid": 4.025e9,
+            "fy_adjusted_eps_guidance_mid": 12.90,
+            "fy2025_adjusted_eps": 11.92,
+            "adjusted_eps_growth_guidance_mid_pct": (12.90 / 11.92 - 1.0) * 100.0,
+            "adjusted_ebitda_margin_guidance_mid_pct": (4.025 / 17.375) * 100.0,
+            "net_leverage_ratio": 3.59,
+            "book_to_bill_q2": 1.22,
+            "rds_backlog": 34.2e9,
+            "backlog_next_12m_conversion": 9.2e9,
+            "backlog_conversion_growth_pct": 7.5,
+            "fy2025_fcf_conversion_pct": 99.0,
+            "q2_adjusted_eps": 3.15,
+            "q2_gaap_eps": 1.53,
+            "note": "Q2/FY2026: 6,5 % Guidance-Umsatzwachstum am Mittelpunkt, 23,2 % Adjusted-EBITDA-Marge, 3,59× Net Leverage, 1,22× Book-to-Bill und 34,2 Mrd. USD R&D-Backlog.",
+        }
+
+    if sym == "EMN":
+        return {
+            "symbol": "EMN",
+            "company": "Eastman Chemical Company",
+            "as_of_date": "30.06.2026",
+            "published_date": "31.07.2026",
+            "source_name": "Eastman Q2 2026 Financial Results + Q1 2026 Financial Tables",
+            "source_url": "https://www.eastman.com/en/media-center/news-stories/2026/eastman-announces-second-quarter-2026-financial-results",
+            "q2_sales_growth_pct": 10.0,
+            "q2_adjusted_ebit": 320e6,
+            "q2_sales": 2.513e9,
+            "q2_adjusted_ebit_margin_pct": (320.0 / 2513.0) * 100.0,
+            "cost_savings_low": 125e6,
+            "cost_savings_high": 150e6,
+            "cost_savings_mid": 137.5e6,
+            "operating_cashflow_outlook": 900e6,
+            "capex_outlook": 400e6,
+            "implied_fcf_outlook": 500e6,
+            "q1_official_net_debt": 4.555e9,
+            "q3_adjusted_eps_context": 1.97,
+            "q2_adjusted_eps": 1.97,
+            "q2_gaap_eps": 1.59,
+            "full_year_eps_guidance_available": False,
+            "note": "Q2 2026: 10 % Umsatzwachstum, 12,7 % Adjusted-EBIT-Marge; 125–150 Mio. USD Kosteneinsparungen, ~900 Mio. USD OCF und ~400 Mio. USD CapEx erwartet. Keine vollständige FY2026 Adjusted-EPS-Guidance.",
+        }
+
+    return None
+
+
+def _specialist_quality_level(score):
+    value = safe_float(score)
+    if value is None:
+        return None
+    if value >= 80:
+        return "Stark"
+    if value >= 65:
+        return "Gut"
+    if value >= 50:
+        return "Mittel"
+    return "Schwach"
+
+
+def _score_growth_pct(value, max_points=25.0):
+    v = safe_float(value)
+    if v is None:
+        return None
+    # Deliberately moderate: specialist models reward durable mid/high-single-
+    # digit growth but do not require hyper-growth for a strong score.
+    bands = [
+        (12.0, 1.00), (9.0, 0.88), (7.0, 0.76), (5.0, 0.60),
+        (3.0, 0.42), (0.0, 0.25),
+    ]
+    for threshold, fraction in bands:
+        if v >= threshold:
+            return round(max_points * fraction, 2)
+    return 0.0
+
+
+def _score_margin_pct(value, max_points=25.0, high=35.0, good=28.0, solid=22.0, okay=15.0):
+    v = safe_float(value)
+    if v is None:
+        return None
+    if v >= high:
+        fraction = 0.96
+    elif v >= good:
+        fraction = 0.84
+    elif v >= solid:
+        fraction = 0.72
+    elif v >= okay:
+        fraction = 0.56
+    elif v >= 10.0:
+        fraction = 0.40
+    else:
+        fraction = 0.24
+    return round(max_points * fraction, 2)
+
+
+def _score_leverage(value, max_points=20.0):
+    v = safe_float(value)
+    if v is None:
+        return None
+    if v <= 1.5:
+        fraction = 1.00
+    elif v <= 2.0:
+        fraction = 0.90
+    elif v <= 2.5:
+        fraction = 0.80
+    elif v <= 3.0:
+        fraction = 0.70
+    elif v <= 3.5:
+        fraction = 0.55
+    elif v <= 4.0:
+        fraction = 0.42
+    elif v <= 5.0:
+        fraction = 0.25
+    else:
+        fraction = 0.10
+    return round(max_points * fraction, 2)
+
+
+def build_adjusted_earnings_specialist_score(snapshot, eps_normalization, fundamental_info=None):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    sym = str(snap.get("symbol") or "").upper()
+    eps = eps_normalization if isinstance(eps_normalization, dict) else {}
+
+    result = {
+        "available": False,
+        "score": None,
+        "quality_level": None,
+        "components": {},
+        "note": None,
+    }
+
+    if not sym or not has_usable_positive_earnings_basis(eps):
+        result["note"] = "Keine belastbare positive Same-Basis-Earnings-Basis für den Spezialscore verfügbar."
+        return result
+
+    components = {}
+
+    if sym == "TRU":
+        components["Organisches CC-Wachstum"] = _score_growth_pct(snap.get("organic_cc_growth_guidance_mid_pct"), 25.0)
+        components["Adjusted-EBITDA-Marge"] = _score_margin_pct(snap.get("adjusted_ebitda_margin_guidance_mid_pct"), 25.0, high=35.0, good=32.0, solid=28.0, okay=24.0)
+        components["Adjusted-EPS-Wachstum"] = _score_growth_pct(snap.get("adjusted_eps_growth_guidance_mid_pct"), 20.0)
+        components["Net Leverage"] = _score_leverage(snap.get("leverage_ratio"), 20.0)
+        # Annual guidance bridge is modest: adjusted midpoint vs GAAP midpoint.
+        adj_mid = (safe_float(snap.get("fy_adjusted_eps_guidance_low")) + safe_float(snap.get("fy_adjusted_eps_guidance_high"))) / 2.0
+        gaap_mid = (safe_float(snap.get("fy_gaap_eps_guidance_low")) + safe_float(snap.get("fy_gaap_eps_guidance_high"))) / 2.0
+        ratio = adj_mid / gaap_mid if gaap_mid and gaap_mid > 0 else None
+        if ratio is None:
+            bridge_points = None
+        elif ratio <= 1.15:
+            bridge_points = 9.0
+        elif ratio <= 1.30:
+            bridge_points = 7.0
+        elif ratio <= 1.50:
+            bridge_points = 5.0
+        else:
+            bridge_points = 3.0
+        components["Earnings-Bridge-Qualität"] = bridge_points
+
+    elif sym == "IQV":
+        components["FY-Umsatzwachstum"] = _score_growth_pct(snap.get("revenue_growth_guidance_mid_pct"), 20.0)
+        components["Adjusted-EBITDA-Marge"] = _score_margin_pct(snap.get("adjusted_ebitda_margin_guidance_mid_pct"), 20.0, high=28.0, good=24.0, solid=20.0, okay=16.0)
+        components["Adjusted-EPS-Wachstum"] = _score_growth_pct(snap.get("adjusted_eps_growth_guidance_mid_pct"), 15.0)
+        components["Net Leverage"] = _score_leverage(snap.get("net_leverage_ratio"), 20.0)
+        fcf_conv = safe_float(snap.get("fy2025_fcf_conversion_pct"))
+        if fcf_conv is None:
+            fcf_points = None
+        elif fcf_conv >= 95:
+            fcf_points = 10.0
+        elif fcf_conv >= 85:
+            fcf_points = 8.0
+        elif fcf_conv >= 70:
+            fcf_points = 6.0
+        elif fcf_conv >= 55:
+            fcf_points = 4.0
+        else:
+            fcf_points = 2.0
+        components["FCF-Conversion"] = fcf_points
+        btb = safe_float(snap.get("book_to_bill_q2"))
+        backlog_growth = safe_float(snap.get("backlog_conversion_growth_pct"))
+        visibility_points = 0.0
+        if btb is not None:
+            visibility_points += 8.0 if btb >= 1.20 else 6.0 if btb >= 1.10 else 4.0 if btb >= 1.0 else 1.0
+        if backlog_growth is not None:
+            visibility_points += 7.0 if backlog_growth >= 7.0 else 5.0 if backlog_growth >= 4.0 else 3.0 if backlog_growth >= 0 else 1.0
+        components["Bookings / Backlog-Visibilität"] = min(15.0, visibility_points)
+
+    elif sym == "EMN":
+        components["Q2 Umsatz-/Volumen-Erholung"] = _score_growth_pct(snap.get("q2_sales_growth_pct"), 20.0)
+        components["Adjusted-EBIT-Marge"] = _score_margin_pct(snap.get("q2_adjusted_ebit_margin_pct"), 20.0, high=18.0, good=15.0, solid=12.0, okay=9.0)
+        # Management explicitly says the cost program remains on track.
+        components["Kostensenkungs-Execution"] = 13.0
+        ocf = safe_float(snap.get("operating_cashflow_outlook"))
+        capex = safe_float(snap.get("capex_outlook"))
+        implied_fcf = (ocf - capex) if ocf is not None and capex is not None else None
+        info = fundamental_info if isinstance(fundamental_info, dict) else {}
+        revenue = safe_float(info.get("totalRevenue"))
+        fcf_margin = (implied_fcf / revenue * 100.0) if implied_fcf is not None and revenue and revenue > 0 else None
+        if fcf_margin is None:
+            cash_points = None
+        elif fcf_margin >= 8.0:
+            cash_points = 18.0
+        elif fcf_margin >= 6.0:
+            cash_points = 15.0
+        elif fcf_margin >= 4.0:
+            cash_points = 12.0
+        elif fcf_margin >= 2.0:
+            cash_points = 8.0
+        else:
+            cash_points = 4.0
+        components["OCF/CapEx-Cashflow-Qualität"] = cash_points
+        net_debt = safe_float(snap.get("q1_official_net_debt"))
+        debt_to_ocf = net_debt / ocf if net_debt is not None and ocf is not None and ocf > 0 else None
+        if debt_to_ocf is None:
+            leverage_points = None
+        elif debt_to_ocf <= 3.0:
+            leverage_points = 13.0
+        elif debt_to_ocf <= 4.0:
+            leverage_points = 11.0
+        elif debt_to_ocf <= 5.0:
+            leverage_points = 8.0
+        elif debt_to_ocf <= 6.0:
+            leverage_points = 6.0
+        else:
+            leverage_points = 3.0
+        components["Bilanz / Net Debt zu OCF"] = leverage_points
+        # No full-year EPS range and macro / CI spread uncertainty cap visibility.
+        components["Zyklus-/Guidance-Visibilität"] = 4.0
+
+    else:
+        result["note"] = "Für diesen Spezialtyp ist noch kein kalibrierter Quality Score hinterlegt."
+        return result
+
+    if any(value is None for value in components.values()):
+        result["components"] = components
+        result["note"] = "Mindestens eine für den Spezialscore erforderliche Primärkennzahl fehlt. Es wird nichts hochgerechnet."
+        return result
+
+    score = round(sum(float(v) for v in components.values()), 2)
+    score = max(0.0, min(100.0, score))
+    result.update({
+        "available": True,
+        "score": score,
+        "quality_level": _specialist_quality_level(score),
+        "components": components,
+        "note": "Der Spezialscore verwendet ausschließlich unternehmenstypische Primärkennzahlen; generische Nettomarge/ROE- und Netto-Schulden/FCF-Punkte fließen nicht ein.",
+    })
+    return result
+
+
+def build_adjusted_earnings_specialist_valuation(snapshot, specialist_score, eps_normalization):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    score_data = specialist_score if isinstance(specialist_score, dict) else {}
+    eps = eps_normalization if isinstance(eps_normalization, dict) else {}
+    sym = str(snap.get("symbol") or "").upper()
+
+    result = {
+        "available": False,
+        "fair_value_financial": None,
+        "earnings_basis": None,
+        "target_pe": None,
+        "corridor_low": None,
+        "corridor_high": None,
+        "score": safe_float(score_data.get("score")),
+        "note": None,
+    }
+
+    if not score_data.get("available") or not has_usable_positive_earnings_basis(eps):
+        result["note"] = "Spezialbewertung gesperrt: Quality Score oder Same-Basis-Earnings-Basis nicht vollständig."
+        return result
+
+    earnings_basis = safe_float(eps.get("normalized_eps"))
+    if earnings_basis is None or earnings_basis <= 0:
+        result["note"] = "Spezialbewertung gesperrt: normalisierte Same-Basis-Earnings-Basis fehlt."
+        return result
+
+    if sym == "TRU":
+        low, high = 16.0, 22.0
+        method = "Credit Bureau / Data & Analytics Adjusted-P/E"
+    elif sym == "IQV":
+        low, high = 18.0, 23.0
+        method = "CRO + Healthcare Data Adjusted-P/E"
+    elif sym == "EMN":
+        low, high = 10.0, 15.0
+        method = "Specialty Chemicals Cycle-aware Adjusted-P/E"
+    else:
+        result["note"] = "Kein kalibrierter Spezial-KGV-Korridor für diesen Emittenten."
+        return result
+
+    score = safe_float(score_data.get("score"))
+    target = low + (high - low) * (score / 100.0)
+    fair = earnings_basis * target
+
+    result.update({
+        "available": True,
+        "valuation_method_name": method,
+        "earnings_basis": earnings_basis,
+        "target_pe": target,
+        "corridor_low": low,
+        "corridor_high": high,
+        "fair_value_financial": fair,
+        "note": "Fair Value = bereits bereinigte Same-Basis-Earnings-Referenz × scoregesteuertes Spezial-KGV. Analysten-Kursziele sind kein Bestandteil der Rechnung.",
+    })
+    return result
+
+
+def build_adjusted_earnings_specialist_model(company_type, fundamental_info, eps_normalization, symbol):
+    applicable = is_adjusted_earnings_specialist_type(company_type) and str(symbol or "").upper() in {"TRU", "IQV", "EMN"}
+    if not applicable:
+        return {"applicable": False}
+
+    snapshot = get_verified_adjusted_earnings_specialist_snapshot(symbol)
+    if not snapshot:
+        return {
+            "applicable": True,
+            "primary_source_complete": False,
+            "specialist_score": {"available": False},
+            "specialist_valuation": {"available": False},
+            "readiness": "Primärquellen-Snapshot fehlt",
+        }
+
+    score = build_adjusted_earnings_specialist_score(snapshot, eps_normalization, fundamental_info)
+    valuation = build_adjusted_earnings_specialist_valuation(snapshot, score, eps_normalization)
+
+    return {
+        "applicable": True,
+        "primary_source_complete": True,
+        "snapshot": snapshot,
+        "specialist_score": score,
+        "specialist_valuation": valuation,
+        "valuation_anchor_complete": bool(score.get("available") and valuation.get("available")),
+        "readiness": "Spezialbewertung freigegeben" if valuation.get("available") else "Spezialbewertung nicht freigegeben",
+    }
+
+
+def build_adjusted_earnings_special_control(control, specialist_model):
+    if not isinstance(control, dict) or control.get("control_key") != "adjusted_earnings_specialist":
+        return control
+    model = specialist_model if isinstance(specialist_model, dict) else {}
+    score = model.get("specialist_score") or {}
+    valuation = model.get("specialist_valuation") or {}
+    released = bool(model.get("valuation_anchor_complete") and score.get("available") and valuation.get("available"))
+    out = dict(control)
+    out.update({
+        "implemented": True,
+        "released": released,
+        "confidence_cap": "Mittel",
+        "router_status": "Schritt 3B freigegeben" if released else "Schritt 3B nicht freigegeben",
+        "step3b_status": "Spezial-Fair-Value freigegeben" if released else "Spezial-Fair-Value gesperrt",
+        "snapshot": model.get("snapshot"),
+        "checks": {
+            "specialist_score": score,
+            "specialist_valuation": valuation,
+        },
+        "note": (
+            "V2.20.90 verwendet für TRU/IQV/EMN ausschließlich die bereits bereinigte Same-Basis-Earnings-Referenz plus "
+            "unternehmensspezifische Primärkennzahlen. Standard-FCF/Bilanz-Score und Analysten-Kursziele bleiben außerhalb des Fair Values."
+        ),
+    })
+    return out
+
 # =========================================================
 # Modul 6 – Schritt 1: Bewertungs-Korridor & Fundamental-Multiple
 # =========================================================
@@ -15216,6 +15636,29 @@ def get_special_control(company_type, symbol):
                 "V2.20.73 behandelt Baker Hughes als Energy-Technology-Plattform statt als integrierten Ölproduzenten. "
                 "Q2 2026 bildet OFSE/IET vor der Chart-Übernahme ab, während der aktuelle Kurs bereits nach dem Closing vom 16.07.2026 liegt. "
                 "Deshalb bleiben generischer Öl-&-Gas-KGV-Pfad, Standard-FCF/Bilanz-Score und Fair Value gesperrt, bis eine belastbare Post-Chart Earnings- und Kapitalstrukturbasis vorliegt."
+            ),
+        }
+
+    if symbol_text in {"TRU", "IQV", "EMN"}:
+        return {
+            "required": True,
+            "control_key": "adjusted_earnings_specialist",
+            "control_name": "Adjusted-Earnings Specialist / Quality-, Leverage- & Cashflow-Kontrolle",
+            "planned_checks": [
+                "Same-Basis Adjusted/Core TTM + Current-FY-Earnings-Referenz",
+                "Unternehmenstypisches organisches/Umsatzwachstum",
+                "Adjusted EBITDA/EBIT-Marge",
+                "Adjusted-EPS-Wachstum / Earnings Quality",
+                "Net Leverage bzw. Net Debt/Cashflow",
+                "Cashflow-/Bookings-/Guidance-Visibilität je Geschäftsmodell",
+                "Scoregesteuerter konservativer Spezial-KGV-Korridor",
+                "Analysten-Kursziel nur als externer Reality Check, nie als Fair-Value-Anker",
+            ],
+            "status": "Router aktiv – V2.20.90 Adjusted-Earnings Specialist Valuation V1",
+            "note": (
+                "TRU, IQV und EMN erhalten einen eigenen primärquellenbasierten Quality Score und einen konservativen "
+                "Adjusted-Earnings-KGV-Anker. Generische Margen-/ROE-/Net-Debt-to-FCF-Scores bleiben Diagnosekontext. "
+                "Die bereits geprüfte Accounting-/Horizon-Earnings-Basis bleibt zwingende Voraussetzung."
             ),
         }
 
@@ -22624,6 +23067,85 @@ def calculate_fair_value_v1(
         })
         return result
 
+
+    # V2.20.90 – TRU / IQV / EMN adjusted-earnings specialist P/E valuation.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "adjusted_earnings_specialist"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        sv = checks.get("specialist_valuation") or {}
+        ss = checks.get("specialist_score") or {}
+        fv = safe_float(sv.get("fair_value_financial"))
+        if not sv.get("available") or fv is None or fv <= 0:
+            result["note"] = "Fair Value V1 gesperrt: Adjusted-Earnings-Spezialanker nicht vollständig verfügbar."
+            return result
+
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der Spezialbewertung sind nicht eindeutig."
+            return result
+
+        share_context = context.get("share_unit_context") or {}
+        share_ratio = 1.0
+        unit_notes = []
+        if share_context.get("conversion_required"):
+            if not share_context.get("conversion_available"):
+                result["note"] = "Fair Value V1 gesperrt: abweichende Handelseinheit ohne verifizierte Aktien-/ADR-Umrechnung."
+                return result
+            share_ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
+            if share_ratio is None or share_ratio <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Aktien-/ADR-Verhältnis ist nicht belastbar."
+                return result
+            unit_notes.append(
+                "Aktieneinheit ausdrücklich angeglichen: 1 "
+                f"{share_context.get('quote_unit_name') or 'Handelseinheit'} = {share_ratio:g} "
+                f"{share_context.get('fundamental_unit_name') or 'Fundamentalaktien'}."
+            )
+
+        fvq = fv * share_ratio
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Währungsumrechnung der Spezialbewertung nicht belastbar verfügbar."
+                return result
+            fvq *= factor
+            unit_notes.append(
+                f"Währungsangleichung: {financial_currency} → {quote_currency} mit Faktor {factor:.6f}."
+            )
+        elif quote_currency != financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+
+        cp = safe_float(current_price)
+        potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+        result.update({
+            "available": True,
+            "valuation_method": "adjusted_earnings_specialist_pe",
+            "normalized_eps": safe_float(sv.get("earnings_basis")),
+            "used_multiple": safe_float(sv.get("target_pe")),
+            "multiple_source": "V2.20.90 Specialist Quality Score → subtype-spezifischer Adjusted-Earnings-KGV-Korridor",
+            "fair_value_financial": fv,
+            "fair_value_quote": fvq,
+            "potential_pct": potential,
+            "specialist_score": safe_float(ss.get("score")),
+            "specialist_quality_level": ss.get("quality_level"),
+            "specialist_components": ss.get("components") or {},
+            "target_pe": safe_float(sv.get("target_pe")),
+            "pe_corridor_low": safe_float(sv.get("corridor_low")),
+            "pe_corridor_high": safe_float(sv.get("corridor_high")),
+            "specialist_valuation_method_name": sv.get("valuation_method_name"),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "Adjusted-Earnings-Spezial-Fair-Value V1 = bereits bereinigte Same-Basis-Earnings-Referenz × "
+                "scoregesteuertes subtype-spezifisches Ziel-KGV. Analysten-Kursziele bleiben vollständig außerhalb des Fair Values."
+            ),
+        })
+        return result
+
     # Midstream V2.20.52 – EV/Adjusted-EBITDA equity-value bridge with capped peer overlay.
     if (
         isinstance(special_control, dict)
@@ -26330,7 +26852,7 @@ def build_selected_stock_result(selected_symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "latest_period_basis_hard_gate_v22089_20260912"
+CACHE_VERSION = "adjusted_earnings_specialist_v22090_20260912"
 
 @st.cache_data(
     ttl=900,
@@ -26923,6 +27445,13 @@ def load_stock(selected_symbol, cache_version):
         symbol=fundamental_symbol
     )
 
+    adjusted_earnings_specialist_model = build_adjusted_earnings_specialist_model(
+        company_type,
+        fundamental_info,
+        eps_normalization,
+        fundamental_symbol
+    )
+
     fundamental_multiple = calculate_fundamental_multiple(
         company_type,
         growth_score,
@@ -27080,6 +27609,30 @@ def load_stock(selected_symbol, cache_version):
             ),
         }
 
+    if adjusted_earnings_specialist_model.get("applicable"):
+        sp_score = adjusted_earnings_specialist_model.get("specialist_score") or {}
+        sp_val = adjusted_earnings_specialist_model.get("specialist_valuation") or {}
+        corridor = {
+            "available": bool(sp_val.get("available")),
+            "lower": safe_float(sp_val.get("corridor_low")),
+            "upper": safe_float(sp_val.get("corridor_high")),
+            "method": sp_val.get("valuation_method_name") or "Adjusted-Earnings Spezial-KGV",
+            "note": "V2.20.90: Der Korridor gehört ausschließlich zum primärquellenbasierten Spezialmodell; generische Scores bleiben außen vor.",
+        }
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": safe_float(sp_score.get("score")),
+            "corridor": corridor,
+            "multiple": safe_float(sp_val.get("target_pe")),
+            "available": bool(sp_score.get("available") and sp_val.get("available")),
+            "earnings_basis_usable": bool(sp_val.get("available")),
+            "note": (
+                "V2.20.90 verwendet für diesen Spezialtyp keinen generischen 100-Punkte-Score. "
+                "Der eigene Quality Score setzt innerhalb des kalibrierten Adjusted-Earnings-KGV-Korridors das Zielmultiple; "
+                "die bereits aligned Same-Basis-Earnings-Referenz ist die einzige Gewinnbasis."
+            ),
+        }
+
     peer_group = get_peer_group(
         company_type,
         fundamental_symbol
@@ -27170,6 +27723,11 @@ def load_stock(selected_symbol, cache_version):
     special_control = get_special_control(
         company_type,
         symbol
+    )
+
+    special_control = build_adjusted_earnings_special_control(
+        special_control,
+        adjusted_earnings_specialist_model
     )
 
     special_control = build_baker_hughes_special_control(
@@ -27552,6 +28110,7 @@ def load_stock(selected_symbol, cache_version):
         "semicap_special_model": semicap_special_model,
         "nvidia_special_model": nvidia_special_model,
         "reit_special_model": reit_special_model,
+        "adjusted_earnings_specialist_model": adjusted_earnings_specialist_model,
         "fundamental_multiple": fundamental_multiple,
         "peer_group": peer_group,
         "peer_check": peer_check,
@@ -32260,6 +32819,78 @@ if selected_symbol:
 
                 if special_control.get(
                     "control_key"
+                ) == "adjusted_earnings_specialist":
+                    st.divider()
+                    st.subheader("🧮 Modul 6 – Schritt 3B: Adjusted-Earnings Spezialmodell V1")
+                    if special_control.get("implemented"):
+                        checks_sp = special_control.get("checks") or {}
+                        snap_sp = special_control.get("snapshot") or {}
+                        score_sp = checks_sp.get("specialist_score") or {}
+                        val_sp = checks_sp.get("specialist_valuation") or {}
+                        sp_symbol = str(snap_sp.get("symbol") or selected_symbol or "").upper()
+                        st.write(
+                            f"**Datenstand:** {text_or_dash(snap_sp.get('as_of_date'))} "
+                            f"(veröffentlicht {text_or_dash(snap_sp.get('published_date'))})"
+                        )
+                        st.caption(text_or_dash(snap_sp.get("source_name")))
+                        if score_sp.get("available"):
+                            st.metric(
+                                "Spezialistischer Quality Score",
+                                f"{score_sp.get('score'):.0f}/100 · {score_sp.get('quality_level')}"
+                            )
+                            st.markdown("**Score-Komponenten:**")
+                            for label, value in (score_sp.get("components") or {}).items():
+                                st.write(f"• {label}: {safe_float(value):.1f} Punkte")
+
+                        if sp_symbol == "TRU":
+                            st.write(
+                                f"**FY2026 organisches CC-Wachstum:** {safe_float(snap_sp.get('organic_cc_growth_guidance_mid_pct')):.1f} % · "
+                                f"**Adjusted-EBITDA-Marge:** {safe_float(snap_sp.get('adjusted_ebitda_margin_guidance_mid_pct')):.1f} % · "
+                                f"**Adjusted-EPS-Wachstum:** {safe_float(snap_sp.get('adjusted_eps_growth_guidance_mid_pct')):.1f} %"
+                            )
+                            st.write(f"**Net Leverage:** {safe_float(snap_sp.get('leverage_ratio')):.2f}×")
+                        elif sp_symbol == "IQV":
+                            st.write(
+                                f"**FY2026 Umsatzwachstum am Guidance-Mittelpunkt:** {safe_float(snap_sp.get('revenue_growth_guidance_mid_pct')):.1f} % · "
+                                f"**Adjusted-EBITDA-Marge:** {safe_float(snap_sp.get('adjusted_ebitda_margin_guidance_mid_pct')):.1f} %"
+                            )
+                            st.write(
+                                f"**Net Leverage:** {safe_float(snap_sp.get('net_leverage_ratio')):.2f}× · "
+                                f"**Q2 Book-to-Bill:** {safe_float(snap_sp.get('book_to_bill_q2')):.2f}× · "
+                                f"**R&D Backlog:** {format_money(snap_sp.get('rds_backlog'), 'USD')}"
+                            )
+                            st.write(f"**FY2025 FCF-Conversion:** {safe_float(snap_sp.get('fy2025_fcf_conversion_pct')):.0f} %")
+                        elif sp_symbol == "EMN":
+                            st.write(
+                                f"**Q2 Umsatzwachstum:** {safe_float(snap_sp.get('q2_sales_growth_pct')):.1f} % · "
+                                f"**Q2 Adjusted-EBIT-Marge:** {safe_float(snap_sp.get('q2_adjusted_ebit_margin_pct')):.1f} %"
+                            )
+                            st.write(
+                                "**2026 OCF-/CapEx-Kontext:** "
+                                + format_money(snap_sp.get("operating_cashflow_outlook"), "USD")
+                                + " / " + format_money(snap_sp.get("capex_outlook"), "USD")
+                            )
+                            st.write(
+                                "**Kostensenkungsziel:** "
+                                + format_money(snap_sp.get("cost_savings_low"), "USD")
+                                + " – " + format_money(snap_sp.get("cost_savings_high"), "USD")
+                            )
+                            st.warning("Eastman gibt weiterhin keine vollständige FY2026 Adjusted-EPS-Spanne. Der Current-FY-Analystenkonsens bleibt deshalb nur plausibilisierte Vergleichsbasis und die Bewertungssicherheit höchstens Mittel.")
+
+                        if val_sp.get("available"):
+                            st.write("**Same-Basis Earnings-Referenz:** " + format_eps(val_sp.get("earnings_basis"), financial_currency))
+                            st.write(f"**Spezial-KGV-Zielkorridor:** {val_sp.get('corridor_low'):.2f}× – {val_sp.get('corridor_high'):.2f}×")
+                            st.write(f"**Score-gesteuertes Ziel-KGV:** {val_sp.get('target_pe'):.2f}×")
+                            st.write("**Fundamentaler Spezial-Fair-Value:** " + format_eps(val_sp.get("fair_value_financial"), financial_currency))
+                            st.success("Bewertungsfreigabe JA: Spezialscore und Same-Basis-Earnings-Anker sind vollständig. Analysten-Kursziele bleiben ausschließlich Modul 8.")
+                        else:
+                            st.warning(val_sp.get("note") or "Spezialbewertung noch nicht freigegeben.")
+                        st.caption(special_control.get("note"))
+                    else:
+                        st.warning(special_control.get("note"))
+
+                if special_control.get(
+                    "control_key"
                 ) == "bkr_post_chart_energy_technology":
                     st.divider()
                     st.subheader("⚙️ Modul 6 – Schritt 3B: Baker Hughes Energy-Technology & Post-Chart-Prüfung")
@@ -35179,6 +35810,24 @@ if selected_symbol:
                                 "**Abstand der Bewertungsanker:** "
                                 f"{fair_value.get('anchor_spread_pct'):.1f} %"
                             )
+                    elif fair_value.get("valuation_method") == "adjusted_earnings_specialist_pe":
+                        st.write("**Bewertungsformel:** Same-Basis Adjusted/Core Earnings × scoregesteuertes Spezial-KGV")
+                        st.write(
+                            f"**Spezialistischer Quality Score:** {fair_value.get('specialist_score'):.0f}/100 · "
+                            f"{fair_value.get('specialist_quality_level')}"
+                        )
+                        st.write(
+                            "**Same-Basis Earnings-Referenz:** "
+                            + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"])
+                        )
+                        st.write(f"**Ziel-KGV:** {fair_value.get('target_pe'):.2f}×")
+                        st.write(
+                            f"**Spezial-KGV-Korridor:** {fair_value.get('pe_corridor_low'):.2f}× – "
+                            f"{fair_value.get('pe_corridor_high'):.2f}×"
+                        )
+                        st.caption(
+                            "Der Spezial-Fair-Value verwendet keine Analysten-Kursziele. Modul 8 bleibt eine unabhängige externe Konflikt-/Plausibilitätskontrolle."
+                        )
                     elif fair_value.get("valuation_method") == "automotive_quality_cycle_pe":
                         st.write("**Bewertungsformel:** Cycle-komprimierte EPS-Basis × scoregesteuertes Automotive-Ziel-KGV; optional nur nach Comparability Gate ±5-%-Peer-Overlay; danach Downside-only Industrie-FCF-Gate")
                         st.write(f"**Automotive-Quality-Score:** {fair_value.get('automotive_score'):.0f}/100 · {fair_value.get('automotive_quality_level')}")
