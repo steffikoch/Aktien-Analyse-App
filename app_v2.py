@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.82"
+APP_BUILD_VERSION = "V2.20.83"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Rendered-Text EPS Fallback & Live Parser Diagnostics"
+    f"Build {APP_BUILD_VERSION} · Earnings-Release Candidate Guard & Parser Routing"
 )
 
 
@@ -62,6 +62,7 @@ st.caption(
 # V2.20.80: IR-Routed Adjusted-TTM Discovery & Diagnostics. Generic adjusted-TTM recovery now routes through the existing same-company IR Year Navigator before any external site-search fallback. One current-quarter release is parsed for both current- and prior-year quarter EPS, reducing the normal H1 bridge from five independent searches to three official documents (prior FY, current Q1, current Q2). Period/basis/source-domain validation remains fail-closed. Discovery diagnostics are retained even when reconstruction fails, showing router status, attempted documents, periods found and missing instead of silently falling back to GAAP TTM. Valuation formulas are unchanged.
 # V2.20.81: Financial Table EPS & Period Normalization. The generic primary-source parser now recognizes FY25/FY 2025, 1Q26/Q1 2026/2Q26 style headers, year-only current/prior columns when the document title fixes the quarter, and EPS row-label variants such as adjusted earnings per diluted share. Period headers are collected table-wide instead of only four rows above the EPS line. Repeated document fetches are cached within one discovery run and diagnostic rows are deduplicated. Valuation formulas remain unchanged.
 # V2.20.82: Rendered-Text EPS Fallback & Live Parser Diagnostics. When an official issuer release loads successfully but does not expose its financial grid as literal HTML <table> elements, the generic primary-source engine now performs a strict rendered-text fallback. It pairs nearby FY/Q shorthand headers with the explicitly labelled Adjusted/Core/Operating diluted-EPS row, preserves column order, and requires the requested canonical period before accepting a value. The normal table parser remains primary. Diagnostics now report parser mode and page-text availability so live failures no longer collapse into the ambiguous “keine passende EPS-Zeile” state. Valuation formulas remain unchanged.
+# V2.20.83: Earnings-Release Candidate Guard & Parser Routing. Generic adjusted-TTM discovery now rejects preview/scheduling/event/transcript/presentation pages and non-HTML PDF candidates before parser time, while prioritizing actual issuer result releases (Announces/Reports/Financial Results). This prevents release-announcement pages from outranking the underlying earnings release. Candidate breadth is increased after filtering, and live diagnostics include the attempted document title so source-routing failures are visible. Valuation formulas remain unchanged.
 
 # =========================================================
 # Hilfsfunktionen
@@ -24275,7 +24276,13 @@ def _generic_period_year(period):
 
 
 def _generic_period_doc_score(row, period):
-    """Rank one official-company link for a requested FY/quarter release."""
+    """Rank one official-company link for a requested FY/quarter release.
+
+    V2.20.83 deliberately separates *results documents* from preview/scheduling
+    pages. A title such as "Schedules full-year results release" can contain
+    exactly the same period words as the real release but has no financial table;
+    letting it outrank the actual result page wastes the bounded research budget.
+    """
     if not isinstance(row, dict):
         return -10_000
     url = _clean_text(row.get("url"))
@@ -24285,7 +24292,29 @@ def _generic_period_doc_score(row, period):
     year = _generic_period_year(p)
     if not hay or year is None or str(year) not in hay:
         return -10_000
+
+    # This parser consumes issuer HTML releases. PDFs, conference-call/event
+    # pages and pre-release scheduling notices are not valid candidates here.
+    if url.lower().split("?", 1)[0].endswith(".pdf"):
+        return -10_000
+    hard_reject = [
+        "conference call", "webcast", "transcript", "prepared remarks",
+        "presentation", "event-details", "events-and-presentations",
+        "schedules ", "scheduled ", "release scheduled", "results release scheduled",
+        "to announce", "will announce", "will report", "release date",
+        "earnings date", "results date",
+    ]
+    if any(token in hay for token in hard_reject):
+        return -10_000
+
     score = float(row.get("link_score") or 0) * 0.05
+    # Prefer actual result releases over generic archive/resource pages.
+    if re.search(r"\b(?:announces?|reports?)\b.{0,90}\b(?:financial|earnings)\b.{0,45}\bresults?\b", hay):
+        score += 260
+    elif re.search(r"\b(?:financial|earnings)\b.{0,45}\bresults?\b", hay):
+        score += 90
+    if any(x in hay for x in ["news-stories", "news-release", "press-release"]):
+        score += 35
     aliases = [a.lower().replace("–", "-") for a in _generic_eps_period_aliases(p)]
     if any(a and a in hay for a in aliases):
         score += 180
@@ -24308,10 +24337,7 @@ def _generic_period_doc_score(row, period):
         score += 45
     if any(x in hay for x in ["press release", "news-stories", "news/", "news-release"]):
         score += 25
-    if url.lower().endswith(".pdf"):
-        score -= 15
-    if any(x in hay for x in ["transcript", "prepared remarks", "presentation", "webcast"]):
-        score -= 25
+    # PDF/event/preview candidates were already fail-closed above.
     if any(x in hay for x in ["dividend", "sustainability", "career", "product launch"]):
         score -= 100
     return score
@@ -24342,7 +24368,7 @@ def _generic_router_period_candidates(ir_router, period, limit=5):
     return ranked[:max(1, int(limit))]
 
 
-def _generic_diag_attempt(diag, period, url, source, status, note=None, found_periods=None):
+def _generic_diag_attempt(diag, period, url, source, status, note=None, found_periods=None, title=None):
     if not isinstance(diag, dict):
         return
     item = {
@@ -24351,17 +24377,18 @@ def _generic_diag_attempt(diag, period, url, source, status, note=None, found_pe
         "source": source,
         "status": status,
         "note": note,
+        "title": _clean_text(title),
         "found_periods": list(found_periods or []),
     }
     key = (
         _clean_text(period), _clean_text(url), _clean_text(source),
-        _clean_text(status), _clean_text(note), tuple(item["found_periods"]),
+        _clean_text(status), _clean_text(note), _clean_text(item.get("title")), tuple(item["found_periods"]),
     )
     for existing in diag.setdefault("attempted_documents", []):
         existing_key = (
             _clean_text(existing.get("period")), _clean_text(existing.get("url")),
             _clean_text(existing.get("source")), _clean_text(existing.get("status")),
-            _clean_text(existing.get("note")), tuple(existing.get("found_periods") or []),
+            _clean_text(existing.get("note")), _clean_text(existing.get("title")), tuple(existing.get("found_periods") or []),
         )
         if existing_key == key:
             return
@@ -24373,6 +24400,7 @@ def _fetch_generic_period_records_from_candidate(
     source="IR Year Navigator", document_cache=None
 ):
     url = _clean_text((row or {}).get("url"))
+    candidate_title = _clean_text((row or {}).get("title"))
     if not url or not _host_belongs_to_company_family(url, company_domain):
         return []
     cache = document_cache if isinstance(document_cache, dict) else None
@@ -24389,13 +24417,13 @@ def _fetch_generic_period_records_from_candidate(
         final_url = cached.get("final_url") or url
         page_text = cached.get("page_text") or ""
     if not html:
-        _generic_diag_attempt(diag, current_period, final_url, source, "nicht geladen")
+        _generic_diag_attempt(diag, current_period, final_url, source, "nicht geladen", title=candidate_title)
         return []
     source_row = {"url": final_url, "title": (row or {}).get("title"), "snippet": (row or {}).get("snippet", "")}
     if not _source_matches_company(source_row, page_text, company_name, "", company_domain, True):
-        _generic_diag_attempt(diag, current_period, final_url, source, "verworfen", "Unternehmenszuordnung nicht bestätigt")
+        _generic_diag_attempt(diag, current_period, final_url, source, "verworfen", "Unternehmenszuordnung nicht bestätigt", title=candidate_title)
         return []
-    title = (row or {}).get("title") or _historical_title_hint_from_url(final_url)
+    title = candidate_title or _historical_title_hint_from_url(final_url)
     found = []
     cur = _generic_primary_eps_from_html(html, expected_period=current_period, title=title)
     if cur:
@@ -24413,7 +24441,7 @@ def _fetch_generic_period_records_from_candidate(
         if prev:
             found.append({**prev, "url": final_url, "title": title, "source": source})
     if prior_period and len(found) == 2 and found[0].get("basis_family") != found[1].get("basis_family"):
-        _generic_diag_attempt(diag, current_period, final_url, source, "verworfen", "Current/Prior Accounting-Basis stimmt nicht überein")
+        _generic_diag_attempt(diag, current_period, final_url, source, "verworfen", "Current/Prior Accounting-Basis stimmt nicht überein", title=title)
         return []
     parser_modes = list(dict.fromkeys(r.get("parser_mode") for r in found if r.get("parser_mode")))
     diag_note = None
@@ -24428,6 +24456,7 @@ def _fetch_generic_period_records_from_candidate(
         "EPS gefunden" if found else "keine passende EPS-Zeile",
         note=diag_note,
         found_periods=[r.get("period") for r in found],
+        title=title,
     )
     return found
 
@@ -24545,7 +24574,7 @@ def _collect_ir_routed_period_records(ir_router, company_domain, company_name, c
     """Load prior FY plus Q1..Qn current releases; each current release supplies prior-year comparator too."""
     records = []
     fy_period = f"FY {current_fy - 1}"
-    fy_candidates = _generic_router_period_candidates(ir_router, fy_period, limit=4)
+    fy_candidates = _generic_router_period_candidates(ir_router, fy_period, limit=8)
     loaded = False
     for row in fy_candidates:
         if not _research_budget_ok(deadline, reserve=1.0):
@@ -24558,7 +24587,7 @@ def _collect_ir_routed_period_records(ir_router, company_domain, company_name, c
             loaded = True
             break
     if not loaded:
-        for row in _generic_search_release_candidates(company_domain, company_name, fy_period, deadline=deadline, max_results=4):
+        for row in _generic_search_release_candidates(company_domain, company_name, fy_period, deadline=deadline, max_results=6):
             if not _research_budget_ok(deadline, reserve=0.9):
                 break
             got = _fetch_generic_period_records_from_candidate(
@@ -24575,7 +24604,7 @@ def _collect_ir_routed_period_records(ir_router, company_domain, company_name, c
         current_period = f"Q{q} {current_fy}"
         prior_period = f"Q{q} {current_fy - 1}"
         pair = []
-        candidates = _generic_router_period_candidates(ir_router, current_period, limit=5)
+        candidates = _generic_router_period_candidates(ir_router, current_period, limit=8)
         for row in candidates:
             if not _research_budget_ok(deadline, reserve=1.0):
                 break
@@ -24588,7 +24617,7 @@ def _collect_ir_routed_period_records(ir_router, company_domain, company_name, c
                 pair = got
                 break
         if not pair:
-            for row in _generic_search_release_candidates(company_domain, company_name, current_period, deadline=deadline, max_results=4):
+            for row in _generic_search_release_candidates(company_domain, company_name, current_period, deadline=deadline, max_results=6):
                 if not _research_budget_ok(deadline, reserve=0.8):
                     break
                 got = _fetch_generic_period_records_from_candidate(
@@ -24611,7 +24640,7 @@ def discover_generic_primary_adjusted_ttm(
     company_name,
     website,
     current_fy,
-    cache_version="v22082",
+    cache_version="v22083",
 ):
     """IR-routed, bounded, fail-closed calendar-FY adjusted/core/operating TTM discovery."""
     _ = cache_version
@@ -26510,7 +26539,7 @@ def load_stock(selected_symbol, cache_version):
             "context_score": profitability_score.get("score"),
             "score": None,
             "brake_text": (profitability_score.get("brake_text") or "") +
-                " V2.20.82: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
+                " V2.20.83: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
         }
 
     score_fcf_input = (
@@ -27884,6 +27913,8 @@ if selected_symbol:
                                 found_periods_attempt = attempt.get("found_periods") or []
                                 if found_periods_attempt:
                                     label += " · " + ", ".join(found_periods_attempt)
+                                if attempt.get("title"):
+                                    label += " · Dokument: " + str(attempt.get("title"))[:140]
                                 if attempt.get("note"):
                                     label += " · " + str(attempt.get("note"))
                                 st.write(label)
