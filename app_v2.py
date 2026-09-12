@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.94"
+APP_BUILD_VERSION = "V2.20.95"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,10 +25,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · UA Turnaround & OMC Post-Merger Specialist Valuation V1"
+    f"Build {APP_BUILD_VERSION} · Specialist Context Isolation & UA/OMC UI Cleanup"
 )
 
 
+# V2.20.95: Specialist Context Isolation & UA/OMC UI Cleanup. No valuation formulas, scores, multiples, Fair Values or signal rules changed. UA/UAA and OMC now label Standard-EPS, Yahoo/Cashflow-Statement FCF and generic Net-Debt/FCF strictly as diagnosis context; standard EPS divergence/confidence can no longer appear as if it limits specialist valuation confidence.
 # V2.20.94: UA Turnaround & OMC Post-Merger Specialist Valuation V1. Adds a revenue/P-Sales turnaround model for Under Armour (UA/UAA) using issuer FY2026 revenue, FY2027 demand/gross-margin/profitability guidance, liquidity, restructuring progress and official diluted A/B/C share count. Adds a post-IPG adjusted-EPS/EBITA model for Omnicom using fully post-merger H1 2026 adjusted EPS, core organic growth/margins, integration/synergy execution and financing burden. Generic GAAP EPS/FCF scores remain context-only. UA has a demand-stabilization action brake; OMC has a post-merger integration yellow gate. Analyst targets remain Reality Check only. Also removes the stale generic margin/ROE profitability footer from Regulated Utilities.
 # V2.20.52: Midstream Peer Safety Cap & Comparability Gate. Separates market-reference peers from adjustment-eligible peers. Automatic peer adjustment requires at least three peers with sufficiently comparable corporate structure AND issuer-adjusted EBITDA basis. Generic Yahoo EV/EBITDA remains reference-only. If a future gate passes, the multiple proposal and the resulting equity fair-value effect are each capped at ±5 %. The 100-point Midstream score and official KMI Adjusted EBITDA / Net Debt / share-count bridge remain unchanged.
 # V2.20.53: Automotive Primary Source / Industrial Net Liquidity & FCF Gate. First supported issuer: Mercedes-Benz Group (MBG.DE). Separates industrial-business free cash flow and net liquidity from consolidated Group debt distorted by captive Financial Services. Uses only current official Mercedes-Benz Q2/H1 2026 source data for the automotive primary gate; no automotive score, target multiple or fair value is released yet.
@@ -14363,7 +14364,7 @@ def get_verified_turnaround_postmerger_snapshot(symbol):
             "note": (
                 "FY2027-Umsatz soll im mittleren einstelligen Prozentbereich sinken; Q1 Nordamerika -9 %, DTC -5,8 % und Footwear -7,7 %. "
                 "Die Profitabilität verbessert sich, aber rund 150 bp der erwarteten Bruttomargenverbesserung stammen aus IEEPA-Tarifkostenerstattungen. "
-                "P/E bleibt deshalb ungeeignet; V2.20.94 nutzt einen konservativen Turnaround-P/S-Anker und deckelt Kaufaktionen bis zur Nachfragestabilisierung."
+                "P/E bleibt deshalb ungeeignet; V2.20.95 nutzt einen konservativen Turnaround-P/S-Anker und deckelt Kaufaktionen bis zur Nachfragestabilisierung."
             ),
         }
 
@@ -14407,7 +14408,7 @@ def get_verified_turnaround_postmerger_snapshot(symbol):
             "buyback_authorization": 5.0e9,
             "valuation_confidence_cap": "Mittel",
             "note": (
-                "IPG schloss am 26.11.2025. V2.20.94 verwendet deshalb nicht das verzerrte GAAP-TTM und nicht den größtenteils pre-merger FY2025-EPS als Fair-Value-Basis. "
+                "IPG schloss am 26.11.2025. V2.20.95 verwendet deshalb nicht das verzerrte GAAP-TTM und nicht den größtenteils pre-merger FY2025-EPS als Fair-Value-Basis. "
                 "Die alleinige Earnings-Basis ist die mechanische Annualisierung des vollständig post-merger H1-2026 Adjusted EPS (4,53 × 2 = 9,06 USD); sie ist ausdrücklich keine Management-FY-Guidance."
             ),
         }
@@ -14586,7 +14587,7 @@ def build_turnaround_postmerger_special_control(control, specialist_model):
         "snapshot": snap,
         "checks": {"specialist_score": score, "specialist_valuation": valuation},
         "note": (
-            "V2.20.94 trennt UA/UAA-Turnaround und OMC-Post-Merger strukturell vom Standardmodell. "
+            "V2.20.95 trennt UA/UAA-Turnaround und OMC-Post-Merger strukturell vom Standardmodell. "
             "UA wird wegen Near-zero-EPS über einen konservativen P/S-Anker bewertet; OMC über einen vollständig post-merger Adjusted-EPS-Run-Rate-Anker. "
             "Generisches GAAP-TTM, Yahoo-FCF und Analysten-Kursziele bleiben außerhalb des Fair Values."
         ),
@@ -16438,7 +16439,7 @@ def get_special_control(company_type, symbol):
                     "Analysten-Kursziel nur Reality Check",
                 ]
             ),
-            "status": "Router aktiv – V2.20.94 UA/OMC Specialist Valuation V1",
+            "status": "Router aktiv – V2.20.95 UA/OMC Specialist Valuation V1",
             "note": (
                 "UA/UAA und OMC werden nicht in das generische EPS-/FCF-Modell gedrückt. "
                 "Der Bewertungsanker wird erst in Schritt 3B aus aktuellem Primärquellen-Kontext freigegeben."
@@ -24011,7 +24012,7 @@ def calculate_fair_value_v1(
         if sym in {"UA", "UAA"}:
             valuation_method = "ua_turnaround_psales"
             normalized_eps_value = None
-            multiple_source = "V2.20.94 UA Turnaround Quality Score → konservativer P/S-Korridor"
+            multiple_source = "V2.20.95 UA Turnaround Quality Score → konservativer P/S-Korridor"
             note = (
                 "UA/UAA-Turnaround-Fair-Value V1 = konservative FY2027 Revenue-Basis × scoregesteuertes P/S / "
                 "offizielle verwässerte A+B+C-Aktienbasis. Near-zero Adjusted EPS, GAAP-TTM und Analysten-Kursziele "
@@ -24020,7 +24021,7 @@ def calculate_fair_value_v1(
         elif sym == "OMC":
             valuation_method = "omc_post_merger_adjusted_pe"
             normalized_eps_value = safe_float(snap.get("post_merger_annualized_adjusted_eps"))
-            multiple_source = "V2.20.94 OMC Post-Merger Quality Score → konservativer Adjusted-Earnings-KGV-Korridor"
+            multiple_source = "V2.20.95 OMC Post-Merger Quality Score → konservativer Adjusted-Earnings-KGV-Korridor"
             note = (
                 "OMC-Post-Merger-Fair-Value V1 = vollständig post-merger H1-2026 Adjusted-EPS-Run-Rate × "
                 "scoregesteuertes Post-Merger-KGV. FY2025/GAAP-TTM bleiben Kontext; Analysten-Kursziele sind ausgeschlossen."
@@ -28002,7 +28003,7 @@ def build_selected_stock_result(selected_symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "ua_omc_specialist_v22094_20260912"
+CACHE_VERSION = "specialist_context_isolation_v22095_20260912"
 
 @st.cache_data(
     ttl=900,
@@ -28830,7 +28831,7 @@ def load_stock(selected_symbol, cache_version):
             "lower": safe_float(tp_val.get("corridor_low")),
             "upper": safe_float(tp_val.get("corridor_high")),
             "method": tp_val.get("valuation_method_name") or "Turnaround/Post-Merger Spezialmultiple",
-            "note": "V2.20.94: Der Korridor gehört ausschließlich zum primärquellenbasierten UA/OMC-Spezialmodell; generische Scores bleiben Diagnosekontext.",
+            "note": "V2.20.95: Der Korridor gehört ausschließlich zum primärquellenbasierten UA/OMC-Spezialmodell; generische Scores bleiben Diagnosekontext.",
         }
         fundamental_multiple = {
             **fundamental_multiple,
@@ -28840,7 +28841,7 @@ def load_stock(selected_symbol, cache_version):
             "available": bool(tp_score.get("available") and tp_val.get("available")),
             "earnings_basis_usable": bool(tp_val.get("available")),
             "note": (
-                "V2.20.94 verwendet für UA/UAA beziehungsweise OMC keinen generischen 100-Punkte-Score. "
+                "V2.20.95 verwendet für UA/UAA beziehungsweise OMC keinen generischen 100-Punkte-Score. "
                 "Der eigene Quality Score setzt das subtype-spezifische P/S- bzw. Adjusted-P/E-Zielmultiple; "
                 "die Primärquellenbasis des Spezialmodells ist der einzige Fair-Value-Anker."
             ),
@@ -29051,7 +29052,7 @@ def load_stock(selected_symbol, cache_version):
                 "valuation_usable": True,
                 "reason": (
                     "FY2025 und GAAP-TTM sind durch IPG-Closing, Integrations-/Transaktionskosten, Repositioning und Dispositionen strukturell verzerrt. "
-                    "V2.20.94 verwendet deshalb ausschließlich den vollständig post-merger H1-2026 Adjusted-EPS-Run-Rate als Bewertungsbasis."
+                    "V2.20.95 verwendet deshalb ausschließlich den vollständig post-merger H1-2026 Adjusted-EPS-Run-Rate als Bewertungsbasis."
                 ),
                 "action": (
                     "Der Fair Value bleibt nutzbar; Integrations- und Zinsrisiko werden im Quality Score und konservativen 8–12×-KGV-Korridor berücksichtigt. "
@@ -30084,6 +30085,7 @@ if selected_symbol:
                 is_nvidia_fcf_context = is_nvidia_ai_growth_company_type(company_type)
                 is_bkr_fcf_context = is_baker_hughes_energy_tech_company_type(company_type)
                 is_utility_fcf_context = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
+                is_turnaround_postmerger_fcf_context = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 if fcf_ctx.get("score_eligible"):
                     source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
                     if is_bank_fcf_context:
@@ -30145,6 +30147,12 @@ if selected_symbol:
                             "Bei Regulated Utilities bleibt der Yahoo-/Cashflow-Statement-FCF ausschließlich Diagnosekontext. "
                             "Er fließt weder in Utility Quality Score, Credit-/Leverage-Prüfung, Ziel-KGV, Bewertungszonen noch Fair Value ein; "
                             "maßgeblich sind FFO/Credit, Rate Base, regulatorische Rückgewinnung und der offizielle Kapital-/Finanzierungsplan."
+                        )
+                    elif is_turnaround_postmerger_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            "Im UA/UAA-Turnaround- und OMC-Post-Merger-Spezialmodell bleibt dieser Yahoo-/Cashflow-Statement-FCF ausschließlich Diagnosekontext. "
+                            "Er steuert weder den Turnaround-P/S- noch den Post-Merger-Adjusted-P/E-Fair-Value; Cashflow-/Finanzierungsqualität wird ausschließlich in den jeweiligen Primärquellen-Komponenten des Spezial-Scores berücksichtigt."
                         )
                     else:
                         st.caption(
@@ -30213,6 +30221,13 @@ if selected_symbol:
                                 f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Werte bleiben reine Diagnose-/Rohdaten und beeinflussen "
                                 "weder Utility Score noch Credit-Prüfung, Ziel-KGV oder Fair Value."
                             )
+                        elif is_turnaround_postmerger_fcf_context:
+                            st.info(
+                                "ℹ️ FCF-Quellenabweichung im UA/OMC-Spezialkontext: Yahoo quoteSummary/info zeigt "
+                                f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
+                                f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
+                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Werte bleiben Diagnose-/Rohdaten und beeinflussen weder Spezialscore-Earnings-/Revenue-Anker noch Zielmultiple oder Fair Value."
+                            )
                         else:
                             st.warning(
                                 "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info zeigt "
@@ -30248,6 +30263,11 @@ if selected_symbol:
                         st.caption(
                             "FCF-Kontext/Rohdaten: Nur Yahoo Levered Free Cash Flow verfügbar. "
                             "Bei Regulated Utilities bleibt auch dieser Wert reine Diagnoseinformation und hat keinen Einfluss auf Utility Score, Credit-Prüfung, Ziel-KGV oder Fair Value."
+                        )
+                    elif is_turnaround_postmerger_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: Nur Yahoo Levered Free Cash Flow verfügbar. "
+                            "Im UA/UAA-/OMC-Spezialmodell bleibt auch dieser Wert reine Diagnoseinformation und ist kein Fair-Value- oder Sicherheitsanker."
                         )
                     else:
                         st.warning(
@@ -30432,7 +30452,8 @@ if selected_symbol:
                 else:
                     normalized_eps = eps_result["normalized_eps"]
                     utility_eps_context_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui) else "Normalisiertes EPS")
+                    turnaround_postmerger_eps_context_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui or turnaround_postmerger_eps_context_ui) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -30504,9 +30525,21 @@ if selected_symbol:
                         util_eps_snap_ui = (data.get("regulated_utility_specialist_model") or {}).get("snapshot") or {}
                         st.info(
                             "Regulated Utility: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
-                            f"V2.20.93 verwendet für den Fair Value stattdessen direkt die aktuelle {text_or_dash(util_eps_snap_ui.get('earnings_basis_name'))} "
+                            f"V2.20.95 verwendet für den Fair Value stattdessen direkt die aktuelle {text_or_dash(util_eps_snap_ui.get('earnings_basis_name'))} "
                             "und prüft Rate Base, ROE, Credit, Dividende und Finanzierung separat."
                         )
+                    elif turnaround_postmerger_eps_context_ui:
+                        tp_eps_snap_ui = (data.get("turnaround_postmerger_specialist_model") or {}).get("snapshot") or {}
+                        if str(data.get("symbol") or "").upper() in {"UA", "UAA"}:
+                            st.info(
+                                "UA/UAA Turnaround: Die Standard-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                                "Der Fair Value verwendet die FY2027-Revenue-Basis, den primärquellenbasierten Turnaround-Quality-Score und den P/S-Anker; Near-zero EPS ist kein Bewertungsmultiple-Anker."
+                            )
+                        else:
+                            st.info(
+                                "OMC Post-Merger: Die Standard-GAAP-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                                "Der Fair Value verwendet ausschließlich die vollständig post-merger H1-2026 Adjusted-EPS-Run-Rate plus Post-Merger-Quality-Score; das strukturell verzerrte GAAP-TTM ist kein Bewertungs- oder Sicherheitsanker."
+                            )
 
                 confidence = (
                     bank_core_eps_ui.get("confidence")
@@ -30522,6 +30555,11 @@ if selected_symbol:
                     st.info(
                         "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
                         "die Utility-Bewertungssicherheit wird separat aus Guidance-, Regulierungs-, Credit- und Spezialkontroll-Gates bestimmt."
+                    )
+                elif turnaround_postmerger_eps_context_ui:
+                    st.info(
+                        "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
+                        "die UA/UAA-/OMC-Spezialbewertungssicherheit wird ausschließlich aus der eigenen Primärquellen-Basis, Spezialmethode und den Turnaround-/Post-Merger-Risikogates bestimmt."
                     )
                 elif confidence == "Hoch":
 
@@ -30555,6 +30593,11 @@ if selected_symbol:
                             " Diese TTM-/Forward-Divergenz steuert weder Utility-Fair-Value noch Utility-Bewertungssicherheit; "
                             "maßgeblich ist die Current-FY Core/Adjusted-EPS-Guidance plus Regulierungs-/Credit-/Risiko-Gates."
                         )
+                    elif turnaround_postmerger_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
+                            " Diese Standard-TTM-/Forward-Divergenz steuert weder den UA/UAA-/OMC-Spezial-Fair-Value noch dessen Bewertungssicherheit; maßgeblich ist ausschließlich der jeweilige Primärquellen-Anker des Spezialmodells."
+                        )
                     else:
                         st.warning(eps_result["eps_divergence_note"])
 
@@ -30567,6 +30610,11 @@ if selected_symbol:
                         st.caption(
                             "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die Utility-Bewertungssicherheit nicht. "
                             "Die Utility-Sicherheit wird ausschließlich aus Guidance-, Regulierungs-, Credit-, Finanzierungs- und Spezialrisiko-Gates bestimmt."
+                        )
+                    elif turnaround_postmerger_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die UA/UAA-/OMC-Spezialbewertungssicherheit nicht. "
+                            "Die Spezialmodell-Sicherheit stammt ausschließlich aus Primärquellen-Anker, Methode sowie Turnaround-/Integration-/Finanzierungsrisiken."
                         )
                     else:
                         st.warning(eps_result["confidence_note"])
@@ -30675,6 +30723,17 @@ if selected_symbol:
                         "Das Standard-normalisierte EPS ist bei NVIDIA in V2.20.67 ausschließlich Kontext und keine Earnings-Basis. "
                         "Für den AI-Pfad wird ausschließlich der separat hergeleitete FY27-Operating-EPS-Proxy verwendet; Yahoo Forward-EPS bleibt ohne bestätigten Horizont reference-only. Das Standard-EPS steuert weder das freigegebene NVIDIA-Ziel-KGV noch den Fair Value."
                     )
+                elif turnaround_postmerger_eps_context_ui:
+                    if str(data.get("symbol") or "").upper() in {"UA", "UAA"}:
+                        st.caption(
+                            "Das Standard-normalisierte EPS ist bei UA/UAA ausschließlich Diagnosekontext und keine Fair-Value-Earnings-Basis. "
+                            "Für die Turnaround-Bewertung sind FY2027 Revenue, offizielle verwässerte A+B+C-Aktien und der scoregesteuerte P/S-Anker maßgeblich."
+                        )
+                    else:
+                        st.caption(
+                            "Das Standard-normalisierte EPS ist bei OMC ausschließlich Diagnosekontext und keine Fair-Value-Earnings-Basis. "
+                            "Für die Post-Merger-Bewertung ist ausschließlich die vollständig post-merger H1-2026 Adjusted-EPS-Run-Rate der Earnings-Anker."
+                        )
                 elif utility_eps_context_ui:
                     st.caption(
                         "Das Standard-normalisierte EPS ist bei Regulated Utilities ausschließlich Diagnosekontext und keine Fair-Value-Earnings-Basis. "
@@ -31998,6 +32057,7 @@ if selected_symbol:
                     and not is_nvidia_ai_growth_company_type(company_type)
                     and not bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 ):
                     st.caption(
                         "Bilanzpunkte: Netto-Cash 15/15; "
@@ -37702,6 +37762,17 @@ if selected_symbol:
                             "Die angezeigte Sicherheitsstufe stammt ausschließlich aus Unternehmenstyp/Utility-Methode, Current-FY Core/Adjusted-EPS-Guidance "
                             "und der Utility-Spezialkontrolle einschließlich Regulierungs-/Credit-/Finanzierungs-/Tail-Risk-Gates."
                         )
+                    elif fair_value.get("valuation_method") in {"ua_turnaround_psales", "omc_post_merger_adjusted_pe"}:
+                        if fair_value.get("valuation_method") == "ua_turnaround_psales":
+                            st.info(
+                                "Turnaround-Sicherheitsisolierung: Standard-EPS, TTM-/Forward-Divergenz und Yahoo-FCF sind kein Bestandteil der UA/UAA-Bewertungssicherheit. "
+                                "Die angezeigte Sicherheitsstufe stammt ausschließlich aus Turnaround-Methode, FY2027-Revenue-/Share-Anker und der Spezialkontrolle einschließlich Nachfrage-, Margen-, Liquiditäts- und Restrukturierungsrisiken."
+                            )
+                        else:
+                            st.info(
+                                "Post-Merger-Sicherheitsisolierung: Das strukturell verzerrte GAAP-TTM, die Standard-TTM-/Forward-EPS-Divergenz und Yahoo-FCF sind kein Bestandteil der OMC-Bewertungssicherheit. "
+                                "Die angezeigte Sicherheitsstufe stammt ausschließlich aus Post-Merger-Methode, H1-2026 Adjusted-EPS-Run-Rate und der Spezialkontrolle einschließlich Integration-, Synergie- und Finanzierungsrisiken."
+                            )
                     else:
                         eps_confidence_note = data.get(
                             "eps_normalization", {}
