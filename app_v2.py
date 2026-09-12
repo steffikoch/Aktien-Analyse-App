@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.87"
+APP_BUILD_VERSION = "V2.20.88"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Latest Reported Period Completeness Guard"
+    f"Build {APP_BUILD_VERSION} · Cache Generation Isolation & Latest Period Guard"
 )
 
 
@@ -524,6 +524,8 @@ def validate_valuation_currency_context(currency_context):
 
 
 # =========================================================
+# V2.20.88: Cache Generation Isolation. Bumps the global Streamlit data-cache generation and the generic adjusted-TTM discovery cache key so older Q1-only discovery snapshots cannot cross build boundaries. Discovery diagnostics now expose the cache generation used for the live run. Latest-reported-period completeness logic and valuation formulas are otherwise unchanged.
+
 # V2.20.32 – Verifizierte ADR-/Aktieneinheiten
 # =========================================================
 
@@ -24744,7 +24746,7 @@ def discover_generic_primary_adjusted_ttm(
     company_name,
     website,
     current_fy,
-    cache_version="v22087",
+    cache_version="v22088",
 ):
     """IR-routed, bounded, fail-closed calendar-FY adjusted/core/operating TTM discovery."""
     _ = cache_version
@@ -24768,6 +24770,7 @@ def discover_generic_primary_adjusted_ttm(
         "router_budget_seconds": 7.0,
         "total_budget_seconds": 32.0,
         "status": "nicht gestartet",
+        "cache_generation": str(cache_version),
     }
     if current_fy != today.year:
         diag["status"] = "Fiskalkalender nicht automatisch bestätigt"
@@ -26244,7 +26247,7 @@ def build_selected_stock_result(selected_symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "financial_table_eps_period_normalization_v22081_20260912"
+CACHE_VERSION = "cache_generation_isolation_v22088_20260912"
 
 @st.cache_data(
     ttl=900,
@@ -26669,7 +26672,7 @@ def load_stock(selected_symbol, cache_version):
             "context_score": profitability_score.get("score"),
             "score": None,
             "brake_text": (profitability_score.get("brake_text") or "") +
-                " V2.20.86: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
+                f" {APP_BUILD_VERSION}: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
         }
 
     score_fcf_input = (
@@ -28023,6 +28026,7 @@ if selected_symbol:
                     status_ui = text_or_dash(generic_diag_ui.get("status"))
                     with st.expander("🔎 Adjusted-TTM Discovery-Diagnose", expanded=False):
                         st.write("**Status:** " + status_ui)
+                        st.write("**Cache-Generation:** " + text_or_dash(generic_diag_ui.get("cache_generation")))
                         st.write(
                             "**IR-Router:** "
                             + ("verfügbar" if generic_diag_ui.get("router_available") else "nicht bestätigt")
