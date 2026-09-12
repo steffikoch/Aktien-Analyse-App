@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.85"
+APP_BUILD_VERSION = "V2.20.86"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -64,7 +64,7 @@ st.caption(
 # V2.20.82: Rendered-Text EPS Fallback & Live Parser Diagnostics. When an official issuer release loads successfully but does not expose its financial grid as literal HTML <table> elements, the generic primary-source engine now performs a strict rendered-text fallback. It pairs nearby FY/Q shorthand headers with the explicitly labelled Adjusted/Core/Operating diluted-EPS row, preserves column order, and requires the requested canonical period before accepting a value. The normal table parser remains primary. Diagnostics now report parser mode and page-text availability so live failures no longer collapse into the ambiguous “keine passende EPS-Zeile” state. Valuation formulas remain unchanged.
 # V2.20.83: Earnings-Release Candidate Guard & Parser Routing. Generic adjusted-TTM discovery now rejects preview/scheduling/event/transcript/presentation pages and non-HTML PDF candidates before parser time, while prioritizing actual issuer result releases (Announces/Reports/Financial Results). This prevents release-announcement pages from outranking the underlying earnings release. Candidate breadth is increased after filtering, and live diagnostics include the attempted document title so source-routing failures are visible. Valuation formulas remain unchanged.
 # V2.20.84: Semantic Earnings-Release Allow-List. Generic adjusted-TTM discovery now requires both a reporting-period anchor and a genuine financial/earnings-results anchor in the candidate title/URL. Ordinary corporate news (products, sustainability, approvals, personnel, etc.) is hard-rejected before HTTP/parser work even when its URL contains the target year. The same guard is re-applied immediately before fetch, and web-fallback candidates with non-positive semantic scores are removed. Valuation formulas remain unchanged.
-# V2.20.85: Generic adjusted-TTM discovery now reserves an independent network budget after IR-router discovery. The router may no longer consume the complete reconstruction budget before exact FY/Q1/Q2 earnings-release fallback queries can run. Diagnostics expose accepted router-candidate counts and web-fallback attempts per period. Valuation formulas remain unchanged.
+# V2.20.86: Generic adjusted-TTM discovery now reserves an independent network budget after IR-router discovery. The router may no longer consume the complete reconstruction budget before exact FY/Q1/Q2 earnings-release fallback queries can run. Diagnostics expose accepted router-candidate counts and web-fallback attempts per period. Valuation formulas remain unchanged.
 
 # =========================================================
 # Hilfsfunktionen
@@ -24502,25 +24502,77 @@ def _fetch_generic_period_records_from_candidate(
 
 
 def _generic_search_release_candidates(company_domain, company_name, period, deadline=None, max_results=5):
-    """Fallback discovery for one release document, not one EPS period cell."""
+    """Fallback discovery for one issuer earnings release, not one EPS cell.
+
+    V2.20.86: discovery must not require an exact EPS-row phrase in the search
+    engine. Search engines often index the release title/summary but not the
+    financial-table row. We therefore discover by company + reporting period +
+    results semantics, then let the primary-source parser validate the EPS row.
+    """
     seen = set()
     out = []
+    company_hint = _clean_text(company_name)
+    # Progressively broaden only the *search* expression. Every returned URL is
+    # still hard-validated afterwards by company-family, semantic release score,
+    # reporting period and finally the primary-source EPS parser.
+    query_templates = [
+        'site:{domain} {phrase} "financial results"',
+        'site:{domain} {phrase} "earnings results"',
+        'site:{domain} {phrase} results',
+        'site:{domain} {company} {phrase} results',
+    ]
     for phrase in _generic_period_search_phrases(period):
-        if not _research_budget_ok(deadline, reserve=0.8):
-            break
-        query = f'site:{company_domain} {phrase} "financial results" "adjusted earnings per diluted share"'
-        for item in _duckduckgo_html_search(query, max_results=max_results, deadline=deadline)[:max_results]:
-            url = _clean_text(item.get("url"))
-            if not url or url in seen or not _host_belongs_to_company_family(url, company_domain):
-                continue
-            seen.add(url)
-            item = dict(item)
-            item["generic_period_score"] = _generic_period_doc_score(item, period)
-            if item["generic_period_score"] <= 0:
-                continue
-            out.append(item)
+        for template in query_templates:
+            if not _research_budget_ok(deadline, reserve=0.8):
+                break
+            query = template.format(domain=company_domain, phrase=phrase, company=company_hint)
+            rows = _duckduckgo_html_search(query, max_results=max(max_results, 8), deadline=deadline)
+            for item in rows[:max(max_results, 8)]:
+                url = _clean_text(item.get("url"))
+                if not url or url in seen or not _host_belongs_to_company_family(url, company_domain):
+                    continue
+                seen.add(url)
+                item = dict(item)
+                item["generic_period_score"] = _generic_period_doc_score(item, period)
+                if item["generic_period_score"] <= 0:
+                    continue
+                item["search_query"] = query
+                out.append(item)
+            if out:
+                break
         if out:
             break
+
+    # Deterministic issuer-site fallback: if web search returns nothing, inspect
+    # the company's own sitemap inventory for period/result URLs. This remains
+    # primary-source only and passes through the same semantic guard.
+    if not out and _research_budget_ok(deadline, reserve=1.2):
+        year = _generic_period_year(period)
+        if year is not None:
+            sitemap_urls, _ = _discover_company_sitemap_inventory(
+                company_domain, deadline=deadline, max_child_sitemaps=3
+            )
+            for url in sitemap_urls:
+                if not _research_budget_ok(deadline, reserve=0.7):
+                    break
+                if url in seen:
+                    continue
+                seen.add(url)
+                hint = _historical_title_hint_from_url(url)
+                item = {
+                    "title": hint,
+                    "url": url,
+                    "snippet": "Unternehmens-Sitemap / offizieller Release-Fallback",
+                    "search_source": "Unternehmens-Sitemap",
+                }
+                score = _generic_period_doc_score(item, period)
+                if score <= 0:
+                    continue
+                item["generic_period_score"] = score
+                out.append(item)
+                if len(out) >= max(max_results, 8):
+                    break
+
     out.sort(key=lambda r: r.get("generic_period_score", 0), reverse=True)
     return out[:max_results]
 
@@ -24690,7 +24742,7 @@ def discover_generic_primary_adjusted_ttm(
     company_name,
     website,
     current_fy,
-    cache_version="v22085",
+    cache_version="v22086",
 ):
     """IR-routed, bounded, fail-closed calendar-FY adjusted/core/operating TTM discovery."""
     _ = cache_version
@@ -24723,7 +24775,7 @@ def discover_generic_primary_adjusted_ttm(
         diag["status"] = "Keine abgeschlossene Quartalsbasis bzw. Unternehmensdomain verfügbar"
         return {"available": False, "generic_reconstructor": True, "diagnostics": diag}
 
-    # V2.20.85: keep IR routing bounded and reserve time for exact release fallback.
+    # V2.20.86: keep IR routing bounded and reserve time for exact release fallback.
     # Earlier builds passed one shared deadline into the router; on complex issuer sites
     # the router could consume nearly the whole budget before FY/Q1/Q2 fallback discovery.
     start_clock = time.monotonic()
@@ -26599,7 +26651,7 @@ def load_stock(selected_symbol, cache_version):
             "context_score": profitability_score.get("score"),
             "score": None,
             "brake_text": (profitability_score.get("brake_text") or "") +
-                " V2.20.85: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
+                " V2.20.86: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
         }
 
     score_fcf_input = (
