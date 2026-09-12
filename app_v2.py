@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.93"
+APP_BUILD_VERSION = "V2.20.94"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,10 +25,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Utility Context Isolation & Consensus Coherence"
+    f"Build {APP_BUILD_VERSION} · UA Turnaround & OMC Post-Merger Specialist Valuation V1"
 )
 
 
+# V2.20.94: UA Turnaround & OMC Post-Merger Specialist Valuation V1. Adds a revenue/P-Sales turnaround model for Under Armour (UA/UAA) using issuer FY2026 revenue, FY2027 demand/gross-margin/profitability guidance, liquidity, restructuring progress and official diluted A/B/C share count. Adds a post-IPG adjusted-EPS/EBITA model for Omnicom using fully post-merger H1 2026 adjusted EPS, core organic growth/margins, integration/synergy execution and financing burden. Generic GAAP EPS/FCF scores remain context-only. UA has a demand-stabilization action brake; OMC has a post-merger integration yellow gate. Analyst targets remain Reality Check only. Also removes the stale generic margin/ROE profitability footer from Regulated Utilities.
 # V2.20.52: Midstream Peer Safety Cap & Comparability Gate. Separates market-reference peers from adjustment-eligible peers. Automatic peer adjustment requires at least three peers with sufficiently comparable corporate structure AND issuer-adjusted EBITDA basis. Generic Yahoo EV/EBITDA remains reference-only. If a future gate passes, the multiple proposal and the resulting equity fair-value effect are each capped at ±5 %. The 100-point Midstream score and official KMI Adjusted EBITDA / Net Debt / share-count bridge remain unchanged.
 # V2.20.53: Automotive Primary Source / Industrial Net Liquidity & FCF Gate. First supported issuer: Mercedes-Benz Group (MBG.DE). Separates industrial-business free cash flow and net liquidity from consolidated Group debt distorted by captive Financial Services. Uses only current official Mercedes-Benz Q2/H1 2026 source data for the automotive primary gate; no automotive score, target multiple or fair value is released yet.
 # V2.20.54: Automotive Quality Score & Cycle Compression Gate. Adds a dedicated 100-point automotive quality score from industrial FCF resilience, industrial net liquidity, Cars/Vans margins, Financial Services RoE, capital allocation and disclosed FCF one-offs. Adds a fail-closed cycle-compression diagnostic that caps the weight of strong historical cycle EPS when current Cars margins/guidance and forward EPS are materially weaker. Still no automotive target multiple or fair value.
@@ -6204,6 +6205,13 @@ def classify_company(name, symbol, sector, industry):
         return {
             "type": "Agriculture / Seeds & Crop Protection",
             "method": "Operating-/Adjusted-Earnings + Zyklus-/Saisonalitäts- + FCF-Kontrolle; Standard-Korridor gesperrt",
+            "confidence_cap": "Mittel",
+        }
+
+    if symbol_text == "OMC" or "omnicom" in name_text:
+        return {
+            "type": "Advertising / Marketing Services / Post-Merger Integration",
+            "method": "Post-Merger Adjusted EPS + Core Organic Growth/EBITA + Integration/Financing; Standard-Korridor gesperrt",
             "confidence_cap": "Mittel",
         }
 
@@ -14277,6 +14285,339 @@ def apply_regulated_utility_action_brake(new_buy_signal, holding_signal, utility
     return nb, hs
 
 
+
+# =========================================================
+# V2.20.94 – UA Turnaround & OMC Post-Merger Specialist Valuation V1
+# =========================================================
+
+def is_turnaround_postmerger_specialist_type(company_type, symbol=None):
+    type_name = normalized_company_type_name(company_type)
+    sym = str(symbol or "").upper().strip()
+    return (
+        sym in {"UA", "UAA", "OMC"}
+        or "consumer / athletic apparel & footwear / turnaround" in type_name
+        or "advertising / marketing services / post-merger integration" in type_name
+    )
+
+
+def get_verified_turnaround_postmerger_snapshot(symbol):
+    """Time-bounded primary-source snapshots for UA/UAA and OMC.
+
+    No analyst price targets enter these snapshots. Under Armour is valued on
+    revenue because current-year EPS is too close to zero for a stable P/E.
+    Omnicom is valued on a fully post-IPG H1 adjusted-EPS run-rate because FY2025
+    contains only about one month of the acquired business and large transaction/
+    repositioning distortions.
+    """
+    sym = str(symbol or "").upper().strip()
+
+    if sym in {"UA", "UAA"}:
+        fy2026_revenue = 4.966370e9
+        revenue_decline_mid_pct = 5.0  # transparent midpoint of "mid-single-digit decline"
+        revenue_basis = fy2026_revenue * (1.0 - revenue_decline_mid_pct / 100.0)
+        diluted_shares = 431.937e6
+        adj_op_mid = 150e6
+        return {
+            "symbol": sym,
+            "company": "Under Armour, Inc.",
+            "as_of_date": "30.06.2026",
+            "published_date": "07.08.2026",
+            "source_name": "Under Armour Q1 FY2027 Results + FY2026 Results",
+            "source_url": "https://www.sec.gov/Archives/edgar/data/1336917/000133691726000108/exhibit991-fiscal2027q1.htm",
+            "fy2026_source_url": "https://www.sec.gov/Archives/edgar/data/1336917/000133691726000059/exhibit991-fiscal2026q4.htm",
+            "valuation_basis_name": "FY2027 Revenue Run-Rate / P-Sales",
+            "fy2026_revenue": fy2026_revenue,
+            "fy2027_revenue_decline_mid_pct": revenue_decline_mid_pct,
+            "fy2027_revenue_basis": revenue_basis,
+            "official_diluted_shares_abc": diluted_shares,
+            "q1_revenue_growth_pct": -3.2,
+            "q1_north_america_growth_pct": -9.0,
+            "q1_dtc_growth_pct": -5.8,
+            "q1_ecommerce_growth_pct": -12.0,
+            "q1_footwear_growth_pct": -7.7,
+            "q1_gross_margin_pct": 54.1,
+            "fy2027_gross_margin_improvement_low_bps": 220.0,
+            "fy2027_gross_margin_improvement_high_bps": 270.0,
+            "fy2027_tariff_refund_margin_benefit_bps": 150.0,
+            "fy2027_adjusted_operating_income_low": 140e6,
+            "fy2027_adjusted_operating_income_high": 160e6,
+            "fy2027_adjusted_operating_income_mid": adj_op_mid,
+            "fy2027_adjusted_operating_margin_mid_pct": adj_op_mid / revenue_basis * 100.0,
+            "fy2027_adjusted_eps_low": 0.08,
+            "fy2027_adjusted_eps_high": 0.12,
+            "q1_cash": 395.981e6,
+            "q1_revolver_capacity": 1.1e9,
+            "q1_revolver_borrowings": 200e6,
+            "q1_long_term_debt": 591.158e6,
+            "senior_notes_2026_settled": True,
+            "inventory_yoy_pct": -3.0,
+            "restructuring_incurred": 266e6,
+            "restructuring_expected_total": 305e6,
+            "restructuring_completion_target": "31.12.2026",
+            "tariff_refund_benefit": 70e6,
+            "middle_east_headwind": 35e6,
+            "fy2026_operating_cash_flow": -75.088e6,
+            "fy2026_capex": 87.075e6,
+            "risk_action_cap": "observe_hold",
+            "valuation_confidence_cap": "Niedrig bis Mittel",
+            "note": (
+                "FY2027-Umsatz soll im mittleren einstelligen Prozentbereich sinken; Q1 Nordamerika -9 %, DTC -5,8 % und Footwear -7,7 %. "
+                "Die Profitabilität verbessert sich, aber rund 150 bp der erwarteten Bruttomargenverbesserung stammen aus IEEPA-Tarifkostenerstattungen. "
+                "P/E bleibt deshalb ungeeignet; V2.20.94 nutzt einen konservativen Turnaround-P/S-Anker und deckelt Kaufaktionen bis zur Nachfragestabilisierung."
+            ),
+        }
+
+    if sym == "OMC":
+        h1_adj_eps = 4.53
+        h1_2025_adj_eps = 3.74
+        fy2025_adj_eps = 8.65
+        annualized = h1_adj_eps * 2.0
+        reconstructed_ttm = fy2025_adj_eps - h1_2025_adj_eps + h1_adj_eps
+        return {
+            "symbol": "OMC",
+            "company": "Omnicom Group Inc.",
+            "as_of_date": "30.06.2026",
+            "published_date": "28.07.2026",
+            "source_name": "Omnicom Q2/H1 2026 Results + FY2025 Results",
+            "source_url": "https://investor.omc.com/news/news-details/2026/Omnicom-Reports-Second-Quarter-2026-Results/default.aspx",
+            "fy2025_source_url": "https://investor.omc.com/news/news-details/2026/Omnicom-Reports-Fourth-Quarter-and-Full-Year-2025-Results/default.aspx",
+            "valuation_basis_name": "Post-Merger H1 2026 Adjusted EPS Run-Rate",
+            "ipg_close_date": "26.11.2025",
+            "q1_core_organic_growth_pct": 3.9,
+            "q2_core_organic_growth_pct": 6.1,
+            "q2_core_revenue": 5.9950e9,
+            "q2_core_adjusted_ebita": 1.0688e9,
+            "q2_core_adjusted_ebita_margin_pct": 17.8,
+            "q2_core_prior_margin_pct": 15.9,
+            "h1_adjusted_ebita": 1.9887e9,
+            "h1_adjusted_ebita_margin_pct": 15.5,
+            "h1_adjusted_eps": h1_adj_eps,
+            "h1_2025_adjusted_eps": h1_2025_adj_eps,
+            "h1_adjusted_eps_growth_pct": (h1_adj_eps / h1_2025_adj_eps - 1.0) * 100.0,
+            "q2_adjusted_eps": 2.65,
+            "q2_gaap_eps": 2.08,
+            "post_merger_annualized_adjusted_eps": annualized,
+            "reconstructed_adjusted_ttm_context": reconstructed_ttm,
+            "fy2025_adjusted_eps": fy2025_adj_eps,
+            "q2_integration_transaction_costs": 40.1e6,
+            "q2_repositioning_costs": 47.0e6,
+            "q2_net_interest_expense": 93.3e6,
+            "synergy_target_total": 1.5e9,
+            "synergy_target_2026": 900e6,
+            "buyback_authorization": 5.0e9,
+            "valuation_confidence_cap": "Mittel",
+            "note": (
+                "IPG schloss am 26.11.2025. V2.20.94 verwendet deshalb nicht das verzerrte GAAP-TTM und nicht den größtenteils pre-merger FY2025-EPS als Fair-Value-Basis. "
+                "Die alleinige Earnings-Basis ist die mechanische Annualisierung des vollständig post-merger H1-2026 Adjusted EPS (4,53 × 2 = 9,06 USD); sie ist ausdrücklich keine Management-FY-Guidance."
+            ),
+        }
+
+    return None
+
+
+def build_turnaround_postmerger_specialist_score(snapshot):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    sym = str(snap.get("symbol") or "").upper()
+    result = {"available": False, "score": None, "quality_level": None, "components": {}, "note": None}
+
+    if sym in {"UA", "UAA"}:
+        q1_rev = safe_float(snap.get("q1_revenue_growth_pct"))
+        na = safe_float(snap.get("q1_north_america_growth_pct"))
+        gm_low = safe_float(snap.get("fy2027_gross_margin_improvement_low_bps"))
+        refund_bps = safe_float(snap.get("fy2027_tariff_refund_margin_benefit_bps"))
+        op_margin = safe_float(snap.get("fy2027_adjusted_operating_margin_mid_pct"))
+        cash = safe_float(snap.get("q1_cash")); debt = safe_float(snap.get("q1_long_term_debt")); revolver = safe_float(snap.get("q1_revolver_borrowings")); revolver_capacity = safe_float(snap.get("q1_revolver_capacity"))
+        incurred = safe_float(snap.get("restructuring_incurred")); total = safe_float(snap.get("restructuring_expected_total"))
+        inv = safe_float(snap.get("inventory_yoy_pct"))
+        if None in {q1_rev, na, gm_low, refund_bps, op_margin, cash, debt, revolver, revolver_capacity, incurred, total, inv}:
+            result["note"] = "Under-Armour-Turnaround-Score gesperrt: mindestens eine Primärkennzahl fehlt."
+            return result
+        demand_pts = 7.0 if q1_rev <= -3.0 and na <= -7.0 else 11.0 if q1_rev < 0 else 17.0
+        structural_gm_bps = gm_low - refund_bps
+        gm_pts = 16.0 if structural_gm_bps >= 60 else 12.0 if structural_gm_bps >= 0 else 7.0
+        op_pts = 10.0 if op_margin >= 3.0 else 7.0 if op_margin >= 2.0 else 4.0
+        undrawn_revolver = max(0.0, revolver_capacity - revolver)
+        liquidity_pts = 12.0 if cash + undrawn_revolver > debt and snap.get("senior_notes_2026_settled") else 8.0
+        completion = incurred / total if total > 0 else 0.0
+        restructuring_pts = 11.0 if completion >= 0.80 else 8.0 if completion >= 0.60 else 5.0
+        inventory_pts = 5.0 if inv <= 0 else 3.0 if inv <= 5.0 else 1.0
+        components = {
+            "Nachfrage / Umsatztrend": demand_pts,
+            "Bruttomargenqualität ex Tarifrefund": gm_pts,
+            "Adjusted Operating Profitability": op_pts,
+            "Liquidität / Bilanz": liquidity_pts,
+            "Restrukturierungs-Execution": restructuring_pts,
+            "Inventory-/Marketplace-Disziplin": inventory_pts,
+        }
+    elif sym == "OMC":
+        q2_org = safe_float(snap.get("q2_core_organic_growth_pct"))
+        q1_org = safe_float(snap.get("q1_core_organic_growth_pct"))
+        margin = safe_float(snap.get("q2_core_adjusted_ebita_margin_pct"))
+        eps_growth = safe_float(snap.get("h1_adjusted_eps_growth_pct"))
+        interest = safe_float(snap.get("q2_net_interest_expense"))
+        if None in {q2_org, q1_org, margin, eps_growth, interest}:
+            result["note"] = "OMC-Post-Merger-Score gesperrt: mindestens eine Primärkennzahl fehlt."
+            return result
+        growth_pts = 16.0 if q2_org >= 5.0 and q1_org >= 3.0 else 12.0
+        margin_pts = 22.0 if margin >= 17.0 else 18.0 if margin >= 15.0 else 13.0
+        eps_pts = 14.0 if eps_growth >= 15.0 else 11.0 if eps_growth >= 8.0 else 7.0
+        integration_pts = 13.0 if safe_float(snap.get("synergy_target_2026")) and margin > safe_float(snap.get("q2_core_prior_margin_pct")) else 9.0
+        portfolio_pts = 8.0  # Core Operations explicitly removes dispositions/held-for-sale businesses.
+        financing_pts = 5.0 if interest > 75e6 else 7.0
+        capital_pts = 4.0 if safe_float(snap.get("buyback_authorization")) and safe_float(snap.get("buyback_authorization")) >= 5e9 else 2.0
+        components = {
+            "Core Organic Growth": growth_pts,
+            "Core Adjusted-EBITA-Marge": margin_pts,
+            "H1 Adjusted-EPS-Wachstum": eps_pts,
+            "Integration / Synergy Execution": integration_pts,
+            "Portfolio-/Core-Operations-Klarheit": portfolio_pts,
+            "Finanzierungs-/Zinslast": financing_pts,
+            "Kapitalallokation": capital_pts,
+        }
+    else:
+        result["note"] = "Kein kalibrierter Turnaround/Post-Merger-Score für diesen Emittenten."
+        return result
+
+    score = round(sum(float(v) for v in components.values()), 2)
+    score = max(0.0, min(100.0, score))
+    result.update({
+        "available": True,
+        "score": score,
+        "quality_level": _specialist_quality_level(score),
+        "components": components,
+        "note": "Der Score verwendet ausschließlich verifizierte issuer-spezifische Primärkennzahlen; generische Yahoo-Nettomarge/ROE/FCF-Punkte fließen nicht ein.",
+    })
+    return result
+
+
+def build_turnaround_postmerger_specialist_valuation(snapshot, specialist_score):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    score_data = specialist_score if isinstance(specialist_score, dict) else {}
+    sym = str(snap.get("symbol") or "").upper()
+    result = {"available": False, "valuation_method_name": None, "target_multiple": None, "corridor_low": None, "corridor_high": None, "fair_value_financial": None, "note": None}
+    if not score_data.get("available"):
+        result["note"] = "Spezialbewertung gesperrt: Quality Score nicht vollständig."
+        return result
+    score = safe_float(score_data.get("score"))
+
+    if sym in {"UA", "UAA"}:
+        revenue = safe_float(snap.get("fy2027_revenue_basis"))
+        shares = safe_float(snap.get("official_diluted_shares_abc"))
+        if revenue is None or revenue <= 0 or shares is None or shares <= 0:
+            result["note"] = "UA-Turnaround-Bewertung gesperrt: Revenue-/Share-Basis fehlt."
+            return result
+        low, high = 0.35, 0.70
+        target = low + (high - low) * (score / 100.0)
+        equity_value = revenue * target
+        fair = equity_value / shares
+        result.update({
+            "available": True,
+            "valuation_method_name": "Athletic Apparel Turnaround P/Sales",
+            "target_multiple": target,
+            "corridor_low": low,
+            "corridor_high": high,
+            "revenue_basis": revenue,
+            "share_basis": shares,
+            "fair_equity_value_financial": equity_value,
+            "fair_value_financial": fair,
+            "note": "Fair Value = konservative FY2027 Revenue-Basis × scoregesteuertes P/S / offizielle verwässerte A+B+C-Aktien. Near-zero Adjusted EPS wird nicht in ein instabiles P/E gezwungen.",
+        })
+        return result
+
+    if sym == "OMC":
+        earnings = safe_float(snap.get("post_merger_annualized_adjusted_eps"))
+        if earnings is None or earnings <= 0:
+            result["note"] = "OMC-Post-Merger-Bewertung gesperrt: H1 Adjusted-EPS-Run-Rate fehlt."
+            return result
+        low, high = 8.0, 12.0
+        target = low + (high - low) * (score / 100.0)
+        fair = earnings * target
+        result.update({
+            "available": True,
+            "valuation_method_name": "Post-Merger Adjusted-EPS P/E",
+            "target_multiple": target,
+            "corridor_low": low,
+            "corridor_high": high,
+            "earnings_basis": earnings,
+            "fair_value_financial": fair,
+            "note": "Fair Value = vollständig post-merger H1-Adjusted-EPS-Run-Rate × scoregesteuertes Post-Merger-KGV. FY2025 und GAAP-TTM bleiben Kontext; Analystenziele sind ausgeschlossen.",
+        })
+        return result
+
+    result["note"] = "Kein kalibrierter Bewertungsanker für diesen Spezialtyp."
+    return result
+
+
+def build_turnaround_postmerger_specialist_model(company_type, fundamental_info, symbol):
+    applicable = is_turnaround_postmerger_specialist_type(company_type, symbol) and str(symbol or "").upper() in {"UA", "UAA", "OMC"}
+    if not applicable:
+        return {"applicable": False}
+    snapshot = get_verified_turnaround_postmerger_snapshot(symbol)
+    if not snapshot:
+        return {"applicable": True, "primary_source_complete": False, "specialist_score": {"available": False}, "specialist_valuation": {"available": False}, "valuation_anchor_complete": False, "readiness": "Primärquellen-Snapshot fehlt"}
+    score = build_turnaround_postmerger_specialist_score(snapshot)
+    valuation = build_turnaround_postmerger_specialist_valuation(snapshot, score)
+    return {
+        "applicable": True,
+        "primary_source_complete": True,
+        "snapshot": snapshot,
+        "specialist_score": score,
+        "specialist_valuation": valuation,
+        "valuation_anchor_complete": bool(score.get("available") and valuation.get("available")),
+        "readiness": "Spezialbewertung freigegeben" if valuation.get("available") else "Spezialbewertung nicht freigegeben",
+    }
+
+
+def build_turnaround_postmerger_special_control(control, specialist_model):
+    if not isinstance(control, dict) or control.get("control_key") != "turnaround_postmerger_specialist":
+        return control
+    model = specialist_model if isinstance(specialist_model, dict) else {}
+    score = model.get("specialist_score") or {}
+    valuation = model.get("specialist_valuation") or {}
+    snap = model.get("snapshot") or {}
+    released = bool(model.get("valuation_anchor_complete") and score.get("available") and valuation.get("available"))
+    out = dict(control)
+    out.update({
+        "implemented": True,
+        "released": released,
+        "confidence_cap": snap.get("valuation_confidence_cap") or "Mittel",
+        "router_status": "Schritt 3B freigegeben" if released else "Schritt 3B nicht freigegeben",
+        "step3b_status": "Spezial-Fair-Value freigegeben" if released else "Spezial-Fair-Value gesperrt",
+        "snapshot": snap,
+        "checks": {"specialist_score": score, "specialist_valuation": valuation},
+        "note": (
+            "V2.20.94 trennt UA/UAA-Turnaround und OMC-Post-Merger strukturell vom Standardmodell. "
+            "UA wird wegen Near-zero-EPS über einen konservativen P/S-Anker bewertet; OMC über einen vollständig post-merger Adjusted-EPS-Run-Rate-Anker. "
+            "Generisches GAAP-TTM, Yahoo-FCF und Analysten-Kursziele bleiben außerhalb des Fair Values."
+        ),
+    })
+    return out
+
+
+def apply_turnaround_postmerger_action_brake(new_buy_signal, holding_signal, specialist_model):
+    """UA demand-stabilization brake. OMC relies on the normal confidence brake."""
+    model = specialist_model if isinstance(specialist_model, dict) else {}
+    snap = model.get("snapshot") or {}
+    sym = str(snap.get("symbol") or "").upper()
+    if sym not in {"UA", "UAA"} or not model.get("valuation_anchor_complete") or snap.get("risk_action_cap") != "observe_hold":
+        return new_buy_signal, holding_signal
+    nb = dict(new_buy_signal or {})
+    hs = dict(holding_signal or {})
+    if nb.get("signal") in {"Starker Kauf", "Kauf"}:
+        nb.update({
+            "signal": "Beobachten",
+            "reason": "Rechnerische Turnaround-Unterbewertung vorhanden, aber FY2027-Umsatz und Kernnachfrage sinken noch. Neukäufe bleiben bis zu belastbarer Nachfrage-/Umsatzstabilisierung auf Beobachten begrenzt.",
+            "turnaround_action_brake": True,
+        })
+    if hs.get("signal") == "Nachkaufen":
+        hs.update({
+            "signal": "Halten",
+            "reason": "Rechnerische Turnaround-Unterbewertung vorhanden, aber der Nachfrage-/Umsatztrend ist noch negativ. Nachkaufen bleibt bis zu belastbarer Stabilisierung gesperrt.",
+            "turnaround_action_brake": True,
+        })
+    return nb, hs
+
+
 # =========================================================
 # Modul 6 – Schritt 1: Bewertungs-Korridor & Fundamental-Multiple
 # =========================================================
@@ -16068,6 +16409,39 @@ def get_special_control(company_type, symbol):
                 "V2.20.73 behandelt Baker Hughes als Energy-Technology-Plattform statt als integrierten Ölproduzenten. "
                 "Q2 2026 bildet OFSE/IET vor der Chart-Übernahme ab, während der aktuelle Kurs bereits nach dem Closing vom 16.07.2026 liegt. "
                 "Deshalb bleiben generischer Öl-&-Gas-KGV-Pfad, Standard-FCF/Bilanz-Score und Fair Value gesperrt, bis eine belastbare Post-Chart Earnings- und Kapitalstrukturbasis vorliegt."
+            ),
+        }
+
+    if symbol_text in {"UA", "UAA", "OMC"} or "consumer / athletic apparel & footwear / turnaround" in type_name or "advertising / marketing services / post-merger integration" in type_name:
+        is_ua = symbol_text in {"UA", "UAA"} or "consumer / athletic apparel & footwear / turnaround" in type_name
+        return {
+            "required": True,
+            "control_key": "turnaround_postmerger_specialist",
+            "control_name": "Turnaround / Post-Merger Primärquellen-, Quality- & Bewertungsanker-Kontrolle",
+            "planned_checks": (
+                [
+                    "FY2027 Revenue-/Demand-Trend statt instabilem Near-zero-P/E",
+                    "Gross-Margin-Qualität ex temporärem Tarifrefund",
+                    "Adjusted Operating Income / Profitabilitätsfortschritt",
+                    "Liquidität, Restrukturierungsfortschritt und Inventory-Disziplin",
+                    "Offizielle A+B+C-Diluted-Share-Basis",
+                    "Scoregesteuerter konservativer P/S-Korridor",
+                    "Demand-Stabilization Action Brake",
+                    "Analysten-Kursziel nur Reality Check",
+                ] if is_ua else [
+                    "Post-IPG H1 Adjusted EPS als vollständig post-merger Earnings-Basis",
+                    "Core Organic Growth und Core Adjusted-EBITA-Marge",
+                    "Adjusted-EPS-Wachstum und Integrations-/Synergie-Execution",
+                    "Portfolio-/Core-Operations-Klarheit",
+                    "Finanzierungs-/Zinslast nach IPG",
+                    "Scoregesteuerter konservativer Post-Merger-KGV-Korridor",
+                    "Analysten-Kursziel nur Reality Check",
+                ]
+            ),
+            "status": "Router aktiv – V2.20.94 UA/OMC Specialist Valuation V1",
+            "note": (
+                "UA/UAA und OMC werden nicht in das generische EPS-/FCF-Modell gedrückt. "
+                "Der Bewertungsanker wird erst in Schritt 3B aus aktuellem Primärquellen-Kontext freigegeben."
             ),
         }
 
@@ -22825,6 +23199,7 @@ def calculate_valuation_confidence(
     is_semicap_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "semicap_quality_adjusted_pe"
     is_nvidia_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "nvidia_ai_quality_operating_pe"
     is_utility_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "regulated_utility_core_eps_pe"
+    is_turnaround_postmerger_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") in {"ua_turnaround_psales", "omc_post_merger_adjusted_pe"}
     if is_auto_valuation:
         cycle_status = str(fair_value.get("cycle_status") or "")
         cycle_level = "Mittel" if cycle_status in {"Stark", "Mittel"} else "Mittel bis Hoch"
@@ -22845,7 +23220,7 @@ def calculate_valuation_confidence(
     elif is_utility_valuation:
         guidance_level = "Hoch"
         components["Current-FY Core/Adjusted EPS Guidance"] = (_confidence_rank_value(guidance_level), guidance_level)
-    elif not is_reit_valuation:
+    elif not is_reit_valuation and not is_turnaround_postmerger_valuation:
         eps_level = (eps_normalization or {}).get("confidence")
         eps_rank = _confidence_rank_value(eps_level)
         if eps_rank is not None:
@@ -23574,6 +23949,110 @@ def calculate_fair_value_v1(
                 "45 % verifizierter Core-TTM-EPS/Core-KGV-Anker. Standard-FCF und "
                 "klassische Netto-Schulden/FCF-Logik werden nicht verwendet."
             ),
+        })
+        return result
+
+
+    # V2.20.94 – UA/UAA turnaround P/S and OMC post-merger Adjusted-EPS valuation.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "turnaround_postmerger_specialist"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        sv = checks.get("specialist_valuation") or {}
+        ss = checks.get("specialist_score") or {}
+        snap = special_control.get("snapshot") or {}
+        sym = str(snap.get("symbol") or "").upper().strip()
+        fv = safe_float(sv.get("fair_value_financial"))
+        if not sv.get("available") or fv is None or fv <= 0:
+            result["note"] = "Fair Value V1 gesperrt: UA/OMC-Spezialanker nicht vollständig verfügbar."
+            return result
+
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der UA/OMC-Spezialbewertung sind nicht eindeutig."
+            return result
+
+        share_context = context.get("share_unit_context") or {}
+        share_ratio = 1.0
+        unit_notes = []
+        if share_context.get("conversion_required"):
+            if not share_context.get("conversion_available"):
+                result["note"] = "Fair Value V1 gesperrt: abweichende Handelseinheit ohne verifizierte Aktien-/ADR-Umrechnung."
+                return result
+            share_ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
+            if share_ratio is None or share_ratio <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Aktien-/ADR-Verhältnis ist nicht belastbar."
+                return result
+            unit_notes.append(
+                "Aktieneinheit ausdrücklich angeglichen: 1 "
+                f"{share_context.get('quote_unit_name') or 'Handelseinheit'} = {share_ratio:g} "
+                f"{share_context.get('fundamental_unit_name') or 'Fundamentalaktien'}."
+            )
+
+        fvq = fv * share_ratio
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Währungsumrechnung der UA/OMC-Spezialbewertung nicht belastbar verfügbar."
+                return result
+            fvq *= factor
+            unit_notes.append(
+                f"Währungsangleichung: {financial_currency} → {quote_currency} mit Faktor {factor:.6f}."
+            )
+        elif quote_currency != financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+
+        cp = safe_float(current_price)
+        potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+        if sym in {"UA", "UAA"}:
+            valuation_method = "ua_turnaround_psales"
+            normalized_eps_value = None
+            multiple_source = "V2.20.94 UA Turnaround Quality Score → konservativer P/S-Korridor"
+            note = (
+                "UA/UAA-Turnaround-Fair-Value V1 = konservative FY2027 Revenue-Basis × scoregesteuertes P/S / "
+                "offizielle verwässerte A+B+C-Aktienbasis. Near-zero Adjusted EPS, GAAP-TTM und Analysten-Kursziele "
+                "bleiben vollständig außerhalb des Fair Values."
+            )
+        elif sym == "OMC":
+            valuation_method = "omc_post_merger_adjusted_pe"
+            normalized_eps_value = safe_float(snap.get("post_merger_annualized_adjusted_eps"))
+            multiple_source = "V2.20.94 OMC Post-Merger Quality Score → konservativer Adjusted-Earnings-KGV-Korridor"
+            note = (
+                "OMC-Post-Merger-Fair-Value V1 = vollständig post-merger H1-2026 Adjusted-EPS-Run-Rate × "
+                "scoregesteuertes Post-Merger-KGV. FY2025/GAAP-TTM bleiben Kontext; Analysten-Kursziele sind ausgeschlossen."
+            )
+        else:
+            result["note"] = "Fair Value V1 gesperrt: nicht unterstützter UA/OMC-Spezialtyp."
+            return result
+
+        result.update({
+            "available": True,
+            "valuation_method": valuation_method,
+            "normalized_eps": normalized_eps_value,
+            "used_multiple": safe_float(sv.get("target_multiple")),
+            "multiple_source": multiple_source,
+            "fair_value_financial": fv,
+            "fair_value_quote": fvq,
+            "potential_pct": potential,
+            "specialist_score": safe_float(ss.get("score")),
+            "specialist_quality_level": ss.get("quality_level"),
+            "specialist_components": ss.get("components") or {},
+            "target_multiple": safe_float(sv.get("target_multiple")),
+            "multiple_corridor_low": safe_float(sv.get("corridor_low")),
+            "multiple_corridor_high": safe_float(sv.get("corridor_high")),
+            "specialist_valuation_method_name": sv.get("valuation_method_name"),
+            "revenue_basis": safe_float(sv.get("revenue_basis")),
+            "share_basis": safe_float(sv.get("share_basis")),
+            "fair_equity_value_financial": safe_float(sv.get("fair_equity_value_financial")),
+            "reconstructed_adjusted_ttm_context": safe_float(snap.get("reconstructed_adjusted_ttm_context")),
+            "post_merger_annualized_adjusted_eps": safe_float(snap.get("post_merger_annualized_adjusted_eps")),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": note,
         })
         return result
 
@@ -27523,7 +28002,7 @@ def build_selected_stock_result(selected_symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "utility_context_isolation_v22093_20260912"
+CACHE_VERSION = "ua_omc_specialist_v22094_20260912"
 
 @st.cache_data(
     ttl=900,
@@ -28129,6 +28608,12 @@ def load_stock(selected_symbol, cache_version):
         fundamental_symbol
     )
 
+    turnaround_postmerger_specialist_model = build_turnaround_postmerger_specialist_model(
+        company_type,
+        fundamental_info,
+        fundamental_symbol
+    )
+
     fundamental_multiple = calculate_fundamental_multiple(
         company_type,
         growth_score,
@@ -28337,6 +28822,30 @@ def load_stock(selected_symbol, cache_version):
             ),
         }
 
+    if turnaround_postmerger_specialist_model.get("applicable"):
+        tp_score = turnaround_postmerger_specialist_model.get("specialist_score") or {}
+        tp_val = turnaround_postmerger_specialist_model.get("specialist_valuation") or {}
+        corridor = {
+            "available": bool(tp_val.get("available")),
+            "lower": safe_float(tp_val.get("corridor_low")),
+            "upper": safe_float(tp_val.get("corridor_high")),
+            "method": tp_val.get("valuation_method_name") or "Turnaround/Post-Merger Spezialmultiple",
+            "note": "V2.20.94: Der Korridor gehört ausschließlich zum primärquellenbasierten UA/OMC-Spezialmodell; generische Scores bleiben Diagnosekontext.",
+        }
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": safe_float(tp_score.get("score")),
+            "corridor": corridor,
+            "multiple": safe_float(tp_val.get("target_multiple")),
+            "available": bool(tp_score.get("available") and tp_val.get("available")),
+            "earnings_basis_usable": bool(tp_val.get("available")),
+            "note": (
+                "V2.20.94 verwendet für UA/UAA beziehungsweise OMC keinen generischen 100-Punkte-Score. "
+                "Der eigene Quality Score setzt das subtype-spezifische P/S- bzw. Adjusted-P/E-Zielmultiple; "
+                "die Primärquellenbasis des Spezialmodells ist der einzige Fair-Value-Anker."
+            ),
+        }
+
     peer_group = get_peer_group(
         company_type,
         fundamental_symbol
@@ -28439,6 +28948,11 @@ def load_stock(selected_symbol, cache_version):
         adjusted_earnings_specialist_model
     )
 
+    special_control = build_turnaround_postmerger_special_control(
+        special_control,
+        turnaround_postmerger_specialist_model
+    )
+
     special_control = build_baker_hughes_special_control(
         special_control,
         company_type,
@@ -28508,6 +29022,42 @@ def load_stock(selected_symbol, cache_version):
         bank_special_model=bank_special_model,
         insurance_special_model=insurance_special_model
     )
+
+    if turnaround_postmerger_specialist_model.get("applicable") and turnaround_postmerger_specialist_model.get("valuation_anchor_complete"):
+        tp_snap_event = turnaround_postmerger_specialist_model.get("snapshot") or {}
+        tp_sym_event = str(tp_snap_event.get("symbol") or "").upper()
+        if tp_sym_event in {"UA", "UAA"}:
+            special_event_warning = {
+                "level": "Gelb",
+                "icon": "🟡",
+                "title": "Under Armour Turnaround / Demand-Stabilization Gate aktiv",
+                "requires_research": False,
+                "valuation_usable": True,
+                "reason": (
+                    "Die FY2027 Profitabilitäts-Guidance bleibt nutzbar, aber Umsatz, Nordamerika, DTC und Footwear befinden sich noch im Rückgang. "
+                    "Near-zero Adjusted EPS wird deshalb nicht in ein P/E gezwungen; der Fair Value nutzt einen konservativen Revenue/P-Sales-Turnaround-Anker."
+                ),
+                "action": (
+                    "Der Fair Value bleibt als Turnaround-Bewertungsanker nutzbar. Kauf/Nachkauf wird jedoch auf Beobachten/Halten begrenzt, "
+                    "bis eine spätere Primärquelle belastbare Nachfrage- und Umsatzstabilisierung zeigt."
+                ),
+            }
+        elif tp_sym_event == "OMC":
+            special_event_warning = {
+                "level": "Gelb",
+                "icon": "🟡",
+                "title": "Omnicom Post-IPG Integration / Adjusted-Earnings Overlay aktiv",
+                "requires_research": False,
+                "valuation_usable": True,
+                "reason": (
+                    "FY2025 und GAAP-TTM sind durch IPG-Closing, Integrations-/Transaktionskosten, Repositioning und Dispositionen strukturell verzerrt. "
+                    "V2.20.94 verwendet deshalb ausschließlich den vollständig post-merger H1-2026 Adjusted-EPS-Run-Rate als Bewertungsbasis."
+                ),
+                "action": (
+                    "Der Fair Value bleibt nutzbar; Integrations- und Zinsrisiko werden im Quality Score und konservativen 8–12×-KGV-Korridor berücksichtigt. "
+                    "Analystenziele bleiben nur externer Reality Check."
+                ),
+            }
 
     if regulated_utility_specialist_model.get("applicable") and regulated_utility_specialist_model.get("valuation_anchor_complete"):
         util_snap_event = regulated_utility_specialist_model.get("snapshot") or {}
@@ -28721,6 +29271,12 @@ def load_stock(selected_symbol, cache_version):
         regulated_utility_specialist_model
     )
 
+    new_buy_signal, holding_signal = apply_turnaround_postmerger_action_brake(
+        new_buy_signal,
+        holding_signal,
+        turnaround_postmerger_specialist_model
+    )
+
     analyst_consensus = load_external_analyst_consensus(
         quote_ticker,
         quote_info,
@@ -28864,6 +29420,7 @@ def load_stock(selected_symbol, cache_version):
         "reit_special_model": reit_special_model,
         "regulated_utility_specialist_model": regulated_utility_specialist_model,
         "adjusted_earnings_specialist_model": adjusted_earnings_specialist_model,
+        "turnaround_postmerger_specialist_model": turnaround_postmerger_specialist_model,
         "fundamental_multiple": fundamental_multiple,
         "peer_group": peer_group,
         "peer_check": peer_check,
@@ -30694,6 +31251,7 @@ if selected_symbol:
                 is_nvidia_score_ui = is_nvidia_ai_growth_company_type(company_type)
                 is_adjusted_specialist_score_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                 is_utility_specialist_score_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
+                is_turnaround_postmerger_score_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 is_kratos_score_ui = str(selected_symbol or "").upper() == "KTOS"
                 is_bkr_score_ui = str(selected_symbol or "").upper() == "BKR"
 
@@ -30718,6 +31276,9 @@ if selected_symbol:
                 elif is_adjusted_specialist_score_ui:
                     st.info("ℹ️ Im Adjusted-Earnings-Spezialmodell berücksichtigt: Der generische Wachstumsscore wird nicht verwendet.")
                     st.caption("Wachstum wird im specialistischen Quality Score mit unternehmenstypischen Primärkennzahlen bewertet; Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext.")
+                elif is_turnaround_postmerger_score_ui:
+                    st.info("ℹ️ Im UA/OMC-Spezialmodell berücksichtigt: Der generische Wachstumsscore wird nicht verwendet.")
+                    st.caption("UA bewertet Nachfrage-/Revenue-Turnaround; OMC bewertet Core Organic Growth auf post-merger Basis. Yahoo-Wachstumswerte bleiben Diagnosekontext.")
                 elif is_nvidia_score_ui:
                     st.info("NVIDIA/Fabless-AI-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.67 verwendet den eigenen primärquellenbasierten AI-Quality-Score sowie Demand-Quality- und Earnings-Horizon-Gates.")
                     st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf den NVIDIA AI-Quality-Score oder das Earnings-Horizon-Alignment-Gate.")
@@ -30828,7 +31389,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui:
+                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_turnaround_postmerger_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -30854,6 +31415,7 @@ if selected_symbol:
                 is_nvidia_profitability_ui = is_nvidia_ai_growth_company_type(company_type)
                 is_adjusted_specialist_profitability_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                 is_utility_specialist_profitability_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
+                is_turnaround_postmerger_profitability_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 is_bkr_profitability_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                 if is_bkr_profitability_ui:
@@ -30864,6 +31426,9 @@ if selected_symbol:
                 elif is_adjusted_specialist_profitability_ui:
                     st.info("ℹ️ Im Adjusted-Earnings-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption("Ertragsqualität wird im specialistischen Quality Score über Adjusted EBITDA/EBIT-Marge, Adjusted-EPS-Qualität und die jeweiligen Primärkennzahlen des Geschäftsmodells bewertet.")
+                elif is_turnaround_postmerger_profitability_ui:
+                    st.info("ℹ️ Im UA/OMC-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
+                    st.caption("UA nutzt Adjusted Operating Income und Bruttomargenqualität; OMC Core Adjusted EBITA und Adjusted EPS. Generische Yahoo-Margen/ROE bleiben Kontext.")
                 elif is_nvidia_profitability_ui:
                     st.info("NVIDIA/Fabless-AI-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. V2.20.67 bewertet Gross-Margin-Resilienz und Earnings-Quality-Risiken im eigenen AI-Quality-Score.")
                 elif is_semicap_profitability_ui:
@@ -31007,6 +31572,8 @@ if selected_symbol:
                     and not is_nvidia_ai_growth_company_type(company_type)
                     and not is_baker_hughes_energy_tech_company_type(company_type)
                     and not is_adjusted_specialist_profitability_ui
+                    and not is_utility_specialist_profitability_ui
+                    and not is_turnaround_postmerger_profitability_ui
                 ):
                     st.caption(
                         "Die Profitabilität basiert derzeit auf "
@@ -31131,6 +31698,7 @@ if selected_symbol:
                     is_nvidia_model_ui = is_nvidia_ai_growth_company_type(company_type)
                     is_adjusted_specialist_fcf_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     is_utility_specialist_fcf_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
+                    is_turnaround_postmerger_fcf_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                     is_bkr_model_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                     if is_bkr_model_ui:
@@ -31142,6 +31710,9 @@ if selected_symbol:
                     elif is_adjusted_specialist_fcf_ui:
                         st.info("ℹ️ Im Adjusted-Earnings-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
                         st.caption("Cashflow-Qualität wird im jeweiligen Spezialmodell über FCF-Conversion, OCF/CapEx oder geschäftsmodellspezifische Primärkennzahlen geprüft; Yahoo-TTM-FCF bleibt Kontext.")
+                    elif is_turnaround_postmerger_fcf_ui:
+                        st.info("ℹ️ Im UA/OMC-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
+                        st.caption("UA berücksichtigt Liquidität und Restrukturierungs-Cash-Kontext; OMC Integration/Finanzierungsqualität. Yahoo-TTM-FCF ist kein Fair-Value-Anker.")
                     elif is_nvidia_model_ui:
                         st.info("ℹ️ NVIDIA/Fabless-AI-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
                         st.caption("V2.20.67 verwendet ausschließlich den von NVIDIA ausgewiesenen Q2-FY2027-Free-Cashflow in der FCF-/Liquiditätskomponente des AI-Quality-Scores. Yahoo-TTM-FCF bleibt Kontext und beeinflusst weder Demand-/Horizon-Gates noch Fair Value.")
@@ -31207,6 +31778,7 @@ if selected_symbol:
                     and not is_baker_hughes_energy_tech_company_type(company_type)
                     and not bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 ):
                     st.caption(
                         "Die FCF-Punkte basieren auf der aktuellen "
@@ -31330,6 +31902,7 @@ if selected_symbol:
                     is_nvidia_balance_ui = is_nvidia_ai_growth_company_type(company_type)
                     is_adjusted_specialist_balance_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     is_utility_specialist_balance_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
+                    is_turnaround_postmerger_balance_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                     is_bkr_balance_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                     if is_bkr_balance_ui:
@@ -31341,6 +31914,9 @@ if selected_symbol:
                     elif is_adjusted_specialist_balance_ui:
                         st.info("ℹ️ Im Adjusted-Earnings-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("Verschuldung wird im specialistischen Quality Score über Net Leverage beziehungsweise geschäftsmodellspezifische Debt-/Cashflow-Kennzahlen geprüft; Yahoo-Schulden bleiben Kontext.")
+                    elif is_turnaround_postmerger_balance_ui:
+                        st.info("ℹ️ Im UA/OMC-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
+                        st.caption("UA bewertet Cash, Revolver und Restrukturierungsfortschritt; OMC berücksichtigt die post-IPG Zins-/Finanzierungslast. Yahoo-Schulden/FCF bleiben Kontext.")
                     elif is_nvidia_balance_ui:
                         st.info("ℹ️ NVIDIA/Fabless-AI-Modell: Standard-Netto-Schulden/FCF-Score ist kein Bewertungsbaustein")
                         st.caption("V2.20.67 bewertet Liquidität sowie Inventory-/Commitment-/Working-Capital-Qualität innerhalb des primärquellenbasierten AI-Quality-Scores und Demand-Quality-Gates. Die generische Netto-Schulden/FCF-Punktelogik bleibt deaktiviert.")
@@ -33668,6 +34244,50 @@ if selected_symbol:
                         "nachfolgenden Fair-Value-Schritt, solange sie noch "
                         "nicht vollständig implementiert und freigegeben sind."
                     )
+
+                if special_control.get("control_key") == "turnaround_postmerger_specialist":
+                    st.divider()
+                    st.subheader("🔄 Modul 6 – Schritt 3B: UA Turnaround / OMC Post-Merger Spezialmodell V1")
+                    if special_control.get("implemented"):
+                        checks_tp = special_control.get("checks") or {}
+                        snap_tp = special_control.get("snapshot") or {}
+                        score_tp = checks_tp.get("specialist_score") or {}
+                        val_tp = checks_tp.get("specialist_valuation") or {}
+                        sym_tp = str(snap_tp.get("symbol") or selected_symbol or "").upper()
+                        st.write(f"**Operativer Datenstand:** {text_or_dash(snap_tp.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_tp.get('published_date'))})")
+                        st.caption(text_or_dash(snap_tp.get("source_name")))
+                        if score_tp.get("available"):
+                            st.metric("Spezialistischer Quality Score", f"{score_tp.get('score'):.0f}/100 · {score_tp.get('quality_level')}")
+                            st.markdown("**Score-Komponenten:**")
+                            for label, value in (score_tp.get("components") or {}).items():
+                                st.write(f"• {label}: {safe_float(value):.1f} Punkte")
+                        if sym_tp in {"UA", "UAA"}:
+                            st.write(f"**Q1 Umsatz / Nordamerika / DTC / Footwear:** {snap_tp.get('q1_revenue_growth_pct'):.1f} % / {snap_tp.get('q1_north_america_growth_pct'):.1f} % / {snap_tp.get('q1_dtc_growth_pct'):.1f} % / {snap_tp.get('q1_footwear_growth_pct'):.1f} %")
+                            st.write(f"**Q1 Gross Margin:** {snap_tp.get('q1_gross_margin_pct'):.1f} % · **FY2027 erwartete Verbesserung:** {snap_tp.get('fy2027_gross_margin_improvement_low_bps'):.0f}–{snap_tp.get('fy2027_gross_margin_improvement_high_bps'):.0f} bp · davon ~{snap_tp.get('fy2027_tariff_refund_margin_benefit_bps'):.0f} bp Tarifrefund")
+                            st.write(f"**FY2027 Adjusted Operating Income:** {format_money(snap_tp.get('fy2027_adjusted_operating_income_low'), 'USD')} – {format_money(snap_tp.get('fy2027_adjusted_operating_income_high'), 'USD')} · **Adjusted EPS:** {snap_tp.get('fy2027_adjusted_eps_low'):.2f}–{snap_tp.get('fy2027_adjusted_eps_high'):.2f} USD")
+                            st.write(f"**Cash / Long-term Debt / Revolver:** {format_money(snap_tp.get('q1_cash'), 'USD')} / {format_money(snap_tp.get('q1_long_term_debt'), 'USD')} / {format_money(snap_tp.get('q1_revolver_borrowings'), 'USD')}")
+                            st.write(f"**Restrukturierung:** {format_money(snap_tp.get('restructuring_incurred'), 'USD')} von ~{format_money(snap_tp.get('restructuring_expected_total'), 'USD')} angefallen · **Inventory YoY:** {snap_tp.get('inventory_yoy_pct'):.1f} %")
+                            if val_tp.get("available"):
+                                st.write("**FY2027 Revenue-Bewertungsbasis:** " + format_money(val_tp.get("revenue_basis"), "USD"))
+                                st.write(f"**Offizielle Diluted A+B+C-Aktienbasis:** {val_tp.get('share_basis')/1e6:.1f} Mio.")
+                                st.write(f"**Turnaround P/S-Korridor:** {val_tp.get('corridor_low'):.2f}× – {val_tp.get('corridor_high'):.2f}× · **Ziel-P/S:** {val_tp.get('target_multiple'):.2f}×")
+                                st.write("**Fundamentaler Turnaround-Fair-Value:** " + format_eps(val_tp.get("fair_value_financial"), "USD"))
+                                st.warning("Demand-Stabilization Brake aktiv: Ein rechnerisches Kauf-/Nachkauf-Signal bleibt auf Beobachten/Halten begrenzt, solange Umsatz und Kernnachfrage noch rückläufig sind.")
+                        elif sym_tp == "OMC":
+                            st.write(f"**IPG Closing:** {text_or_dash(snap_tp.get('ipg_close_date'))} · FY2025 deshalb überwiegend pre-merger")
+                            st.write(f"**Core Organic Growth Q1/Q2:** {snap_tp.get('q1_core_organic_growth_pct'):.1f} % / {snap_tp.get('q2_core_organic_growth_pct'):.1f} % · **Q2 Core Adjusted-EBITA-Marge:** {snap_tp.get('q2_core_adjusted_ebita_margin_pct'):.1f} %")
+                            st.write(f"**H1 Adjusted EPS:** {snap_tp.get('h1_adjusted_eps'):.2f} USD vs. {snap_tp.get('h1_2025_adjusted_eps'):.2f} USD · Wachstum {snap_tp.get('h1_adjusted_eps_growth_pct'):.1f} %")
+                            st.write(f"**Post-Merger Earnings-Referenz:** H1 {snap_tp.get('h1_adjusted_eps'):.2f} × 2 = {snap_tp.get('post_merger_annualized_adjusted_eps'):.2f} USD · **reconstructed TTM nur Kontext:** {snap_tp.get('reconstructed_adjusted_ttm_context'):.2f} USD")
+                            st.write(f"**Q2 Integrations-/Transaktionskosten / Repositioning:** {format_money(snap_tp.get('q2_integration_transaction_costs'), 'USD')} / {format_money(snap_tp.get('q2_repositioning_costs'), 'USD')} · **Net Interest:** {format_money(snap_tp.get('q2_net_interest_expense'), 'USD')}")
+                            st.write(f"**Synergie-Ziel gesamt / 2026:** {format_money(snap_tp.get('synergy_target_total'), 'USD')} / {format_money(snap_tp.get('synergy_target_2026'), 'USD')}")
+                            if val_tp.get("available"):
+                                st.write(f"**Post-Merger KGV-Korridor:** {val_tp.get('corridor_low'):.2f}× – {val_tp.get('corridor_high'):.2f}× · **Ziel-KGV:** {val_tp.get('target_multiple'):.2f}×")
+                                st.write("**Fundamentaler Post-Merger-Fair-Value:** " + format_eps(val_tp.get("fair_value_financial"), "USD"))
+                                st.caption("Die 9,06-USD-Referenz ist eine mechanische H1-Annualisierung, keine Management-FY-Guidance; deshalb bleibt die Bewertungssicherheit auf Mittel begrenzt.")
+                        st.success("Bewertungsfreigabe JA: Spezialscore und issuer-spezifischer Bewertungsanker sind vollständig; Analystenziele bleiben ausschließlich Modul 8.")
+                        st.caption(special_control.get("note"))
+                    else:
+                        st.warning(special_control.get("note"))
 
                 if special_control.get(
                     "control_key"
@@ -36737,6 +37357,20 @@ if selected_symbol:
                                 "**Abstand der Bewertungsanker:** "
                                 f"{fair_value.get('anchor_spread_pct'):.1f} %"
                             )
+                    elif fair_value.get("valuation_method") == "ua_turnaround_psales":
+                        st.write("**Bewertungsformel:** FY2027 Revenue-Basis × scoregesteuertes Turnaround-P/S / offizielle Diluted A+B+C-Aktien")
+                        st.write(f"**Spezialistischer Quality Score:** {fair_value.get('specialist_score'):.0f}/100 · {fair_value.get('specialist_quality_level')}")
+                        st.write("**FY2027 Revenue-Basis:** " + format_money(fair_value.get("revenue_basis"), fair_value["financial_currency"]))
+                        st.write(f"**Ziel-P/S:** {fair_value.get('target_multiple'):.2f}× · **Korridor:** {fair_value.get('multiple_corridor_low'):.2f}× – {fair_value.get('multiple_corridor_high'):.2f}×")
+                        st.write(f"**Diluted A+B+C Share-Basis:** {fair_value.get('share_basis')/1e6:.1f} Mio.")
+                        st.caption("Near-zero Adjusted EPS wird bewusst nicht in ein P/E gezwungen. Der Tarifrefund wird nicht separat zum Fair Value addiert. Analystenziele bleiben außerhalb der Rechnung.")
+                    elif fair_value.get("valuation_method") == "omc_post_merger_adjusted_pe":
+                        st.write("**Bewertungsformel:** vollständig post-merger H1 Adjusted-EPS-Run-Rate × scoregesteuertes Post-Merger-KGV")
+                        st.write(f"**Spezialistischer Quality Score:** {fair_value.get('specialist_score'):.0f}/100 · {fair_value.get('specialist_quality_level')}")
+                        st.write("**Post-Merger Adjusted-EPS-Referenz:** " + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"]))
+                        st.write(f"**Ziel-KGV:** {fair_value.get('target_multiple'):.2f}× · **Korridor:** {fair_value.get('multiple_corridor_low'):.2f}× – {fair_value.get('multiple_corridor_high'):.2f}×")
+                        st.write("**Reconstructed Adjusted TTM (nur Kontext):** " + format_eps(fair_value.get("reconstructed_adjusted_ttm_context"), fair_value["financial_currency"]))
+                        st.caption("Die H1-Annualisierung ist keine FY-Guidance. GAAP-TTM, FY2025 pre-merger Mix und Analysten-Kursziele sind kein Bestandteil des Fair Values.")
                     elif fair_value.get("valuation_method") == "regulated_utility_core_eps_pe":
                         st.write("**Bewertungsformel:** Current-FY Core/Adjusted EPS Guidance × Utility Quality-P/E; danach downside-only Regulatory/Transaction Risk Overlay")
                         st.write(
