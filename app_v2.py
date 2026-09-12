@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.91"
+APP_BUILD_VERSION = "V2.20.92"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Confidence-aware Signal Brake & Specialist UI Alignment"
+    f"Build {APP_BUILD_VERSION} · Regulated-Utility Specialist Valuation V1 (EIX / POR)"
 )
 
 
@@ -69,6 +69,7 @@ st.caption(
 
 # V2.20.90: Adjusted-Earnings Specialist Valuation V1 for TransUnion, IQVIA and Eastman. Adds issuer-verified Q2/FY2026 primary-source snapshots, subtype-specific 100-point quality scores and conservative score-driven Adjusted-Earnings P/E corridors. The already-aligned normalized EPS remains the sole earnings basis; Yahoo GAAP TTM, generic FCF/balance scores and analyst targets do not enter the fair value. Reality Check remains external-only.
 # V2.20.91: Confidence-aware Signal Brake & Specialist UI Alignment. Globally caps “Starker Kauf” at High valuation confidence, requires at least 15% own Fair-Value upside for a Buy/Add action when confidence is Medium, and keeps 5–15% Medium-confidence upside at Beobachten/Halten. Fundamental-strength wording is aligned to 90+ Sehr stark, 80–89 Stark, 70–79 Gut, 50–69 Ausreichend. For the active TRU/IQV/EMN adjusted-earnings specialist path, generic growth/profitability/FCF/balance sections now state that those dimensions are handled inside the specialist model instead of showing misleading “special model required” placeholders. Fair-value formulas, specialist scores, P/E corridors and Reality Check mathematics are unchanged.
+# V2.20.92: Regulated-Utility Specialist Valuation V1. Adds a dedicated EIX/POR utility model using issuer Core/Adjusted current-FY EPS guidance, rate-base/EPS growth, allowed/earned ROE, FFO/credit metrics, dividend quality and financing/capital-plan quality. Generic Yahoo FCF and Net-Debt/FCF stay outside utility valuation. Downside-only explicit risk overlays cap the quality P/E for EIX wildfire-liability tail risk and POR pending WA acquisition/financing risk. EIX also receives an action brake to Beobachten/Halten while the open-ended California wildfire-liability framework remains unresolved. Analyst targets remain Module 8 only.
 
 # =========================================================
 # Hilfsfunktionen
@@ -13537,12 +13538,14 @@ def _specialist_quality_level(score):
     value = safe_float(score)
     if value is None:
         return None
+    if value >= 90:
+        return "Sehr stark"
     if value >= 80:
         return "Stark"
-    if value >= 65:
+    if value >= 70:
         return "Gut"
     if value >= 50:
-        return "Mittel"
+        return "Ausreichend"
     return "Schwach"
 
 
@@ -13840,11 +13843,438 @@ def build_adjusted_earnings_special_control(control, specialist_model):
             "specialist_valuation": valuation,
         },
         "note": (
-            "V2.20.91 verwendet für TRU/IQV/EMN ausschließlich die bereits bereinigte Same-Basis-Earnings-Referenz plus "
+            "V2.20.92 verwendet für TRU/IQV/EMN ausschließlich die bereits bereinigte Same-Basis-Earnings-Referenz plus "
             "unternehmensspezifische Primärkennzahlen. Standard-FCF/Bilanz-Score und Analysten-Kursziele bleiben außerhalb des Fair Values."
         ),
     })
     return out
+
+
+# =========================================================
+# V2.20.92 – Regulated-Utility Specialist Valuation V1
+# EIX / POR
+# =========================================================
+
+def is_regulated_utility_specialist_type(company_type):
+    type_name = normalized_company_type_name(company_type)
+    return "versorger / regulated electric" in type_name
+
+
+def get_verified_regulated_utility_snapshot(symbol):
+    """Time-bounded regulated-utility operating / regulatory snapshots.
+
+    Only company/regulatory operating inputs are used in the utility score and
+    valuation. Analyst price targets never enter this snapshot or the Fair Value.
+    The risk overlays are explicit downside-only policy gates, not market-target
+    calibration knobs.
+    """
+    sym = str(symbol or "").upper().strip()
+
+    if sym == "EIX":
+        return {
+            "symbol": "EIX",
+            "company": "Edison International",
+            "as_of_date": "30.06.2026",
+            "published_date": "30.07.2026",
+            "source_name": "Edison International Q2 2026 Results + July 2026 Business Update",
+            "source_url": "https://www.sec.gov/Archives/edgar/data/92103/000082705226000061/exhibit99107eixjuly2026b.htm",
+            "earnings_basis_name": "FY2026 Core EPS Guidance",
+            "fy_eps_guidance_low": 5.90,
+            "fy_eps_guidance_high": 6.20,
+            "fy_eps_guidance_mid": 6.05,
+            "long_term_eps_growth_mid_pct": 6.0,
+            "rate_base_2026": 50.8e9,
+            "rate_base_2030": 67.9e9,
+            "rate_base_cagr_pct": 7.0,
+            "authorized_roe_cpuc_pct": 10.03,
+            "authorized_roe_ferc_pct": 10.30,
+            "authorized_roe_avg_pct": (10.03 + 10.30) / 2.0,
+            "ffo_to_debt_target_mid_pct": 16.0,
+            "credit_rating_sp": "BBB- / Negative",
+            "credit_rating_moodys": "Baa2 / Stable",
+            "credit_rating_fitch": "BBB / Stable",
+            "negative_credit_outlook": True,
+            "dividend_annualized": 3.51,
+            "dividend_growth_years": 22,
+            "dividend_payout_target_low_pct": 45.0,
+            "dividend_payout_target_high_pct": 55.0,
+            "capital_plan_low": 38e9,
+            "capital_plan_high": 41e9,
+            "capital_plan_mid": 39.5e9,
+            "no_equity_issuance_forecast_2026_2030": True,
+            "guidance_execution_quality": "strong",
+            "risk_as_of_date": "31.08.2026",
+            "risk_overlay_level": "Severe",
+            "risk_overlay_name": "California Wildfire Liability Tail-Risk Overlay",
+            "risk_pe_cap": 11.50,
+            "risk_action_cap": "observe_hold",
+            "risk_note": (
+                "Nach dem kalifornischen Gesetzgebungsstand Ende August 2026 bleiben wesentliche "
+                "Wildfire-Haftungsrisiken offen; insbesondere wurden keine ausreichende langfristige "
+                "Wildfire-Fund-Replenishment-Lösung und keine breiteren Haftungsschutzmechanismen "
+                "verabschiedet. Der Utility-P/E-Anker wird deshalb unabhängig vom Quality Score "
+                "downside-only auf 11,5× gedeckelt. Solange dieses Tail-Risk-Regime offen bleibt, "
+                "wird ein rechnerisches Kauf-/Nachkauf-Signal zusätzlich auf Beobachten/Halten begrenzt."
+            ),
+            "valuation_confidence_cap": "Mittel",
+        }
+
+    if sym == "POR":
+        rate_base_cagr = ((13.1 / 8.0) ** (1.0 / 4.0) - 1.0) * 100.0
+        return {
+            "symbol": "POR",
+            "company": "Portland General Electric Company",
+            "as_of_date": "30.06.2026",
+            "published_date": "31.07.2026",
+            "source_name": "Portland General Electric Q2 2026 Results + July 31, 2026 Investor Presentation",
+            "source_url": "https://investors.portlandgeneral.com/news-releases/news-release-details/portland-general-electric-announces-second-quarter-2026-results",
+            "earnings_basis_name": "FY2026 Adjusted EPS Guidance",
+            "fy_eps_guidance_low": 3.33,
+            "fy_eps_guidance_high": 3.53,
+            "fy_eps_guidance_mid": 3.43,
+            "long_term_eps_growth_mid_pct": 6.0,
+            "rate_base_2026": 8.0e9,
+            "rate_base_2030": 13.1e9,
+            "rate_base_cagr_pct": rate_base_cagr,
+            "allowed_roe_pct": 9.34,
+            "accounting_roe_2026_low_pct": 8.8,
+            "accounting_roe_2026_high_pct": 9.3,
+            "accounting_roe_2026_mid_pct": (8.8 + 9.3) / 2.0,
+            "ffo_credit_metric_2026_pct": 19.1,
+            "cfo_pre_wc_credit_metric_2026_pct": 20.1,
+            "credit_rating_sp": "BBB+ / Stable",
+            "credit_rating_moodys": "A3 / Stable",
+            "negative_credit_outlook": False,
+            "dividend_annualized": 0.55125 * 4.0,
+            "long_term_dividend_growth_mid_pct": 6.0,
+            "dividend_payout_target_low_pct": 60.0,
+            "dividend_payout_target_high_pct": 70.0,
+            "capex_2026": 1.655e9,
+            "capex_2026_2030": 7.63e9,
+            "equity_forward_2026": 550e6,
+            "atm_facility": 500e6,
+            "credit_agreement": 350e6,
+            "wa_acquisition_purchase_price": 1.9e9,
+            "wa_acquisition_expected_close": "2027",
+            "wa_acquisition_first_full_year_accretive": True,
+            "industrial_load_growth_q2_yoy_pct": 11.2,
+            "large_load_tariff_effective_date": "08.07.2026",
+            "guidance_execution_quality": "solid",
+            "risk_as_of_date": "31.07.2026",
+            "risk_overlay_level": "Moderate",
+            "risk_overlay_name": "WA Acquisition & Financing Visibility Overlay",
+            "risk_pe_cap": 15.50,
+            "risk_action_cap": None,
+            "risk_note": (
+                "Die 2026 Standalone-Guidance ist belastbar, die Washington-Utility-Akquisition ist jedoch "
+                "noch genehmigungs-, finanzierungs- und integrationsabhängig und soll erst 2027 schließen. "
+                "Der Quality-P/E-Anker wird deshalb downside-only auf 15,5× begrenzt; die Akquisition selbst "
+                "wird weder als zusätzliche EPS-Akkretion noch als Rate-Base-Bonus in den Fair Value eingerechnet."
+            ),
+            "valuation_confidence_cap": "Mittel",
+        }
+
+    return None
+
+
+def _utility_growth_points(eps_growth_pct, rate_base_growth_pct):
+    eps_g = safe_float(eps_growth_pct)
+    rb_g = safe_float(rate_base_growth_pct)
+    if eps_g is None or rb_g is None:
+        return None
+    if eps_g >= 7.0:
+        eps_pts = 12.5
+    elif eps_g >= 6.0:
+        eps_pts = 11.5
+    elif eps_g >= 5.0:
+        eps_pts = 10.0
+    elif eps_g >= 3.0:
+        eps_pts = 7.5
+    else:
+        eps_pts = 4.0
+    if rb_g >= 10.0:
+        rb_pts = 12.5
+    elif rb_g >= 7.0:
+        rb_pts = 11.0
+    elif rb_g >= 5.0:
+        rb_pts = 9.0
+    elif rb_g >= 3.0:
+        rb_pts = 6.0
+    else:
+        rb_pts = 3.0
+    return min(25.0, eps_pts + rb_pts)
+
+
+def _utility_regulatory_points(snapshot):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    allowed = safe_float(snap.get("allowed_roe_pct") or snap.get("authorized_roe_avg_pct"))
+    earned = safe_float(snap.get("accounting_roe_2026_mid_pct"))
+    if allowed is None:
+        return None
+    if earned is not None and allowed > 0:
+        ratio = earned / allowed
+        if ratio >= 0.98:
+            return 19.0
+        if ratio >= 0.95:
+            return 18.0
+        if ratio >= 0.90:
+            return 16.0
+        if ratio >= 0.85:
+            return 13.0
+        return 9.0
+    # When earned ROE is not disclosed on the same current-year basis, use the
+    # authorized ROE quality only and leave execution to the separate visibility component.
+    if allowed >= 10.0:
+        return 18.0
+    if allowed >= 9.5:
+        return 17.0
+    if allowed >= 9.0:
+        return 15.0
+    return 12.0
+
+
+def _utility_credit_points(snapshot):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    ffo = safe_float(snap.get("ffo_credit_metric_2026_pct") or snap.get("ffo_to_debt_target_mid_pct"))
+    if ffo is None:
+        return None
+    if ffo >= 20.0:
+        pts = 18.0
+    elif ffo >= 18.0:
+        pts = 16.0
+    elif ffo >= 15.0:
+        pts = 13.0
+    elif ffo >= 12.0:
+        pts = 10.0
+    else:
+        pts = 6.0
+    if snap.get("negative_credit_outlook"):
+        pts -= 2.0
+    elif "Stable" in str(snap.get("credit_rating_sp") or ""):
+        pts += 2.0
+    return max(0.0, min(20.0, pts))
+
+
+def _utility_dividend_points(snapshot):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    years = safe_float(snap.get("dividend_growth_years"))
+    growth = safe_float(snap.get("long_term_dividend_growth_mid_pct"))
+    payout_low = safe_float(snap.get("dividend_payout_target_low_pct"))
+    payout_high = safe_float(snap.get("dividend_payout_target_high_pct"))
+    if years is not None and years >= 20:
+        return 14.0
+    if growth is not None and growth >= 5.0 and payout_low is not None and payout_high is not None and payout_high <= 75.0:
+        return 13.0
+    if payout_low is not None and payout_high is not None and payout_high <= 80.0:
+        return 10.0
+    return 7.0
+
+
+def build_regulated_utility_specialist_score(snapshot):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    sym = str(snap.get("symbol") or "").upper()
+    result = {"available": False, "score": None, "quality_level": None, "components": {}, "note": None}
+    if sym not in {"EIX", "POR"}:
+        result["note"] = "Kein kalibrierter Regulated-Utility-Score für diesen Emittenten."
+        return result
+
+    components = {
+        "Rate-Base / langfristiges EPS-Wachstum": _utility_growth_points(
+            snap.get("long_term_eps_growth_mid_pct"), snap.get("rate_base_cagr_pct")
+        ),
+        "Regulatorische ROE-/Earnings-Qualität": _utility_regulatory_points(snap),
+        "Credit / FFO-to-Debt": _utility_credit_points(snap),
+        "Dividendenqualität": _utility_dividend_points(snap),
+    }
+
+    if sym == "EIX":
+        components["Kapitalplan / Finanzierung"] = 10.0 if snap.get("no_equity_issuance_forecast_2026_2030") else 6.0
+        components["Guidance-/Execution-Visibilität"] = 9.0 if snap.get("guidance_execution_quality") == "strong" else 7.0
+    else:
+        # Planned equity is appropriate for a capital-intensive utility, but the
+        # acquisition/large capex program means financing quality is not as clean as EIX's no-equity plan.
+        components["Kapitalplan / Finanzierung"] = 5.0
+        components["Guidance-/Execution-Visibilität"] = 8.0
+
+    if any(v is None for v in components.values()):
+        result["components"] = components
+        result["note"] = "Mindestens eine utility-spezifische Primärkennzahl fehlt. Es wird nichts hochgerechnet."
+        return result
+
+    score = round(sum(float(v) for v in components.values()), 2)
+    score = max(0.0, min(100.0, score))
+    result.update({
+        "available": True,
+        "score": score,
+        "quality_level": _specialist_quality_level(score),
+        "components": components,
+        "note": (
+            "Der Utility-Score verwendet Rate-Base-/EPS-Wachstum, regulatorische ROE-Qualität, "
+            "FFO/Credit, Dividendenqualität und Kapital-/Finanzierungsqualität. Yahoo-FCF, "
+            "Nettomarge, ROE und Net-Debt/FCF des Standardmodells bleiben außen vor."
+        ),
+    })
+    return result
+
+
+def build_regulated_utility_specialist_valuation(snapshot, utility_score):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    score_data = utility_score if isinstance(utility_score, dict) else {}
+    sym = str(snap.get("symbol") or "").upper()
+    result = {
+        "available": False,
+        "valuation_method_name": None,
+        "earnings_basis": None,
+        "base_target_pe": None,
+        "target_pe": None,
+        "corridor_low": None,
+        "corridor_high": None,
+        "risk_pe_cap": None,
+        "risk_overlay_applied": False,
+        "risk_overlay_effect_pct": None,
+        "fair_value_financial": None,
+        "note": None,
+    }
+    if not score_data.get("available"):
+        result["note"] = "Utility-Spezialbewertung gesperrt: Quality Score nicht vollständig."
+        return result
+    earnings = safe_float(snap.get("fy_eps_guidance_mid"))
+    if earnings is None or earnings <= 0:
+        result["note"] = "Utility-Spezialbewertung gesperrt: Current-FY Core/Adjusted EPS Guidance fehlt."
+        return result
+
+    if sym == "EIX":
+        low, high = 12.0, 18.0
+        method = "Regulated Electric Core-EPS P/E + Wildfire-Risk Overlay"
+    elif sym == "POR":
+        low, high = 13.0, 18.0
+        method = "Regulated Electric Adjusted-EPS P/E + Transaction/Financing Overlay"
+    else:
+        result["note"] = "Kein kalibrierter Utility-P/E-Korridor für diesen Emittenten."
+        return result
+
+    score = safe_float(score_data.get("score"))
+    base_target = low + (high - low) * (score / 100.0)
+    risk_cap = safe_float(snap.get("risk_pe_cap"))
+    used_target = min(base_target, risk_cap) if risk_cap is not None and risk_cap > 0 else base_target
+    risk_applied = used_target < base_target - 1e-9
+    risk_effect = ((used_target / base_target) - 1.0) * 100.0 if base_target > 0 else None
+    fair = earnings * used_target
+
+    result.update({
+        "available": True,
+        "valuation_method_name": method,
+        "earnings_basis": earnings,
+        "base_target_pe": base_target,
+        "target_pe": used_target,
+        "corridor_low": low,
+        "corridor_high": high,
+        "risk_pe_cap": risk_cap,
+        "risk_overlay_applied": risk_applied,
+        "risk_overlay_effect_pct": risk_effect,
+        "risk_overlay_name": snap.get("risk_overlay_name"),
+        "risk_overlay_level": snap.get("risk_overlay_level"),
+        "risk_note": snap.get("risk_note"),
+        "fair_value_financial": fair,
+        "note": (
+            "Fair Value = aktuelle issuer-geführte Core/Adjusted-EPS-Guidance × Quality-P/E, "
+            "anschließend ausschließlich downside-only Risikocap. Analysten-Kursziele sind kein Bestandteil der Rechnung."
+        ),
+    })
+    return result
+
+
+def build_regulated_utility_specialist_model(company_type, fundamental_info, symbol):
+    applicable = is_regulated_utility_specialist_type(company_type) and str(symbol or "").upper() in {"EIX", "POR"}
+    if not applicable:
+        return {"applicable": False}
+    snapshot = get_verified_regulated_utility_snapshot(symbol)
+    if not snapshot:
+        return {
+            "applicable": True,
+            "primary_source_complete": False,
+            "utility_score": {"available": False},
+            "utility_valuation": {"available": False},
+            "valuation_anchor_complete": False,
+            "readiness": "Utility-Primärquellen-Snapshot fehlt",
+        }
+    score = build_regulated_utility_specialist_score(snapshot)
+    valuation = build_regulated_utility_specialist_valuation(snapshot, score)
+    return {
+        "applicable": True,
+        "primary_source_complete": True,
+        "snapshot": snapshot,
+        "utility_score": score,
+        "utility_valuation": valuation,
+        "valuation_anchor_complete": bool(score.get("available") and valuation.get("available")),
+        "readiness": "Utility-Spezialbewertung freigegeben" if valuation.get("available") else "Utility-Spezialbewertung nicht freigegeben",
+    }
+
+
+def build_regulated_utility_special_control(control, utility_model):
+    if not isinstance(control, dict) or control.get("control_key") != "regulated_utility_core_eps":
+        return control
+    model = utility_model if isinstance(utility_model, dict) else {}
+    score = model.get("utility_score") or {}
+    valuation = model.get("utility_valuation") or {}
+    snap = model.get("snapshot") or {}
+    released = bool(model.get("valuation_anchor_complete") and score.get("available") and valuation.get("available"))
+    out = dict(control)
+    out.update({
+        "implemented": True,
+        "released": released,
+        "confidence_cap": snap.get("valuation_confidence_cap") or "Mittel",
+        "router_status": "Schritt 3B freigegeben" if released else "Schritt 3B nicht freigegeben",
+        "step3b_status": "Utility-Spezial-Fair-Value freigegeben" if released else "Utility-Spezial-Fair-Value gesperrt",
+        "snapshot": snap,
+        "checks": {"utility_score": score, "utility_valuation": valuation},
+        "note": (
+            "V2.20.92 verwendet bei EIX/POR die aktuelle Core/Adjusted-EPS-Guidance als einzige Earnings-Basis, "
+            "bewertet Rate Base, regulatorische ROE-Qualität, FFO/Credit, Dividende und Finanzierung separat und "
+            "wendet danach nur downside-only Utility-Risikocaps an. Standard-FCF/Net-Debt-to-FCF und Analysten-Kursziele bleiben außerhalb des Fair Values."
+        ),
+    })
+    return out
+
+
+def apply_regulated_utility_action_brake(new_buy_signal, holding_signal, utility_model):
+    """Downside-only action overlay for risks that are not reliably priceable by a single P/E.
+
+    It never upgrades a signal. EIX's unresolved wildfire-liability tail risk is
+    explicitly treated as a condition where a numerical Fair Value may remain
+    useful, but Buy/Add actions are capped at Observe/Hold until the framework
+    materially improves. POR currently has no hard action cap; its transaction
+    risk is already reflected through the P/E cap and Medium confidence.
+    """
+    model = utility_model if isinstance(utility_model, dict) else {}
+    snap = model.get("snapshot") or {}
+    if not model.get("applicable") or not model.get("valuation_anchor_complete"):
+        return new_buy_signal, holding_signal
+    if snap.get("risk_action_cap") != "observe_hold":
+        return new_buy_signal, holding_signal
+
+    nb = dict(new_buy_signal or {})
+    hs = dict(holding_signal or {})
+    if nb.get("signal") in {"Starker Kauf", "Kauf"}:
+        nb.update({
+            "signal": "Beobachten",
+            "reason": (
+                "Rechnerische Unterbewertung vorhanden, aber der aktuelle Utility-Risiko-Overlay begrenzt "
+                "Neukäufe auf Beobachten, solange das offene Wildfire-Haftungsregime nicht ausreichend geklärt ist."
+            ),
+            "utility_risk_action_brake": True,
+        })
+    if hs.get("signal") == "Nachkaufen":
+        hs.update({
+            "signal": "Halten",
+            "reason": (
+                "Rechnerische Unterbewertung vorhanden, aber der aktuelle Utility-Risiko-Overlay sperrt "
+                "einen Nachkauf, solange das offene Wildfire-Haftungsregime nicht ausreichend geklärt ist."
+            ),
+            "utility_risk_action_brake": True,
+        })
+    return nb, hs
+
 
 # =========================================================
 # Modul 6 – Schritt 1: Bewertungs-Korridor & Fundamental-Multiple
@@ -15637,6 +16067,29 @@ def get_special_control(company_type, symbol):
                 "V2.20.73 behandelt Baker Hughes als Energy-Technology-Plattform statt als integrierten Ölproduzenten. "
                 "Q2 2026 bildet OFSE/IET vor der Chart-Übernahme ab, während der aktuelle Kurs bereits nach dem Closing vom 16.07.2026 liegt. "
                 "Deshalb bleiben generischer Öl-&-Gas-KGV-Pfad, Standard-FCF/Bilanz-Score und Fair Value gesperrt, bis eine belastbare Post-Chart Earnings- und Kapitalstrukturbasis vorliegt."
+            ),
+        }
+
+    if symbol_text in {"EIX", "POR"} or "versorger / regulated electric" in type_name:
+        return {
+            "required": True,
+            "control_key": "regulated_utility_core_eps",
+            "control_name": "Regulated Utility / Core-EPS-, Rate-Base-, ROE-, Credit- & Risk-Kontrolle",
+            "planned_checks": [
+                "Current-FY Core/Adjusted EPS Guidance als alleinige Earnings-Basis",
+                "Rate-Base- und langfristiges EPS-Wachstum",
+                "Authorized/Allowed ROE und Earnings Realization",
+                "FFO-to-Debt / utility-spezifische Credit Metrics",
+                "Dividendenwachstum und Ziel-Payout",
+                "CapEx-/Finanzierungsplan ohne generische FCF-Bewertung",
+                "Downside-only Regulatory/Transaction Risk Overlay",
+                "Analysten-Kursziel nur als externer Reality Check, nie als Fair-Value-Anker",
+            ],
+            "status": "Router aktiv – V2.20.92 Regulated-Utility Specialist Valuation V1",
+            "note": (
+                "EIX und POR erhalten einen eigenen Utility-Score und einen Core/Adjusted-EPS-KGV-Anker. "
+                "Generischer Yahoo-FCF, Net-Debt/FCF, Nettomarge und Standard-ROE bleiben Diagnosekontext; "
+                "regulatorische/Transaktionsrisiken dürfen den Bewertungsanker nur nach unten begrenzen."
             ),
         }
 
@@ -22370,6 +22823,7 @@ def calculate_valuation_confidence(
     is_auto_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "automotive_quality_cycle_pe"
     is_semicap_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "semicap_quality_adjusted_pe"
     is_nvidia_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "nvidia_ai_quality_operating_pe"
+    is_utility_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "regulated_utility_core_eps_pe"
     if is_auto_valuation:
         cycle_status = str(fair_value.get("cycle_status") or "")
         cycle_level = "Mittel" if cycle_status in {"Stark", "Mittel"} else "Mittel bis Hoch"
@@ -22387,6 +22841,9 @@ def calculate_valuation_confidence(
         cred_score = safe_float(fair_value.get("earnings_credibility_score"))
         earnings_level = "Mittel bis Hoch" if cred_score is not None and cred_score >= 90 else ("Mittel" if cred_score is not None and cred_score >= 75 else "Niedrig")
         components["NVIDIA FY27 Operating-Earnings-Basis"] = (_confidence_rank_value(earnings_level), earnings_level)
+    elif is_utility_valuation:
+        guidance_level = "Hoch"
+        components["Current-FY Core/Adjusted EPS Guidance"] = (_confidence_rank_value(guidance_level), guidance_level)
     elif not is_reit_valuation:
         eps_level = (eps_normalization or {}).get("confidence")
         eps_rank = _confidence_rank_value(eps_level)
@@ -23120,6 +23577,90 @@ def calculate_fair_value_v1(
         return result
 
 
+    # V2.20.92 – EIX / POR regulated-utility Core/Adjusted EPS valuation.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "regulated_utility_core_eps"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        uv = checks.get("utility_valuation") or {}
+        us = checks.get("utility_score") or {}
+        snap = special_control.get("snapshot") or {}
+        fv = safe_float(uv.get("fair_value_financial"))
+        if not uv.get("available") or fv is None or fv <= 0:
+            result["note"] = "Fair Value V1 gesperrt: Regulated-Utility-Spezialanker nicht vollständig verfügbar."
+            return result
+
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der Utility-Bewertung sind nicht eindeutig."
+            return result
+
+        share_context = context.get("share_unit_context") or {}
+        share_ratio = 1.0
+        unit_notes = []
+        if share_context.get("conversion_required"):
+            if not share_context.get("conversion_available"):
+                result["note"] = "Fair Value V1 gesperrt: abweichende Handelseinheit ohne verifizierte Aktien-/ADR-Umrechnung."
+                return result
+            share_ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
+            if share_ratio is None or share_ratio <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Aktien-/ADR-Verhältnis ist nicht belastbar."
+                return result
+
+        fvq = fv * share_ratio
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Währungsumrechnung der Utility-Bewertung nicht belastbar verfügbar."
+                return result
+            fvq *= factor
+            unit_notes.append(f"Währungsangleichung: {financial_currency} → {quote_currency} mit Faktor {factor:.6f}.")
+        elif quote_currency != financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+
+        cp = safe_float(current_price)
+        potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+        result.update({
+            "available": True,
+            "valuation_method": "regulated_utility_core_eps_pe",
+            "normalized_eps": safe_float(uv.get("earnings_basis")),
+            "used_multiple": safe_float(uv.get("target_pe")),
+            "multiple_source": "V2.20.92 Utility Quality Score → Core/Adjusted-EPS P/E → downside-only Risk Overlay",
+            "fair_value_financial": fv,
+            "fair_value_quote": fvq,
+            "potential_pct": potential,
+            "utility_score": safe_float(us.get("score")),
+            "utility_quality_level": us.get("quality_level"),
+            "utility_components": us.get("components") or {},
+            "earnings_basis_name": snap.get("earnings_basis_name"),
+            "target_pe": safe_float(uv.get("target_pe")),
+            "base_target_pe": safe_float(uv.get("base_target_pe")),
+            "pe_corridor_low": safe_float(uv.get("corridor_low")),
+            "pe_corridor_high": safe_float(uv.get("corridor_high")),
+            "risk_pe_cap": safe_float(uv.get("risk_pe_cap")),
+            "risk_overlay_applied": bool(uv.get("risk_overlay_applied")),
+            "risk_overlay_effect_pct": safe_float(uv.get("risk_overlay_effect_pct")),
+            "risk_overlay_name": uv.get("risk_overlay_name"),
+            "risk_overlay_level": uv.get("risk_overlay_level"),
+            "risk_note": uv.get("risk_note"),
+            "rate_base_2026": safe_float(snap.get("rate_base_2026")),
+            "rate_base_2030": safe_float(snap.get("rate_base_2030")),
+            "rate_base_cagr_pct": safe_float(snap.get("rate_base_cagr_pct")),
+            "long_term_eps_growth_mid_pct": safe_float(snap.get("long_term_eps_growth_mid_pct")),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "Regulated-Utility-Fair-Value V1 = issuer-geführte Current-FY Core/Adjusted-EPS-Guidance × "
+                "utility-spezifisches Quality-P/E; danach ausschließlich downside-only Regulatory/Transaction Risk Overlay. "
+                "Analysten-Kursziele bleiben vollständig außerhalb des Fair Values."
+            ),
+        })
+        return result
+
     # V2.20.91 – TRU / IQV / EMN adjusted-earnings specialist P/E valuation.
     if (
         isinstance(special_control, dict)
@@ -23178,7 +23719,7 @@ def calculate_fair_value_v1(
             "valuation_method": "adjusted_earnings_specialist_pe",
             "normalized_eps": safe_float(sv.get("earnings_basis")),
             "used_multiple": safe_float(sv.get("target_pe")),
-            "multiple_source": "V2.20.91 Specialist Quality Score → subtype-spezifischer Adjusted-Earnings-KGV-Korridor",
+            "multiple_source": "V2.20.92 Specialist Quality Score → subtype-spezifischer Adjusted-Earnings-KGV-Korridor",
             "fair_value_financial": fv,
             "fair_value_quote": fvq,
             "potential_pct": potential,
@@ -24359,7 +24900,7 @@ VERIFIED_CURRENT_FY_EPS_GUIDANCE = {
     "IQV": {"fiscal_year": 2026, "basis": "Adjusted EPS", "low": 12.80, "high": 13.00, "as_of": "2026-07-28", "valid_until": "2026-12-31", "source": "IQVIA Q2 2026 guidance"},
     "UA": {"fiscal_year": 2027, "basis": "Adjusted EPS", "low": 0.08, "high": 0.12, "as_of": "2026-08-07", "valid_until": "2027-03-31", "source": "Under Armour Q1 FY2027 guidance"},
     "UAA": {"fiscal_year": 2027, "basis": "Adjusted EPS", "low": 0.08, "high": 0.12, "as_of": "2026-08-07", "valid_until": "2027-03-31", "source": "Under Armour Q1 FY2027 guidance"},
-    "POR": {"fiscal_year": 2026, "basis": "Adjusted EPS", "low": 3.33, "high": 3.53, "as_of": "2026-05-01", "valid_until": "2026-12-31", "source": "Portland General Electric Q2 2026 guidance"},
+    "POR": {"fiscal_year": 2026, "basis": "Adjusted EPS", "low": 3.33, "high": 3.53, "as_of": "2026-07-31", "valid_until": "2026-12-31", "source": "Portland General Electric Q2 2026 guidance"},
 }
 
 
@@ -26904,7 +27445,7 @@ def build_selected_stock_result(selected_symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "confidence_signal_brake_v22091_20260912"
+CACHE_VERSION = "regulated_utility_specialist_v22092_20260912"
 
 @st.cache_data(
     ttl=900,
@@ -27497,6 +28038,12 @@ def load_stock(selected_symbol, cache_version):
         symbol=fundamental_symbol
     )
 
+    regulated_utility_specialist_model = build_regulated_utility_specialist_model(
+        company_type,
+        fundamental_info,
+        fundamental_symbol
+    )
+
     adjusted_earnings_specialist_model = build_adjusted_earnings_specialist_model(
         company_type,
         fundamental_info,
@@ -27661,6 +28208,33 @@ def load_stock(selected_symbol, cache_version):
             ),
         }
 
+    if regulated_utility_specialist_model.get("applicable"):
+        utility_score_fm = regulated_utility_specialist_model.get("utility_score") or {}
+        utility_val_fm = regulated_utility_specialist_model.get("utility_valuation") or {}
+        utility_corridor = {
+            "available": bool(utility_val_fm.get("available")),
+            "lower": safe_float(utility_val_fm.get("corridor_low")),
+            "upper": safe_float(utility_val_fm.get("corridor_high")),
+            "method": utility_val_fm.get("valuation_method_name") or "Regulated-Utility Core/Adjusted EPS P/E",
+            "note": (
+                "V2.20.92: Der sichtbare Basiskorridor wird vom utility-spezifischen Quality Score gesteuert. "
+                "Ein expliziter Regulatory/Transaction Risk Overlay darf das tatsächlich verwendete Ziel-KGV anschließend nur nach unten begrenzen."
+            ),
+        }
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": safe_float(utility_score_fm.get("score")),
+            "corridor": utility_corridor,
+            "multiple": safe_float(utility_val_fm.get("target_pe")),
+            "available": bool(utility_score_fm.get("available") and utility_val_fm.get("available")),
+            "earnings_basis_usable": bool(utility_val_fm.get("available")),
+            "note": (
+                "V2.20.92 verwendet für Regulated Utilities keinen generischen FCF-/Bilanz-/EPS-Score. "
+                "Der Utility Quality Score setzt den fundamentalen P/E-Anker auf Basis der aktuellen Core/Adjusted-EPS-Guidance; "
+                "ein expliziter Risk Overlay wirkt ausschließlich downside-only."
+            ),
+        }
+
     if adjusted_earnings_specialist_model.get("applicable"):
         sp_score = adjusted_earnings_specialist_model.get("specialist_score") or {}
         sp_val = adjusted_earnings_specialist_model.get("specialist_valuation") or {}
@@ -27669,7 +28243,7 @@ def load_stock(selected_symbol, cache_version):
             "lower": safe_float(sp_val.get("corridor_low")),
             "upper": safe_float(sp_val.get("corridor_high")),
             "method": sp_val.get("valuation_method_name") or "Adjusted-Earnings Spezial-KGV",
-            "note": "V2.20.91: Der Korridor gehört ausschließlich zum primärquellenbasierten Spezialmodell; generische Scores bleiben außen vor.",
+            "note": "V2.20.92: Der Korridor gehört ausschließlich zum primärquellenbasierten Spezialmodell; generische Scores bleiben außen vor.",
         }
         fundamental_multiple = {
             **fundamental_multiple,
@@ -27679,7 +28253,7 @@ def load_stock(selected_symbol, cache_version):
             "available": bool(sp_score.get("available") and sp_val.get("available")),
             "earnings_basis_usable": bool(sp_val.get("available")),
             "note": (
-                "V2.20.91 verwendet für diesen Spezialtyp keinen generischen 100-Punkte-Score. "
+                "V2.20.92 verwendet für diesen Spezialtyp keinen generischen 100-Punkte-Score. "
                 "Der eigene Quality Score setzt innerhalb des kalibrierten Adjusted-Earnings-KGV-Korridors das Zielmultiple; "
                 "die bereits aligned Same-Basis-Earnings-Referenz ist die einzige Gewinnbasis."
             ),
@@ -27777,6 +28351,11 @@ def load_stock(selected_symbol, cache_version):
         symbol
     )
 
+    special_control = build_regulated_utility_special_control(
+        special_control,
+        regulated_utility_specialist_model
+    )
+
     special_control = build_adjusted_earnings_special_control(
         special_control,
         adjusted_earnings_specialist_model
@@ -27851,6 +28430,43 @@ def load_stock(selected_symbol, cache_version):
         bank_special_model=bank_special_model,
         insurance_special_model=insurance_special_model
     )
+
+    if regulated_utility_specialist_model.get("applicable") and regulated_utility_specialist_model.get("valuation_anchor_complete"):
+        util_snap_event = regulated_utility_specialist_model.get("snapshot") or {}
+        util_sym_event = str(util_snap_event.get("symbol") or "").upper()
+        if util_sym_event == "EIX":
+            special_event_warning = {
+                "level": "Gelb",
+                "icon": "🟡",
+                "title": "EIX Wildfire-Liability Risk Overlay aktiv",
+                "requires_research": False,
+                "valuation_usable": True,
+                "reason": (
+                    "Die Core-EPS-/Rate-Base-Basis ist belastbar, aber der kalifornische Wildfire-Haftungsrahmen blieb Ende August 2026 "
+                    "ohne die zuvor erwarteten breiteren Haftungsschutz- und dauerhaften Fund-Replenishment-Mechanismen. "
+                    "Der Fair Value bleibt nutzbar, wird aber durch einen expliziten downside-only P/E-Cap begrenzt."
+                ),
+                "action": (
+                    "V2.20.92 hält den Utility-Fair-Value als Diagnose-/Bewertungsanker frei, begrenzt aber Kauf/Nachkauf auf Beobachten/Halten, "
+                    "bis sich Wildfire-Fund-Solvency, Haftungsrahmen und Eaton-Fire-Risiko materiell geklärt haben."
+                ),
+            }
+        elif util_sym_event == "POR":
+            special_event_warning = {
+                "level": "Gelb",
+                "icon": "🟡",
+                "title": "POR WA-Akquisitions-/Finanzierungs-Overlay aktiv",
+                "requires_research": False,
+                "valuation_usable": True,
+                "reason": (
+                    "Die 2026 Adjusted-EPS-Guidance bleibt als Standalone-Earnings-Basis nutzbar. Die geplante Washington-Utility-Akquisition "
+                    "ist jedoch noch regulatorisch, finanziell und operativ nicht abgeschlossen; erwartete Akkretion wird nicht vorweggenommen."
+                ),
+                "action": (
+                    "Der Fair Value verwendet keine Akquisitionssynergien oder erwartete EPS-Akkretion. Ein downside-only P/E-Cap berücksichtigt "
+                    "Finanzierungs-/Closing-Risiko; Analystenziele bleiben außerhalb der Bewertung."
+                ),
+            }
 
     if (
         auto_special_model.get("applicable")
@@ -28021,6 +28637,12 @@ def load_stock(selected_symbol, cache_version):
         special_event_warning=special_event_warning
     )
 
+    new_buy_signal, holding_signal = apply_regulated_utility_action_brake(
+        new_buy_signal,
+        holding_signal,
+        regulated_utility_specialist_model
+    )
+
     analyst_consensus = load_external_analyst_consensus(
         quote_ticker,
         quote_info,
@@ -28162,6 +28784,7 @@ def load_stock(selected_symbol, cache_version):
         "semicap_special_model": semicap_special_model,
         "nvidia_special_model": nvidia_special_model,
         "reit_special_model": reit_special_model,
+        "regulated_utility_specialist_model": regulated_utility_specialist_model,
         "adjusted_earnings_specialist_model": adjusted_earnings_specialist_model,
         "fundamental_multiple": fundamental_multiple,
         "peer_group": peer_group,
@@ -29152,7 +29775,8 @@ if selected_symbol:
                     normalized_eps_label = "Versicherungs-Core-TTM-EPS"
                 else:
                     normalized_eps = eps_result["normalized_eps"]
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type)) else "Normalisiertes EPS")
+                    utility_eps_context_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -29220,6 +29844,13 @@ if selected_symbol:
                             "NVIDIA/Fabless-AI: Diese Standard-Normalisierung bleibt in V2.20.67 ausschließlich Kontext. "
                             "Das Earnings-Horizon-Alignment verwendet eine separate operative FY27-Proxy-Basis; das Standard-EPS bleibt für NVIDIA nicht freigegeben."
                         )
+                    elif utility_eps_context_ui:
+                        util_eps_snap_ui = (data.get("regulated_utility_specialist_model") or {}).get("snapshot") or {}
+                        st.info(
+                            "Regulated Utility: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                            f"V2.20.92 verwendet für den Fair Value stattdessen direkt die aktuelle {text_or_dash(util_eps_snap_ui.get('earnings_basis_name'))} "
+                            "und prüft Rate Base, ROE, Credit, Dividende und Finanzierung separat."
+                        )
 
                 confidence = (
                     bank_core_eps_ui.get("confidence")
@@ -29231,7 +29862,12 @@ if selected_symbol:
                     )
                 )
 
-                if confidence == "Hoch":
+                if utility_eps_context_ui:
+                    st.info(
+                        "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
+                        "die Utility-Bewertungssicherheit wird separat aus Guidance-, Regulierungs-, Credit- und Spezialkontroll-Gates bestimmt."
+                    )
+                elif confidence == "Hoch":
 
                     st.success(
                         "EPS-Normalisierung: "
@@ -29942,6 +30578,7 @@ if selected_symbol:
                 is_semicap_score_ui = is_semicap_lithography_company_type(company_type)
                 is_nvidia_score_ui = is_nvidia_ai_growth_company_type(company_type)
                 is_adjusted_specialist_score_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
+                is_utility_specialist_score_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 is_kratos_score_ui = str(selected_symbol or "").upper() == "KTOS"
                 is_bkr_score_ui = str(selected_symbol or "").upper() == "BKR"
 
@@ -29960,6 +30597,9 @@ if selected_symbol:
                 if is_bkr_score_ui:
                     st.info("Baker Hughes/Post-Chart-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.73 bewertet Q2 Orders/RPO und OFSE/IET Segmententwicklung aus Primärquellen.")
                     st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf einen späteren Post-Chart Bewertungsanker.")
+                elif is_utility_specialist_score_ui:
+                    st.info("ℹ️ Im Regulated-Utility-Spezialmodell berücksichtigt: Der generische Wachstumsscore wird nicht verwendet.")
+                    st.caption("Wachstum wird über langfristiges Core/Adjusted-EPS-Wachstum und Rate-Base-Wachstum aus Primärquellen bewertet; Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext.")
                 elif is_adjusted_specialist_score_ui:
                     st.info("ℹ️ Im Adjusted-Earnings-Spezialmodell berücksichtigt: Der generische Wachstumsscore wird nicht verwendet.")
                     st.caption("Wachstum wird im specialistischen Quality Score mit unternehmenstypischen Primärkennzahlen bewertet; Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext.")
@@ -30073,7 +30713,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui:
+                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -30098,10 +30738,14 @@ if selected_symbol:
                 is_semicap_profitability_ui = is_semicap_lithography_company_type(company_type)
                 is_nvidia_profitability_ui = is_nvidia_ai_growth_company_type(company_type)
                 is_adjusted_specialist_profitability_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
+                is_utility_specialist_profitability_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 is_bkr_profitability_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                 if is_bkr_profitability_ui:
                     st.info("Baker Hughes/Post-Chart-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. Q2 OFSE-/IET-Adjusted-EBITDA-Margen werden separat aus der Primärquelle gezeigt; eine konsolidierte Post-Chart Profitabilitätsbasis folgt später.")
+                elif is_utility_specialist_profitability_ui:
+                    st.info("ℹ️ Im Regulated-Utility-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
+                    st.caption("Ertragsqualität wird über Authorized/Allowed ROE, aktuelle Earnings Realization und Core/Adjusted-EPS-Guidance bewertet; Industrie-Nettomarge und generischer ROE bleiben Kontext.")
                 elif is_adjusted_specialist_profitability_ui:
                     st.info("ℹ️ Im Adjusted-Earnings-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption("Ertragsqualität wird im specialistischen Quality Score über Adjusted EBITDA/EBIT-Marge, Adjusted-EPS-Qualität und die jeweiligen Primärkennzahlen des Geschäftsmodells bewertet.")
@@ -30371,11 +31015,15 @@ if selected_symbol:
                     is_semicap_model_ui = is_semicap_lithography_company_type(company_type)
                     is_nvidia_model_ui = is_nvidia_ai_growth_company_type(company_type)
                     is_adjusted_specialist_fcf_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
+                    is_utility_specialist_fcf_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     is_bkr_model_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                     if is_bkr_model_ui:
                         st.info("ℹ️ Baker Hughes/Post-Chart-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
                         st.caption("V2.20.73 verwendet den offiziell ausgewiesenen Q2-Free-Cashflow im Primärdaten-Gate. Yahoo-TTM-FCF bleibt Kontext; Q2-FCF wird nicht auf das post-Chart Gesamtunternehmen hochgerechnet.")
+                    elif is_utility_specialist_fcf_ui:
+                        st.info("ℹ️ Im Regulated-Utility-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
+                        st.caption("Hohe Utility-CapEx machen industriellen Free Cash Flow als Qualitätsmaß ungeeignet. V2.20.92 verwendet stattdessen FFO/Credit, Rate Base, regulatorische Rückgewinnung und den offiziellen Kapital-/Finanzierungsplan.")
                     elif is_adjusted_specialist_fcf_ui:
                         st.info("ℹ️ Im Adjusted-Earnings-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
                         st.caption("Cashflow-Qualität wird im jeweiligen Spezialmodell über FCF-Conversion, OCF/CapEx oder geschäftsmodellspezifische Primärkennzahlen geprüft; Yahoo-TTM-FCF bleibt Kontext.")
@@ -30443,6 +31091,7 @@ if selected_symbol:
                     and not is_nvidia_ai_growth_company_type(company_type)
                     and not is_baker_hughes_energy_tech_company_type(company_type)
                     and not bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 ):
                     st.caption(
                         "Die FCF-Punkte basieren auf der aktuellen "
@@ -30565,11 +31214,15 @@ if selected_symbol:
                     is_semicap_balance_ui = is_semicap_lithography_company_type(company_type)
                     is_nvidia_balance_ui = is_nvidia_ai_growth_company_type(company_type)
                     is_adjusted_specialist_balance_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
+                    is_utility_specialist_balance_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     is_bkr_balance_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                     if is_bkr_balance_ui:
                         st.info("ℹ️ Baker Hughes/Post-Chart-Modell: Standard-Netto-Schulden/FCF-Score ist gesperrt")
                         st.caption("Die 30.06.2026 Cash-/Debt-Werte enthalten wesentliche Chart-Transaktionsfinanzierung. Sie dürfen nicht als aktuelle operative Netto-Cash-/Leverage-Basis interpretiert werden; Post-Chart Leverage wird separat geprüft.")
+                    elif is_utility_specialist_balance_ui:
+                        st.info("ℹ️ Im Regulated-Utility-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
+                        st.caption("Utility-Verschuldung wird über FFO-to-Debt/Credit-Ratings und den regulatorisch getragenen Kapitalplan bewertet; Yahoo-Schulden und Net-Debt/FCF bleiben Diagnosekontext.")
                     elif is_adjusted_specialist_balance_ui:
                         st.info("ℹ️ Im Adjusted-Earnings-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("Verschuldung wird im specialistischen Quality Score über Net Leverage beziehungsweise geschäftsmodellspezifische Debt-/Cashflow-Kennzahlen geprüft; Yahoo-Schulden bleiben Kontext.")
@@ -30653,6 +31306,7 @@ if selected_symbol:
                     and not is_semicap_lithography_company_type(company_type)
                     and not is_nvidia_ai_growth_company_type(company_type)
                     and not bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 ):
                     st.caption(
                         "Bilanzpunkte: Netto-Cash 15/15; "
@@ -32481,10 +33135,22 @@ if selected_symbol:
                             f"{multiple_result['multiple']:.2f}×"
                         )
 
-                        st.success(
-                            "Fundamental-Multiple erfolgreich "
-                            "aus Score und Korridor berechnet."
-                        )
+                        if bool((data.get("regulated_utility_specialist_model") or {}).get("applicable")):
+                            util_val_step1 = (data.get("regulated_utility_specialist_model") or {}).get("utility_valuation") or {}
+                            if util_val_step1.get("risk_overlay_applied"):
+                                st.success(
+                                    "Utility-Multiple erfolgreich aus Quality Score und Basiskorridor abgeleitet; "
+                                    "das tatsächlich verwendete Multiple wurde anschließend durch den downside-only Risk Overlay begrenzt."
+                                )
+                            else:
+                                st.success(
+                                    "Utility-Multiple erfolgreich aus Quality Score und Basiskorridor berechnet."
+                                )
+                        else:
+                            st.success(
+                                "Fundamental-Multiple erfolgreich "
+                                "aus Score und Korridor berechnet."
+                            )
 
                     else:
 
@@ -32887,6 +33553,81 @@ if selected_symbol:
                         "nachfolgenden Fair-Value-Schritt, solange sie noch "
                         "nicht vollständig implementiert und freigegeben sind."
                     )
+
+                if special_control.get(
+                    "control_key"
+                ) == "regulated_utility_core_eps":
+                    st.divider()
+                    st.subheader("⚡ Modul 6 – Schritt 3B: Regulated-Utility Spezialmodell V1")
+                    if special_control.get("implemented"):
+                        checks_u = special_control.get("checks") or {}
+                        snap_u = special_control.get("snapshot") or {}
+                        score_u = checks_u.get("utility_score") or {}
+                        val_u = checks_u.get("utility_valuation") or {}
+                        u_symbol = str(snap_u.get("symbol") or selected_symbol or "").upper()
+                        st.write(
+                            f"**Operativer Datenstand:** {text_or_dash(snap_u.get('as_of_date'))} "
+                            f"(veröffentlicht {text_or_dash(snap_u.get('published_date'))})"
+                        )
+                        st.caption(text_or_dash(snap_u.get("source_name")))
+                        if score_u.get("available"):
+                            st.metric("Utility Quality Score", f"{score_u.get('score'):.0f}/100 · {score_u.get('quality_level')}")
+                            st.markdown("**Score-Komponenten:**")
+                            for label, value in (score_u.get("components") or {}).items():
+                                st.write(f"• {label}: {safe_float(value):.1f} Punkte")
+
+                        st.write(
+                            f"**{text_or_dash(snap_u.get('earnings_basis_name'))}:** "
+                            f"{safe_float(snap_u.get('fy_eps_guidance_low')):.2f}–{safe_float(snap_u.get('fy_eps_guidance_high')):.2f} USD "
+                            f"· Mittelpunkt {safe_float(snap_u.get('fy_eps_guidance_mid')):.2f} USD"
+                        )
+                        st.write(
+                            f"**Langfristiges EPS-Wachstum:** {safe_float(snap_u.get('long_term_eps_growth_mid_pct')):.1f} % · "
+                            f"**Rate-Base-Wachstum:** {safe_float(snap_u.get('rate_base_cagr_pct')):.1f} %"
+                        )
+                        if u_symbol == "EIX":
+                            st.write(
+                                f"**Authorized ROE CPUC/FERC:** {safe_float(snap_u.get('authorized_roe_cpuc_pct')):.2f} % / "
+                                f"{safe_float(snap_u.get('authorized_roe_ferc_pct')):.2f} % · "
+                                f"**FFO/Debt-Ziel:** {safe_float(snap_u.get('ffo_to_debt_target_mid_pct')):.1f} %"
+                            )
+                            st.write(
+                                f"**2026–2030 Kapitalplan:** {format_money(snap_u.get('capital_plan_low'), 'USD')} – "
+                                f"{format_money(snap_u.get('capital_plan_high'), 'USD')} · keine Equity-Ausgabe im Plan"
+                            )
+                            st.write(f"**Dividende annualisiert:** {safe_float(snap_u.get('dividend_annualized')):.2f} USD · {int(safe_float(snap_u.get('dividend_growth_years')))} Jahre Wachstum")
+                        elif u_symbol == "POR":
+                            st.write(
+                                f"**Allowed / erwarteter Accounting ROE:** {safe_float(snap_u.get('allowed_roe_pct')):.2f} % / "
+                                f"{safe_float(snap_u.get('accounting_roe_2026_mid_pct')):.2f} % · "
+                                f"**2026 FFO-Credit-Metric:** {safe_float(snap_u.get('ffo_credit_metric_2026_pct')):.1f} %"
+                            )
+                            st.write(
+                                f"**2026 CapEx / 2026–2030 CapEx:** {format_money(snap_u.get('capex_2026'), 'USD')} / "
+                                f"{format_money(snap_u.get('capex_2026_2030'), 'USD')}"
+                            )
+                            st.write(
+                                f"**WA-Akquisition:** {format_money(snap_u.get('wa_acquisition_purchase_price'), 'USD')} · erwartetes Closing {text_or_dash(snap_u.get('wa_acquisition_expected_close'))} · "
+                                f"2026 Equity Forward {format_money(snap_u.get('equity_forward_2026'), 'USD')}"
+                            )
+
+                        if val_u.get("available"):
+                            st.write(f"**Utility-P/E-Basiskorridor:** {val_u.get('corridor_low'):.2f}× – {val_u.get('corridor_high'):.2f}×")
+                            st.write(f"**Quality-gesteuertes P/E vor Risiko-Overlay:** {val_u.get('base_target_pe'):.2f}×")
+                            if val_u.get("risk_overlay_applied"):
+                                st.warning(
+                                    f"{text_or_dash(val_u.get('risk_overlay_name'))} aktiv: Ziel-KGV downside-only auf "
+                                    f"{val_u.get('target_pe'):.2f}× begrenzt (Cap {val_u.get('risk_pe_cap'):.2f}×)."
+                                )
+                                st.caption(text_or_dash(val_u.get("risk_note")))
+                            st.write(f"**Verwendetes Ziel-KGV:** {val_u.get('target_pe'):.2f}×")
+                            st.write("**Fundamentaler Utility-Fair-Value:** " + format_eps(val_u.get("fair_value_financial"), financial_currency))
+                            st.success("Bewertungsfreigabe JA: Current-FY Core/Adjusted-EPS-Guidance und Utility-Spezialscore sind vollständig; Analysten-Kursziele bleiben ausschließlich Modul 8.")
+                        else:
+                            st.warning(val_u.get("note") or "Utility-Spezialbewertung noch nicht freigegeben.")
+                        st.caption(special_control.get("note"))
+                    else:
+                        st.warning(special_control.get("note"))
 
                 if special_control.get(
                     "control_key"
@@ -35881,6 +36622,28 @@ if selected_symbol:
                                 "**Abstand der Bewertungsanker:** "
                                 f"{fair_value.get('anchor_spread_pct'):.1f} %"
                             )
+                    elif fair_value.get("valuation_method") == "regulated_utility_core_eps_pe":
+                        st.write("**Bewertungsformel:** Current-FY Core/Adjusted EPS Guidance × Utility Quality-P/E; danach downside-only Regulatory/Transaction Risk Overlay")
+                        st.write(
+                            f"**Utility Quality Score:** {fair_value.get('utility_score'):.0f}/100 · {fair_value.get('utility_quality_level')}"
+                        )
+                        st.write(
+                            f"**Earnings-Basis ({text_or_dash(fair_value.get('earnings_basis_name'))}):** "
+                            + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"])
+                        )
+                        st.write(f"**Quality-gesteuertes Ziel-KGV vor Risiko-Overlay:** {fair_value.get('base_target_pe'):.2f}×")
+                        st.write(f"**Verwendetes Ziel-KGV:** {fair_value.get('target_pe'):.2f}×")
+                        st.write(
+                            f"**Utility-P/E-Basiskorridor:** {fair_value.get('pe_corridor_low'):.2f}× – "
+                            f"{fair_value.get('pe_corridor_high'):.2f}×"
+                        )
+                        if fair_value.get("risk_overlay_applied"):
+                            st.warning(
+                                f"**{text_or_dash(fair_value.get('risk_overlay_name'))}:** downside-only P/E-Cap "
+                                f"{fair_value.get('risk_pe_cap'):.2f}× · Effekt vs. Quality-P/E {fair_value.get('risk_overlay_effect_pct'):.1f} %"
+                            )
+                            st.caption(text_or_dash(fair_value.get("risk_note")))
+                        st.caption("Yahoo-FCF, industrielle Net-Debt/FCF-Logik und Analysten-Kursziele sind kein Bestandteil des Utility-Fair-Values.")
                     elif fair_value.get("valuation_method") == "adjusted_earnings_specialist_pe":
                         st.write("**Bewertungsformel:** Same-Basis Adjusted/Core Earnings × scoregesteuertes Spezial-KGV")
                         st.write(
