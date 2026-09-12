@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.80"
+APP_BUILD_VERSION = "V2.20.81"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · IR-Routed Adjusted-TTM Discovery & Diagnostics"
+    f"Build {APP_BUILD_VERSION} · Financial Table EPS & Period Normalization"
 )
 
 
@@ -60,6 +60,7 @@ st.caption(
 
 # V2.20.79: Generic Primary-Source Adjusted-TTM Reconstructor. Replaces issuer-only reconstruction as the sole expansion path with a reusable, fail-closed period engine. For material TTM/current-FY EPS gaps, the app can discover same-company primary earnings releases, read explicitly labelled Adjusted/Core/Operating EPS from period-matched HTML tables, and reconstruct trailing adjusted EPS as prior FY minus the same prior-year completed quarters plus current-year completed quarters. FY/quarter labels, accounting-basis family, source-domain ownership and period completeness must all match; otherwise no substitution occurs. Official same-basis guidance remains High-confidence. When only a current-FY analyst consensus exists, an adjusted/normalized basis may be inferred only under a strict plausibility gate (current-FY consensus materially closer to reconstructed adjusted TTM than raw GAAP TTM, bounded stretch, current-FY horizon confirmed); confidence is capped at Medium and no specialist valuation corridor is released. Existing IQV/TRU verified bridges remain regression fallbacks, not the generic algorithm.
 # V2.20.80: IR-Routed Adjusted-TTM Discovery & Diagnostics. Generic adjusted-TTM recovery now routes through the existing same-company IR Year Navigator before any external site-search fallback. One current-quarter release is parsed for both current- and prior-year quarter EPS, reducing the normal H1 bridge from five independent searches to three official documents (prior FY, current Q1, current Q2). Period/basis/source-domain validation remains fail-closed. Discovery diagnostics are retained even when reconstruction fails, showing router status, attempted documents, periods found and missing instead of silently falling back to GAAP TTM. Valuation formulas are unchanged.
+# V2.20.81: Financial Table EPS & Period Normalization. The generic primary-source parser now recognizes FY25/FY 2025, 1Q26/Q1 2026/2Q26 style headers, year-only current/prior columns when the document title fixes the quarter, and EPS row-label variants such as adjusted earnings per diluted share. Period headers are collected table-wide instead of only four rows above the EPS line. Repeated document fetches are cached within one discovery run and diagnostic rows are deduplicated. Valuation formulas remain unchanged.
 
 # =========================================================
 # Hilfsfunktionen
@@ -23880,27 +23881,37 @@ def build_eps_horizon_alignment(symbol, raw_forward_eps, analyst_context):
 # V2.20.79 – Generic Primary-Source Adjusted-TTM Reconstructor
 # =========================================================
 
-def _generic_eps_period_aliases(period):
-    p = str(period or "").strip().upper()
-    m = re.fullmatch(r"FY\s+(20\d{2})", p)
+def _generic_period_components(period):
+    p = _clean_text(period).upper().replace("–", "-")
+    m = re.fullmatch(r"FY\s*(20\d{2})", p)
     if m:
-        year = int(m.group(1))
-        yy = str(year)[-2:]
+        return {"kind": "FY", "year": int(m.group(1)), "quarter": None}
+    m = re.fullmatch(r"Q([1-4])\s*(20\d{2})", p)
+    if m:
+        return {"kind": "Q", "year": int(m.group(2)), "quarter": int(m.group(1))}
+    return None
+
+
+def _generic_eps_period_aliases(period):
+    comp = _generic_period_components(period)
+    if not comp:
+        p = _clean_text(period).lower()
+        return [p] if p else []
+    year = comp["year"]
+    yy = str(year)[-2:]
+    if comp["kind"] == "FY":
         return [
-            f"fy{yy}", f"fy {year}", f"fy{year}", f"full year {year}",
+            f"fy{yy}", f"fy {yy}", f"fy{year}", f"fy {year}",
+            f"full year {year}", f"full-year {year}",
             f"fiscal year {year}", str(year),
         ]
-    m = re.fullmatch(r"Q([1-4])\s+(20\d{2})", p)
-    if m:
-        q = int(m.group(1))
-        year = int(m.group(2))
-        yy = str(year)[-2:]
-        words = ["first", "second", "third", "fourth"]
-        return [
-            f"q{q} {year}", f"q{q}{yy}", f"{q}q{yy}", f"{q}q {year}",
-            f"{words[q-1]} quarter {year}", f"{words[q-1]}-quarter {year}",
-        ]
-    return [p.lower()] if p else []
+    q = comp["quarter"]
+    words = ["first", "second", "third", "fourth"]
+    return [
+        f"q{q}{yy}", f"q{q} {yy}", f"q{q}{year}", f"q{q} {year}",
+        f"{q}q{yy}", f"{q}q {yy}", f"{q}q{year}", f"{q}q {year}",
+        f"{words[q-1]} quarter {year}", f"{words[q-1]}-quarter {year}",
+    ]
 
 
 def _generic_parse_eps_number(value):
@@ -23923,31 +23934,141 @@ def _generic_parse_eps_number(value):
 
 
 def _generic_eps_basis_from_label(label):
-    t = _clean_text(label).lower()
+    """Return only explicitly per-share non-GAAP earnings rows.
+
+    Do not treat Adjusted EBIT/EBITDA or other adjusted metrics as EPS merely
+    because the word 'adjusted' appears in the row label.
+    """
+    t = _clean_text(label).lower().replace("–", "-")
+    per_share = any(x in t for x in [
+        "eps", "earnings per share", "earnings per diluted share",
+        "diluted earnings per share", "per diluted share",
+    ])
+    if not per_share:
+        return None, None
     if "adjusted" in t or "non-gaap" in t or "non gaap" in t:
         return "Adjusted EPS", "adjusted"
-    if "core" in t and ("eps" in t or "earnings per" in t):
+    if "core" in t:
         return "Core EPS", "core"
-    if "operating" in t and ("eps" in t or "earnings per" in t):
+    if "operating" in t:
         return "Operating EPS", "operating"
     return None, None
+
+
+def _generic_title_period_context(title):
+    """Best-effort period context from a release title/URL hint."""
+    t = _clean_text(title).lower().replace("–", "-")
+    if not t:
+        return None
+    year_match = re.search(r"\b(20\d{2})\b", t)
+    year = int(year_match.group(1)) if year_match else None
+    q = None
+    for n, word in enumerate(["first", "second", "third", "fourth"], start=1):
+        if re.search(rf"\b{word}[ -]quarter\b", t):
+            q = n
+            break
+    if q is None:
+        m = re.search(r"\bq([1-4])\s*[' -]?(?:20)?(\d{2})\b", t)
+        if m:
+            q = int(m.group(1))
+            if year is None:
+                year = 2000 + int(m.group(2))
+    if q is None:
+        m = re.search(r"\b([1-4])q\s*[' -]?(?:20)?(\d{2})\b", t)
+        if m:
+            q = int(m.group(1))
+            if year is None:
+                year = 2000 + int(m.group(2))
+    full_year = bool(re.search(r"\bfull[ -]year\b|\bfy\s*[' -]?(?:20)?\d{2}\b", t))
+    return {"year": year, "quarter": q, "full_year": full_year}
+
+
+def _generic_periods_from_header_cell(cell_text, title=None):
+    """Normalize common financial-table period headers to canonical labels."""
+    t = _clean_text(cell_text).upper().replace("–", "-").replace("’", "'")
+    if not t:
+        return []
+    out = []
+
+    def add(label):
+        if label and label not in out:
+            out.append(label)
+
+    # FY25 / FY 2025 / FY'25
+    for m in re.finditer(r"\bFY\s*[' -]?(\d{2}|20\d{2})\b", t):
+        raw = m.group(1)
+        year = int(raw) if len(raw) == 4 else 2000 + int(raw)
+        add(f"FY {year}")
+
+    # 1Q26 / 1Q 2026 / Q1 26 / Q1'26
+    for m in re.finditer(r"\b([1-4])Q\s*[' -]?(\d{2}|20\d{2})\b", t):
+        raw = m.group(2)
+        year = int(raw) if len(raw) == 4 else 2000 + int(raw)
+        add(f"Q{int(m.group(1))} {year}")
+    for m in re.finditer(r"\bQ([1-4])\s*[' -]?(\d{2}|20\d{2})\b", t):
+        raw = m.group(2)
+        year = int(raw) if len(raw) == 4 else 2000 + int(raw)
+        add(f"Q{int(m.group(1))} {year}")
+
+    # First/second/... quarter 2026.
+    words = {"FIRST": 1, "SECOND": 2, "THIRD": 3, "FOURTH": 4}
+    for word, q in words.items():
+        m = re.search(rf"\b{word}[ -]QUARTER\b.*?\b(20\d{{2}})\b", t)
+        if m:
+            add(f"Q{q} {int(m.group(1))}")
+
+    # Full year 2025 / fiscal year 2025.
+    m = re.search(r"\b(?:FULL[ -]YEAR|FISCAL YEAR)\b.*?\b(20\d{2})\b", t)
+    if m:
+        add(f"FY {int(m.group(1))}")
+
+    # Year-only table columns are common (2026 | 2025). They are safe only
+    # when the release title fixes the period family (e.g. First Quarter 2026).
+    if re.fullmatch(r"20\d{2}", t.strip()):
+        year = int(t.strip())
+        ctx = _generic_title_period_context(title)
+        if ctx and ctx.get("quarter"):
+            add(f"Q{ctx['quarter']} {year}")
+        elif ctx and ctx.get("full_year"):
+            add(f"FY {year}")
+
+    return out
+
+
+def _generic_table_period_map(rows, upto_row, title=None):
+    """Map table column index -> canonical periods found anywhere above EPS row."""
+    by_col = {}
+    # Financial tables often place the period header many rows above EPS. Scan
+    # all rows above the target line, but only retain cells that normalize to a
+    # period; ordinary numeric data never enters this map.
+    for hrow in rows[:max(0, upto_row)]:
+        for cidx, cell in enumerate(hrow):
+            periods = _generic_periods_from_header_cell(cell, title=title)
+            if periods:
+                bucket = by_col.setdefault(cidx, [])
+                for p in periods:
+                    if p not in bucket:
+                        bucket.append(p)
+    return by_col
 
 
 def _generic_primary_eps_from_html(html, expected_period, title=None):
     """Extract one explicitly labelled adjusted/core/operating EPS table cell.
 
-    The requested period must be identifiable in the table header. If the
-    table mixes quarter and full-year columns, the exact requested column wins;
-    the function never assumes the first numeric cell is the desired period.
+    Period matching is table-aware and accepts common issuer shorthand such as
+    FY25, 1Q26 and year-only current/prior columns when the release title fixes
+    the quarter. No numeric column is accepted without an explicit period map.
     """
     if not html or not expected_period:
+        return None
+    expected = _clean_text(expected_period).upper()
+    if not _generic_period_components(expected):
         return None
     try:
         soup = BeautifulSoup(html, "html.parser")
     except Exception:
         return None
 
-    aliases = [a.lower().replace("–", "-") for a in _generic_eps_period_aliases(expected_period)]
     candidates = []
     for table in soup.find_all("table"):
         rows = []
@@ -23961,52 +24082,56 @@ def _generic_primary_eps_from_html(html, expected_period, title=None):
         for ridx, row in enumerate(rows):
             if not row:
                 continue
-            basis_label, family = _generic_eps_basis_from_label(row[0])
-            if not family:
+            # Some issuers indent the metric into a second cell. Restrict the
+            # label probe to the first two cells so values cannot become labels.
+            label_candidates = [row[0]]
+            if len(row) > 1 and _generic_parse_eps_number(row[1]) is None:
+                label_candidates.append(_clean_text(f"{row[0]} {row[1]}"))
+            basis_label = family = None
+            row_label = row[0]
+            for label in label_candidates:
+                basis_label, family = _generic_eps_basis_from_label(label)
+                if family:
+                    row_label = label
+                    break
+            if not family or len(row) < 2:
                 continue
-            if len(row) < 2:
-                continue
 
-            # Build a header text per column from up to four rows above the EPS
-            # line. This handles simple and multi-row tables without guessing.
-            header_by_col = []
-            for cidx in range(len(row)):
-                bits = []
-                for hrow in rows[max(0, ridx - 4):ridx]:
-                    if cidx < len(hrow):
-                        bits.append(hrow[cidx])
-                header_by_col.append(_clean_text(" ".join(bits)).lower().replace("–", "-"))
+            period_map = _generic_table_period_map(rows, ridx, title=title)
+            exact_columns = [
+                cidx for cidx in range(1, len(row))
+                if expected in (period_map.get(cidx) or [])
+            ]
 
-            exact_columns = []
-            for cidx in range(1, len(row)):
-                h = header_by_col[cidx] if cidx < len(header_by_col) else ""
-                if any(alias and alias in h for alias in aliases):
-                    exact_columns.append(cidx)
-
-            # Fallback only when the document title itself identifies exactly
-            # the requested quarter and the table is a simple current/prior pair.
+            # Last-resort current-period fallback only for a simple two-value
+            # release summary whose title exactly fixes the requested period.
+            # Prior-period extraction still requires an explicit prior header.
             if not exact_columns:
-                title_period = _document_period_from_title(title)
-                if title_period == expected_period and len(row) in (2, 3):
+                ctx = _generic_title_period_context(title)
+                comp = _generic_period_components(expected)
+                if (
+                    comp and ctx and comp.get("kind") == "Q"
+                    and ctx.get("quarter") == comp.get("quarter")
+                    and ctx.get("year") == comp.get("year")
+                    and len(row) in (2, 3)
+                ):
                     exact_columns = [1]
 
             for cidx in exact_columns:
                 value = _generic_parse_eps_number(row[cidx] if cidx < len(row) else None)
                 if value is None or value <= 0:
                     continue
-                score = 100
-                header = header_by_col[cidx] if cidx < len(header_by_col) else ""
-                if any(alias and alias in header for alias in aliases):
-                    score += 40
-                if "diluted" in row[0].lower():
+                header_periods = period_map.get(cidx) or []
+                score = 100 + (50 if expected in header_periods else 0)
+                if "diluted" in row_label.lower():
                     score += 10
                 candidates.append({
-                    "period": expected_period,
+                    "period": expected,
                     "eps": value,
                     "basis": basis_label,
                     "basis_family": family,
-                    "row_label": row[0],
-                    "column_header": header,
+                    "row_label": row_label,
+                    "column_header": " / ".join(header_periods),
                     "score": score,
                 })
 
@@ -24014,7 +24139,6 @@ def _generic_primary_eps_from_html(html, expected_period, title=None):
         return None
     candidates.sort(key=lambda r: r.get("score", 0), reverse=True)
     return candidates[0]
-
 
 def _generic_period_search_phrases(period):
     p = str(period or "").strip().upper()
@@ -24106,28 +24230,52 @@ def _generic_router_period_candidates(ir_router, period, limit=5):
 def _generic_diag_attempt(diag, period, url, source, status, note=None, found_periods=None):
     if not isinstance(diag, dict):
         return
-    diag.setdefault("attempted_documents", []).append({
+    item = {
         "period": period,
         "url": url,
         "source": source,
         "status": status,
         "note": note,
         "found_periods": list(found_periods or []),
-    })
+    }
+    key = (
+        _clean_text(period), _clean_text(url), _clean_text(source),
+        _clean_text(status), _clean_text(note), tuple(item["found_periods"]),
+    )
+    for existing in diag.setdefault("attempted_documents", []):
+        existing_key = (
+            _clean_text(existing.get("period")), _clean_text(existing.get("url")),
+            _clean_text(existing.get("source")), _clean_text(existing.get("status")),
+            _clean_text(existing.get("note")), tuple(existing.get("found_periods") or []),
+        )
+        if existing_key == key:
+            return
+    diag["attempted_documents"].append(item)
 
 
 def _fetch_generic_period_records_from_candidate(
-    row, company_domain, company_name, current_period, prior_period=None, deadline=None, diag=None, source="IR Year Navigator"
+    row, company_domain, company_name, current_period, prior_period=None, deadline=None, diag=None,
+    source="IR Year Navigator", document_cache=None
 ):
     url = _clean_text((row or {}).get("url"))
     if not url or not _host_belongs_to_company_family(url, company_domain):
         return []
-    html, final_url = _fetch_html(url, timeout=2.8, deadline=deadline)
-    final_url = final_url or url
+    cache = document_cache if isinstance(document_cache, dict) else None
+    cached = cache.get(url) if cache is not None else None
+    if cached is None:
+        html, final_url = _fetch_html(url, timeout=2.8, deadline=deadline)
+        final_url = final_url or url
+        page_text = _html_to_text(html) if html else ""
+        cached = {"html": html, "final_url": final_url, "page_text": page_text}
+        if cache is not None:
+            cache[url] = cached
+    else:
+        html = cached.get("html")
+        final_url = cached.get("final_url") or url
+        page_text = cached.get("page_text") or ""
     if not html:
         _generic_diag_attempt(diag, current_period, final_url, source, "nicht geladen")
         return []
-    page_text = _html_to_text(html)
     source_row = {"url": final_url, "title": (row or {}).get("title"), "snippet": (row or {}).get("snippet", "")}
     if not _source_matches_company(source_row, page_text, company_name, "", company_domain, True):
         _generic_diag_attempt(diag, current_period, final_url, source, "verworfen", "Unternehmenszuordnung nicht bestätigt")
@@ -24261,7 +24409,7 @@ def _calendar_completed_quarter_hint(today=None):
     return 0
 
 
-def _collect_ir_routed_period_records(ir_router, company_domain, company_name, current_fy, n, deadline, diag):
+def _collect_ir_routed_period_records(ir_router, company_domain, company_name, current_fy, n, deadline, diag, document_cache=None):
     """Load prior FY plus Q1..Qn current releases; each current release supplies prior-year comparator too."""
     records = []
     fy_period = f"FY {current_fy - 1}"
@@ -24271,7 +24419,7 @@ def _collect_ir_routed_period_records(ir_router, company_domain, company_name, c
         if not _research_budget_ok(deadline, reserve=1.0):
             break
         got = _fetch_generic_period_records_from_candidate(
-            row, company_domain, company_name, fy_period, deadline=deadline, diag=diag, source="IR Year Navigator"
+            row, company_domain, company_name, fy_period, deadline=deadline, diag=diag, source="IR Year Navigator", document_cache=document_cache
         )
         if got:
             records.extend(got[:1])
@@ -24282,7 +24430,7 @@ def _collect_ir_routed_period_records(ir_router, company_domain, company_name, c
             if not _research_budget_ok(deadline, reserve=0.9):
                 break
             got = _fetch_generic_period_records_from_candidate(
-                row, company_domain, company_name, fy_period, deadline=deadline, diag=diag, source="Web-Fallback"
+                row, company_domain, company_name, fy_period, deadline=deadline, diag=diag, source="Web-Fallback", document_cache=document_cache
             )
             if got:
                 records.extend(got[:1])
@@ -24301,7 +24449,7 @@ def _collect_ir_routed_period_records(ir_router, company_domain, company_name, c
                 break
             got = _fetch_generic_period_records_from_candidate(
                 row, company_domain, company_name, current_period, prior_period=prior_period,
-                deadline=deadline, diag=diag, source="IR Year Navigator"
+                deadline=deadline, diag=diag, source="IR Year Navigator", document_cache=document_cache
             )
             periods = {r.get("period") for r in got}
             if current_period in periods and prior_period in periods:
@@ -24313,7 +24461,7 @@ def _collect_ir_routed_period_records(ir_router, company_domain, company_name, c
                     break
                 got = _fetch_generic_period_records_from_candidate(
                     row, company_domain, company_name, current_period, prior_period=prior_period,
-                    deadline=deadline, diag=diag, source="Web-Fallback"
+                    deadline=deadline, diag=diag, source="Web-Fallback", document_cache=document_cache
                 )
                 periods = {r.get("period") for r in got}
                 if current_period in periods and prior_period in periods:
@@ -24331,7 +24479,7 @@ def discover_generic_primary_adjusted_ttm(
     company_name,
     website,
     current_fy,
-    cache_version="v22080",
+    cache_version="v22081",
 ):
     """IR-routed, bounded, fail-closed calendar-FY adjusted/core/operating TTM discovery."""
     _ = cache_version
@@ -24369,6 +24517,7 @@ def discover_generic_primary_adjusted_ttm(
     diag["router_official_link_count"] = int((ir_router or {}).get("official_link_count") or 0)
     diag["router_entrypoints"] = len((ir_router or {}).get("entrypoints") or [])
     diag["router_archives"] = list((ir_router or {}).get("archives") or [])[:3]
+    document_cache = {}
 
     for n in range(completed, 0, -1):
         required = [f"FY {current_fy - 1}"]
@@ -24376,7 +24525,7 @@ def discover_generic_primary_adjusted_ttm(
         required += [f"Q{q} {current_fy}" for q in range(1, n + 1)]
         diag["periods_required"] = required
         records = _collect_ir_routed_period_records(
-            ir_router, domain, company_name, current_fy, n, deadline, diag
+            ir_router, domain, company_name, current_fy, n, deadline, diag, document_cache=document_cache
         )
         found = list(dict.fromkeys(str(r.get("period")) for r in records if r.get("period")))
         diag["periods_found"] = found
@@ -25804,7 +25953,7 @@ def build_selected_stock_result(selected_symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "ir_routed_adjusted_ttm_v22080_20260912"
+CACHE_VERSION = "financial_table_eps_period_normalization_v22081_20260912"
 
 @st.cache_data(
     ttl=900,
