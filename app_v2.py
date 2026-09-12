@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.92"
+APP_BUILD_VERSION = "V2.20.93"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Regulated-Utility Specialist Valuation V1 (EIX / POR)"
+    f"Build {APP_BUILD_VERSION} · Utility Context Isolation & Consensus Coherence"
 )
 
 
@@ -70,6 +70,7 @@ st.caption(
 # V2.20.90: Adjusted-Earnings Specialist Valuation V1 for TransUnion, IQVIA and Eastman. Adds issuer-verified Q2/FY2026 primary-source snapshots, subtype-specific 100-point quality scores and conservative score-driven Adjusted-Earnings P/E corridors. The already-aligned normalized EPS remains the sole earnings basis; Yahoo GAAP TTM, generic FCF/balance scores and analyst targets do not enter the fair value. Reality Check remains external-only.
 # V2.20.91: Confidence-aware Signal Brake & Specialist UI Alignment. Globally caps “Starker Kauf” at High valuation confidence, requires at least 15% own Fair-Value upside for a Buy/Add action when confidence is Medium, and keeps 5–15% Medium-confidence upside at Beobachten/Halten. Fundamental-strength wording is aligned to 90+ Sehr stark, 80–89 Stark, 70–79 Gut, 50–69 Ausreichend. For the active TRU/IQV/EMN adjusted-earnings specialist path, generic growth/profitability/FCF/balance sections now state that those dimensions are handled inside the specialist model instead of showing misleading “special model required” placeholders. Fair-value formulas, specialist scores, P/E corridors and Reality Check mathematics are unchanged.
 # V2.20.92: Regulated-Utility Specialist Valuation V1. Adds a dedicated EIX/POR utility model using issuer Core/Adjusted current-FY EPS guidance, rate-base/EPS growth, allowed/earned ROE, FFO/credit metrics, dividend quality and financing/capital-plan quality. Generic Yahoo FCF and Net-Debt/FCF stay outside utility valuation. Downside-only explicit risk overlays cap the quality P/E for EIX wildfire-liability tail risk and POR pending WA acquisition/financing risk. EIX also receives an action brake to Beobachten/Halten while the open-ended California wildfire-liability framework remains unresolved. Analyst targets remain Module 8 only.
+# V2.20.93: Utility Context Isolation & Consensus Coherence. Keeps all V2.20.92 valuation formulas unchanged. Utility Yahoo/statement FCF and standard TTM/Forward EPS divergence are now explicitly context-only in UI and cannot appear as valuation-confidence deductions. Adds a descriptive external-consensus coherence layer that compares price-target direction with recommendation sentiment without changing Fair Value, scores, signals or the existing conflict brake.
 
 # =========================================================
 # Hilfsfunktionen
@@ -13843,7 +13844,7 @@ def build_adjusted_earnings_special_control(control, specialist_model):
             "specialist_valuation": valuation,
         },
         "note": (
-            "V2.20.92 verwendet für TRU/IQV/EMN ausschließlich die bereits bereinigte Same-Basis-Earnings-Referenz plus "
+            "V2.20.91 verwendet für TRU/IQV/EMN ausschließlich die bereits bereinigte Same-Basis-Earnings-Referenz plus "
             "unternehmensspezifische Primärkennzahlen. Standard-FCF/Bilanz-Score und Analysten-Kursziele bleiben außerhalb des Fair Values."
         ),
     })
@@ -14229,7 +14230,7 @@ def build_regulated_utility_special_control(control, utility_model):
         "snapshot": snap,
         "checks": {"utility_score": score, "utility_valuation": valuation},
         "note": (
-            "V2.20.92 verwendet bei EIX/POR die aktuelle Core/Adjusted-EPS-Guidance als einzige Earnings-Basis, "
+            "V2.20.93 verwendet bei EIX/POR die aktuelle Core/Adjusted-EPS-Guidance als einzige Earnings-Basis, "
             "bewertet Rate Base, regulatorische ROE-Qualität, FFO/Credit, Dividende und Finanzierung separat und "
             "wendet danach nur downside-only Utility-Risikocaps an. Standard-FCF/Net-Debt-to-FCF und Analysten-Kursziele bleiben außerhalb des Fair Values."
         ),
@@ -16085,7 +16086,7 @@ def get_special_control(company_type, symbol):
                 "Downside-only Regulatory/Transaction Risk Overlay",
                 "Analysten-Kursziel nur als externer Reality Check, nie als Fair-Value-Anker",
             ],
-            "status": "Router aktiv – V2.20.92 Regulated-Utility Specialist Valuation V1",
+            "status": "Router aktiv – V2.20.93 Regulated-Utility Specialist Valuation V1",
             "note": (
                 "EIX und POR erhalten einen eigenen Utility-Score und einen Core/Adjusted-EPS-KGV-Anker. "
                 "Generischer Yahoo-FCF, Net-Debt/FCF, Nettomarge und Standard-ROE bleiben Diagnosekontext; "
@@ -26481,6 +26482,82 @@ def _valuation_direction_side(upside_pct):
     return 0
 
 
+def _analyst_recommendation_sentiment(recommendation_key, recommendation_mean):
+    key = str(recommendation_key or "").strip().lower()
+    positive_keys = {"strong_buy", "strong buy", "buy", "outperform", "overweight"}
+    negative_keys = {"sell", "strong_sell", "strong sell", "underperform", "underweight"}
+    neutral_keys = {"hold", "neutral", "market perform", "equal-weight", "equal weight"}
+    if key in positive_keys:
+        return "Positiv"
+    if key in negative_keys:
+        return "Negativ"
+    if key in neutral_keys:
+        return "Neutral"
+    mean = safe_float(recommendation_mean)
+    if mean is None:
+        return None
+    if mean <= 2.2:
+        return "Positiv"
+    if mean >= 3.8:
+        return "Negativ"
+    return "Neutral"
+
+
+def _target_upside_sentiment(upside_pct):
+    value = safe_float(upside_pct)
+    if value is None:
+        return None
+    if value >= 10.0:
+        return "Positiv"
+    if value <= -10.0:
+        return "Negativ"
+    return "Neutral"
+
+
+def _external_consensus_coherence(analyst_consensus):
+    external = dict(analyst_consensus or {})
+    target_sentiment = _target_upside_sentiment(external.get("target_upside_pct"))
+    recommendation_sentiment = _analyst_recommendation_sentiment(
+        external.get("recommendation_key"), external.get("recommendation_mean")
+    )
+    result = {
+        "available": False,
+        "level": "NICHT VERFÜGBAR",
+        "target_sentiment": target_sentiment,
+        "recommendation_sentiment": recommendation_sentiment,
+        "reason": None,
+    }
+    if target_sentiment is None or recommendation_sentiment is None:
+        result["reason"] = "Kurszielrichtung oder Analystenempfehlung ist nicht ausreichend verfügbar."
+        return result
+    result["available"] = True
+    if target_sentiment == recommendation_sentiment:
+        result.update({
+            "level": "HOCH",
+            "reason": (
+                f"Kurszielrichtung ({target_sentiment.lower()}) und Analystenrating "
+                f"({recommendation_sentiment.lower()}) sind extern konsistent."
+            ),
+        })
+    elif "Neutral" in {target_sentiment, recommendation_sentiment}:
+        result.update({
+            "level": "GEMISCHT",
+            "reason": (
+                f"Kurszielrichtung ({target_sentiment.lower()}) und Analystenrating "
+                f"({recommendation_sentiment.lower()}) zeigen unterschiedliche Überzeugungsstärke."
+            ),
+        })
+    else:
+        result.update({
+            "level": "KONFLIKT",
+            "reason": (
+                f"Kurszielrichtung ({target_sentiment.lower()}) und Analystenrating "
+                f"({recommendation_sentiment.lower()}) zeigen gegensätzliche externe Signale."
+            ),
+        })
+    return result
+
+
 def build_external_reality_check(current_price, fair_value, analyst_consensus):
     """Compare own valuation direction with external analyst targets.
 
@@ -26504,6 +26581,7 @@ def build_external_reality_check(current_price, fair_value, analyst_consensus):
         "external_direction": _valuation_direction_bucket(external_upside),
         "consensus_quality": external.get("quality") or "Nicht verfügbar",
         "conflict_brake_eligible": False,
+        "consensus_coherence": _external_consensus_coherence(external),
         "reason": None,
     }
 
@@ -27445,7 +27523,7 @@ def build_selected_stock_result(selected_symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "regulated_utility_specialist_v22092_20260912"
+CACHE_VERSION = "utility_context_isolation_v22093_20260912"
 
 @st.cache_data(
     ttl=900,
@@ -28217,7 +28295,7 @@ def load_stock(selected_symbol, cache_version):
             "upper": safe_float(utility_val_fm.get("corridor_high")),
             "method": utility_val_fm.get("valuation_method_name") or "Regulated-Utility Core/Adjusted EPS P/E",
             "note": (
-                "V2.20.92: Der sichtbare Basiskorridor wird vom utility-spezifischen Quality Score gesteuert. "
+                "V2.20.93: Der sichtbare Basiskorridor wird vom utility-spezifischen Quality Score gesteuert. "
                 "Ein expliziter Regulatory/Transaction Risk Overlay darf das tatsächlich verwendete Ziel-KGV anschließend nur nach unten begrenzen."
             ),
         }
@@ -28229,7 +28307,7 @@ def load_stock(selected_symbol, cache_version):
             "available": bool(utility_score_fm.get("available") and utility_val_fm.get("available")),
             "earnings_basis_usable": bool(utility_val_fm.get("available")),
             "note": (
-                "V2.20.92 verwendet für Regulated Utilities keinen generischen FCF-/Bilanz-/EPS-Score. "
+                "V2.20.93 verwendet für Regulated Utilities keinen generischen FCF-/Bilanz-/EPS-Score. "
                 "Der Utility Quality Score setzt den fundamentalen P/E-Anker auf Basis der aktuellen Core/Adjusted-EPS-Guidance; "
                 "ein expliziter Risk Overlay wirkt ausschließlich downside-only."
             ),
@@ -28243,7 +28321,7 @@ def load_stock(selected_symbol, cache_version):
             "lower": safe_float(sp_val.get("corridor_low")),
             "upper": safe_float(sp_val.get("corridor_high")),
             "method": sp_val.get("valuation_method_name") or "Adjusted-Earnings Spezial-KGV",
-            "note": "V2.20.92: Der Korridor gehört ausschließlich zum primärquellenbasierten Spezialmodell; generische Scores bleiben außen vor.",
+            "note": "V2.20.93: Der Korridor gehört ausschließlich zum primärquellenbasierten Spezialmodell; generische Scores bleiben außen vor.",
         }
         fundamental_multiple = {
             **fundamental_multiple,
@@ -28447,7 +28525,7 @@ def load_stock(selected_symbol, cache_version):
                     "Der Fair Value bleibt nutzbar, wird aber durch einen expliziten downside-only P/E-Cap begrenzt."
                 ),
                 "action": (
-                    "V2.20.92 hält den Utility-Fair-Value als Diagnose-/Bewertungsanker frei, begrenzt aber Kauf/Nachkauf auf Beobachten/Halten, "
+                    "V2.20.93 hält den Utility-Fair-Value als Diagnose-/Bewertungsanker frei, begrenzt aber Kauf/Nachkauf auf Beobachten/Halten, "
                     "bis sich Wildfire-Fund-Solvency, Haftungsrahmen und Eaton-Fire-Risiko materiell geklärt haben."
                 ),
             }
@@ -29448,6 +29526,7 @@ if selected_symbol:
                 is_semicap_fcf_context = is_semicap_lithography_company_type(company_type)
                 is_nvidia_fcf_context = is_nvidia_ai_growth_company_type(company_type)
                 is_bkr_fcf_context = is_baker_hughes_energy_tech_company_type(company_type)
+                is_utility_fcf_context = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 if fcf_ctx.get("score_eligible"):
                     source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
                     if is_bank_fcf_context:
@@ -29502,6 +29581,13 @@ if selected_symbol:
                             "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
                             "Bei Baker Hughes bleibt dieser Yahoo-TTM-FCF reine Kontextinformation. V2.20.73 verwendet im Post-Chart Primary-Source Gate den offiziell ausgewiesenen Q2-Free-Cashflow; "
                             "Yahoo-FCF steuert weder Score, Leverage noch Fair Value."
+                        )
+                    elif is_utility_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            "Bei Regulated Utilities bleibt der Yahoo-/Cashflow-Statement-FCF ausschließlich Diagnosekontext. "
+                            "Er fließt weder in Utility Quality Score, Credit-/Leverage-Prüfung, Ziel-KGV, Bewertungszonen noch Fair Value ein; "
+                            "maßgeblich sind FFO/Credit, Rate Base, regulatorische Rückgewinnung und der offizielle Kapital-/Finanzierungsplan."
                         )
                     else:
                         st.caption(
@@ -29562,6 +29648,14 @@ if selected_symbol:
                                 f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Für Baker Hughes V2.20.73 bleiben beide Yahoo-Werte reine Kontextdaten; "
                                 "maßgeblich im Post-Chart Primary-Source Gate ist ausschließlich der offiziell ausgewiesene Q2-Free-Cashflow."
                             )
+                        elif is_utility_fcf_context:
+                            st.info(
+                                "ℹ️ FCF-Quellenabweichung im Utility-Kontext: Yahoo quoteSummary/info zeigt "
+                                f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
+                                f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
+                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Werte bleiben reine Diagnose-/Rohdaten und beeinflussen "
+                                "weder Utility Score noch Credit-Prüfung, Ziel-KGV oder Fair Value."
+                            )
                         else:
                             st.warning(
                                 "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info zeigt "
@@ -29592,6 +29686,11 @@ if selected_symbol:
                         st.caption(
                             "FCF-Kontext/Rohdaten: Nur Yahoo Levered Free Cash Flow verfügbar. "
                             "Bei NVIDIA bleibt dieser Wert reine Referenz; V2.20.67 verwendet ausschließlich den offiziellen Q2-FY2027-FCF in der FCF-/Liquiditätskomponente des AI-Quality-Scores."
+                        )
+                    elif is_utility_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: Nur Yahoo Levered Free Cash Flow verfügbar. "
+                            "Bei Regulated Utilities bleibt auch dieser Wert reine Diagnoseinformation und hat keinen Einfluss auf Utility Score, Credit-Prüfung, Ziel-KGV oder Fair Value."
                         )
                     else:
                         st.warning(
@@ -29848,7 +29947,7 @@ if selected_symbol:
                         util_eps_snap_ui = (data.get("regulated_utility_specialist_model") or {}).get("snapshot") or {}
                         st.info(
                             "Regulated Utility: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
-                            f"V2.20.92 verwendet für den Fair Value stattdessen direkt die aktuelle {text_or_dash(util_eps_snap_ui.get('earnings_basis_name'))} "
+                            f"V2.20.93 verwendet für den Fair Value stattdessen direkt die aktuelle {text_or_dash(util_eps_snap_ui.get('earnings_basis_name'))} "
                             "und prüft Rate Base, ROE, Credit, Dividende und Finanzierung separat."
                         )
 
@@ -29893,6 +29992,12 @@ if selected_symbol:
                         st.caption("Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) + " Diese Divergenz steuert das Kratos-Sondermodell nicht; GAAP/Adjusted-EPS werden separat geprüft.")
                     elif is_nvidia_ai_growth_company_type(company_type):
                         st.caption("Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) + " Diese Divergenz steuert das NVIDIA-Sondermodell nicht.")
+                    elif utility_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
+                            " Diese TTM-/Forward-Divergenz steuert weder Utility-Fair-Value noch Utility-Bewertungssicherheit; "
+                            "maßgeblich ist die Current-FY Core/Adjusted-EPS-Guidance plus Regulierungs-/Credit-/Risiko-Gates."
+                        )
                     else:
                         st.warning(eps_result["eps_divergence_note"])
 
@@ -29901,6 +30006,11 @@ if selected_symbol:
                         st.caption("Standardpfad-Sicherheit nur Kontext; das Kratos-Sondermodell verwendet Primärquellen für Growth/Visibility und Earnings-Credibility.")
                     elif is_nvidia_ai_growth_company_type(company_type):
                         st.caption("Standardpfad-Sicherheit nur Kontext; das NVIDIA-Sondermodell verwendet eigene Demand-/Horizon-Gates.")
+                    elif utility_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die Utility-Bewertungssicherheit nicht. "
+                            "Die Utility-Sicherheit wird ausschließlich aus Guidance-, Regulierungs-, Credit-, Finanzierungs- und Spezialrisiko-Gates bestimmt."
+                        )
                     else:
                         st.warning(eps_result["confidence_note"])
 
@@ -30007,6 +30117,11 @@ if selected_symbol:
                     st.caption(
                         "Das Standard-normalisierte EPS ist bei NVIDIA in V2.20.67 ausschließlich Kontext und keine Earnings-Basis. "
                         "Für den AI-Pfad wird ausschließlich der separat hergeleitete FY27-Operating-EPS-Proxy verwendet; Yahoo Forward-EPS bleibt ohne bestätigten Horizont reference-only. Das Standard-EPS steuert weder das freigegebene NVIDIA-Ziel-KGV noch den Fair Value."
+                    )
+                elif utility_eps_context_ui:
+                    st.caption(
+                        "Das Standard-normalisierte EPS ist bei Regulated Utilities ausschließlich Diagnosekontext und keine Fair-Value-Earnings-Basis. "
+                        "Für die Utility-Bewertung wird ausschließlich die issuer-geführte Current-FY Core/Adjusted-EPS-Guidance verwendet."
                     )
                 elif eps_result.get("normalization_blocked_by_structural_break"):
                     st.caption(
@@ -31023,7 +31138,7 @@ if selected_symbol:
                         st.caption("V2.20.73 verwendet den offiziell ausgewiesenen Q2-Free-Cashflow im Primärdaten-Gate. Yahoo-TTM-FCF bleibt Kontext; Q2-FCF wird nicht auf das post-Chart Gesamtunternehmen hochgerechnet.")
                     elif is_utility_specialist_fcf_ui:
                         st.info("ℹ️ Im Regulated-Utility-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
-                        st.caption("Hohe Utility-CapEx machen industriellen Free Cash Flow als Qualitätsmaß ungeeignet. V2.20.92 verwendet stattdessen FFO/Credit, Rate Base, regulatorische Rückgewinnung und den offiziellen Kapital-/Finanzierungsplan.")
+                        st.caption("Hohe Utility-CapEx machen industriellen Free Cash Flow als Qualitätsmaß ungeeignet. V2.20.93 verwendet stattdessen FFO/Credit, Rate Base, regulatorische Rückgewinnung und den offiziellen Kapital-/Finanzierungsplan.")
                     elif is_adjusted_specialist_fcf_ui:
                         st.info("ℹ️ Im Adjusted-Earnings-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
                         st.caption("Cashflow-Qualität wird im jeweiligen Spezialmodell über FCF-Conversion, OCF/CapEx oder geschäftsmodellspezifische Primärkennzahlen geprüft; Yahoo-TTM-FCF bleibt Kontext.")
@@ -36947,6 +37062,12 @@ if selected_symbol:
                                 "Diese Spezialkontrolle bestimmt die Sicherheit der FY27-Operating-Earnings-Basis; die generische TTM-/Forward-EPS-Divergenz "
                                 "wird nicht nochmals als separater Sicherheitsabzug gewertet."
                             )
+                    elif fair_value.get("valuation_method") == "regulated_utility_core_eps_pe":
+                        st.info(
+                            "Utility-Sicherheitsisolierung: Die Standard-TTM-/Forward-EPS-Divergenz ist kein Bestandteil der Bewertungssicherheit. "
+                            "Die angezeigte Sicherheitsstufe stammt ausschließlich aus Unternehmenstyp/Utility-Methode, Current-FY Core/Adjusted-EPS-Guidance "
+                            "und der Utility-Spezialkontrolle einschließlich Regulierungs-/Credit-/Finanzierungs-/Tail-Risk-Gates."
+                        )
                     else:
                         eps_confidence_note = data.get(
                             "eps_normalization", {}
@@ -37187,6 +37308,17 @@ if selected_symbol:
                             rec_text += f" · Score {recommendation_mean:.2f}"
                         st.write("**Yahoo Analystenempfehlung:** " + rec_text)
 
+                    coherence = reality_check.get("consensus_coherence") or _external_consensus_coherence(analyst_consensus)
+                    if coherence.get("available"):
+                        coherence_level = coherence.get("level")
+                        if coherence_level == "HOCH":
+                            st.success("**Externe Konsens-Kohärenz: 🟢 HOCH**")
+                        elif coherence_level == "GEMISCHT":
+                            st.warning("**Externe Konsens-Kohärenz: 🟡 GEMISCHT**")
+                        elif coherence_level == "KONFLIKT":
+                            st.error("**Externe Konsens-Kohärenz: 🔴 KONFLIKT**")
+                        st.caption(coherence.get("reason"))
+
                     if reality_check.get("available"):
                         agreement = reality_check.get("agreement", "NICHT VERFÜGBAR")
                         if agreement == "HOCH":
@@ -37241,7 +37373,8 @@ if selected_symbol:
                 st.caption(
                     "Der Reality Check ist eine unabhängige Kontrollschicht. Analystenkonsens "
                     "verändert weder den eigenen Fair Value noch den fundamentalen Score und kann "
-                    "kein Kauf-/Verkaufssignal erzeugen; er darf bei belastbarem Konflikt nur bremsen."
+                    "kein Kauf-/Verkaufssignal erzeugen; er darf bei belastbarem Konflikt nur bremsen. "
+                    "Die Konsens-Kohärenz beschreibt nur, ob Kurszielrichtung und Analystenrating extern zueinander passen; sie verändert kein Signal."
                 )
 
                 st.divider()
