@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.75"
+APP_BUILD_VERSION = "V2.20.76"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · External Analyst Reality Check & Conflict Brake"
+    f"Build {APP_BUILD_VERSION} · Earnings Horizon Alignment, Primary Guidance Guard & Classification V2"
 )
 
 
@@ -51,6 +51,8 @@ st.caption(
 # V2.20.74: Global Earnings Comparability, Structural Review & Business-Model Safety Gates. Adds a directional EPS-divergence gate (downward Forward-EPS is never de-weighted merely because it is lower), a fail-closed generic Earnings-Basis Comparability Gate for extreme TTM/Forward mismatches or loss-to-profit transitions, an anomaly-based Structural Review Gate that never invents an M&A cause, a Growth Quality Gate for isolated extreme Yahoo growth, and an FCF Quality/Horizon-Proxy Gate that prevents unusually conversion-heavy TTM cash flow from beautifying leverage. Expands business-model routing for Precious-Metals Trading, Financial Data/Market Infrastructure, Healthcare Diagnostics/Research, Agricultural Inputs, Advertising/Marketing Services, Specialty Retail, Toys/Entertainment and Packaged Foods/Snacks. Existing specialist models remain preserved.
 
 # V2.20.75: External Analyst Reality Check & Conflict Brake. Keeps the app's own Fair Value and fundamental signal fully independent, then compares them with Yahoo's current analyst target consensus and recommendation context. A full Reality Check requires a valid mean target and at least three analyst opinions; >=5 is high-quality, 3–4 medium, <3/unknown remains non-binding. Large same-direction valuation gaps and opposite directions can trigger a CONFLICT flag. Only a sufficiently broad external conflict may brake aggressive buy/add or reduce/sell actions; analyst consensus never raises the app's Fair Value or creates a buy/sell signal by itself.
+
+# V2.20.76: Earnings Horizon Alignment, Primary Guidance Guard & Classification V2. Generic valuation no longer treats Yahoo +1Y analyst EPS as the default current valuation horizon. The app loads 0Y/current-FY and +1Y separately, can use fresh time-bounded official EPS guidance for a small verified issuer set as the current-FY anchor, and keeps +1Y strictly as context. Raw provider Forward-EPS remains visible. IR navigation now accepts verified investor-relations subdomains within the issuer domain family. Classification is tightened for regulated electric utilities, credit bureaus/data analytics, specialty chemicals/materials, athletic-apparel turnarounds, solar manufacturing/policy-sensitive issuers and Mondelez/global snacks. Utilities and new uncalibrated specialist types are fail-closed for generic growth/FCF/balance scoring and generic valuation corridors.
 
 # =========================================================
 # Hilfsfunktionen
@@ -1054,6 +1056,8 @@ def build_special_event_warning(eps_normalization, bank_special_model=None, insu
     eps_divergence_active = bool(eps.get("eps_divergence_note"))
 
     yellow_reasons = []
+    if eps.get("eps_horizon_alignment_active") and eps.get("eps_horizon_alignment_note"):
+        yellow_reasons.append(str(eps.get("eps_horizon_alignment_note")))
     if structural_break_active:
         yellow_reasons.append("bestätigte Strukturänderung wird bereits berücksichtigt")
     if ttm_forward_deviation is not None and ttm_forward_deviation >= 0.50:
@@ -1283,11 +1287,29 @@ def _normalize_host(url):
         return ""
 
 
+def _host_belongs_to_company_family(url_or_host, company_domain):
+    """V2.20.76: accept issuer IR subdomains without opening the router to third parties.
+
+    Examples: investors.corteva.com belongs to corteva.com; investor.omc.com
+    belongs to omc.com. The check remains strict to the issuer's domain family.
+    """
+    domain = _clean_text(company_domain).lower().split(":")[0]
+    if domain.startswith("www."):
+        domain = domain[4:]
+    if not domain:
+        return False
+    raw = _clean_text(url_or_host)
+    host = _normalize_host(raw) if "://" in raw else raw.lower().split(":")[0]
+    if host.startswith("www."):
+        host = host[4:]
+    return bool(host and (host == domain or host.endswith("." + domain)))
+
+
 def _source_category(url, company_domain=None):
     host = _normalize_host(url)
     if host == "sec.gov" or host.endswith(".sec.gov"):
         return "Regulatorisch / SEC", True
-    if company_domain and (host == company_domain or host.endswith("." + company_domain)):
+    if company_domain and _host_belongs_to_company_family(host, company_domain):
         return "Unternehmen / Investor Relations", True
     if any(host == d or host.endswith("." + d) for d in TRUSTED_SECONDARY_DOMAINS):
         return "Seriöse Sekundärquelle", False
@@ -2452,7 +2474,7 @@ def _discover_company_sitemap_inventory(company_domain, deadline=None, max_child
     if not company_domain or not _research_budget_ok(deadline, reserve=1.2):
         return [], []
 
-    root = f"https://www.{company_domain}"
+    root = _router_root(company_domain) or f"https://{company_domain}"
     sitemap_seeds = [
         urljoin(root + "/", "sitemap.xml"),
         urljoin(root + "/", "sitemap_index.xml"),
@@ -2474,7 +2496,7 @@ def _discover_company_sitemap_inventory(company_domain, deadline=None, max_child
             continue
         for loc in locs:
             host = _normalize_host(loc)
-            if host != company_domain:
+            if not _host_belongs_to_company_family(host, company_domain):
                 continue
             if re.search(r"(?:\.xml|\.xml\.gz)(?:$|\?)", loc, flags=re.I):
                 child_sitemaps.append(loc)
@@ -2501,7 +2523,7 @@ def _discover_company_sitemap_inventory(company_domain, deadline=None, max_child
             if not xml_text:
                 continue
             for loc in _parse_sitemap_locs(xml_text):
-                if _normalize_host(loc) == company_domain and not re.search(r"\.xml(?:$|\?)", loc, flags=re.I):
+                if _host_belongs_to_company_family(loc, company_domain) and not re.search(r"\.xml(?:$|\?)", loc, flags=re.I):
                     direct_urls.append(loc)
 
     return list(dict.fromkeys(direct_urls))[:30000], tried
@@ -2535,7 +2557,7 @@ def _historical_sitemap_candidates(company_domain, target_years, deadline=None, 
 
 def _historical_row_from_candidate(item, company_domain, company_name, year, deadline=None):
     url = _clean_text(item.get("url"))
-    if not url or _normalize_host(url) != company_domain:
+    if not url or not _host_belongs_to_company_family(url, company_domain):
         return None
     if not _research_budget_ok(deadline, reserve=0.7):
         return None
@@ -2625,7 +2647,12 @@ IR_ROUTER_ARCHIVE_TERMS = [
 def _router_root(company_domain):
     if not company_domain:
         return None
-    return f"https://{company_domain}" if company_domain.startswith("www.") else f"https://www.{company_domain}"
+    domain = str(company_domain).strip().lower()
+    if domain.startswith("www."):
+        return f"https://{domain}"
+    if domain.startswith(("investor.", "investors.", "ir.", "about.")):
+        return f"https://{domain}"
+    return f"https://www.{domain}"
 
 
 def _router_link_score(url, anchor=""):
@@ -2717,7 +2744,7 @@ def _router_extract_links(html, base_url, company_domain):
         soup = BeautifulSoup(html, "html.parser")
         for a in soup.find_all("a", href=True):
             href = urljoin(base_url, a.get("href"))
-            if _normalize_host(href) != company_domain:
+            if not _host_belongs_to_company_family(href, company_domain):
                 continue
             anchor = _clean_text(a.get_text(" ", strip=True))
             if not href.startswith(("http://", "https://")):
@@ -3631,7 +3658,7 @@ def _discover_historical_full_year_bridges(
                 if not _research_budget_ok(deadline, reserve=0.8):
                     break
                 url = _clean_text(item.get("url"))
-                if not url or url in seen_urls or _normalize_host(url) != company_domain:
+                if not url or url in seen_urls or not _host_belongs_to_company_family(url, company_domain):
                     continue
                 seen_urls.add(url)
                 item = dict(item)
@@ -4325,7 +4352,7 @@ def _discover_company_primary_pages(company_domain, company_name, max_pages=5, d
     if not company_domain or not _research_budget_ok(deadline):
         return []
 
-    root = f"https://www.{company_domain}"
+    root = _router_root(company_domain) or f"https://{company_domain}"
     if company_domain.startswith("www."):
         root = f"https://{company_domain}"
     current_year = datetime.now().year
@@ -4368,7 +4395,7 @@ def _discover_company_primary_pages(company_domain, company_name, max_pages=5, d
             soup = BeautifulSoup(html, "html.parser")
             for a in soup.find_all("a", href=True):
                 href = urljoin(final_url, a.get("href"))
-                if _normalize_host(href) != company_domain or href in seen:
+                if not _host_belongs_to_company_family(href, company_domain) or href in seen:
                     continue
                 seen.add(href)
                 anchor = _clean_text(a.get_text(" ", strip=True))
@@ -5479,12 +5506,16 @@ def is_special_fcf_model(company_type):
         "halbleiter / fabless / ai-wachstum",
         "energy technology / oilfield services",
         "edelmetall-handel / distribution & lending",
-        "financial data / market infrastructure",
+        "credit bureau / data & analytics",
         "healthcare / diagnostics & research / cro + data",
         "agriculture / seeds & crop protection",
         "advertising / marketing services",
         "consumer / specialty retail",
-        "consumer / toys & entertainment"
+        "consumer / toys & entertainment",
+        "consumer / athletic apparel & footwear / turnaround",
+        "solar manufacturing / high-growth / policy-sensitive",
+        "specialty materials / specialty chemicals",
+        "versorger"
     ]
 
     return any(
@@ -5719,12 +5750,16 @@ def is_special_balance_model(company_type):
         "halbleiter / fabless / ai-wachstum",
         "energy technology / oilfield services",
         "edelmetall-handel / distribution & lending",
-        "financial data / market infrastructure",
+        "credit bureau / data & analytics",
         "healthcare / diagnostics & research / cro + data",
         "agriculture / seeds & crop protection",
         "advertising / marketing services",
         "consumer / specialty retail",
-        "consumer / toys & entertainment"
+        "consumer / toys & entertainment",
+        "consumer / athletic apparel & footwear / turnaround",
+        "solar manufacturing / high-growth / policy-sensitive",
+        "specialty materials / specialty chemicals",
+        "versorger"
     ]
 
     return any(
@@ -6077,6 +6112,35 @@ def classify_company(name, symbol, sector, industry):
             "company_profile": "Wachstumsorientierter Defense-Tech-Anbieter; kein klassischer großer Defense-Prime",
         }
 
+    # V2.20.76 – tighter classifications from the cross-company validation run.
+    if symbol_text == "MDLZ" or "mondelez" in name_text:
+        return {
+            "type": "Defensiver Konsum / Global Snacks & Confectionery",
+            "method": "Current-FY/normalisiertes EPS + KGV + FCF/Leverage; Peer-Set bis Kalibrierung nicht automatisch erzwingen",
+            "confidence_cap": "Mittel bis Hoch",
+        }
+
+    if symbol_text in ["UA", "UAA"] or "under armour" in name_text:
+        return {
+            "type": "Consumer / Athletic Apparel & Footwear / Turnaround",
+            "method": "Primär-Guidance + Turnaround-Earnings + FCF/Liquidität; Standard-Korridor gesperrt",
+            "confidence_cap": "Niedrig bis Mittel",
+        }
+
+    if symbol_text == "TOYO" or ("solar" in industry_text and "technology" in sector_text):
+        return {
+            "type": "Solar Manufacturing / High-Growth / Policy-Sensitive",
+            "method": "Current-FY Earnings + Cash Conversion + Working Capital/Dilution/Policy-Risiken; Standard-Korridor gesperrt",
+            "confidence_cap": "Niedrig bis Mittel",
+        }
+
+    if symbol_text == "EMN" or "eastman chemical" in name_text or "specialty chemicals" in industry_text:
+        return {
+            "type": "Specialty Materials / Specialty Chemicals",
+            "method": "Current-FY/Adjusted Earnings + Zyklus-/Margin-/Leverage-Kontrolle; Standard-Korridor gesperrt",
+            "confidence_cap": "Mittel",
+        }
+
     # V2.20.74 – business-model routes uncovered by the cross-company stress test.
     # These routes are deliberately fail-closed where no calibrated valuation
     # corridor exists yet; classification must improve before valuation breadth.
@@ -6093,8 +6157,8 @@ def classify_company(name, symbol, sector, industry):
         or "financial data & stock exchanges" in industry_text
     ):
         return {
-            "type": "Financial Data / Market Infrastructure",
-            "method": "Bereinigte Earnings-Basis + FCF/Leverage + Geschäftsmodell-/Peer-Kontrolle; Standard-Korridor gesperrt",
+            "type": "Credit Bureau / Data & Analytics",
+            "method": "Adjusted Earnings + Adjusted EBITDA/Leverage + organisches Wachstum; Standard-Korridor gesperrt",
             "confidence_cap": "Mittel",
         }
 
@@ -6489,7 +6553,14 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel bis Hoch"
         }
 
-    # Versorger
+    # Versorger – regulierte Stromversorger erhalten einen eigenen fail-closed Untertyp.
+    if "regulated electric" in industry_text:
+        return {
+            "type": "Versorger / Regulated Electric",
+            "method": "Core/Adjusted EPS + Rate Base + Authorized ROE + Utility-Leverage + Dividende; generischer FCF-Score gesperrt",
+            "confidence_cap": "Mittel bis Hoch"
+        }
+
     utility_terms = [
         "utilities",
         "utility"
@@ -7650,7 +7721,7 @@ def normalize_eps(
         if divergence_gate.get("active"):
             method = (
                 f"{trailing_weight * 100:.0f} % TTM-EPS + "
-                f"{forward_weight * 100:.0f} % Forward-EPS "
+                f"{forward_weight * 100:.0f} % Current-FY-EPS "
                 "durch EPS-Divergenz-Gate; "
                 f"Ausgangsmethode: {base_method}"
             )
@@ -13405,6 +13476,12 @@ def get_valuation_corridor(company_type):
             "Adjusted/normalisiertes KGV"
         ),
         (
+            "defensiver konsum / global snacks & confectionery",
+            16.0,
+            24.0,
+            "Current-FY/normalisiertes KGV"
+        ),
+        (
             "defensiver konsum / packaged foods & snacks",
             14.0,
             22.0,
@@ -13468,7 +13545,14 @@ def get_valuation_corridor(company_type):
         "elektrische luftfahrt",
         "reifes saas",
         "vertical saas",
-        "energy technology / oilfield services"
+        "energy technology / oilfield services",
+        "credit bureau / data & analytics",
+        "healthcare / diagnostics & research / cro + data",
+        "agriculture / seeds & crop protection",
+        "advertising / marketing services",
+        "consumer / athletic apparel & footwear / turnaround",
+        "solar manufacturing / high-growth / policy-sensitive",
+        "specialty materials / specialty chemicals"
     ]
 
     if any(
@@ -13863,6 +13947,18 @@ def get_peer_group(company_type, symbol):
                     )
                 )
             }
+
+    if "defensiver konsum / global snacks & confectionery" in type_name:
+        return {
+            "available": False,
+            "peers": [],
+            "count": 0,
+            "note": (
+                "Global-Snacks/Confectionery-Peer-Lock V2.20.76: klassische Packaged-Food-Peers "
+                "werden nicht mehr automatisch auf Mondelez übertragen. Bis ein kalibriertes internationales "
+                "Snacks-/Confectionery-Set vorliegt, bleibt das Fundamental-Multiple unverändert."
+            )
+        }
 
     if "standard-unternehmen" in type_name:
         return {
@@ -23558,60 +23654,204 @@ def _yoy_from_quarterly_statement(frame, row_names):
     return current / prior - 1.0
 
 
-def _analyst_forward_eps(ticker):
-    """Load next-fiscal-year analyst EPS consensus from yfinance analysis tables."""
+def _estimate_row_value(frame, row_name, candidates=("avg", "average", "current", "currentestimate")):
+    if frame is None or getattr(frame, "empty", True):
+        return None
+    index_lookup = {str(v).strip().lower(): v for v in frame.index}
+    column_lookup = {str(c).strip().lower(): c for c in frame.columns}
+    row_key = index_lookup.get(str(row_name).strip().lower())
+    if row_key is None:
+        return None
+    for candidate in candidates:
+        column_key = column_lookup.get(candidate)
+        if column_key is None:
+            continue
+        try:
+            value = safe_float(frame.loc[row_key, column_key])
+        except Exception:
+            value = None
+        if value is not None and value > 0:
+            return value
+    return None
+
+
+def _estimate_row_analyst_count(frame, row_name):
+    if frame is None or getattr(frame, "empty", True):
+        return None
+    index_lookup = {str(v).strip().lower(): v for v in frame.index}
+    column_lookup = {str(c).strip().lower(): c for c in frame.columns}
+    row_key = index_lookup.get(str(row_name).strip().lower())
+    if row_key is None:
+        return None
+    for candidate in ["numberofanalysts", "number of analysts", "analysts"]:
+        column_key = column_lookup.get(candidate)
+        if column_key is None:
+            continue
+        try:
+            value = safe_float(frame.loc[row_key, column_key])
+        except Exception:
+            value = None
+        if value is not None and value >= 0:
+            return int(round(value))
+    return None
+
+
+def _analyst_eps_horizon_context(ticker):
+    """V2.20.76 – load current-FY (0Y) and next-FY (+1Y) separately.
+
+    The old recovery path deliberately preferred +1Y. That was useful as a
+    forward consensus, but unsafe for generic TTM normalization because it can
+    compare trailing GAAP earnings directly with a fiscal year two horizons
+    away. Current-FY is now the generic valuation anchor; +1Y is context only.
+    """
     estimate = _ticker_frame(
         ticker,
         ["earnings_estimate"],
         method_calls=[("get_earnings_estimate", {})],
     )
+    current_fy = _estimate_row_value(estimate, "0y")
+    next_fy = _estimate_row_value(estimate, "+1y")
+    current_count = _estimate_row_analyst_count(estimate, "0y")
+    next_count = _estimate_row_analyst_count(estimate, "+1y")
 
-    def extract_from_frame(frame):
-        if frame is None or getattr(frame, "empty", True):
-            return None
+    if current_fy is None and next_fy is None:
+        eps_trend = _ticker_frame(
+            ticker,
+            ["eps_trend"],
+            method_calls=[("get_eps_trend", {})],
+        )
+        current_fy = _estimate_row_value(eps_trend, "0y")
+        next_fy = _estimate_row_value(eps_trend, "+1y")
+        current_count = current_count or _estimate_row_analyst_count(eps_trend, "0y")
+        next_count = next_count or _estimate_row_analyst_count(eps_trend, "+1y")
+        source = "Yahoo EPS Trend"
+    else:
+        source = "Yahoo Analyst Consensus"
 
-        index_lookup = {
-            str(index_value).strip().lower(): index_value
-            for index_value in frame.index
-        }
-        column_lookup = {
-            str(column).strip().lower(): column
-            for column in frame.columns
-        }
+    return {
+        "current_fy_eps": current_fy,
+        "next_fy_eps": next_fy,
+        "current_fy_analyst_count": current_count,
+        "next_fy_analyst_count": next_count,
+        "source": source if (current_fy is not None or next_fy is not None) else None,
+    }
 
-        # +1y is deliberately preferred. It is a true forward fiscal-year
-        # consensus and avoids silently treating a current-year estimate as TTM.
-        row_key = index_lookup.get("+1y")
-        if row_key is None:
-            return None
 
-        for candidate in ["avg", "average", "current", "currentestimate"]:
-            column_key = column_lookup.get(candidate)
-            if column_key is None:
-                continue
-            try:
-                value = safe_float(frame.loc[row_key, column_key])
-            except Exception:
-                value = None
-            if value is not None and value > 0:
-                return value
-
-        return None
-
-    value = extract_from_frame(estimate)
-    if value is not None:
-        return value, "Yahoo Analyst Consensus (+1y)"
-
-    eps_trend = _ticker_frame(
-        ticker,
-        ["eps_trend"],
-        method_calls=[("get_eps_trend", {})],
-    )
-    value = extract_from_frame(eps_trend)
-    if value is not None:
-        return value, "Yahoo EPS Trend (+1y)"
-
+def _analyst_forward_eps(ticker):
+    """Compatibility recovery: prefer current fiscal-year consensus, not +1Y."""
+    ctx = _analyst_eps_horizon_context(ticker)
+    value = safe_float(ctx.get("current_fy_eps"))
+    if value is not None and value > 0:
+        return value, "Yahoo Analyst Consensus (0Y / aktuelles FY)"
+    value = safe_float(ctx.get("next_fy_eps"))
+    if value is not None and value > 0:
+        return value, "Yahoo Analyst Consensus (+1Y Fallback; Horizontkontext)"
     return None, None
+
+
+# Fresh, time-bounded company guidance already verified from official issuer
+# releases during the V2.20.76 cross-company review. It is used only as a
+# current-fiscal-year earnings anchor; it never creates a valuation corridor.
+VERIFIED_CURRENT_FY_EPS_GUIDANCE = {
+    "CTVA": {"fiscal_year": 2026, "basis": "Operating EPS", "low": 3.60, "high": 3.80, "as_of": "2026-07-30", "valid_until": "2026-12-31", "source": "Corteva Q2 2026 / FY2026 guidance"},
+    "EIX": {"fiscal_year": 2026, "basis": "Core EPS", "low": 5.90, "high": 6.20, "as_of": "2026-07-30", "valid_until": "2026-12-31", "source": "Edison International Q2 2026 guidance"},
+    "TRU": {"fiscal_year": 2026, "basis": "Adjusted EPS", "low": 4.75, "high": 4.83, "as_of": "2026-07-23", "valid_until": "2026-12-31", "source": "TransUnion Q2 2026 guidance"},
+    "IQV": {"fiscal_year": 2026, "basis": "Adjusted EPS", "low": 12.80, "high": 13.00, "as_of": "2026-07-28", "valid_until": "2026-12-31", "source": "IQVIA Q2 2026 guidance"},
+    "UA": {"fiscal_year": 2027, "basis": "Adjusted EPS", "low": 0.08, "high": 0.12, "as_of": "2026-08-07", "valid_until": "2027-03-31", "source": "Under Armour Q1 FY2027 guidance"},
+    "UAA": {"fiscal_year": 2027, "basis": "Adjusted EPS", "low": 0.08, "high": 0.12, "as_of": "2026-08-07", "valid_until": "2027-03-31", "source": "Under Armour Q1 FY2027 guidance"},
+    "POR": {"fiscal_year": 2026, "basis": "Adjusted EPS", "low": 3.33, "high": 3.53, "as_of": "2026-05-01", "valid_until": "2026-12-31", "source": "Portland General Electric Q2 2026 guidance"},
+}
+
+
+def _verified_current_fy_eps_guidance(symbol):
+    row = VERIFIED_CURRENT_FY_EPS_GUIDANCE.get(str(symbol or "").upper())
+    if not isinstance(row, dict):
+        return None
+    today = datetime.now().date().isoformat()
+    if row.get("valid_until") and today > str(row.get("valid_until")):
+        return None
+    low = safe_float(row.get("low"))
+    high = safe_float(row.get("high"))
+    if low is None or high is None or low <= 0 or high <= 0 or high < low:
+        return None
+    return {**row, "mid": (low + high) / 2.0}
+
+
+def build_eps_horizon_alignment(symbol, raw_forward_eps, analyst_context):
+    """Choose one explicit current-FY forward basis and keep +1Y separate.
+
+    Priority: fresh official company EPS guidance -> Yahoo 0Y/current-FY
+    consensus -> raw provider Forward-EPS fallback. Official guidance is not
+    used to infer GAAP comparability; the existing comparability gate still
+    decides whether TTM and the chosen current-FY basis may be blended.
+    """
+    raw = safe_float(raw_forward_eps)
+    ctx = analyst_context if isinstance(analyst_context, dict) else {}
+    current_fy = safe_float(ctx.get("current_fy_eps"))
+    next_fy = safe_float(ctx.get("next_fy_eps"))
+    guidance = _verified_current_fy_eps_guidance(symbol)
+
+    used = raw
+    source = "Yahoo Forward-EPS (Provider-Horizont nicht bestätigt)" if raw is not None else None
+    official_override = False
+    if guidance is not None:
+        used = safe_float(guidance.get("mid"))
+        source = f"Unternehmens-Guidance FY{guidance.get('fiscal_year')} ({guidance.get('basis')})"
+        official_override = True
+    elif current_fy is not None and current_fy > 0:
+        used = current_fy
+        source = "Yahoo Analyst Consensus 0Y / aktuelles FY"
+
+    raw_matches_next = False
+    if raw is not None and next_fy is not None and next_fy > 0:
+        raw_matches_next = abs(raw / next_fy - 1.0) <= 0.06
+
+    current_vs_raw_gap = None
+    if raw is not None and used is not None and raw > 0:
+        current_vs_raw_gap = abs(used / raw - 1.0)
+
+    guidance_consensus_gap = None
+    if guidance is not None and current_fy is not None and current_fy > 0:
+        guidance_consensus_gap = abs(guidance["mid"] / current_fy - 1.0)
+
+    active = bool(
+        official_override
+        or (current_fy is not None and raw is not None and abs(current_fy / raw - 1.0) >= 0.08)
+        or raw_matches_next
+    )
+
+    note_parts = []
+    if official_override:
+        note_parts.append(
+            f"Primär-Guidance-Guard: FY{guidance.get('fiscal_year')} {guidance.get('basis')} "
+            f"{guidance.get('low'):.2f}–{guidance.get('high'):.2f}; Mittelpunkt wird als aktueller FY-Anker verwendet"
+        )
+    elif current_fy is not None:
+        note_parts.append("Horizon Alignment: 0Y/current-FY Analystenkonsens wird als Forward-Bewertungsbasis verwendet")
+    if raw_matches_next:
+        note_parts.append("der rohe Provider-Forward-EPS entspricht näherungsweise dem +1Y-Konsens und bleibt deshalb nur Horizont-Kontext")
+    if guidance_consensus_gap is not None and guidance_consensus_gap >= 0.20:
+        note_parts.append(
+            f"Unternehmens-Guidance und aktueller 0Y-Konsens weichen um {guidance_consensus_gap * 100:.1f} % ab; Datenbasis vor Bewertung prüfen"
+        )
+
+    return {
+        "valuation_forward_eps": used,
+        "raw_forward_eps": raw,
+        "current_fy_eps": current_fy,
+        "next_fy_eps": next_fy,
+        "current_fy_analyst_count": ctx.get("current_fy_analyst_count"),
+        "next_fy_analyst_count": ctx.get("next_fy_analyst_count"),
+        "source": source,
+        "analyst_source": ctx.get("source"),
+        "active": active,
+        "raw_matches_next_fy": raw_matches_next,
+        "raw_vs_used_gap": current_vs_raw_gap,
+        "primary_guidance_override": official_override,
+        "guidance": guidance,
+        "guidance_consensus_gap": guidance_consensus_gap,
+        "note": "; ".join(note_parts) if note_parts else None,
+    }
 
 
 
@@ -24977,8 +25217,20 @@ def load_stock(search_text, cache_version):
     trailing_eps = safe_float(
         fundamental_info.get("trailingEps")
     )
+    # Raw provider Forward-EPS remains visible. V2.20.76 derives one explicit
+    # current-FY valuation basis separately so +1Y is never silently blended
+    # with TTM earnings in the generic EPS normalizer.
     forward_eps = safe_float(
         fundamental_info.get("forwardEps")
+    )
+    eps_horizon_analyst_context = _analyst_eps_horizon_context(fundamental_ticker)
+    eps_horizon_alignment = build_eps_horizon_alignment(
+        fundamental_symbol,
+        forward_eps,
+        eps_horizon_analyst_context,
+    )
+    valuation_forward_eps = safe_float(
+        eps_horizon_alignment.get("valuation_forward_eps")
     )
     revenue = safe_float(
         fundamental_info.get("totalRevenue")
@@ -25029,12 +25281,25 @@ def load_stock(search_text, cache_version):
     eps_normalization = normalize_eps(
         company_type,
         trailing_eps,
-        forward_eps,
+        valuation_forward_eps,
         historical["eps"],
         revenue_growth,
         earnings_growth,
         structural_break=structural_break
     )
+    eps_normalization.update({
+        "eps_horizon_alignment_active": bool(eps_horizon_alignment.get("active")),
+        "eps_horizon_alignment_note": eps_horizon_alignment.get("note"),
+        "eps_forward_raw_provider": eps_horizon_alignment.get("raw_forward_eps"),
+        "eps_forward_current_fy": eps_horizon_alignment.get("current_fy_eps"),
+        "eps_forward_next_fy": eps_horizon_alignment.get("next_fy_eps"),
+        "eps_forward_valuation_basis": valuation_forward_eps,
+        "eps_forward_valuation_source": eps_horizon_alignment.get("source"),
+        "primary_guidance_override_active": bool(eps_horizon_alignment.get("primary_guidance_override")),
+        "primary_guidance": eps_horizon_alignment.get("guidance"),
+        "raw_forward_matches_next_fy": bool(eps_horizon_alignment.get("raw_matches_next_fy")),
+        "guidance_consensus_gap": eps_horizon_alignment.get("guidance_consensus_gap"),
+    })
 
     growth_score = calculate_growth_score(
         revenue_growth,
@@ -25103,12 +25368,16 @@ def load_stock(search_text, cache_version):
 
     fail_closed_context_terms = [
         "edelmetall-handel / distribution & lending",
-        "financial data / market infrastructure",
         "healthcare / diagnostics & research / cro + data",
         "agriculture / seeds & crop protection",
         "advertising / marketing services",
         "consumer / specialty retail",
         "consumer / toys & entertainment",
+        "consumer / athletic apparel & footwear / turnaround",
+        "solar manufacturing / high-growth / policy-sensitive",
+        "specialty materials / specialty chemicals",
+        "credit bureau / data & analytics",
+        "versorger",
     ]
     if any(term in normalized_company_type_name(company_type) for term in fail_closed_context_terms):
         growth_score = {
@@ -25116,14 +25385,14 @@ def load_stock(search_text, cache_version):
             "context_score": growth_score.get("score"),
             "score": None,
             "note": (growth_score.get("note") or "") +
-                " Dieser neue V2.20.74-Untertyp ist noch fail-closed; generische Wachstumspunkte bleiben Diagnosekontext."
+                " Dieser V2.20.76-Untertyp ist noch fail-closed; generische Wachstumspunkte bleiben Diagnosekontext."
         }
         profitability_score = {
             **profitability_score,
             "context_score": profitability_score.get("score"),
             "score": None,
             "brake_text": (profitability_score.get("brake_text") or "") +
-                " V2.20.74: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
+                " V2.20.76: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
         }
 
     score_fcf_input = (
@@ -25801,6 +26070,8 @@ def load_stock(search_text, cache_version):
         "market_cap": fundamental_info.get("marketCap"),
         "trailing_eps": trailing_eps,
         "forward_eps": forward_eps,
+        "valuation_forward_eps": valuation_forward_eps,
+        "eps_horizon_alignment": eps_horizon_alignment,
 
         "revenue": revenue,
         "net_income": net_income,
@@ -26332,9 +26603,9 @@ if selected_symbol:
                     )
 
                     st.metric(
-                        "EPS erwartet (Forward)",
+                        "EPS Bewertungsbasis (aktuelles FY)",
                         format_eps(
-                            data["forward_eps"],
+                            data.get("valuation_forward_eps"),
                             financial_currency
                         )
                     )
@@ -26403,6 +26674,32 @@ if selected_symbol:
                             financial_currency
                         )
                     )
+
+                eps_horizon_ui = data.get("eps_horizon_alignment") or {}
+                if eps_horizon_ui:
+                    horizon_bits = []
+                    raw_fwd = safe_float(eps_horizon_ui.get("raw_forward_eps"))
+                    current_fy = safe_float(eps_horizon_ui.get("current_fy_eps"))
+                    next_fy = safe_float(eps_horizon_ui.get("next_fy_eps"))
+                    if raw_fwd is not None:
+                        horizon_bits.append("Yahoo Forward roh: " + format_eps(raw_fwd, financial_currency))
+                    if current_fy is not None:
+                        horizon_bits.append("0Y/aktuelles FY: " + format_eps(current_fy, financial_currency))
+                    if next_fy is not None:
+                        horizon_bits.append("+1Y/nächstes FY: " + format_eps(next_fy, financial_currency))
+                    guidance_ui = eps_horizon_ui.get("guidance") or {}
+                    if guidance_ui:
+                        horizon_bits.append(
+                            f"Primär-Guidance FY{guidance_ui.get('fiscal_year')}: "
+                            + format_eps(guidance_ui.get("low"), financial_currency)
+                            + "–"
+                            + format_eps(guidance_ui.get("high"), financial_currency)
+                            + f" ({guidance_ui.get('basis')})"
+                        )
+                    if horizon_bits:
+                        st.caption("EPS-Horizonte: " + " · ".join(horizon_bits))
+                    if eps_horizon_ui.get("note"):
+                        st.info("🧭 **Earnings Horizon Alignment V2.20.76:** " + text_or_dash(eps_horizon_ui.get("note")))
 
                 fcf_ctx = data.get("fcf_source_context") or {}
                 company_type_ui = normalized_company_type_name(company_type)
