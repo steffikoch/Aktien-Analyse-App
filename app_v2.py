@@ -17,14 +17,16 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.73"
+APP_BUILD_VERSION = "V2.20.75"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
-    "Modul 1–7 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
-    "Multiple Score, Bewertungs-Korridor, Fair Value & Signal-Engine"
+    "Modul 1–8 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
+    "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
-st.caption(f"Build {APP_BUILD_VERSION} · Baker Hughes Energy Technology Classification & Post-Chart Primary Source Gate")
+st.caption(
+    f"Build {APP_BUILD_VERSION} · External Analyst Reality Check & Conflict Brake"
+)
 
 
 # V2.20.52: Midstream Peer Safety Cap & Comparability Gate. Separates market-reference peers from adjustment-eligible peers. Automatic peer adjustment requires at least three peers with sufficiently comparable corporate structure AND issuer-adjusted EBITDA basis. Generic Yahoo EV/EBITDA remains reference-only. If a future gate passes, the multiple proposal and the resulting equity fair-value effect are each capped at ±5 %. The 100-point Midstream score and official KMI Adjusted EBITDA / Net Debt / share-count bridge remain unchanged.
@@ -46,6 +48,9 @@ st.caption(f"Build {APP_BUILD_VERSION} · Baker Hughes Energy Technology Classif
 # V2.20.69: Kratos Defense-Tech Classification & Primary-Source Growth/Earnings Credibility Gate. Adds an explicit Kratos business-model classification (Defense Technology / Unmanned & Advanced Systems), a current Q2/H1 2026 official-data snapshot for backlog/funded backlog, book-to-bill, revenue coverage, margin guidance, adjusted-vs-GAAP earnings and investment-driven FCF, plus a fail-closed Kratos peer-comparability lock. Standard EPS remains context-only for KTOS and no Kratos fair value is released yet. Frozen Defense/Rheinmetall logic is preserved.
 # V2.20.70: Kratos Earnings Adjustment Quality & Owner-Operating Earnings Gate. Decomposes the official H1 non-GAAP bridge into recurring economic costs versus potentially normalizable acquisition items. Depreciation, stock-based compensation and capitalized contract/development amortization are never auto-added back; acquired-intangible amortization is shown only as a conditional diagnostic because official future amortization remains material. Acquisition/restructuring items may be normalized only when separately disclosed, and contingent-acquisition gains are neutralized. Produces a conservative owner-operating H1 EPS diagnostic range, but still releases no Kratos earnings basis, target multiple or fair value. Also disambiguates total-backlog/FY26 coverage from H2 coverage. Frozen Defense/Rheinmetall logic is preserved.
 # V2.20.73: Baker Hughes Energy Technology Classification & Post-Chart Primary Source Gate. BKR is routed away from generic oil-producer/cyclical valuation into a fail-closed Energy Technology model. Q2 OFSE/IET orders, RPO, segment margins, official FCF and the July 2026 Chart acquisition / financing structural break are shown from primary sources. Generic FCF/balance scores, 8–13x oil & gas KGV, oil-major peers, Fair Value and signals are blocked until a reliable post-Chart earnings/capital-structure basis exists. Frozen Kratos, Defense/Rheinmetall and all previously frozen specialist models are preserved.
+# V2.20.74: Global Earnings Comparability, Structural Review & Business-Model Safety Gates. Adds a directional EPS-divergence gate (downward Forward-EPS is never de-weighted merely because it is lower), a fail-closed generic Earnings-Basis Comparability Gate for extreme TTM/Forward mismatches or loss-to-profit transitions, an anomaly-based Structural Review Gate that never invents an M&A cause, a Growth Quality Gate for isolated extreme Yahoo growth, and an FCF Quality/Horizon-Proxy Gate that prevents unusually conversion-heavy TTM cash flow from beautifying leverage. Expands business-model routing for Precious-Metals Trading, Financial Data/Market Infrastructure, Healthcare Diagnostics/Research, Agricultural Inputs, Advertising/Marketing Services, Specialty Retail, Toys/Entertainment and Packaged Foods/Snacks. Existing specialist models remain preserved.
+
+# V2.20.75: External Analyst Reality Check & Conflict Brake. Keeps the app's own Fair Value and fundamental signal fully independent, then compares them with Yahoo's current analyst target consensus and recommendation context. A full Reality Check requires a valid mean target and at least three analyst opinions; >=5 is high-quality, 3–4 medium, <3/unknown remains non-binding. Large same-direction valuation gaps and opposite directions can trigger a CONFLICT flag. Only a sufficiently broad external conflict may brake aggressive buy/add or reduce/sell actions; analyst consensus never raises the app's Fair Value or creates a buy/sell signal by itself.
 
 # =========================================================
 # Hilfsfunktionen
@@ -739,18 +744,12 @@ def apply_eps_divergence_gate(
     forward_eps
 ):
     """
-    V2.20.1 – EPS-Divergence Gate for non-cyclical EPS normalization.
+    V2.20.74 – directional EPS-Divergence Gate.
 
-    The normal growth-based weighting remains valid while TTM and forward EPS
-    are close. With larger positive-EPS divergence the model automatically
-    reduces reliance on the forward estimate:
-
-    - deviation <= 25 %: keep the normal base weighting
-    - >25 % to 50 %: 50 % TTM / 50 % Forward
-    - >50 % to 100 %: 60 % TTM / 40 % Forward
-    - >100 %: 70 % TTM / 30 % Forward
-
-    No estimate is invented when one EPS value is missing or non-positive.
+    A rising Forward-EPS can be optimism and is capped progressively. A falling
+    Forward-EPS is downside information and must never be de-weighted merely
+    because the divergence is large. Extreme comparability problems are handled
+    separately by the Earnings-Basis Comparability Gate.
     """
     trailing = safe_float(trailing_eps)
     forward = safe_float(forward_eps)
@@ -765,50 +764,140 @@ def apply_eps_divergence_gate(
             "trailing_weight": base_trailing_weight,
             "forward_weight": base_forward_weight,
             "deviation": None,
+            "direction": None,
             "active": False,
             "band": None,
             "note": None
         }
 
-    deviation = abs(forward / trailing - 1.0)
+    signed_change = forward / trailing - 1.0
+    deviation = abs(signed_change)
+    direction = "up" if signed_change > 0 else "down"
 
     if deviation <= 0.25:
         return {
             "trailing_weight": base_trailing_weight,
             "forward_weight": base_forward_weight,
             "deviation": deviation,
+            "direction": direction,
             "active": False,
             "band": "bis 25 %",
             "note": None
         }
 
-    if deviation <= 0.50:
-        trailing_weight = 0.50
-        forward_weight = 0.50
-        band = ">25 % bis 50 %"
-    elif deviation <= 1.00:
-        trailing_weight = 0.60
-        forward_weight = 0.40
-        band = ">50 % bis 100 %"
+    if direction == "down":
+        # Downside must not be diluted by a symmetric divergence brake.
+        if deviation <= 0.50:
+            forward_weight = max(float(base_forward_weight), 0.70)
+            band = ">25 % bis 50 % / Forward niedriger"
+        else:
+            forward_weight = max(float(base_forward_weight), 0.80)
+            band = ">50 % / Forward niedriger"
+        trailing_weight = 1.0 - forward_weight
+        note = (
+            "Gerichtetes EPS-Divergenz-Gate aktiv: Forward-EPS liegt "
+            f"{deviation * 100:.1f} % unter dem TTM-EPS. Die schwächere "
+            "Zukunftsbasis wird nicht heruntergewichtet; verwendet werden "
+            f"{trailing_weight * 100:.0f} % TTM-EPS und "
+            f"{forward_weight * 100:.0f} % Forward-EPS."
+        )
     else:
-        trailing_weight = 0.70
-        forward_weight = 0.30
-        band = ">100 %"
-
-    note = (
-        "EPS-Divergenz-Gate aktiv: TTM-EPS und Forward-EPS weichen um "
-        f"{deviation * 100:.1f} % voneinander ab. Deshalb wird die "
-        f"Gewichtung auf {trailing_weight * 100:.0f} % TTM-EPS und "
-        f"{forward_weight * 100:.0f} % Forward-EPS begrenzt."
-    )
+        if deviation <= 0.50:
+            trailing_weight = 0.50
+            forward_weight = 0.50
+            band = ">25 % bis 50 % / Forward höher"
+        elif deviation <= 1.00:
+            trailing_weight = 0.60
+            forward_weight = 0.40
+            band = ">50 % bis 100 % / Forward höher"
+        else:
+            trailing_weight = 0.70
+            forward_weight = 0.30
+            band = ">100 % / Forward höher"
+        note = (
+            "Gerichtetes EPS-Divergenz-Gate aktiv: Forward-EPS liegt "
+            f"{deviation * 100:.1f} % über dem TTM-EPS. Forward-Optimismus "
+            f"wird auf {forward_weight * 100:.0f} % Gewicht begrenzt; "
+            f"TTM-EPS erhält {trailing_weight * 100:.0f} %."
+        )
 
     return {
         "trailing_weight": trailing_weight,
         "forward_weight": forward_weight,
         "deviation": deviation,
+        "direction": direction,
         "active": True,
         "band": band,
         "note": note
+    }
+
+
+def evaluate_generic_eps_basis_comparability(
+    company_type,
+    trailing_eps,
+    forward_eps,
+    revenue_growth=None,
+):
+    """V2.20.74 fail-closed comparability gate for the generic EPS path.
+
+    Yahoo does not reliably label whether every TTM and analyst Forward-EPS
+    value uses the same GAAP/adjusted basis and horizon. Therefore the app does
+    not *infer* a cause. It blocks only when the observed numbers themselves
+    make an automatic blend too unsafe.
+    """
+    type_name = normalized_company_type_name(company_type)
+    excluded_terms = [
+        "zyklisch", "bank", "versicherung", "reit", "immobilien",
+        "autohersteller", "midstream", "halbleiterausrüstung / lithografie",
+        "halbleiter / fabless / ai-wachstum", "energy technology / oilfield services",
+        "early-stage", "projektentwicklung",
+    ]
+    if any(term in type_name for term in excluded_terms):
+        return {"active": False, "blocked": False, "status": "Sondermodell", "reason": None}
+
+    trailing = safe_float(trailing_eps)
+    forward = safe_float(forward_eps)
+    rev = safe_float(revenue_growth)
+    reasons = []
+    deviation = None
+
+    if trailing is not None and forward is not None:
+        if trailing <= 0 < forward:
+            reasons.append(
+                "TTM-EPS ist nicht positiv, Forward-EPS dagegen positiv; Verlust- und Gewinnperiode werden nicht automatisch gemischt"
+            )
+        elif trailing > 0 and forward > 0:
+            deviation = abs(forward / trailing - 1.0)
+            if deviation >= 0.75:
+                reasons.append(
+                    f"TTM- und Forward-EPS weichen um {deviation * 100:.1f} % ab; gleiche Accounting-Basis und gleicher Horizont sind damit nicht ausreichend bestätigt"
+                )
+
+    structural_review = False
+    if rev is not None and abs(rev) >= 0.75:
+        structural_review = True
+        reasons.append(
+            f"Yahoo-Umsatzwachstum von {rev * 100:.1f} % ist extrem; organisches Wachstum, Akquisitionen, Preis-/Commodity- oder Denominator-Effekte müssen vor einer Standardbewertung getrennt werden"
+        )
+    elif (
+        rev is not None
+        and abs(rev) >= 0.50
+        and deviation is not None
+        and deviation >= 0.50
+    ):
+        structural_review = True
+        reasons.append(
+            "gleichzeitig sehr hohes Umsatzwachstum und starke TTM-/Forward-EPS-Abweichung erfordern eine Structural-/Comparability-Prüfung"
+        )
+
+    blocked = bool(reasons)
+    return {
+        "active": blocked,
+        "blocked": blocked,
+        "status": "Nicht freigegeben" if blocked else "Unauffällig",
+        "reason": "; ".join(reasons) if reasons else None,
+        "ttm_forward_deviation": deviation,
+        "structural_review_required": structural_review,
     }
 
 
@@ -937,6 +1026,8 @@ def build_special_event_warning(eps_normalization, bank_special_model=None, insu
             reasons.append(
                 "nach einem bestätigten Strukturbruch liegen noch zu wenige vollständig vergleichbare Jahre vor"
             )
+        if eps.get("eps_basis_comparability_reason"):
+            reasons.append(str(eps.get("eps_basis_comparability_reason")))
 
         reason_text = "; ".join(reasons) or (
             "die EPS-Bewertungsbasis ist für einen belastbaren Fair Value nicht freigegeben"
@@ -4958,67 +5049,82 @@ def growth_points(value):
 
 def calculate_growth_score(
     revenue_growth,
-    earnings_growth
+    earnings_growth,
+    profit_margin=None,
+    eps_normalization=None,
 ):
+    """V2.20.74 – Yahoo growth score with a downside-only quality gate."""
+    rev = safe_float(revenue_growth)
+    earn = safe_float(earnings_growth)
+    margin = safe_float(profit_margin)
 
-    revenue_points = growth_points(
-        revenue_growth
-    )
+    raw_revenue_points = growth_points(rev)
+    raw_earnings_points = growth_points(earn)
+    revenue_points = raw_revenue_points
+    earnings_points = raw_earnings_points
+    quality_notes = []
 
-    earnings_points = growth_points(
-        earnings_growth
-    )
-
-    available = [
-        points
-        for points in [
-            revenue_points,
-            earnings_points
-        ]
-        if points is not None
-    ]
-
-    if not available:
-
-        return {
-            "score": None,
-            "revenue_points": None,
-            "earnings_points": None,
-            "confidence": "Niedrig",
-            "note": (
-                "Keine ausreichenden Wachstumsdaten verfügbar."
+    # Isolated huge earnings growth is often a base/one-off effect. It may not
+    # receive 15/15 automatically when sales do not corroborate it.
+    if earn is not None and earn >= 0.50 and earnings_points is not None:
+        if rev is not None and rev < 0.0:
+            earnings_points = min(earnings_points, 5)
+            quality_notes.append(
+                "extremes Gewinnwachstum bei rückläufigem Umsatz: Gewinnwachstum auf 5/15 begrenzt"
             )
+        elif rev is None or rev < 0.10:
+            earnings_points = min(earnings_points, 8)
+            quality_notes.append(
+                "extremes Gewinnwachstum ohne zweistelliges Umsatzwachstum: Gewinnwachstum auf 8/15 begrenzt"
+            )
+
+    # Very high reported sales growth with a near-zero margin can reflect
+    # pass-through/commodity/transaction volume rather than value growth.
+    if (
+        rev is not None and rev >= 0.50
+        and margin is not None and margin < 0.03
+        and revenue_points is not None
+    ):
+        revenue_points = min(revenue_points, 5)
+        quality_notes.append(
+            "extremes Umsatzwachstum bei Nettomarge unter 3 %: Umsatzwachstum auf 5/15 begrenzt"
+        )
+
+    available = [p for p in [revenue_points, earnings_points] if p is not None]
+    if not available:
+        return {
+            "score": None, "revenue_points": None, "earnings_points": None,
+            "raw_revenue_points": raw_revenue_points, "raw_earnings_points": raw_earnings_points,
+            "confidence": "Niedrig", "quality_gate_active": False,
+            "note": "Keine ausreichenden Wachstumsdaten verfügbar."
         }
 
-    if len(available) == 2:
-
-        score = (
-            revenue_points +
-            earnings_points
-        )
-
-        confidence = "Hoch"
-
-        note = (
-            "Umsatz- und Gewinnwachstum vollständig berücksichtigt."
-        )
-
-    else:
-
-        score = available[0]
+    score = sum(available)
+    confidence = "Hoch" if len(available) == 2 else "Mittel"
+    if quality_notes:
         confidence = "Mittel"
-
+        note = "Growth Quality Gate aktiv: " + "; ".join(quality_notes) + "."
+    elif len(available) == 2:
+        note = "Umsatz- und Gewinnwachstum vollständig berücksichtigt."
+    else:
         note = (
-            "Nur eine Wachstumskennzahl verfügbar. "
-            "Es werden nur die tatsächlich belegten Punkte "
-            "vergeben; fehlende Daten werden nicht hochgerechnet."
+            "Nur eine Wachstumskennzahl verfügbar. Es werden nur die tatsächlich "
+            "belegten Punkte vergeben; fehlende Daten werden nicht hochgerechnet."
         )
+
+    if isinstance(eps_normalization, dict) and eps_normalization.get("valuation_blocked"):
+        confidence = "Niedrig"
+        note += " Die Earnings-Basis ist parallel durch das Comparability Gate für die Bewertung gesperrt."
 
     return {
         "score": score,
         "revenue_points": revenue_points,
         "earnings_points": earnings_points,
+        "raw_revenue_points": raw_revenue_points,
+        "raw_earnings_points": raw_earnings_points,
         "confidence": confidence,
+        "quality_gate_active": bool(quality_notes),
+        "quality_gate_notes": quality_notes,
         "note": note
     }
 
@@ -5371,7 +5477,14 @@ def is_special_fcf_model(company_type):
         "midstream",
         "halbleiterausrüstung / lithografie",
         "halbleiter / fabless / ai-wachstum",
-        "energy technology / oilfield services"
+        "energy technology / oilfield services",
+        "edelmetall-handel / distribution & lending",
+        "financial data / market infrastructure",
+        "healthcare / diagnostics & research / cro + data",
+        "agriculture / seeds & crop protection",
+        "advertising / marketing services",
+        "consumer / specialty retail",
+        "consumer / toys & entertainment"
     ]
 
     return any(
@@ -5408,7 +5521,9 @@ def calculate_fcf_score(
     company_type,
     revenue,
     current_fcf,
-    historical_fcf
+    historical_fcf,
+    net_income=None,
+    fcf_source_context=None,
 ):
     if is_special_fcf_model(company_type):
         return {
@@ -5525,13 +5640,62 @@ def calculate_fcf_score(
                 "Dafür werden keine Zusatzpunkte vergeben."
             )
 
+    # V2.20.74 – Cashflow Quality & Horizon-Proxy Gate. This does not invent
+    # forward FCF guidance. It only stops unusually conversion-heavy TTM cash
+    # flow from beautifying both FCF quality and leverage.
+    net_income_value = safe_float(net_income)
+    fcf_to_net_income = None
+    quality_reasons = []
+    balance_denominator_usable = True
+
+    if fcf_value > 0 and net_income_value is not None:
+        if net_income_value > 0:
+            fcf_to_net_income = fcf_value / net_income_value
+            if fcf_to_net_income >= 4.0:
+                score = min(score, 13)
+                balance_denominator_usable = False
+                quality_reasons.append(
+                    f"TTM-FCF liegt bei {fcf_to_net_income:.1f}× Nettogewinn; Working-Capital-/Timing-Qualität muss geklärt werden"
+                )
+        else:
+            score = min(score, 13)
+            balance_denominator_usable = False
+            quality_reasons.append(
+                "positiver TTM-FCF bei nicht positivem Nettogewinn; Turnaround-/Working-Capital-Qualität muss geklärt werden"
+            )
+
+    positive_history = [value for value in history if value > 0]
+    if fcf_value > 0 and len(positive_history) >= 2:
+        median_history = float(pd.Series(positive_history).median())
+        if median_history > 0 and fcf_value / median_history >= 3.0:
+            score = min(score, 16)
+            balance_denominator_usable = False
+            quality_reasons.append(
+                f"TTM-FCF liegt bei {fcf_value / median_history:.1f}× positivem historischem FCF-Median"
+            )
+
+    source_gap = safe_float((fcf_source_context or {}).get("gap_pct"))
+    if source_gap is not None and source_gap >= 50.0 and confidence == "Hoch":
+        confidence = "Mittel"
+        quality_reasons.append(
+            f"FCF-Quellenabweichung {source_gap:.1f} %; Cashflow-Qualität bleibt trotz Statement-Priorität unter Beobachtung"
+        )
+
+    if quality_reasons:
+        status = "quality_gate" if status == "normal" else status
+        note = "FCF Quality & Horizon-Proxy Gate: " + "; ".join(quality_reasons) + "."
+
     return {
         "score": score,
         "raw_score": raw_score,
         "fcf_margin": fcf_margin,
         "confidence": confidence,
         "status": status,
-        "note": note
+        "note": note,
+        "quality_gate_active": bool(quality_reasons),
+        "quality_gate_reasons": quality_reasons,
+        "fcf_to_net_income": fcf_to_net_income,
+        "balance_denominator_usable": balance_denominator_usable,
     }
 
 
@@ -5553,7 +5717,14 @@ def is_special_balance_model(company_type):
         "midstream",
         "halbleiterausrüstung / lithografie",
         "halbleiter / fabless / ai-wachstum",
-        "energy technology / oilfield services"
+        "energy technology / oilfield services",
+        "edelmetall-handel / distribution & lending",
+        "financial data / market infrastructure",
+        "healthcare / diagnostics & research / cro + data",
+        "agriculture / seeds & crop protection",
+        "advertising / marketing services",
+        "consumer / specialty retail",
+        "consumer / toys & entertainment"
     ]
 
     return any(
@@ -5904,6 +6075,66 @@ def classify_company(name, symbol, sector, industry):
             ),
             "customer_profile": "Starker US-Government-/National-Security-Fokus; zusätzlich internationale und kommerzielle Kunden",
             "company_profile": "Wachstumsorientierter Defense-Tech-Anbieter; kein klassischer großer Defense-Prime",
+        }
+
+    # V2.20.74 – business-model routes uncovered by the cross-company stress test.
+    # These routes are deliberately fail-closed where no calibrated valuation
+    # corridor exists yet; classification must improve before valuation breadth.
+    if symbol_text == "GOLD" or "gold.com" in name_text:
+        return {
+            "type": "Edelmetall-Handel / Distribution & Lending",
+            "method": "Gross Profit/Adjusted EBITDA + Working-Capital-/Inventar-/Hedging-Kontrolle; kein Standard-Umsatz-/FCF-Modell",
+            "confidence_cap": "Niedrig bis Mittel",
+        }
+
+    if (
+        symbol_text == "TRU"
+        or "transunion" in name_text
+        or "financial data & stock exchanges" in industry_text
+    ):
+        return {
+            "type": "Financial Data / Market Infrastructure",
+            "method": "Bereinigte Earnings-Basis + FCF/Leverage + Geschäftsmodell-/Peer-Kontrolle; Standard-Korridor gesperrt",
+            "confidence_cap": "Mittel",
+        }
+
+    if symbol_text == "IQV" or "iqvia" in name_text:
+        return {
+            "type": "Healthcare / Diagnostics & Research / CRO + Data",
+            "method": "GAAP-/Adjusted-Earnings-Vergleichbarkeit + FCF/Leverage; Standard-Korridor gesperrt",
+            "confidence_cap": "Mittel",
+        }
+
+    if "agricultural inputs" in industry_text:
+        return {
+            "type": "Agriculture / Seeds & Crop Protection",
+            "method": "Operating-/Adjusted-Earnings + Zyklus-/Saisonalitäts- + FCF-Kontrolle; Standard-Korridor gesperrt",
+            "confidence_cap": "Mittel",
+        }
+
+    if "advertising agencies" in industry_text:
+        return {
+            "type": "Advertising / Marketing Services",
+            "method": "Normalisierte Earnings + FCF + M&A-/Structural-Comparability-Gate; Standard-Korridor gesperrt",
+            "confidence_cap": "Mittel",
+        }
+
+    if "specialty retail" in industry_text:
+        return {
+            "type": "Consumer / Specialty Retail",
+            "method": "Forward-/Guidance-Earnings + FCF/Leverage + Retail-Zyklus; Standard-Korridor gesperrt",
+            "confidence_cap": "Mittel",
+        }
+
+    if (
+        symbol_text == "TOY.TO"
+        or "spin master" in name_text
+        or ("toy" in name_text and "leisure" in industry_text)
+    ):
+        return {
+            "type": "Consumer / Toys & Entertainment / Turnaround-sensitive",
+            "method": "Turnaround-normalisierte Earnings + FCF/Leverage; Standard-Korridor gesperrt",
+            "confidence_cap": "Niedrig bis Mittel",
         }
 
     # Weitere klar erkennbare Defense-Fälle.
@@ -6272,6 +6503,17 @@ def classify_company(name, symbol, sector, industry):
             "type": "Versorger",
             "method": "KGV bzw. EV/EBITDA + Verschuldung",
             "confidence_cap": "Mittel bis Hoch"
+        }
+
+    # V2.20.74 – Packaged Foods/Snacks are narrower than the broad staples bucket.
+    if (
+        "packaged foods" in industry_text
+        or "confectioners" in industry_text
+    ):
+        return {
+            "type": "Defensiver Konsum / Packaged Foods & Snacks",
+            "method": "Normalisiertes EPS + KGV + FCF/Leverage; engerer Branchen-Korridor",
+            "confidence_cap": "Mittel bis Hoch",
         }
 
     # Defensiver Konsum
@@ -7087,6 +7329,10 @@ def normalize_eps(
         company_type.get("type", "")
     ).lower()
 
+    generic_comparability = evaluate_generic_eps_basis_comparability(
+        company_type, trailing, forward, revenue_growth
+    )
+
     if (
         "early-stage mining" in type_name
         or "projektentwicklung" in type_name
@@ -7422,12 +7668,21 @@ def normalize_eps(
         divergence_metadata = {
             "eps_divergence_gate_active": divergence_gate.get("active", False),
             "eps_divergence_band": divergence_gate.get("band"),
+            "eps_divergence_direction": divergence_gate.get("direction"),
             "eps_divergence_note": divergence_gate.get("note"),
             "eps_base_trailing_weight": base_trailing_weight,
             "eps_base_forward_weight": base_forward_weight,
             "eps_used_trailing_weight": trailing_weight,
-            "eps_used_forward_weight": forward_weight
+            "eps_used_forward_weight": forward_weight,
+            "eps_basis_comparability_gate_active": generic_comparability.get("active", False),
+            "eps_basis_comparability_status": generic_comparability.get("status"),
+            "eps_basis_comparability_reason": generic_comparability.get("reason"),
+            "structural_review_required": generic_comparability.get("structural_review_required", False),
+            "valuation_blocked": generic_comparability.get("blocked", False),
         }
+
+        if generic_comparability.get("blocked"):
+            method += "; Earnings-Basis/Structural-Comparability Gate: nur Diagnosewert"
 
         return build_eps_result(
             normalized,
@@ -7440,14 +7695,24 @@ def normalize_eps(
         )
 
     if forward is not None and forward > 0:
-
+        blocked = bool(generic_comparability.get("blocked", False))
         return build_eps_result(
             forward,
-            "Nur Forward-EPS verwendbar",
+            (
+                "Nur Forward-EPS verwendbar; Earnings-Basis/Turnaround-Comparability Gate: nur Diagnosewert"
+                if blocked else "Nur Forward-EPS verwendbar"
+            ),
             "Niedrig",
             None,
             trailing,
-            forward
+            forward,
+            {
+                "eps_basis_comparability_gate_active": generic_comparability.get("active", False),
+                "eps_basis_comparability_status": generic_comparability.get("status"),
+                "eps_basis_comparability_reason": generic_comparability.get("reason"),
+                "structural_review_required": generic_comparability.get("structural_review_required", False),
+                "valuation_blocked": blocked,
+            }
         )
 
     if trailing is not None and trailing > 0:
@@ -13140,6 +13405,12 @@ def get_valuation_corridor(company_type):
             "Adjusted/normalisiertes KGV"
         ),
         (
+            "defensiver konsum / packaged foods & snacks",
+            14.0,
+            22.0,
+            "Normalisiertes KGV"
+        ),
+        (
             "defensiver konsum",
             18.0,
             26.0,
@@ -13479,6 +13750,16 @@ def get_peer_group(company_type, symbol):
                 ("T", "AT&T"),
                 ("VOD.L", "Vodafone"),
                 ("ORAN", "Orange"),
+            ]
+        ),
+        (
+            "defensiver konsum / packaged foods & snacks",
+            [
+                ("KHC", "Kraft Heinz"),
+                ("GIS", "General Mills"),
+                ("HSY", "Hershey"),
+                ("CAG", "Conagra Brands"),
+                ("SJM", "J.M. Smucker"),
             ]
         ),
         (
@@ -23333,6 +23614,415 @@ def _analyst_forward_eps(ticker):
     return None, None
 
 
+
+def _safe_mapping(value):
+    """Return a shallow dict for Yahoo/yfinance mapping-like payloads."""
+    if isinstance(value, dict):
+        return dict(value)
+    try:
+        if hasattr(value, "items"):
+            return dict(value.items())
+    except Exception:
+        pass
+    return {}
+
+
+def _analyst_price_target_payload(ticker):
+    """Load Yahoo analyst price targets without assuming one yfinance surface.
+
+    yfinance has exposed this dataset both through ``get_analyst_price_targets``
+    and ``analyst_price_targets``. The loader is deliberately fail-soft because
+    analyst endpoints are optional external context, never a prerequisite for
+    the app's own fundamental valuation.
+    """
+    for method_name in ["get_analyst_price_targets"]:
+        try:
+            method = getattr(ticker, method_name, None)
+            if callable(method):
+                payload = _safe_mapping(method())
+                if payload:
+                    return payload, "Yahoo Analyst Price Targets"
+        except Exception:
+            pass
+
+    try:
+        payload = _safe_mapping(getattr(ticker, "analyst_price_targets", None))
+        if payload:
+            return payload, "Yahoo Analyst Price Targets"
+    except Exception:
+        pass
+
+    return {}, None
+
+
+def _recommendation_summary_context(ticker):
+    """Read the current recommendation-count row as a breadth fallback."""
+    frame = _ticker_frame(
+        ticker,
+        ["recommendations_summary"],
+        method_calls=[("get_recommendations_summary", {})],
+    )
+    if frame is None or getattr(frame, "empty", True):
+        return {"count": None, "source": None, "row": None}
+
+    try:
+        work = frame.copy()
+        row = None
+
+        # Current yfinance normally exposes a 'period' column with 0m/-1m/... .
+        period_column = next(
+            (c for c in work.columns if str(c).strip().lower() == "period"),
+            None,
+        )
+        if period_column is not None:
+            current = work[
+                work[period_column].astype(str).str.strip().str.lower().isin(["0m", "current"])
+            ]
+            if not current.empty:
+                row = current.iloc[0]
+
+        if row is None:
+            # Some versions use the period as the index.
+            for index_value in work.index:
+                if str(index_value).strip().lower() in ["0m", "current"]:
+                    row = work.loc[index_value]
+                    if isinstance(row, pd.DataFrame):
+                        row = row.iloc[0]
+                    break
+
+        if row is None:
+            row = work.iloc[0]
+
+        count = 0.0
+        found = False
+        for candidate in ["strongBuy", "buy", "hold", "sell", "strongSell"]:
+            matching = next(
+                (c for c in work.columns if _normalize_metric_name(c) == _normalize_metric_name(candidate)),
+                None,
+            )
+            if matching is None:
+                continue
+            value = safe_float(row.get(matching))
+            if value is not None and value >= 0:
+                count += value
+                found = True
+
+        return {
+            "count": int(round(count)) if found and count > 0 else None,
+            "source": "Yahoo Recommendations Summary" if found else None,
+            "row": row.to_dict() if hasattr(row, "to_dict") else None,
+        }
+    except Exception:
+        return {"count": None, "source": None, "row": None}
+
+
+def load_external_analyst_consensus(ticker, quote_info, current_price):
+    """Build a non-binding external analyst consensus snapshot.
+
+    The app's own valuation remains independent. This function only gathers a
+    current Yahoo consensus reference in the SAME quote/listing unit as the
+    observed market price. No fundamental-source fallback is performed here,
+    avoiding accidental ADR/share or cross-currency target mixing.
+    """
+    info = dict(quote_info or {})
+    price = safe_float(current_price)
+
+    targets = {
+        "mean": safe_float(info.get("targetMeanPrice")),
+        "median": safe_float(info.get("targetMedianPrice")),
+        "high": safe_float(info.get("targetHighPrice")),
+        "low": safe_float(info.get("targetLowPrice")),
+    }
+    target_source = "Yahoo quoteSummary/info" if targets.get("mean") is not None else None
+
+    if targets.get("mean") is None:
+        payload, payload_source = _analyst_price_target_payload(ticker)
+        normalized = {
+            _normalize_metric_name(key): value
+            for key, value in payload.items()
+        }
+        for target_key, aliases in {
+            "mean": ["mean", "targetMeanPrice", "average", "avg"],
+            "median": ["median", "targetMedianPrice"],
+            "high": ["high", "targetHighPrice"],
+            "low": ["low", "targetLowPrice"],
+        }.items():
+            if targets.get(target_key) is not None:
+                continue
+            for alias in aliases:
+                value = safe_float(normalized.get(_normalize_metric_name(alias)))
+                if value is not None and value > 0:
+                    targets[target_key] = value
+                    break
+        if targets.get("mean") is not None:
+            target_source = payload_source
+
+    analyst_count = safe_float(info.get("numberOfAnalystOpinions"))
+    count_source = "Yahoo quoteSummary/info" if analyst_count is not None else None
+
+    recommendation_key = str(info.get("recommendationKey") or "").strip().lower() or None
+    recommendation_mean = safe_float(info.get("recommendationMean"))
+    recommendation_source = (
+        "Yahoo quoteSummary/info"
+        if recommendation_key is not None or recommendation_mean is not None
+        else None
+    )
+
+    recommendation_summary = _recommendation_summary_context(ticker)
+    if analyst_count is None:
+        analyst_count = safe_float(recommendation_summary.get("count"))
+        if analyst_count is not None:
+            count_source = recommendation_summary.get("source")
+
+    mean_target = safe_float(targets.get("mean"))
+    target_upside_pct = None
+    if mean_target is not None and mean_target > 0 and price is not None and price > 0:
+        target_upside_pct = (mean_target / price - 1.0) * 100.0
+
+    count_int = int(round(analyst_count)) if analyst_count is not None and analyst_count >= 0 else None
+
+    if mean_target is None or mean_target <= 0 or target_upside_pct is None:
+        quality = "Nicht verfügbar"
+        usable = False
+    elif count_int is not None and count_int >= 5:
+        quality = "Hoch"
+        usable = True
+    elif count_int is not None and count_int >= 3:
+        quality = "Mittel"
+        usable = True
+    else:
+        quality = "Niedrig"
+        usable = False
+
+    return {
+        "available": mean_target is not None and mean_target > 0,
+        "usable_for_conflict_brake": usable,
+        "quality": quality,
+        "analyst_count": count_int,
+        "target_mean": mean_target,
+        "target_median": safe_float(targets.get("median")),
+        "target_high": safe_float(targets.get("high")),
+        "target_low": safe_float(targets.get("low")),
+        "target_upside_pct": target_upside_pct,
+        "recommendation_key": recommendation_key,
+        "recommendation_mean": recommendation_mean,
+        "target_source": target_source,
+        "count_source": count_source,
+        "recommendation_source": recommendation_source,
+        "note": (
+            "Externe Analystendaten sind ein Plausibilitätscheck und verändern "
+            "weder den eigenen Fair Value noch den fundamentalen Score. Für eine "
+            "bindende Konfliktbremse sind ein gültiges mittleres Kursziel und "
+            "mindestens 3 Analystenmeinungen erforderlich; ab 5 gilt die Basis als hoch."
+        ),
+    }
+
+
+def _valuation_direction_bucket(upside_pct):
+    value = safe_float(upside_pct)
+    if value is None:
+        return None
+    if value >= 25.0:
+        return "Stark positiv"
+    if value >= 10.0:
+        return "Positiv"
+    if value > -10.0:
+        return "Neutral"
+    if value > -25.0:
+        return "Negativ"
+    return "Stark negativ"
+
+
+def _valuation_direction_side(upside_pct):
+    value = safe_float(upside_pct)
+    if value is None:
+        return None
+    if value >= 10.0:
+        return 1
+    if value <= -10.0:
+        return -1
+    return 0
+
+
+def build_external_reality_check(current_price, fair_value, analyst_consensus):
+    """Compare own valuation direction with external analyst targets.
+
+    This is intentionally a *reality check*, not a valuation blend. Numerical
+    consensus never alters the app's Fair Value. The result only expresses
+    agreement and whether a sufficiently broad conflict may brake an aggressive
+    action signal downstream.
+    """
+    price = safe_float(current_price)
+    own_fair = safe_float((fair_value or {}).get("fair_value_quote"))
+    external = dict(analyst_consensus or {})
+    external_upside = safe_float(external.get("target_upside_pct"))
+
+    result = {
+        "available": False,
+        "agreement": "NICHT VERFÜGBAR",
+        "own_upside_pct": None,
+        "external_upside_pct": external_upside,
+        "gap_pct_points": None,
+        "own_direction": None,
+        "external_direction": _valuation_direction_bucket(external_upside),
+        "consensus_quality": external.get("quality") or "Nicht verfügbar",
+        "conflict_brake_eligible": False,
+        "reason": None,
+    }
+
+    if price is None or price <= 0 or own_fair is None or own_fair <= 0:
+        result["reason"] = "Kein eigener belastbarer Fair Value für den Reality Check verfügbar."
+        return result
+
+    own_upside = (own_fair / price - 1.0) * 100.0
+    result["own_upside_pct"] = own_upside
+    result["own_direction"] = _valuation_direction_bucket(own_upside)
+
+    if external_upside is None or not external.get("available"):
+        result["reason"] = "Kein belastbares externes Analysten-Kursziel verfügbar."
+        return result
+
+    gap = own_upside - external_upside
+    gap_abs = abs(gap)
+    own_side = _valuation_direction_side(own_upside)
+    ext_side = _valuation_direction_side(external_upside)
+    usable = bool(external.get("usable_for_conflict_brake"))
+
+    result.update({
+        "available": True,
+        "gap_pct_points": gap,
+        "conflict_brake_eligible": usable,
+    })
+
+    # Low-breadth consensus remains visible but must never control an action.
+    if not usable:
+        result.update({
+            "agreement": "NICHT BELASTBAR",
+            "reason": (
+                "Externe Referenz vorhanden, aber die Analystenbasis ist für eine "
+                "automatische Konfliktbremse zu klein oder nicht verifizierbar."
+            ),
+        })
+        return result
+
+    opposite_direction = own_side is not None and ext_side is not None and own_side * ext_side == -1
+    large_strong_gap = (
+        gap_abs >= 40.0
+        and (
+            (own_upside >= 30.0 and external_upside < 10.0)
+            or (own_upside <= -30.0 and external_upside > -10.0)
+            or (external_upside >= 30.0 and own_upside < 10.0)
+            or (external_upside <= -30.0 and own_upside > -10.0)
+        )
+    )
+
+    if opposite_direction or large_strong_gap:
+        agreement = "KONFLIKT"
+        reason = (
+            "Eigene Bewertung und belastbarer Analystenkonsens zeigen eine materiell "
+            "abweichende Bewertungsrichtung bzw. einen sehr großen Bewertungsabstand."
+        )
+    elif own_side == ext_side and gap_abs <= 15.0:
+        agreement = "HOCH"
+        reason = "Eigene Bewertung und Analystenkonsens liegen in Richtung und Größenordnung eng zusammen."
+    elif gap_abs <= 25.0 and (own_side == ext_side or 0 in [own_side, ext_side]):
+        agreement = "MITTEL"
+        reason = "Die Bewertungsrichtung ist überwiegend kompatibel, die Größenordnung weicht jedoch merklich ab."
+    else:
+        agreement = "NIEDRIG"
+        reason = "Die Bewertungsrichtung ist nicht zwingend gegensätzlich, der Bewertungsabstand ist aber groß."
+
+    result.update({"agreement": agreement, "reason": reason})
+    return result
+
+
+def apply_reality_check_to_signals(new_buy_signal, holding_signal, reality_check):
+    """Create final action signals without letting consensus create a trade.
+
+    External consensus may only *brake* an aggressive action when the consensus
+    breadth is sufficient and the Reality Check reports a true conflict. It can
+    never upgrade 'Abwarten/Kein Kauf' into a purchase or turn 'Halten' into a
+    sale. This preserves the app's own fundamental model as the primary engine.
+    """
+    buy = dict(new_buy_signal or {})
+    hold = dict(holding_signal or {})
+    reality = dict(reality_check or {})
+
+    final_buy = dict(buy)
+    final_hold = dict(hold)
+    adjusted = False
+
+    if not buy.get("available"):
+        return {
+            "adjusted": False,
+            "new_buy_signal": final_buy,
+            "holding_signal": final_hold,
+            "reason": "Kein eigenes Handlungssignal vorhanden; Reality Check bleibt reine Referenz.",
+        }
+
+    if reality.get("agreement") != "KONFLIKT" or not reality.get("conflict_brake_eligible"):
+        return {
+            "adjusted": False,
+            "new_buy_signal": final_buy,
+            "holding_signal": final_hold,
+            "reason": "Kein belastbarer externer Konflikt – eigenes Handlungssignal bleibt unverändert.",
+        }
+
+    original_buy = str(buy.get("signal") or "")
+    original_hold = str(hold.get("signal") or "")
+    own_upside = safe_float(reality.get("own_upside_pct"))
+    external_upside = safe_float(reality.get("external_upside_pct"))
+
+    # Buy/add brakes: consensus can block an aggressive action, never create one.
+    if original_buy in ["Starker Kauf", "Kauf"]:
+        final_buy.update({
+            "signal": "Prüfen / Kauf nicht freigegeben",
+            "reason": (
+                "Eigene Bewertung ist positiv, aber ein ausreichend breiter externer "
+                "Konsens weicht materiell ab. Vor einem Neukauf Ursache der Abweichung prüfen."
+            ),
+            "reality_check_blocked": True,
+        })
+        adjusted = True
+
+    if original_hold == "Nachkaufen":
+        final_hold.update({
+            "signal": "Halten / nicht nachkaufen",
+            "reason": (
+                "Nachkauf wegen belastbarem externen Bewertungs-Konflikt vorläufig gebremst."
+            ),
+            "reality_check_blocked": True,
+        })
+        adjusted = True
+
+    # Sell/reduce brakes only when the own model is materially negative while
+    # external consensus is not. This avoids outsourcing a sale to analysts.
+    if (
+        original_hold in ["Reduzieren", "Verkaufen"]
+        and own_upside is not None and own_upside <= -10.0
+        and external_upside is not None and external_upside > -10.0
+    ):
+        final_hold.update({
+            "signal": "Überprüfen / Verkauf nicht freigegeben",
+            "reason": (
+                "Eigenes Modell sieht Überbewertung, der belastbare externe Konsens "
+                "bestätigt diese Richtung jedoch nicht. Ursache vor Reduzieren/Verkaufen prüfen."
+            ),
+            "reality_check_blocked": True,
+        })
+        adjusted = True
+
+    return {
+        "adjusted": adjusted,
+        "new_buy_signal": final_buy,
+        "holding_signal": final_hold,
+        "reason": (
+            "Aggressives Handlungssignal wegen externem Bewertungs-Konflikt gebremst."
+            if adjusted
+            else "Konflikt erkannt, aber kein aggressives eigenes Handlungssignal zu bremsen."
+        ),
+    }
+
 def _normalize_metric_name(value):
     return "".join(
         char.lower()
@@ -24090,7 +24780,7 @@ def _format_fx_timestamp(value):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "bkr_energy_technology_post_chart_gate_v22073_20260911"
+CACHE_VERSION = "external_reality_check_v22075_20260912"
 
 @st.cache_data(
     ttl=900,
@@ -24348,7 +25038,9 @@ def load_stock(search_text, cache_version):
 
     growth_score = calculate_growth_score(
         revenue_growth,
-        earnings_growth
+        earnings_growth,
+        profit_margin=profit_margin,
+        eps_normalization=eps_normalization,
     )
 
     if is_bank_company_type(company_type):
@@ -24409,6 +25101,31 @@ def load_stock(search_text, cache_version):
         profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None,
             "brake_text": "Bei Baker Hughes wird die generische Nettomargen-/ROE-Punktelogik nicht als Bewertungsbaustein verwendet; Q2 OFSE/IET Adjusted-EBITDA-Margen und eine spätere konsolidierte Post-Chart Profitabilitätsbasis werden separat geprüft."}
 
+    fail_closed_context_terms = [
+        "edelmetall-handel / distribution & lending",
+        "financial data / market infrastructure",
+        "healthcare / diagnostics & research / cro + data",
+        "agriculture / seeds & crop protection",
+        "advertising / marketing services",
+        "consumer / specialty retail",
+        "consumer / toys & entertainment",
+    ]
+    if any(term in normalized_company_type_name(company_type) for term in fail_closed_context_terms):
+        growth_score = {
+            **growth_score,
+            "context_score": growth_score.get("score"),
+            "score": None,
+            "note": (growth_score.get("note") or "") +
+                " Dieser neue V2.20.74-Untertyp ist noch fail-closed; generische Wachstumspunkte bleiben Diagnosekontext."
+        }
+        profitability_score = {
+            **profitability_score,
+            "context_score": profitability_score.get("score"),
+            "score": None,
+            "brake_text": (profitability_score.get("brake_text") or "") +
+                " V2.20.74: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
+        }
+
     score_fcf_input = (
         free_cashflow
         if is_special_fcf_model(company_type)
@@ -24419,8 +25136,14 @@ def load_stock(search_text, cache_version):
         company_type,
         revenue,
         score_fcf_input,
-        historical.get("fcf", [])
+        historical.get("fcf", []),
+        net_income=net_income,
+        fcf_source_context=fcf_source_context,
     )
+
+    standard_balance_fcf = free_cashflow_for_standard_score
+    if not fcf_score.get("balance_denominator_usable", True):
+        standard_balance_fcf = None
 
     balance_score = calculate_balance_score(
         company_type,
@@ -24429,10 +25152,25 @@ def load_stock(search_text, cache_version):
         (
             free_cashflow
             if is_special_balance_model(company_type)
-            else free_cashflow_for_standard_score
+            else standard_balance_fcf
         ),
         historical.get("fcf", [])
     )
+
+    if (
+        not is_special_balance_model(company_type)
+        and not fcf_score.get("balance_denominator_usable", True)
+    ):
+        balance_score.update({
+            "score": None,
+            "net_debt_to_fcf": None,
+            "confidence": "Niedrig",
+            "status": "fcf_quality_blocked",
+            "note": (
+                "Netto-Schulden/FCF ist durch das FCF Quality & Horizon-Proxy Gate gesperrt. "
+                "Ein ungewöhnlich conversion-/working-capital-lastiger TTM-FCF darf die Verschuldung nicht schönrechnen."
+            ),
+        })
 
     if (
         not is_special_fcf_model(company_type)
@@ -24994,6 +25732,24 @@ def load_stock(search_text, cache_version):
         special_event_warning=special_event_warning
     )
 
+    analyst_consensus = load_external_analyst_consensus(
+        quote_ticker,
+        quote_info,
+        price,
+    )
+
+    reality_check = build_external_reality_check(
+        price,
+        fair_value,
+        analyst_consensus,
+    )
+
+    final_signal_overlay = apply_reality_check_to_signals(
+        new_buy_signal,
+        holding_signal,
+        reality_check,
+    )
+
     return {
         "name": name,
         "symbol": symbol,
@@ -25121,7 +25877,10 @@ def load_stock(search_text, cache_version):
         "valuation_confidence": valuation_confidence,
         "valuation_zone": valuation_zone,
         "new_buy_signal": new_buy_signal,
-        "holding_signal": holding_signal
+        "holding_signal": holding_signal,
+        "analyst_consensus": analyst_consensus,
+        "reality_check": reality_check,
+        "final_signal_overlay": final_signal_overlay
     }
 
 
@@ -33010,7 +33769,7 @@ if selected_symbol:
                 st.divider()
 
                 st.subheader(
-                    "🚦 Modul 7 – Signal-Engine V1"
+                    "🚦 Modul 7 – Eigene Signal-Engine V1"
                 )
 
                 new_buy_signal = data.get(
@@ -33080,6 +33839,118 @@ if selected_symbol:
                             "Noch kein belastbares Handlungssignal."
                         )
                     )
+
+                st.divider()
+
+                st.subheader(
+                    "🌐 Modul 8 – Externer Reality Check V1"
+                )
+
+                analyst_consensus = data.get("analyst_consensus", {})
+                reality_check = data.get("reality_check", {})
+                final_overlay = data.get("final_signal_overlay", {})
+
+                if analyst_consensus.get("available"):
+                    reality_currency = data.get("currency")
+                    st.write(
+                        "**Analystenbasis:** "
+                        + (
+                            f"{analyst_consensus.get('analyst_count')} Analysten"
+                            if analyst_consensus.get("analyst_count") is not None
+                            else "Anzahl nicht verifizierbar"
+                        )
+                        + f" · Konsensqualität: **{analyst_consensus.get('quality', '–')}**"
+                    )
+
+                    st.metric(
+                        "Externes mittleres Kursziel",
+                        format_currency_value(
+                            analyst_consensus.get("target_mean"),
+                            reality_currency,
+                            2,
+                        ),
+                        (
+                            f"{analyst_consensus.get('target_upside_pct'):+.1f} % zum Kurs"
+                            if safe_float(analyst_consensus.get("target_upside_pct")) is not None
+                            else None
+                        ),
+                    )
+
+                    if analyst_consensus.get("target_low") is not None and analyst_consensus.get("target_high") is not None:
+                        st.caption(
+                            "Externe Zielspanne: "
+                            + format_currency_range(
+                                analyst_consensus.get("target_low"),
+                                analyst_consensus.get("target_high"),
+                                reality_currency,
+                                2,
+                            )
+                        )
+
+                    recommendation_key = analyst_consensus.get("recommendation_key")
+                    recommendation_mean = analyst_consensus.get("recommendation_mean")
+                    if recommendation_key or recommendation_mean is not None:
+                        rec_text = text_or_dash(recommendation_key)
+                        if recommendation_mean is not None:
+                            rec_text += f" · Score {recommendation_mean:.2f}"
+                        st.write("**Yahoo Analystenempfehlung:** " + rec_text)
+
+                    if reality_check.get("available"):
+                        agreement = reality_check.get("agreement", "NICHT VERFÜGBAR")
+                        if agreement == "HOCH":
+                            st.success("**Reality Check: 🟢 HOHE ÜBEREINSTIMMUNG**")
+                        elif agreement == "MITTEL":
+                            st.info("**Reality Check: 🟡 MITTLERE ÜBEREINSTIMMUNG**")
+                        elif agreement == "KONFLIKT":
+                            st.error("**Reality Check: 🔴 KONFLIKT**")
+                        elif agreement == "NICHT BELASTBAR":
+                            st.warning("**Reality Check: ⚪ EXTERNE BASIS NICHT BELASTBAR**")
+                        else:
+                            st.warning("**Reality Check: 🟠 NIEDRIGE ÜBEREINSTIMMUNG**")
+
+                        own_up = safe_float(reality_check.get("own_upside_pct"))
+                        ext_up = safe_float(reality_check.get("external_upside_pct"))
+                        gap_pp = safe_float(reality_check.get("gap_pct_points"))
+                        if own_up is not None and ext_up is not None:
+                            st.write(
+                                f"Eigene Fair-Value-Richtung: **{own_up:+.1f} %** · "
+                                f"Analysten-Kursziel: **{ext_up:+.1f} %**"
+                            )
+                        if gap_pp is not None:
+                            st.caption(
+                                f"Abstand eigene Bewertung vs. Analystenkonsens: {abs(gap_pp):.1f} Prozentpunkte."
+                            )
+                        st.caption(reality_check.get("reason"))
+
+                    else:
+                        st.info(reality_check.get("reason") or "Reality Check nicht verfügbar.")
+
+                else:
+                    st.info(
+                        "Kein belastbares externes Analysten-Kursziel verfügbar. "
+                        "Die eigene Fundamentalanalyse bleibt davon unberührt."
+                    )
+
+                final_buy = (final_overlay.get("new_buy_signal") or new_buy_signal)
+                final_hold = (final_overlay.get("holding_signal") or holding_signal)
+
+                if final_buy.get("available"):
+                    st.markdown("**Finales Signal nach Reality Check**")
+                    if final_overlay.get("adjusted"):
+                        st.warning(
+                            "Das externe Marktbild hat den eigenen Fair Value nicht verändert, "
+                            "aber ein aggressives Handlungssignal wegen eines belastbaren Konflikts gebremst."
+                        )
+                    st.metric("🛒 Finales Neukauf-Signal", final_buy.get("signal"))
+                    st.caption(final_buy.get("reason"))
+                    st.metric("📦 Finales Bestands-Signal", final_hold.get("signal"))
+                    st.caption(final_hold.get("reason"))
+
+                st.caption(
+                    "Der Reality Check ist eine unabhängige Kontrollschicht. Analystenkonsens "
+                    "verändert weder den eigenen Fair Value noch den fundamentalen Score und kann "
+                    "kein Kauf-/Verkaufssignal erzeugen; er darf bei belastbarem Konflikt nur bremsen."
+                )
 
                 st.divider()
 
