@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.88"
+APP_BUILD_VERSION = "V2.20.89"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Cache Generation Isolation & Latest Period Guard"
+    f"Build {APP_BUILD_VERSION} · Latest-Period Accounting Basis Hard Gate & Sibling Release Discovery"
 )
 
 
@@ -525,6 +525,7 @@ def validate_valuation_currency_context(currency_context):
 
 # =========================================================
 # V2.20.88: Cache Generation Isolation. Bumps the global Streamlit data-cache generation and the generic adjusted-TTM discovery cache key so older Q1-only discovery snapshots cannot cross build boundaries. Discovery diagnostics now expose the cache generation used for the live run. Latest-reported-period completeness logic and valuation formulas are otherwise unchanged.
+# V2.20.89: Latest-Period Accounting Basis Hard Gate & Sibling Release Discovery. Adds a deterministic, issuer-agnostic sibling-release shortcut that derives the requested next-quarter results URL/title from an already validated prior-quarter release and then revalidates company ownership, period semantics and EPS-table content before use. Also closes the unsafe fallback whereby an incomplete latest-period Adjusted/Core TTM discovery could revert to Provider-GAAP TTM and still blend with a current-FY normalized/analyst EPS. When the latest expected adjusted period is incomplete, EPS normalization is now blocked fail-closed until same-basis completeness is restored.
 
 # V2.20.32 – Verifizierte ADR-/Aktieneinheiten
 # =========================================================
@@ -24668,6 +24669,70 @@ def _calendar_completed_quarter_hint(today=None):
     return 0
 
 
+def _generic_sibling_release_candidates(records, requested_period, company_domain, limit=4):
+    """Derive a next-quarter release candidate from already validated sibling releases.
+
+    This is a discovery shortcut only. Every synthesized URL still passes the normal
+    same-company semantic release guard and primary-source EPS parser before any value
+    can enter the reconstruction. It therefore cannot create data from a guessed URL.
+    """
+    comp = _generic_period_components(requested_period)
+    if not comp or comp.get("kind") != "Q":
+        return []
+    qn = int(comp.get("quarter") or 0)
+    year = int(comp.get("year") or 0)
+    if qn < 1 or qn > 4 or year <= 0:
+        return []
+
+    words = {1: "first", 2: "second", 3: "third", 4: "fourth"}
+    target_word = words[qn]
+    unique = {}
+
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        src_period = _generic_period_components(rec.get("period"))
+        if not src_period or src_period.get("kind") != "Q" or int(src_period.get("year") or 0) != year:
+            continue
+        src_q = int(src_period.get("quarter") or 0)
+        if src_q == qn or src_q < 1 or src_q > 4:
+            continue
+        url = _clean_text(rec.get("url"))
+        title = _clean_text(rec.get("title"))
+        if not url or not _host_belongs_to_company_family(url, company_domain):
+            continue
+        src_word = words[src_q]
+
+        def swap_period(text):
+            out = str(text or "")
+            out = re.sub(rf"(?i)\b{src_word}-quarter\b", f"{target_word}-quarter", out)
+            out = re.sub(rf"(?i)\b{src_word} quarter\b", f"{target_word} quarter", out)
+            out = re.sub(rf"(?i)\bq{src_q}\b", f"Q{qn}", out)
+            out = re.sub(rf"(?i)\b{src_q}q\b", f"{qn}Q", out)
+            return out
+
+        candidate_url = swap_period(url)
+        candidate_title = swap_period(title)
+        if candidate_url == url:
+            continue
+        row = {
+            "url": candidate_url,
+            "title": candidate_title,
+            "snippet": "Validated sibling earnings-release URL pattern",
+            "search_source": "Sibling Release Pattern",
+        }
+        score = _generic_period_doc_score(row, requested_period)
+        if score <= 0:
+            continue
+        row["generic_period_score"] = score + 40
+        old = unique.get(candidate_url)
+        if old is None or row["generic_period_score"] > old.get("generic_period_score", -10_000):
+            unique[candidate_url] = row
+
+    ranked = sorted(unique.values(), key=lambda r: r.get("generic_period_score", 0), reverse=True)
+    return ranked[:max(1, int(limit))]
+
+
 def _collect_ir_routed_period_records(ir_router, company_domain, company_name, current_fy, n, deadline, diag, document_cache=None):
     """Load prior FY plus Q1..Qn current releases; each current release supplies prior-year comparator too."""
     records = []
@@ -24721,6 +24786,23 @@ def _collect_ir_routed_period_records(ir_router, company_domain, company_name, c
                 pair = got
                 break
         if not pair:
+            sibling_candidates = _generic_sibling_release_candidates(
+                records, current_period, company_domain, limit=4
+            )
+            if isinstance(diag, dict):
+                diag.setdefault("sibling_candidate_counts", {})[current_period] = len(sibling_candidates)
+            for row in sibling_candidates:
+                if not _research_budget_ok(deadline, reserve=1.0):
+                    break
+                got = _fetch_generic_period_records_from_candidate(
+                    row, company_domain, company_name, current_period, prior_period=prior_period,
+                    deadline=deadline, diag=diag, source="Sibling Release Pattern", document_cache=document_cache
+                )
+                periods = {r.get("period") for r in got}
+                if current_period in periods and prior_period in periods:
+                    pair = got
+                    break
+        if not pair:
             if isinstance(diag, dict):
                 diag.setdefault("web_fallback_periods_attempted", []).append(current_period)
             for row in _generic_search_release_candidates(company_domain, company_name, current_period, deadline=deadline, max_results=6):
@@ -24766,6 +24848,7 @@ def discover_generic_primary_adjusted_ttm(
         "periods_found": [],
         "periods_missing": [],
         "router_candidate_counts": {},
+        "sibling_candidate_counts": {},
         "web_fallback_periods_attempted": [],
         "router_budget_seconds": 7.0,
         "total_budget_seconds": 32.0,
@@ -26247,7 +26330,7 @@ def build_selected_stock_result(selected_symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "cache_generation_isolation_v22088_20260912"
+CACHE_VERSION = "latest_period_basis_hard_gate_v22089_20260912"
 
 @st.cache_data(
     ttl=900,
@@ -26488,6 +26571,28 @@ def load_stock(selected_symbol, cache_version):
         eps_horizon_alignment,
         generic_snapshot=generic_adjusted_ttm_snapshot,
     )
+
+    generic_diag_for_basis = (generic_adjusted_ttm_snapshot or {}).get("diagnostics") if isinstance(generic_adjusted_ttm_snapshot, dict) else {}
+    latest_period_basis_hard_block = bool(
+        isinstance(generic_adjusted_ttm_snapshot, dict)
+        and generic_adjusted_ttm_snapshot.get("available") is False
+        and str((generic_diag_for_basis or {}).get("status") or "").startswith("Jüngste Berichtsperiode unvollständig")
+    )
+    if latest_period_basis_hard_block:
+        eps_basis_alignment.update({
+            "active": False,
+            "valuation_trailing_eps": None,
+            "blocked_by_basis_mismatch": True,
+            "latest_period_basis_hard_block": True,
+            "confidence": "Niedrig",
+            "note": (
+                "Latest-Period Accounting Basis Hard Gate: Die jüngste erwartete Adjusted/Core-"
+                "Berichtsperiode ist nicht vollständig rekonstruiert. Provider-GAAP-TTM und "
+                "Current-FY-Analystenkonsens dürfen deshalb nicht miteinander normalisiert werden. "
+                "Provider-GAAP-TTM bleibt ausschließlich Diagnosekontext."
+            ),
+        })
+
     valuation_trailing_eps = safe_float(
         eps_basis_alignment.get("valuation_trailing_eps")
     )
@@ -26537,15 +26642,39 @@ def load_stock(selected_symbol, cache_version):
         company_type
     )
 
-    eps_normalization = normalize_eps(
-        company_type,
-        valuation_trailing_eps,
-        valuation_forward_eps,
-        historical["eps"],
-        revenue_growth,
-        earnings_growth,
-        structural_break=structural_break
-    )
+    if latest_period_basis_hard_block:
+        eps_normalization = build_eps_result(
+            None,
+            (
+                "Latest-Period Accounting Basis Hard Gate: Adjusted/Core-TTM der jüngsten "
+                "erwarteten Berichtsperiode unvollständig; keine Mischung aus Provider-GAAP-TTM "
+                "und Current-FY normalisiertem/Adjusted EPS zulässig"
+            ),
+            "Niedrig",
+            None,
+            trailing_eps,
+            valuation_forward_eps,
+            {
+                "valuation_blocked": True,
+                "eps_basis_comparability_gate_active": True,
+                "eps_basis_comparability_status": "latest_period_incomplete",
+                "eps_basis_comparability_reason": (
+                    "jüngste Adjusted/Core-TTM-Berichtsperiode ist unvollständig; "
+                    "GAAP-/Adjusted-Mischung ist gesperrt"
+                ),
+                "latest_period_basis_hard_block": True,
+            },
+        )
+    else:
+        eps_normalization = normalize_eps(
+            company_type,
+            valuation_trailing_eps,
+            valuation_forward_eps,
+            historical["eps"],
+            revenue_growth,
+            earnings_growth,
+            structural_break=structural_break
+        )
     # V2.20.79: a generic reconstructed TTM paired only with a plausibilized
     # analyst-consensus basis is intentionally capped at Medium confidence.
     # An official same-basis guidance bridge can retain the normalizer's High
@@ -26579,6 +26708,7 @@ def load_stock(selected_symbol, cache_version):
         "eps_adjusted_ttm_generic": bool((eps_basis_alignment.get("snapshot") or {}).get("generic_reconstructor")),
         "eps_consensus_basis_inferred": bool(eps_basis_alignment.get("consensus_basis_inferred")),
         "eps_generic_adjusted_ttm_discovery": eps_basis_alignment.get("generic_discovery"),
+        "eps_latest_period_basis_hard_block": bool(eps_basis_alignment.get("latest_period_basis_hard_block")),
     })
 
     growth_score = calculate_growth_score(
@@ -28017,6 +28147,11 @@ if selected_symbol:
                                 "Current-FY Accounting-Basis: Analystenkonsens nur plausibilisiert, nicht durch "
                                 "eine offizielle EPS-Guidance bestätigt. Bewertungssicherheit deshalb höchstens Mittel."
                             )
+                elif eps_basis_ui.get("latest_period_basis_hard_block"):
+                    st.error(
+                        f"🧮 **Accounting Basis Hard Gate {APP_BUILD_VERSION}:** "
+                        + text_or_dash(eps_basis_ui.get("note"))
+                    )
 
                 generic_discovery_ui = eps_basis_ui.get("generic_discovery") or {}
                 generic_diag_ui = generic_discovery_ui.get("diagnostics") or {}
@@ -28035,10 +28170,15 @@ if selected_symbol:
                         )
                         st.write("**Strategie:** " + text_or_dash(generic_diag_ui.get("strategy")))
                         router_counts_ui = generic_diag_ui.get("router_candidate_counts") or {}
+                        sibling_counts_ui = generic_diag_ui.get("sibling_candidate_counts") or {}
                         fallback_ui = list(dict.fromkeys(generic_diag_ui.get("web_fallback_periods_attempted") or []))
                         if router_counts_ui:
                             st.write("**Semantisch gültige IR-Kandidaten:** " + " · ".join(
                                 f"{period}: {count}" for period, count in router_counts_ui.items()
+                            ))
+                        if sibling_counts_ui:
+                            st.write("**Sibling-Release-Kandidaten:** " + " · ".join(
+                                f"{period}: {count}" for period, count in sibling_counts_ui.items()
                             ))
                         st.write(
                             "**Web-Fallback:** "
