@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.86"
+APP_BUILD_VERSION = "V2.20.87"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Reserved Fallback Budget & Earnings Discovery Diagnostics"
+    f"Build {APP_BUILD_VERSION} · Latest Reported Period Completeness Guard"
 )
 
 
@@ -65,6 +65,7 @@ st.caption(
 # V2.20.83: Earnings-Release Candidate Guard & Parser Routing. Generic adjusted-TTM discovery now rejects preview/scheduling/event/transcript/presentation pages and non-HTML PDF candidates before parser time, while prioritizing actual issuer result releases (Announces/Reports/Financial Results). This prevents release-announcement pages from outranking the underlying earnings release. Candidate breadth is increased after filtering, and live diagnostics include the attempted document title so source-routing failures are visible. Valuation formulas remain unchanged.
 # V2.20.84: Semantic Earnings-Release Allow-List. Generic adjusted-TTM discovery now requires both a reporting-period anchor and a genuine financial/earnings-results anchor in the candidate title/URL. Ordinary corporate news (products, sustainability, approvals, personnel, etc.) is hard-rejected before HTTP/parser work even when its URL contains the target year. The same guard is re-applied immediately before fetch, and web-fallback candidates with non-positive semantic scores are removed. Valuation formulas remain unchanged.
 # V2.20.86: Generic adjusted-TTM discovery now reserves an independent network budget after IR-router discovery. The router may no longer consume the complete reconstruction budget before exact FY/Q1/Q2 earnings-release fallback queries can run. Diagnostics expose accepted router-candidate counts and web-fallback attempts per period. Valuation formulas remain unchanged.
+# V2.20.87: Latest Reported Period Completeness Guard. Generic adjusted-TTM reconstruction may no longer downgrade silently from the latest expected reported quarter (e.g. Q2 after the normal August reporting lag) to an older Q1 bridge and mark it successful. The latest expected Current/Prior quarter pair is mandatory for valuation substitution; an older partial bridge is diagnosis-only. The fallback network budget is modestly expanded and current-period result queries prioritize company+period+results semantics. Valuation formulas remain unchanged.
 
 # =========================================================
 # Hilfsfunktionen
@@ -24516,10 +24517,11 @@ def _generic_search_release_candidates(company_domain, company_name, period, dea
     # still hard-validated afterwards by company-family, semantic release score,
     # reporting period and finally the primary-source EPS parser.
     query_templates = [
+        'site:{domain} {company} {phrase} "financial results"',
+        'site:{domain} {company} {phrase} results',
         'site:{domain} {phrase} "financial results"',
         'site:{domain} {phrase} "earnings results"',
         'site:{domain} {phrase} results',
-        'site:{domain} {company} {phrase} results',
     ]
     for phrase in _generic_period_search_phrases(period):
         for template in query_templates:
@@ -24742,7 +24744,7 @@ def discover_generic_primary_adjusted_ttm(
     company_name,
     website,
     current_fy,
-    cache_version="v22086",
+    cache_version="v22087",
 ):
     """IR-routed, bounded, fail-closed calendar-FY adjusted/core/operating TTM discovery."""
     _ = cache_version
@@ -24764,7 +24766,7 @@ def discover_generic_primary_adjusted_ttm(
         "router_candidate_counts": {},
         "web_fallback_periods_attempted": [],
         "router_budget_seconds": 7.0,
-        "total_budget_seconds": 24.0,
+        "total_budget_seconds": 32.0,
         "status": "nicht gestartet",
     }
     if current_fy != today.year:
@@ -24779,8 +24781,8 @@ def discover_generic_primary_adjusted_ttm(
     # Earlier builds passed one shared deadline into the router; on complex issuer sites
     # the router could consume nearly the whole budget before FY/Q1/Q2 fallback discovery.
     start_clock = time.monotonic()
-    deadline = start_clock + 24.0
-    router_deadline = min(deadline - 12.0, start_clock + 7.0)
+    deadline = start_clock + 32.0
+    router_deadline = min(deadline - 20.0, start_clock + 7.0)
     ir_router = _discover_company_ir_router(
         domain, company_name, target_years=[current_fy - 1], deadline=router_deadline, max_hubs=2
     )
@@ -24792,31 +24794,47 @@ def discover_generic_primary_adjusted_ttm(
     diag["router_archives"] = list((ir_router or {}).get("archives") or [])[:3]
     document_cache = {}
 
-    for n in range(completed, 0, -1):
-        required = [f"FY {current_fy - 1}"]
-        required += [f"Q{q} {current_fy - 1}" for q in range(1, n + 1)]
-        required += [f"Q{q} {current_fy}" for q in range(1, n + 1)]
-        diag["periods_required"] = required
-        records = _collect_ir_routed_period_records(
-            ir_router, domain, company_name, current_fy, n, deadline, diag, document_cache=document_cache
-        )
-        found = list(dict.fromkeys(str(r.get("period")) for r in records if r.get("period")))
-        diag["periods_found"] = found
-        diag["periods_missing"] = [p for p in required if p not in found]
-        snapshot = reconstruct_adjusted_ttm_from_period_records(records, current_fy, n)
-        if snapshot:
-            diag["status"] = "Rekonstruktion erfolgreich"
-            diag["completed_quarters"] = n
-            diag["documents_loaded"] = len({r.get("url") for r in records if r.get("url")})
-            snapshot["valid_until"] = f"{current_fy}-12-31"
-            snapshot["symbol"] = str(symbol or "").upper()
-            snapshot["company_domain"] = domain
-            snapshot["diagnostics"] = diag
-            return snapshot
-        if not _research_budget_ok(deadline, reserve=0.5):
+    # V2.20.87 Latest Reported Period Completeness Guard:
+    # The latest normally reported quarter is mandatory. Do not silently fall
+    # back from Q2 to a Q1 bridge merely because Q1 is easier to discover.
+    n = completed
+    required = [f"FY {current_fy - 1}"]
+    required += [f"Q{q} {current_fy - 1}" for q in range(1, n + 1)]
+    required += [f"Q{q} {current_fy}" for q in range(1, n + 1)]
+    diag["periods_required"] = required
+    diag["latest_expected_quarter"] = n
+    records = _collect_ir_routed_period_records(
+        ir_router, domain, company_name, current_fy, n, deadline, diag, document_cache=document_cache
+    )
+    found = list(dict.fromkeys(str(r.get("period")) for r in records if r.get("period")))
+    diag["periods_found"] = found
+    diag["periods_missing"] = [p for p in required if p not in found]
+    snapshot = reconstruct_adjusted_ttm_from_period_records(records, current_fy, n)
+    if snapshot:
+        diag["status"] = "Rekonstruktion erfolgreich – jüngste Berichtsperiode vollständig"
+        diag["completed_quarters"] = n
+        diag["documents_loaded"] = len({r.get("url") for r in records if r.get("url")})
+        snapshot["valid_until"] = f"{current_fy}-12-31"
+        snapshot["symbol"] = str(symbol or "").upper()
+        snapshot["company_domain"] = domain
+        snapshot["diagnostics"] = diag
+        return snapshot
+
+    # An older bridge may be useful for diagnostics, but never for valuation
+    # substitution when a newer quarter is already expected by the reporting lag.
+    partial = None
+    for lower_n in range(n - 1, 0, -1):
+        partial = reconstruct_adjusted_ttm_from_period_records(records, current_fy, lower_n)
+        if partial:
+            diag["partial_completed_quarters"] = lower_n
+            diag["partial_adjusted_ttm_eps"] = safe_float(partial.get("adjusted_ttm_eps"))
+            diag["partial_method"] = partial.get("method")
             break
 
-    diag["status"] = "Rekonstruktion unvollständig"
+    if partial:
+        diag["status"] = "Jüngste Berichtsperiode unvollständig – ältere Teilbrücke nur Diagnose, keine Bewertungsfreigabe"
+    else:
+        diag["status"] = "Rekonstruktion unvollständig"
     diag["documents_loaded"] = len({
         a.get("url") for a in diag.get("attempted_documents", [])
         if a.get("url") and a.get("status") == "EPS gefunden"
@@ -27975,7 +27993,7 @@ if selected_symbol:
                 eps_basis_ui = data.get("eps_basis_alignment") or {}
                 if eps_basis_ui.get("active"):
                     st.success(
-                        "🧮 **Accounting Basis Alignment V2.20.82:** "
+                        f"🧮 **Accounting Basis Alignment {APP_BUILD_VERSION}:** "
                         + text_or_dash(eps_basis_ui.get("note"))
                     )
                     basis_snapshot_ui = eps_basis_ui.get("snapshot") or {}
