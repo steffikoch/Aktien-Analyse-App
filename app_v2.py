@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.83"
+APP_BUILD_VERSION = "V2.20.84"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Earnings-Release Candidate Guard & Parser Routing"
+    f"Build {APP_BUILD_VERSION} · Semantic Earnings-Release Allow-List & Source Guard"
 )
 
 
@@ -63,6 +63,7 @@ st.caption(
 # V2.20.81: Financial Table EPS & Period Normalization. The generic primary-source parser now recognizes FY25/FY 2025, 1Q26/Q1 2026/2Q26 style headers, year-only current/prior columns when the document title fixes the quarter, and EPS row-label variants such as adjusted earnings per diluted share. Period headers are collected table-wide instead of only four rows above the EPS line. Repeated document fetches are cached within one discovery run and diagnostic rows are deduplicated. Valuation formulas remain unchanged.
 # V2.20.82: Rendered-Text EPS Fallback & Live Parser Diagnostics. When an official issuer release loads successfully but does not expose its financial grid as literal HTML <table> elements, the generic primary-source engine now performs a strict rendered-text fallback. It pairs nearby FY/Q shorthand headers with the explicitly labelled Adjusted/Core/Operating diluted-EPS row, preserves column order, and requires the requested canonical period before accepting a value. The normal table parser remains primary. Diagnostics now report parser mode and page-text availability so live failures no longer collapse into the ambiguous “keine passende EPS-Zeile” state. Valuation formulas remain unchanged.
 # V2.20.83: Earnings-Release Candidate Guard & Parser Routing. Generic adjusted-TTM discovery now rejects preview/scheduling/event/transcript/presentation pages and non-HTML PDF candidates before parser time, while prioritizing actual issuer result releases (Announces/Reports/Financial Results). This prevents release-announcement pages from outranking the underlying earnings release. Candidate breadth is increased after filtering, and live diagnostics include the attempted document title so source-routing failures are visible. Valuation formulas remain unchanged.
+# V2.20.84: Semantic Earnings-Release Allow-List. Generic adjusted-TTM discovery now requires both a reporting-period anchor and a genuine financial/earnings-results anchor in the candidate title/URL. Ordinary corporate news (products, sustainability, approvals, personnel, etc.) is hard-rejected before HTTP/parser work even when its URL contains the target year. The same guard is re-applied immediately before fetch, and web-fallback candidates with non-positive semantic scores are removed. Valuation formulas remain unchanged.
 
 # =========================================================
 # Hilfsfunktionen
@@ -24278,7 +24279,7 @@ def _generic_period_year(period):
 def _generic_period_doc_score(row, period):
     """Rank one official-company link for a requested FY/quarter release.
 
-    V2.20.83 deliberately separates *results documents* from preview/scheduling
+    V2.20.84 strictly separates *results documents* from all other corporate-news pages and preview/scheduling
     pages. A title such as "Schedules full-year results release" can contain
     exactly the same period words as the real release but has no financial table;
     letting it outrank the actual result page wastes the bounded research budget.
@@ -24307,11 +24308,39 @@ def _generic_period_doc_score(row, period):
     if any(token in hay for token in hard_reject):
         return -10_000
 
+    # V2.20.84: hard semantic allow-list. A corporate-news page that merely
+    # carries the requested year in its URL must never become an EPS document.
+    # Require both a reporting-period signal and a real earnings/results signal
+    # in title/URL before any generic link_score can contribute.
+    result_anchor = bool(
+        re.search(r"\b(?:financial|earnings|quarterly|annual)\s+(?:results?|release)\b", hay)
+        or re.search(r"\b(?:announces?|reports?|reported)\b.{0,120}\bresults?\b", hay)
+        or re.search(r"\b(?:results?|earnings)\b.{0,80}\b(?:quarter|full[- ]year|fy\s*20\d{2})\b", hay)
+    )
+    period_anchor = False
+    if p.startswith("FY "):
+        period_anchor = bool(
+            re.search(rf"\b(?:full[- ]year|fy)\s*[' -]?(?:{str(year)[-2:]}|{year})\b", hay)
+            or (str(year) in hay and re.search(r"\bfourth[- ]quarter\b", hay))
+        )
+    else:
+        qmatch = re.match(r"Q([1-4])", p)
+        qn = int(qmatch.group(1)) if qmatch else None
+        if qn:
+            word = ["first", "second", "third", "fourth"][qn - 1]
+            period_anchor = bool(
+                re.search(rf"\b{word}[- ]quarter\b", hay)
+                or re.search(rf"\bq{qn}\s*[' -]?(?:{str(year)[-2:]}|{year})\b", hay)
+                or re.search(rf"\b{qn}q\s*[' -]?(?:{str(year)[-2:]}|{year})\b", hay)
+            )
+    if not (result_anchor and period_anchor):
+        return -10_000
+
     score = float(row.get("link_score") or 0) * 0.05
     # Prefer actual result releases over generic archive/resource pages.
     if re.search(r"\b(?:announces?|reports?)\b.{0,90}\b(?:financial|earnings)\b.{0,45}\bresults?\b", hay):
         score += 260
-    elif re.search(r"\b(?:financial|earnings)\b.{0,45}\bresults?\b", hay):
+    elif re.search(r"\b(?:financial|earnings|quarterly|annual)\b.{0,45}\bresults?\b", hay):
         score += 90
     if any(x in hay for x in ["news-stories", "news-release", "press-release"]):
         score += 35
@@ -24403,6 +24432,16 @@ def _fetch_generic_period_records_from_candidate(
     candidate_title = _clean_text((row or {}).get("title"))
     if not url or not _host_belongs_to_company_family(url, company_domain):
         return []
+    # V2.20.84 second guard: even a misclassified IR-router row cannot consume
+    # parser/network budget unless its title/URL is a genuine period results release.
+    semantic_score = _generic_period_doc_score(row or {}, current_period)
+    if semantic_score <= 0:
+        _generic_diag_attempt(
+            diag, current_period, url, source, "verworfen",
+            "Kein echter Earnings-/Financial-Results-Release für die angeforderte Periode",
+            title=candidate_title,
+        )
+        return []
     cache = document_cache if isinstance(document_cache, dict) else None
     cached = cache.get(url) if cache is not None else None
     if cached is None:
@@ -24476,6 +24515,8 @@ def _generic_search_release_candidates(company_domain, company_name, period, dea
             seen.add(url)
             item = dict(item)
             item["generic_period_score"] = _generic_period_doc_score(item, period)
+            if item["generic_period_score"] <= 0:
+                continue
             out.append(item)
         if out:
             break
@@ -24640,7 +24681,7 @@ def discover_generic_primary_adjusted_ttm(
     company_name,
     website,
     current_fy,
-    cache_version="v22083",
+    cache_version="v22084",
 ):
     """IR-routed, bounded, fail-closed calendar-FY adjusted/core/operating TTM discovery."""
     _ = cache_version
@@ -26539,7 +26580,7 @@ def load_stock(selected_symbol, cache_version):
             "context_score": profitability_score.get("score"),
             "score": None,
             "brake_text": (profitability_score.get("brake_text") or "") +
-                " V2.20.83: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
+                " V2.20.84: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
         }
 
     score_fcf_input = (
