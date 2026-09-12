@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.84"
+APP_BUILD_VERSION = "V2.20.85"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Semantic Earnings-Release Allow-List & Source Guard"
+    f"Build {APP_BUILD_VERSION} · Reserved Fallback Budget & Earnings Discovery Diagnostics"
 )
 
 
@@ -64,6 +64,7 @@ st.caption(
 # V2.20.82: Rendered-Text EPS Fallback & Live Parser Diagnostics. When an official issuer release loads successfully but does not expose its financial grid as literal HTML <table> elements, the generic primary-source engine now performs a strict rendered-text fallback. It pairs nearby FY/Q shorthand headers with the explicitly labelled Adjusted/Core/Operating diluted-EPS row, preserves column order, and requires the requested canonical period before accepting a value. The normal table parser remains primary. Diagnostics now report parser mode and page-text availability so live failures no longer collapse into the ambiguous “keine passende EPS-Zeile” state. Valuation formulas remain unchanged.
 # V2.20.83: Earnings-Release Candidate Guard & Parser Routing. Generic adjusted-TTM discovery now rejects preview/scheduling/event/transcript/presentation pages and non-HTML PDF candidates before parser time, while prioritizing actual issuer result releases (Announces/Reports/Financial Results). This prevents release-announcement pages from outranking the underlying earnings release. Candidate breadth is increased after filtering, and live diagnostics include the attempted document title so source-routing failures are visible. Valuation formulas remain unchanged.
 # V2.20.84: Semantic Earnings-Release Allow-List. Generic adjusted-TTM discovery now requires both a reporting-period anchor and a genuine financial/earnings-results anchor in the candidate title/URL. Ordinary corporate news (products, sustainability, approvals, personnel, etc.) is hard-rejected before HTTP/parser work even when its URL contains the target year. The same guard is re-applied immediately before fetch, and web-fallback candidates with non-positive semantic scores are removed. Valuation formulas remain unchanged.
+# V2.20.85: Generic adjusted-TTM discovery now reserves an independent network budget after IR-router discovery. The router may no longer consume the complete reconstruction budget before exact FY/Q1/Q2 earnings-release fallback queries can run. Diagnostics expose accepted router-candidate counts and web-fallback attempts per period. Valuation formulas remain unchanged.
 
 # =========================================================
 # Hilfsfunktionen
@@ -24507,7 +24508,7 @@ def _generic_search_release_candidates(company_domain, company_name, period, dea
     for phrase in _generic_period_search_phrases(period):
         if not _research_budget_ok(deadline, reserve=0.8):
             break
-        query = f'site:{company_domain} "{company_name}" {phrase} "adjusted" "earnings per diluted share"'
+        query = f'site:{company_domain} {phrase} "financial results" "adjusted earnings per diluted share"'
         for item in _duckduckgo_html_search(query, max_results=max_results, deadline=deadline)[:max_results]:
             url = _clean_text(item.get("url"))
             if not url or url in seen or not _host_belongs_to_company_family(url, company_domain):
@@ -24616,6 +24617,8 @@ def _collect_ir_routed_period_records(ir_router, company_domain, company_name, c
     records = []
     fy_period = f"FY {current_fy - 1}"
     fy_candidates = _generic_router_period_candidates(ir_router, fy_period, limit=8)
+    if isinstance(diag, dict):
+        diag.setdefault("router_candidate_counts", {})[fy_period] = len(fy_candidates)
     loaded = False
     for row in fy_candidates:
         if not _research_budget_ok(deadline, reserve=1.0):
@@ -24628,6 +24631,8 @@ def _collect_ir_routed_period_records(ir_router, company_domain, company_name, c
             loaded = True
             break
     if not loaded:
+        if isinstance(diag, dict):
+            diag.setdefault("web_fallback_periods_attempted", []).append(fy_period)
         for row in _generic_search_release_candidates(company_domain, company_name, fy_period, deadline=deadline, max_results=6):
             if not _research_budget_ok(deadline, reserve=0.9):
                 break
@@ -24646,6 +24651,8 @@ def _collect_ir_routed_period_records(ir_router, company_domain, company_name, c
         prior_period = f"Q{q} {current_fy - 1}"
         pair = []
         candidates = _generic_router_period_candidates(ir_router, current_period, limit=8)
+        if isinstance(diag, dict):
+            diag.setdefault("router_candidate_counts", {})[current_period] = len(candidates)
         for row in candidates:
             if not _research_budget_ok(deadline, reserve=1.0):
                 break
@@ -24658,6 +24665,8 @@ def _collect_ir_routed_period_records(ir_router, company_domain, company_name, c
                 pair = got
                 break
         if not pair:
+            if isinstance(diag, dict):
+                diag.setdefault("web_fallback_periods_attempted", []).append(current_period)
             for row in _generic_search_release_candidates(company_domain, company_name, current_period, deadline=deadline, max_results=6):
                 if not _research_budget_ok(deadline, reserve=0.8):
                     break
@@ -24681,7 +24690,7 @@ def discover_generic_primary_adjusted_ttm(
     company_name,
     website,
     current_fy,
-    cache_version="v22084",
+    cache_version="v22085",
 ):
     """IR-routed, bounded, fail-closed calendar-FY adjusted/core/operating TTM discovery."""
     _ = cache_version
@@ -24700,6 +24709,10 @@ def discover_generic_primary_adjusted_ttm(
         "periods_required": [],
         "periods_found": [],
         "periods_missing": [],
+        "router_candidate_counts": {},
+        "web_fallback_periods_attempted": [],
+        "router_budget_seconds": 7.0,
+        "total_budget_seconds": 24.0,
         "status": "nicht gestartet",
     }
     if current_fy != today.year:
@@ -24710,11 +24723,17 @@ def discover_generic_primary_adjusted_ttm(
         diag["status"] = "Keine abgeschlossene Quartalsbasis bzw. Unternehmensdomain verfügbar"
         return {"available": False, "generic_reconstructor": True, "diagnostics": diag}
 
-    # One shared budget, but the router is now the primary discovery mechanism.
-    deadline = time.monotonic() + 22.0
+    # V2.20.85: keep IR routing bounded and reserve time for exact release fallback.
+    # Earlier builds passed one shared deadline into the router; on complex issuer sites
+    # the router could consume nearly the whole budget before FY/Q1/Q2 fallback discovery.
+    start_clock = time.monotonic()
+    deadline = start_clock + 24.0
+    router_deadline = min(deadline - 12.0, start_clock + 7.0)
     ir_router = _discover_company_ir_router(
-        domain, company_name, target_years=[current_fy - 1], deadline=deadline, max_hubs=3
+        domain, company_name, target_years=[current_fy - 1], deadline=router_deadline, max_hubs=2
     )
+    diag["router_elapsed_seconds"] = round(time.monotonic() - start_clock, 2)
+    diag["fallback_budget_seconds_after_router"] = round(max(0.0, deadline - time.monotonic()), 2)
     diag["router_available"] = bool((ir_router or {}).get("available"))
     diag["router_official_link_count"] = int((ir_router or {}).get("official_link_count") or 0)
     diag["router_entrypoints"] = len((ir_router or {}).get("entrypoints") or [])
@@ -26580,7 +26599,7 @@ def load_stock(selected_symbol, cache_version):
             "context_score": profitability_score.get("score"),
             "score": None,
             "brake_text": (profitability_score.get("brake_text") or "") +
-                " V2.20.84: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
+                " V2.20.85: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
         }
 
     score_fcf_input = (
@@ -27899,7 +27918,7 @@ if selected_symbol:
                     if horizon_bits:
                         st.caption("EPS-Horizonte: " + " · ".join(horizon_bits))
                     if eps_horizon_ui.get("note"):
-                        st.info("🧭 **Earnings Horizon Alignment V2.20.82:** " + text_or_dash(eps_horizon_ui.get("note")))
+                        st.info(f"🧭 **Earnings Horizon Alignment {APP_BUILD_VERSION}:** " + text_or_dash(eps_horizon_ui.get("note")))
 
                 eps_basis_ui = data.get("eps_basis_alignment") or {}
                 if eps_basis_ui.get("active"):
@@ -27941,6 +27960,17 @@ if selected_symbol:
                             + f" · Einstiegspunkte: {int(generic_diag_ui.get('router_entrypoints') or 0)}"
                         )
                         st.write("**Strategie:** " + text_or_dash(generic_diag_ui.get("strategy")))
+                        router_counts_ui = generic_diag_ui.get("router_candidate_counts") or {}
+                        fallback_ui = list(dict.fromkeys(generic_diag_ui.get("web_fallback_periods_attempted") or []))
+                        if router_counts_ui:
+                            st.write("**Semantisch gültige IR-Kandidaten:** " + " · ".join(
+                                f"{period}: {count}" for period, count in router_counts_ui.items()
+                            ))
+                        st.write(
+                            "**Web-Fallback:** "
+                            + (("gestartet für " + " · ".join(fallback_ui)) if fallback_ui else "nicht erforderlich / nicht gestartet")
+                            + f" · Restbudget nach IR-Router: {float(generic_diag_ui.get('fallback_budget_seconds_after_router') or 0):.1f} s"
+                        )
                         st.write("**Perioden gefunden:** " + (" · ".join(found_ui) if found_ui else "keine"))
                         st.write("**Perioden fehlen:** " + (" · ".join(missing_ui) if missing_ui else "keine"))
                         attempts_ui = generic_diag_ui.get("attempted_documents") or []
