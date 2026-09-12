@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.90"
+APP_BUILD_VERSION = "V2.20.91"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Adjusted-Earnings Specialist Valuation V1 (TRU / IQV / EMN)"
+    f"Build {APP_BUILD_VERSION} · Confidence-aware Signal Brake & Specialist UI Alignment"
 )
 
 
@@ -68,6 +68,7 @@ st.caption(
 # V2.20.87: Latest Reported Period Completeness Guard. Generic adjusted-TTM reconstruction may no longer downgrade silently from the latest expected reported quarter (e.g. Q2 after the normal August reporting lag) to an older Q1 bridge and mark it successful. The latest expected Current/Prior quarter pair is mandatory for valuation substitution; an older partial bridge is diagnosis-only. The fallback network budget is modestly expanded and current-period result queries prioritize company+period+results semantics. Valuation formulas remain unchanged.
 
 # V2.20.90: Adjusted-Earnings Specialist Valuation V1 for TransUnion, IQVIA and Eastman. Adds issuer-verified Q2/FY2026 primary-source snapshots, subtype-specific 100-point quality scores and conservative score-driven Adjusted-Earnings P/E corridors. The already-aligned normalized EPS remains the sole earnings basis; Yahoo GAAP TTM, generic FCF/balance scores and analyst targets do not enter the fair value. Reality Check remains external-only.
+# V2.20.91: Confidence-aware Signal Brake & Specialist UI Alignment. Globally caps “Starker Kauf” at High valuation confidence, requires at least 15% own Fair-Value upside for a Buy/Add action when confidence is Medium, and keeps 5–15% Medium-confidence upside at Beobachten/Halten. Fundamental-strength wording is aligned to 90+ Sehr stark, 80–89 Stark, 70–79 Gut, 50–69 Ausreichend. For the active TRU/IQV/EMN adjusted-earnings specialist path, generic growth/profitability/FCF/balance sections now state that those dimensions are handled inside the specialist model instead of showing misleading “special model required” placeholders. Fair-value formulas, specialist scores, P/E corridors and Reality Check mathematics are unchanged.
 
 # =========================================================
 # Hilfsfunktionen
@@ -13839,7 +13840,7 @@ def build_adjusted_earnings_special_control(control, specialist_model):
             "specialist_valuation": valuation,
         },
         "note": (
-            "V2.20.90 verwendet für TRU/IQV/EMN ausschließlich die bereits bereinigte Same-Basis-Earnings-Referenz plus "
+            "V2.20.91 verwendet für TRU/IQV/EMN ausschließlich die bereits bereinigte Same-Basis-Earnings-Referenz plus "
             "unternehmensspezifische Primärkennzahlen. Standard-FCF/Bilanz-Score und Analysten-Kursziele bleiben außerhalb des Fair Values."
         ),
     })
@@ -15654,7 +15655,7 @@ def get_special_control(company_type, symbol):
                 "Scoregesteuerter konservativer Spezial-KGV-Korridor",
                 "Analysten-Kursziel nur als externer Reality Check, nie als Fair-Value-Anker",
             ],
-            "status": "Router aktiv – V2.20.90 Adjusted-Earnings Specialist Valuation V1",
+            "status": "Router aktiv – V2.20.91 Adjusted-Earnings Specialist Valuation + Confidence Brake",
             "note": (
                 "TRU, IQV und EMN erhalten einen eigenen primärquellenbasierten Quality Score und einen konservativen "
                 "Adjusted-Earnings-KGV-Anker. Generische Margen-/ROE-/Net-Debt-to-FCF-Scores bleiben Diagnosekontext. "
@@ -22512,11 +22513,27 @@ def get_fundamental_strength(multiple_score):
     score = safe_float(multiple_score)
     if score is None:
         return "Nicht bestimmbar"
-    if score >= 70.0:
+    if score >= 90.0:
+        return "Sehr stark"
+    if score >= 80.0:
         return "Stark"
+    if score >= 70.0:
+        return "Gut"
     if score >= 50.0:
         return "Ausreichend"
     return "Schwach"
+
+
+def _valuation_zone_upside_to_fair_value_pct(valuation_zone):
+    """Convert zone distance (Price/FairValue - 1) into investor upside (FairValue/Price - 1)."""
+    zone = valuation_zone if isinstance(valuation_zone, dict) else {}
+    distance_pct = safe_float(zone.get("price_vs_fair_value_pct"))
+    if distance_pct is None:
+        return None
+    ratio = 1.0 + distance_pct / 100.0
+    if ratio <= 0:
+        return None
+    return (1.0 / ratio - 1.0) * 100.0
 
 
 def _special_event_signal_block(special_event_warning):
@@ -22543,12 +22560,15 @@ def generate_new_buy_signal(
     confidence = (valuation_confidence or {}).get("level")
     fundamental = get_fundamental_strength(multiple_score)
 
+    upside_to_fair_value = _valuation_zone_upside_to_fair_value_pct(valuation_zone)
+
     result = {
         "available": False,
         "signal": None,
         "fundamental_strength": fundamental,
         "reason": None,
         "special_event_blocked": False,
+        "upside_to_fair_value_pct": upside_to_fair_value,
     }
 
     special_blocked, warning = _special_event_signal_block(
@@ -22588,15 +22608,32 @@ def generate_new_buy_signal(
             })
         return result
 
+    # V2.20.91: Medium-confidence valuations need a wider own-model margin of safety.
+    # 5–15% upside is diagnostically positive, but not enough for a buy/add action.
+    if (
+        confidence == "Mittel"
+        and zone in ["Stark unterbewertet", "Unterbewertet"]
+        and upside_to_fair_value is not None
+        and upside_to_fair_value < 15.0
+    ):
+        result.update({
+            "signal": "Beobachten",
+            "reason": (
+                f"Eigener Fair-Value-Puffer nur {upside_to_fair_value:.1f} % bei mittlerer "
+                "Bewertungssicherheit; für einen Neukauf sind mindestens 15 % erforderlich."
+            ),
+        })
+        return result
+
     if zone == "Stark unterbewertet":
-        if fundamental == "Stark":
-            result.update({"signal": "Starker Kauf", "reason": "Deutliche Unterbewertung bei starker fundamentaler Basis."})
-        elif fundamental == "Ausreichend":
-            result.update({"signal": "Kauf", "reason": "Deutliche Unterbewertung bei ausreichender fundamentaler Basis."})
+        if fundamental in ["Sehr stark", "Stark"] and confidence == "Hoch":
+            result.update({"signal": "Starker Kauf", "reason": "Deutliche Unterbewertung bei starker fundamentaler Basis und hoher Bewertungssicherheit."})
+        elif fundamental in ["Sehr stark", "Stark", "Gut", "Ausreichend"]:
+            result.update({"signal": "Kauf", "reason": "Deutliche Unterbewertung, aber die Sicherheitsstufe begrenzt ein stärkeres Kaufsignal."})
         else:
             result.update({"signal": "Beobachten", "reason": "Bewertung attraktiv, fundamentale Basis jedoch schwach."})
     elif zone == "Unterbewertet":
-        if fundamental in ["Stark", "Ausreichend"]:
+        if fundamental in ["Sehr stark", "Stark", "Gut", "Ausreichend"]:
             result.update({"signal": "Kauf", "reason": "Ausreichender Abschlag zum Fair Value."})
         else:
             result.update({"signal": "Beobachten", "reason": "Unterbewertung vorhanden, fundamentale Basis jedoch schwach."})
@@ -22618,12 +22655,15 @@ def generate_holding_signal(
     confidence = (valuation_confidence or {}).get("level")
     fundamental = get_fundamental_strength(multiple_score)
 
+    upside_to_fair_value = _valuation_zone_upside_to_fair_value_pct(valuation_zone)
+
     result = {
         "available": False,
         "signal": None,
         "fundamental_strength": fundamental,
         "reason": None,
         "special_event_blocked": False,
+        "upside_to_fair_value_pct": upside_to_fair_value,
     }
 
     special_blocked, warning = _special_event_signal_block(
@@ -22674,7 +22714,19 @@ def generate_holding_signal(
         return result
 
     if zone in ["Stark unterbewertet", "Unterbewertet"]:
-        if fundamental in ["Stark", "Ausreichend"] and confidence in ["Hoch", "Mittel bis Hoch", "Mittel"]:
+        if (
+            confidence == "Mittel"
+            and upside_to_fair_value is not None
+            and upside_to_fair_value < 15.0
+        ):
+            result.update({
+                "signal": "Halten",
+                "reason": (
+                    f"Eigener Fair-Value-Puffer nur {upside_to_fair_value:.1f} % bei mittlerer "
+                    "Bewertungssicherheit; für einen Nachkauf sind mindestens 15 % erforderlich."
+                ),
+            })
+        elif fundamental in ["Sehr stark", "Stark", "Gut", "Ausreichend"] and confidence in ["Hoch", "Mittel bis Hoch", "Mittel"]:
             result.update({"signal": "Nachkaufen", "reason": "Unterbewertung bei ausreichender fundamentaler Basis und Bewertungssicherheit."})
         else:
             result.update({"signal": "Halten", "reason": "Bewertung attraktiv, aber Qualität oder Sicherheit begrenzen einen Nachkauf."})
@@ -23068,7 +23120,7 @@ def calculate_fair_value_v1(
         return result
 
 
-    # V2.20.90 – TRU / IQV / EMN adjusted-earnings specialist P/E valuation.
+    # V2.20.91 – TRU / IQV / EMN adjusted-earnings specialist P/E valuation.
     if (
         isinstance(special_control, dict)
         and special_control.get("control_key") == "adjusted_earnings_specialist"
@@ -23126,7 +23178,7 @@ def calculate_fair_value_v1(
             "valuation_method": "adjusted_earnings_specialist_pe",
             "normalized_eps": safe_float(sv.get("earnings_basis")),
             "used_multiple": safe_float(sv.get("target_pe")),
-            "multiple_source": "V2.20.90 Specialist Quality Score → subtype-spezifischer Adjusted-Earnings-KGV-Korridor",
+            "multiple_source": "V2.20.91 Specialist Quality Score → subtype-spezifischer Adjusted-Earnings-KGV-Korridor",
             "fair_value_financial": fv,
             "fair_value_quote": fvq,
             "potential_pct": potential,
@@ -26852,7 +26904,7 @@ def build_selected_stock_result(selected_symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "adjusted_earnings_specialist_v22090_20260912"
+CACHE_VERSION = "confidence_signal_brake_v22091_20260912"
 
 @st.cache_data(
     ttl=900,
@@ -27617,7 +27669,7 @@ def load_stock(selected_symbol, cache_version):
             "lower": safe_float(sp_val.get("corridor_low")),
             "upper": safe_float(sp_val.get("corridor_high")),
             "method": sp_val.get("valuation_method_name") or "Adjusted-Earnings Spezial-KGV",
-            "note": "V2.20.90: Der Korridor gehört ausschließlich zum primärquellenbasierten Spezialmodell; generische Scores bleiben außen vor.",
+            "note": "V2.20.91: Der Korridor gehört ausschließlich zum primärquellenbasierten Spezialmodell; generische Scores bleiben außen vor.",
         }
         fundamental_multiple = {
             **fundamental_multiple,
@@ -27627,7 +27679,7 @@ def load_stock(selected_symbol, cache_version):
             "available": bool(sp_score.get("available") and sp_val.get("available")),
             "earnings_basis_usable": bool(sp_val.get("available")),
             "note": (
-                "V2.20.90 verwendet für diesen Spezialtyp keinen generischen 100-Punkte-Score. "
+                "V2.20.91 verwendet für diesen Spezialtyp keinen generischen 100-Punkte-Score. "
                 "Der eigene Quality Score setzt innerhalb des kalibrierten Adjusted-Earnings-KGV-Korridors das Zielmultiple; "
                 "die bereits aligned Same-Basis-Earnings-Referenz ist die einzige Gewinnbasis."
             ),
@@ -29889,6 +29941,7 @@ if selected_symbol:
                 is_auto_score_ui = "autohersteller" in normalized_company_type_name(company_type)
                 is_semicap_score_ui = is_semicap_lithography_company_type(company_type)
                 is_nvidia_score_ui = is_nvidia_ai_growth_company_type(company_type)
+                is_adjusted_specialist_score_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                 is_kratos_score_ui = str(selected_symbol or "").upper() == "KTOS"
                 is_bkr_score_ui = str(selected_symbol or "").upper() == "BKR"
 
@@ -29907,6 +29960,9 @@ if selected_symbol:
                 if is_bkr_score_ui:
                     st.info("Baker Hughes/Post-Chart-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.73 bewertet Q2 Orders/RPO und OFSE/IET Segmententwicklung aus Primärquellen.")
                     st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf einen späteren Post-Chart Bewertungsanker.")
+                elif is_adjusted_specialist_score_ui:
+                    st.info("ℹ️ Im Adjusted-Earnings-Spezialmodell berücksichtigt: Der generische Wachstumsscore wird nicht verwendet.")
+                    st.caption("Wachstum wird im specialistischen Quality Score mit unternehmenstypischen Primärkennzahlen bewertet; Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext.")
                 elif is_nvidia_score_ui:
                     st.info("NVIDIA/Fabless-AI-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.67 verwendet den eigenen primärquellenbasierten AI-Quality-Score sowie Demand-Quality- und Earnings-Horizon-Gates.")
                     st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf den NVIDIA AI-Quality-Score oder das Earnings-Horizon-Alignment-Gate.")
@@ -30017,7 +30073,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui:
+                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -30041,10 +30097,14 @@ if selected_symbol:
                 is_auto_profitability_ui = "autohersteller" in normalized_company_type_name(company_type)
                 is_semicap_profitability_ui = is_semicap_lithography_company_type(company_type)
                 is_nvidia_profitability_ui = is_nvidia_ai_growth_company_type(company_type)
+                is_adjusted_specialist_profitability_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                 is_bkr_profitability_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                 if is_bkr_profitability_ui:
                     st.info("Baker Hughes/Post-Chart-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. Q2 OFSE-/IET-Adjusted-EBITDA-Margen werden separat aus der Primärquelle gezeigt; eine konsolidierte Post-Chart Profitabilitätsbasis folgt später.")
+                elif is_adjusted_specialist_profitability_ui:
+                    st.info("ℹ️ Im Adjusted-Earnings-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
+                    st.caption("Ertragsqualität wird im specialistischen Quality Score über Adjusted EBITDA/EBIT-Marge, Adjusted-EPS-Qualität und die jeweiligen Primärkennzahlen des Geschäftsmodells bewertet.")
                 elif is_nvidia_profitability_ui:
                     st.info("NVIDIA/Fabless-AI-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. V2.20.67 bewertet Gross-Margin-Resilienz und Earnings-Quality-Risiken im eigenen AI-Quality-Score.")
                 elif is_semicap_profitability_ui:
@@ -30187,6 +30247,7 @@ if selected_symbol:
                     and not is_semicap_lithography_company_type(company_type)
                     and not is_nvidia_ai_growth_company_type(company_type)
                     and not is_baker_hughes_energy_tech_company_type(company_type)
+                    and not is_adjusted_specialist_profitability_ui
                 ):
                     st.caption(
                         "Die Profitabilität basiert derzeit auf "
@@ -30309,11 +30370,15 @@ if selected_symbol:
                     is_auto_model_ui = "autohersteller" in str(company_type.get("type", "")).lower()
                     is_semicap_model_ui = is_semicap_lithography_company_type(company_type)
                     is_nvidia_model_ui = is_nvidia_ai_growth_company_type(company_type)
+                    is_adjusted_specialist_fcf_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     is_bkr_model_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                     if is_bkr_model_ui:
                         st.info("ℹ️ Baker Hughes/Post-Chart-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
                         st.caption("V2.20.73 verwendet den offiziell ausgewiesenen Q2-Free-Cashflow im Primärdaten-Gate. Yahoo-TTM-FCF bleibt Kontext; Q2-FCF wird nicht auf das post-Chart Gesamtunternehmen hochgerechnet.")
+                    elif is_adjusted_specialist_fcf_ui:
+                        st.info("ℹ️ Im Adjusted-Earnings-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
+                        st.caption("Cashflow-Qualität wird im jeweiligen Spezialmodell über FCF-Conversion, OCF/CapEx oder geschäftsmodellspezifische Primärkennzahlen geprüft; Yahoo-TTM-FCF bleibt Kontext.")
                     elif is_nvidia_model_ui:
                         st.info("ℹ️ NVIDIA/Fabless-AI-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
                         st.caption("V2.20.67 verwendet ausschließlich den von NVIDIA ausgewiesenen Q2-FY2027-Free-Cashflow in der FCF-/Liquiditätskomponente des AI-Quality-Scores. Yahoo-TTM-FCF bleibt Kontext und beeinflusst weder Demand-/Horizon-Gates noch Fair Value.")
@@ -30377,6 +30442,7 @@ if selected_symbol:
                     and not is_semicap_lithography_company_type(company_type)
                     and not is_nvidia_ai_growth_company_type(company_type)
                     and not is_baker_hughes_energy_tech_company_type(company_type)
+                    and not bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                 ):
                     st.caption(
                         "Die FCF-Punkte basieren auf der aktuellen "
@@ -30498,11 +30564,15 @@ if selected_symbol:
                     is_auto_balance_ui = "autohersteller" in str(company_type.get("type", "")).lower()
                     is_semicap_balance_ui = is_semicap_lithography_company_type(company_type)
                     is_nvidia_balance_ui = is_nvidia_ai_growth_company_type(company_type)
+                    is_adjusted_specialist_balance_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     is_bkr_balance_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                     if is_bkr_balance_ui:
                         st.info("ℹ️ Baker Hughes/Post-Chart-Modell: Standard-Netto-Schulden/FCF-Score ist gesperrt")
                         st.caption("Die 30.06.2026 Cash-/Debt-Werte enthalten wesentliche Chart-Transaktionsfinanzierung. Sie dürfen nicht als aktuelle operative Netto-Cash-/Leverage-Basis interpretiert werden; Post-Chart Leverage wird separat geprüft.")
+                    elif is_adjusted_specialist_balance_ui:
+                        st.info("ℹ️ Im Adjusted-Earnings-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
+                        st.caption("Verschuldung wird im specialistischen Quality Score über Net Leverage beziehungsweise geschäftsmodellspezifische Debt-/Cashflow-Kennzahlen geprüft; Yahoo-Schulden bleiben Kontext.")
                     elif is_nvidia_balance_ui:
                         st.info("ℹ️ NVIDIA/Fabless-AI-Modell: Standard-Netto-Schulden/FCF-Score ist kein Bewertungsbaustein")
                         st.caption("V2.20.67 bewertet Liquidität sowie Inventory-/Commitment-/Working-Capital-Qualität innerhalb des primärquellenbasierten AI-Quality-Scores und Demand-Quality-Gates. Die generische Netto-Schulden/FCF-Punktelogik bleibt deaktiviert.")
@@ -30582,6 +30652,7 @@ if selected_symbol:
                     and "autohersteller" not in str(company_type.get("type", "")).lower()
                     and not is_semicap_lithography_company_type(company_type)
                     and not is_nvidia_ai_growth_company_type(company_type)
+                    and not bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                 ):
                     st.caption(
                         "Bilanzpunkte: Netto-Cash 15/15; "
