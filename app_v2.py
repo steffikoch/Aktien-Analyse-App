@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.110"
+APP_BUILD_VERSION = "V2.20.111"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset Management Specialist Model V1 · UI Consistency Cleanup"
+    f"Build {APP_BUILD_VERSION} · Asset Management Specialist Model V1 · BEN Flow Definition Fix"
 )
 
 
@@ -40,6 +40,7 @@ st.caption(
 
 # V2.20.109: Asset Management Specialist Model V1 · Load-Order Hotfix. Routes Financial Services / Asset Management away from Standard-Unternehmen. Generic revenue/earnings growth, ROE, Yahoo-FCF margin and Net-Cash points are diagnosis-only. A 100-point specialist score uses organic Long-Term flows, AUM quality, Fee-Mix/Effective-Fee-Rate quality, fee-/net-revenue growth, Core/Adjusted operating margin, Through-Cycle earnings, balance quality, capital allocation and franchise diversification. Valuation uses a non-linear 9–18x P/E corridor with Organic-Flow, Premium-Unlock, Money-Market and Peer/3Y-Historical safety guards. FHI/TROW/BEN/IVZ are the validated V1 core universe; BlackRock is premium-reference only. Janus Henderson is excluded after its 30-Jun-2026 take-private/delisting. Unknown Asset Managers fail closed rather than falling back to the generic model.
 # V2.20.110: Asset Management UI Consistency Cleanup. No valuation mathematics changed. Asset-manager green special-event copy now explicitly hands off to the specialist path; generic FCF and Net-Cash scoring footers are hidden for Asset Management (and Luxury, where they were likewise contradictory); specialist quality labels are aligned with the global signal scale (70+ Gut, 50–69 Ausreichend); and Asset-Management peer UI separates active Core-Peers from BlackRock premium-reference counts.
+# V2.20.111: Asset Management BEN Flow Definition Fix. Hardens Long-Term flow-rate handling: an annualized rate is used only when the long-term denominator, period and acquisition separation are explicitly verified (or an issuer-verified annualized organic rate exists). Otherwise only verified flow direction/absolute flows receive a capped directional score and cannot unlock a valuation premium. BEN beginning Long-Term AUM is corrected to 1.5827T USD (cash management excluded), producing a verified 9M annualized Long-Term net-flow rate of about +5.33%; the previous +5.08% used total beginning AUM as denominator. Also fixes the special-event UI lookup so the same flow status is shown consistently and removes the mixed red/yellow multiple-guard icon.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -15386,7 +15387,7 @@ def apply_toyo_solar_action_brake(new_buy_signal, holding_signal, specialist_mod
 
 
 # =========================================================
-# V2.20.109 – Asset Management Specialist Model V1 · UI Consistency Cleanup
+# V2.20.111 – Asset Management Specialist Model V1 · BEN Flow Definition Fix
 # =========================================================
 
 def is_asset_management_specialist_type(company_type, symbol=None):
@@ -15543,6 +15544,10 @@ def get_verified_asset_manager_snapshot(symbol):
             "beginning_long_term_aum": 219.980e9,
             "ytd_long_term_net_flows": 0.107e9,
             "flow_period_fraction_year": 0.5,
+            "flow_period_label": "H1 2026",
+            "flow_scope_matches_denominator": True,
+            "acquisition_effects_separately_disclosed": True,
+            "verified_long_term_flow_direction": "positive",
             "q2_long_term_net_flows": -1.730e9,
             "long_term_revenue_share_pct": 49.75,
             "money_market_revenue_share_pct": 50.25,
@@ -15572,6 +15577,10 @@ def get_verified_asset_manager_snapshot(symbol):
             "beginning_long_term_aum": 1.7758e12,
             "ytd_long_term_net_flows": -20.2e9,
             "flow_period_fraction_year": 0.5,
+            "flow_period_label": "H1 2026",
+            "flow_scope_matches_denominator": True,
+            "acquisition_effects_separately_disclosed": True,
+            "verified_long_term_flow_direction": "negative",
             "q2_long_term_net_flows": -6.5e9,
             "fee_revenue_growth_pct": 8.3,
             "effective_fee_rate_bps": 38.1,
@@ -15597,11 +15606,20 @@ def get_verified_asset_manager_snapshot(symbol):
             "source_url": "https://www.sec.gov/Archives/edgar/data/38777/000003877726000217/ben-20260630.htm",
             "total_aum": 1.7916e12,
             "beginning_total_aum": 1.6612e12,
-            "long_term_aum": 1.70e12,
-            "money_market_aum": 0.0,
-            "beginning_long_term_aum": 1.6612e12,
+            "long_term_aum": 1.7111e12,
+            "money_market_aum": 80.5e9,
+            # 30-Sep-2025 / 1-Oct-2025 long-term AUM from the issuer roll-forward:
+            # Equity 686.2 + Fixed Income 438.7 + Alternatives 263.9 + Multi-Asset 193.9 = 1,582.7bn.
+            # Cash-management AUM 78.5bn is deliberately excluded from the long-term denominator.
+            "beginning_long_term_aum": 1.5827e12,
             "ytd_long_term_net_flows": 63.3e9,
             "flow_period_fraction_year": 0.75,
+            "flow_period_label": "9M FY2026",
+            "flow_scope_matches_denominator": True,
+            # The issuer reports the 6.2bn AUM acquisition separately from net flows.
+            "acquisition_effects_separately_disclosed": True,
+            "acquisition_aum": 6.2e9,
+            "verified_long_term_flow_direction": "positive",
             "q3_long_term_net_flows": 18.4e9,
             "fee_revenue_growth_pct": 8.2,
             "operating_margin_pct": 26.7,
@@ -15614,7 +15632,7 @@ def get_verified_asset_manager_snapshot(symbol):
             "franchise_diversification_score": 5.0,
             "historical_forward_pe_3y_median": 9.55,
             "valuation_confidence_cap": "Mittel",
-            "note": "Starke positive Long-Term-Flows und breiter Alternatives-/Multi-Boutique-Mix. Für Earnings und Marge wird die issuer-adjustierte Same-Basis verwendet; Akquisitionskomplexität begrenzt den Stability-/Balance-Score.",
+            "note": "Starke positive Long-Term-Net-Flows und breiter Alternatives-/Multi-Boutique-Mix. Die 9M-Flow-Rate verwendet ausschließlich Beginning Long-Term AUM (Cash Management ausgeschlossen); die separat ausgewiesene Akquisition wird nicht als organischer Flow gezählt. Für Earnings und Marge wird die issuer-adjustierte Same-Basis verwendet; Akquisitionskomplexität begrenzt den Stability-/Balance-Score.",
         },
         "IVZ": {
             "symbol": "IVZ",
@@ -15632,6 +15650,9 @@ def get_verified_asset_manager_snapshot(symbol):
             "flow_period_fraction_year": 0.5,
             "q2_long_term_net_flows": 45.1e9,
             "issuer_annualized_organic_growth_pct": 7.0,
+            "issuer_flow_rate_verified": True,
+            "flow_period_label": "H1 2026",
+            "verified_long_term_flow_direction": "positive",
             "q2_annualized_organic_growth_pct": 8.5,
             "fee_revenue_growth_pct": 17.2,
             "operating_margin_pct": 36.0,
@@ -15663,6 +15684,111 @@ def get_verified_asset_manager_snapshot(symbol):
     return snapshots.get(sym)
 
 
+def _asset_manager_flow_context(snapshot):
+    """Return a conservative, auditable Long-Term flow context.
+
+    A percentage rate is *verified* only when either the issuer explicitly
+    provides the annualized organic rate or the app has a matching beginning
+    Long-Term AUM denominator, a matching-period Long-Term net-flow numerator,
+    a valid period fraction and explicit confirmation that acquisition AUM is
+    reported separately from flows.  When those ingredients are incomplete,
+    we retain only a verified direction/absolute-flow diagnostic and never
+    manufacture a precise percentage.
+    """
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    issuer_rate = safe_float(snap.get("issuer_annualized_organic_growth_pct"))
+    flows = safe_float(snap.get("ytd_long_term_net_flows"))
+    begin_lt = safe_float(snap.get("beginning_long_term_aum"))
+    period = safe_float(snap.get("flow_period_fraction_year"))
+    period_label = snap.get("flow_period_label")
+
+    direction_raw = str(snap.get("verified_long_term_flow_direction") or "").strip().lower()
+    direction = direction_raw if direction_raw in {"positive", "flat", "negative"} else None
+
+    if issuer_rate is not None and bool(snap.get("issuer_flow_rate_verified")):
+        if issuer_rate > 0:
+            direction = "positive"
+        elif issuer_rate < 0:
+            direction = "negative"
+        else:
+            direction = "flat"
+        return {
+            "verified_rate": True,
+            "annualized_rate_pct": issuer_rate,
+            "direction": direction,
+            "net_flows": flows,
+            "period_label": period_label,
+            "mode": "issuer_verified_rate",
+            "method": "Issuer-verifizierte annualisierte Organic-/Long-Term-Flow-Rate",
+            "note": "Die Prozentzahl stammt aus einer explizit verifizierten Issuer-Angabe; keine eigene Nenner-Schätzung erforderlich.",
+        }
+
+    scope_ok = bool(snap.get("flow_scope_matches_denominator"))
+    acquisition_sep = bool(snap.get("acquisition_effects_separately_disclosed"))
+    calculable = bool(
+        begin_lt is not None and begin_lt > 0
+        and flows is not None
+        and period is not None and period > 0
+        and scope_ok
+        and acquisition_sep
+    )
+    if calculable:
+        rate = (flows / begin_lt) / period * 100.0
+        if rate > 0:
+            direction = "positive"
+        elif rate < 0:
+            direction = "negative"
+        else:
+            direction = "flat"
+        return {
+            "verified_rate": True,
+            "annualized_rate_pct": rate,
+            "direction": direction,
+            "net_flows": flows,
+            "beginning_long_term_aum": begin_lt,
+            "period_fraction_year": period,
+            "period_label": period_label,
+            "mode": "verified_calculated_rate",
+            "method": "Long-Term Net Flows ÷ passendes Beginning Long-Term AUM ÷ Periodenanteil",
+            "note": "Nenner-Scope und Zeitraum stimmen überein; Akquisitions-AUM ist separat ausgewiesen und wird nicht als organischer Flow behandelt.",
+        }
+
+    if direction is not None:
+        return {
+            "verified_rate": False,
+            "annualized_rate_pct": None,
+            "direction": direction,
+            "net_flows": flows,
+            "period_label": period_label,
+            "mode": "direction_only",
+            "method": "Verifizierte Flow-Richtung / absolute Net Flows; Prozent-Rate gesperrt",
+            "note": "Eine präzise annualisierte Flow-Rate ist mangels vollständig passender Nenner-/Perioden-/Akquisitionsbasis nicht sicher berechenbar. Der Score verwendet deshalb nur einen begrenzten Richtungswert.",
+        }
+
+    return {
+        "verified_rate": False,
+        "annualized_rate_pct": None,
+        "direction": None,
+        "net_flows": flows,
+        "period_label": period_label,
+        "mode": "unavailable",
+        "method": None,
+        "note": "Long-Term Flow-Rate und verifizierte Flow-Richtung sind unvollständig; Flow-Teilscore bleibt fail-closed.",
+    }
+
+
+def _asset_manager_directional_flow_points(direction):
+    """Capped score when only direction, not a defensible rate, is known."""
+    d = str(direction or "").strip().lower()
+    if d == "positive":
+        return 9.0
+    if d == "flat":
+        return 6.0
+    if d == "negative":
+        return 3.0
+    return None
+
+
 def build_asset_management_specialist_score(snapshot):
     snap = snapshot if isinstance(snapshot, dict) else {}
     result = {"available": False, "score": None, "quality_level": None, "components": {}, "note": None}
@@ -15672,22 +15798,32 @@ def build_asset_management_specialist_score(snapshot):
 
     total_aum = safe_float(snap.get("total_aum"))
     begin_total = safe_float(snap.get("beginning_total_aum"))
-    begin_lt = safe_float(snap.get("beginning_long_term_aum"))
-    flows = safe_float(snap.get("ytd_long_term_net_flows"))
-    period = safe_float(snap.get("flow_period_fraction_year"))
-    issuer_rate = safe_float(snap.get("issuer_annualized_organic_growth_pct"))
-    if issuer_rate is not None:
-        flow_rate = issuer_rate
-    elif begin_lt is not None and begin_lt > 0 and flows is not None and period is not None and period > 0:
-        flow_rate = (flows / begin_lt) / period * 100.0
-    else:
-        flow_rate = None
+    flow_ctx = _asset_manager_flow_context(snap)
+    flow_rate = safe_float(flow_ctx.get("annualized_rate_pct"))
+    flow_direction = flow_ctx.get("direction")
+
     aum_growth = None
     if total_aum is not None and begin_total is not None and begin_total > 0:
         aum_growth = (total_aum / begin_total - 1.0) * 100.0
 
-    flow_pts = _asset_manager_flow_points(flow_rate)
-    aum_pts = _asset_manager_aum_points(aum_growth, flow_rate)
+    if flow_ctx.get("verified_rate"):
+        flow_pts = _asset_manager_flow_points(flow_rate)
+    else:
+        flow_pts = _asset_manager_directional_flow_points(flow_direction)
+
+    # AUM growth never substitutes for organic flows. If only direction is
+    # known, pass a conservative directional proxy solely to prevent rising
+    # markets from receiving full AUM points when flows are flat/negative.
+    aum_flow_for_cap = flow_rate
+    if not flow_ctx.get("verified_rate"):
+        if flow_direction == "negative":
+            aum_flow_for_cap = -0.01
+        elif flow_direction == "flat":
+            aum_flow_for_cap = 0.0
+        else:
+            aum_flow_for_cap = None
+    aum_pts = _asset_manager_aum_points(aum_growth, aum_flow_for_cap)
+
     fee_mix_pts = safe_float(snap.get("fee_mix_score"))
     fee_growth_pts = _asset_manager_fee_growth_points(
         snap.get("fee_revenue_growth_pct"), snap.get("fee_growth_quality_cap")
@@ -15701,11 +15837,22 @@ def build_asset_management_specialist_score(snapshot):
     franchise_pts = safe_float(snap.get("franchise_diversification_score"))
     required = [flow_pts, aum_pts, fee_mix_pts, fee_growth_pts, margin_pts, earnings_pts, balance_pts, capital_pts, franchise_pts]
     if any(v is None for v in required):
+        result.update({
+            "flow_context": flow_ctx,
+            "flow_rate_verified": bool(flow_ctx.get("verified_rate")),
+            "flow_scoring_mode": flow_ctx.get("mode"),
+            "flow_direction": flow_direction,
+        })
         result["note"] = "Asset-Management-Spezialscore fail-closed: AUM/Flow/Fee/Margin- oder Qualitätsdaten unvollständig."
         return result
 
+    aum_flow_component = flow_pts + aum_pts
+    if not flow_ctx.get("verified_rate"):
+        # Direction-only evidence must never score like a fully normalized rate.
+        aum_flow_component = min(aum_flow_component, 12.0)
+
     components = {
-        "AUM-Wachstum & Organic Net Flows": flow_pts + aum_pts,
+        "AUM-Wachstum & Organic Net Flows": aum_flow_component,
         "Fee-Mix / Effective-Fee-Rate-Qualität": fee_mix_pts,
         "Fee-/Net-Revenue-Wachstum": fee_growth_pts,
         "Operating Margin & Margenstabilität": margin_pts,
@@ -15721,10 +15868,11 @@ def build_asset_management_specialist_score(snapshot):
         if mm is not None:
             money_market_share = mm / total_aum * 100.0
 
-    # Premium unlock: 4/5 structural conditions. This is not an additive score;
-    # it only determines whether a >15x valuation can be justified.
+    # Premium unlock: 4/5 structural conditions. The positive-flow condition
+    # requires a verified percentage rate; direction-only evidence cannot
+    # unlock a premium multiple.
     unlock_checks = {
-        "positive_long_term_flows": bool(flow_rate is not None and flow_rate >= 2.0),
+        "positive_long_term_flows": bool(flow_ctx.get("verified_rate") and flow_rate is not None and flow_rate >= 2.0),
         "high_quality_fee_mix": bool(fee_mix_pts >= 12.0),
         "sustainable_fee_growth": bool(safe_float(snap.get("fee_revenue_growth_pct")) is not None and safe_float(snap.get("fee_revenue_growth_pct")) >= 6.0),
         "strong_core_margin": bool(safe_float(snap.get("operating_margin_pct")) is not None and safe_float(snap.get("operating_margin_pct")) >= 30.0),
@@ -15736,7 +15884,15 @@ def build_asset_management_specialist_score(snapshot):
         "score": score,
         "quality_level": _asset_manager_score_level(score),
         "components": components,
+        # Compatibility alias retained for existing guard/UI paths.
         "annualized_long_term_organic_flow_pct": flow_rate,
+        "annualized_long_term_net_flow_pct": flow_rate,
+        "flow_rate_verified": bool(flow_ctx.get("verified_rate")),
+        "flow_scoring_mode": flow_ctx.get("mode"),
+        "flow_direction": flow_direction,
+        "flow_context": flow_ctx,
+        "long_term_net_flows": safe_float(flow_ctx.get("net_flows")),
+        "flow_period_label": flow_ctx.get("period_label"),
         "headline_aum_growth_pct": aum_growth,
         "money_market_aum_share_pct": money_market_share,
         "premium_unlock_checks": unlock_checks,
@@ -15744,12 +15900,12 @@ def build_asset_management_specialist_score(snapshot):
         "premium_unlocked": unlock_count >= 4,
         "note": (
             "Der Asset-Management Quality Score ersetzt den generischen Umsatz-/ROE-/Yahoo-FCF-/Net-Cash-Score. "
-            "AUM-Anstieg durch Marktperformance wird nicht wie organisches Wachstum behandelt; Net Flows, Fee-Qualität, "
-            "Core-Marge, Through-Cycle-Earnings und Kapitalallokation steuern die Bewertung."
+            "Eine annualisierte Long-Term-Flow-Rate wird nur bei verifizierter Same-Scope-/Same-Period-Basis verwendet; "
+            "sonst erhält lediglich die verifizierte Flow-Richtung einen begrenzten Score und kann keinen Premium-Unlock auslösen. "
+            "AUM-Anstieg durch Marktperformance wird nicht wie organisches Wachstum behandelt."
         ),
     })
     return result
-
 
 def build_asset_management_earnings_basis(snapshot, trailing_eps, current_fy_eps, historical_eps):
     snap = snapshot if isinstance(snapshot, dict) else {}
@@ -15802,13 +15958,24 @@ def build_asset_management_specialist_valuation(snapshot, specialist_score, earn
     raw_target = _asset_manager_target_pe_from_score(score)
     target = raw_target
     caps = []
-    flow_rate = safe_float(score_data.get("annualized_long_term_organic_flow_pct"))
-    if flow_rate is not None and flow_rate <= -5.0:
+    flow_rate = safe_float(score_data.get("annualized_long_term_net_flow_pct"))
+    if flow_rate is None:
+        flow_rate = safe_float(score_data.get("annualized_long_term_organic_flow_pct"))
+    flow_rate_verified = bool(score_data.get("flow_rate_verified"))
+    flow_direction = str(score_data.get("flow_direction") or "").strip().lower()
+    flow_cap_applied = False
+    if flow_rate_verified and flow_rate is not None and flow_rate <= -5.0:
         target = min(target, 11.5)
         caps.append("Organic-Flow-Guard <= -5 %: max. 11,5×")
-    elif flow_rate is not None and flow_rate <= -2.0:
+        flow_cap_applied = True
+    elif flow_rate_verified and flow_rate is not None and flow_rate <= -2.0:
         target = min(target, 12.5)
         caps.append("Organic-Flow-Guard <= -2 %: max. 12,5×")
+        flow_cap_applied = True
+    elif not flow_rate_verified and flow_direction == "negative":
+        target = min(target, 12.5)
+        caps.append("Directional-Flow-Guard: verifizierte negative Long-Term-Flows, Rate nicht sicher berechenbar; max. 12,5×")
+        flow_cap_applied = True
     if target > 15.0 and not score_data.get("premium_unlocked"):
         target = 15.0
         caps.append("Premium-Unlock <4/5: max. 15×")
@@ -15826,7 +15993,9 @@ def build_asset_management_specialist_valuation(snapshot, specialist_score, earn
         "raw_score_multiple": raw_target,
         "target_multiple": target,
         "pre_peer_guard_multiple": target,
-        "flow_cap_applied": bool(flow_rate is not None and flow_rate <= -2.0),
+        "flow_cap_applied": flow_cap_applied,
+        "flow_rate_verified": flow_rate_verified,
+        "flow_direction": flow_direction,
         "money_market_guard_applied": mm_guard,
         "premium_unlock_count": int(score_data.get("premium_unlock_count") or 0),
         "premium_unlocked": bool(score_data.get("premium_unlocked")),
@@ -15834,7 +16003,7 @@ def build_asset_management_specialist_valuation(snapshot, specialist_score, earn
         "fair_value_financial": normalized_eps * target,
         "note": (
             "Fair Value = geglättete Asset-Manager-Earnings × nichtlinear scoregesteuertes 9–18× Spezial-KGV. "
-            "Negative Organic Flows und fehlender Premium-Unlock wirken ausschließlich downside-only."
+            "Negative Long-Term-Flows und fehlender Premium-Unlock wirken ausschließlich downside-only; unvollständige Flow-Raten werden nicht künstlich präzisiert."
         ),
     })
     return result
@@ -18753,7 +18922,7 @@ def get_special_control(company_type, symbol):
                 "JHG/Take-private Delisting Guard",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · UI Consistency Cleanup",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · BEN Flow Definition Fix",
             "note": (
                 "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
                 "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
@@ -26464,6 +26633,10 @@ def calculate_fair_value_v1(
             "multiple_corridor_low": safe_float(sv.get("corridor_low")),
             "multiple_corridor_high": safe_float(sv.get("corridor_high")),
             "annualized_long_term_organic_flow_pct": safe_float(ss.get("annualized_long_term_organic_flow_pct")),
+            "annualized_long_term_net_flow_pct": safe_float(ss.get("annualized_long_term_net_flow_pct")),
+            "flow_rate_verified": bool(ss.get("flow_rate_verified")),
+            "flow_scoring_mode": ss.get("flow_scoring_mode"),
+            "flow_direction": ss.get("flow_direction"),
             "headline_aum_growth_pct": safe_float(ss.get("headline_aum_growth_pct")),
             "peer_reference_median_pe": safe_float(sv.get("peer_reference_median_pe")),
             "historical_forward_pe_3y_median": safe_float(sv.get("historical_forward_pe_3y_median")),
@@ -32421,9 +32594,18 @@ def load_stock(selected_symbol, cache_version):
     if asset_management_specialist_model.get("applicable") and asset_management_specialist_model.get("valuation_anchor_complete"):
         am_snap_event = asset_management_specialist_model.get("snapshot") or {}
         am_company_event = am_snap_event.get("company") or fundamental_info.get("longName") or "Asset Manager"
-        am_flow_event = safe_float((asset_management_specialist_model.get("score") or {}).get("annualized_long_term_organic_flow_pct"))
+        am_score_event = asset_management_specialist_model.get("specialist_score") or {}
+        am_flow_event = safe_float(am_score_event.get("annualized_long_term_net_flow_pct"))
+        am_flow_verified_event = bool(am_score_event.get("flow_rate_verified"))
+        am_flow_direction_event = str(am_score_event.get("flow_direction") or "").strip().lower()
         am_margin_event = safe_float(am_snap_event.get("operating_margin_pct"))
-        flow_text = f"{am_flow_event:+.2f} %" if am_flow_event is not None else "nicht verfügbar"
+        if am_flow_verified_event and am_flow_event is not None:
+            flow_text = f"verifizierte annualisierte Long-Term-Net-Flow-Rate {am_flow_event:+.2f} %"
+        elif am_flow_direction_event:
+            direction_map = {"positive": "positiv", "flat": "nahezu flach", "negative": "negativ"}
+            flow_text = f"verifizierte Flow-Richtung {direction_map.get(am_flow_direction_event, am_flow_direction_event)}; Prozent-Rate gesperrt"
+        else:
+            flow_text = "nicht belastbar verfügbar"
         margin_text = f"{am_margin_event:.1f} %" if am_margin_event is not None else "nicht verfügbar"
         special_event_warning = {
             "level": "Grün",
@@ -32432,7 +32614,7 @@ def load_stock(selected_symbol, cache_version):
             "requires_research": False,
             "valuation_usable": True,
             "reason": (
-                f"Organische Long-Term-Flows ({flow_text}) werden getrennt von Marktperformance, FX und Akquisitionen bewertet; "
+                f"Long-Term-Flows ({flow_text}) werden getrennt von Marktperformance, FX und Akquisitionen bewertet; "
                 f"die Core/Adjusted Operating Margin liegt bei {margin_text}. Generisches Umsatz-/Gewinnwachstum, ROE, Yahoo-FCF-Marge und Net-Cash-Punkte bleiben Diagnosekontext."
             ),
             "action": (
@@ -38123,7 +38305,7 @@ if selected_symbol:
 
                 if special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · UI Consistency Cleanup")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · BEN Flow Definition Fix")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
@@ -38149,15 +38331,28 @@ if selected_symbol:
                                     st.metric("Money-Market / Liquidity AUM", format_money(snap_am.get("money_market_aum"), financial_currency))
                             with a2:
                                 if score_am.get("available"):
-                                    st.metric("Annualisierte Long-Term Organic Flows", f"{safe_float(score_am.get('annualized_long_term_organic_flow_pct')):+.2f} %")
+                                    flow_rate_ui = safe_float(score_am.get("annualized_long_term_net_flow_pct"))
+                                    if score_am.get("flow_rate_verified") and flow_rate_ui is not None:
+                                        st.metric("Annualisierte Long-Term Net-Flow-Rate", f"{flow_rate_ui:+.2f} %")
+                                    else:
+                                        flow_direction_ui = str(score_am.get("flow_direction") or "").strip().lower()
+                                        direction_map_ui = {"positive": "Positiv", "flat": "Nahezu flach", "negative": "Negativ"}
+                                        st.metric("Long-Term Flow-Richtung", direction_map_ui.get(flow_direction_ui, "–"))
+                                        net_flows_ui = safe_float(score_am.get("long_term_net_flows"))
+                                        period_ui = text_or_dash(score_am.get("flow_period_label"))
+                                        if net_flows_ui is not None:
+                                            st.caption(f"{period_ui} Long-Term Net Flows: {format_money(net_flows_ui, financial_currency)}. Annualisierte Prozent-Rate nicht sicher berechenbar; Flow-Punkte sind begrenzt.")
+                                    flow_ctx_ui = score_am.get("flow_context") or {}
+                                    if flow_ctx_ui.get("method"):
+                                        st.caption(f"Flow-Definition: {text_or_dash(flow_ctx_ui.get('method'))}")
                                     st.metric("Headline-AUM-Wachstum", f"{safe_float(score_am.get('headline_aum_growth_pct')):+.1f} %")
                                 st.metric("Core/Adjusted Operating Margin", f"{safe_float(snap_am.get('operating_margin_pct')):.1f} %")
                             if score_am.get("available"):
                                 st.metric("Asset Management Quality Score", f"{safe_float(score_am.get('score')):.0f}/100 · {text_or_dash(score_am.get('quality_level'))}")
                                 st.write("**Score-Komponenten:** " + " · ".join(f"{name} {safe_float(points):.0f}" for name, points in score_am.get("components", {}).items()))
                                 st.write(f"**Premium-Unlock:** {int(score_am.get('premium_unlock_count') or 0)}/5 Bedingungen · " + ("bestanden" if score_am.get("premium_unlocked") else "nicht bestanden"))
-                                if any("Organic-Flow-Guard" in str(cap) for cap in (val_am.get("caps") or [])):
-                                    st.caption("Der Premium-Unlock hebt einen aktiven downside-only Organic-Flow-Guard nicht auf; negative organische Flows können das Ziel-KGV weiterhin begrenzen.")
+                                if any("Flow-Guard" in str(cap) for cap in (val_am.get("caps") or [])):
+                                    st.caption("Der Premium-Unlock hebt einen aktiven downside-only Flow-Guard nicht auf; negative Long-Term-Flows können das Ziel-KGV weiterhin begrenzen.")
                             if earn_am.get("available"):
                                 st.metric("Through-Cycle Earnings-Basis", format_eps(earn_am.get("normalized_eps"), financial_currency))
                                 st.caption(text_or_dash(earn_am.get("method")))
@@ -38168,10 +38363,10 @@ if selected_symbol:
                                 )
                                 guard_status = str(val_am.get("multiple_guard_status") or "none")
                                 if guard_status == "hard":
-                                    st.warning(
-                                        "🔴/🟡 Asset Manager Multiple Guard: Zielmultiple liegt deutlich über Peer-/3Y-Historical-Referenz. "
-                                        + ("Downside-Cap angewendet." if val_am.get("historical_peer_cap_applied") else "Premium-Unlock rechtfertigt die höhere Bewertung; Guard bleibt sichtbar.")
-                                    )
+                                    if val_am.get("historical_peer_cap_applied"):
+                                        st.warning("🔴 Asset Manager Multiple Guard: Zielmultiple liegt deutlich über Peer-/3Y-Historical-Referenz. Downside-Cap angewendet.")
+                                    else:
+                                        st.warning("🟡 Asset Manager Multiple Guard: Zielmultiple liegt deutlich über Peer-/3Y-Historical-Referenz. Premium-Unlock rechtfertigt die höhere Bewertung; Guard bleibt sichtbar.")
                                 elif guard_status == "soft":
                                     st.info("🟡 Asset Manager Multiple Guard: moderates Premium gegenüber Peer-/3Y-Historical-Referenz; keine automatische Änderung.")
                                 st.write(
