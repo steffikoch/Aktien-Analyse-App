@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.96"
+APP_BUILD_VERSION = "V2.20.97"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,10 +25,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · CTVA Separation Detection & SOTP Pre-Gate"
+    f"Build {APP_BUILD_VERSION} · TOYO High-Growth Solar Policy & Dilution Specialist Model V1"
 )
 
 
+# V2.20.97: TOYO High-Growth Solar / Policy & Dilution Specialist Model V1. Adds a dedicated primary-source TOYO valuation path using Q2/H1 2026 growth, margins, issuer cash conversion, actual quarter-end share count, policy/trade exposure, June equity/warrant issuance, remaining ATM capacity and the Texas HJT capex plan. The sole earnings anchor is a conservative latest-quarter current-share run-rate, not Yahoo consensus or H1 annualization. A downside-only policy P/E cap plus financing/dilution P/E cap constrain the operational quality multiple, and an explicit action brake limits Buy/Add to Observe/Hold while Section 232, Ethiopia circumvention/CBP and the major Texas financing plan remain unresolved. Generic Yahoo EPS/FCF/Net-Debt-to-FCF remain context-only.
 # V2.20.96: CTVA Separation Detection & SOTP Pre-Gate. Adds a dedicated Corteva/Vylor/New-Corteva structural-separation router using the verified Q2 2026 separation milestones, H1 Seed/Crop-Protection segment economics and the public Form-10/SEC/IR source set. The planned Oct. 1 separation is recognized as a confirmed structural break rather than an unexplained EPS anomaly. Full SOTP remains fail-closed until the Sep. 15 standalone Investor-Day anchors and final capital structures/Form-10 effectiveness are available; no synthetic Fair Value is created. Corteva IR routing is corrected to investors.corteva.com/financial-information/quarterly-earnings-reports and SEC filings. Generic EPS/FCF/Net-Debt-to-FCF remain context only for CTVA.
 # V2.20.95: Specialist Context Isolation & UA/OMC UI Cleanup. No valuation formulas, scores, multiples, Fair Values or signal rules changed. UA/UAA and OMC now label Standard-EPS, Yahoo/Cashflow-Statement FCF and generic Net-Debt/FCF strictly as diagnosis context; standard EPS divergence/confidence can no longer appear as if it limits specialist valuation confidence.
 # V2.20.94: UA Turnaround & OMC Post-Merger Specialist Valuation V1. Adds a revenue/P-Sales turnaround model for Under Armour (UA/UAA) using issuer FY2026 revenue, FY2027 demand/gross-margin/profitability guidance, liquidity, restructuring progress and official diluted A/B/C share count. Adds a post-IPG adjusted-EPS/EBITA model for Omnicom using fully post-merger H1 2026 adjusted EPS, core organic growth/margins, integration/synergy execution and financing burden. Generic GAAP EPS/FCF scores remain context-only. UA has a demand-stabilization action brake; OMC has a post-merger integration yellow gate. Analyst targets remain Reality Check only. Also removes the stale generic margin/ROE profitability footer from Regulated Utilities.
@@ -6179,7 +6180,7 @@ def classify_company(name, symbol, sector, industry):
     if symbol_text == "TOYO" or ("solar" in industry_text and "technology" in sector_text):
         return {
             "type": "Solar Manufacturing / High-Growth / Policy-Sensitive",
-            "method": "Current-FY Earnings + Cash Conversion + Working Capital/Dilution/Policy-Risiken; Standard-Korridor gesperrt",
+            "method": "Primärquellen-Q2/H1-Earnings + Cash Conversion + Policy-/Dilution-/CapEx-Risiken; Standard-Korridor gesperrt",
             "confidence_cap": "Niedrig bis Mittel",
         }
 
@@ -14644,6 +14645,273 @@ def apply_turnaround_postmerger_action_brake(new_buy_signal, holding_signal, spe
 
 
 # =========================================================
+# V2.20.97 – TOYO High-Growth Solar / Policy & Dilution Specialist Model V1
+# =========================================================
+
+def is_toyo_solar_specialist_type(company_type, symbol=None):
+    sym = str(symbol or "").upper().strip()
+    type_name = normalized_company_type_name(company_type)
+    return sym == "TOYO" or "solar manufacturing / high-growth / policy-sensitive" in type_name
+
+
+def get_verified_toyo_solar_snapshot(symbol):
+    """Time-bounded TOYO primary-source snapshot (Q2/H1 2026 + financing filings).
+
+    Analyst targets/consensus do not enter the valuation.  Because management
+    explicitly described the H2 policy impact as uncertain, V2.20.97 does not
+    annualize H1 EPS and does not use Yahoo current-FY consensus as the sole
+    earnings anchor.  Instead, latest-quarter GAAP net income is annualized on
+    the *actual June-30 share count*, then the multiple is constrained by
+    downside-only policy and financing/dilution caps.
+    """
+    if str(symbol or "").upper().strip() != "TOYO":
+        return None
+
+    h1_revenue = 261.0e6
+    h1_net_income = 45.8e6
+    q2_net_income = 17.4e6
+    h1_cfo = 61.4e6
+    h1_capex = 27.8e6
+    h1_owner_fcf = h1_cfo - h1_capex
+    shares_outstanding = 42_718_948.0
+    shares_outstanding_2025 = 36_712_040.0
+    q2_current_share_run_rate_eps = (q2_net_income * 4.0) / shares_outstanding
+
+    return {
+        "symbol": "TOYO",
+        "company": "TOYO Co., Ltd.",
+        "as_of_date": "30.06.2026",
+        "published_date": "19.08.2026",
+        "source_name": "TOYO Q2/H1 2026 Results + June 2026 RDO/Warrant filings + Texas HJT plan",
+        "results_url": "https://www.sec.gov/Archives/edgar/data/1985273/000121390026091681/ea030222201ex99-4.htm",
+        "financials_url": "https://www.sec.gov/Archives/edgar/data/1985273/000121390026091681/ea030222201ex99-1.htm",
+        "rdo_url": "https://www.sec.gov/Archives/edgar/data/1985273/000121390026072643/ea0295896-6k_toyo.htm",
+        "hjt_url": "https://www.sec.gov/Archives/edgar/data/1985273/000121390026070658/ea029504701ex99-1.htm",
+        "valuation_basis_name": "Q2-2026 current-share earnings run-rate / policy-capped P/E",
+        "h1_revenue": h1_revenue,
+        "h1_revenue_growth_pct": 87.6,
+        "q2_revenue": 118.2e6,
+        "q2_revenue_growth_pct": 35.0,
+        "h1_cells_delivered_gw": 2.6,
+        "h1_modules_delivered_mw": 191.5,
+        "h1_gross_profit": 84.7e6,
+        "h1_gross_margin_pct": 32.5,
+        "q2_gross_margin_pct": 31.3,
+        "h1_adjusted_ebitda": 82.3e6,
+        "h1_adjusted_ebitda_margin_pct": 82.3e6 / h1_revenue * 100.0,
+        "h1_net_income": h1_net_income,
+        "q2_net_income": q2_net_income,
+        "h1_diluted_eps_reported": 1.20,
+        "q2_diluted_eps_reported": 0.45,
+        "q2_current_share_run_rate_eps": q2_current_share_run_rate_eps,
+        "h1_cfo": h1_cfo,
+        "h1_capex": h1_capex,
+        "h1_owner_fcf": h1_owner_fcf,
+        "h1_owner_fcf_to_net_income_pct": h1_owner_fcf / h1_net_income * 100.0,
+        "cash_and_equivalents": 103.5e6,
+        "cash_and_restricted_cash": 123.4e6,
+        "us_end_customer_revenue": 210.5e6,
+        "us_end_customer_revenue_pct": 80.7,
+        "shares_outstanding": shares_outstanding,
+        "shares_outstanding_2025": shares_outstanding_2025,
+        "share_count_increase_pct": (shares_outstanding / shares_outstanding_2025 - 1.0) * 100.0,
+        "rdo_new_shares": 4_545_456.0,
+        "rdo_warrants": 4_545_456.0,
+        "rdo_warrant_strike": 13.20,
+        "rdo_net_proceeds": 47_054_065.0,
+        "atm_capacity": 30.0e6,
+        "atm_net_proceeds_to_june": 5_546_541.0,
+        "atm_remaining_capacity": 30.0e6 - 5_546_541.0,
+        "hjt_project_capex": 357.0e6,
+        "hjt_capacity_gw": 1.5,
+        "hjt_pilot_target": "Q1 2028",
+        "policy_section_232_uncertain": True,
+        "ethiopia_circumvention_inquiry_active": True,
+        "cbp_detention_review_active": True,
+        "usitc_patent_case_active": True,
+        "policy_pe_cap": 5.0,
+        "financing_dilution_pe_cap": 5.5,
+        "risk_action_cap": "observe_hold",
+        "valuation_confidence_cap": "Niedrig",
+        "note": (
+            "TOYO zeigt starkes operatives Wachstum und solide H1-Cash-Conversion, aber der US-Markt dominiert den Umsatz. "
+            "Section-232-Ausgestaltung, Ethiopia-Anti-Circumvention/CBP-Prüfung, laufende Patentverfahren sowie der große Texas-HJT-Finanzierungsbedarf "
+            "machen eine H1-EPS-Verdopplung als Fair-Value-Anker unzulässig. V2.20.97 verwendet deshalb den konservativeren Q2-Net-Income-Run-Rate auf der tatsächlichen 30.06.-Aktienzahl und deckelt das Multiple downside-only."
+        ),
+    }
+
+
+def build_toyo_solar_specialist_score(snapshot):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    result = {"available": False, "score": None, "quality_level": None, "components": {}, "note": None}
+    if str(snap.get("symbol") or "").upper() != "TOYO":
+        result["note"] = "TOYO-Spezialscore nicht anwendbar."
+        return result
+
+    required = [
+        safe_float(snap.get("h1_revenue_growth_pct")),
+        safe_float(snap.get("q2_revenue_growth_pct")),
+        safe_float(snap.get("h1_gross_margin_pct")),
+        safe_float(snap.get("h1_adjusted_ebitda_margin_pct")),
+        safe_float(snap.get("h1_owner_fcf_to_net_income_pct")),
+        safe_float(snap.get("cash_and_restricted_cash")),
+        safe_float(snap.get("us_end_customer_revenue")),
+        safe_float(snap.get("hjt_capacity_gw")),
+    ]
+    if any(v is None for v in required):
+        result["note"] = "TOYO-Spezialscore gesperrt: mindestens eine Primärkennzahl fehlt."
+        return result
+
+    h1_growth, q2_growth, gross_margin, adj_ebitda_margin, fcf_conv, cash_restricted, us_rev, hjt_gw = required
+    growth_pts = 19.0 if h1_growth >= 70 and q2_growth >= 25 else 16.0 if q2_growth >= 15 else 10.0
+    margin_pts = 18.0 if gross_margin >= 30 and adj_ebitda_margin >= 25 else 14.0 if gross_margin >= 24 else 9.0
+    cash_pts = 12.0 if fcf_conv >= 65 else 9.0 if fcf_conv >= 40 else 5.0
+    liquidity_pts = 11.0 if cash_restricted >= 100e6 else 8.0 if cash_restricted >= 60e6 else 5.0
+    demand_pts = 12.0 if us_rev >= 180e6 else 9.0 if us_rev >= 120e6 else 6.0
+    execution_pts = 10.0 if hjt_gw >= 1.5 and safe_float(snap.get("h1_modules_delivered_mw")) and safe_float(snap.get("h1_modules_delivered_mw")) > 0 else 7.0
+    components = {
+        "Wachstum / Skalierung": growth_pts,
+        "Margenqualität": margin_pts,
+        "Issuer-Cash-Conversion": cash_pts,
+        "Liquidität": liquidity_pts,
+        "US-Nachfrage / Commercial Traction": demand_pts,
+        "Manufacturing-/Capacity-Execution": execution_pts,
+    }
+    score = max(0.0, min(100.0, round(sum(components.values()), 2)))
+    result.update({
+        "available": True,
+        "score": score,
+        "quality_level": _specialist_quality_level(score),
+        "components": components,
+        "note": (
+            "Der TOYO Quality Score misst die operative Qualität vor externen Tail-Risiken. Policy-, Trade-, Dilution- und Finanzierungsrisiken "
+            "werden anschließend separat als downside-only Multiple-Caps behandelt, damit sie nicht doppelt als Wachstums-/Margenabzug wirken."
+        ),
+    })
+    return result
+
+
+def build_toyo_solar_specialist_valuation(snapshot, specialist_score):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    score_data = specialist_score if isinstance(specialist_score, dict) else {}
+    result = {
+        "available": False,
+        "valuation_method_name": "TOYO Policy-/Dilution-capped Current-Run-Rate P/E",
+        "target_multiple": None,
+        "base_target_multiple": None,
+        "corridor_low": 4.0,
+        "corridor_high": 9.0,
+        "fair_value_financial": None,
+        "note": None,
+    }
+    if not score_data.get("available"):
+        result["note"] = "TOYO-Spezialbewertung gesperrt: Quality Score fehlt."
+        return result
+    earnings = safe_float(snap.get("q2_current_share_run_rate_eps"))
+    score = safe_float(score_data.get("score"))
+    policy_cap = safe_float(snap.get("policy_pe_cap"))
+    financing_cap = safe_float(snap.get("financing_dilution_pe_cap"))
+    if earnings is None or earnings <= 0 or score is None or policy_cap is None or financing_cap is None:
+        result["note"] = "TOYO-Spezialbewertung gesperrt: Earnings-/Risk-Cap-Basis unvollständig."
+        return result
+
+    low, high = 4.0, 9.0
+    base_target = low + (high - low) * (score / 100.0)
+    target = min(base_target, policy_cap, financing_cap)
+    fair = earnings * target
+    result.update({
+        "available": True,
+        "earnings_basis": earnings,
+        "base_target_multiple": base_target,
+        "target_multiple": target,
+        "policy_pe_cap": policy_cap,
+        "financing_dilution_pe_cap": financing_cap,
+        "policy_overlay_applied": target < base_target and policy_cap <= financing_cap,
+        "financing_overlay_applied": target < base_target and financing_cap <= policy_cap,
+        "risk_overlay_effect_pct": (target / base_target - 1.0) * 100.0 if base_target > 0 else None,
+        "fair_value_financial": fair,
+        "note": (
+            "Fair Value = Q2-2026 Net-Income-Run-Rate auf tatsächlicher 30.06.-Aktienzahl × operatives Quality-P/E, danach downside-only Policy- und Financing/Dilution-Caps. "
+            "H1-EPS wird nicht verdoppelt; Yahoo Analystenkonsens und Analystenziele bleiben außerhalb der Rechnung."
+        ),
+    })
+    return result
+
+
+def build_toyo_solar_specialist_model(company_type, fundamental_info, symbol):
+    if not is_toyo_solar_specialist_type(company_type, symbol) or str(symbol or "").upper().strip() != "TOYO":
+        return {"applicable": False}
+    snapshot = get_verified_toyo_solar_snapshot(symbol)
+    if not snapshot:
+        return {"applicable": True, "primary_source_complete": False, "specialist_score": {"available": False}, "specialist_valuation": {"available": False}, "valuation_anchor_complete": False, "readiness": "TOYO-Primärquellen-Snapshot fehlt"}
+    score = build_toyo_solar_specialist_score(snapshot)
+    valuation = build_toyo_solar_specialist_valuation(snapshot, score)
+    return {
+        "applicable": True,
+        "primary_source_complete": True,
+        "snapshot": snapshot,
+        "specialist_score": score,
+        "specialist_valuation": valuation,
+        "valuation_anchor_complete": bool(score.get("available") and valuation.get("available")),
+        "readiness": "TOYO-Spezialbewertung freigegeben" if valuation.get("available") else "TOYO-Spezialbewertung gesperrt",
+    }
+
+
+def build_toyo_solar_special_control(control, specialist_model):
+    if not isinstance(control, dict) or control.get("control_key") != "toyo_solar_policy_dilution":
+        return control
+    model = specialist_model if isinstance(specialist_model, dict) else {}
+    score = model.get("specialist_score") or {}
+    valuation = model.get("specialist_valuation") or {}
+    snap = model.get("snapshot") or {}
+    released = bool(model.get("valuation_anchor_complete") and score.get("available") and valuation.get("available"))
+    out = dict(control)
+    out.update({
+        "implemented": True,
+        "released": released,
+        "confidence_cap": snap.get("valuation_confidence_cap") or "Niedrig",
+        "router_status": "Schritt 3B freigegeben" if released else "Schritt 3B nicht freigegeben",
+        "step3b_status": "TOYO Policy-/Dilution-Fair-Value freigegeben" if released else "TOYO Fair Value gesperrt",
+        "snapshot": snap,
+        "checks": {"specialist_score": score, "specialist_valuation": valuation},
+        "note": (
+            "V2.20.97 trennt TOYO vom generischen Solar-/High-Growth-Pfad. Operative Qualität wird aus Q2/H1-Primärdaten bewertet; "
+            "die Earnings-Basis ist der konservative Q2-Run-Rate auf der tatsächlichen Aktienzahl. Policy-/Trade- und Financing/Dilution-Risiken dürfen das Quality-P/E nur nach unten begrenzen. "
+            "Yahoo-FCF, generische Net-Debt/FCF-Logik und Analystenziele bleiben außerhalb des Fair Values."
+        ),
+    })
+    return out
+
+
+def apply_toyo_solar_action_brake(new_buy_signal, holding_signal, specialist_model):
+    model = specialist_model if isinstance(specialist_model, dict) else {}
+    snap = model.get("snapshot") or {}
+    if str(snap.get("symbol") or "").upper() != "TOYO" or not model.get("valuation_anchor_complete") or snap.get("risk_action_cap") != "observe_hold":
+        return new_buy_signal, holding_signal
+    nb = dict(new_buy_signal or {})
+    hs = dict(holding_signal or {})
+    if nb.get("signal") in {"Starker Kauf", "Kauf", "Beobachten"}:
+        nb.update({
+            "signal": "Beobachten",
+            "reason": (
+                "Rechnerische Unterbewertung vorhanden, aber Section-232-/Ethiopia-/CBP-Risiken sowie der große Texas-Finanzierungsbedarf sind noch offen. "
+                "Neukäufe bleiben bis zu belastbarer Policy- und Finanzierungsklärung auf Beobachten begrenzt."
+            ),
+            "toyo_policy_dilution_action_brake": True,
+        })
+    if hs.get("signal") in {"Nachkaufen", "Halten / nicht nachkaufen"}:
+        hs.update({
+            "signal": "Halten",
+            "reason": (
+                "Rechnerische Unterbewertung vorhanden, aber Policy-/Trade- und Dilution-/Finanzierungsrisiken bleiben materiell. "
+                "Nachkaufen bleibt bis zu belastbarer Klärung gesperrt."
+            ),
+            "toyo_policy_dilution_action_brake": True,
+        })
+    return nb, hs
+
+
+# =========================================================
 # V2.20.96 – Corteva Separation Detection & SOTP Pre-Gate
 # =========================================================
 
@@ -16551,6 +16819,30 @@ def get_special_control(company_type, symbol):
                 "V2.20.73 behandelt Baker Hughes als Energy-Technology-Plattform statt als integrierten Ölproduzenten. "
                 "Q2 2026 bildet OFSE/IET vor der Chart-Übernahme ab, während der aktuelle Kurs bereits nach dem Closing vom 16.07.2026 liegt. "
                 "Deshalb bleiben generischer Öl-&-Gas-KGV-Pfad, Standard-FCF/Bilanz-Score und Fair Value gesperrt, bis eine belastbare Post-Chart Earnings- und Kapitalstrukturbasis vorliegt."
+            ),
+        }
+
+    if symbol_text == "TOYO" or "solar manufacturing / high-growth / policy-sensitive" in type_name:
+        return {
+            "required": True,
+            "control_key": "toyo_solar_policy_dilution",
+            "control_name": "TOYO Solar / Growth-, Cash-Conversion-, Policy-, Dilution- & CapEx-Kontrolle",
+            "planned_checks": [
+                "Q2/H1 2026 Umsatz-, Margen- und Adjusted-EBITDA-Qualität",
+                "Issuer-Cash-Conversion: Operating Cash Flow minus CapEx",
+                "Q2 current-share Earnings Run-Rate statt H1-EPS-Verdopplung",
+                "US-Umsatzkonzentration und Section-232-Unsicherheit",
+                "Ethiopia Anti-Circumvention / CBP-Detention / USITC-Patent-Risiko",
+                "tatsächliche Aktienzahl + Juni-RDO + Warrants + Rest-ATM",
+                "357-Mio.-USD Texas-HJT-CapEx / Finanzierungsbedarf",
+                "downside-only Policy- und Financing/Dilution-P/E-Caps",
+                "Action Brake bis Policy-/Finanzierungsrisiken belastbarer sind",
+                "Analysten-Kursziel ausschließlich Reality Check",
+            ],
+            "status": "Router aktiv – V2.20.97 TOYO High-Growth Solar Policy & Dilution Specialist Model V1",
+            "note": (
+                "TOYO wird nicht in den generischen High-Growth-/Yahoo-EPS-Pfad gedrückt. V2.20.97 verwendet aktuelle Q2/H1-Primärdaten, "
+                "eine konservative current-share Earnings-Referenz und explizite downside-only Policy-/Financing-Caps."
             ),
         }
 
@@ -23364,6 +23656,7 @@ def calculate_valuation_confidence(
     is_nvidia_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "nvidia_ai_quality_operating_pe"
     is_utility_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "regulated_utility_core_eps_pe"
     is_turnaround_postmerger_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") in {"ua_turnaround_psales", "omc_post_merger_adjusted_pe"}
+    is_toyo_solar_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "toyo_policy_dilution_pe"
     if is_auto_valuation:
         cycle_status = str(fair_value.get("cycle_status") or "")
         cycle_level = "Mittel" if cycle_status in {"Stark", "Mittel"} else "Mittel bis Hoch"
@@ -23384,7 +23677,7 @@ def calculate_valuation_confidence(
     elif is_utility_valuation:
         guidance_level = "Hoch"
         components["Current-FY Core/Adjusted EPS Guidance"] = (_confidence_rank_value(guidance_level), guidance_level)
-    elif not is_reit_valuation and not is_turnaround_postmerger_valuation:
+    elif not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation:
         eps_level = (eps_normalization or {}).get("confidence")
         eps_rank = _confidence_rank_value(eps_level)
         if eps_rank is not None:
@@ -24116,6 +24409,88 @@ def calculate_fair_value_v1(
         })
         return result
 
+
+
+    # V2.20.97 – TOYO high-growth solar / policy & dilution-capped valuation.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "toyo_solar_policy_dilution"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        sv = checks.get("specialist_valuation") or {}
+        ss = checks.get("specialist_score") or {}
+        snap = special_control.get("snapshot") or {}
+        fv = safe_float(sv.get("fair_value_financial"))
+        if not sv.get("available") or fv is None or fv <= 0:
+            result["note"] = "Fair Value V1 gesperrt: TOYO Policy-/Dilution-Spezialanker nicht vollständig verfügbar."
+            return result
+
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der TOYO-Spezialbewertung sind nicht eindeutig."
+            return result
+
+        share_context = context.get("share_unit_context") or {}
+        share_ratio = 1.0
+        unit_notes = []
+        if share_context.get("conversion_required"):
+            if not share_context.get("conversion_available"):
+                result["note"] = "Fair Value V1 gesperrt: abweichende Handelseinheit ohne verifizierte Aktien-/ADR-Umrechnung."
+                return result
+            share_ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
+            if share_ratio is None or share_ratio <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Aktien-/ADR-Verhältnis ist nicht belastbar."
+                return result
+
+        fvq = fv * share_ratio
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Währungsumrechnung der TOYO-Spezialbewertung nicht belastbar verfügbar."
+                return result
+            fvq *= factor
+            unit_notes.append(f"Währungsangleichung: {financial_currency} → {quote_currency} mit Faktor {factor:.6f}.")
+        elif quote_currency != financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+
+        cp = safe_float(current_price)
+        potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+        result.update({
+            "available": True,
+            "valuation_method": "toyo_policy_dilution_pe",
+            "normalized_eps": safe_float(sv.get("earnings_basis")),
+            "used_multiple": safe_float(sv.get("target_multiple")),
+            "multiple_source": "V2.20.97 TOYO Operational Quality P/E → downside-only Policy & Financing/Dilution Caps",
+            "fair_value_financial": fv,
+            "fair_value_quote": fvq,
+            "potential_pct": potential,
+            "specialist_score": safe_float(ss.get("score")),
+            "specialist_quality_level": ss.get("quality_level"),
+            "specialist_components": ss.get("components") or {},
+            "base_target_multiple": safe_float(sv.get("base_target_multiple")),
+            "target_multiple": safe_float(sv.get("target_multiple")),
+            "multiple_corridor_low": safe_float(sv.get("corridor_low")),
+            "multiple_corridor_high": safe_float(sv.get("corridor_high")),
+            "policy_pe_cap": safe_float(sv.get("policy_pe_cap")),
+            "financing_dilution_pe_cap": safe_float(sv.get("financing_dilution_pe_cap")),
+            "risk_overlay_effect_pct": safe_float(sv.get("risk_overlay_effect_pct")),
+            "share_basis": safe_float(snap.get("shares_outstanding")),
+            "share_count_increase_pct": safe_float(snap.get("share_count_increase_pct")),
+            "rdo_warrants": safe_float(snap.get("rdo_warrants")),
+            "rdo_warrant_strike": safe_float(snap.get("rdo_warrant_strike")),
+            "atm_remaining_capacity": safe_float(snap.get("atm_remaining_capacity")),
+            "hjt_project_capex": safe_float(snap.get("hjt_project_capex")),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "TOYO-Fair-Value V1 = konservativer Q2-2026 Current-Share-Earnings-Run-Rate × operatives Quality-P/E; danach ausschließlich downside-only Policy- und Financing/Dilution-Caps. "
+                "H1-EPS, Yahoo-Konsens und Analystenziele bleiben außerhalb des Fair Values."
+            ),
+        })
+        return result
 
     # V2.20.94 – UA/UAA turnaround P/S and OMC post-merger Adjusted-EPS valuation.
     if (
@@ -28166,7 +28541,7 @@ def build_selected_stock_result(selected_symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "ctva_separation_sotp_pregate_v22096_20260913"
+CACHE_VERSION = "toyo_policy_dilution_specialist_v22097_20260913"
 
 @st.cache_data(
     ttl=900,
@@ -28778,6 +29153,12 @@ def load_stock(selected_symbol, cache_version):
         fundamental_symbol
     )
 
+    toyo_solar_specialist_model = build_toyo_solar_specialist_model(
+        company_type,
+        fundamental_info,
+        fundamental_symbol
+    )
+
     ctva_separation_pre_gate_model = build_ctva_separation_pre_gate_model(
         company_type,
         fundamental_info,
@@ -29016,6 +29397,29 @@ def load_stock(selected_symbol, cache_version):
             ),
         }
 
+    if toyo_solar_specialist_model.get("applicable"):
+        ty_score = toyo_solar_specialist_model.get("specialist_score") or {}
+        ty_val = toyo_solar_specialist_model.get("specialist_valuation") or {}
+        ty_corridor = {
+            "available": bool(ty_val.get("available")),
+            "lower": safe_float(ty_val.get("corridor_low")),
+            "upper": safe_float(ty_val.get("corridor_high")),
+            "method": ty_val.get("valuation_method_name") or "TOYO Policy-/Dilution-capped P/E",
+            "note": "V2.20.97: Der Korridor gehört ausschließlich zum TOYO-Primärquellenmodell; generische Yahoo-Scores bleiben Diagnosekontext.",
+        }
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": safe_float(ty_score.get("score")),
+            "corridor": ty_corridor,
+            "multiple": safe_float(ty_val.get("target_multiple")),
+            "available": bool(ty_score.get("available") and ty_val.get("available")),
+            "earnings_basis_usable": bool(ty_val.get("available")),
+            "note": (
+                "V2.20.97 verwendet für TOYO keinen generischen 100-Punkte-Score. Der eigene operative Quality Score setzt das Base-P/E; "
+                "Policy-/Trade- und Financing/Dilution-Risiken begrenzen dieses Multiple anschließend ausschließlich downside-only."
+            ),
+        }
+
     peer_group = get_peer_group(
         company_type,
         fundamental_symbol
@@ -29123,6 +29527,11 @@ def load_stock(selected_symbol, cache_version):
         turnaround_postmerger_specialist_model
     )
 
+    special_control = build_toyo_solar_special_control(
+        special_control,
+        toyo_solar_specialist_model
+    )
+
     special_control = build_ctva_separation_special_control(
         special_control,
         ctva_separation_pre_gate_model
@@ -29197,6 +29606,23 @@ def load_stock(selected_symbol, cache_version):
         bank_special_model=bank_special_model,
         insurance_special_model=insurance_special_model
     )
+
+    if toyo_solar_specialist_model.get("applicable") and toyo_solar_specialist_model.get("valuation_anchor_complete"):
+        special_event_warning = {
+            "level": "Gelb",
+            "icon": "🟡",
+            "title": "TOYO Policy / Trade / Dilution Risk Overlay aktiv",
+            "requires_research": False,
+            "valuation_usable": True,
+            "reason": (
+                "Q2/H1 2026 zeigen starkes Wachstum, Margen und Cash-Conversion. Gleichzeitig bleiben Section 232, die Ethiopia-Anti-Circumvention-Untersuchung, "
+                "CBP-Prüfungen und Patentrisiken für den stark US-exponierten Umsatz offen; zudem stieg die Aktienzahl nach RDO/ATM deutlich und der Texas-HJT-Ausbau benötigt erhebliches Kapital."
+            ),
+            "action": (
+                "V2.20.97 lässt einen konservativen Fair Value als Diagnoseanker zu, deckelt das Quality-P/E downside-only durch Policy- und Financing/Dilution-Caps "
+                "und begrenzt Kauf/Nachkauf auf Beobachten/Halten, bis die externen Risiken belastbarer geklärt sind."
+            ),
+        }
 
     if ctva_separation_pre_gate_model.get("applicable") and ctva_separation_pre_gate_model.get("separation_confirmed"):
         ctva_snap_event = ctva_separation_pre_gate_model.get("snapshot") or {}
@@ -29470,6 +29896,12 @@ def load_stock(selected_symbol, cache_version):
         turnaround_postmerger_specialist_model
     )
 
+    new_buy_signal, holding_signal = apply_toyo_solar_action_brake(
+        new_buy_signal,
+        holding_signal,
+        toyo_solar_specialist_model
+    )
+
     # V2.20.96: CTVA is not an unresolved anomaly anymore, but a confirmed
     # structural separation.  Until the standalone SOTP inputs are complete,
     # suppress every trade-direction output explicitly rather than falling back
@@ -29649,6 +30081,7 @@ def load_stock(selected_symbol, cache_version):
         "regulated_utility_specialist_model": regulated_utility_specialist_model,
         "adjusted_earnings_specialist_model": adjusted_earnings_specialist_model,
         "turnaround_postmerger_specialist_model": turnaround_postmerger_specialist_model,
+        "toyo_solar_specialist_model": toyo_solar_specialist_model,
         "ctva_separation_pre_gate_model": ctva_separation_pre_gate_model,
         "fundamental_multiple": fundamental_multiple,
         "peer_group": peer_group,
@@ -30314,6 +30747,7 @@ if selected_symbol:
                 is_bkr_fcf_context = is_baker_hughes_energy_tech_company_type(company_type)
                 is_utility_fcf_context = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 is_turnaround_postmerger_fcf_context = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                is_toyo_solar_fcf_context = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                 is_ctva_fcf_context = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 if fcf_ctx.get("score_eligible"):
                     source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
@@ -30376,6 +30810,11 @@ if selected_symbol:
                             "Bei Regulated Utilities bleibt der Yahoo-/Cashflow-Statement-FCF ausschließlich Diagnosekontext. "
                             "Er fließt weder in Utility Quality Score, Credit-/Leverage-Prüfung, Ziel-KGV, Bewertungszonen noch Fair Value ein; "
                             "maßgeblich sind FFO/Credit, Rate Base, regulatorische Rückgewinnung und der offizielle Kapital-/Finanzierungsplan."
+                        )
+                    elif is_toyo_solar_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            "Bei TOYO bleibt der Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. V2.20.97 verwendet für Cash Conversion ausschließlich den issuer-ausgewiesenen H1 Operating Cash Flow minus CapEx; Yahoo-FCF steuert weder Quality Score, Ziel-KGV noch Fair Value."
                         )
                     elif is_ctva_fcf_context:
                         st.caption(
@@ -30447,6 +30886,13 @@ if selected_symbol:
                                 "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info und Cashflow-Statement liefern abweichende FCF-Kontextwerte. "
                                 f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Für Baker Hughes V2.20.73 bleiben beide Yahoo-Werte reine Kontextdaten; "
                                 "maßgeblich im Post-Chart Primary-Source Gate ist ausschließlich der offiziell ausgewiesene Q2-Free-Cashflow."
+                            )
+                        elif is_toyo_solar_fcf_context:
+                            st.info(
+                                "ℹ️ FCF-Quellenabweichung im TOYO-Spezialkontext: Yahoo quoteSummary/info zeigt "
+                                f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
+                                f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
+                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Yahoo-Werte bleiben Diagnose-/Rohdaten; maßgeblich ist ausschließlich der issuer-ausgewiesene H1 Operating Cash Flow minus CapEx."
                             )
                         elif is_ctva_fcf_context:
                             st.info(
@@ -30696,8 +31142,9 @@ if selected_symbol:
                     normalized_eps = eps_result["normalized_eps"]
                     utility_eps_context_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     turnaround_postmerger_eps_context_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                    toyo_solar_eps_context_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     ctva_eps_context_ui = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui or turnaround_postmerger_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui or turnaround_postmerger_eps_context_ui or toyo_solar_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -30772,6 +31219,11 @@ if selected_symbol:
                             f"V2.20.95 verwendet für den Fair Value stattdessen direkt die aktuelle {text_or_dash(util_eps_snap_ui.get('earnings_basis_name'))} "
                             "und prüft Rate Base, ROE, Credit, Dividende und Finanzierung separat."
                         )
+                    elif toyo_solar_eps_context_ui:
+                        st.info(
+                            "TOYO Solar: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                            "V2.20.97 verwendet für den Fair Value den Q2-2026 Net-Income-Run-Rate auf der tatsächlichen 30.06.-Aktienzahl; Yahoo Current-FY/+1Y-Konsens bleibt nur Horizont-Kontext."
+                        )
                     elif ctva_eps_context_ui:
                         st.info(
                             "CTVA Separation: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
@@ -30800,7 +31252,12 @@ if selected_symbol:
                     )
                 )
 
-                if ctva_eps_context_ui:
+                if toyo_solar_eps_context_ui:
+                    st.info(
+                        "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
+                        "die TOYO-Spezialbewertungssicherheit wird ausschließlich aus Q2/H1-Primärdaten, current-share Earnings-Basis sowie Policy-/Trade-, Dilution-/Finanzierungs- und CapEx-Risikogates bestimmt."
+                    )
+                elif ctva_eps_context_ui:
                     st.info(
                         "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
                         "die CTVA-Separation-/SOTP-Sicherheit wird ausschließlich aus Segmenttrennung, Standalone-Zielgrößen, finaler Kapitalstruktur und Separation-Gates bestimmt."
@@ -30847,6 +31304,11 @@ if selected_symbol:
                             " Diese TTM-/Forward-Divergenz steuert weder Utility-Fair-Value noch Utility-Bewertungssicherheit; "
                             "maßgeblich ist die Current-FY Core/Adjusted-EPS-Guidance plus Regulierungs-/Credit-/Risiko-Gates."
                         )
+                    elif toyo_solar_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
+                            " Bei TOYO steuert diese Standard-TTM-/Forward-Divergenz weder den Spezial-Fair-Value noch dessen Bewertungssicherheit; maßgeblich ist die Q2 current-share Earnings-Basis plus Policy-/Financing-Risk-Overlay."
+                        )
                     elif ctva_eps_context_ui:
                         st.caption(
                             "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
@@ -30869,6 +31331,11 @@ if selected_symbol:
                         st.caption(
                             "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die Utility-Bewertungssicherheit nicht. "
                             "Die Utility-Sicherheit wird ausschließlich aus Guidance-, Regulierungs-, Credit-, Finanzierungs- und Spezialrisiko-Gates bestimmt."
+                        )
+                    elif toyo_solar_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die TOYO-Spezialbewertungssicherheit nicht. "
+                            "Die TOYO-Sicherheit stammt ausschließlich aus current-share Earnings-Basis, Policy-/Trade-, Dilution-/Finanzierungs- und CapEx-Execution-Risiken."
                         )
                     elif ctva_eps_context_ui:
                         st.caption(
@@ -30986,6 +31453,11 @@ if selected_symbol:
                     st.caption(
                         "Das Standard-normalisierte EPS ist bei NVIDIA in V2.20.67 ausschließlich Kontext und keine Earnings-Basis. "
                         "Für den AI-Pfad wird ausschließlich der separat hergeleitete FY27-Operating-EPS-Proxy verwendet; Yahoo Forward-EPS bleibt ohne bestätigten Horizont reference-only. Das Standard-EPS steuert weder das freigegebene NVIDIA-Ziel-KGV noch den Fair Value."
+                    )
+                elif toyo_solar_eps_context_ui:
+                    st.caption(
+                        "Das Standard-normalisierte EPS ist bei TOYO ausschließlich Diagnosekontext und keine Fair-Value-Earnings-Basis. "
+                        "Für die Spezialbewertung wird ausschließlich der Q2-2026 Net-Income-Run-Rate auf der tatsächlichen 30.06.-Aktienzahl verwendet; H1-EPS werden nicht verdoppelt."
                     )
                 elif ctva_eps_context_ui:
                     st.caption(
@@ -31580,6 +32052,7 @@ if selected_symbol:
                 is_adjusted_specialist_score_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                 is_utility_specialist_score_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 is_turnaround_postmerger_score_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                is_toyo_solar_score_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                 is_kratos_score_ui = str(selected_symbol or "").upper() == "KTOS"
                 is_bkr_score_ui = str(selected_symbol or "").upper() == "BKR"
 
@@ -31607,6 +32080,9 @@ if selected_symbol:
                 elif is_turnaround_postmerger_score_ui:
                     st.info("ℹ️ Im UA/OMC-Spezialmodell berücksichtigt: Der generische Wachstumsscore wird nicht verwendet.")
                     st.caption("UA bewertet Nachfrage-/Revenue-Turnaround; OMC bewertet Core Organic Growth auf post-merger Basis. Yahoo-Wachstumswerte bleiben Diagnosekontext.")
+                elif is_toyo_solar_score_ui:
+                    st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Der generische Wachstumsscore wird nicht verwendet.")
+                    st.caption("Wachstum/Skalierung werden aus Q2/H1-2026-Umsatz, Auslieferungen und Manufacturing-Ramp aus Primärquellen bewertet; Yahoo-Wachstumswerte bleiben Diagnosekontext.")
                 elif is_nvidia_score_ui:
                     st.info("NVIDIA/Fabless-AI-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.67 verwendet den eigenen primärquellenbasierten AI-Quality-Score sowie Demand-Quality- und Earnings-Horizon-Gates.")
                     st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf den NVIDIA AI-Quality-Score oder das Earnings-Horizon-Alignment-Gate.")
@@ -31744,6 +32220,7 @@ if selected_symbol:
                 is_adjusted_specialist_profitability_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                 is_utility_specialist_profitability_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 is_turnaround_postmerger_profitability_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                is_toyo_solar_profitability_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                 is_bkr_profitability_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                 if is_bkr_profitability_ui:
@@ -31757,6 +32234,9 @@ if selected_symbol:
                 elif is_turnaround_postmerger_profitability_ui:
                     st.info("ℹ️ Im UA/OMC-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption("UA nutzt Adjusted Operating Income und Bruttomargenqualität; OMC Core Adjusted EBITA und Adjusted EPS. Generische Yahoo-Margen/ROE bleiben Kontext.")
+                elif is_toyo_solar_profitability_ui:
+                    st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
+                    st.caption("TOYO bewertet Gross Margin, Adjusted-EBITDA-Marge und aktuelle Q2/H1-Ertragsqualität aus Primärquellen; Yahoo-Nettomarge/ROE bleiben Diagnosekontext.")
                 elif is_nvidia_profitability_ui:
                     st.info("NVIDIA/Fabless-AI-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. V2.20.67 bewertet Gross-Margin-Resilienz und Earnings-Quality-Risiken im eigenen AI-Quality-Score.")
                 elif is_semicap_profitability_ui:
@@ -31902,6 +32382,7 @@ if selected_symbol:
                     and not is_adjusted_specialist_profitability_ui
                     and not is_utility_specialist_profitability_ui
                     and not is_turnaround_postmerger_profitability_ui
+                    and not is_toyo_solar_profitability_ui
                 ):
                     st.caption(
                         "Die Profitabilität basiert derzeit auf "
@@ -32027,6 +32508,7 @@ if selected_symbol:
                     is_adjusted_specialist_fcf_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     is_utility_specialist_fcf_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     is_turnaround_postmerger_fcf_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                    is_toyo_solar_fcf_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     is_bkr_model_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                     if is_bkr_model_ui:
@@ -32041,6 +32523,9 @@ if selected_symbol:
                     elif is_turnaround_postmerger_fcf_ui:
                         st.info("ℹ️ Im UA/OMC-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
                         st.caption("UA berücksichtigt Liquidität und Restrukturierungs-Cash-Kontext; OMC Integration/Finanzierungsqualität. Yahoo-TTM-FCF ist kein Fair-Value-Anker.")
+                    elif is_toyo_solar_fcf_ui:
+                        st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
+                        st.caption("V2.20.97 verwendet ausschließlich issuer-ausgewiesenen H1 Operating Cash Flow minus CapEx als Cash-Conversion-Komponente. Yahoo-TTM-FCF bleibt Diagnosekontext.")
                     elif is_nvidia_model_ui:
                         st.info("ℹ️ NVIDIA/Fabless-AI-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
                         st.caption("V2.20.67 verwendet ausschließlich den von NVIDIA ausgewiesenen Q2-FY2027-Free-Cashflow in der FCF-/Liquiditätskomponente des AI-Quality-Scores. Yahoo-TTM-FCF bleibt Kontext und beeinflusst weder Demand-/Horizon-Gates noch Fair Value.")
@@ -32107,6 +32592,7 @@ if selected_symbol:
                     and not bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 ):
                     st.caption(
@@ -32232,6 +32718,7 @@ if selected_symbol:
                     is_adjusted_specialist_balance_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     is_utility_specialist_balance_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     is_turnaround_postmerger_balance_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                    is_toyo_solar_balance_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     is_bkr_balance_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                     if is_bkr_balance_ui:
@@ -32246,6 +32733,9 @@ if selected_symbol:
                     elif is_turnaround_postmerger_balance_ui:
                         st.info("ℹ️ Im UA/OMC-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("UA bewertet Cash, Revolver und Restrukturierungsfortschritt; OMC berücksichtigt die post-IPG Zins-/Finanzierungslast. Yahoo-Schulden/FCF bleiben Kontext.")
+                    elif is_toyo_solar_balance_ui:
+                        st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
+                        st.caption("TOYO bewertet Liquidität, tatsächliche Aktienverwässerung, RDO/Warrants, Rest-ATM und den 357-Mio.-USD-HJT-Finanzierungsbedarf separat; Yahoo-Schulden/FCF bleiben Kontext.")
                     elif is_nvidia_balance_ui:
                         st.info("ℹ️ NVIDIA/Fabless-AI-Modell: Standard-Netto-Schulden/FCF-Score ist kein Bewertungsbaustein")
                         st.caption("V2.20.67 bewertet Liquidität sowie Inventory-/Commitment-/Working-Capital-Qualität innerhalb des primärquellenbasierten AI-Quality-Scores und Demand-Quality-Gates. Die generische Netto-Schulden/FCF-Punktelogik bleibt deaktiviert.")
@@ -32328,6 +32818,7 @@ if selected_symbol:
                     and not bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 ):
                     st.caption(
@@ -34575,6 +35066,39 @@ if selected_symbol:
                         "nachfolgenden Fair-Value-Schritt, solange sie noch "
                         "nicht vollständig implementiert und freigegeben sind."
                     )
+
+                if special_control.get("control_key") == "toyo_solar_policy_dilution":
+                    st.divider()
+                    st.subheader("☀️ Modul 6 – Schritt 3B: TOYO High-Growth Solar / Policy & Dilution Spezialmodell V1")
+                    if special_control.get("implemented"):
+                        checks_ty = special_control.get("checks") or {}
+                        snap_ty = special_control.get("snapshot") or {}
+                        score_ty = checks_ty.get("specialist_score") or {}
+                        val_ty = checks_ty.get("specialist_valuation") or {}
+                        st.write(f"**Operativer Datenstand:** {text_or_dash(snap_ty.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_ty.get('published_date'))})")
+                        st.caption(text_or_dash(snap_ty.get("source_name")))
+                        if score_ty.get("available"):
+                            st.metric("Spezialistischer Quality Score", f"{score_ty.get('score'):.0f}/100 · {score_ty.get('quality_level')}")
+                            st.markdown("**Score-Komponenten:**")
+                            for label, value in (score_ty.get("components") or {}).items():
+                                st.write(f"• {label}: {safe_float(value):.1f} Punkte")
+                        st.write(f"**H1/Q2 Umsatzwachstum:** {snap_ty.get('h1_revenue_growth_pct'):.1f} % / {snap_ty.get('q2_revenue_growth_pct'):.1f} % · **H1/Q2 Gross Margin:** {snap_ty.get('h1_gross_margin_pct'):.1f} % / {snap_ty.get('q2_gross_margin_pct'):.1f} %")
+                        st.write(f"**H1 Adjusted EBITDA:** {format_money(snap_ty.get('h1_adjusted_ebitda'), 'USD')} · Marge {snap_ty.get('h1_adjusted_ebitda_margin_pct'):.1f} %")
+                        st.write(f"**Issuer Cash Conversion:** OCF {format_money(snap_ty.get('h1_cfo'), 'USD')} − CapEx {format_money(snap_ty.get('h1_capex'), 'USD')} = {format_money(snap_ty.get('h1_owner_fcf'), 'USD')} · {snap_ty.get('h1_owner_fcf_to_net_income_pct'):.1f} % des H1-Net-Income")
+                        st.write(f"**US-Endkundenumsatz:** {format_money(snap_ty.get('us_end_customer_revenue'), 'USD')} · {snap_ty.get('us_end_customer_revenue_pct'):.1f} % des H1-Umsatzes")
+                        st.write(f"**Aktienzahl 30.06.:** {snap_ty.get('shares_outstanding')/1e6:.2f} Mio. · Veränderung vs. 31.12.2025 {snap_ty.get('share_count_increase_pct'):+.1f} %")
+                        st.write(f"**RDO / Warrants:** {snap_ty.get('rdo_new_shares')/1e6:.2f} Mio. neue Aktien + {snap_ty.get('rdo_warrants')/1e6:.2f} Mio. Warrants · Strike {snap_ty.get('rdo_warrant_strike'):.2f} USD")
+                        st.write(f"**Rest-ATM-Kapazität:** {format_money(snap_ty.get('atm_remaining_capacity'), 'USD')} · **Texas-HJT-Projekt:** {format_money(snap_ty.get('hjt_project_capex'), 'USD')} / {snap_ty.get('hjt_capacity_gw'):.1f} GW · Pilot {text_or_dash(snap_ty.get('hjt_pilot_target'))}")
+                        if val_ty.get("available"):
+                            st.write("**Q2 Current-Share Earnings-Run-Rate:** " + format_eps(val_ty.get("earnings_basis"), "USD"))
+                            st.write(f"**Operational Quality-P/E vor Risiko-Caps:** {val_ty.get('base_target_multiple'):.2f}× · Korridor {val_ty.get('corridor_low'):.2f}× – {val_ty.get('corridor_high'):.2f}×")
+                            st.warning(f"**Policy P/E Cap:** {val_ty.get('policy_pe_cap'):.2f}× · **Financing/Dilution P/E Cap:** {val_ty.get('financing_dilution_pe_cap'):.2f}× · verwendet {val_ty.get('target_multiple'):.2f}×")
+                            st.write("**Fundamentaler TOYO-Fair-Value:** " + format_eps(val_ty.get("fair_value_financial"), "USD"))
+                            st.caption("Die H1-EPS werden nicht verdoppelt. Der Fair Value nutzt den konservativeren Q2-Net-Income-Run-Rate auf der tatsächlichen 30.06.-Aktienzahl; Analystenziele bleiben Modul 8.")
+                        st.warning("Policy-/Dilution Action Brake aktiv: Ein rechnerisches Kauf-/Nachkauf-Signal bleibt auf Beobachten/Halten begrenzt, solange die wesentlichen US-Policy-/Trade- und Finanzierungsrisiken offen sind.")
+                        st.caption(special_control.get("note"))
+                    else:
+                        st.warning(special_control.get("note"))
 
                 if special_control.get("control_key") == "ctva_separation_sotp_pregate":
                     st.divider()
@@ -37726,6 +38250,15 @@ if selected_symbol:
                                 "**Abstand der Bewertungsanker:** "
                                 f"{fair_value.get('anchor_spread_pct'):.1f} %"
                             )
+                    elif fair_value.get("valuation_method") == "toyo_policy_dilution_pe":
+                        st.write("**Bewertungsformel:** Q2-2026 Current-Share Earnings-Run-Rate × operatives Quality-P/E; danach downside-only Policy- und Financing/Dilution-Caps")
+                        st.write(f"**Spezialistischer Quality Score:** {fair_value.get('specialist_score'):.0f}/100 · {fair_value.get('specialist_quality_level')}")
+                        st.write("**Q2 Current-Share Earnings-Basis:** " + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"]))
+                        st.write(f"**Quality-Ziel-KGV vor Risiko-Caps:** {fair_value.get('base_target_multiple'):.2f}×")
+                        st.write(f"**Verwendetes Ziel-KGV:** {fair_value.get('target_multiple'):.2f}× · **Basiskorridor:** {fair_value.get('multiple_corridor_low'):.2f}× – {fair_value.get('multiple_corridor_high'):.2f}×")
+                        st.warning(f"**Policy-Cap:** {fair_value.get('policy_pe_cap'):.2f}× · **Financing/Dilution-Cap:** {fair_value.get('financing_dilution_pe_cap'):.2f}× · Effekt vs. Quality-P/E {fair_value.get('risk_overlay_effect_pct'):.1f} %")
+                        st.write(f"**Aktienbasis:** {fair_value.get('share_basis')/1e6:.2f} Mio. · Share Count vs. 31.12.2025 {fair_value.get('share_count_increase_pct'):+.1f} %")
+                        st.caption("H1-EPS, Yahoo Current-FY/+1Y-Konsens und Analystenziele sind kein Bestandteil des Fair Values. Warrants/ATM und der Texas-HJT-Finanzierungsbedarf wirken über den downside-only Financing/Dilution-Cap und die Action Brake.")
                     elif fair_value.get("valuation_method") == "ua_turnaround_psales":
                         st.write("**Bewertungsformel:** FY2027 Revenue-Basis × scoregesteuertes Turnaround-P/S / offizielle Diluted A+B+C-Aktien")
                         st.write(f"**Spezialistischer Quality Score:** {fair_value.get('specialist_score'):.0f}/100 · {fair_value.get('specialist_quality_level')}")
@@ -37990,6 +38523,10 @@ if selected_symbol:
                             "Versicherungs-Fair-Value V1 wurde aus zwei unabhängigen, versicherungsspezifischen "
                             "Bewertungsankern berechnet und erst nach der Schritt-3B-Freigabe veröffentlicht."
                         )
+                    elif fair_value.get("valuation_method") == "toyo_policy_dilution_pe":
+                        st.success(
+                            "TOYO-Fair-Value V1 wurde aus einer konservativen Q2-current-share Earnings-Basis und einem operativen Quality-P/E berechnet; Policy- und Financing/Dilution-Caps wirken ausschließlich downside-only."
+                        )
                     elif fair_value.get("valuation_method") == "automotive_quality_cycle_pe":
                         st.success(
                             "Automotive-Fair-Value V1 wurde aus cycle-komprimierter EPS-Basis und scoregesteuertem Cycle-KGV berechnet. "
@@ -38070,6 +38607,11 @@ if selected_symbol:
                             "Utility-Sicherheitsisolierung: Die Standard-TTM-/Forward-EPS-Divergenz ist kein Bestandteil der Bewertungssicherheit. "
                             "Die angezeigte Sicherheitsstufe stammt ausschließlich aus Unternehmenstyp/Utility-Methode, Current-FY Core/Adjusted-EPS-Guidance "
                             "und der Utility-Spezialkontrolle einschließlich Regulierungs-/Credit-/Finanzierungs-/Tail-Risk-Gates."
+                        )
+                    elif fair_value.get("valuation_method") == "toyo_policy_dilution_pe":
+                        st.info(
+                            "TOYO-Sicherheitsisolierung: Standard-TTM-/Forward-EPS, Yahoo-FCF und generische Net-Debt/FCF-Logik sind kein Bestandteil der Bewertungssicherheit. "
+                            "Die angezeigte Sicherheitsstufe stammt ausschließlich aus Q2/H1-Primärdaten, current-share Earnings-Run-Rate sowie Policy-/Trade-, Dilution-/Finanzierungs- und CapEx-Risikogates."
                         )
                     elif fair_value.get("valuation_method") in {"ua_turnaround_psales", "omc_post_merger_adjusted_pe"}:
                         if fair_value.get("valuation_method") == "ua_turnaround_psales":
