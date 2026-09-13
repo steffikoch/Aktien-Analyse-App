@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.103"
+APP_BUILD_VERSION = "V2.20.104"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Medical-Devices Peer Horizon & Accounting-Basis Guard V2"
+    f"Build {APP_BUILD_VERSION} · Luxury Goods / Premium Franchise Specialist Model V1"
 )
 
 
@@ -33,6 +33,8 @@ st.caption(
 # V2.20.102: Medical-Devices Peer Calibration & Safety Overlay V1. Standard-company issuers with Yahoo industry “Medical Devices” receive a dedicated structural peer set (SYK/MDT/BSX/ZBH/EW plus broad/high-growth reference peers BDX/ISRG). Provider Forward-P/E is used only as a market-multiple calibration layer; at least three structurally comparable core peers are required, the eligible-peer median is used, and any automatic adjustment to the score-derived fundamental P/E is capped at ±5 %. The issuer EPS basis, 100-point score and FY-guidance-first Same-Basis Growth Guard remain unchanged. Broad-scope or high-growth outlier peers are reference-only.
 
 # V2.20.103: Medical-Devices Peer Horizon & Accounting-Basis Guard V2. The V2.20.102 structural peer set remains intact, but automatic peer-multiple adjustments are now fail-closed unless at least three Core-Peers are comparable on all three dimensions: business structure, earnings horizon and accounting-basis family. Provider Forward-P/E remains visible as market reference; it can change the Stryker/Medical-Devices target P/E only when the reported Forward-EPS is demonstrably current-FY (0Y) rather than +1Y/unknown and a fresh issuer guidance bridge verifies the same Adjusted/Core/Operating/GAAP basis family as the target valuation anchor. If fewer than three peers pass, the reference median is shown but the score-derived fundamental P/E and Fair Value remain unchanged. The ±5% cap remains as a second safety layer for any future fully verified peer set.
+
+# V2.20.104: Luxury Goods / Premium Franchise Specialist Model V1. Adds a dedicated Hermès (RMS.PA) primary-source route using constant-currency organic growth, recurring operating margin, issuer-adjusted free cash flow, restated net cash, adjusted earnings quality and franchise resilience. Standard Yahoo growth/FCF/net-debt scoring becomes diagnosis-only. The earnings anchor blends 70% official FY2025 EPS with 30% annualized H1 2026 issuer-adjusted EPS (exceptional French large-company profit contribution restated). A conservative 24–36x premium-franchise P/E corridor is score-driven. Luxury peers (LVMH, Richemont, Moncler, Kering) remain reference-only until horizon and accounting-basis comparability are verified; analyst targets remain Module 8 only. Also cleans stale GOLD/TOYO version strings and literal APP_BUILD_VERSION placeholders.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -5564,6 +5566,7 @@ def is_special_fcf_model(company_type):
         "halbleiter / fabless / ai-wachstum",
         "energy technology / oilfield services",
         "edelmetall-handel / distribution & lending",
+        "luxury goods / premium franchise",
         "credit bureau / data & analytics",
         "healthcare / diagnostics & research / cro + data",
         "agriculture / seeds & crop protection",
@@ -5808,6 +5811,7 @@ def is_special_balance_model(company_type):
         "halbleiter / fabless / ai-wachstum",
         "energy technology / oilfield services",
         "edelmetall-handel / distribution & lending",
+        "luxury goods / premium franchise",
         "credit bureau / data & analytics",
         "healthcare / diagnostics & research / cro + data",
         "agriculture / seeds & crop protection",
@@ -6168,6 +6172,24 @@ def classify_company(name, symbol, sector, industry):
             ),
             "customer_profile": "Starker US-Government-/National-Security-Fokus; zusätzlich internationale und kommerzielle Kunden",
             "company_profile": "Wachstumsorientierter Defense-Tech-Anbieter; kein klassischer großer Defense-Prime",
+        }
+
+    # V2.20.104 – Hermès / Luxury Goods Premium Franchise specialist route.
+    if (
+        symbol_text == "RMS.PA"
+        or "hermès international" in name_text
+        or "hermes international" in name_text
+    ):
+        return {
+            "type": "Luxury Goods / Premium Franchise",
+            "method": (
+                "Primärquellen-Owner-Earnings + organisches Wachstum + Recurring Operating Margin + "
+                "Adjusted FCF/Net-Cash + Premium-Franchise-KGV; generischer Standard-Korridor gesperrt"
+            ),
+            "confidence_cap": "Mittel",
+            "business_model": "Vertikal integriertes Ultra-Premium-Luxushaus mit kontrollierter Distribution und hoher Preissetzungsmacht",
+            "core_segments": "Leather Goods & Saddlery · Ready-to-wear & Accessories · Silk & Textiles · Watches · Jewellery/Home · Beauty",
+            "focus_areas": "Konstantwährungswachstum · Recurring Operating Margin · Adjusted FCF · Net Cash · Nachfrage-/Franchise-Resilienz",
         }
 
     # V2.20.76 – tighter classifications from the cross-company validation run.
@@ -14776,7 +14798,7 @@ def get_verified_gold_precious_metals_snapshot(symbol):
         "note": (
             "Das extreme Umsatzwachstum ist durch Primärquellen erklärt und bei diesem Geschäftsmodell kein geeigneter Bewertungsnenner: "
             "Forward Sales, höhere Gold-/Silberpreise, Goldvolumen und mehrere Akquisitionen vergrößern den Umsatznotional stark. "
-            "{APP_BUILD_VERSION} bewertet deshalb Gross Profit, EBITDA, Hedge-/Inventarrisiko, gesicherte Kreditqualität und Liquidität. "
+            f"{APP_BUILD_VERSION} bewertet deshalb Gross Profit, EBITDA, Hedge-/Inventarrisiko, gesicherte Kreditqualität und Liquidität. "
             "Der Earnings-Anker rechnet keine Akquisitions-Run-Rate hoch und verwendet die tatsächliche 30.06.-Aktienzahl."
         ),
     }
@@ -14963,7 +14985,7 @@ def build_gold_precious_metals_special_control(control, specialist_model):
         "snapshot": snap,
         "checks": {"specialist_score": score, "specialist_valuation": valuation},
         "note": (
-            "{APP_BUILD_VERSION} trennt Gold.com vom generischen Umsatz-/FCF-/Net-Debt-to-FCF-Pfad. Das FY2026-Umsatzwachstum ist durch Forward Sales, "
+            f"{APP_BUILD_VERSION} trennt Gold.com vom generischen Umsatz-/FCF-/Net-Debt-to-FCF-Pfad. Das FY2026-Umsatzwachstum ist durch Forward Sales, "
             "Metallpreise/-volumen und Akquisitionen erklärt und wird nicht als Bewertungsnenner verwendet. Gross Profit, EBITDA, Hedge-/Inventarrisiko, "
             "Secured Lending, Funding und aktuelle Dilution bestimmen die Quality-Basis; der Fair Value verwendet ausschließlich die bereinigte Current-Share-Earnings-Referenz (Depreciation nicht addiert)."
         ),
@@ -15063,7 +15085,7 @@ def get_verified_toyo_solar_snapshot(symbol):
         "note": (
             "TOYO zeigt starkes operatives Wachstum und solide H1-Cash-Conversion, aber der US-Markt dominiert den Umsatz. "
             "Section-232-Ausgestaltung, Ethiopia-Anti-Circumvention/CBP-Prüfung, laufende Patentverfahren sowie der große Texas-HJT-Finanzierungsbedarf "
-            "machen eine H1-EPS-Verdopplung als Fair-Value-Anker unzulässig. V2.20.97 verwendet deshalb den konservativeren Q2-Net-Income-Run-Rate auf der tatsächlichen 30.06.-Aktienzahl und deckelt das Multiple downside-only."
+            f"machen eine H1-EPS-Verdopplung als Fair-Value-Anker unzulässig. {APP_BUILD_VERSION} verwendet deshalb den konservativeren Q2-Net-Income-Run-Rate auf der tatsächlichen 30.06.-Aktienzahl und deckelt das Multiple downside-only."
         ),
     }
 
@@ -15202,7 +15224,7 @@ def build_toyo_solar_special_control(control, specialist_model):
         "snapshot": snap,
         "checks": {"specialist_score": score, "specialist_valuation": valuation},
         "note": (
-            "V2.20.97 trennt TOYO vom generischen Solar-/High-Growth-Pfad. Operative Qualität wird aus Q2/H1-Primärdaten bewertet; "
+            f"{APP_BUILD_VERSION} trennt TOYO vom generischen Solar-/High-Growth-Pfad. Operative Qualität wird aus Q2/H1-Primärdaten bewertet; "
             "die Earnings-Basis ist der konservative Q2-Run-Rate auf der tatsächlichen Aktienzahl. Policy-/Trade- und Financing/Dilution-Risiken dürfen das Quality-P/E nur nach unten begrenzen. "
             "Yahoo-FCF, generische Net-Debt/FCF-Logik und Analystenziele bleiben außerhalb des Fair Values."
         ),
@@ -15236,6 +15258,241 @@ def apply_toyo_solar_action_brake(new_buy_signal, holding_signal, specialist_mod
             "toyo_policy_dilution_action_brake": True,
         })
     return nb, hs
+
+
+# =========================================================
+# V2.20.104 – Luxury Goods / Premium Franchise Specialist Model V1
+# =========================================================
+
+def is_luxury_premium_specialist_type(company_type, symbol=None):
+    sym = str(symbol or "").upper().strip()
+    type_name = normalized_company_type_name(company_type)
+    return sym == "RMS.PA" or "luxury goods / premium franchise" in type_name
+
+
+def get_verified_hermes_luxury_snapshot(symbol):
+    """Hermès H1 2026 + FY2025 primary-source snapshot in EUR.
+
+    The specialist path uses issuer-defined constant-currency revenue growth,
+    recurring operating income/margin, adjusted free cash flow and restated net
+    cash.  Yahoo nominal revenue growth, Yahoo FCF and generic net-debt/FCF are
+    diagnosis-only.  The earnings anchor is intentionally conservative: 70% of
+    official FY2025 EPS plus 30% of annualized H1 2026 EPS after restating the
+    exceptional French large-company profit contribution disclosed by Hermès.
+    """
+    if str(symbol or "").upper().strip() != "RMS.PA":
+        return None
+
+    h1_revenue = 8_163_000_000.0
+    h1_reported_net_income = 2_238_000_000.0
+    h1_diluted_eps = 21.32
+    h1_adjusted_net_margin_pct = 30.7
+    h1_adjusted_net_income = h1_revenue * h1_adjusted_net_margin_pct / 100.0
+    diluted_shares_proxy = h1_reported_net_income / h1_diluted_eps
+    h1_adjusted_eps = h1_adjusted_net_income / diluted_shares_proxy
+    h1_adjusted_eps_annualized = h1_adjusted_eps * 2.0
+    fy2025_eps = 43.15
+    normalized_owner_eps = 0.70 * fy2025_eps + 0.30 * h1_adjusted_eps_annualized
+
+    h1_adjusted_fcf = 2_182_000_000.0
+    h1_restated_net_cash = 12_926_000_000.0
+    h1_equity = 19_023_000_000.0
+
+    return {
+        "symbol": "RMS.PA",
+        "company": "Hermès International",
+        "as_of_date": "30.06.2026",
+        "published_date": "29.07.2026",
+        "source_name": "Hermès H1 2026 Results + Key Figures + 2025 Shareholder Data",
+        "results_url": "https://finance.hermes.com/en/",
+        "key_figures_url": "https://finance.hermes.com/en/key-figures/",
+        "share_url": "https://finance.hermes.com/en/share-and-dividend/",
+        "regulated_info_url": "https://finance.hermes.com/en/regulated-information/",
+        "valuation_basis_name": "Primary-source normalized owner earnings / Premium-Franchise P/E",
+        "h1_revenue": h1_revenue,
+        "h1_revenue_growth_current_fx_pct": 1.6,
+        "h1_revenue_growth_constant_fx_pct": 6.1,
+        "q1_revenue_growth_constant_fx_pct": 5.6,
+        "q2_revenue_growth_constant_fx_pct": 6.7,
+        "fy2025_revenue_growth_constant_fx_pct": 8.9,
+        "h1_recurring_operating_income": 3_351_000_000.0,
+        "h1_recurring_operating_margin_pct": 41.0,
+        "h1_2025_recurring_operating_margin_pct": 41.4,
+        "recurring_operating_margin_change_bps": -40.0,
+        "h1_reported_net_income": h1_reported_net_income,
+        "h1_reported_net_margin_pct": 27.4,
+        "h1_adjusted_net_margin_pct": h1_adjusted_net_margin_pct,
+        "h1_adjusted_net_income": h1_adjusted_net_income,
+        "h1_diluted_eps": h1_diluted_eps,
+        "fy2025_eps": fy2025_eps,
+        "diluted_shares_proxy": diluted_shares_proxy,
+        "h1_adjusted_eps": h1_adjusted_eps,
+        "h1_adjusted_eps_annualized": h1_adjusted_eps_annualized,
+        "normalized_owner_eps": normalized_owner_eps,
+        "h1_operating_cash_flow": 2_694_000_000.0,
+        "h1_operating_investments": 344_000_000.0,
+        "h1_adjusted_fcf": h1_adjusted_fcf,
+        "h1_adjusted_fcf_growth_pct": 18.0,
+        "h1_adjusted_fcf_to_adjusted_net_income_pct": h1_adjusted_fcf / h1_adjusted_net_income * 100.0,
+        "h1_net_cash": 12_310_000_000.0,
+        "h1_restated_net_cash": h1_restated_net_cash,
+        "h1_equity": h1_equity,
+        "restated_net_cash_to_equity_pct": h1_restated_net_cash / h1_equity * 100.0,
+        "leather_goods_growth_constant_fx_pct": 9.8,
+        "americas_growth_constant_fx_pct": 15.3,
+        "japan_growth_constant_fx_pct": 11.0,
+        "europe_ex_france_growth_constant_fx_pct": 8.8,
+        "currency_revenue_headwind": 360_000_000.0,
+        "share_buybacks_h1": 160_000_000.0,
+        "medium_term_growth_goal": "ambitious revenue growth at constant exchange rates",
+        "valuation_confidence_cap": "Mittel",
+        "note": (
+            "Hermès wird als Premium-Franchise statt als generisches Standard-Unternehmen bewertet. "
+            "Konstantwährungswachstum, 41-%-Recurring-Operating-Marge, issuer-adjustierter FCF und restated Net Cash "
+            "bestimmen die Quality-Basis. Der Earnings-Anker verwendet überwiegend offizielles FY2025 EPS und nur "
+            "30 % annualisierte H1-2026-adjusted Earnings, um Halbjahresannualisierung und den temporären Steuerrestatement-Effekt konservativ zu begrenzen."
+        ),
+    }
+
+
+def build_luxury_premium_specialist_score(snapshot):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    result = {"available": False, "score": None, "quality_level": None, "components": {}, "note": None}
+    if str(snap.get("symbol") or "").upper() != "RMS.PA":
+        result["note"] = "Luxury-Premium-Spezialscore nicht anwendbar."
+        return result
+
+    growth = safe_float(snap.get("h1_revenue_growth_constant_fx_pct"))
+    q2_growth = safe_float(snap.get("q2_revenue_growth_constant_fx_pct"))
+    margin = safe_float(snap.get("h1_recurring_operating_margin_pct"))
+    margin_change = safe_float(snap.get("recurring_operating_margin_change_bps"))
+    fcf_conv = safe_float(snap.get("h1_adjusted_fcf_to_adjusted_net_income_pct"))
+    net_cash_equity = safe_float(snap.get("restated_net_cash_to_equity_pct"))
+    adj_net_margin = safe_float(snap.get("h1_adjusted_net_margin_pct"))
+    leather_growth = safe_float(snap.get("leather_goods_growth_constant_fx_pct"))
+    americas_growth = safe_float(snap.get("americas_growth_constant_fx_pct"))
+    fcf_growth = safe_float(snap.get("h1_adjusted_fcf_growth_pct"))
+    required = [growth, q2_growth, margin, margin_change, fcf_conv, net_cash_equity, adj_net_margin, leather_growth, americas_growth, fcf_growth]
+    if any(v is None for v in required):
+        result["note"] = "Luxury-Premium-Spezialscore gesperrt: mindestens eine Primärkennzahl fehlt."
+        return result
+
+    growth_pts = 15.0 if growth >= 10 else 13.0 if growth >= 8 else 11.0 if growth >= 6 else 8.0 if growth >= 4 else 5.0 if growth >= 2 else 2.0
+    margin_pts = 20.0 if margin >= 40 and margin_change >= 0 else 19.0 if margin >= 40 and margin_change >= -75 else 17.0 if margin >= 35 else 14.0 if margin >= 30 else 10.0
+    fcf_pts = 15.0 if fcf_conv >= 95 else 14.0 if fcf_conv >= 80 else 12.0 if fcf_conv >= 65 else 9.0 if fcf_conv >= 50 else 5.0
+    balance_pts = 15.0 if net_cash_equity >= 50 else 13.0 if net_cash_equity >= 30 else 10.0 if net_cash_equity >= 15 else 6.0
+    earnings_pts = 15.0 if adj_net_margin >= 32 else 14.0 if adj_net_margin >= 28 else 12.0 if adj_net_margin >= 24 else 9.0
+    franchise_pts = 10.0 if leather_growth >= 12 and americas_growth >= 12 else 9.0 if leather_growth >= 8 and americas_growth >= 10 else 7.0 if leather_growth >= 5 else 5.0
+    capital_pts = 10.0 if fcf_growth >= 20 else 9.0 if fcf_growth >= 10 else 7.0 if fcf_growth >= 0 else 4.0
+    components = {
+        "Organisches Wachstum / FX-Qualität": growth_pts,
+        "Recurring-Operating-Margenqualität": margin_pts,
+        "Issuer-Adjusted-FCF-Conversion": fcf_pts,
+        "Net-Cash / Bilanzqualität": balance_pts,
+        "Adjusted-Earnings-Qualität": earnings_pts,
+        "Franchise-/Nachfrageresilienz": franchise_pts,
+        "Kapitaldisziplin / Cash-Compounding": capital_pts,
+    }
+    score = max(0.0, min(100.0, round(sum(components.values()), 2)))
+    result.update({
+        "available": True,
+        "score": score,
+        "quality_level": _specialist_quality_level(score),
+        "components": components,
+        "note": (
+            "Der Luxury-Premium Quality Score ersetzt den generischen Standard-Score. Er bewertet organisches Konstantwährungswachstum, "
+            "Recurring Operating Margin, issuer-adjustierten FCF, Net Cash, adjusted Earnings und Franchise-Resilienz; Yahoo-Nominalwachstum und Yahoo-FCF bleiben Kontext."
+        ),
+    })
+    return result
+
+
+def build_luxury_premium_specialist_valuation(snapshot, specialist_score):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    score_data = specialist_score if isinstance(specialist_score, dict) else {}
+    result = {
+        "available": False,
+        "valuation_method_name": "Luxury Premium-Franchise normalized owner-earnings P/E",
+        "target_multiple": None,
+        "corridor_low": 24.0,
+        "corridor_high": 36.0,
+        "fair_value_financial": None,
+        "note": None,
+    }
+    if not score_data.get("available"):
+        result["note"] = "Luxury-Premium-Spezialbewertung gesperrt: Quality Score fehlt."
+        return result
+    earnings = safe_float(snap.get("normalized_owner_eps"))
+    score = safe_float(score_data.get("score"))
+    if earnings is None or earnings <= 0 or score is None:
+        result["note"] = "Luxury-Premium-Spezialbewertung gesperrt: Primary-source Earnings-Basis unvollständig."
+        return result
+    low, high = 24.0, 36.0
+    target = low + (high - low) * (score / 100.0)
+    fair = earnings * target
+    result.update({
+        "available": True,
+        "earnings_basis": earnings,
+        "target_multiple": target,
+        "fair_value_financial": fair,
+        "score": score,
+        "note": (
+            "Fair Value = Primary-source normalized owner earnings × scoregesteuertes 24–36× Premium-Franchise-KGV. "
+            "Die Earnings-Basis besteht zu 70 % aus offiziellem FY2025 EPS und zu 30 % aus annualisiertem H1-2026 EPS nach issuer-ausgewiesenem Restatement der außergewöhnlichen französischen Gewinnabgabe. "
+            "Yahoo-FCF, generische Net-Debt/FCF-Logik, Peer-KGVs und Analystenziele fließen nicht in den fundamentalen Fair Value ein."
+        ),
+    })
+    return result
+
+
+def build_luxury_premium_specialist_model(company_type, fundamental_info, symbol):
+    if not is_luxury_premium_specialist_type(company_type, symbol) or str(symbol or "").upper().strip() != "RMS.PA":
+        return {"applicable": False}
+    snapshot = get_verified_hermes_luxury_snapshot(symbol)
+    if not snapshot:
+        return {
+            "applicable": True, "primary_source_complete": False,
+            "specialist_score": {"available": False}, "specialist_valuation": {"available": False},
+            "valuation_anchor_complete": False, "readiness": "Hermès-Primärquellen-Snapshot fehlt"
+        }
+    score = build_luxury_premium_specialist_score(snapshot)
+    valuation = build_luxury_premium_specialist_valuation(snapshot, score)
+    return {
+        "applicable": True,
+        "primary_source_complete": True,
+        "snapshot": snapshot,
+        "specialist_score": score,
+        "specialist_valuation": valuation,
+        "valuation_anchor_complete": bool(score.get("available") and valuation.get("available")),
+        "readiness": "Luxury-Premium-Spezialbewertung freigegeben" if valuation.get("available") else "Luxury-Premium-Spezialbewertung gesperrt",
+    }
+
+
+def build_luxury_premium_special_control(control, specialist_model):
+    if not isinstance(control, dict) or control.get("control_key") != "luxury_premium_franchise":
+        return control
+    model = specialist_model if isinstance(specialist_model, dict) else {}
+    score = model.get("specialist_score") or {}
+    valuation = model.get("specialist_valuation") or {}
+    snap = model.get("snapshot") or {}
+    released = bool(model.get("valuation_anchor_complete") and score.get("available") and valuation.get("available"))
+    out = dict(control)
+    out.update({
+        "implemented": True,
+        "released": released,
+        "confidence_cap": snap.get("valuation_confidence_cap") or "Mittel",
+        "router_status": "Schritt 3B freigegeben" if released else "Schritt 3B nicht freigegeben",
+        "step3b_status": "Luxury-Premium-Fair-Value freigegeben" if released else "Luxury-Premium-Fair-Value gesperrt",
+        "snapshot": snap,
+        "checks": {"specialist_score": score, "specialist_valuation": valuation},
+        "note": (
+            f"{APP_BUILD_VERSION} trennt Hermès vom generischen Standard-KGV-/Yahoo-Wachstums-/FCF-Pfad. "
+            "Konstantwährungswachstum, Recurring Operating Margin, issuer-adjustierter FCF, restated Net Cash, "
+            "adjusted Earnings und Franchise-Resilienz bestimmen die Quality-Basis. Luxury-Peers bleiben bis zur "
+            "verifizierten Horizon-/Accounting-Basis-Vergleichbarkeit reine Referenz."
+        ),
+    })
+    return out
 
 
 # =========================================================
@@ -15508,7 +15765,8 @@ def get_valuation_corridor(company_type):
         "advertising / marketing services",
         "consumer / athletic apparel & footwear / turnaround",
         "solar manufacturing / high-growth / policy-sensitive",
-        "specialty materials / specialty chemicals"
+        "specialty materials / specialty chemicals",
+        "luxury goods / premium franchise"
     ]
 
     if any(
@@ -15915,6 +16173,30 @@ def get_peer_group(company_type, symbol, industry=None):
                 "werden nicht mehr automatisch auf Mondelez übertragen. Bis ein kalibriertes internationales "
                 "Snacks-/Confectionery-Set vorliegt, bleibt das Fundamental-Multiple unverändert."
             )
+        }
+
+    if "luxury goods / premium franchise" in type_name:
+        peers = [
+            ("MC.PA", "LVMH"),
+            ("CFR.SW", "Richemont"),
+            ("MONC.MI", "Moncler"),
+            ("KER.PA", "Kering"),
+        ]
+        filtered = [
+            {"symbol": ps, "name": pn}
+            for ps, pn in peers
+            if ps.upper() != own_symbol
+        ]
+        return {
+            "available": len(filtered) > 0,
+            "peers": filtered,
+            "count": len(filtered),
+            "target_symbol": own_symbol,
+            "peer_model": "luxury_premium_reference_v1",
+            "note": (
+                "Luxury-Premium-Peer-Lock V2.20.104 aktiv. LVMH, Richemont, Moncler und Kering dienen als Markt-Referenzen. "
+                "Ohne verifizierte Current-FY-Horizon- und Accounting-Basis-Gleichheit darf ihr Forward-KGV-Median weder Hermès-Ziel-KGV noch Fair Value verändern."
+            ),
         }
 
     if "standard-unternehmen" in type_name:
@@ -17260,6 +17542,41 @@ def _calculate_kratos_peer_reference(peer_group, fundamental_multiple, cache_ver
     return result
 
 
+def _calculate_luxury_premium_peer_reference(peer_group, fundamental_multiple, cache_version):
+    result = {
+        "method_supported": True,
+        "metric": "Luxury Goods Forward P/E reference-only",
+        "peer_rows": [],
+        "usable_count": 0,
+        "peer_median": None,
+        "adjustment_pct": 0.0,
+        "adjusted_multiple": safe_float(fundamental_multiple),
+        "applied": False,
+        "note": None,
+    }
+    for peer in (peer_group or {}).get("peers", []):
+        pdx = dict(load_peer_forward_pe(peer.get("symbol"), cache_version) or {})
+        result["peer_rows"].append({
+            "symbol": peer.get("symbol"),
+            "name": peer.get("name"),
+            "usable": bool(pdx.get("usable")),
+            "forward_pe": safe_float(pdx.get("forward_pe")),
+            "source": pdx.get("source"),
+            "reason": pdx.get("reason"),
+            "adjustment_eligible": False,
+        })
+    vals = [r.get("forward_pe") for r in result["peer_rows"] if r.get("usable") and r.get("forward_pe") is not None and r.get("forward_pe") > 0]
+    result["usable_count"] = len(vals)
+    if vals:
+        result["peer_median"] = float(pd.Series(vals).median())
+    result["note"] = (
+        "Luxury-Premium Peer Horizon & Accounting-Basis Lock aktiv: Die geladenen Forward-KGVs sind Markt-Referenzen. "
+        "V2.20.104 verifiziert für diese Peers noch nicht gleichzeitig Current-FY-Horizont und dieselbe Earnings-Basis wie die Hermès-Primary-source Owner-Earnings-Basis; "
+        "deshalb erfolgt unabhängig von Anzahl oder Median keine automatische Peer-Anpassung."
+    )
+    return result
+
+
 def calculate_peer_check(
     company_type,
     peer_group,
@@ -17306,6 +17623,11 @@ def calculate_peer_check(
 
     if (peer_group or {}).get("peer_model") == "medical_devices_v2":
         return _calculate_medical_devices_peer_overlay(
+            peer_group, fundamental_multiple, cache_version
+        )
+
+    if (peer_group or {}).get("peer_model") == "luxury_premium_reference_v1":
+        return _calculate_luxury_premium_peer_reference(
             peer_group, fundamental_multiple, cache_version
         )
 
@@ -17498,6 +17820,29 @@ def get_special_control(company_type, symbol):
             ),
         }
 
+    if symbol_text == "RMS.PA" or "luxury goods / premium franchise" in type_name:
+        return {
+            "required": True,
+            "control_key": "luxury_premium_franchise",
+            "control_name": "Hermès / Luxury Premium-Franchise Quality-, Cash- & Earnings-Kontrolle",
+            "planned_checks": [
+                "H1/FY Konstantwährungswachstum statt nominalem FX-verzerrtem Umsatzwachstum",
+                "Recurring Operating Margin und Margenresilienz",
+                "Issuer-adjustierter Free Cash Flow und Cash Conversion",
+                "Restated Net Cash / Bilanzqualität",
+                "FY2025 EPS + konservativ gewichtete H1-2026 adjusted Earnings",
+                "Franchise-/Nachfrageresilienz nach Regionen und Leather Goods",
+                "scoregesteuerter 24–36× Premium-Franchise-KGV-Korridor",
+                "Luxury Peer Horizon & Accounting-Basis Lock",
+                "Analysten-Kursziel ausschließlich Reality Check",
+            ],
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Luxury Goods / Premium Franchise Specialist Model V1",
+            "note": (
+                "Hermès wird nicht als generisches Standard-Unternehmen bewertet. Der Spezialpfad verwendet H1-2026-/FY2025-Primärdaten, "
+                "konstantwährungsbereinigtes Wachstum, Recurring Operating Margin, issuer-adjustierten FCF, restated Net Cash und eine konservative Primary-source Earnings-Basis."
+            ),
+        }
+
     if symbol_text == "GOLD" or "edelmetall-handel / distribution & lending" in type_name:
         return {
             "required": True,
@@ -17511,13 +17856,13 @@ def get_special_control(company_type, symbol):
                 "Secured-Lending-LTV und Non-Performing-Loans",
                 "Cash, ungezogene Trading Credit Facility und Funding-Abhängigkeit",
                 "tatsächliche 30.06.-Aktienzahl und Verwässerung gegenüber Vorjahr",
-                "konservative Adjusted-Earnings-Brücke ohne Depreciation-Add-back",
+                "bereinigte Adjusted-Earnings-Brücke ohne Depreciation-Add-back",
                 "scoregesteuerter 9–14× Spezial-KGV-Korridor",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
             "status": f"Router aktiv – {APP_BUILD_VERSION} GOLD Precious-Metals Distribution & Lending Specialist Model V1",
             "note": (
-                "GOLD wird nicht in den generischen Umsatzwachstums-/Yahoo-FCF-Pfad gedrückt. V2.20.98 verwendet FY2026-Primärdaten, "
+                f"GOLD wird nicht in den generischen Umsatzwachstums-/Yahoo-FCF-Pfad gedrückt. {APP_BUILD_VERSION} verwendet FY2026-Primärdaten, "
                 "eine bereinigte Current-Share-Earnings-Basis (Depreciation nicht addiert) sowie geschäftsmodellspezifische Hedge-, Lending- und Funding-Kontrollen."
             ),
         }
@@ -17539,9 +17884,9 @@ def get_special_control(company_type, symbol):
                 "Action Brake bis Policy-/Finanzierungsrisiken belastbarer sind",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": "Router aktiv – V2.20.97 TOYO High-Growth Solar Policy & Dilution Specialist Model V1",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} TOYO High-Growth Solar Policy & Dilution Specialist Model V1",
             "note": (
-                "TOYO wird nicht in den generischen High-Growth-/Yahoo-EPS-Pfad gedrückt. V2.20.97 verwendet aktuelle Q2/H1-Primärdaten, "
+                f"TOYO wird nicht in den generischen High-Growth-/Yahoo-EPS-Pfad gedrückt. {APP_BUILD_VERSION} verwendet aktuelle Q2/H1-Primärdaten, "
                 "eine konservative current-share Earnings-Referenz und explizite downside-only Policy-/Financing-Caps."
             ),
         }
@@ -24358,6 +24703,7 @@ def calculate_valuation_confidence(
     is_turnaround_postmerger_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") in {"ua_turnaround_psales", "omc_post_merger_adjusted_pe"}
     is_toyo_solar_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "toyo_policy_dilution_pe"
     is_gold_precious_metals_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "gold_precious_metals_current_share_pe"
+    is_luxury_premium_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "luxury_premium_owner_earnings_pe"
     if is_auto_valuation:
         cycle_status = str(fair_value.get("cycle_status") or "")
         cycle_level = "Mittel" if cycle_status in {"Stark", "Mittel"} else "Mittel bis Hoch"
@@ -24378,7 +24724,7 @@ def calculate_valuation_confidence(
     elif is_utility_valuation:
         guidance_level = "Hoch"
         components["Current-FY Core/Adjusted EPS Guidance"] = (_confidence_rank_value(guidance_level), guidance_level)
-    elif not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation:
+    elif not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation:
         eps_level = (eps_normalization or {}).get("confidence")
         eps_rank = _confidence_rank_value(eps_level)
         if eps_rank is not None:
@@ -25112,6 +25458,78 @@ def calculate_fair_value_v1(
 
 
 
+    # V2.20.104 – Hermès / Luxury Premium-Franchise specialist valuation.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "luxury_premium_franchise"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        sv = checks.get("specialist_valuation") or {}
+        ss = checks.get("specialist_score") or {}
+        snap = special_control.get("snapshot") or {}
+        fv = safe_float(sv.get("fair_value_financial"))
+        if not sv.get("available") or fv is None or fv <= 0:
+            result["note"] = "Fair Value V1 gesperrt: Luxury-Premium-Spezialanker nicht vollständig verfügbar."
+            return result
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der Luxury-Premium-Bewertung sind nicht eindeutig."
+            return result
+        share_context = context.get("share_unit_context") or {}
+        share_ratio = 1.0
+        unit_notes = []
+        if share_context.get("conversion_required"):
+            if not share_context.get("conversion_available"):
+                result["note"] = "Fair Value V1 gesperrt: abweichende Handelseinheit ohne verifizierte Aktien-/ADR-Umrechnung."
+                return result
+            share_ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
+            if share_ratio is None or share_ratio <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Aktien-/ADR-Verhältnis ist nicht belastbar."
+                return result
+        fvq = fv * share_ratio
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Währungsumrechnung der Luxury-Premium-Bewertung nicht belastbar verfügbar."
+                return result
+            fvq *= factor
+            unit_notes.append(f"Währungsangleichung: {financial_currency} → {quote_currency} mit Faktor {factor:.6f}.")
+        elif quote_currency != financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+        cp = safe_float(current_price)
+        potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+        result.update({
+            "available": True,
+            "valuation_method": "luxury_premium_owner_earnings_pe",
+            "normalized_eps": safe_float(sv.get("earnings_basis")),
+            "used_multiple": safe_float(sv.get("target_multiple")),
+            "multiple_source": f"{APP_BUILD_VERSION} Luxury Premium-Franchise Quality P/E",
+            "fair_value_financial": fv,
+            "fair_value_quote": fvq,
+            "potential_pct": potential,
+            "specialist_score": safe_float(ss.get("score")),
+            "specialist_quality_level": ss.get("quality_level"),
+            "specialist_components": ss.get("components") or {},
+            "target_multiple": safe_float(sv.get("target_multiple")),
+            "multiple_corridor_low": safe_float(sv.get("corridor_low")),
+            "multiple_corridor_high": safe_float(sv.get("corridor_high")),
+            "earnings_basis_name": snap.get("valuation_basis_name"),
+            "h1_revenue_growth_constant_fx_pct": safe_float(snap.get("h1_revenue_growth_constant_fx_pct")),
+            "h1_recurring_operating_margin_pct": safe_float(snap.get("h1_recurring_operating_margin_pct")),
+            "h1_adjusted_fcf": safe_float(snap.get("h1_adjusted_fcf")),
+            "h1_restated_net_cash": safe_float(snap.get("h1_restated_net_cash")),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "Luxury-Premium Fair Value V1 = Primary-source normalized owner earnings × scoregesteuertes Premium-Franchise-KGV. "
+                "Yahoo-Nominalwachstum, Yahoo-FCF, generische Netto-Schulden/FCF-Logik, Peer-KGVs und Analystenziele fließen nicht in den fundamentalen Fair Value ein."
+            ),
+        })
+        return result
+
     # V2.20.98 – GOLD precious-metals distribution & lending specialist valuation.
     if (
         isinstance(special_control, dict)
@@ -25264,7 +25682,7 @@ def calculate_fair_value_v1(
             "valuation_method": "toyo_policy_dilution_pe",
             "normalized_eps": safe_float(sv.get("earnings_basis")),
             "used_multiple": safe_float(sv.get("target_multiple")),
-            "multiple_source": "V2.20.97 TOYO Operational Quality P/E → downside-only Policy & Financing/Dilution Caps",
+            "multiple_source": f"{APP_BUILD_VERSION} TOYO Operational Quality P/E → downside-only Policy & Financing/Dilution Caps",
             "fair_value_financial": fv,
             "fair_value_quote": fvq,
             "potential_pct": potential,
@@ -30128,6 +30546,26 @@ def load_stock(selected_symbol, cache_version):
             ),
         }
 
+    if is_luxury_premium_specialist_type(company_type, fundamental_symbol):
+        growth_score = {
+            **growth_score,
+            "context_score": growth_score.get("score"),
+            "score": None,
+            "note": (
+                f"Luxury {APP_BUILD_VERSION}: Generisches nominales Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext. "
+                "Der Spezialpfad bewertet H1-/Q2-Konstantwährungswachstum und Franchise-Resilienz aus Hermès-Primärquellen."
+            ),
+        }
+        profitability_score = {
+            **profitability_score,
+            "context_score": profitability_score.get("score"),
+            "score": None,
+            "brake_text": (
+                f"Luxury {APP_BUILD_VERSION}: Generische Nettomargen-/ROE-Punkte bleiben Diagnosekontext. "
+                "Der Spezialpfad bewertet Recurring Operating Margin, issuer-adjustierte Earnings, FCF-Conversion und Net Cash."
+            ),
+        }
+
     fail_closed_context_terms = [
         "healthcare / diagnostics & research / cro + data",
         "agriculture / seeds & crop protection",
@@ -30300,6 +30738,12 @@ def load_stock(selected_symbol, cache_version):
     )
 
     toyo_solar_specialist_model = build_toyo_solar_specialist_model(
+        company_type,
+        fundamental_info,
+        fundamental_symbol
+    )
+
+    luxury_premium_specialist_model = build_luxury_premium_specialist_model(
         company_type,
         fundamental_info,
         fundamental_symbol
@@ -30551,7 +30995,7 @@ def load_stock(selected_symbol, cache_version):
             "lower": safe_float(gold_val_fm.get("corridor_low")),
             "upper": safe_float(gold_val_fm.get("corridor_high")),
             "method": gold_val_fm.get("valuation_method_name") or "GOLD Precious-Metals Specialist P/E",
-            "note": "V2.20.98: Der Korridor gehört ausschließlich zum GOLD-Primärquellenmodell; generische Yahoo-Wachstums-/FCF-Scores bleiben Diagnosekontext.",
+            "note": f"{APP_BUILD_VERSION}: Der Korridor gehört ausschließlich zum GOLD-Primärquellenmodell; generische Yahoo-Wachstums-/FCF-Scores bleiben Diagnosekontext.",
         }
         fundamental_multiple = {
             **fundamental_multiple,
@@ -30561,7 +31005,7 @@ def load_stock(selected_symbol, cache_version):
             "available": bool(gold_score_fm.get("available") and gold_val_fm.get("available")),
             "earnings_basis_usable": bool(gold_val_fm.get("available")),
             "note": (
-                "V2.20.98 verwendet für Gold.com keinen generischen 100-Punkte-Score. Der GOLD Quality Score setzt das Spezial-KGV aus Gross Profit/EBITDA, "
+                f"{APP_BUILD_VERSION} verwendet für Gold.com keinen generischen 100-Punkte-Score. Der GOLD Quality Score setzt das Spezial-KGV aus Gross Profit/EBITDA, "
                 "Hedge-/Inventar-, Lending-, Funding- und Dilution-Qualität; die bereinigte Current-Share-Earnings-Basis (Depreciation nicht addiert) ist der einzige Fair-Value-Anker."
             ),
         }
@@ -30574,7 +31018,7 @@ def load_stock(selected_symbol, cache_version):
             "lower": safe_float(ty_val.get("corridor_low")),
             "upper": safe_float(ty_val.get("corridor_high")),
             "method": ty_val.get("valuation_method_name") or "TOYO Policy-/Dilution-capped P/E",
-            "note": "V2.20.97: Der Korridor gehört ausschließlich zum TOYO-Primärquellenmodell; generische Yahoo-Scores bleiben Diagnosekontext.",
+            "note": f"{APP_BUILD_VERSION}: Der Korridor gehört ausschließlich zum TOYO-Primärquellenmodell; generische Yahoo-Scores bleiben Diagnosekontext.",
         }
         fundamental_multiple = {
             **fundamental_multiple,
@@ -30584,8 +31028,32 @@ def load_stock(selected_symbol, cache_version):
             "available": bool(ty_score.get("available") and ty_val.get("available")),
             "earnings_basis_usable": bool(ty_val.get("available")),
             "note": (
-                "V2.20.97 verwendet für TOYO keinen generischen 100-Punkte-Score. Der eigene operative Quality Score setzt das Base-P/E; "
+                f"{APP_BUILD_VERSION} verwendet für TOYO keinen generischen 100-Punkte-Score. Der eigene operative Quality Score setzt das Base-P/E; "
                 "Policy-/Trade- und Financing/Dilution-Risiken begrenzen dieses Multiple anschließend ausschließlich downside-only."
+            ),
+        }
+
+    if luxury_premium_specialist_model.get("applicable"):
+        lx_score = luxury_premium_specialist_model.get("specialist_score") or {}
+        lx_val = luxury_premium_specialist_model.get("specialist_valuation") or {}
+        lx_corridor = {
+            "available": bool(lx_val.get("available")),
+            "lower": safe_float(lx_val.get("corridor_low")),
+            "upper": safe_float(lx_val.get("corridor_high")),
+            "method": lx_val.get("valuation_method_name") or "Luxury Premium-Franchise P/E",
+            "note": f"{APP_BUILD_VERSION}: Der Korridor gehört ausschließlich zum Luxury-Premium-Primärquellenmodell; generische Yahoo-Scores bleiben Diagnosekontext.",
+        }
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": safe_float(lx_score.get("score")),
+            "corridor": lx_corridor,
+            "multiple": safe_float(lx_val.get("target_multiple")),
+            "available": bool(lx_score.get("available") and lx_val.get("available")),
+            "earnings_basis_usable": bool(lx_val.get("available")),
+            "note": (
+                f"{APP_BUILD_VERSION} verwendet für Hermès keinen generischen 100-Punkte-Score. Der Luxury-Premium Quality Score setzt das Spezial-KGV aus "
+                "Konstantwährungswachstum, Recurring Operating Margin, Adjusted FCF, Net Cash, Earnings-Qualität und Franchise-Resilienz; "
+                "die Primary-source normalized owner-earnings basis ist der einzige Fair-Value-Anker."
             ),
         }
 
@@ -30707,6 +31175,11 @@ def load_stock(selected_symbol, cache_version):
         toyo_solar_specialist_model
     )
 
+    special_control = build_luxury_premium_special_control(
+        special_control,
+        luxury_premium_specialist_model
+    )
+
     special_control = build_ctva_separation_special_control(
         special_control,
         ctva_separation_pre_gate_model
@@ -30797,7 +31270,7 @@ def load_stock(selected_symbol, cache_version):
                 "Für einen Edelmetallhändler ist deshalb das Yahoo-Umsatzwachstum kein Standard-Bewertungsnenner."
             ),
             "action": (
-                "Keine weitere generische Sonderereignis-Recherche erforderlich. V2.20.98 verwendet den GOLD-Spezialpfad mit Gross Profit/EBITDA, "
+                f"Keine weitere generische Sonderereignis-Recherche erforderlich. {APP_BUILD_VERSION} verwendet den GOLD-Spezialpfad mit Gross Profit/EBITDA, "
                 "Hedge-/Inventar-, Secured-Lending-, Funding- und Dilution-Kontrolle sowie einer bereinigten Current-Share-Earnings-Basis (Depreciation nicht addiert)."
             ),
         }
@@ -30814,8 +31287,27 @@ def load_stock(selected_symbol, cache_version):
                 "CBP-Prüfungen und Patentrisiken für den stark US-exponierten Umsatz offen; zudem stieg die Aktienzahl nach RDO/ATM deutlich und der Texas-HJT-Ausbau benötigt erhebliches Kapital."
             ),
             "action": (
-                "V2.20.97 lässt einen konservativen Fair Value als Diagnoseanker zu, deckelt das Quality-P/E downside-only durch Policy- und Financing/Dilution-Caps "
+                f"{APP_BUILD_VERSION} lässt einen konservativen Fair Value als Diagnoseanker zu, deckelt das Quality-P/E downside-only durch Policy- und Financing/Dilution-Caps "
                 "und begrenzt Kauf/Nachkauf auf Beobachten/Halten, bis die externen Risiken belastbarer geklärt sind."
+            ),
+        }
+
+    if luxury_premium_specialist_model.get("applicable") and luxury_premium_specialist_model.get("valuation_anchor_complete"):
+        lx_snap_event = luxury_premium_specialist_model.get("snapshot") or {}
+        special_event_warning = {
+            "level": "Grün",
+            "icon": "🟢",
+            "title": "Hermès Luxury Premium-Franchise Quality Gate aktiv",
+            "requires_research": False,
+            "valuation_usable": True,
+            "reason": (
+                f"H1 2026 organisches Wachstum beträgt {safe_float(lx_snap_event.get('h1_revenue_growth_constant_fx_pct')):.1f} % bei konstanten Wechselkursen "
+                f"gegenüber {safe_float(lx_snap_event.get('h1_revenue_growth_current_fx_pct')):.1f} % nominal; die Recurring Operating Margin liegt bei "
+                f"{safe_float(lx_snap_event.get('h1_recurring_operating_margin_pct')):.1f} %. Währungs- und temporäre Steuerwirkungen werden daher getrennt vom Franchise-Kern bewertet."
+            ),
+            "action": (
+                f"{APP_BUILD_VERSION} verwendet den Luxury-Premium-Spezialpfad mit Primary-source Owner Earnings, Adjusted FCF, Restated Net Cash und Franchise-Resilienz. "
+                "Keine generische Sonderrecherche erforderlich; Luxury-Peers bleiben reference-only bis Horizon-/Accounting-Basis-Vergleichbarkeit verifiziert ist."
             ),
         }
 
@@ -31281,6 +31773,7 @@ def load_stock(selected_symbol, cache_version):
         "turnaround_postmerger_specialist_model": turnaround_postmerger_specialist_model,
         "gold_precious_metals_specialist_model": gold_precious_metals_specialist_model,
         "toyo_solar_specialist_model": toyo_solar_specialist_model,
+        "luxury_premium_specialist_model": luxury_premium_specialist_model,
         "ctva_separation_pre_gate_model": ctva_separation_pre_gate_model,
         "fundamental_multiple": fundamental_multiple,
         "peer_group": peer_group,
@@ -31948,6 +32441,7 @@ if selected_symbol:
                 is_turnaround_postmerger_fcf_context = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 is_gold_precious_metals_fcf_context = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_fcf_context = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
+                is_luxury_premium_fcf_context = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                 is_ctva_fcf_context = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 if fcf_ctx.get("score_eligible"):
                     source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
@@ -32014,12 +32508,17 @@ if selected_symbol:
                     elif is_gold_precious_metals_fcf_context:
                         st.caption(
                             "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
-                            "Bei GOLD bleibt der Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. V2.20.98 bewertet Working Capital, Forward Sales, Metallborrowing/Product Financing, Inventar-/Hedge-Risiko, Secured Lending und Funding separat; Yahoo-FCF steuert weder Quality Score, Ziel-KGV noch Fair Value."
+                            f"Bei GOLD bleibt der Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. {APP_BUILD_VERSION} bewertet Working Capital, Forward Sales, Metallborrowing/Product Financing, Inventar-/Hedge-Risiko, Secured Lending und Funding separat; Yahoo-FCF steuert weder Quality Score, Ziel-KGV noch Fair Value."
                         )
                     elif is_toyo_solar_fcf_context:
                         st.caption(
                             "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
-                            "Bei TOYO bleibt der Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. V2.20.97 verwendet für Cash Conversion ausschließlich den issuer-ausgewiesenen H1 Operating Cash Flow minus CapEx; Yahoo-FCF steuert weder Quality Score, Ziel-KGV noch Fair Value."
+                            f"Bei TOYO bleibt der Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. {APP_BUILD_VERSION} verwendet für Cash Conversion ausschließlich den issuer-ausgewiesenen H1 Operating Cash Flow minus CapEx; Yahoo-FCF steuert weder Quality Score, Ziel-KGV noch Fair Value."
+                        )
+                    elif is_luxury_premium_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            f"Bei Hermès/Luxury Premium bleibt der Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. {APP_BUILD_VERSION} verwendet den issuer-ausgewiesenen Adjusted Free Cash Flow aus H1 2026; Yahoo-FCF steuert weder Quality Score, Ziel-KGV noch Fair Value."
                         )
                     elif is_ctva_fcf_context:
                         st.caption(
@@ -32360,6 +32859,7 @@ if selected_symbol:
                 turnaround_postmerger_eps_context_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 gold_precious_metals_eps_context_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 toyo_solar_eps_context_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
+                luxury_premium_eps_context_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                 ctva_eps_context_ui = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 if bank_core_eps_active:
                     normalized_eps = safe_float(
@@ -32373,7 +32873,7 @@ if selected_symbol:
                     normalized_eps_label = "Versicherungs-Core-TTM-EPS"
                 else:
                     normalized_eps = eps_result["normalized_eps"]
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -32457,7 +32957,14 @@ if selected_symbol:
                     elif toyo_solar_eps_context_ui:
                         st.info(
                             "TOYO Solar: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
-                            "V2.20.97 verwendet für den Fair Value den Q2-2026 Net-Income-Run-Rate auf der tatsächlichen 30.06.-Aktienzahl; Yahoo Current-FY/+1Y-Konsens bleibt nur Horizont-Kontext."
+                            f"{APP_BUILD_VERSION} verwendet für den Fair Value den Q2-2026 Net-Income-Run-Rate auf der tatsächlichen 30.06.-Aktienzahl; Yahoo Current-FY/+1Y-Konsens bleibt nur Horizont-Kontext."
+                        )
+                    elif luxury_premium_eps_context_ui:
+                        lx_eps_snap_ui = (data.get("luxury_premium_specialist_model") or {}).get("snapshot") or {}
+                        st.info(
+                            "Hermès / Luxury Premium: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                            f"{APP_BUILD_VERSION} verwendet für den Fair Value eine Primary-source normalized owner-earnings basis: 70 % offizielles FY2025 EPS + 30 % annualisiertes H1-2026 adjusted EPS nach issuer-ausgewiesenem Restatement der außergewöhnlichen französischen Gewinnabgabe. "
+                            f"Spezialbasis: {format_eps(lx_eps_snap_ui.get('normalized_owner_eps'), financial_currency)}."
                         )
                     elif ctva_eps_context_ui:
                         st.info(
@@ -33769,6 +34276,7 @@ if selected_symbol:
                     is_turnaround_postmerger_fcf_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                     is_gold_precious_metals_fcf_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     is_toyo_solar_fcf_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
+                    is_luxury_premium_fcf_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                     is_bkr_model_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                     if is_bkr_model_ui:
@@ -33788,7 +34296,10 @@ if selected_symbol:
                         st.caption(f"{APP_BUILD_VERSION} behandelt Yahoo-FCF nur als Diagnosekontext. Working Capital, Metallborrowing/Product Financing und Forward Sales machen einen industriellen FCF-Margenvergleich ungeeignet; stattdessen werden Inventar-/Hedge-Kontrolle, Secured Lending und Funding bewertet.")
                     elif is_toyo_solar_fcf_ui:
                         st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
-                        st.caption("V2.20.97 verwendet ausschließlich issuer-ausgewiesenen H1 Operating Cash Flow minus CapEx als Cash-Conversion-Komponente. Yahoo-TTM-FCF bleibt Diagnosekontext.")
+                        st.caption(f"{APP_BUILD_VERSION} verwendet ausschließlich issuer-ausgewiesenen H1 Operating Cash Flow minus CapEx als Cash-Conversion-Komponente. Yahoo-TTM-FCF bleibt Diagnosekontext.")
+                    elif is_luxury_premium_fcf_ui:
+                        st.info("ℹ️ Im Luxury-Premium-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
+                        st.caption(f"{APP_BUILD_VERSION} verwendet Hermès' issuer-definierten Adjusted Free Cash Flow und Cash Conversion; Yahoo-TTM-FCF bleibt Diagnosekontext.")
                     elif is_nvidia_model_ui:
                         st.info("ℹ️ NVIDIA/Fabless-AI-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
                         st.caption("V2.20.67 verwendet ausschließlich den von NVIDIA ausgewiesenen Q2-FY2027-Free-Cashflow in der FCF-/Liquiditätskomponente des AI-Quality-Scores. Yahoo-TTM-FCF bleibt Kontext und beeinflusst weder Demand-/Horizon-Gates noch Fair Value.")
@@ -33984,6 +34495,7 @@ if selected_symbol:
                     is_turnaround_postmerger_balance_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                     is_gold_precious_metals_balance_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     is_toyo_solar_balance_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
+                    is_luxury_premium_balance_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                     is_bkr_balance_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                     if is_bkr_balance_ui:
@@ -34004,6 +34516,9 @@ if selected_symbol:
                     elif is_toyo_solar_balance_ui:
                         st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("TOYO bewertet Liquidität, tatsächliche Aktienverwässerung, RDO/Warrants, Rest-ATM und den 357-Mio.-USD-HJT-Finanzierungsbedarf separat; Yahoo-Schulden/FCF bleiben Kontext.")
+                    elif is_luxury_premium_balance_ui:
+                        st.info("ℹ️ Im Luxury-Premium-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
+                        st.caption(f"{APP_BUILD_VERSION} bewertet bei Hermès die issuer-ausgewiesene Net-Cash- und Restated-Net-Cash-Position direkt; generische Yahoo-Schulden/FCF bleiben Kontext.")
                     elif is_nvidia_balance_ui:
                         st.info("ℹ️ NVIDIA/Fabless-AI-Modell: Standard-Netto-Schulden/FCF-Score ist kein Bewertungsbaustein")
                         st.caption("V2.20.67 bewertet Liquidität sowie Inventory-/Commitment-/Working-Capital-Qualität innerhalb des primärquellenbasierten AI-Quality-Scores und Demand-Quality-Gates. Die generische Netto-Schulden/FCF-Punktelogik bleibt deaktiviert.")
@@ -36382,6 +36897,57 @@ if selected_symbol:
                         "nachfolgenden Fair-Value-Schritt, solange sie noch "
                         "nicht vollständig implementiert und freigegeben sind."
                     )
+
+                if special_control.get("control_key") == "luxury_premium_franchise":
+                    st.divider()
+                    st.subheader("👜 Modul 6 – Schritt 3B: Luxury Goods / Premium Franchise Spezialmodell V1")
+                    if special_control.get("implemented"):
+                        checks_lx = special_control.get("checks") or {}
+                        snap_lx = special_control.get("snapshot") or {}
+                        score_lx = checks_lx.get("specialist_score") or {}
+                        val_lx = checks_lx.get("specialist_valuation") or {}
+                        st.write(f"**Primärdatenstand:** {text_or_dash(snap_lx.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_lx.get('published_date'))})")
+                        st.caption(text_or_dash(snap_lx.get("source_name")))
+                        links_lx = []
+                        if snap_lx.get("results_url"): links_lx.append(f"[H1 2026 Results]({snap_lx.get('results_url')})")
+                        if snap_lx.get("key_figures_url"): links_lx.append(f"[Key Figures]({snap_lx.get('key_figures_url')})")
+                        if snap_lx.get("share_url"): links_lx.append(f"[Share/EPS]({snap_lx.get('share_url')})")
+                        if links_lx: st.markdown(" · ".join(links_lx))
+                        l1, l2 = st.columns(2)
+                        with l1:
+                            st.metric("H1 Umsatzwachstum konstant FX", f"{safe_float(snap_lx.get('h1_revenue_growth_constant_fx_pct')):.1f} %")
+                            st.metric("Q2 Wachstum konstant FX", f"{safe_float(snap_lx.get('q2_revenue_growth_constant_fx_pct')):.1f} %")
+                            st.metric("Recurring Operating Margin", f"{safe_float(snap_lx.get('h1_recurring_operating_margin_pct')):.1f} %")
+                        with l2:
+                            st.metric("Adjusted FCF Wachstum", f"{safe_float(snap_lx.get('h1_adjusted_fcf_growth_pct')):.1f} %")
+                            st.metric("Adjusted FCF / Adjusted Net Income", f"{safe_float(snap_lx.get('h1_adjusted_fcf_to_adjusted_net_income_pct')):.1f} %")
+                            st.metric("Restated Net Cash / Equity", f"{safe_float(snap_lx.get('restated_net_cash_to_equity_pct')):.1f} %")
+                        st.write(
+                            f"**Franchise-Resilienz:** Leather Goods {safe_float(snap_lx.get('leather_goods_growth_constant_fx_pct')):+.1f} % · "
+                            f"Americas {safe_float(snap_lx.get('americas_growth_constant_fx_pct')):+.1f} % · Japan {safe_float(snap_lx.get('japan_growth_constant_fx_pct')):+.1f} % · "
+                            f"Europe ex France {safe_float(snap_lx.get('europe_ex_france_growth_constant_fx_pct')):+.1f} % (jeweils konstant FX)"
+                        )
+                        st.write(
+                            "**Primary-source Earnings-Brücke:** FY2025 EPS " + format_eps(snap_lx.get("fy2025_eps"), financial_currency) +
+                            " · H1 2026 reported diluted EPS " + format_eps(snap_lx.get("h1_diluted_eps"), financial_currency) +
+                            " · H1 adjusted annualized EPS " + format_eps(snap_lx.get("h1_adjusted_eps_annualized"), financial_currency)
+                        )
+                        st.metric("Normalized Owner-Earnings-Basis", format_eps(snap_lx.get("normalized_owner_eps"), financial_currency))
+                        if score_lx.get("available"):
+                            st.metric("Luxury Premium-Franchise Quality Score", f"{safe_float(score_lx.get('score')):.0f}/100 · {text_or_dash(score_lx.get('quality_level'))}")
+                            if score_lx.get("components"):
+                                st.write("**Score-Komponenten:** " + " · ".join(f"{name} {safe_float(points):.0f}" for name, points in score_lx.get("components").items()))
+                        if val_lx.get("available"):
+                            st.write(f"**Premium-Franchise-KGV-Korridor:** {safe_float(val_lx.get('corridor_low')):.2f}× – {safe_float(val_lx.get('corridor_high')):.2f}× · **Ziel-KGV:** {safe_float(val_lx.get('target_multiple')):.2f}×")
+                            st.metric("Hermès Fair Value – Fundamentalwährung", format_currency_value(val_lx.get("fair_value_financial"), financial_currency, 2))
+                        st.info("Luxury-Peers sind in V2.20.104 bewusst reference-only. Ohne verifizierte Same-Horizon-/Same-Basis-Vergleichbarkeit verändern sie weder Ziel-KGV noch Fair Value.")
+                        if special_control.get("released"):
+                            st.success("Luxury-Premium-Spezialkontrolle vollständig – Fair Value freigegeben.")
+                        else:
+                            st.warning("Luxury-Premium-Spezialkontrolle noch nicht vollständig – Fair Value bleibt gesperrt.")
+                        st.caption(text_or_dash(special_control.get("note")))
+                    else:
+                        st.warning("Luxury-Premium-Spezialkontrolle ist erkannt, aber noch nicht implementiert.")
 
                 if special_control.get("control_key") == "gold_precious_metals_distribution_lending":
                     st.divider()
@@ -39655,6 +40221,14 @@ if selected_symbol:
                                 "**Abstand der Bewertungsanker:** "
                                 f"{fair_value.get('anchor_spread_pct'):.1f} %"
                             )
+                    elif fair_value.get("valuation_method") == "luxury_premium_owner_earnings_pe":
+                        st.write("**Bewertungsformel:** Primary-source normalized owner earnings × scoregesteuertes Luxury Premium-Franchise Spezial-KGV")
+                        st.write(f"**Luxury Premium-Franchise Quality Score:** {fair_value.get('specialist_score'):.0f}/100 · {fair_value.get('specialist_quality_level')}")
+                        st.write("**Normalized Owner-Earnings-Basis:** " + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"]))
+                        st.write(f"**Ziel-KGV:** {fair_value.get('target_multiple'):.2f}× · **Korridor:** {fair_value.get('multiple_corridor_low'):.2f}× – {fair_value.get('multiple_corridor_high'):.2f}×")
+                        st.write(f"**H1 Umsatzwachstum konstant FX:** {fair_value.get('h1_revenue_growth_constant_fx_pct'):.1f} % · **Recurring Operating Margin:** {fair_value.get('h1_recurring_operating_margin_pct'):.1f} %")
+                        st.write("**H1 Adjusted FCF:** " + format_money(fair_value.get("h1_adjusted_fcf"), fair_value["financial_currency"]) + " · **Restated Net Cash:** " + format_money(fair_value.get("h1_restated_net_cash"), fair_value["financial_currency"]))
+                        st.caption("Yahoo-Nominalwachstum, Yahoo-FCF, generische Net-Debt/FCF-Logik, Luxury-Peer-KGVs und Analysten-Kursziele sind kein Bestandteil des Hermès-Fair-Values. Luxury-Peers bleiben bis zur verifizierten Same-Horizon-/Same-Basis-Vergleichbarkeit reference-only.")
                     elif fair_value.get("valuation_method") == "gold_precious_metals_current_share_pe":
                         st.write("**Bewertungsformel:** bereinigte FY2026 Current-Share-Earnings-Basis (Depreciation nicht addiert) × scoregesteuertes GOLD Precious-Metals Spezial-KGV")
                         st.write(f"**Spezialistischer Quality Score:** {fair_value.get('specialist_score'):.0f}/100 · {fair_value.get('specialist_quality_level')}")
@@ -39939,7 +40513,7 @@ if selected_symbol:
                         )
                     elif fair_value.get("valuation_method") == "gold_precious_metals_current_share_pe":
                         st.success(
-                            "GOLD-Fair-Value V1 wurde aus der konservativen FY2026 Current-Share-Earnings-Basis und dem primärquellenbasierten Precious-Metals Quality Score berechnet."
+                            "GOLD-Fair-Value V1 wurde aus der bereinigten FY2026 Current-Share-Earnings-Basis (Depreciation nicht addiert) und dem primärquellenbasierten Precious-Metals Quality Score berechnet."
                         )
                     elif fair_value.get("valuation_method") == "toyo_policy_dilution_pe":
                         st.success(
