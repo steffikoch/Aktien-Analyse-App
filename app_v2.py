@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.106"
+APP_BUILD_VERSION = "V2.20.107"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Luxury Family LVMH Render Guard V2.1"
+    f"Build {APP_BUILD_VERSION} · Luxury Search Guard & UI/Calendar Cleanup V2.2"
 )
 
 
@@ -36,6 +36,7 @@ st.caption(
 
 # V2.20.105: Luxury Family & Primary-Listing Guard V2. Keeps the validated Hermès premium-franchise route, adds a separate LVMH diversified-luxury primary-source profile, and injects MC.PA / Paris as the preferred LVMH main listing ahead of OTC LVMHF. Hermès keeps the 24–36x ultra-premium corridor; LVMH receives a lower 18–30x diversified-luxury corridor driven by H1 2026 organic growth, recurring operating margin, operating FCF conversion, net-debt/equity, earnings stability, portfolio resilience and debt reduction. Luxury peers remain reference-only until same-horizon/same-basis comparability is verified.
 # V2.20.106: Targeted LVMH rendering hotfix. Profile-aware balance metric prevents the Hermès-only restated-net-cash field from being formatted for LVMH; Luxury FCF/profitability captions are profile-neutral. No valuation math changed.
+# V2.20.107: Luxury Search Guard & UI/Calendar Cleanup V2.2. Adds Hermès/RMS.PA as the preferred primary-listing result for Hermes/Hermès search aliases so Federated Hermes/FHI cannot outrank it for the luxury-company name. Replaces misleading generic Luxury growth placeholders with specialist-context copy, harmonizes Luxury-Family UI wording and profile-aware FCF labels, and adds official non-valuation calendar fallbacks for Hermès (22 Oct 2026 Q3 revenue) and LVMH (October 2026 Q3 revenue when Yahoo has no future event). No scores, earnings bases, corridors, multiples, Fair Values or signal rules changed.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -6843,6 +6844,30 @@ def find_stock(search_text):
             "longname": "ING Groep N.V.",
             "exchange": "AMS"
         },
+        "HERMES": {
+            "symbol": "RMS.PA",
+            "quoteType": "EQUITY",
+            "longname": "Hermès International Société en commandite par actions",
+            "exchange": "PAR"
+        },
+        "HERMÈS": {
+            "symbol": "RMS.PA",
+            "quoteType": "EQUITY",
+            "longname": "Hermès International Société en commandite par actions",
+            "exchange": "PAR"
+        },
+        "HERMES INTERNATIONAL": {
+            "symbol": "RMS.PA",
+            "quoteType": "EQUITY",
+            "longname": "Hermès International Société en commandite par actions",
+            "exchange": "PAR"
+        },
+        "HERMÈS INTERNATIONAL": {
+            "symbol": "RMS.PA",
+            "quoteType": "EQUITY",
+            "longname": "Hermès International Société en commandite par actions",
+            "exchange": "PAR"
+        },
         "LVMH": {
             "symbol": "MC.PA",
             "quoteType": "EQUITY",
@@ -7099,6 +7124,21 @@ def search_stock_suggestions(search_text):
             "longname": "ING Groep N.V.",
             "exchange": "AMS",
             "exchDisp": "Amsterdam",
+            "_preferred": True,
+        },
+        {
+            "aliases": [
+                "HERMES",
+                "HERMÈS",
+                "HERMES INTERNATIONAL",
+                "HERMÈS INTERNATIONAL",
+            ],
+            "symbol": "RMS.PA",
+            "quoteType": "EQUITY",
+            "longname": "Hermès International Société en commandite par actions",
+            "exchange": "PAR",
+            "exchDisp": "Paris",
+            "currency": "EUR",
             "_preferred": True,
         },
         {
@@ -15513,14 +15553,14 @@ def build_luxury_premium_specialist_score(snapshot):
     sym = str(snap.get("symbol") or "").upper()
     profile = str(snap.get("luxury_profile") or "")
     if sym not in {"RMS.PA", "MC.PA"}:
-        result["note"] = "Luxury-Premium-Spezialscore nicht anwendbar."
+        result["note"] = "Luxury-Family-Spezialscore nicht anwendbar."
         return result
 
     growth = safe_float(snap.get("h1_revenue_growth_constant_fx_pct"))
     margin = safe_float(snap.get("h1_recurring_operating_margin_pct"))
     fcf_conv = safe_float(snap.get("h1_adjusted_fcf_to_adjusted_net_income_pct"))
     if any(v is None for v in [growth, margin, fcf_conv]):
-        result["note"] = "Luxury-Premium-Spezialscore gesperrt: mindestens eine Primärkennzahl fehlt."
+        result["note"] = "Luxury-Family-Spezialscore gesperrt: mindestens eine Primärkennzahl fehlt."
         return result
 
     if profile == "ultra_premium_single_house":
@@ -25669,12 +25709,12 @@ def calculate_fair_value_v1(
         snap = special_control.get("snapshot") or {}
         fv = safe_float(sv.get("fair_value_financial"))
         if not sv.get("available") or fv is None or fv <= 0:
-            result["note"] = "Fair Value V1 gesperrt: Luxury-Premium-Spezialanker nicht vollständig verfügbar."
+            result["note"] = "Fair Value V1 gesperrt: Luxury-Family-Spezialanker nicht vollständig verfügbar."
             return result
         quote_currency = str(context.get("quote_currency") or "").strip()
         financial_currency = str(context.get("financial_currency") or "").strip()
         if not quote_currency or not financial_currency:
-            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der Luxury-Premium-Bewertung sind nicht eindeutig."
+            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der Luxury-Family-Bewertung sind nicht eindeutig."
             return result
         share_context = context.get("share_unit_context") or {}
         share_ratio = 1.0
@@ -25691,7 +25731,7 @@ def calculate_fair_value_v1(
         if context.get("mixed_units"):
             factor = safe_float(context.get("financial_to_quote_factor"))
             if not context.get("conversion_available") or factor is None or factor <= 0:
-                result["note"] = "Fair Value V1 gesperrt: Währungsumrechnung der Luxury-Premium-Bewertung nicht belastbar verfügbar."
+                result["note"] = "Fair Value V1 gesperrt: Währungsumrechnung der Luxury-Family-Bewertung nicht belastbar verfügbar."
                 return result
             fvq *= factor
             unit_notes.append(f"Währungsangleichung: {financial_currency} → {quote_currency} mit Faktor {factor:.6f}.")
@@ -31246,8 +31286,8 @@ def load_stock(selected_symbol, cache_version):
             "available": bool(lx_val.get("available")),
             "lower": safe_float(lx_val.get("corridor_low")),
             "upper": safe_float(lx_val.get("corridor_high")),
-            "method": lx_val.get("valuation_method_name") or "Luxury Premium-Franchise P/E",
-            "note": f"{APP_BUILD_VERSION}: Der Korridor gehört ausschließlich zum Luxury-Premium-Primärquellenmodell; generische Yahoo-Scores bleiben Diagnosekontext.",
+            "method": lx_val.get("valuation_method_name") or "Luxury Family P/E",
+            "note": f"{APP_BUILD_VERSION}: Der Korridor gehört ausschließlich zum Luxury-Family-Primärquellenmodell; generische Yahoo-Scores bleiben Diagnosekontext.",
         }
         fundamental_multiple = {
             **fundamental_multiple,
@@ -32727,7 +32767,7 @@ if selected_symbol:
                     elif is_luxury_premium_fcf_context:
                         st.caption(
                             "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
-                            f"Bei Luxury-Family-Unternehmen bleibt der Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. {APP_BUILD_VERSION} verwendet den issuer-ausgewiesenen Adjusted Free Cash Flow aus H1 2026; Yahoo-FCF steuert weder Quality Score, Ziel-KGV noch Fair Value."
+                            f"Bei Luxury-Family-Unternehmen bleibt der Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. {APP_BUILD_VERSION} verwendet den issuer-ausgewiesenen profilabhängigen Cashflow-Anker (Hermès: Adjusted Free Cash Flow; LVMH: Operating Free Cash Flow) aus H1 2026; Yahoo-FCF steuert weder Quality Score, Ziel-KGV noch Fair Value."
                         )
                     elif is_ctva_fcf_context:
                         st.caption(
@@ -34027,6 +34067,7 @@ if selected_symbol:
                 is_turnaround_postmerger_score_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 is_gold_precious_metals_score_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_score_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
+                is_luxury_premium_score_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                 is_kratos_score_ui = str(selected_symbol or "").upper() == "KTOS"
                 is_bkr_score_ui = str(selected_symbol or "").upper() == "BKR"
 
@@ -34060,6 +34101,12 @@ if selected_symbol:
                 elif is_toyo_solar_score_ui:
                     st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Der generische Wachstumsscore wird nicht verwendet.")
                     st.caption("Wachstum/Skalierung werden aus Q2/H1-2026-Umsatz, Auslieferungen und Manufacturing-Ramp aus Primärquellen bewertet; Yahoo-Wachstumswerte bleiben Diagnosekontext.")
+                elif is_luxury_premium_score_ui:
+                    st.info("ℹ️ Im Luxury-Family-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
+                    st.caption(
+                        "Wachstum wird profilabhängig aus Primärquellen bewertet (Hermès: Konstantwährungs-/Franchise-Wachstum; "
+                        "LVMH: organisches Wachstum und Portfolio-Momentum). Yahoo-Nominal-/Gewinnwachstum bleibt Diagnosekontext."
+                    )
                 elif is_nvidia_score_ui:
                     st.info("NVIDIA/Fabless-AI-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.67 verwendet den eigenen primärquellenbasierten AI-Quality-Score sowie Demand-Quality- und Earnings-Horizon-Gates.")
                     st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf den NVIDIA AI-Quality-Score oder das Earnings-Horizon-Alignment-Gate.")
@@ -34170,7 +34217,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui:
+                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -34737,7 +34784,7 @@ if selected_symbol:
                         st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("TOYO bewertet Liquidität, tatsächliche Aktienverwässerung, RDO/Warrants, Rest-ATM und den 357-Mio.-USD-HJT-Finanzierungsbedarf separat; Yahoo-Schulden/FCF bleiben Kontext.")
                     elif is_luxury_premium_balance_ui:
-                        st.info("ℹ️ Im Luxury-Premium-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
+                        st.info("ℹ️ Im Luxury-Family-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption(f"{APP_BUILD_VERSION} bewertet die profilabhängige issuer-Bilanzqualität direkt (Hermès: Restated Net Cash; LVMH: Net Financial Debt/Equity und Debt Reduction); generische Yahoo-Schulden/FCF bleiben Kontext.")
                     elif is_nvidia_balance_ui:
                         st.info("ℹ️ NVIDIA/Fabless-AI-Modell: Standard-Netto-Schulden/FCF-Score ist kein Bewertungsbaustein")
@@ -37165,7 +37212,7 @@ if selected_symbol:
                         )
                         st.metric("Normalized Owner-Earnings-Basis", format_eps(snap_lx.get("normalized_owner_eps"), financial_currency))
                         if score_lx.get("available"):
-                            st.metric("Luxury Premium-Franchise Quality Score", f"{safe_float(score_lx.get('score')):.0f}/100 · {text_or_dash(score_lx.get('quality_level'))}")
+                            st.metric("Luxury-Family Quality Score", f"{safe_float(score_lx.get('score')):.0f}/100 · {text_or_dash(score_lx.get('quality_level'))}")
                             if score_lx.get("components"):
                                 st.write("**Score-Komponenten:** " + " · ".join(f"{name} {safe_float(points):.0f}" for name, points in score_lx.get("components").items()))
                         if val_lx.get("available"):
@@ -37173,12 +37220,12 @@ if selected_symbol:
                             st.metric(f"{text_or_dash(snap_lx.get('company'))} Fair Value – Fundamentalwährung", format_currency_value(val_lx.get("fair_value_financial"), financial_currency, 2))
                         st.info(f"Luxury-Peers sind in {APP_BUILD_VERSION} bewusst reference-only. Ohne verifizierte Same-Horizon-/Same-Basis-Vergleichbarkeit verändern sie weder Ziel-KGV noch Fair Value.")
                         if special_control.get("released"):
-                            st.success("Luxury-Premium-Spezialkontrolle vollständig – Fair Value freigegeben.")
+                            st.success("Luxury-Family-Spezialkontrolle vollständig – Fair Value freigegeben.")
                         else:
-                            st.warning("Luxury-Premium-Spezialkontrolle noch nicht vollständig – Fair Value bleibt gesperrt.")
+                            st.warning("Luxury-Family-Spezialkontrolle noch nicht vollständig – Fair Value bleibt gesperrt.")
                         st.caption(text_or_dash(special_control.get("note")))
                     else:
-                        st.warning("Luxury-Premium-Spezialkontrolle ist erkannt, aber noch nicht implementiert.")
+                        st.warning("Luxury-Family-Spezialkontrolle ist erkannt, aber noch nicht implementiert.")
 
                 if special_control.get("control_key") == "gold_precious_metals_distribution_lending":
                     st.divider()
@@ -40453,8 +40500,8 @@ if selected_symbol:
                                 f"{fair_value.get('anchor_spread_pct'):.1f} %"
                             )
                     elif fair_value.get("valuation_method") == "luxury_premium_owner_earnings_pe":
-                        st.write("**Bewertungsformel:** Primary-source normalized owner earnings × scoregesteuertes Luxury Premium-Franchise Spezial-KGV")
-                        st.write(f"**Luxury Premium-Franchise Quality Score:** {fair_value.get('specialist_score'):.0f}/100 · {fair_value.get('specialist_quality_level')}")
+                        st.write("**Bewertungsformel:** Primary-source normalized owner earnings × profilabhängiges scoregesteuertes Luxury-Family Spezial-KGV")
+                        st.write(f"**Luxury-Family Quality Score:** {fair_value.get('specialist_score'):.0f}/100 · {fair_value.get('specialist_quality_level')}")
                         st.write("**Normalized Owner-Earnings-Basis:** " + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"]))
                         st.write(f"**Ziel-KGV:** {fair_value.get('target_multiple'):.2f}× · **Korridor:** {fair_value.get('multiple_corridor_low'):.2f}× – {fair_value.get('multiple_corridor_high'):.2f}×")
                         st.write(f"**H1 Umsatzwachstum konstant FX:** {fair_value.get('h1_revenue_growth_constant_fx_pct'):.1f} % · **Recurring Operating Margin:** {fair_value.get('h1_recurring_operating_margin_pct'):.1f} %")
@@ -41200,10 +41247,18 @@ if selected_symbol:
                     )
 
                 else:
-
-                    st.write(
-                        "Kein zukünftiger Termin verfügbar."
-                    )
+                    symbol_calendar = str(data.get("symbol") or "").upper().strip()
+                    today_calendar = datetime.now().date()
+                    if symbol_calendar == "RMS.PA" and today_calendar <= datetime(2026, 10, 22).date():
+                        st.info("Offizieller Unternehmenskalender: **22.10.2026 · Q3-2026-Umsatz** (08:00 CEST).")
+                        st.markdown("[Hermès Finanzkalender](https://finance.hermes.com/en/calendar/)")
+                    elif symbol_calendar == "MC.PA" and today_calendar < datetime(2026, 11, 1).date():
+                        st.info("Offizieller LVMH-Kalender: **Oktober 2026 · Q3-2026-Umsatz**. Ein konkreter Tag ist in der aktuellen offiziellen Agenda noch nicht genannt.")
+                        st.markdown("[LVMH Finanzkalender](https://www.lvmh.com/en/financial-calendar)")
+                    else:
+                        st.write(
+                            "Kein zukünftiger Termin verfügbar."
+                        )
 
                 st.divider()
 
