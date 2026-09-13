@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.116"
+APP_BUILD_VERSION = "V2.20.117"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Specialist UI Final Consistency Cleanup"
+    f"Build {APP_BUILD_VERSION} · Branded Consumer Staples Specialist Model V1"
 )
 
 
@@ -6250,9 +6250,15 @@ def classify_company(name, symbol, sector, industry):
     # V2.20.76 – tighter classifications from the cross-company validation run.
     if symbol_text == "MDLZ" or "mondelez" in name_text:
         return {
-            "type": "Defensiver Konsum / Global Snacks & Confectionery",
-            "method": "Current-FY/normalisiertes EPS + KGV + FCF/Leverage; Peer-Set bis Kalibrierung nicht automatisch erzwingen",
-            "confidence_cap": "Mittel bis Hoch",
+            "type": "Branded Consumer Staples / Global Snacks & Confectionery",
+            "method": (
+                "Primärquellen-Organic-Growth/Volume-Mix + Adjusted Operating Margin + "
+                "Current-FY Adjusted EPS + FCF/Leverage + Marken-/Portfolioqualität; generischer Standard-Score gesperrt"
+            ),
+            "confidence_cap": "Mittel",
+            "business_model": "Globaler Marken-Snack- und Süßwarenhersteller mit hoher Kategorie- und Geografiediversifikation",
+            "core_segments": "Biscuits & Baked Snacks · Chocolate · Gum & Candy · Global / Emerging & Developed Markets",
+            "focus_areas": "Organic Net Revenue · Volume/Mix · Adjusted Operating Margin · Adjusted EPS · FCF · Leverage · Brand/Commodity Resilience",
         }
 
     if symbol_text in ["UA", "UAA"] or "under armour" in name_text:
@@ -16175,6 +16181,302 @@ def build_asset_management_special_control(control, specialist_model):
 
 
 # =========================================================
+# V2.20.117 – Branded Consumer Staples Specialist Model V1
+# =========================================================
+
+def is_branded_consumer_staples_specialist_type(company_type, symbol=None):
+    sym = str(symbol or "").upper().strip()
+    type_name = normalized_company_type_name(company_type)
+    return sym == "MDLZ" or "branded consumer staples / global snacks & confectionery" in type_name
+
+
+def get_verified_branded_consumer_snapshot(symbol):
+    """Primary-source V1 snapshot. Unknown branded-consumer names fail closed.
+
+    The released V1 valuation anchor is intentionally limited to MDLZ. Peer
+    companies are used for cross-company calibration and market reference, not
+    as copied valuation targets.
+    """
+    sym = str(symbol or "").upper().strip()
+    if sym != "MDLZ":
+        return None
+    return {
+        "symbol": "MDLZ",
+        "company": "Mondelez International, Inc.",
+        "consumer_profile": "global_snacks_confectionery",
+        "as_of_date": "30.06.2026",
+        "published_date": "28.07.2026",
+        "source_name": "Mondelez Q2 2026 Earnings Release + Form 10-Q + FY2025 Results",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1103982/000162828026050157/mdlzearningsreleasecontent.htm",
+        "ten_q_url": "https://www.sec.gov/Archives/edgar/data/1103982/000162828026050179/mdlz-20260630.htm",
+        "fy2025_url": "https://www.sec.gov/Archives/edgar/data/1103982/000162828026005016/mdlzearningsreleasecontent.htm",
+        "q2_organic_revenue_growth_pct": 2.2,
+        "q2_volume_mix_pct": 0.7,
+        "ytd_organic_revenue_growth_pct": 2.6,
+        "ytd_volume_mix_pct": 0.1,
+        "q2_adjusted_gross_margin_pct": 34.0,
+        "q2_adjusted_gross_margin_change_bps": 20.0,
+        "q2_adjusted_operating_margin_pct": 13.1,
+        "q2_adjusted_operating_margin_change_bps": -120.0,
+        "ytd_adjusted_operating_margin_pct": 12.4,
+        "ytd_adjusted_operating_margin_change_bps": -210.0,
+        "fy2025_adjusted_operating_margin_pct": 13.2,
+        "q2_adjusted_eps": 0.73,
+        "q2_adjusted_eps_growth_constant_fx_pct": -2.7,
+        "ytd_adjusted_eps": 1.40,
+        "ytd_adjusted_eps_growth_constant_fx_pct": -8.8,
+        "fy2025_adjusted_eps": 2.92,
+        "fy2026_organic_revenue_growth_floor_pct": 2.0,
+        "fy2026_adjusted_eps_growth_low_constant_fx_pct": 0.0,
+        "fy2026_adjusted_eps_growth_high_constant_fx_pct": 5.0,
+        "fy2026_estimated_fx_eps_tailwind": 0.05,
+        "fy2026_fcf_guidance": 3.0e9,
+        "fy2025_fcf": 3.2e9,
+        "h1_2026_fcf": 0.668e9,
+        "cash": 1.716e9,
+        "total_debt": 21.5e9,
+        "debt_to_capitalization_pct": 45.0,
+        "weighted_average_long_term_debt_maturity_years": 6.8,
+        "unused_long_term_financing_authorization": 2.9e9,
+        "h1_2026_capital_return": 1.5e9,
+        "fy2025_capital_return": 4.9e9,
+        "dividend_increase_pct": 4.0,
+        "global_reach_countries": 150,
+        "iconic_brand_portfolio_verified": True,
+        "developed_emerging_market_mix_verified": True,
+        "category_breadth_verified": True,
+        "commodity_headwind_material": True,
+        "corridor_low": 17.0,
+        "corridor_high": 25.0,
+        "peer_lock": True,
+    }
+
+
+def _branded_consumer_quality_level(score):
+    return _specialist_quality_level(score)
+
+
+def build_branded_consumer_specialist_score(snapshot):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    result = {"available": False, "score": None, "quality_level": None, "components": {}, "note": None}
+    if str(snap.get("symbol") or "").upper() != "MDLZ":
+        result["note"] = "Branded-Consumer-Specialist-Score V1 ist für diesen Titel noch nicht freigegeben."
+        return result
+    q2_og = safe_float(snap.get("q2_organic_revenue_growth_pct"))
+    q2_vm = safe_float(snap.get("q2_volume_mix_pct"))
+    margin = safe_float(snap.get("q2_adjusted_operating_margin_pct"))
+    margin_change = safe_float(snap.get("q2_adjusted_operating_margin_change_bps"))
+    q2_eps_growth = safe_float(snap.get("q2_adjusted_eps_growth_constant_fx_pct"))
+    ytd_eps_growth = safe_float(snap.get("ytd_adjusted_eps_growth_constant_fx_pct"))
+    fy25_fcf = safe_float(snap.get("fy2025_fcf"))
+    fy26_fcf = safe_float(snap.get("fy2026_fcf_guidance"))
+    debt_cap = safe_float(snap.get("debt_to_capitalization_pct"))
+    maturity = safe_float(snap.get("weighted_average_long_term_debt_maturity_years"))
+    div_growth = safe_float(snap.get("dividend_increase_pct"))
+    gross_margin_change = safe_float(snap.get("q2_adjusted_gross_margin_change_bps"))
+    required = [q2_og, q2_vm, margin, margin_change, q2_eps_growth, ytd_eps_growth, fy25_fcf, fy26_fcf, debt_cap, maturity, div_growth]
+    if any(v is None for v in required):
+        result["note"] = "Branded-Consumer-Spezialscore gesperrt: mindestens eine verifizierte Primärkennzahl fehlt."
+        return result
+
+    # 20 – true organic demand quality, separating price from volume/mix.
+    og_pts = 12.0 if q2_og >= 6 else 10.0 if q2_og >= 4 else 8.0 if q2_og >= 2 else 5.0 if q2_og >= 0 else 2.0
+    vm_pts = 8.0 if q2_vm >= 3 else 7.0 if q2_vm >= 1 else 6.0 if q2_vm >= 0 else 4.0 if q2_vm >= -1 else 2.0 if q2_vm >= -3 else 0.0
+    growth_pts = min(20.0, og_pts + vm_pts)
+
+    # 15 – adjusted operating economics. Commodity mark-to-market GAAP swings do not score.
+    margin_pts = 15.0 if margin >= 20 else 13.0 if margin >= 17 else 11.0 if margin >= 14 else 9.0 if margin >= 12 else 6.0 if margin >= 10 else 3.0
+    if margin_change <= -200: margin_pts = max(0.0, margin_pts - 2.0)
+    elif margin_change <= -100: margin_pts = max(0.0, margin_pts - 1.0)
+
+    # 15 – same-basis adjusted earnings and forward guidance credibility.
+    guide_low = safe_float(snap.get("fy2026_adjusted_eps_growth_low_constant_fx_pct"))
+    guide_high = safe_float(snap.get("fy2026_adjusted_eps_growth_high_constant_fx_pct"))
+    guide_mid = (guide_low + guide_high) / 2.0 if guide_low is not None and guide_high is not None else None
+    guide_pts = 7.0 if guide_mid is not None and guide_mid >= 2.0 else 5.0 if guide_mid is not None and guide_mid >= 0 else 2.0
+    q2_eps_pts = 4.0 if q2_eps_growth >= 5 else 3.0 if q2_eps_growth >= 0 else 2.0 if q2_eps_growth >= -5 else 1.0 if q2_eps_growth >= -10 else 0.0
+    ytd_eps_pts = 2.0 if ytd_eps_growth >= 0 else 1.0 if ytd_eps_growth >= -10 else 0.0
+    earnings_pts = min(15.0, guide_pts + q2_eps_pts + ytd_eps_pts + 2.0)  # +2 for issuer-reconciled adjusted EPS family.
+
+    # 15 – FCF level/stability, not generic FCF/revenue margin.
+    fcf_ratio = fy26_fcf / fy25_fcf if fy25_fcf and fy25_fcf > 0 else None
+    fcf_pts = 10.0 if fcf_ratio is not None and fcf_ratio >= 1.05 else 9.0 if fcf_ratio is not None and fcf_ratio >= 0.90 else 7.0 if fcf_ratio is not None and fcf_ratio >= 0.75 else 4.0
+    if safe_float(snap.get("h1_2026_fcf")) is not None and safe_float(snap.get("h1_2026_fcf")) > 0: fcf_pts += 2.0
+    if fy26_fcf >= 2.5e9: fcf_pts += 1.0
+    fcf_pts = min(15.0, fcf_pts)
+
+    # 10 – leverage/funding. A 45% debt/capital ratio is moderate, not an automatic 0/15.
+    if debt_cap <= 25: balance_pts = 9.0
+    elif debt_cap <= 35: balance_pts = 8.0
+    elif debt_cap <= 45: balance_pts = 6.0
+    elif debt_cap <= 55: balance_pts = 4.0
+    else: balance_pts = 2.0
+    if maturity >= 6.0 and balance_pts < 10.0: balance_pts += 1.0
+    balance_pts = min(10.0, balance_pts)
+
+    # 10 – objective portfolio/reach evidence, not an imported third-party moat score.
+    franchise_pts = 0.0
+    if (safe_float(snap.get("global_reach_countries")) or 0) >= 100: franchise_pts += 4.0
+    if snap.get("iconic_brand_portfolio_verified"): franchise_pts += 3.0
+    if snap.get("developed_emerging_market_mix_verified"): franchise_pts += 1.0
+    if snap.get("category_breadth_verified"): franchise_pts += 2.0
+    franchise_pts = min(10.0, franchise_pts)
+
+    # 10 – dividend/buyback discipline. Excess capital return relative to FCF is not rewarded as "free" quality.
+    capital_pts = 3.0 if div_growth >= 4 else 2.0 if div_growth > 0 else 0.0
+    if safe_float(snap.get("h1_2026_capital_return")) is not None and safe_float(snap.get("h1_2026_capital_return")) > 0: capital_pts += 2.0
+    fy25_return = safe_float(snap.get("fy2025_capital_return"))
+    if fy25_return is not None and fy25_fcf > 0:
+        payout_to_fcf = fy25_return / fy25_fcf
+        capital_pts += 3.0 if payout_to_fcf <= 1.0 else 2.0 if payout_to_fcf <= 1.35 else 1.0
+    capital_pts = min(10.0, capital_pts)
+
+    # 5 – commodity/pricing resilience. Positive volume and stable adjusted gross margin partially offset cocoa risk.
+    commodity_pts = 0.0
+    if q2_vm >= 0: commodity_pts += 1.5
+    if gross_margin_change is not None and gross_margin_change >= 0: commodity_pts += 1.5
+    if q2_og >= 2: commodity_pts += 1.0
+    if snap.get("commodity_headwind_material"): commodity_pts = min(4.0, commodity_pts)
+    commodity_pts = min(5.0, commodity_pts)
+
+    components = {
+        "Organic Growth & Volume/Mix": growth_pts,
+        "Adjusted Operating Margin & Trend": margin_pts,
+        "Adjusted Earnings & Guidance Quality": earnings_pts,
+        "Free Cash Flow Quality / Stability": fcf_pts,
+        "Balance / Leverage / Funding": balance_pts,
+        "Brand / Category / Geographic Resilience": franchise_pts,
+        "Capital Allocation": capital_pts,
+        "Commodity / Pricing Resilience": commodity_pts,
+    }
+    score = max(0.0, min(100.0, round(sum(components.values()), 2)))
+    result.update({
+        "available": True,
+        "score": score,
+        "quality_level": _branded_consumer_quality_level(score),
+        "components": components,
+        "note": (
+            "Der Branded-Consumer Quality Score ersetzt generisches Yahoo-Gewinnwachstum, GAAP-Nettomarge/ROE, FCF-Marge und Net-Debt/FCF. "
+            "Bewertet werden organische Nachfragequalität, adjusted/core Profitabilität, FCF, Leverage, Marken-/Portfolioresilienz und Kapitaldisziplin."
+        ),
+    })
+    return result
+
+
+def build_branded_consumer_earnings_basis(snapshot, current_fy_eps):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    current = safe_float(current_fy_eps)
+    prior = safe_float(snap.get("fy2025_adjusted_eps"))
+    low_g = safe_float(snap.get("fy2026_adjusted_eps_growth_low_constant_fx_pct"))
+    high_g = safe_float(snap.get("fy2026_adjusted_eps_growth_high_constant_fx_pct"))
+    fx = safe_float(snap.get("fy2026_estimated_fx_eps_tailwind")) or 0.0
+    result = {"available": False, "value": None, "confidence": "Niedrig", "note": None}
+    if any(v is None for v in [current, prior, low_g, high_g]) or current <= 0 or prior <= 0:
+        result["note"] = "Branded-Consumer Earnings-Basis fail-closed: Current-FY-Konsens oder issuer-adjustierte Vorjahres-/Guidance-Basis fehlt."
+        return result
+    guide_low = prior * (1.0 + low_g / 100.0) + fx
+    guide_high = prior * (1.0 + high_g / 100.0) + fx
+    tolerance = max(0.08, prior * 0.03)
+    inside = (guide_low - tolerance) <= current <= (guide_high + tolerance)
+    if not inside:
+        result.update({
+            "guide_low": guide_low, "guide_high": guide_high, "current_fy_eps": current,
+            "note": "Current-FY-Konsens liegt außerhalb der primärquellenbasierten Adjusted-EPS-Guidance-Brücke; Fair Value bleibt gesperrt."
+        })
+        return result
+    result.update({
+        "available": True,
+        "value": current,
+        "current_fy_eps": current,
+        "fy2025_adjusted_eps": prior,
+        "guide_low": guide_low,
+        "guide_high": guide_high,
+        "confidence": "Hoch",
+        "method": "0Y/current-FY Adjusted-EPS-Konsens, verifiziert gegen FY2025 Adjusted EPS + FY2026 issuer guidance + expliziten FX-EPS-Effekt",
+        "note": "Der Current-FY-Konsens wird nur verwendet, weil er innerhalb der issuer-basierten Same-Basis-Guidance-Brücke liegt. Provider/GAAP-TTM-EPS bleibt Diagnosekontext.",
+    })
+    return result
+
+
+def build_branded_consumer_specialist_valuation(snapshot, specialist_score, earnings_basis):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    ss = specialist_score if isinstance(specialist_score, dict) else {}
+    eb = earnings_basis if isinstance(earnings_basis, dict) else {}
+    low = safe_float(snap.get("corridor_low")); high = safe_float(snap.get("corridor_high"))
+    score = safe_float(ss.get("score")); earnings = safe_float(eb.get("value"))
+    result = {"available": False, "valuation_method_name": "Branded Consumer Staples Current-FY Adjusted P/E",
+              "corridor_low": low, "corridor_high": high, "target_multiple": None, "fair_value_financial": None, "note": None}
+    if not ss.get("available") or not eb.get("available") or any(v is None for v in [low, high, score, earnings]) or high <= low or earnings <= 0:
+        result["note"] = "Branded-Consumer-Spezialbewertung gesperrt: Score, Same-Basis-Earnings oder Korridor unvollständig."
+        return result
+    target = low + (high - low) * score / 100.0
+    # V1 premium discipline: >23.5x requires both stronger organic growth and non-negative volume/mix.
+    premium_cap = 25.0 if (safe_float(snap.get("q2_organic_revenue_growth_pct")) or -99) >= 4.0 and (safe_float(snap.get("q2_volume_mix_pct")) or -99) >= 0 else 23.5
+    used = min(target, premium_cap)
+    fv = earnings * used
+    result.update({
+        "available": True,
+        "earnings_basis": earnings,
+        "raw_score_multiple": target,
+        "target_multiple": used,
+        "premium_cap": premium_cap,
+        "premium_cap_binding": used < target - 1e-9,
+        "fair_value_financial": fv,
+        "peer_lock": True,
+        "note": (
+            f"Fair Value = verifizierte Current-FY Adjusted-EPS-Basis × scoregesteuertes {low:.0f}–{high:.0f}× Branded-Consumer-KGV. "
+            "Peers und Analystenziele bleiben reference-only; der V1-Premium-Cap verhindert hohe Multiples ohne gleichzeitig robuste organische Nachfrage und Volume/Mix."
+        ),
+    })
+    return result
+
+
+def build_branded_consumer_specialist_model(company_type, fundamental_info, symbol, current_fy_eps):
+    if not is_branded_consumer_staples_specialist_type(company_type, symbol):
+        return {"applicable": False}
+    snapshot = get_verified_branded_consumer_snapshot(symbol)
+    if not snapshot:
+        return {"applicable": True, "primary_source_complete": False, "specialist_score": {"available": False},
+                "earnings_basis": {"available": False}, "specialist_valuation": {"available": False},
+                "valuation_anchor_complete": False, "readiness": "Branded-Consumer-Primärquellen-Snapshot fehlt"}
+    score = build_branded_consumer_specialist_score(snapshot)
+    earnings = build_branded_consumer_earnings_basis(snapshot, current_fy_eps)
+    valuation = build_branded_consumer_specialist_valuation(snapshot, score, earnings)
+    return {
+        "applicable": True, "primary_source_complete": True, "snapshot": snapshot,
+        "specialist_score": score, "earnings_basis": earnings, "specialist_valuation": valuation,
+        "valuation_anchor_complete": bool(score.get("available") and earnings.get("available") and valuation.get("available")),
+        "readiness": "Branded-Consumer-Spezialbewertung freigegeben" if valuation.get("available") else "Branded-Consumer-Spezialbewertung gesperrt",
+    }
+
+
+def build_branded_consumer_special_control(control, specialist_model):
+    if not isinstance(control, dict) or control.get("control_key") != "branded_consumer_staples":
+        return control
+    model = specialist_model if isinstance(specialist_model, dict) else {}
+    out = dict(control)
+    released = bool(model.get("valuation_anchor_complete"))
+    out.update({
+        "implemented": bool(model.get("primary_source_complete")),
+        "released": released,
+        "confidence_cap": "Mittel" if released else "Niedrig",
+        "step3b_status": "Branded Consumer Staples Specialist Model V1 freigegeben" if released else "Branded Consumer Staples Specialist Model V1 gesperrt",
+        "checks": {
+            "specialist_score": model.get("specialist_score") or {},
+            "earnings_basis": model.get("earnings_basis") or {},
+            "specialist_valuation": model.get("specialist_valuation") or {},
+        },
+        "snapshot": model.get("snapshot") or {},
+        "note": (
+            f"{APP_BUILD_VERSION} trennt Branded Consumer Staples vom generischen GAAP-Gewinnwachstums-/ROE-/FCF-Margen-/Net-Debt-to-FCF-Pfad. "
+            "Organic Growth/Volume-Mix, adjusted/core Margen & Earnings, FCF, Leverage, Franchise-Resilienz und Kapitalallokation steuern Score und Multiple. "
+            "Externe Fair Values und Analystenziele bleiben ausschließlich Reality Check."
+        ),
+    })
+    return out
+
+
+# =========================================================
 # V2.20.105 – Luxury Goods Family / Premium Franchise Specialist Model V2
 # =========================================================
 
@@ -17129,6 +17431,25 @@ def get_peer_group(company_type, symbol, industry=None):
     ]
 
     own_symbol = str(symbol or "").upper()
+
+    if own_symbol == "MDLZ" and "branded consumer staples / global snacks & confectionery" in type_name:
+        peers = [
+            ("PEP", "PepsiCo"),
+            ("KO", "Coca-Cola"),
+            ("NESN.SW", "Nestlé"),
+            ("HSY", "Hershey"),
+        ]
+        return {
+            "available": True,
+            "peers": [{"symbol": ps, "name": pn} for ps, pn in peers],
+            "count": len(peers),
+            "target_symbol": own_symbol,
+            "peer_model": "branded_consumer_reference_v1",
+            "note": (
+                f"Branded-Consumer Peer Lock {APP_BUILD_VERSION}: PepsiCo, Coca-Cola, Nestlé und Hershey dienen nur als Markt-/Kalibrierungsreferenzen. "
+                "Ohne verifizierte Same-Horizon-/Same-Basis- und Geschäftsmodellvergleichbarkeit erfolgt keine automatische ±5-%-Anpassung."
+            ),
+        }
 
     if own_symbol in {"RHM.DE", "RHM.F", "RNMBY", "RNMBF"} and "defense / stark wachsend" in type_name:
         peers = [
@@ -18673,6 +18994,36 @@ def _calculate_defense_high_growth_peer_reference(peer_group, fundamental_multip
     return result
 
 
+def _calculate_branded_consumer_peer_reference(peer_group, fundamental_multiple, cache_version):
+    result = {
+        "method_supported": True,
+        "metric": "Branded Consumer Staples Forward P/E reference-only",
+        "peer_rows": [], "usable_count": 0, "peer_median": None,
+        "adjustment_pct": 0.0, "adjusted_multiple": safe_float(fundamental_multiple),
+        "applied": False, "reference_only": True, "note": None,
+    }
+    vals = []
+    for peer in (peer_group or {}).get("peers", []):
+        pdx = dict(load_peer_forward_pe(peer.get("symbol"), cache_version) or {})
+        pe = safe_float(pdx.get("forward_pe"))
+        usable = bool(pdx.get("usable") and pe is not None and pe > 0)
+        result["peer_rows"].append({
+            "symbol": peer.get("symbol"), "name": peer.get("name"), "usable": usable,
+            "forward_pe": pe, "source": pdx.get("source"), "reason": pdx.get("reason"),
+            "adjustment_eligible": False,
+        })
+        if usable: vals.append(pe)
+    result["usable_count"] = len(vals)
+    if vals:
+        result["peer_median"] = float(pd.Series(vals).median())
+    result["note"] = (
+        f"Branded-Consumer Peer Lock {APP_BUILD_VERSION}: PepsiCo, Coca-Cola, Nestlé und Hershey sind Markt-/Kalibrierungsreferenzen. "
+        "Unterschiedliche Kategorie-, Margen-, Kapital- und Accounting-Profile verhindern in V1 eine automatische Peer-Anpassung. "
+        "Der Median verändert weder Quality Score noch Ziel-KGV oder Fair Value."
+    )
+    return result
+
+
 def _calculate_asset_management_peer_reference(peer_group, fundamental_multiple, cache_version):
     result = {
         "method_supported": True,
@@ -18808,6 +19159,11 @@ def calculate_peer_check(
 
     if (peer_group or {}).get("peer_model") == "medical_devices_v2":
         return _calculate_medical_devices_peer_overlay(
+            peer_group, fundamental_multiple, cache_version
+        )
+
+    if (peer_group or {}).get("peer_model") == "branded_consumer_reference_v1":
+        return _calculate_branded_consumer_peer_reference(
             peer_group, fundamental_multiple, cache_version
         )
 
@@ -19007,6 +19363,30 @@ def get_special_control(company_type, symbol):
                 "V2.20.73 behandelt Baker Hughes als Energy-Technology-Plattform statt als integrierten Ölproduzenten. "
                 "Q2 2026 bildet OFSE/IET vor der Chart-Übernahme ab, während der aktuelle Kurs bereits nach dem Closing vom 16.07.2026 liegt. "
                 "Deshalb bleiben generischer Öl-&-Gas-KGV-Pfad, Standard-FCF/Bilanz-Score und Fair Value gesperrt, bis eine belastbare Post-Chart Earnings- und Kapitalstrukturbasis vorliegt."
+            ),
+        }
+
+    if symbol_text == "MDLZ" or "branded consumer staples / global snacks & confectionery" in type_name:
+        return {
+            "required": True,
+            "control_key": "branded_consumer_staples",
+            "control_name": "Branded Consumer Staples / Organic-Demand-, Adjusted-Earnings-, FCF-, Leverage- & Franchise-Kontrolle",
+            "planned_checks": [
+                "Organic Net Revenue und Volume/Mix statt Yahoo-Nominal-/GAAP-Gewinnwachstum",
+                "Adjusted Operating Margin und Margentrend",
+                "Issuer-adjusted EPS / Same-Basis Current-FY Guidance Credibility",
+                "Free Cash Flow Niveau und Stabilität statt FCF/Umsatz allein",
+                "Debt/Capital, Laufzeiten und Finanzierungsspielraum statt mechanischem Net-Debt/FCF",
+                "Marken-, Kategorie- und Geografieresilienz",
+                "Kapitalallokation / Dividende / Buybacks",
+                "Commodity-/Pricing-/Elasticity-Resilienz",
+                "17–25× Branded-Consumer-Spezialkorridor + Premium-Disziplin",
+                "Peers reference-only; Analystenziel ausschließlich Reality Check",
+            ],
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Branded Consumer Staples Specialist Model V1",
+            "note": (
+                "Mondelez wird nicht als generisches Industrie-/Standard-Unternehmen bewertet. GAAP-Mark-to-Market-Effekte, ROE, Yahoo-FCF-Marge und Net-Debt/FCF bleiben Diagnosekontext; "
+                "der Spezialpfad verwendet issuer-bereinigte Nachfrage-, Margen-, Earnings-, Cashflow- und Leverage-Daten."
             ),
         }
 
@@ -26166,6 +26546,7 @@ def calculate_valuation_confidence(
     is_gold_precious_metals_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "gold_precious_metals_current_share_pe"
     is_luxury_premium_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "luxury_premium_owner_earnings_pe"
     is_asset_management_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "asset_management_through_cycle_pe"
+    is_branded_consumer_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "branded_consumer_staples_current_fy_pe"
     is_defense_high_growth_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "defense_high_growth_current_fy_pe"
     if is_auto_valuation:
         cycle_status = str(fair_value.get("cycle_status") or "")
@@ -26187,6 +26568,12 @@ def calculate_valuation_confidence(
     elif is_utility_valuation:
         guidance_level = "Hoch"
         components["Current-FY Core/Adjusted EPS Guidance"] = (_confidence_rank_value(guidance_level), guidance_level)
+    elif is_branded_consumer_valuation:
+        bc_earnings = ((special_control or {}).get("checks") or {}).get("earnings_basis") or {}
+        earnings_level = bc_earnings.get("confidence") or "Niedrig"
+        earnings_rank = _confidence_rank_value(earnings_level)
+        if earnings_rank is not None:
+            components["Branded-Consumer Current-FY Adjusted-Earnings-Basis"] = (earnings_rank, earnings_level)
     elif is_asset_management_valuation:
         am_earnings = ((special_control or {}).get("checks") or {}).get("earnings_basis") or {}
         earnings_level = am_earnings.get("confidence") or "Niedrig"
@@ -26199,7 +26586,7 @@ def calculate_valuation_confidence(
         earnings_rank = _confidence_rank_value(earnings_level)
         if earnings_rank is not None:
             components["Defense Current-FY Earnings-Basis"] = (earnings_rank, earnings_level)
-    elif not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation and not is_defense_high_growth_valuation:
+    elif not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation and not is_branded_consumer_valuation and not is_defense_high_growth_valuation:
         eps_level = (eps_normalization or {}).get("confidence")
         eps_rank = _confidence_rank_value(eps_level)
         if eps_rank is not None:
@@ -26216,6 +26603,7 @@ def calculate_valuation_confidence(
         and not is_semicap_valuation
         and not is_nvidia_valuation
         and not is_luxury_premium_valuation
+        and not is_branded_consumer_valuation
         and not is_defense_high_growth_valuation
     ):
         usable_peers = int(peer_check.get("usable_count") or 0)
@@ -26944,6 +27332,80 @@ def calculate_fair_value_v1(
         return result
 
 
+
+    # V2.20.117 – Branded Consumer Staples specialist valuation.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "branded_consumer_staples"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        sv = checks.get("specialist_valuation") or {}
+        ss = checks.get("specialist_score") or {}
+        earnings = checks.get("earnings_basis") or {}
+        snap = special_control.get("snapshot") or {}
+        fv = safe_float(sv.get("fair_value_financial"))
+        if not sv.get("available") or fv is None or fv <= 0:
+            result["note"] = "Fair Value V1 gesperrt: Branded-Consumer-Spezialanker nicht vollständig verfügbar."
+            return result
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der Branded-Consumer-Bewertung sind nicht eindeutig."
+            return result
+        share_context = context.get("share_unit_context") or {}
+        share_ratio = 1.0
+        unit_notes = []
+        if share_context.get("conversion_required"):
+            if not share_context.get("conversion_available"):
+                result["note"] = "Fair Value V1 gesperrt: abweichende Handelseinheit ohne verifizierte Aktien-/ADR-Umrechnung."
+                return result
+            share_ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
+            if share_ratio is None or share_ratio <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Aktien-/ADR-Verhältnis ist nicht belastbar."
+                return result
+        fvq = fv * share_ratio
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Währungsumrechnung der Branded-Consumer-Bewertung nicht belastbar verfügbar."
+                return result
+            fvq *= factor
+            unit_notes.append(f"Währungsangleichung: {financial_currency} → {quote_currency} mit Faktor {factor:.6f}.")
+        elif quote_currency != financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+        cp = safe_float(current_price)
+        potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+        result.update({
+            "available": True,
+            "valuation_method": "branded_consumer_staples_current_fy_pe",
+            "normalized_eps": safe_float(sv.get("earnings_basis")),
+            "used_multiple": safe_float(sv.get("target_multiple")),
+            "multiple_source": f"{APP_BUILD_VERSION} Branded Consumer Staples Specialist P/E",
+            "fair_value_financial": fv,
+            "fair_value_quote": fvq,
+            "potential_pct": potential,
+            "specialist_score": safe_float(ss.get("score")),
+            "specialist_quality_level": ss.get("quality_level"),
+            "specialist_components": ss.get("components") or {},
+            "target_multiple": safe_float(sv.get("target_multiple")),
+            "raw_score_multiple": safe_float(sv.get("raw_score_multiple")),
+            "multiple_corridor_low": safe_float(sv.get("corridor_low")),
+            "multiple_corridor_high": safe_float(sv.get("corridor_high")),
+            "premium_cap": safe_float(sv.get("premium_cap")),
+            "premium_cap_binding": bool(sv.get("premium_cap_binding")),
+            "peer_reference_median_pe": safe_float(sv.get("peer_reference_median_pe")),
+            "earnings_basis_method": earnings.get("method"),
+            "branded_consumer_company": snap.get("company"),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "Branded-Consumer Fair Value V1 = verifizierter 0Y/current-FY Adjusted-EPS-Konsens × spezialisiertes Branded-Consumer-KGV. "
+                "GAAP-Mark-to-Market-Gewinnwachstum, generische FCF-Marge/Net-Debt-to-FCF, Peer-KGVs und Analystenziele fließen nicht direkt in den Fair Value ein."
+            ),
+        })
+        return result
 
     # V2.20.114 – Rheinmetall Defense High-Growth Prime specialist valuation (math unchanged).
     if (
@@ -32284,6 +32746,26 @@ def load_stock(selected_symbol, cache_version):
             ),
         }
 
+    if is_branded_consumer_staples_specialist_type(company_type, fundamental_symbol):
+        growth_score = {
+            **growth_score,
+            "context_score": growth_score.get("score"),
+            "score": None,
+            "note": (
+                f"Branded Consumer Staples {APP_BUILD_VERSION}: Generisches Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext. "
+                "Der Spezialpfad bewertet Organic Net Revenue und Volume/Mix aus Primärquellen und trennt Preis, Volumen sowie GAAP-Mark-to-Market-Effekte."
+            ),
+        }
+        profitability_score = {
+            **profitability_score,
+            "context_score": profitability_score.get("score"),
+            "score": None,
+            "brake_text": (
+                f"Branded Consumer Staples {APP_BUILD_VERSION}: Generische Nettomargen-/ROE-Punkte bleiben Diagnosekontext. "
+                "Maßgeblich sind Adjusted Operating Margin, Same-Basis Adjusted EPS, FCF-Qualität und Leverage."
+            ),
+        }
+
     if is_asset_management_specialist_type(company_type, fundamental_symbol):
         growth_score = {
             **growth_score,
@@ -32418,6 +32900,22 @@ def load_stock(selected_symbol, cache_version):
             "Kennzahl für die Standardbewertung berechnet."
         )
 
+    if is_branded_consumer_staples_specialist_type(company_type, fundamental_symbol):
+        fcf_score = {
+            **fcf_score,
+            "context_score": fcf_score.get("score"),
+            "score": None,
+            "note": (fcf_score.get("note") or "") +
+                f" {APP_BUILD_VERSION}: Generische FCF/Umsatz-Punkte sind gesperrt; FY/H1-FCF-Niveau, Stabilität und issuer guidance werden im Branded-Consumer-Spezialscore bewertet.",
+        }
+        balance_score = {
+            **balance_score,
+            "context_score": balance_score.get("score"),
+            "score": None,
+            "note": (balance_score.get("note") or "") +
+                f" {APP_BUILD_VERSION}: Net-Debt/FCF ist bei Branded Consumer Staples kein direkter Quality-Score. Debt/Capital, Laufzeiten und Finanzierungsspielraum werden separat bewertet.",
+        }
+
     if is_asset_management_specialist_type(company_type, fundamental_symbol):
         fcf_score = {
             **fcf_score,
@@ -32531,6 +33029,13 @@ def load_stock(selected_symbol, cache_version):
         company_type,
         fundamental_info,
         fundamental_symbol
+    )
+
+    branded_consumer_specialist_model = build_branded_consumer_specialist_model(
+        company_type,
+        fundamental_info,
+        fundamental_symbol,
+        valuation_forward_eps,
     )
 
     luxury_premium_specialist_model = build_luxury_premium_specialist_model(
@@ -32839,6 +33344,29 @@ def load_stock(selected_symbol, cache_version):
             ),
         }
 
+    if branded_consumer_specialist_model.get("applicable"):
+        bc_score = branded_consumer_specialist_model.get("specialist_score") or {}
+        bc_val = branded_consumer_specialist_model.get("specialist_valuation") or {}
+        bc_corridor = {
+            "available": bool(bc_val.get("available")),
+            "lower": safe_float(bc_val.get("corridor_low")),
+            "upper": safe_float(bc_val.get("corridor_high")),
+            "method": bc_val.get("valuation_method_name") or "Branded Consumer Staples Current-FY Adjusted P/E",
+            "note": f"{APP_BUILD_VERSION}: 17–25× Branded-Consumer-Spezialkorridor; generische GAAP-/FCF-/Net-Debt-to-FCF-Scores sind gesperrt.",
+        }
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": safe_float(bc_score.get("score")),
+            "corridor": bc_corridor,
+            "multiple": safe_float(bc_val.get("target_multiple")),
+            "available": bool(bc_score.get("available") and bc_val.get("available")),
+            "earnings_basis_usable": bool(bc_val.get("available")),
+            "note": (
+                f"{APP_BUILD_VERSION} verwendet für Branded Consumer Staples keinen generischen 100-Punkte-Score. "
+                "Organic Growth/Volume-Mix, Adjusted Margin/Earnings, FCF, Leverage, Franchise-Resilienz und Kapitalallokation bestimmen das Spezial-KGV; Peers bleiben reference-only."
+            ),
+        }
+
     if luxury_premium_specialist_model.get("applicable"):
         lx_score = luxury_premium_specialist_model.get("specialist_score") or {}
         lx_val = luxury_premium_specialist_model.get("specialist_valuation") or {}
@@ -32926,6 +33454,17 @@ def load_stock(selected_symbol, cache_version):
             False
         )
     )
+
+    if branded_consumer_specialist_model.get("applicable"):
+        bc_val_peer = dict(branded_consumer_specialist_model.get("specialist_valuation") or {})
+        bc_val_peer["peer_reference_median_pe"] = safe_float((peer_check or {}).get("peer_median"))
+        bc_val_peer["peer_guard_note"] = (peer_check or {}).get("note")
+        branded_consumer_specialist_model["specialist_valuation"] = bc_val_peer
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "multiple": safe_float(bc_val_peer.get("target_multiple")),
+            "note": (fundamental_multiple.get("note") or "") + " Branded-Consumer Peer Lock geprüft; keine automatische Peer-Anpassung.",
+        }
 
     # V2.20.109 – Asset-management peer/historical guard must run only AFTER
     # peer_check has been calculated. V2.20.108 referenced peer_check before
@@ -33064,6 +33603,11 @@ def load_stock(selected_symbol, cache_version):
         toyo_solar_specialist_model
     )
 
+    special_control = build_branded_consumer_special_control(
+        special_control,
+        branded_consumer_specialist_model
+    )
+
     special_control = build_luxury_premium_special_control(
         special_control,
         luxury_premium_specialist_model
@@ -33149,6 +33693,27 @@ def load_stock(selected_symbol, cache_version):
         bank_special_model=bank_special_model,
         insurance_special_model=insurance_special_model
     )
+
+    if branded_consumer_specialist_model.get("applicable") and branded_consumer_specialist_model.get("valuation_anchor_complete"):
+        bc_snap_event = branded_consumer_specialist_model.get("snapshot") or {}
+        bc_score_event = branded_consumer_specialist_model.get("specialist_score") or {}
+        special_event_warning = {
+            "level": "Gelb",
+            "icon": "🟡",
+            "title": "Mondelez Branded Consumer Specialist Gate + Commodity/Margin Watch aktiv",
+            "requires_research": False,
+            "valuation_usable": True,
+            "reason": (
+                f"Q2 Organic Net Revenue liegt bei {safe_float(bc_snap_event.get('q2_organic_revenue_growth_pct')):.1f} % und Volume/Mix bei "
+                f"{safe_float(bc_snap_event.get('q2_volume_mix_pct')):+.1f} %, während die Q2 Adjusted Operating Margin auf "
+                f"{safe_float(bc_snap_event.get('q2_adjusted_operating_margin_pct')):.1f} % gesunken ist. Der Branded-Consumer Quality Score beträgt "
+                f"{safe_float(bc_score_event.get('score')):.0f}/100. GAAP-EPS-Wachstum wird wegen Commodity-/FX-Mark-to-Market-Effekten nicht als operative Earnings-Qualität interpretiert."
+            ),
+            "action": (
+                f"{APP_BUILD_VERSION} verwendet Organic Growth/Volume-Mix, Adjusted Operating Margin/EPS, issuer-FCF-Guidance, Debt/Capital und Franchise-/Commodity-Resilienz. "
+                "Provider-GAAP-TTM-EPS, Yahoo-Gewinnwachstum, generische FCF-Marge und Net-Debt/FCF bleiben Diagnosekontext."
+            ),
+        }
 
     if defense_high_growth_specialist_model.get("applicable") and defense_high_growth_specialist_model.get("valuation_anchor_complete"):
         df_snap_event = defense_high_growth_specialist_model.get("snapshot") or {}
@@ -33731,6 +34296,7 @@ def load_stock(selected_symbol, cache_version):
         "turnaround_postmerger_specialist_model": turnaround_postmerger_specialist_model,
         "gold_precious_metals_specialist_model": gold_precious_metals_specialist_model,
         "toyo_solar_specialist_model": toyo_solar_specialist_model,
+        "branded_consumer_specialist_model": branded_consumer_specialist_model,
         "luxury_premium_specialist_model": luxury_premium_specialist_model,
         "asset_management_specialist_model": asset_management_specialist_model,
         "defense_high_growth_specialist_model": defense_high_growth_specialist_model,
@@ -34403,6 +34969,7 @@ if selected_symbol:
                 is_gold_precious_metals_fcf_context = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_fcf_context = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                 is_luxury_premium_fcf_context = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
+                is_branded_consumer_fcf_context = bool((data.get("branded_consumer_specialist_model") or {}).get("applicable"))
                 is_ctva_fcf_context = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 if fcf_ctx.get("score_eligible"):
                     source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
@@ -34480,6 +35047,11 @@ if selected_symbol:
                         st.caption(
                             "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
                             f"Bei Luxury-Family-Unternehmen bleibt der Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. {APP_BUILD_VERSION} verwendet den issuer-ausgewiesenen profilabhängigen Cashflow-Anker (Hermès: Adjusted Free Cash Flow; LVMH: Operating Free Cash Flow) aus H1 2026; Yahoo-FCF steuert weder Quality Score, Ziel-KGV noch Fair Value."
+                        )
+                    elif is_branded_consumer_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            f"Bei Branded Consumer Staples bleibt der Yahoo-/Cashflow-Statement-TTM-FCF Diagnosekontext. {APP_BUILD_VERSION} bewertet FCF-Qualität über issuer-ausgewiesenen FY2025-FCF, H1-2026-FCF und die FY2026-FCF-Guidance; die generische FCF-Marge steuert weder Quality Score noch Ziel-KGV oder Fair Value."
                         )
                     elif is_ctva_fcf_context:
                         st.caption(
@@ -34823,6 +35395,7 @@ if selected_symbol:
                 luxury_premium_eps_context_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                 asset_management_eps_context_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                 defense_high_growth_eps_context_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
+                branded_consumer_eps_context_ui = bool((data.get("branded_consumer_specialist_model") or {}).get("applicable"))
                 ctva_eps_context_ui = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 if bank_core_eps_active:
                     normalized_eps = safe_float(
@@ -34836,7 +35409,7 @@ if selected_symbol:
                     normalized_eps_label = "Versicherungs-Core-TTM-EPS"
                 else:
                     normalized_eps = eps_result["normalized_eps"]
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or asset_management_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or asset_management_eps_context_ui or defense_high_growth_eps_context_ui or branded_consumer_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -34922,6 +35495,23 @@ if selected_symbol:
                             "TOYO Solar: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
                             f"{APP_BUILD_VERSION} verwendet für den Fair Value den Q2-2026 Net-Income-Run-Rate auf der tatsächlichen 30.06.-Aktienzahl; Yahoo Current-FY/+1Y-Konsens bleibt nur Horizont-Kontext."
                         )
+                    elif branded_consumer_eps_context_ui:
+                        bc_eps_model_ui = data.get("branded_consumer_specialist_model") or {}
+                        bc_eps_basis_ui = bc_eps_model_ui.get("earnings_basis") or {}
+                        bc_eps_snap_ui = bc_eps_model_ui.get("snapshot") or {}
+                        st.info(
+                            "Branded Consumer Staples: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                            f"{APP_BUILD_VERSION} verwendet für den Fair Value den 0Y/current-FY Adjusted-EPS-Konsens nur nach einer Same-Basis-Guidance-Brücke aus FY2025 Adjusted EPS, FY2026 issuer guidance und dem explizit ausgewiesenen FX-EPS-Effekt."
+                        )
+                        if bc_eps_basis_ui.get("available"):
+                            st.write(
+                                "**Branded-Consumer Current-FY Adjusted-Earnings-Basis:** " + format_eps(bc_eps_basis_ui.get("value"), financial_currency) +
+                                " · FY2025 Adjusted EPS " + format_eps(bc_eps_basis_ui.get("fy2025_adjusted_eps"), financial_currency) +
+                                " · Guidance-Brücke " + format_eps(bc_eps_basis_ui.get("guide_low"), financial_currency) +
+                                " bis " + format_eps(bc_eps_basis_ui.get("guide_high"), financial_currency)
+                            )
+                        else:
+                            st.warning("Branded-Consumer Same-Basis-Earnings-Brücke nicht bestanden – Fair Value bleibt fail-closed.")
                     elif defense_high_growth_eps_context_ui:
                         df_eps_model_ui = data.get("defense_high_growth_specialist_model") or {}
                         df_eps_basis_ui = df_eps_model_ui.get("earnings_basis") or {}
@@ -35018,6 +35608,16 @@ if selected_symbol:
                         "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
                         "die UA/UAA-/OMC-Spezialbewertungssicherheit wird ausschließlich aus der eigenen Primärquellen-Basis, Spezialmethode und den Turnaround-/Post-Merger-Risikogates bestimmt."
                     )
+                elif branded_consumer_eps_context_ui:
+                    bc_eps_conf_ui = ((data.get("branded_consumer_specialist_model") or {}).get("earnings_basis") or {})
+                    bc_eps_level_ui = str(bc_eps_conf_ui.get("confidence") or "Niedrig")
+                    if bc_eps_level_ui == "Hoch":
+                        st.success("Branded-Consumer Current-FY Adjusted-Earnings-Basis: **Hohe Sicherheit**")
+                    elif bc_eps_level_ui == "Mittel":
+                        st.warning("Branded-Consumer Current-FY Adjusted-Earnings-Basis: **Mittlere Sicherheit**")
+                    else:
+                        st.error("Branded-Consumer Current-FY Adjusted-Earnings-Basis: **Niedrige Sicherheit**")
+                    st.caption("Provider/GAAP-TTM-EPS und das generische EPS-Divergenz-Gate steuern weder Branded-Consumer-Fair-Value noch dessen Bewertungssicherheit.")
                 elif defense_high_growth_eps_context_ui:
                     df_eps_conf_ui = ((data.get("defense_high_growth_specialist_model") or {}).get("earnings_basis") or {})
                     df_eps_level_ui = str(df_eps_conf_ui.get("confidence") or "Niedrig")
@@ -35860,6 +36460,7 @@ if selected_symbol:
                 is_luxury_premium_score_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                 is_asset_management_score_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                 is_defense_high_growth_score_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
+                is_branded_consumer_score_ui = bool((data.get("branded_consumer_specialist_model") or {}).get("applicable"))
                 is_kratos_score_ui = str(selected_symbol or "").upper() == "KTOS"
                 is_bkr_score_ui = str(selected_symbol or "").upper() == "BKR"
 
@@ -35893,6 +36494,9 @@ if selected_symbol:
                 elif is_toyo_solar_score_ui:
                     st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Der generische Wachstumsscore wird nicht verwendet.")
                     st.caption("Wachstum/Skalierung werden aus Q2/H1-2026-Umsatz, Auslieferungen und Manufacturing-Ramp aus Primärquellen bewertet; Yahoo-Wachstumswerte bleiben Diagnosekontext.")
+                elif is_branded_consumer_score_ui:
+                    st.info("ℹ️ Im Branded-Consumer-Staples-Spezialmodell berücksichtigt: Der generische Umsatz-/GAAP-Gewinnwachstums-Score wird nicht verwendet.")
+                    st.caption("Bewertet werden Organic Net Revenue und Volume/Mix getrennt. Preisgetriebenes Wachstum ohne Mengentraktion erhält keinen vollen Demand-Quality-Score; GAAP-Mark-to-Market-Effekte bleiben Diagnosekontext.")
                 elif is_defense_high_growth_score_ui:
                     st.info("ℹ️ Im Defense-High-Growth-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
                     st.caption("Rheinmetall wird über Backlog/Fixed Orders, organische FY26-Wachstums-Guidance, Operating-Result-Wachstum und Revenue Visibility aus Primärquellen bewertet. Yahoo-Gewinnwachstum bleibt Diagnosekontext.")
@@ -36015,7 +36619,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_asset_management_score_ui and not is_defense_high_growth_score_ui:
+                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_asset_management_score_ui and not is_defense_high_growth_score_ui and not is_branded_consumer_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -36047,6 +36651,7 @@ if selected_symbol:
                 is_luxury_premium_profitability_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                 is_asset_management_profitability_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                 is_defense_high_growth_profitability_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
+                is_branded_consumer_profitability_ui = bool((data.get("branded_consumer_specialist_model") or {}).get("applicable"))
                 is_bkr_profitability_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                 if is_bkr_profitability_ui:
@@ -36063,6 +36668,9 @@ if selected_symbol:
                 elif is_gold_precious_metals_profitability_ui:
                     st.info("ℹ️ Im GOLD-Precious-Metals-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption(f"Für einen Edelmetallhändler ist Umsatzmarge strukturell wenig aussagekräftig. {APP_BUILD_VERSION} bewertet Gross-Margin-Resilienz, Gross Profit, EBITDA-Skalierung und Q4 Adjusted-Pretax-Momentum aus Primärquellen.")
+                elif is_branded_consumer_profitability_ui:
+                    st.info("ℹ️ Im Branded-Consumer-Staples-Spezialmodell berücksichtigt: Die generische GAAP-Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
+                    st.caption("Bewertet werden issuer-adjustierte Operating Margin und Margentrend sowie Adjusted-EPS-Qualität auf gleicher Basis. Commodity-/FX-Mark-to-Market-Effekte im GAAP-Ergebnis bleiben Diagnosekontext.")
                 elif is_luxury_premium_profitability_ui:
                     st.info("ℹ️ Im Luxury-Family-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption("Bewertet werden Recurring Operating Margin, issuer-basierte Owner Earnings, Cash-Conversion und profilabhängige Bilanz-/Franchise-Qualität. Yahoo-Nettomarge und ROE bleiben Diagnosekontext.")
@@ -36225,6 +36833,7 @@ if selected_symbol:
                     and not is_luxury_premium_profitability_ui
                     and not is_asset_management_profitability_ui
                     and not is_defense_high_growth_profitability_ui
+                    and not is_branded_consumer_profitability_ui
                 ):
                     st.caption(
                         "Die Profitabilität basiert derzeit auf "
@@ -36355,6 +36964,7 @@ if selected_symbol:
                     is_luxury_premium_fcf_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                     is_asset_management_fcf_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                     is_defense_high_growth_fcf_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
+                    is_branded_consumer_fcf_ui = bool((data.get("branded_consumer_specialist_model") or {}).get("applicable"))
                     is_bkr_model_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                     if is_bkr_model_ui:
@@ -36375,6 +36985,9 @@ if selected_symbol:
                     elif is_toyo_solar_fcf_ui:
                         st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
                         st.caption(f"{APP_BUILD_VERSION} verwendet ausschließlich issuer-ausgewiesenen H1 Operating Cash Flow minus CapEx als Cash-Conversion-Komponente. Yahoo-TTM-FCF bleibt Diagnosekontext.")
+                    elif is_branded_consumer_fcf_ui:
+                        st.info("ℹ️ Im Branded-Consumer-Staples-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Margen-Score wird nicht verwendet.")
+                        st.caption("FCF-Qualität wird über FY2025-FCF, H1-2026-FCF und die FY2026-FCF-Guidance auf issuer-Basis bewertet. Cashflow-Stabilität zählt; FCF/Umsatz allein rechtfertigt kein Premium-KGV.")
                     elif is_defense_high_growth_fcf_ui:
                         st.info("ℹ️ Im Defense-High-Growth-Spezialmodell berücksichtigt: Der generische Yahoo-/TTM-FCF-Margen-Score wird nicht verwendet.")
                         st.caption("Rheinmetalls H1 Operating FCF, Working-Capital-/Kapazitätsaufbau und FY26 Cash-Conversion-Guidance werden separat bewertet. Negativer H1-OFCF löst einen downside-only Multiple-Cap aus; er wird nicht mechanisch in Net-Debt/FCF übersetzt.")
@@ -36459,6 +37072,7 @@ if selected_symbol:
                     and not bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("branded_consumer_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 ):
                     st.caption(
@@ -36589,6 +37203,7 @@ if selected_symbol:
                     is_luxury_premium_balance_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                     is_asset_management_balance_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                     is_defense_high_growth_balance_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
+                    is_branded_consumer_balance_ui = bool((data.get("branded_consumer_specialist_model") or {}).get("applicable"))
                     is_bkr_balance_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                     if is_bkr_balance_ui:
@@ -36609,6 +37224,9 @@ if selected_symbol:
                     elif is_toyo_solar_balance_ui:
                         st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("TOYO bewertet Liquidität, tatsächliche Aktienverwässerung, RDO/Warrants, Rest-ATM und den 357-Mio.-USD-HJT-Finanzierungsbedarf separat; Yahoo-Schulden/FCF bleiben Kontext.")
+                    elif is_branded_consumer_balance_ui:
+                        st.info("ℹ️ Im Branded-Consumer-Staples-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
+                        st.caption("Bewertet werden Debt/Capital, Laufzeitenstruktur und verfügbare Finanzierungskapazität. Ein stabiler globaler Markenhersteller wird nicht mechanisch über Net Debt / aktuellen FCF auf 0 Bilanzpunkte gesetzt.")
                     elif is_defense_high_growth_balance_ui:
                         st.info("ℹ️ Im Defense-High-Growth-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("Rheinmetall bewertet Net Financial Debt relativ zum Eigenkapital und den Finanzierungs-/Kapazitätsaufbau separat. Ein temporär schwacher TTM-/H1-Cashflow darf die Bilanz nicht mechanisch über Net-Debt/FCF auf 0/15 drücken.")
@@ -36705,6 +37323,7 @@ if selected_symbol:
                     and not bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("branded_consumer_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 ):
                     st.caption(
@@ -38597,6 +39216,7 @@ if selected_symbol:
                     reference_only_peer_group_ui = peer_group.get("peer_model") in {
                         "defense_high_growth_prime_reference_v2",
                         "luxury_premium_reference_v1",
+                        "branded_consumer_reference_v1",
                     }
                     if reference_only_peer_group_ui:
                         st.info(
@@ -38634,6 +39254,12 @@ if selected_symbol:
                         "Die Peer-KGVs werden in Schritt 2B ausschließlich als reference-only geladen; "
                         "es gibt keine automatische ±5-%-Anpassung und keinen Peer-bedingten Confidence-Abzug."
                     )
+                elif peer_group.get("peer_model") == "branded_consumer_reference_v1":
+                    st.caption(
+                        "Schritt 2A verändert weder Branded-Consumer Quality Score noch Fundamental-Multiple. "
+                        "PEP/KO/Nestlé/Hershey werden in Schritt 2B ausschließlich als reference-only geladen; "
+                        "es gibt keine automatische ±5-%-Anpassung und keinen Peer-bedingten Confidence-Abzug."
+                    )
                 elif peer_group.get("peer_model") == "luxury_premium_reference_v1":
                     st.caption(
                         "Schritt 2A verändert weder Luxury-Family Quality Score noch Fundamental-Multiple. "
@@ -38667,6 +39293,7 @@ if selected_symbol:
                 is_medical_devices_peer_metric = peer_check.get("metric") == "Medical Devices Forward P/E guarded reference"
                 is_asset_management_peer_metric = peer_check.get("metric") == "Traditional Asset Manager Forward P/E reference guard"
                 is_luxury_peer_metric = peer_check.get("metric") == "Luxury Goods Forward P/E reference-only"
+                is_branded_consumer_peer_metric = peer_check.get("metric") == "Branded Consumer Staples Forward P/E reference-only"
 
                 if not peer_check[
                     "method_supported"
@@ -38696,6 +39323,8 @@ if selected_symbol:
                         peer_header = "**Medical-Devices Peer-Forward-KGVs (Kalibrierung):**"
                     elif is_asset_management_peer_metric:
                         peer_header = "**Asset-Management Peer-Forward-KGVs (Referenz):**"
+                    elif is_branded_consumer_peer_metric:
+                        peer_header = "**Branded-Consumer Peer-Forward-KGVs (reference-only):**"
                     elif is_luxury_peer_metric:
                         peer_header = "**Luxury-Family Peer-Forward-KGVs (reference-only):**"
                     else:
@@ -38923,6 +39552,8 @@ if selected_symbol:
                     peer_explain = "Baker Hughes V2.20.73: SLB/HAL/FTI/GEV bleiben Teilsegment-Referenzen. Eine automatische Anpassung wäre erst bei mindestens 3 voll vergleichbaren Post-Chart Peers mit normalisierter Earnings-/Kapitalstrukturbasis zulässig."
                 elif is_medical_devices_peer_metric:
                     peer_explain = "Medical Devices V2.20.103: Mindestens 3 Core-Peers müssen Struktur, 0Y/current-FY-Horizont und verifizierte Same-Basis-Earnings gemeinsam erfüllen. Provider-Forward-KGVs mit +1Y/unklarem Horizont oder ungeklärter Accounting-Basis bleiben reference-only; Median statt Durchschnitt, danach weiterhin ±5-%-Cap."
+                elif is_branded_consumer_peer_metric:
+                    peer_explain = f"Branded Consumer Staples {APP_BUILD_VERSION}: PepsiCo/Coca-Cola/Nestlé/Hershey bleiben Markt-/Kalibrierungsreferenzen. Unterschiedliche Kategorie-, Margen-, Kapital- und Accounting-Profile verhindern in V1 eine automatische Peer-Anpassung; es gibt keine Mindestanzahl als Fair-Value-Gate."
                 elif is_luxury_peer_metric:
                     peer_explain = f"Luxury-Family {APP_BUILD_VERSION}: Hermès/LVMH/Richemont/Moncler/Kering bleiben reference-only, bis Current-FY-Horizont und dieselbe Primary-source Owner-Earnings-Basis gemeinsam verifiziert sind. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische ±5-%-Anpassung."
                 else:
@@ -39062,6 +39693,70 @@ if selected_symbol:
                         "nachfolgenden Fair-Value-Schritt, solange sie noch "
                         "nicht vollständig implementiert und freigegeben sind."
                     )
+
+                if special_control.get("control_key") == "branded_consumer_staples":
+                    st.divider()
+                    st.subheader("🍪 Modul 6 – Schritt 3B: Branded Consumer Staples Specialist Model V1")
+                    if special_control.get("implemented"):
+                        checks_bc = special_control.get("checks") or {}
+                        snap_bc = special_control.get("snapshot") or {}
+                        score_bc = checks_bc.get("specialist_score") or {}
+                        earn_bc = checks_bc.get("earnings_basis") or {}
+                        val_bc = checks_bc.get("specialist_valuation") or {}
+                        st.write(f"**Primärdatenstand:** {text_or_dash(snap_bc.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_bc.get('published_date'))})")
+                        st.caption(text_or_dash(snap_bc.get("source_name")))
+                        links_bc = []
+                        if snap_bc.get("source_url"): links_bc.append(f"[Q2 2026 Earnings]({snap_bc.get('source_url')})")
+                        if snap_bc.get("ten_q_url"): links_bc.append(f"[Form 10-Q]({snap_bc.get('ten_q_url')})")
+                        if snap_bc.get("fy2025_url"): links_bc.append(f"[FY2025 Results]({snap_bc.get('fy2025_url')})")
+                        if links_bc: st.markdown(" · ".join(links_bc))
+                        b1, b2 = st.columns(2)
+                        with b1:
+                            st.metric("Q2 Organic Net Revenue", f"{safe_float(snap_bc.get('q2_organic_revenue_growth_pct')):+.1f} %")
+                            st.metric("Q2 Volume/Mix", f"{safe_float(snap_bc.get('q2_volume_mix_pct')):+.1f} %")
+                            st.metric("Q2 Adjusted Operating Margin", f"{safe_float(snap_bc.get('q2_adjusted_operating_margin_pct')):.1f} %")
+                            st.caption(f"Margentrend Q2: {safe_float(snap_bc.get('q2_adjusted_operating_margin_change_bps')):+.0f} bp")
+                        with b2:
+                            st.metric("Q2 Adjusted EPS Wachstum konst. FX", f"{safe_float(snap_bc.get('q2_adjusted_eps_growth_constant_fx_pct')):+.1f} %")
+                            st.metric("FY2026 FCF Guidance", format_money(snap_bc.get("fy2026_fcf_guidance"), financial_currency))
+                            st.metric("Debt / Capital", f"{safe_float(snap_bc.get('debt_to_capitalization_pct')):.1f} %")
+                            st.caption(f"Ø Long-Term-Debt-Laufzeit: {safe_float(snap_bc.get('weighted_average_long_term_debt_maturity_years')):.1f} Jahre")
+                        if score_bc.get("available"):
+                            st.metric("Branded Consumer Quality Score", f"{safe_float(score_bc.get('score')):.0f}/100 · {text_or_dash(score_bc.get('quality_level'))}")
+                            if score_bc.get("components"):
+                                st.write("**Score-Komponenten:** " + " · ".join(f"{name} {safe_float(points):.0f}" for name, points in score_bc.get("components", {}).items()))
+                        if earn_bc.get("available"):
+                            st.metric("Current-FY Adjusted-Earnings-Basis", format_eps(earn_bc.get("value"), financial_currency))
+                            st.write(
+                                "**Issuer-Guidance-Brücke:** FY2025 Adjusted EPS " + format_eps(earn_bc.get("fy2025_adjusted_eps"), financial_currency) +
+                                " · FY2026 zulässiger Bereich " + format_eps(earn_bc.get("guide_low"), financial_currency) +
+                                " – " + format_eps(earn_bc.get("guide_high"), financial_currency)
+                            )
+                            st.caption(text_or_dash(earn_bc.get("method")))
+                        if val_bc.get("available"):
+                            st.write(
+                                f"**Branded-Consumer-KGV-Korridor:** {safe_float(val_bc.get('corridor_low')):.2f}× – {safe_float(val_bc.get('corridor_high')):.2f}× · "
+                                f"**Ziel-KGV:** {safe_float(val_bc.get('target_multiple')):.2f}×"
+                            )
+                            st.write(
+                                f"**Premium-Disziplin:** Cap {safe_float(val_bc.get('premium_cap')):.2f}× · " +
+                                ("bindend" if val_bc.get("premium_cap_binding") else "nicht bindend")
+                            )
+                            peer_ref_bc = safe_float(val_bc.get("peer_reference_median_pe"))
+                            if peer_ref_bc is not None:
+                                st.write(f"**Peer-Median (reference-only):** {peer_ref_bc:.2f}×")
+                            st.metric(f"{text_or_dash(snap_bc.get('company'))} Fair Value – Fundamentalwährung", format_currency_value(val_bc.get("fair_value_financial"), financial_currency, 2))
+                        st.info(
+                            "GAAP-Gewinnsprünge, Yahoo-Nettomarge/ROE, generische FCF-Marge und Net-Debt/FCF steuern diese Bewertung nicht. "
+                            "Peers und externe Fair Values bleiben Kontroll-/Kalibrierungsinformationen und werden nicht in den Fair Value hineingerechnet."
+                        )
+                        if special_control.get("released"):
+                            st.success("Branded-Consumer-Spezialkontrolle vollständig – Fair Value freigegeben.")
+                        else:
+                            st.warning("Branded-Consumer-Spezialkontrolle nicht vollständig – Fair Value bleibt gesperrt.")
+                        st.caption(text_or_dash(special_control.get("note")))
+                    else:
+                        st.warning("Branded-Consumer-Spezialkontrolle erkannt, aber die Primärquellenbasis ist für diesen Titel noch nicht vollständig freigegeben.")
 
                 if special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
@@ -42536,6 +43231,13 @@ if selected_symbol:
                                 "**Abstand der Bewertungsanker:** "
                                 f"{fair_value.get('anchor_spread_pct'):.1f} %"
                             )
+                    elif fair_value.get("valuation_method") == "branded_consumer_staples_current_fy_pe":
+                        st.write("**Bewertungsformel:** Branded Consumer Current-FY Adjusted-Earnings-Basis × spezialisiertes Branded-Consumer-KGV")
+                        st.write(f"**Branded Consumer Quality Score:** {fair_value.get('specialist_score'):.0f}/100 · {fair_value.get('specialist_quality_level')}")
+                        st.write("**Current-FY Adjusted-Earnings-Basis:** " + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"]))
+                        st.write(f"**Ziel-KGV:** {fair_value.get('target_multiple'):.2f}× · **Korridor:** {fair_value.get('multiple_corridor_low'):.2f}× – {fair_value.get('multiple_corridor_high'):.2f}×")
+                        st.write(f"**Premium-Disziplin-Cap:** {fair_value.get('premium_cap'):.2f}× · " + ("bindend" if fair_value.get("premium_cap_binding") else "nicht bindend"))
+                        st.caption("GAAP-Mark-to-Market-Gewinnwachstum, generische FCF-Marge/Net-Debt-to-FCF, Branded-Consumer-Peer-KGVs und Analystenziele sind kein direkter Bestandteil des Fair Values.")
                     elif fair_value.get("valuation_method") == "luxury_premium_owner_earnings_pe":
                         st.write("**Bewertungsformel:** Primary-source normalized owner earnings × profilabhängiges scoregesteuertes Luxury-Family Spezial-KGV")
                         st.write(f"**Luxury-Family Quality Score:** {fair_value.get('specialist_score'):.0f}/100 · {fair_value.get('specialist_quality_level')}")
@@ -42841,6 +43543,10 @@ if selected_symbol:
                             "Versicherungs-Fair-Value V1 wurde aus zwei unabhängigen, versicherungsspezifischen "
                             "Bewertungsankern berechnet und erst nach der Schritt-3B-Freigabe veröffentlicht."
                         )
+                    elif fair_value.get("valuation_method") == "branded_consumer_staples_current_fy_pe":
+                        st.success(
+                            "Branded-Consumer-Fair-Value V1 wurde aus der issuer-verifizierten Current-FY Adjusted-Earnings-Basis und dem scoregesteuerten Branded-Consumer-KGV berechnet. Externe Fair Values und Analystenziele bleiben außerhalb der Rechnung."
+                        )
                     elif fair_value.get("valuation_method") == "gold_precious_metals_current_share_pe":
                         st.success(
                             "GOLD-Fair-Value V1 wurde aus der bereinigten FY2026 Current-Share-Earnings-Basis (Depreciation nicht addiert) und dem primärquellenbasierten Precious-Metals Quality Score berechnet."
@@ -42951,6 +43657,11 @@ if selected_symbol:
                                 "Post-Merger-Sicherheitsisolierung: Das strukturell verzerrte GAAP-TTM, die Standard-TTM-/Forward-EPS-Divergenz und Yahoo-FCF sind kein Bestandteil der OMC-Bewertungssicherheit. "
                                 "Die angezeigte Sicherheitsstufe stammt ausschließlich aus Post-Merger-Methode, H1-2026 Adjusted-EPS-Run-Rate und der Spezialkontrolle einschließlich Integration-, Synergie- und Finanzierungsrisiken."
                             )
+                    elif fair_value.get("valuation_method") == "branded_consumer_staples_current_fy_pe":
+                        st.info(
+                            "Branded-Consumer-Sicherheitsisolierung: Provider/GAAP-TTM-EPS, generische TTM/Forward-Divergenz sowie PEP/KO/Nestlé/Hershey-Peers sind kein Begrenzungsfaktor. "
+                            "Maßgeblich bleiben Unternehmenstyp/Methode, die issuer-verifizierte Current-FY Adjusted-Earnings-Basis und die Branded-Consumer-Spezialkontrolle."
+                        )
                     elif fair_value.get("valuation_method") == "asset_management_through_cycle_pe":
                         am_conf_basis_ui = (((data.get("special_control") or {}).get("checks") or {}).get("earnings_basis") or {})
                         st.info(
