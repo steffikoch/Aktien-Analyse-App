@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.101"
+APP_BUILD_VERSION = "V2.20.102"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,11 +25,12 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · FY-Guidance-First Same-Basis Growth Guard V3"
+    f"Build {APP_BUILD_VERSION} · Medical-Devices Peer Calibration & Safety Overlay V1"
 )
 
 
 # V2.20.101: FY-Guidance-First Same-Basis Earnings Growth Guard V3. When an active high-confidence accounting-basis bridge has fresh issuer Current-FY Adjusted/Core/Operating EPS guidance and a same-basis prior-FY EPS, the growth score now uses FY guidance midpoint vs. prior FY as the primary annual growth anchor. Multi-quarter YTD same-basis growth remains a momentum/plausibility control and is shown separately; it no longer displaces the annual guidance anchor. Without a verified same-basis FY bridge, the V2.20.100 YTD -> latest-quarter fail-closed fallback remains intact.
+# V2.20.102: Medical-Devices Peer Calibration & Safety Overlay V1. Standard-company issuers with Yahoo industry “Medical Devices” receive a dedicated structural peer set (SYK/MDT/BSX/ZBH/EW plus broad/high-growth reference peers BDX/ISRG). Provider Forward-P/E is used only as a market-multiple calibration layer; at least three structurally comparable core peers are required, the eligible-peer median is used, and any automatic adjustment to the score-derived fundamental P/E is capped at ±5 %. The issuer EPS basis, 100-point score and FY-guidance-first Same-Basis Growth Guard remain unchanged. Broad-scope or high-growth outlier peers are reference-only.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -15686,10 +15687,11 @@ def calculate_fundamental_multiple(
 # Modul 6 – Schritt 2A: Peer-Gruppe festlegen
 # =========================================================
 
-def get_peer_group(company_type, symbol):
+def get_peer_group(company_type, symbol, industry=None):
     type_name = str(
         company_type.get("type", "")
     ).lower()
+    industry_text = str(industry or "").strip().lower()
 
     peer_groups = [
         (
@@ -15914,6 +15916,36 @@ def get_peer_group(company_type, symbol):
         }
 
     if "standard-unternehmen" in type_name:
+        if "medical devices" in industry_text:
+            peers = [
+                ("SYK", "Stryker"),
+                ("MDT", "Medtronic"),
+                ("BSX", "Boston Scientific"),
+                ("ZBH", "Zimmer Biomet"),
+                ("EW", "Edwards Lifesciences"),
+                ("BDX", "Becton, Dickinson and Company"),
+                ("ISRG", "Intuitive Surgical"),
+            ]
+            filtered = [
+                {"symbol": ps, "name": pn}
+                for ps, pn in peers
+                if ps.upper() != own_symbol
+            ]
+            return {
+                "available": len(filtered) > 0,
+                "peers": filtered,
+                "count": len(filtered),
+                "target_symbol": own_symbol,
+                "peer_model": "medical_devices_v1",
+                "industry": industry_text,
+                "note": (
+                    "Medical-Devices-Peer-Kalibrierung V2.20.102 aktiv. Core-Peers werden strukturell "
+                    "von breiteren bzw. hoch bewerteten Referenz-Peers getrennt. Mindestens 3 brauchbare "
+                    "Core-Peers sind Pflicht; der Median statt Durchschnitt wird verwendet. Der Peer-Layer "
+                    "darf das scoregesteuerte Fundamental-KGV maximal um ±5 % verändern und ersetzt weder "
+                    "die normalisierte EPS-Basis noch den 100-Punkte-Score."
+                ),
+            }
         return {
             "available": False,
             "peers": [],
@@ -16068,6 +16100,155 @@ def load_peer_forward_pe(peer_symbol, cache_version):
                 "geladen werden."
             )
         }
+
+
+MEDICAL_DEVICES_PEER_COMPARABILITY = {
+    "SYK": {
+        "structure": "Diversified medical devices / orthopedics / med-surg",
+        "core_comparable": True,
+        "note": "Diversifizierter MedTech-Anbieter mit hohem Geräte-/Implantatanteil; Core-Peer.",
+    },
+    "MDT": {
+        "structure": "Diversified medical devices",
+        "core_comparable": True,
+        "note": "Breit diversifizierter MedTech-Anbieter; Core-Peer.",
+    },
+    "BSX": {
+        "structure": "Interventional medical devices",
+        "core_comparable": True,
+        "note": "Großer wachstumsstarker MedTech-Anbieter mit interventionellem Schwerpunkt; Core-Peer.",
+    },
+    "ZBH": {
+        "structure": "Orthopedics / musculoskeletal medical devices",
+        "core_comparable": True,
+        "note": "Orthopädie-/Implantatgeschäft ist strukturell eng vergleichbar; Core-Peer.",
+    },
+    "EW": {
+        "structure": "Structural-heart medical devices",
+        "core_comparable": True,
+        "note": "Spezialisierter Premium-MedTech-Anbieter; als Core-Peer zugelassen, aber mit engerem Produktmix.",
+    },
+    "BDX": {
+        "structure": "Broad medical technology / diagnostics / supplies",
+        "core_comparable": False,
+        "note": "Breiterer Diagnostik-/Verbrauchsmaterialmix; nur Markt-Referenz.",
+    },
+    "ISRG": {
+        "structure": "Robotic surgery platform",
+        "core_comparable": False,
+        "note": "Höheres strukturelles Wachstum und Plattform-/Recurring-Mix; Bewertungs-Ausreißer, nur Referenz.",
+    },
+}
+
+
+def _medical_devices_peer_comparability(symbol, peer_data):
+    sym = str(symbol or "").upper()
+    meta = dict(MEDICAL_DEVICES_PEER_COMPARABILITY.get(sym, {}))
+    structure_ok = bool(meta.get("core_comparable", False))
+    usable = bool((peer_data or {}).get("usable"))
+    return {
+        "structure": meta.get("structure", "Medical-Devices-Struktur nicht klassifiziert"),
+        "structure_comparable": structure_ok,
+        "structure_note": meta.get("note") or "Keine ausreichende strukturelle Peer-Klassifikation.",
+        "earnings_basis": "provider_consensus_forward_eps",
+        "earnings_basis_note": (
+            "Forward-KGV ist ein einheitlich geladener Provider-Marktwert; die unternehmensindividuellen Adjusted-Reconciliations "
+            "werden nicht als identisch unterstellt. Deshalb gilt selbst bei Core-Peers ein strikter ±5-%-Safety-Cap."
+        ),
+        "adjustment_eligible": bool(usable and structure_ok),
+    }
+
+
+def _calculate_medical_devices_peer_overlay(peer_group, fundamental_multiple, cache_version):
+    """V2.20.102 Medical-Devices market-multiple calibration with safety caps.
+
+    The target issuer keeps its own normalized/adjusted earnings basis and score.
+    Yahoo/provider Forward-P/E is used only to calibrate the market multiple. Broad
+    medical-technology and high-growth platform outliers remain reference-only.
+    """
+    result = {
+        "method_supported": True,
+        "metric": "Medical Devices Forward P/E calibration",
+        "peer_rows": [],
+        "usable_count": 0,
+        "adjustment_eligible_count": 0,
+        "peer_median": None,
+        "eligible_peer_median": None,
+        "comparability_gate_passed": False,
+        "adjustment_pct": 0.0,
+        "adjusted_multiple": safe_float(fundamental_multiple),
+        "applied": False,
+        "reference_gap_pct": None,
+        "note": None,
+    }
+
+    for peer in (peer_group or {}).get("peers", []):
+        pdx = dict(load_peer_forward_pe(peer.get("symbol"), cache_version) or {})
+        comp = _medical_devices_peer_comparability(peer.get("symbol"), pdx)
+        result["peer_rows"].append({
+            "symbol": peer.get("symbol"),
+            "name": peer.get("name"),
+            "usable": bool(pdx.get("usable")),
+            "forward_pe": safe_float(pdx.get("forward_pe")),
+            "source": pdx.get("source"),
+            "reason": pdx.get("reason"),
+            **comp,
+        })
+
+    refs = [
+        r["forward_pe"] for r in result["peer_rows"]
+        if r.get("usable") and r.get("forward_pe") is not None and r.get("forward_pe") > 0
+    ]
+    eligible = [
+        r["forward_pe"] for r in result["peer_rows"]
+        if r.get("adjustment_eligible") and r.get("forward_pe") is not None and r.get("forward_pe") > 0
+    ]
+    result["usable_count"] = len(refs)
+    result["adjustment_eligible_count"] = len(eligible)
+
+    base = safe_float(fundamental_multiple)
+    if len(refs) >= 3:
+        result["peer_median"] = float(pd.Series(refs).median())
+        if base is not None and base > 0:
+            result["reference_gap_pct"] = result["peer_median"] / base - 1.0
+
+    if len(eligible) < 3:
+        result["note"] = (
+            "Medical-Devices Comparability Gate nicht bestanden: Weniger als 3 brauchbare strukturelle Core-Peers. "
+            "Vorhandene Forward-KGVs bleiben reine Markt-Referenz und verändern weder Ziel-KGV noch Fair Value."
+        )
+        return result
+
+    result["comparability_gate_passed"] = True
+    median = float(pd.Series(eligible).median())
+    result["eligible_peer_median"] = median
+
+    if base is None or base <= 0:
+        result["note"] = (
+            "Medical-Devices Comparability Gate bestanden, aber kein positives Fundamental-KGV als Ausgangsanker verfügbar."
+        )
+        return result
+
+    raw = median / base - 1.0
+    adj = max(-0.05, min(0.05, raw))
+    result["adjustment_pct"] = adj
+    result["adjusted_multiple"] = base * (1.0 + adj)
+    result["applied"] = True
+
+    if abs(raw) <= 0.05:
+        result["note"] = (
+            "Medical-Devices Comparability Gate bestanden: Der Core-Peer-Median liegt innerhalb ±5 % des "
+            "Fundamental-KGVs; die tatsächliche Differenz wird vollständig als Markt-Kalibrierung berücksichtigt. "
+            "Die eigene EPS-Basis und der 100-Punkte-Score bleiben unverändert."
+        )
+    else:
+        result["note"] = (
+            "Medical-Devices Comparability Gate bestanden: Der Abstand des Core-Peer-Medians zum Fundamental-KGV "
+            "ist größer als 5 %. Die automatische Markt-Kalibrierung wird deshalb strikt auf ±5 % begrenzt. "
+            "Breitere bzw. High-Growth-Referenz-Peers beeinflussen den Anpassungsmedian nicht; die eigene EPS-Basis "
+            "und der 100-Punkte-Score bleiben unverändert."
+        )
+    return result
 
 
 @st.cache_data(ttl=900)
@@ -16954,6 +17135,11 @@ def calculate_peer_check(
 
     if (peer_group or {}).get("target_symbol") == "KTOS" and "defense / stark wachsend" in type_name:
         return _calculate_kratos_peer_reference(
+            peer_group, fundamental_multiple, cache_version
+        )
+
+    if (peer_group or {}).get("peer_model") == "medical_devices_v1":
+        return _calculate_medical_devices_peer_overlay(
             peer_group, fundamental_multiple, cache_version
         )
 
@@ -30239,7 +30425,8 @@ def load_stock(selected_symbol, cache_version):
 
     peer_group = get_peer_group(
         company_type,
-        fundamental_symbol
+        fundamental_symbol,
+        fundamental_info.get("industry") or quote_info.get("industry")
     )
 
     peer_check = calculate_peer_check(
@@ -35671,6 +35858,7 @@ if selected_symbol:
                 is_nvidia_peer_metric = peer_check.get("metric") == "NVIDIA Forward P/E reference"
                 is_kratos_peer_metric = peer_check.get("metric") == "Kratos Defense-Tech Forward P/E reference"
                 is_bkr_peer_metric = peer_check.get("metric") == "Baker Hughes Component Forward P/E reference"
+                is_medical_devices_peer_metric = peer_check.get("metric") == "Medical Devices Forward P/E calibration"
 
                 if not peer_check[
                     "method_supported"
@@ -35684,7 +35872,7 @@ if selected_symbol:
 
                     st.write(
                         "**Geladene Peer-EV/EBITDA-Werte:**"
-                        if is_midstream_peer_metric else ("**Automotive Peer-Forward-KGVs (Referenz):**" if is_automotive_peer_metric else ("**Semicap Peer-Forward-KGVs (Referenz):**" if is_semicap_peer_metric else ("**NVIDIA Peer-Forward-KGVs (Referenz):**" if is_nvidia_peer_metric else ("**Kratos Defense-Tech Peer-Forward-KGVs (Referenz):**" if is_kratos_peer_metric else ("**Baker Hughes Component Peer-Forward-KGVs (Referenz):**" if is_bkr_peer_metric else "**Geladene Peer-KGVs:**")))))
+                        if is_midstream_peer_metric else ("**Automotive Peer-Forward-KGVs (Referenz):**" if is_automotive_peer_metric else ("**Semicap Peer-Forward-KGVs (Referenz):**" if is_semicap_peer_metric else ("**NVIDIA Peer-Forward-KGVs (Referenz):**" if is_nvidia_peer_metric else ("**Kratos Defense-Tech Peer-Forward-KGVs (Referenz):**" if is_kratos_peer_metric else ("**Baker Hughes Component Peer-Forward-KGVs (Referenz):**" if is_bkr_peer_metric else ("**Medical-Devices Peer-Forward-KGVs (Kalibrierung):**" if is_medical_devices_peer_metric else "**Geladene Peer-KGVs:**"))))))
                     )
 
                     for row in peer_check["peer_rows"]:
@@ -35738,6 +35926,13 @@ if selected_symbol:
                                     f"• {row['name']} ({row['symbol']}): {peer_value:.2f}×{source_text} "
                                     f"· {structure} · Wachstum/Earnings nicht normalisiert · {eligibility}"
                                 )
+                            elif is_medical_devices_peer_metric:
+                                eligibility = "Core-Peer / Anpassung zulässig" if row.get("adjustment_eligible") else "nur Referenz"
+                                structure = row.get("structure") or "Medical-Devices-Struktur"
+                                st.write(
+                                    f"• {row['name']} ({row['symbol']}): {peer_value:.2f}×{source_text} "
+                                    f"· {structure} · {eligibility}"
+                                )
                             else:
                                 st.write(
                                     f"• {row['name']} ({row['symbol']}): "
@@ -35747,10 +35942,10 @@ if selected_symbol:
                             st.write(f"• {row['name']} ({row['symbol']}): –")
 
                     st.write(
-                        ("**Brauchbare Referenz-Peer-Daten:** " if (is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric or is_kratos_peer_metric or is_bkr_peer_metric) else "**Brauchbare Peer-Daten:** ")
+                        ("**Brauchbare Referenz-Peer-Daten:** " if (is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric or is_kratos_peer_metric or is_bkr_peer_metric or is_medical_devices_peer_metric) else "**Brauchbare Peer-Daten:** ")
                         + f"{peer_check['usable_count']}"
                     )
-                    if is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric or is_kratos_peer_metric or is_bkr_peer_metric:
+                    if is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric or is_kratos_peer_metric or is_bkr_peer_metric or is_medical_devices_peer_metric:
                         st.write(
                             "**Für automatische Anpassung voll vergleichbar:** "
                             f"{peer_check.get('adjustment_eligible_count', 0)}"
@@ -35761,7 +35956,7 @@ if selected_symbol:
                                 if is_midstream_peer_metric else (
                                     "Automotive Comparability Gate bestanden: mindestens 3 cycle-normalisierte, zyklusvergleichbare Peers."
                                     if is_automotive_peer_metric else
-                                    ("NVIDIA Comparability Gate bestanden: mindestens 3 voll vergleichbare normalisierte AI-Peers." if is_nvidia_peer_metric else "Semicap Comparability Gate bestanden: mindestens 3 produkt-/earnings-/zyklusvergleichbare normalisierte Peers.")
+                                    ("Medical-Devices Comparability Gate bestanden: mindestens 3 strukturell vergleichbare Core-Peers." if is_medical_devices_peer_metric else ("NVIDIA Comparability Gate bestanden: mindestens 3 voll vergleichbare normalisierte AI-Peers." if is_nvidia_peer_metric else "Semicap Comparability Gate bestanden: mindestens 3 produkt-/earnings-/zyklusvergleichbare normalisierte Peers."))
                                 )
                             )
                         else:
@@ -35771,6 +35966,8 @@ if selected_symbol:
                                 st.warning("Baker Hughes Component Comparability Gate nicht bestanden: 0/4 Anpassungs-Peers. Referenzmedian bleibt ohne Einfluss auf Multiple und Fair Value.")
                             elif is_kratos_peer_metric:
                                 st.warning("Kratos Normalized Comparability Gate nicht bestanden: 0/4 Anpassungs-Peers. Referenzmedian bleibt ohne Einfluss auf Multiple und Fair Value.")
+                            elif is_medical_devices_peer_metric:
+                                st.warning("Medical-Devices Comparability Gate nicht bestanden: weniger als 3 brauchbare Core-Peers. Referenzmedian bleibt ohne Einfluss auf Multiple und Fair Value.")
                             else:
                                 st.warning(
                                     "Comparability Gate nicht bestanden: Referenzmedian bleibt ohne Einfluss auf Zielmultiple und Fair Value."
@@ -35778,8 +35975,14 @@ if selected_symbol:
 
                     if peer_check["peer_median"] is not None:
                         st.metric(
-                            "Peer-Median EV/EBITDA" if is_midstream_peer_metric else ("Automotive Referenzmedian Forward-KGV" if is_automotive_peer_metric else ("Semicap Referenzmedian Forward-KGV" if is_semicap_peer_metric else ("NVIDIA Referenzmedian Forward-KGV" if is_nvidia_peer_metric else ("Kratos Referenzmedian Forward-KGV" if is_kratos_peer_metric else ("Baker Hughes Component-Referenzmedian Forward-KGV" if is_bkr_peer_metric else "Peer-Median Forward-KGV"))))),
+                            "Peer-Median EV/EBITDA" if is_midstream_peer_metric else ("Automotive Referenzmedian Forward-KGV" if is_automotive_peer_metric else ("Semicap Referenzmedian Forward-KGV" if is_semicap_peer_metric else ("NVIDIA Referenzmedian Forward-KGV" if is_nvidia_peer_metric else ("Kratos Referenzmedian Forward-KGV" if is_kratos_peer_metric else ("Baker Hughes Component-Referenzmedian Forward-KGV" if is_bkr_peer_metric else ("Medical-Devices Referenzmedian Forward-KGV" if is_medical_devices_peer_metric else "Peer-Median Forward-KGV")))))),
                             f"{peer_check['peer_median']:.2f}×"
+                        )
+
+                    if is_medical_devices_peer_metric and peer_check.get("eligible_peer_median") is not None:
+                        st.metric(
+                            "Medical-Devices Core-Peer-Median Forward-KGV",
+                            f"{peer_check['eligible_peer_median']:.2f}×"
                         )
 
                     if peer_check["applied"]:
@@ -35799,7 +36002,7 @@ if selected_symbol:
                         st.metric(
                             "Peer-kontrolliertes EV/Adjusted EBITDA"
                             if peer_check.get("metric") == "EV/EBITDA"
-                            else ("Peer-kontrolliertes Automotive-Ziel-KGV" if is_automotive_peer_metric else ("Peer-kontrolliertes Semicap-Ziel-KGV" if is_semicap_peer_metric else ("Peer-kontrolliertes NVIDIA-Ziel-KGV" if is_nvidia_peer_metric else "Peer-kontrolliertes Multiple"))),
+                            else ("Peer-kontrolliertes Automotive-Ziel-KGV" if is_automotive_peer_metric else ("Peer-kontrolliertes Semicap-Ziel-KGV" if is_semicap_peer_metric else ("Peer-kontrolliertes NVIDIA-Ziel-KGV" if is_nvidia_peer_metric else ("Peer-kontrolliertes Medical-Devices-Ziel-KGV" if is_medical_devices_peer_metric else "Peer-kontrolliertes Multiple")))),
                             f"{peer_check['adjusted_multiple']:.2f}×"
                         )
 
@@ -35853,7 +36056,8 @@ if selected_symbol:
                                         if is_kratos_peer_metric else (
                                             "Baker Hughes V2.20.73: SLB/HAL/FTI/GEV bleiben Teilsegment-Referenzen. Eine automatische Anpassung wäre erst bei mindestens 3 voll vergleichbaren Post-Chart Peers mit normalisierter Earnings-/Kapitalstrukturbasis zulässig."
                                             if is_bkr_peer_metric else
-                                            "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
+                                            ("Medical Devices V2.20.102: Mindestens 3 strukturell vergleichbare Core-Peers sind Pflicht; Median statt Durchschnitt. Provider-Forward-KGV dient nur als Markt-Kalibrierung, die automatische Wirkung ist auf ±5 % begrenzt." if is_medical_devices_peer_metric else
+                                            "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet.")
                                         )
                                     )
                                 )
