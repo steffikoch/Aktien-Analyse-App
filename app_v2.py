@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.115"
+APP_BUILD_VERSION = "V2.20.116"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Reference-Only Peer & Specialist UI Cleanup"
+    f"Build {APP_BUILD_VERSION} · Specialist UI Final Consistency Cleanup"
 )
 
 
@@ -44,6 +44,7 @@ st.caption(
 # V2.20.112: Asset Manager EPS Confidence Isolation. The generic Provider/GAAP TTM-vs-Current-FY divergence remains visible only as diagnostic context for Asset Management. Valuation confidence now uses the specialist Through-Cycle earnings bridge (specialist TTM, Current-FY and 3Y Through-Cycle EPS) instead of the generic EPS-normalization confidence. A same-basis specialist consistency check is stored with the earnings basis; its confidence can limit the Asset-Manager valuation, while the generic divergence can no longer do so. No Asset-Manager score, flow, P/E, Fair-Value or signal threshold mathematics changed.
 # V2.20.114: Defense UI Cleanup & Analyst Target Horizon Guard. Keeps Rheinmetall score, Current-FY earnings basis, 18–30x corridor, 27.25x target P/E and Fair Value mathematics unchanged. Removes the stale generic ±5% peer-adjustment promise from the Defense High-Growth UI, makes Book-to-Bill explicitly part of the specialist Order-Quality/Visibility score, isolates the KTOS-only diagnostic caption from Rheinmetall, and adds a fail-safe Reality-Check horizon guard. When the own valuation is explicitly 0Y/current-FY while the external analyst target has no verified identical FY horizon and next-FY EPS is materially higher, the numerical target gap remains visible but is labelled horizon-limited and cannot trigger the external conflict brake.
 # V2.20.115: Reference-Only Peer & Specialist UI Cleanup. No valuation scores, earnings bases, corridors, target multiples, Fair Values, zone thresholds or signal rules are recalibrated. Luxury and Rheinmetall Defense reference-only peer sets are explicitly non-blocking and are removed from valuation-confidence limiting factors; missing peer quotes cannot block their specialist Fair Values. Luxury profitability copy now reflects Recurring Operating Margin / issuer earnings instead of generic Net Margin/ROE. Defense Fair-Value UI labels the 0Y/current-FY earnings anchor correctly. Reference-only peer UI no longer promises a three-peer requirement or a later ±5% adjustment.
+# V2.20.116: Specialist UI Final Consistency Cleanup. No valuation mathematics changed. Bumps the analysis cache key with the build version so stale specialist dictionaries from older builds cannot leak old version labels or pre-cleanup confidence metadata into a new UI. Defense/Luxury reference-only peers are hard-excluded from confidence limiting even if a stale/malformed peer object lacks its reference_only flag. Horizon-guard explanation is de-duplicated in Module 8; current-build labels are regenerated consistently.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -26214,6 +26215,8 @@ def calculate_valuation_confidence(
         and not peer_is_reference_only
         and not is_semicap_valuation
         and not is_nvidia_valuation
+        and not is_luxury_premium_valuation
+        and not is_defense_high_growth_valuation
     ):
         usable_peers = int(peer_check.get("usable_count") or 0)
         peer_level = "Hoch" if peer_check.get("applied") and usable_peers >= 3 else "Mittel"
@@ -30735,7 +30738,7 @@ def _external_consensus_coherence(analyst_consensus):
 def build_analyst_target_horizon_guard(symbol, company_type, eps_horizon_alignment):
     """Flag material own-FY vs external-target horizon mismatches.
 
-    V2.20.114 activates this conservatively for the validated Rheinmetall
+    V2.20.116 retains this conservatively for the validated Rheinmetall
     Defense High-Growth Prime route only. The own Fair Value is explicitly
     anchored to 0Y/current-FY EPS, while Yahoo's price-target payload does not
     verify an identical fiscal-year horizon. If next-FY consensus EPS differs
@@ -30807,7 +30810,7 @@ def build_external_reality_check(current_price, fair_value, analyst_consensus, t
     This is intentionally a *reality check*, not a valuation blend. Numerical
     consensus never alters the app's Fair Value. The result only expresses
     agreement and whether a sufficiently broad, same-horizon conflict may brake
-    an aggressive action signal downstream. V2.20.114 may mark a comparison as
+    an aggressive action signal downstream. V2.20.116 may mark a comparison as
     horizon-limited before conflict classification.
     """
     price = safe_float(current_price)
@@ -30866,7 +30869,7 @@ def build_external_reality_check(current_price, fair_value, analyst_consensus, t
         })
         return result
 
-    # V2.20.114: if the own valuation is Current-FY while the external target
+    # V2.20.116: if the own valuation is Current-FY while the external target
     # is not verified on that same horizon and next-FY earnings differ
     # materially, keep the raw gap visible but do not classify it as a binding
     # conflict. This is a comparison-quality guard, never a valuation input.
@@ -31784,7 +31787,7 @@ def build_selected_stock_result(selected_symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "generic_same_basis_growth_v220100_20260913"
+CACHE_VERSION = f"analysis_{APP_BUILD_VERSION.replace('.', '_')}_20260913"
 
 @st.cache_data(
     ttl=900,
@@ -43279,7 +43282,13 @@ if selected_symbol:
                             st.caption(
                                 f"Abstand eigene Bewertung vs. Analystenkonsens: {abs(gap_pp):.1f} Prozentpunkte."
                             )
-                        st.caption(reality_check.get("reason"))
+                        if agreement == "HORIZON-EINGESCHRÄNKT" and target_horizon_guard.get("active"):
+                            st.caption(
+                                "Der numerische Abstand bleibt als Diagnose sichtbar; wegen des aktiven Horizon Guards "
+                                "wird er nicht als voll vergleichbarer Same-Horizon-Konflikt und nicht als automatische Konfliktbremse behandelt."
+                            )
+                        else:
+                            st.caption(reality_check.get("reason"))
 
                     else:
                         st.info(reality_check.get("reason") or "Reality Check nicht verfügbar.")
