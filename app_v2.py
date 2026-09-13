@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.109"
+APP_BUILD_VERSION = "V2.20.110"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset Management Specialist Model V1 · Load-Order Hotfix"
+    f"Build {APP_BUILD_VERSION} · Asset Management Specialist Model V1 · UI Consistency Cleanup"
 )
 
 
@@ -39,6 +39,7 @@ st.caption(
 # V2.20.107: Luxury Search Guard & UI/Calendar Cleanup V2.2. Adds Hermès/RMS.PA as the preferred primary-listing result for Hermes/Hermès search aliases so Federated Hermes/FHI cannot outrank it for the luxury-company name. Replaces misleading generic Luxury growth placeholders with specialist-context copy, harmonizes Luxury-Family UI wording and profile-aware FCF labels, and adds official non-valuation calendar fallbacks for Hermès (22 Oct 2026 Q3 revenue) and LVMH (October 2026 Q3 revenue when Yahoo has no future event). No scores, earnings bases, corridors, multiples, Fair Values or signal rules changed.
 
 # V2.20.109: Asset Management Specialist Model V1 · Load-Order Hotfix. Routes Financial Services / Asset Management away from Standard-Unternehmen. Generic revenue/earnings growth, ROE, Yahoo-FCF margin and Net-Cash points are diagnosis-only. A 100-point specialist score uses organic Long-Term flows, AUM quality, Fee-Mix/Effective-Fee-Rate quality, fee-/net-revenue growth, Core/Adjusted operating margin, Through-Cycle earnings, balance quality, capital allocation and franchise diversification. Valuation uses a non-linear 9–18x P/E corridor with Organic-Flow, Premium-Unlock, Money-Market and Peer/3Y-Historical safety guards. FHI/TROW/BEN/IVZ are the validated V1 core universe; BlackRock is premium-reference only. Janus Henderson is excluded after its 30-Jun-2026 take-private/delisting. Unknown Asset Managers fail closed rather than falling back to the generic model.
+# V2.20.110: Asset Management UI Consistency Cleanup. No valuation mathematics changed. Asset-manager green special-event copy now explicitly hands off to the specialist path; generic FCF and Net-Cash scoring footers are hidden for Asset Management (and Luxury, where they were likewise contradictory); specialist quality labels are aligned with the global signal scale (70+ Gut, 50–69 Ausreichend); and Asset-Management peer UI separates active Core-Peers from BlackRock premium-reference counts.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -15385,7 +15386,7 @@ def apply_toyo_solar_action_brake(new_buy_signal, holding_signal, specialist_mod
 
 
 # =========================================================
-# V2.20.109 – Asset Management Specialist Model V1 · Load-Order Hotfix
+# V2.20.109 – Asset Management Specialist Model V1 · UI Consistency Cleanup
 # =========================================================
 
 def is_asset_management_specialist_type(company_type, symbol=None):
@@ -15401,10 +15402,10 @@ def _asset_manager_score_level(score):
         return "Sehr stark"
     if value >= 80:
         return "Stark"
-    if value >= 65:
+    if value >= 70:
         return "Gut"
     if value >= 50:
-        return "Mittel"
+        return "Ausreichend"
     return "Schwach"
 
 
@@ -18752,7 +18753,7 @@ def get_special_control(company_type, symbol):
                 "JHG/Take-private Delisting Guard",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Load-Order Hotfix",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · UI Consistency Cleanup",
             "note": (
                 "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
                 "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
@@ -32417,6 +32418,29 @@ def load_stock(selected_symbol, cache_version):
             ),
         }
 
+    if asset_management_specialist_model.get("applicable") and asset_management_specialist_model.get("valuation_anchor_complete"):
+        am_snap_event = asset_management_specialist_model.get("snapshot") or {}
+        am_company_event = am_snap_event.get("company") or fundamental_info.get("longName") or "Asset Manager"
+        am_flow_event = safe_float((asset_management_specialist_model.get("score") or {}).get("annualized_long_term_organic_flow_pct"))
+        am_margin_event = safe_float(am_snap_event.get("operating_margin_pct"))
+        flow_text = f"{am_flow_event:+.2f} %" if am_flow_event is not None else "nicht verfügbar"
+        margin_text = f"{am_margin_event:.1f} %" if am_margin_event is not None else "nicht verfügbar"
+        special_event_warning = {
+            "level": "Grün",
+            "icon": "🟢",
+            "title": f"{am_company_event} Asset Management Specialist Gate aktiv",
+            "requires_research": False,
+            "valuation_usable": True,
+            "reason": (
+                f"Organische Long-Term-Flows ({flow_text}) werden getrennt von Marktperformance, FX und Akquisitionen bewertet; "
+                f"die Core/Adjusted Operating Margin liegt bei {margin_text}. Generisches Umsatz-/Gewinnwachstum, ROE, Yahoo-FCF-Marge und Net-Cash-Punkte bleiben Diagnosekontext."
+            ),
+            "action": (
+                f"{APP_BUILD_VERSION} verwendet den Asset-Management-Spezialpfad mit AUM/Organic Flows, Fee-Mix/Effective Fee Rate, Core/Adjusted Margin, "
+                "Through-Cycle-EPS, Kapitalallokation sowie Peer-/3Y-Historical-Multiple-Guards. Keine generische Standardbewertung erforderlich."
+            ),
+        }
+
     if luxury_premium_specialist_model.get("applicable") and luxury_premium_specialist_model.get("valuation_anchor_complete"):
         lx_snap_event = luxury_premium_specialist_model.get("snapshot") or {}
         lx_company_event = lx_snap_event.get("company") or "Luxury-Unternehmen"
@@ -35545,6 +35569,8 @@ if selected_symbol:
                     and not bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 ):
                     st.caption(
@@ -35784,6 +35810,8 @@ if selected_symbol:
                     and not bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 ):
                     st.caption(
@@ -37721,6 +37749,7 @@ if selected_symbol:
                 is_kratos_peer_metric = peer_check.get("metric") == "Kratos Defense-Tech Forward P/E reference"
                 is_bkr_peer_metric = peer_check.get("metric") == "Baker Hughes Component Forward P/E reference"
                 is_medical_devices_peer_metric = peer_check.get("metric") == "Medical Devices Forward P/E guarded reference"
+                is_asset_management_peer_metric = peer_check.get("metric") == "Traditional Asset Manager Forward P/E reference guard"
 
                 if not peer_check[
                     "method_supported"
@@ -37734,7 +37763,7 @@ if selected_symbol:
 
                     st.write(
                         "**Geladene Peer-EV/EBITDA-Werte:**"
-                        if is_midstream_peer_metric else ("**Automotive Peer-Forward-KGVs (Referenz):**" if is_automotive_peer_metric else ("**Semicap Peer-Forward-KGVs (Referenz):**" if is_semicap_peer_metric else ("**NVIDIA Peer-Forward-KGVs (Referenz):**" if is_nvidia_peer_metric else ("**Kratos Defense-Tech Peer-Forward-KGVs (Referenz):**" if is_kratos_peer_metric else ("**Baker Hughes Component Peer-Forward-KGVs (Referenz):**" if is_bkr_peer_metric else ("**Medical-Devices Peer-Forward-KGVs (Kalibrierung):**" if is_medical_devices_peer_metric else "**Geladene Peer-KGVs:**"))))))
+                        if is_midstream_peer_metric else ("**Automotive Peer-Forward-KGVs (Referenz):**" if is_automotive_peer_metric else ("**Semicap Peer-Forward-KGVs (Referenz):**" if is_semicap_peer_metric else ("**NVIDIA Peer-Forward-KGVs (Referenz):**" if is_nvidia_peer_metric else ("**Kratos Defense-Tech Peer-Forward-KGVs (Referenz):**" if is_kratos_peer_metric else ("**Baker Hughes Component Peer-Forward-KGVs (Referenz):**" if is_bkr_peer_metric else ("**Medical-Devices Peer-Forward-KGVs (Kalibrierung):**" if is_medical_devices_peer_metric else ("**Asset-Management Peer-Forward-KGVs (Referenz):**" if is_asset_management_peer_metric else "**Geladene Peer-KGVs:**")))))))
                     )
 
                     for row in peer_check["peer_rows"]:
@@ -37806,6 +37835,12 @@ if selected_symbol:
                                     f"• {row['name']} ({row['symbol']}): {peer_value:.2f}×{source_text} "
                                     f"· {structure} · {horizon_label} · {basis_label} · {eligibility}"
                                 )
+                            elif is_asset_management_peer_metric:
+                                role_label = "Premium-Referenz" if row.get("role") == "premium_reference" else "Core-Peer"
+                                st.write(
+                                    f"• {row['name']} ({row['symbol']}): "
+                                    f"{peer_value:.2f}×{source_text} · {role_label}"
+                                )
                             else:
                                 st.write(
                                     f"• {row['name']} ({row['symbol']}): "
@@ -37814,10 +37849,17 @@ if selected_symbol:
                         else:
                             st.write(f"• {row['name']} ({row['symbol']}): –")
 
-                    st.write(
-                        ("**Brauchbare Referenz-Peer-Daten:** " if (is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric or is_kratos_peer_metric or is_bkr_peer_metric or is_medical_devices_peer_metric) else "**Brauchbare Peer-Daten:** ")
-                        + f"{peer_check['usable_count']}"
-                    )
+                    if is_asset_management_peer_metric:
+                        st.write(f"**Brauchbare aktive Core-Peers:** {peer_check.get('core_usable_count', 0)}")
+                        st.write(
+                            "**BlackRock Premium-Referenz:** "
+                            + (f"{safe_float(peer_check.get('premium_reference_pe')):.2f}×" if safe_float(peer_check.get('premium_reference_pe')) is not None else "–")
+                        )
+                    else:
+                        st.write(
+                            ("**Brauchbare Referenz-Peer-Daten:** " if (is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric or is_kratos_peer_metric or is_bkr_peer_metric or is_medical_devices_peer_metric) else "**Brauchbare Peer-Daten:** ")
+                            + f"{peer_check['usable_count']}"
+                        )
                     if is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric or is_kratos_peer_metric or is_bkr_peer_metric or is_medical_devices_peer_metric:
                         if is_medical_devices_peer_metric:
                             st.write(
@@ -38081,7 +38123,7 @@ if selected_symbol:
 
                 if special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Load-Order Hotfix")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · UI Consistency Cleanup")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
@@ -38114,6 +38156,8 @@ if selected_symbol:
                                 st.metric("Asset Management Quality Score", f"{safe_float(score_am.get('score')):.0f}/100 · {text_or_dash(score_am.get('quality_level'))}")
                                 st.write("**Score-Komponenten:** " + " · ".join(f"{name} {safe_float(points):.0f}" for name, points in score_am.get("components", {}).items()))
                                 st.write(f"**Premium-Unlock:** {int(score_am.get('premium_unlock_count') or 0)}/5 Bedingungen · " + ("bestanden" if score_am.get("premium_unlocked") else "nicht bestanden"))
+                                if any("Organic-Flow-Guard" in str(cap) for cap in (val_am.get("caps") or [])):
+                                    st.caption("Der Premium-Unlock hebt einen aktiven downside-only Organic-Flow-Guard nicht auf; negative organische Flows können das Ziel-KGV weiterhin begrenzen.")
                             if earn_am.get("available"):
                                 st.metric("Through-Cycle Earnings-Basis", format_eps(earn_am.get("normalized_eps"), financial_currency))
                                 st.caption(text_or_dash(earn_am.get("method")))
