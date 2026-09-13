@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.95"
+APP_BUILD_VERSION = "V2.20.96"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,10 +25,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Specialist Context Isolation & UA/OMC UI Cleanup"
+    f"Build {APP_BUILD_VERSION} · CTVA Separation Detection & SOTP Pre-Gate"
 )
 
 
+# V2.20.96: CTVA Separation Detection & SOTP Pre-Gate. Adds a dedicated Corteva/Vylor/New-Corteva structural-separation router using the verified Q2 2026 separation milestones, H1 Seed/Crop-Protection segment economics and the public Form-10/SEC/IR source set. The planned Oct. 1 separation is recognized as a confirmed structural break rather than an unexplained EPS anomaly. Full SOTP remains fail-closed until the Sep. 15 standalone Investor-Day anchors and final capital structures/Form-10 effectiveness are available; no synthetic Fair Value is created. Corteva IR routing is corrected to investors.corteva.com/financial-information/quarterly-earnings-reports and SEC filings. Generic EPS/FCF/Net-Debt-to-FCF remain context only for CTVA.
 # V2.20.95: Specialist Context Isolation & UA/OMC UI Cleanup. No valuation formulas, scores, multiples, Fair Values or signal rules changed. UA/UAA and OMC now label Standard-EPS, Yahoo/Cashflow-Statement FCF and generic Net-Debt/FCF strictly as diagnosis context; standard EPS divergence/confidence can no longer appear as if it limits specialist valuation confidence.
 # V2.20.94: UA Turnaround & OMC Post-Merger Specialist Valuation V1. Adds a revenue/P-Sales turnaround model for Under Armour (UA/UAA) using issuer FY2026 revenue, FY2027 demand/gross-margin/profitability guidance, liquidity, restructuring progress and official diluted A/B/C share count. Adds a post-IPG adjusted-EPS/EBITA model for Omnicom using fully post-merger H1 2026 adjusted EPS, core organic growth/margins, integration/synergy execution and financing burden. Generic GAAP EPS/FCF scores remain context-only. UA has a demand-stabilization action brake; OMC has a post-merger integration yellow gate. Analyst targets remain Reality Check only. Also removes the stale generic margin/ROE profitability footer from Regulated Utilities.
 # V2.20.52: Midstream Peer Safety Cap & Comparability Gate. Separates market-reference peers from adjustment-eligible peers. Automatic peer adjustment requires at least three peers with sufficiently comparable corporate structure AND issuer-adjusted EBITDA basis. Generic Yahoo EV/EBITDA remains reference-only. If a future gate passes, the multiple proposal and the resulting equity fair-value effect are each capped at ±5 %. The 100-point Midstream score and official KMI Adjusted EBITDA / Net Debt / share-count bridge remain unchanged.
@@ -2675,6 +2676,12 @@ def _router_root(company_domain):
     if not company_domain:
         return None
     domain = str(company_domain).strip().lower()
+    # V2.20.96: Corteva's corporate website and its actual investor-relations
+    # archive live on different hosts. Route directly to the verified IR host
+    # so the year navigator does not waste its budget on obsolete /investors/*
+    # paths that return 404.
+    if domain in {"corteva.com", "www.corteva.com", "investors.corteva.com"} or domain.endswith(".corteva.com"):
+        return "https://investors.corteva.com"
     if domain.startswith("www."):
         return f"https://{domain}"
     if domain.startswith(("investor.", "investors.", "ir.", "about.")):
@@ -2695,6 +2702,7 @@ def _router_link_score(url, anchor=""):
         "financial releases": 95,
         "financial results": 90,
         "quarterly results": 70,
+        "quarterly earnings reports": 95,
         "earnings": 65,
         "reports and filings": 75,
         "sec filings": 60,
@@ -3016,9 +3024,9 @@ def _router_archive_type(row=None, url=None, title=None):
     release_markers = [
         "financial releases", "financial results", "earnings releases",
         "earnings results", "press releases", "news releases",
-        "results archive", "quarterly results", "annual results",
+        "results archive", "quarterly results", "quarterly earnings reports", "annual results",
         "/press-releases", "/news-releases", "/financial-results",
-        "/financial-releases", "/quarterly-results", "/earnings",
+        "/financial-releases", "/quarterly-results", "/quarterly-earnings-reports", "/earnings",
     ]
     if any(marker in hay for marker in release_markers):
         return "release_archive"
@@ -3326,12 +3334,20 @@ def _discover_company_ir_router(
     # 3) Same-domain conventional release fallbacks only if navigation exposed no
     # valid release/results archive. Annual-report URLs are intentionally absent.
     if not release_candidates:
-        fallback_urls = [
-            urljoin(root + "/", "newsroom/press-releases"),
-            urljoin(root + "/", "press-releases"),
-            urljoin(root + "/", "investors/financial-results"),
-            urljoin(root + "/", "investors/quarterly-results"),
-        ]
+        if "investors.corteva.com" in root.lower():
+            fallback_urls = [
+                urljoin(root + "/", "financial-information/quarterly-earnings-reports"),
+                urljoin(root + "/", "news-events/news-releases"),
+                urljoin(root + "/", "events-and-presentations"),
+                urljoin(root + "/", "financial-information/sec-filings"),
+            ]
+        else:
+            fallback_urls = [
+                urljoin(root + "/", "newsroom/press-releases"),
+                urljoin(root + "/", "press-releases"),
+                urljoin(root + "/", "investors/financial-results"),
+                urljoin(root + "/", "investors/quarterly-results"),
+            ]
         release_candidates = [
             {"title": _historical_title_hint_from_url(u), "url": u, "link_score": _router_link_score(u, "")}
             for u in fallback_urls
@@ -6200,6 +6216,13 @@ def classify_company(name, symbol, sector, industry):
             "type": "Healthcare / Diagnostics & Research / CRO + Data",
             "method": "GAAP-/Adjusted-Earnings-Vergleichbarkeit + FCF/Leverage; Standard-Korridor gesperrt",
             "confidence_cap": "Mittel",
+        }
+
+    if symbol_text == "CTVA" or "corteva" in name_text:
+        return {
+            "type": "Agriculture / Seeds & Crop Protection / Separation",
+            "method": "Separation-/SOTP-Pre-Gate: Vylor (Seed) + New Corteva (Crop Protection); Standard-KGV/FCF gesperrt",
+            "confidence_cap": "Niedrig bis Mittel",
         }
 
     if "agricultural inputs" in industry_text:
@@ -14619,6 +14642,124 @@ def apply_turnaround_postmerger_action_brake(new_buy_signal, holding_signal, spe
     return nb, hs
 
 
+
+# =========================================================
+# V2.20.96 – Corteva Separation Detection & SOTP Pre-Gate
+# =========================================================
+
+def is_ctva_separation_company_type(company_type, symbol=None):
+    sym = str(symbol or "").upper()
+    type_name = normalized_company_type_name(company_type)
+    return sym == "CTVA" or "agriculture / seeds & crop protection / separation" in type_name
+
+
+def get_verified_ctva_separation_snapshot(symbol):
+    if str(symbol or "").upper() != "CTVA":
+        return None
+    return {
+        "symbol": "CTVA",
+        "as_of_date": "30.06.2026",
+        "published_date": "30.07.2026",
+        "source_name": "Corteva Q2/H1 2026 Results + public Vylor Form 10 / Corteva IR",
+        "quarterly_results_url": "https://investors.corteva.com/financial-information/quarterly-earnings-reports",
+        "sec_filings_url": "https://investors.corteva.com/financial-information/sec-filings",
+        "events_url": "https://investors.corteva.com/events-and-presentations",
+        "news_url": "https://investors.corteva.com/news-events/news-releases",
+        "separation_confirmed": True,
+        "separation_target_date": "01.10.2026",
+        "investor_day_date": "15.09.2026",
+        "vylor_investor_day_time": "09:00 EDT",
+        "new_corteva_investor_day_time": "13:00 EDT",
+        "vylor_business": "Seed / advanced genetics",
+        "new_corteva_business": "Crop Protection",
+        "form10_public": True,
+        "form10_amendment_public": True,
+        "final_capital_structures_approved": False,
+        "form10_effective": False,
+        "run_rate_dis_synergies_largely_offset": True,
+        "fy2026_separation_headwind": 25e6,
+        "h1_2026_seed_sales": 7.555e9,
+        "h1_2025_seed_sales": 7.244e9,
+        "h1_2026_seed_operating_ebitda": 3.000e9,
+        "h1_2025_seed_operating_ebitda": 2.705e9,
+        "h1_2026_crop_protection_sales": 3.729e9,
+        "h1_2025_crop_protection_sales": 3.629e9,
+        "h1_2026_crop_protection_operating_ebitda": 0.776e9,
+        "h1_2025_crop_protection_operating_ebitda": 0.711e9,
+        "h1_2026_corporate_operating_ebitda": -77e6,
+        "h1_2026_total_operating_ebitda": 3.699e9,
+        "fy2026_operating_ebitda_low": 4.1e9,
+        "fy2026_operating_ebitda_high": 4.3e9,
+        "fy2026_operating_eps_low": 3.60,
+        "fy2026_operating_eps_high": 3.80,
+        "valuation_confidence_cap": "Niedrig bis Mittel",
+        "note": (
+            "Die geplante Trennung ist als strukturelles Ereignis bestätigt. Vylor umfasst das Seed-/Genetics-Geschäft; "
+            "New Corteva umfasst Crop Protection. H1-2026-Segmentumsatz und Operating EBITDA sind bereits separat verfügbar. "
+            "Ein vollständiger SOTP wird in V2.20.96 bewusst noch nicht gerechnet, weil die Standalone-Investor-Days am 15.09.2026 "
+            "noch ausstehen und finale Kapitalstrukturen/Form-10-Wirksamkeit zum Build-Zeitpunkt noch nicht abgeschlossen sind."
+        ),
+    }
+
+
+def build_ctva_separation_pre_gate_model(company_type, fundamental_info, symbol):
+    if not is_ctva_separation_company_type(company_type, symbol):
+        return {"applicable": False}
+    snapshot = get_verified_ctva_separation_snapshot(symbol)
+    if not snapshot:
+        return {
+            "applicable": True,
+            "primary_source_complete": False,
+            "separation_confirmed": False,
+            "sotp_ready": False,
+            "readiness": "CTVA-Primärquellen-Snapshot fehlt",
+        }
+    missing = []
+    if not snapshot.get("final_capital_structures_approved"):
+        missing.append("finale Kapitalstrukturen / Board-Freigabe")
+    if not snapshot.get("form10_effective"):
+        missing.append("wirksames finales Form 10")
+    # On 13 Sep 2026 the two standalone Investor Days are still future events.
+    missing.append("Standalone Investor-Day-Zielgrößen für Vylor und New Corteva (15.09.2026)")
+    return {
+        "applicable": True,
+        "primary_source_complete": True,
+        "separation_confirmed": True,
+        "snapshot": snapshot,
+        "sotp_ready": False,
+        "missing_sotp_inputs": missing,
+        "valuation_anchor_complete": False,
+        "readiness": "Separation bestätigt · SOTP Pre-Gate aktiv · Fair Value absichtlich gesperrt",
+    }
+
+
+def build_ctva_separation_special_control(control, separation_model):
+    if not isinstance(control, dict) or control.get("control_key") != "ctva_separation_sotp_pregate":
+        return control
+    model = separation_model if isinstance(separation_model, dict) else {}
+    snap = model.get("snapshot") or {}
+    out = dict(control)
+    out.update({
+        "implemented": True,
+        "released": False,
+        "confidence_cap": snap.get("valuation_confidence_cap") or "Niedrig bis Mittel",
+        "router_status": "Schritt 3B aktiv – Separation bestätigt, SOTP noch gesperrt",
+        "step3b_status": model.get("readiness"),
+        "snapshot": snap,
+        "checks": {
+            "separation_confirmed": bool(model.get("separation_confirmed")),
+            "sotp_ready": False,
+            "missing_sotp_inputs": list(model.get("missing_sotp_inputs") or []),
+        },
+        "note": (
+            "V2.20.96 ersetzt bei CTVA die generische 'ungeklärte EPS-Anomalie' durch einen bestätigten Separation-/SOTP-Pfad. "
+            "Seed/Vylor und Crop Protection/New Corteva werden wirtschaftlich getrennt geführt; historische Corteva-GAAP-/Standard-EPS, Yahoo-FCF und generische Net-Debt/FCF-Logik dürfen keinen Fair Value freigeben. "
+            "Bis Standalone-Investor-Day-Zielgrößen und finale Kapitalstrukturen belastbar vorliegen, bleibt der SOTP fail-closed."
+        ),
+    })
+    return out
+
+
 # =========================================================
 # Modul 6 – Schritt 1: Bewertungs-Korridor & Fundamental-Multiple
 # =========================================================
@@ -16410,6 +16551,28 @@ def get_special_control(company_type, symbol):
                 "V2.20.73 behandelt Baker Hughes als Energy-Technology-Plattform statt als integrierten Ölproduzenten. "
                 "Q2 2026 bildet OFSE/IET vor der Chart-Übernahme ab, während der aktuelle Kurs bereits nach dem Closing vom 16.07.2026 liegt. "
                 "Deshalb bleiben generischer Öl-&-Gas-KGV-Pfad, Standard-FCF/Bilanz-Score und Fair Value gesperrt, bis eine belastbare Post-Chart Earnings- und Kapitalstrukturbasis vorliegt."
+            ),
+        }
+
+    if symbol_text == "CTVA" or "agriculture / seeds & crop protection / separation" in type_name:
+        return {
+            "required": True,
+            "control_key": "ctva_separation_sotp_pregate",
+            "control_name": "Corteva Separation / Vylor + New Corteva SOTP Pre-Gate",
+            "planned_checks": [
+                "Separation als bestätigten Structural Break erkennen",
+                "Vylor/Seed und New Corteva/Crop Protection getrennt routen",
+                "H1 Segmentumsatz und Operating EBITDA als wirtschaftliche Trennbasis",
+                "Vylor Form 10 / Amendment und SEC-/IR-Quelle validieren",
+                "Finale Kapitalstrukturen und Form-10-Wirksamkeit",
+                "Standalone Investor-Day-Zielgrößen vom 15.09.2026",
+                "Erst danach: getrennte Vylor-/New-Corteva-Multiples und Equity Bridges",
+                "Analysten-Kursziel ausschließlich Reality Check",
+            ],
+            "status": "Router aktiv – V2.20.96 CTVA Separation Detection & SOTP Pre-Gate",
+            "note": (
+                "CTVA wird nicht mehr als normales Agricultural-Inputs-Unternehmen mit einem einheitlichen EPS-/FCF-Anker behandelt. "
+                "Die geplante Aufspaltung ist bestätigt; V2.20.96 hält den SOTP bewusst gesperrt, bis die Standalone-Zielgrößen und finalen Kapitalstrukturen belastbar sind."
             ),
         }
 
@@ -28003,7 +28166,7 @@ def build_selected_stock_result(selected_symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "specialist_context_isolation_v22095_20260912"
+CACHE_VERSION = "ctva_separation_sotp_pregate_v22096_20260913"
 
 @st.cache_data(
     ttl=900,
@@ -28615,6 +28778,12 @@ def load_stock(selected_symbol, cache_version):
         fundamental_symbol
     )
 
+    ctva_separation_pre_gate_model = build_ctva_separation_pre_gate_model(
+        company_type,
+        fundamental_info,
+        fundamental_symbol
+    )
+
     fundamental_multiple = calculate_fundamental_multiple(
         company_type,
         growth_score,
@@ -28954,6 +29123,11 @@ def load_stock(selected_symbol, cache_version):
         turnaround_postmerger_specialist_model
     )
 
+    special_control = build_ctva_separation_special_control(
+        special_control,
+        ctva_separation_pre_gate_model
+    )
+
     special_control = build_baker_hughes_special_control(
         special_control,
         company_type,
@@ -29023,6 +29197,24 @@ def load_stock(selected_symbol, cache_version):
         bank_special_model=bank_special_model,
         insurance_special_model=insurance_special_model
     )
+
+    if ctva_separation_pre_gate_model.get("applicable") and ctva_separation_pre_gate_model.get("separation_confirmed"):
+        ctva_snap_event = ctva_separation_pre_gate_model.get("snapshot") or {}
+        special_event_warning = {
+            "level": "Gelb",
+            "icon": "🟡",
+            "title": "CTVA Separation / SOTP Pre-Gate aktiv",
+            "requires_research": False,
+            "valuation_usable": False,
+            "reason": (
+                "Die Ursache der strukturellen Vergleichbarkeitsstörung ist bestätigt: Corteva plant die Trennung in Vylor (Seed/Genetics) und New Corteva (Crop Protection) mit Zieltermin 01.10.2026. "
+                "H1-2026-Segmentzahlen und der öffentliche Form-10-/SEC-Pfad sind verfügbar; die Standard-TTM-/Forward-EPS-Divergenz wird deshalb nicht mehr als ungeklärte Anomalie behandelt."
+            ),
+            "action": (
+                "Kein einheitlicher Corteva-KGV-/FCF-Fair-Value. V2.20.96 wartet für den vollständigen SOTP auf die Standalone-Investor-Days am 15.09.2026 sowie finale Kapitalstrukturen/Form-10-Wirksamkeit. "
+                "Bis dahin bleiben Fair Value sowie Kauf-/Nachkauf-/Reduzieren-/Verkaufen-Signale gesperrt; Analystenziele bleiben nur externer Reality Check."
+            ),
+        }
 
     if turnaround_postmerger_specialist_model.get("applicable") and turnaround_postmerger_specialist_model.get("valuation_anchor_complete"):
         tp_snap_event = turnaround_postmerger_specialist_model.get("snapshot") or {}
@@ -29278,6 +29470,41 @@ def load_stock(selected_symbol, cache_version):
         turnaround_postmerger_specialist_model
     )
 
+    # V2.20.96: CTVA is not an unresolved anomaly anymore, but a confirmed
+    # structural separation.  Until the standalone SOTP inputs are complete,
+    # suppress every trade-direction output explicitly rather than falling back
+    # to the generic "no valuation zone" wording.
+    if (
+        ctva_separation_pre_gate_model.get("applicable")
+        and ctva_separation_pre_gate_model.get("separation_confirmed")
+        and not ctva_separation_pre_gate_model.get("sotp_ready")
+    ):
+        ctva_signal_reason = (
+            "Die Corteva-Separation in Vylor (Seed/Genetics) und New Corteva "
+            "(Crop Protection) ist bestätigt, aber die Standalone-Investor-Day-"
+            "Zielgrößen, finalen Kapitalstrukturen und der wirksame finale "
+            "Form-10-Stand sind noch nicht vollständig. Deshalb erzeugt der "
+            "SOTP-Pre-Gate weder Kauf/Nachkauf noch Reduzieren/Verkaufen aus "
+            "den heutigen Konzernkennzahlen."
+        )
+        new_buy_signal = {
+            "available": False,
+            "signal": "Kein Handlungssignal – SOTP Pre-Gate",
+            "reason": ctva_signal_reason,
+            "ctva_sotp_pregate_blocked": True,
+            "next_step": (
+                "Standalone-Anker von Vylor und New Corteva sowie finale "
+                "Kapitalstrukturen/Form-10-Wirksamkeit übernehmen; erst danach "
+                "getrennte Equity Bridges und vollständigen SOTP berechnen."
+            ),
+        }
+        holding_signal = {
+            "available": False,
+            "signal": "Kein Handlungssignal – SOTP Pre-Gate",
+            "reason": ctva_signal_reason,
+            "ctva_sotp_pregate_blocked": True,
+        }
+
     analyst_consensus = load_external_analyst_consensus(
         quote_ticker,
         quote_info,
@@ -29422,6 +29649,7 @@ def load_stock(selected_symbol, cache_version):
         "regulated_utility_specialist_model": regulated_utility_specialist_model,
         "adjusted_earnings_specialist_model": adjusted_earnings_specialist_model,
         "turnaround_postmerger_specialist_model": turnaround_postmerger_specialist_model,
+        "ctva_separation_pre_gate_model": ctva_separation_pre_gate_model,
         "fundamental_multiple": fundamental_multiple,
         "peer_group": peer_group,
         "peer_check": peer_check,
@@ -30086,6 +30314,7 @@ if selected_symbol:
                 is_bkr_fcf_context = is_baker_hughes_energy_tech_company_type(company_type)
                 is_utility_fcf_context = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 is_turnaround_postmerger_fcf_context = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                is_ctva_fcf_context = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 if fcf_ctx.get("score_eligible"):
                     source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
                     if is_bank_fcf_context:
@@ -30147,6 +30376,12 @@ if selected_symbol:
                             "Bei Regulated Utilities bleibt der Yahoo-/Cashflow-Statement-FCF ausschließlich Diagnosekontext. "
                             "Er fließt weder in Utility Quality Score, Credit-/Leverage-Prüfung, Ziel-KGV, Bewertungszonen noch Fair Value ein; "
                             "maßgeblich sind FFO/Credit, Rate Base, regulatorische Rückgewinnung und der offizielle Kapital-/Finanzierungsplan."
+                        )
+                    elif is_ctva_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            "Bei CTVA bleibt der konsolidierte Yahoo-/Cashflow-Statement-FCF ausschließlich Diagnosekontext. "
+                            "Der spätere SOTP benötigt separate Standalone-Cashflow-/Kapitalstruktur-Anker für Vylor und New Corteva; der heutige Konzern-FCF steuert weder SOTP-Freigabe noch Fair Value."
                         )
                     elif is_turnaround_postmerger_fcf_context:
                         st.caption(
@@ -30212,6 +30447,13 @@ if selected_symbol:
                                 "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info und Cashflow-Statement liefern abweichende FCF-Kontextwerte. "
                                 f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Für Baker Hughes V2.20.73 bleiben beide Yahoo-Werte reine Kontextdaten; "
                                 "maßgeblich im Post-Chart Primary-Source Gate ist ausschließlich der offiziell ausgewiesene Q2-Free-Cashflow."
+                            )
+                        elif is_ctva_fcf_context:
+                            st.info(
+                                "ℹ️ FCF-Quellenabweichung im CTVA-Separation-Kontext: Yahoo quoteSummary/info zeigt "
+                                f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
+                                f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
+                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Werte bleiben Konzern-Diagnosekontext und beeinflussen weder SOTP-Freigabe noch spätere Standalone-Fair-Values."
                             )
                         elif is_utility_fcf_context:
                             st.info(
@@ -30439,6 +30681,7 @@ if selected_symbol:
                     == INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION
                 )
 
+                ctva_eps_context_ui = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 if bank_core_eps_active:
                     normalized_eps = safe_float(
                         bank_core_eps_ui.get("bank_normalized_core_eps")
@@ -30453,7 +30696,8 @@ if selected_symbol:
                     normalized_eps = eps_result["normalized_eps"]
                     utility_eps_context_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     turnaround_postmerger_eps_context_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui or turnaround_postmerger_eps_context_ui) else "Normalisiertes EPS")
+                    ctva_eps_context_ui = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui or turnaround_postmerger_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -30528,6 +30772,11 @@ if selected_symbol:
                             f"V2.20.95 verwendet für den Fair Value stattdessen direkt die aktuelle {text_or_dash(util_eps_snap_ui.get('earnings_basis_name'))} "
                             "und prüft Rate Base, ROE, Credit, Dividende und Finanzierung separat."
                         )
+                    elif ctva_eps_context_ui:
+                        st.info(
+                            "CTVA Separation: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                            "V2.20.96 erkennt den bestätigten Structural Break und verwendet vor dem vollständigen SOTP weder GAAP-TTM noch Current-FY Operating EPS als einheitlichen Corteva-Fair-Value-Anker."
+                        )
                     elif turnaround_postmerger_eps_context_ui:
                         tp_eps_snap_ui = (data.get("turnaround_postmerger_specialist_model") or {}).get("snapshot") or {}
                         if str(data.get("symbol") or "").upper() in {"UA", "UAA"}:
@@ -30551,7 +30800,12 @@ if selected_symbol:
                     )
                 )
 
-                if utility_eps_context_ui:
+                if ctva_eps_context_ui:
+                    st.info(
+                        "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
+                        "die CTVA-Separation-/SOTP-Sicherheit wird ausschließlich aus Segmenttrennung, Standalone-Zielgrößen, finaler Kapitalstruktur und Separation-Gates bestimmt."
+                    )
+                elif utility_eps_context_ui:
                     st.info(
                         "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
                         "die Utility-Bewertungssicherheit wird separat aus Guidance-, Regulierungs-, Credit- und Spezialkontroll-Gates bestimmt."
@@ -30593,6 +30847,11 @@ if selected_symbol:
                             " Diese TTM-/Forward-Divergenz steuert weder Utility-Fair-Value noch Utility-Bewertungssicherheit; "
                             "maßgeblich ist die Current-FY Core/Adjusted-EPS-Guidance plus Regulierungs-/Credit-/Risiko-Gates."
                         )
+                    elif ctva_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
+                            " Bei CTVA ist die strukturelle Ursache bestätigt; die Divergenz steuert weder SOTP-Freigabe noch spätere Standalone-Multiples."
+                        )
                     elif turnaround_postmerger_eps_context_ui:
                         st.caption(
                             "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
@@ -30610,6 +30869,11 @@ if selected_symbol:
                         st.caption(
                             "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die Utility-Bewertungssicherheit nicht. "
                             "Die Utility-Sicherheit wird ausschließlich aus Guidance-, Regulierungs-, Credit-, Finanzierungs- und Spezialrisiko-Gates bestimmt."
+                        )
+                    elif ctva_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt den CTVA-Separation-/SOTP-Pfad nicht. "
+                            "Die spätere SOTP-Sicherheit stammt aus Standalone-Segmentökonomie, finaler Kapitalstruktur und Separation-Execution."
                         )
                     elif turnaround_postmerger_eps_context_ui:
                         st.caption(
@@ -30722,6 +30986,11 @@ if selected_symbol:
                     st.caption(
                         "Das Standard-normalisierte EPS ist bei NVIDIA in V2.20.67 ausschließlich Kontext und keine Earnings-Basis. "
                         "Für den AI-Pfad wird ausschließlich der separat hergeleitete FY27-Operating-EPS-Proxy verwendet; Yahoo Forward-EPS bleibt ohne bestätigten Horizont reference-only. Das Standard-EPS steuert weder das freigegebene NVIDIA-Ziel-KGV noch den Fair Value."
+                    )
+                elif ctva_eps_context_ui:
+                    st.caption(
+                        "Das Standard-normalisierte EPS ist bei CTVA ausschließlich Diagnosekontext. "
+                        "Der spätere Fair Value muss als Sum-of-the-Parts aus Vylor/Seed und New Corteva/Crop Protection nach finalen Standalone-Ankern entstehen; ein einheitliches historisches Corteva-KGV bleibt gesperrt."
                     )
                 elif turnaround_postmerger_eps_context_ui:
                     if str(data.get("symbol") or "").upper() in {"UA", "UAA"}:
@@ -31838,6 +32107,7 @@ if selected_symbol:
                     and not bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 ):
                     st.caption(
                         "Die FCF-Punkte basieren auf der aktuellen "
@@ -32058,6 +32328,7 @@ if selected_symbol:
                     and not bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 ):
                     st.caption(
                         "Bilanzpunkte: Netto-Cash 15/15; "
@@ -34304,6 +34575,44 @@ if selected_symbol:
                         "nachfolgenden Fair-Value-Schritt, solange sie noch "
                         "nicht vollständig implementiert und freigegeben sind."
                     )
+
+                if special_control.get("control_key") == "ctva_separation_sotp_pregate":
+                    st.divider()
+                    st.subheader("🌱 Modul 6 – Schritt 3B: CTVA Separation / SOTP Pre-Gate V1")
+                    if special_control.get("implemented"):
+                        snap_ctva = special_control.get("snapshot") or {}
+                        checks_ctva = special_control.get("checks") or {}
+                        st.write(f"**Operativer Datenstand:** {text_or_dash(snap_ctva.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_ctva.get('published_date'))})")
+                        st.caption(text_or_dash(snap_ctva.get("source_name")))
+                        st.success("Separation als Structural Break bestätigt: Vylor = Seed/Genetics · New Corteva = Crop Protection.")
+                        st.write(f"**Investor Days:** {text_or_dash(snap_ctva.get('investor_day_date'))} · Vylor {text_or_dash(snap_ctva.get('vylor_investor_day_time'))} · New Corteva {text_or_dash(snap_ctva.get('new_corteva_investor_day_time'))}")
+                        st.write(f"**Ziel-Separation:** {text_or_dash(snap_ctva.get('separation_target_date'))}")
+                        st.markdown("**H1 2026 Segmentökonomie – bereits trennbar:**")
+                        st.write(
+                            "• **Vylor / Seed:** Umsatz " + format_money(snap_ctva.get("h1_2026_seed_sales"), "USD")
+                            + " · Operating EBITDA " + format_money(snap_ctva.get("h1_2026_seed_operating_ebitda"), "USD")
+                        )
+                        st.write(
+                            "• **New Corteva / Crop Protection:** Umsatz " + format_money(snap_ctva.get("h1_2026_crop_protection_sales"), "USD")
+                            + " · Operating EBITDA " + format_money(snap_ctva.get("h1_2026_crop_protection_operating_ebitda"), "USD")
+                        )
+                        st.write(
+                            "**FY2026 Konzern-Guidance nur Kontext:** Operating EBITDA "
+                            + format_money(snap_ctva.get("fy2026_operating_ebitda_low"), "USD") + " – "
+                            + format_money(snap_ctva.get("fy2026_operating_ebitda_high"), "USD")
+                            + f" · Operating EPS {safe_float(snap_ctva.get('fy2026_operating_eps_low')):.2f}–{safe_float(snap_ctva.get('fy2026_operating_eps_high')):.2f} USD"
+                        )
+                        st.write(f"**Separation-Headwind FY2026:** {format_money(snap_ctva.get('fy2026_separation_headwind'), 'USD')} · Run-rate Dis-Synergies laut Q2 weitgehend kompensiert")
+                        st.write(f"**Form 10 öffentlich:** {'Ja' if snap_ctva.get('form10_public') else 'Nein'} · **Form-10-Amendment öffentlich:** {'Ja' if snap_ctva.get('form10_amendment_public') else 'Nein'}")
+                        missing_ctva = checks_ctva.get("missing_sotp_inputs") or []
+                        if missing_ctva:
+                            st.warning("Vollständiger SOTP noch gesperrt. Fehlende Freigabeanker:")
+                            for item in missing_ctva:
+                                st.write(f"• {item}")
+                        st.error("Bewertungsfreigabe NEIN: V2.20.96 erzeugt bewusst keinen synthetischen CTVA-Fair-Value vor den Standalone-Investor-Day-Zielgrößen und finalen Kapitalstrukturen.")
+                        st.caption(special_control.get("note"))
+                    else:
+                        st.warning(special_control.get("note"))
 
                 if special_control.get("control_key") == "turnaround_postmerger_specialist":
                     st.divider()
@@ -37899,7 +38208,25 @@ if selected_symbol:
                     {}
                 )
 
-                if new_buy_signal.get("special_event_blocked"):
+                if new_buy_signal.get("ctva_sotp_pregate_blocked"):
+                    st.warning(
+                        "**🟡 Kein Handlungssignal – CTVA SOTP Pre-Gate aktiv**"
+                    )
+                    st.write(
+                        "Die strukturelle Ursache ist geklärt, aber ein belastbarer "
+                        "Sum-of-the-Parts-Fair-Value ist vor vollständigen Standalone-"
+                        "Ankern noch nicht freigegeben. Deshalb wird aus den heutigen "
+                        "Konzernkennzahlen bewusst kein Kauf-, Nachkauf-, Reduzier- "
+                        "oder Verkaufssignal erzeugt."
+                    )
+                    st.caption(new_buy_signal.get("reason"))
+                    if new_buy_signal.get("next_step"):
+                        st.info(
+                            "**Nächster Schritt:** "
+                            + str(new_buy_signal.get("next_step"))
+                        )
+
+                elif new_buy_signal.get("special_event_blocked"):
                     st.error(
                         "**🔴 Kein Handlungssignal – Sonderprüfung offen**"
                     )
