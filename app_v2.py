@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.99"
+APP_BUILD_VERSION = "V2.20.100"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,10 +25,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1"
+    f"Build {APP_BUILD_VERSION} · Generic Same-Basis Earnings Growth Guard V2"
 )
 
 
+# V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
 # V2.20.97: TOYO High-Growth Solar / Policy & Dilution Specialist Model V1. Adds a dedicated primary-source TOYO valuation path using Q2/H1 2026 growth, margins, issuer cash conversion, actual quarter-end share count, policy/trade exposure, June equity/warrant issuance, remaining ATM capacity and the Texas HJT capex plan. The sole earnings anchor is a conservative latest-quarter current-share run-rate, not Yahoo consensus or H1 annualization. A downside-only policy P/E cap plus financing/dilution P/E cap constrain the operational quality multiple, and an explicit action brake limits Buy/Add to Observe/Hold while Section 232, Ethiopia circumvention/CBP and the major Texas financing plan remain unresolved. Generic Yahoo EPS/FCF/Net-Debt-to-FCF remain context-only.
@@ -14771,7 +14772,7 @@ def get_verified_gold_precious_metals_snapshot(symbol):
         "note": (
             "Das extreme Umsatzwachstum ist durch Primärquellen erklärt und bei diesem Geschäftsmodell kein geeigneter Bewertungsnenner: "
             "Forward Sales, höhere Gold-/Silberpreise, Goldvolumen und mehrere Akquisitionen vergrößern den Umsatznotional stark. "
-            "V2.20.99 bewertet deshalb Gross Profit, EBITDA, Hedge-/Inventarrisiko, gesicherte Kreditqualität und Liquidität. "
+            "{APP_BUILD_VERSION} bewertet deshalb Gross Profit, EBITDA, Hedge-/Inventarrisiko, gesicherte Kreditqualität und Liquidität. "
             "Der Earnings-Anker rechnet keine Akquisitions-Run-Rate hoch und verwendet die tatsächliche 30.06.-Aktienzahl."
         ),
     }
@@ -14958,7 +14959,7 @@ def build_gold_precious_metals_special_control(control, specialist_model):
         "snapshot": snap,
         "checks": {"specialist_score": score, "specialist_valuation": valuation},
         "note": (
-            "V2.20.99 trennt Gold.com vom generischen Umsatz-/FCF-/Net-Debt-to-FCF-Pfad. Das FY2026-Umsatzwachstum ist durch Forward Sales, "
+            "{APP_BUILD_VERSION} trennt Gold.com vom generischen Umsatz-/FCF-/Net-Debt-to-FCF-Pfad. Das FY2026-Umsatzwachstum ist durch Forward Sales, "
             "Metallpreise/-volumen und Akquisitionen erklärt und wird nicht als Bewertungsnenner verwendet. Gross Profit, EBITDA, Hedge-/Inventarrisiko, "
             "Secured Lending, Funding und aktuelle Dilution bestimmen die Quality-Basis; der Fair Value verwendet ausschließlich die bereinigte Current-Share-Earnings-Referenz (Depreciation nicht addiert)."
         ),
@@ -17161,7 +17162,7 @@ def get_special_control(company_type, symbol):
                 "scoregesteuerter 9–14× Spezial-KGV-Korridor",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": "Router aktiv – V2.20.99 GOLD Precious-Metals Distribution & Lending Specialist Model V1",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} GOLD Precious-Metals Distribution & Lending Specialist Model V1",
             "note": (
                 "GOLD wird nicht in den generischen Umsatzwachstums-/Yahoo-FCF-Pfad gedrückt. V2.20.98 verwendet FY2026-Primärdaten, "
                 "eine bereinigte Current-Share-Earnings-Basis (Depreciation nicht addiert) sowie geschäftsmodellspezifische Hedge-, Lending- und Funding-Kontrollen."
@@ -24820,7 +24821,7 @@ def calculate_fair_value_v1(
             "valuation_method": "gold_precious_metals_current_share_pe",
             "normalized_eps": safe_float(sv.get("earnings_basis")),
             "used_multiple": safe_float(sv.get("target_multiple")),
-            "multiple_source": "V2.20.99 GOLD Gross-Profit/EBITDA Quality P/E",
+            "multiple_source": f"{APP_BUILD_VERSION} GOLD Gross-Profit/EBITDA Quality P/E",
             "fair_value_financial": fv,
             "fair_value_quote": fvq,
             "potential_pct": potential,
@@ -27536,6 +27537,8 @@ def _should_try_generic_adjusted_ttm(company_type, raw_ttm, current_fy_eps, webs
 VERIFIED_ADJUSTED_TTM_COVERAGE = {
     "SYK": {
         "basis": "Adjusted EPS",
+        "current_fy": 2026,
+        "completed_quarters": 2,
         "as_of": "2026-06-30",
         "valid_until": "2026-12-31",
         "method": "FY2025 Adjusted EPS - H1 2025 Adjusted EPS + H1 2026 Adjusted EPS",
@@ -27554,6 +27557,8 @@ VERIFIED_ADJUSTED_TTM_COVERAGE = {
     },
     "IQV": {
         "basis": "Adjusted EPS",
+        "current_fy": 2026,
+        "completed_quarters": 2,
         "as_of": "2026-06-30",
         "valid_until": "2026-12-31",
         "method": "FY2025 Adjusted EPS - H1 2025 Adjusted EPS + H1 2026 Adjusted EPS",
@@ -27570,6 +27575,8 @@ VERIFIED_ADJUSTED_TTM_COVERAGE = {
     },
     "TRU": {
         "basis": "Adjusted EPS",
+        "current_fy": 2026,
+        "completed_quarters": 2,
         "as_of": "2026-06-30",
         "valid_until": "2026-12-31",
         "method": "FY2025 Adjusted EPS - H1 2025 Adjusted EPS + H1 2026 Adjusted EPS",
@@ -27737,9 +27744,12 @@ def build_eps_accounting_basis_alignment(symbol, raw_trailing_eps, valuation_for
     return result
 
 
-# V2.20.99 – time-bounded same-basis earnings-growth bridge.
-# Use only when the generic valuation EPS path has already been aligned to the
-# same non-GAAP family; otherwise Yahoo/GAAP growth remains untouched.
+# V2.20.100 – Generic Same-Basis Earnings Growth Guard V2.
+# The valuation bridge remains the owner of accounting-basis comparability. This
+# growth layer may activate only after that bridge is active. It prefers a
+# multi-quarter YTD comparison on the same primary-source EPS family to avoid
+# overreacting to one noisy quarter. The issuer-specific table below is retained
+# only as a latest-quarter diagnostic/fallback for regression coverage.
 VERIFIED_SAME_BASIS_EARNINGS_GROWTH = {
     "SYK": {
         "basis": "Adjusted EPS",
@@ -27754,6 +27764,7 @@ VERIFIED_SAME_BASIS_EARNINGS_GROWTH = {
         "source_url": "https://investors.stryker.com/press-releases/news-details/2026/Stryker-reports-second-quarter-2026-operating-results/default.aspx",
     },
 }
+
 
 def _verified_same_basis_earnings_growth(symbol):
     row = VERIFIED_SAME_BASIS_EARNINGS_GROWTH.get(str(symbol or "").upper())
@@ -27770,7 +27781,142 @@ def _verified_same_basis_earnings_growth(symbol):
     calculated = current_eps / prior_eps - 1.0
     if reported is not None and abs(calculated - reported) > 0.005:
         return None
-    return {**row, "calculated_growth": calculated}
+    return {**row, "calculated_growth": calculated, "method": "latest-quarter YoY fallback"}
+
+
+def _same_basis_period_year(period):
+    comp = _generic_period_components(period)
+    return comp.get("year") if comp else None
+
+
+def _same_basis_ytd_label(current_fy, completed_quarters):
+    try:
+        year = int(current_fy)
+        n = int(completed_quarters)
+    except Exception:
+        return "Same-Basis YTD"
+    if n == 1:
+        return f"Q1 {year} vs. Q1 {year - 1}"
+    if n == 2:
+        return f"H1 {year} vs. H1 {year - 1}"
+    if n == 3:
+        return f"9M {year} vs. 9M {year - 1}"
+    return f"YTD {year} vs. YTD {year - 1}"
+
+
+def derive_same_basis_earnings_growth(symbol, eps_basis_alignment):
+    """Derive earnings growth on the exact valuation EPS basis, fail-closed.
+
+    Priority:
+    1) Generic primary-source period records -> Q1..Qn current vs same prior-year
+       quarters (multi-quarter YTD; preferred because it is less noisy).
+    2) Verified TTM bridge aggregates -> current_partial / prior_partial.
+    3) Time-bounded latest-quarter verified fallback (diagnostic/regression only).
+
+    The function never activates unless accounting-basis alignment is already
+    active and the source basis family matches that valuation family.
+    """
+    alignment = eps_basis_alignment if isinstance(eps_basis_alignment, dict) else {}
+    if not alignment.get("active"):
+        return None
+    valuation_family = alignment.get("basis_family")
+    if not valuation_family:
+        return None
+
+    snapshot = alignment.get("snapshot") if isinstance(alignment.get("snapshot"), dict) else None
+    if snapshot:
+        snapshot_family = snapshot.get("basis_family") or _eps_basis_family(snapshot.get("basis"))
+        if snapshot_family == valuation_family:
+            records = [r for r in (snapshot.get("period_records") or []) if isinstance(r, dict)]
+            completed = safe_float(snapshot.get("completed_quarters"))
+            completed = int(completed) if completed is not None else None
+
+            # Preferred path: reconstruct YTD from explicit period records.
+            if records and completed in (1, 2, 3):
+                quarter_rows = []
+                current_years = []
+                for row in records:
+                    comp = _generic_period_components(row.get("period"))
+                    if not comp or comp.get("kind") != "Q":
+                        continue
+                    family = row.get("basis_family") or _eps_basis_family(row.get("basis"))
+                    if family != valuation_family:
+                        continue
+                    value = safe_float(row.get("eps"))
+                    if value is None or value <= 0:
+                        continue
+                    quarter_rows.append((comp.get("year"), comp.get("quarter"), value, row))
+                    current_years.append(comp.get("year"))
+                current_fy = max([y for y in current_years if y is not None], default=None)
+                if current_fy is not None:
+                    current_values, prior_values = [], []
+                    used_rows = []
+                    for q in range(1, completed + 1):
+                        cur = next((x for x in quarter_rows if x[0] == current_fy and x[1] == q), None)
+                        prv = next((x for x in quarter_rows if x[0] == current_fy - 1 and x[1] == q), None)
+                        if cur is None or prv is None:
+                            current_values, prior_values = [], []
+                            break
+                        current_values.append(cur[2])
+                        prior_values.append(prv[2])
+                        used_rows.extend([cur[3], prv[3]])
+                    if current_values and prior_values:
+                        current_eps = sum(current_values)
+                        prior_eps = sum(prior_values)
+                        if prior_eps > 0:
+                            growth = current_eps / prior_eps - 1.0
+                            urls = list(dict.fromkeys(r.get("url") for r in used_rows if r.get("url")))
+                            return {
+                                "basis": snapshot.get("basis") or alignment.get("ttm_basis"),
+                                "basis_family": valuation_family,
+                                "period": _same_basis_ytd_label(current_fy, completed),
+                                "current_eps": current_eps,
+                                "prior_eps": prior_eps,
+                                "calculated_growth": growth,
+                                "method": "Primary-source multi-quarter YTD same-basis EPS growth",
+                                "source_name": snapshot.get("source_name") or "Primärquellen-TTM-Rekonstruktion",
+                                "source_urls": urls or snapshot.get("source_urls") or [],
+                                "generic": True,
+                                "aggregation": "YTD",
+                                "completed_quarters": completed,
+                            }
+
+            # Verified snapshots may store the same YTD components already
+            # aggregated (for example H1 current/prior) without raw quarter rows.
+            current_partial = safe_float(snapshot.get("current_partial"))
+            prior_partial = safe_float(snapshot.get("prior_partial"))
+            completed = completed if completed in (1, 2, 3) else None
+            current_fy = safe_float(snapshot.get("current_fy"))
+            current_fy = int(current_fy) if current_fy is not None else None
+            if current_fy is None:
+                m = re.search(r"(20\d{2})", str(snapshot.get("as_of") or ""))
+                current_fy = int(m.group(1)) if m else None
+            if current_partial is not None and prior_partial is not None and current_partial > 0 and prior_partial > 0:
+                growth = current_partial / prior_partial - 1.0
+                period = _same_basis_ytd_label(current_fy, completed) if current_fy and completed else "Same-Basis YTD"
+                latest = _verified_same_basis_earnings_growth(symbol)
+                return {
+                    "basis": snapshot.get("basis") or alignment.get("ttm_basis"),
+                    "basis_family": valuation_family,
+                    "period": period,
+                    "current_eps": current_partial,
+                    "prior_eps": prior_partial,
+                    "calculated_growth": growth,
+                    "method": "Verified multi-quarter YTD same-basis EPS growth",
+                    "source_name": snapshot.get("source_name") or "Verifizierte TTM-Brücke",
+                    "source_urls": snapshot.get("source_urls") or [],
+                    "generic": True,
+                    "aggregation": "YTD",
+                    "completed_quarters": completed,
+                    "latest_quarter_context": latest,
+                }
+
+    # Last-resort verified quarter bridge: only when its family matches the
+    # already active valuation basis. It cannot establish comparability itself.
+    fallback = _verified_same_basis_earnings_growth(symbol)
+    if fallback and _eps_basis_family(fallback.get("basis")) == valuation_family:
+        return {**fallback, "basis_family": valuation_family, "generic": False, "aggregation": "quarter"}
+    return None
 
 
 def _safe_mapping(value):
@@ -29043,7 +29189,7 @@ def build_selected_stock_result(selected_symbol):
 # Hauptdaten laden
 # =========================================================
 
-CACHE_VERSION = "same_basis_eps_growth_v22099_20260913"
+CACHE_VERSION = "generic_same_basis_growth_v220100_20260913"
 
 @st.cache_data(
     ttl=900,
@@ -29424,17 +29570,15 @@ def load_stock(selected_symbol, cache_version):
         "eps_latest_period_basis_hard_block": bool(eps_basis_alignment.get("latest_period_basis_hard_block")),
     })
 
-    same_basis_earnings_growth = _verified_same_basis_earnings_growth(fundamental_symbol)
+    same_basis_earnings_growth = derive_same_basis_earnings_growth(
+        fundamental_symbol, eps_basis_alignment
+    )
     earnings_growth_for_score = earnings_growth
     same_basis_earnings_growth_active = False
-    if (
-        isinstance(same_basis_earnings_growth, dict)
-        and eps_basis_alignment.get("active")
-        and _eps_basis_family(same_basis_earnings_growth.get("basis")) == eps_basis_alignment.get("basis_family")
-    ):
-        verified_growth = safe_float(same_basis_earnings_growth.get("calculated_growth"))
-        if verified_growth is not None:
-            earnings_growth_for_score = verified_growth
+    if isinstance(same_basis_earnings_growth, dict):
+        aligned_growth = safe_float(same_basis_earnings_growth.get("calculated_growth"))
+        if aligned_growth is not None:
+            earnings_growth_for_score = aligned_growth
             same_basis_earnings_growth_active = True
 
     growth_score = calculate_growth_score(
@@ -29451,8 +29595,8 @@ def load_stock(selected_symbol, cache_version):
     })
     if same_basis_earnings_growth_active:
         growth_score["note"] = (growth_score.get("note") or "") + (
-            " Same-Basis Growth Guard V2.20.99: Der Wachstumsscore verwendet "
-            f"{same_basis_earnings_growth.get('basis')} {same_basis_earnings_growth.get('period')} "
+            " Same-Basis Growth Guard V2.20.100: Der Wachstumsscore verwendet "
+            f"{same_basis_earnings_growth.get('basis')} · {same_basis_earnings_growth.get('period')} "
             f"({earnings_growth_for_score * 100:.1f} %) aus Primärquellen; "
             "Yahoo-/GAAP-Gewinnwachstum bleibt Rohdatenkontext."
         )
@@ -29521,7 +29665,7 @@ def load_stock(selected_symbol, cache_version):
             "context_score": growth_score.get("score"),
             "score": None,
             "note": (
-                "GOLD V2.20.99: Generisches Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext. "
+                f"GOLD {APP_BUILD_VERSION}: Generisches Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext. "
                 "Der freigegebene Precious-Metals-Spezialpfad bewertet Gross-Profit-/EBITDA-Skalierung und Q4-Ergebnisqualität aus FY2026-Primärquellen."
             ),
         }
@@ -29530,7 +29674,7 @@ def load_stock(selected_symbol, cache_version):
             "context_score": profitability_score.get("score"),
             "score": None,
             "brake_text": (
-                "GOLD V2.20.99: Generische Nettomargen-/ROE-Punkte bleiben Diagnosekontext. "
+                f"GOLD {APP_BUILD_VERSION}: Generische Nettomargen-/ROE-Punkte bleiben Diagnosekontext. "
                 "Der freigegebene Spezialpfad bewertet Gross-Margin-Resilienz, EBITDA, Hedge-/Inventar-, Lending-, Funding- und Dilution-Qualität."
             ),
         }
@@ -31658,8 +31802,9 @@ if selected_symbol:
                     st.info(
                         f"🧮 **Same-Basis Growth Guard {APP_BUILD_VERSION}:** "
                         f"Für Wachstumsscore und Profitabilitätsbremse wird {text_or_dash(same_basis_growth_ui.get('basis'))} "
-                        f"{text_or_dash(same_basis_growth_ui.get('period'))} mit "
-                        f"{safe_float(data.get('earnings_growth_for_score')) * 100:.1f} % YoY verwendet. "
+                        f"auf Basis {text_or_dash(same_basis_growth_ui.get('period'))} mit "
+                        f"{safe_float(data.get('earnings_growth_for_score')) * 100:.1f} % verwendet. "
+                        f"Methode: {text_or_dash(same_basis_growth_ui.get('method'))}. "
                         "Das oben gezeigte Yahoo-/GAAP-Gewinnwachstum bleibt reine Rohdaten-/Diagnoseinformation."
                     )
 
@@ -31849,7 +31994,7 @@ if selected_symbol:
                         gold_eps_snap_ui = (data.get("gold_precious_metals_specialist_model") or {}).get("snapshot") or {}
                         st.info(
                             "GOLD Precious Metals: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
-                            "V2.20.99 verwendet für den Fair Value eine bereinigte FY2026 Current-Share-Earnings-Basis (Depreciation nicht addiert) aus Primärquellen: Adjusted Pretax abzüglich Depreciation-Add-back, nach gemeldetem FY2026-Steuersatz und geteilt durch die tatsächliche 30.06.-Aktienzahl."
+                            f"{APP_BUILD_VERSION} verwendet für den Fair Value eine bereinigte FY2026 Current-Share-Earnings-Basis (Depreciation nicht addiert) aus Primärquellen: Adjusted Pretax abzüglich Depreciation-Add-back, nach gemeldetem FY2026-Steuersatz und geteilt durch die tatsächliche 30.06.-Aktienzahl."
                         )
                     elif toyo_solar_eps_context_ui:
                         st.info(
@@ -32730,7 +32875,7 @@ if selected_symbol:
                     st.caption("UA bewertet Nachfrage-/Revenue-Turnaround; OMC bewertet Core Organic Growth auf post-merger Basis. Yahoo-Wachstumswerte bleiben Diagnosekontext.")
                 elif is_gold_precious_metals_score_ui:
                     st.info("ℹ️ Im GOLD-Precious-Metals-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
-                    st.caption("V2.20.99 bewertet Wachstum über FY2026 Gross-Profit- und EBITDA-Skalierung sowie Q4-Ergebnisqualität. Das extreme Yahoo-Umsatzwachstum bleibt Diagnosekontext, weil Forward Sales, Metallpreise/-volumen und Akquisitionen den Umsatznotional stark verändern.")
+                    st.caption(f"{APP_BUILD_VERSION} bewertet Wachstum über FY2026 Gross-Profit- und EBITDA-Skalierung sowie Q4-Ergebnisqualität. Das extreme Yahoo-Umsatzwachstum bleibt Diagnosekontext, weil Forward Sales, Metallpreise/-volumen und Akquisitionen den Umsatznotional stark verändern.")
                 elif is_toyo_solar_score_ui:
                     st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Der generische Wachstumsscore wird nicht verwendet.")
                     st.caption("Wachstum/Skalierung werden aus Q2/H1-2026-Umsatz, Auslieferungen und Manufacturing-Ramp aus Primärquellen bewertet; Yahoo-Wachstumswerte bleiben Diagnosekontext.")
@@ -32888,7 +33033,7 @@ if selected_symbol:
                     st.caption("UA nutzt Adjusted Operating Income und Bruttomargenqualität; OMC Core Adjusted EBITA und Adjusted EPS. Generische Yahoo-Margen/ROE bleiben Kontext.")
                 elif is_gold_precious_metals_profitability_ui:
                     st.info("ℹ️ Im GOLD-Precious-Metals-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
-                    st.caption("Für einen Edelmetallhändler ist Umsatzmarge strukturell wenig aussagekräftig. V2.20.99 bewertet Gross-Margin-Resilienz, Gross Profit, EBITDA-Skalierung und Q4 Adjusted-Pretax-Momentum aus Primärquellen.")
+                    st.caption(f"Für einen Edelmetallhändler ist Umsatzmarge strukturell wenig aussagekräftig. {APP_BUILD_VERSION} bewertet Gross-Margin-Resilienz, Gross Profit, EBITDA-Skalierung und Q4 Adjusted-Pretax-Momentum aus Primärquellen.")
                 elif is_toyo_solar_profitability_ui:
                     st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption("TOYO bewertet Gross Margin, Adjusted-EBITDA-Marge und aktuelle Q2/H1-Ertragsqualität aus Primärquellen; Yahoo-Nettomarge/ROE bleiben Diagnosekontext.")
@@ -33182,7 +33327,7 @@ if selected_symbol:
                         st.caption("UA berücksichtigt Liquidität und Restrukturierungs-Cash-Kontext; OMC Integration/Finanzierungsqualität. Yahoo-TTM-FCF ist kein Fair-Value-Anker.")
                     elif is_gold_precious_metals_fcf_ui:
                         st.info("ℹ️ Im GOLD-Precious-Metals-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
-                        st.caption("V2.20.99 behandelt Yahoo-FCF nur als Diagnosekontext. Working Capital, Metallborrowing/Product Financing und Forward Sales machen einen industriellen FCF-Margenvergleich ungeeignet; stattdessen werden Inventar-/Hedge-Kontrolle, Secured Lending und Funding bewertet.")
+                        st.caption(f"{APP_BUILD_VERSION} behandelt Yahoo-FCF nur als Diagnosekontext. Working Capital, Metallborrowing/Product Financing und Forward Sales machen einen industriellen FCF-Margenvergleich ungeeignet; stattdessen werden Inventar-/Hedge-Kontrolle, Secured Lending und Funding bewertet.")
                     elif is_toyo_solar_fcf_ui:
                         st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
                         st.caption("V2.20.97 verwendet ausschließlich issuer-ausgewiesenen H1 Operating Cash Flow minus CapEx als Cash-Conversion-Komponente. Yahoo-TTM-FCF bleibt Diagnosekontext.")
@@ -33397,7 +33542,7 @@ if selected_symbol:
                         st.caption("UA bewertet Cash, Revolver und Restrukturierungsfortschritt; OMC berücksichtigt die post-IPG Zins-/Finanzierungslast. Yahoo-Schulden/FCF bleiben Kontext.")
                     elif is_gold_precious_metals_balance_ui:
                         st.info("ℹ️ Im GOLD-Precious-Metals-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
-                        st.caption("V2.20.99 trennt operative Finanzierung von Industrieverschuldung: Cash, Trading-Credit-Facility, Notes Payable, Borrowed Metals, Product Financing, Inventar und verbleibendes Netto-Metallpreisrisiko werden separat geprüft. Borrowed Metals/Product Financing werden nicht mechanisch als klassische Netto-Schulden/FCF interpretiert.")
+                        st.caption(f"{APP_BUILD_VERSION} trennt operative Finanzierung von Industrieverschuldung: Cash, Trading-Credit-Facility, Notes Payable, Borrowed Metals, Product Financing, Inventar und verbleibendes Netto-Metallpreisrisiko werden separat geprüft. Borrowed Metals/Product Financing werden nicht mechanisch als klassische Netto-Schulden/FCF interpretiert.")
                     elif is_toyo_solar_balance_ui:
                         st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("TOYO bewertet Liquidität, tatsächliche Aktienverwässerung, RDO/Warrants, Rest-ATM und den 357-Mio.-USD-HJT-Finanzierungsbedarf separat; Yahoo-Schulden/FCF bleiben Kontext.")
