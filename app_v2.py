@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.112"
+APP_BUILD_VERSION = "V2.20.113"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset Management Specialist Model V1 · EPS Confidence Isolation"
+    f"Build {APP_BUILD_VERSION} · Defense High-Growth Prime Specialist Model V2"
 )
 
 
@@ -6163,18 +6163,22 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel"
         }
 
-    # Rheinmetall bleibt bewusst im bereits getesteten Defense-Modell.
+    # V2.20.113 – Rheinmetall High-Growth Defense Prime specialist route.
+    # The prefix is intentionally preserved so the existing Defense router remains compatible.
     if (
-        symbol_text in ["RHM.DE", "RNMBY", "RNMBF"]
+        symbol_text in ["RHM.DE", "RHM.F", "RNMBY", "RNMBF"]
         or "rheinmetall" in name_text
     ):
         return {
-            "type": "Defense / stark wachsend",
+            "type": "Defense / stark wachsend / High-Growth Prime",
             "method": (
-                "Normalisiertes EPS + KGV + "
-                "Auftrags-/Visibilitätskontrolle"
+                "Primärquellen-Defense-Quality-Score + Current-FY EPS + spezialisiertes KGV; "
+                "Backlog/Fixed Orders/Guidance/Margen/Cash-Conversion; generischer Standard-Score gesperrt"
             ),
-            "confidence_cap": "Mittel bis Hoch"
+            "confidence_cap": "Mittel",
+            "business_model": "Europäischer Defense-Prime mit starkem Kapazitätsausbau, hoher Auftragsvisibilität und wachsendem Munitions-/Fahrzeug-/Elektronikmix",
+            "core_segments": "Vehicle Systems · Weapon and Ammunition · Electronic Solutions · Power Systems",
+            "focus_areas": "Fixed Orders · Revenue Coverage · Book-to-Bill · Organic Growth Guidance · Operating Margin · Cash Conversion · Balance/Execution",
         }
 
     # Kratos: eigener Defense-Tech-Untertyp. Das Präfix "Defense / stark wachsend"
@@ -17123,6 +17127,26 @@ def get_peer_group(company_type, symbol, industry=None):
 
     own_symbol = str(symbol or "").upper()
 
+    if own_symbol in {"RHM.DE", "RHM.F", "RNMBY", "RNMBF"} and "defense / stark wachsend" in type_name:
+        peers = [
+            ("BA.L", "BAE Systems"),
+            ("LDO.MI", "Leonardo"),
+            ("HO.PA", "Thales"),
+            ("SAAB-B.ST", "Saab"),
+        ]
+        filtered = [{"symbol": ps, "name": pn} for ps, pn in peers if ps.upper() != own_symbol]
+        return {
+            "available": True,
+            "peers": filtered,
+            "count": len(filtered),
+            "target_symbol": own_symbol,
+            "peer_model": "defense_high_growth_prime_reference_v2",
+            "note": (
+                f"Defense High-Growth Peer Lock {APP_BUILD_VERSION}: BAE Systems, Leonardo, Thales und Saab sind Markt-Referenzen. "
+                "Ohne verifizierte Gleichheit von Current-FY-Horizont, Wachstumsphase, Order Visibility und Earnings-Basis darf ihr Forward-KGV-Median das Rheinmetall-Ziel-KGV nicht automatisch absenken."
+            ),
+        }
+
     if own_symbol == "BKR" and "energy technology / oilfield services" in type_name:
         peers = [
             ("SLB", "SLB"),
@@ -18610,6 +18634,41 @@ def _calculate_kratos_peer_reference(peer_group, fundamental_multiple, cache_ver
     return result
 
 
+def _calculate_defense_high_growth_peer_reference(peer_group, fundamental_multiple, cache_version):
+    result = {
+        "method_supported": True,
+        "metric": "Defense High-Growth Prime Forward P/E reference-only",
+        "peer_rows": [],
+        "usable_count": 0,
+        "peer_median": None,
+        "adjustment_pct": 0.0,
+        "adjusted_multiple": safe_float(fundamental_multiple),
+        "applied": False,
+        "comparability_gate_passed": False,
+        "note": None,
+    }
+    vals = []
+    for peer in (peer_group or {}).get("peers", []):
+        pdx = dict(load_peer_forward_pe(peer.get("symbol"), cache_version) or {})
+        pe = safe_float(pdx.get("forward_pe"))
+        usable = bool(pdx.get("usable") and pe is not None and pe > 0)
+        result["peer_rows"].append({
+            "symbol": peer.get("symbol"), "name": peer.get("name"), "usable": usable,
+            "forward_pe": pe, "source": pdx.get("source"), "reason": pdx.get("reason"),
+            "adjustment_eligible": False,
+        })
+        if usable: vals.append(pe)
+    result["usable_count"] = len(vals)
+    if len(vals) >= 3:
+        result["peer_median"] = float(pd.Series(vals).median())
+    result["note"] = (
+        f"Defense High-Growth Peer Lock {APP_BUILD_VERSION}: Peer-KGVs bleiben reference-only, weil Current-FY-Horizont, Wachstumsphase, "
+        "Backlog/Fixed-Order-Qualität und Earnings-Basis nicht auf dieselbe Rheinmetall-Spezialbasis normalisiert sind. "
+        "Keine automatische ±5-%-Peer-Absenkung; Analystenziele bleiben ebenfalls außerhalb des Fair Value."
+    )
+    return result
+
+
 def _calculate_asset_management_peer_reference(peer_group, fundamental_multiple, cache_version):
     result = {
         "method_supported": True,
@@ -18734,6 +18793,11 @@ def calculate_peer_check(
 
     if (peer_group or {}).get("target_symbol") == "KTOS" and "defense / stark wachsend" in type_name:
         return _calculate_kratos_peer_reference(
+            peer_group, fundamental_multiple, cache_version
+        )
+
+    if (peer_group or {}).get("peer_model") == "defense_high_growth_prime_reference_v2":
+        return _calculate_defense_high_growth_peer_reference(
             peer_group, fundamental_multiple, cache_version
         )
 
@@ -19172,27 +19236,35 @@ def get_special_control(company_type, symbol):
 
     if (
         "defense / stark wachsend" in type_name
-        or symbol_text in ["RHM.DE", "RNMBY", "RNMBF"]
+        or symbol_text in ["RHM.DE", "RHM.F", "RNMBY", "RNMBF"]
     ):
+        is_rhm_v2 = symbol_text in {"RHM.DE", "RHM.F", "RNMBY", "RNMBF"}
         return {
             "required": True,
             "control_key": "defense_order_visibility",
             "control_name": (
-                "Defense / Auftrags- & "
-                "Visibilitätskontrolle"
+                "Rheinmetall / Defense High-Growth Prime Quality-, Earnings- & Visibility-Kontrolle"
+                if is_rhm_v2 else "Defense / Auftrags- & Visibilitätskontrolle"
             ),
-            "planned_checks": [
-                "Backlog",
-                "Fixed Orders",
-                "Book-to-Bill",
-                "Revenue Coverage",
-                "Margentrend"
-            ],
-            "status": "Router aktiv",
+            "planned_checks": ([
+                "Backlog / Fixed Orders / Revenue Coverage",
+                "Book-to-Bill und kurzfristige feste Umsatzabdeckung",
+                "Organische FY26-Wachstums-Guidance",
+                "Operating Result / H1-, Q2- und Guidance-Margen",
+                "Same-Basis Adjusted-EPS-Trajectory + 0Y/current-FY-Konsens",
+                "Operating FCF / Working Capital / Cash-Conversion-Guidance",
+                "Net Financial Debt / Equity",
+                "Execution / Guidance und Programmrisko",
+                "18–30× Defense-Prime-Spezialkorridor + Cash-Conversion-Guard",
+                "Defense Peer Horizon/Growth/Visibility Lock",
+                "Analystenziel ausschließlich Reality Check",
+            ] if is_rhm_v2 else ["Backlog", "Fixed Orders", "Book-to-Bill", "Revenue Coverage", "Margentrend"]),
+            "status": (f"Router aktiv – {APP_BUILD_VERSION} Defense High-Growth Prime Specialist Model V2" if is_rhm_v2 else "Router aktiv"),
             "note": (
-                "Die eigentliche Auftrags-/Visibilitätsprüfung erfolgt "
-                "im nachfolgenden Schritt 3B. Dort werden ausschließlich "
-                "verifizierte Spezialdaten verwendet."
+                f"{APP_BUILD_VERSION} routet Rheinmetall aus dem generischen Yahoo-Wachstums-/FCF-/Net-Debt-to-FCF-Pfad. "
+                "Primärquellen-Order-Visibility, organische Guidance, Margen/Earnings, Cash Conversion und Bilanz bestimmen Score und Ziel-KGV; Defense-Peers bleiben reference-only."
+                if is_rhm_v2 else
+                "Die eigentliche Auftrags-/Visibilitätsprüfung erfolgt im nachfolgenden Schritt 3B. Dort werden ausschließlich verifizierte Spezialdaten verwendet."
             )
         }
 
@@ -19782,22 +19854,31 @@ def get_verified_defense_snapshot(symbol):
 
     return {
         "company": "Rheinmetall AG",
+        "model_variant": "rheinmetall_high_growth_defense_prime_v2",
         "published_date": "06.08.2026",
         "as_of_date": "30.06.2026",
         "valid_until": "05.11.2026",
-        "source_name": "Rheinmetall Q2/H1 2026",
+        "source_name": "Rheinmetall Q2/H1 2026 Results + Half-Year Financial Report",
+        "source_url": "https://www.rheinmetall.com/en/media/news-watch/news/2026/08/2026-08-06-rheinmetall-news-half-yearly-financial-report-h1",
         "source_note": (
-            "Offizielle Rheinmetall-H1/Q2-2026-Daten. "
-            "Backlog enthält feste Aufträge plus erwartete Abrufe aus "
-            "bestehenden Rahmenverträgen."
+            "Offizielle Rheinmetall-H1/Q2-2026-Daten. Backlog enthält feste Aufträge plus erwartete Abrufe aus bestehenden Rahmenverträgen. "
+            "V2.20.113 trennt Order Visibility, Wachstum/Margen und Cash Conversion ausdrücklich von generischem Yahoo-Wachstum, TTM-FCF und Net-Debt/FCF."
         ),
         "backlog_current": 80.467e9,
         "backlog_previous": 55.972e9,
         "fixed_order_backlog_current": 56.342e9,
         "fixed_order_backlog_previous": 32.266e9,
         "frame_backlog_current": 24.126e9,
+        "revenue_h1": 5.227e9,
+        "revenue_h1_yoy_pct": 39.0,
+        "revenue_q2": 3.289e9,
+        "revenue_q2_yoy_pct": 69.0,
+        "operating_result_h1": 786e6,
+        "operating_result_h1_yoy_pct": 74.0,
         "revenue_guidance_low": 13.7e9,
         "revenue_guidance_high": 14.2e9,
+        "organic_growth_guidance_low_pct": 28.0,
+        "organic_growth_guidance_high_pct": 31.0,
         # Rheinmetall reported "above 3". 3.0 is stored only as a
         # conservative lower bound; the display retains the > qualifier.
         "book_to_bill_lower_bound": 3.0,
@@ -19810,7 +19891,212 @@ def get_verified_defense_snapshot(symbol):
         "latest_quarter_margin": 17.1,
         "previous_full_year_margin": 18.5,
         "guidance_margin": 19.0,
+        "adjusted_h1_eps": 10.38,
+        "adjusted_h1_eps_previous": 5.78,
+        "fy2025_adjusted_eps": 25.28,
+        "h1_operating_free_cashflow": -1.616e9,
+        "fy2025_operating_free_cashflow": 1.218e9,
+        "cash_conversion_guidance_min_pct": 40.0,
+        "net_financial_debt": 2.722e9,
+        "equity": 5.769e9,
+        "cash_balance": 255e6,
+        "f126_sales_impact_max": 300e6,
+        "strategic_position_score": 5,
     }
+
+
+def is_defense_high_growth_prime_specialist(company_type, symbol=None):
+    symbol_text = str(symbol or "").upper().strip()
+    type_name = str((company_type or {}).get("type") or "").lower()
+    return symbol_text in {"RHM.DE", "RHM.F", "RNMBY", "RNMBF"} and "defense / stark wachsend" in type_name
+
+
+def _defense_high_growth_target_pe(score):
+    s = safe_float(score)
+    if s is None:
+        return None
+    s = max(0.0, min(100.0, s))
+    if s < 50.0:
+        return 18.0 + (s / 50.0) * 3.0
+    if s < 65.0:
+        return 21.0 + ((s - 50.0) / 15.0) * 2.0
+    if s < 80.0:
+        return 23.0 + ((s - 65.0) / 15.0) * 3.0
+    if s < 90.0:
+        return 26.0 + ((s - 80.0) / 10.0) * 2.5
+    return 28.5 + ((s - 90.0) / 10.0) * 1.5
+
+
+def _defense_quality_level(score):
+    s = safe_float(score)
+    if s is None:
+        return None
+    if s >= 90: return "Sehr stark"
+    if s >= 80: return "Stark"
+    if s >= 70: return "Gut"
+    if s >= 50: return "Ausreichend"
+    return "Schwach"
+
+
+def build_defense_high_growth_specialist_model(company_type, info, symbol, current_fy_eps):
+    result = {
+        "applicable": False,
+        "primary_source_complete": False,
+        "valuation_anchor_complete": False,
+        "snapshot": None,
+        "specialist_score": {},
+        "earnings_basis": {},
+        "specialist_valuation": {},
+        "note": None,
+    }
+    if not is_defense_high_growth_prime_specialist(company_type, symbol):
+        return result
+    result["applicable"] = True
+    snap = get_verified_defense_snapshot(symbol)
+    result["snapshot"] = snap
+    if not snap or snap.get("model_variant") != "rheinmetall_high_growth_defense_prime_v2":
+        result["note"] = "Rheinmetall Defense-V2-Primärdaten fehlen; generischer Fallback ist nicht zulässig."
+        return result
+    try:
+        fresh = datetime.now().date() <= datetime.strptime(snap.get("valid_until"), "%d.%m.%Y").date()
+    except Exception:
+        fresh = False
+
+    backlog = safe_float(snap.get("backlog_current")); prev_backlog = safe_float(snap.get("backlog_previous"))
+    backlog_growth = ((backlog / prev_backlog - 1.0) * 100.0) if backlog is not None and prev_backlog not in [None, 0] else None
+    fixed = safe_float(snap.get("fixed_order_backlog_current"))
+    fixed_share = fixed / backlog * 100.0 if fixed is not None and backlog not in [None, 0] else None
+    near_cov = safe_float(snap.get("near_term_fixed_coverage_pct"))
+    btb = safe_float(snap.get("book_to_bill_lower_bound"))
+    growth_lo = safe_float(snap.get("organic_growth_guidance_low_pct")); growth_hi = safe_float(snap.get("organic_growth_guidance_high_pct"))
+    growth_mid = (growth_lo + growth_hi) / 2.0 if None not in [growth_lo, growth_hi] else None
+    h1_growth = safe_float(snap.get("revenue_h1_yoy_pct"))
+    op_growth = safe_float(snap.get("operating_result_h1_yoy_pct"))
+    margin_h1 = safe_float(snap.get("current_margin")); margin_q2 = safe_float(snap.get("latest_quarter_margin")); margin_guide = safe_float(snap.get("guidance_margin"))
+    adj_h1 = safe_float(snap.get("adjusted_h1_eps")); adj_h1_prev = safe_float(snap.get("adjusted_h1_eps_previous")); fy25_adj = safe_float(snap.get("fy2025_adjusted_eps"))
+    eps_growth = ((adj_h1 / adj_h1_prev - 1.0) * 100.0) if adj_h1 is not None and adj_h1_prev not in [None, 0] else None
+    h1_ofcf = safe_float(snap.get("h1_operating_free_cashflow")); cash_conv_guide = safe_float(snap.get("cash_conversion_guidance_min_pct"))
+    net_debt = safe_float(snap.get("net_financial_debt")); equity = safe_float(snap.get("equity"))
+    net_debt_equity = net_debt / equity * 100.0 if net_debt is not None and equity not in [None, 0] else None
+
+    order_score = 0
+    if backlog_growth is not None and backlog_growth >= 25: order_score += 6
+    elif backlog_growth is not None and backlog_growth >= 10: order_score += 4
+    if fixed_share is not None and fixed_share >= 65: order_score += 5
+    elif fixed_share is not None and fixed_share >= 50: order_score += 3
+    if near_cov is not None and near_cov >= 80: order_score += 5
+    elif near_cov is not None and near_cov >= 65: order_score += 3
+    if btb is not None and btb >= 2.0: order_score += 4
+    elif btb is not None and btb >= 1.2: order_score += 2
+    order_score = min(20, order_score)
+
+    growth_score = 0
+    if growth_mid is not None and growth_mid >= 25: growth_score += 10
+    elif growth_mid is not None and growth_mid >= 15: growth_score += 7
+    if h1_growth is not None and h1_growth >= 30: growth_score += 5
+    elif h1_growth is not None and h1_growth >= 15: growth_score += 3
+    growth_score = min(15, growth_score)
+
+    margin_score = 0
+    if op_growth is not None and op_growth >= 40: margin_score += 5
+    elif op_growth is not None and op_growth >= 20: margin_score += 3
+    if margin_guide is not None and margin_guide >= 18: margin_score += 6
+    elif margin_guide is not None and margin_guide >= 15: margin_score += 4
+    if margin_h1 is not None and margin_q2 is not None and margin_q2 >= margin_h1 and margin_h1 >= 14: margin_score += 4
+    elif margin_h1 is not None and margin_h1 >= 14: margin_score += 2
+    margin_score = min(15, margin_score)
+
+    earnings_score = 0
+    if eps_growth is not None and eps_growth >= 50: earnings_score += 7
+    elif eps_growth is not None and eps_growth >= 20: earnings_score += 5
+    if fy25_adj is not None and fy25_adj > 0: earnings_score += 3
+    current_eps = safe_float(current_fy_eps)
+    if current_eps is not None and current_eps > 0: earnings_score += 2
+    earnings_score = min(12, earnings_score)  # Same-basis current-FY EPS is consensus, not issuer EPS guidance.
+
+    cash_score = 0
+    if h1_ofcf is not None and h1_ofcf > 0: cash_score = 8
+    elif h1_ofcf is not None and h1_ofcf < 0 and cash_conv_guide is not None and cash_conv_guide >= 40: cash_score = 4
+    elif cash_conv_guide is not None and cash_conv_guide >= 40: cash_score = 5
+
+    balance_score = 0
+    if net_debt_equity is not None:
+        if net_debt_equity <= 25: balance_score = 9
+        elif net_debt_equity <= 50: balance_score = 6
+        elif net_debt_equity <= 75: balance_score = 4
+        else: balance_score = 2
+
+    # Guidance was narrowed after the F126 cancellation, while organic growth and margin guidance remained intact.
+    execution_score = 8 if None not in [growth_mid, margin_guide] and growth_mid >= 25 and margin_guide >= 18 else 5
+    strategic_score = int(safe_float(snap.get("strategic_position_score")) or 0)
+    components = {
+        "Orderqualität & Revenue Visibility": order_score,
+        "Organisches Wachstum & Guidance": growth_score,
+        "Operating Result / Margenqualität": margin_score,
+        "Earnings-Qualität": earnings_score,
+        "Cashflow / Working-Capital-Qualität": cash_score,
+        "Bilanzqualität": balance_score,
+        "Execution / Guidance": execution_score,
+        "Strategische Position / Diversifikation": strategic_score,
+    }
+    score = sum(components.values())
+    raw_pe = _defense_high_growth_target_pe(score)
+    cash_guard_cap = 28.0 if h1_ofcf is not None and h1_ofcf < 0 else 30.0
+    target_pe = min(raw_pe, cash_guard_cap) if raw_pe is not None else None
+    premium_checks = {
+        "order_visibility": bool(order_score >= 16),
+        "organic_growth_gt_20": bool(growth_mid is not None and growth_mid > 20),
+        "margin_ge_18": bool(margin_guide is not None and margin_guide >= 18),
+        "adjusted_eps_growth": bool(eps_growth is not None and eps_growth > 20),
+        "balance_not_excessive": bool(net_debt_equity is not None and net_debt_equity <= 60),
+    }
+    unlock_count = sum(bool(v) for v in premium_checks.values())
+    fv = current_eps * target_pe if current_eps is not None and current_eps > 0 and target_pe is not None else None
+    earnings_basis = {
+        "available": bool(current_eps is not None and current_eps > 0),
+        "value": current_eps,
+        "method": "0Y/current-FY Analystenkonsens; Primärquellen-Growth/Margin/Adjusted-EPS-Trajectory als Credibility Gate",
+        "confidence": "Mittel",
+        "fy2025_adjusted_eps": fy25_adj,
+        "h1_2026_adjusted_eps": adj_h1,
+        "h1_2025_adjusted_eps": adj_h1_prev,
+        "h1_adjusted_eps_growth_pct": eps_growth,
+        "provider_ttm_is_context_only": True,
+    }
+    val = {
+        "available": bool(fresh and fv is not None and score >= 50),
+        "valuation_method_name": "Defense High-Growth Prime Current-FY P/E",
+        "earnings_basis": current_eps,
+        "corridor_low": 18.0,
+        "corridor_high": 30.0,
+        "raw_score_multiple": raw_pe,
+        "target_multiple": target_pe,
+        "cash_conversion_guard_cap": cash_guard_cap,
+        "cash_conversion_guard_binding": bool(raw_pe is not None and target_pe is not None and target_pe < raw_pe - 1e-9),
+        "premium_unlock_count": unlock_count,
+        "premium_unlock_passed": unlock_count >= 4,
+        "premium_unlock_checks": premium_checks,
+        "fair_value_financial": fv,
+        "peer_reference_median_pe": None,
+        "peer_lock": True,
+    }
+    result.update({
+        "primary_source_complete": bool(fresh),
+        "valuation_anchor_complete": bool(val.get("available")),
+        "specialist_score": {
+            "available": True, "score": score, "quality_level": _defense_quality_level(score), "components": components,
+            "backlog_growth_pct": backlog_growth, "fixed_order_share_pct": fixed_share, "near_term_fixed_coverage_pct": near_cov,
+            "organic_growth_guidance_mid_pct": growth_mid, "h1_revenue_growth_pct": h1_growth, "operating_result_growth_pct": op_growth,
+            "net_debt_to_equity_pct": net_debt_equity,
+        },
+        "earnings_basis": earnings_basis,
+        "specialist_valuation": val,
+        "note": (
+            f"{APP_BUILD_VERSION}: Rheinmetall wird über Auftragsqualität/Visibility, organische Guidance, Margen-/Earnings-Qualität, Cash Conversion, Bilanz und Execution bewertet. "
+            "Generisches Yahoo-Gewinnwachstum, TTM-FCF-Marge und Net-Debt/FCF steuern weder Score noch Ziel-KGV."
+        ),
+    })
+    return result
 
 
 def _defense_backlog_status(growth_pct):
@@ -19942,7 +20228,7 @@ def evaluate_defense_margin_trend(
     return result
 
 
-def build_defense_special_control(base_control, company_type, symbol):
+def build_defense_special_control(base_control, company_type, symbol, specialist_model=None):
     """Enrich the 3A router result with Defense step 3B when verified data exist."""
 
     symbol_text = str(symbol or "").upper().strip()
@@ -20313,6 +20599,12 @@ def build_defense_special_control(base_control, company_type, symbol):
         "kratos_cashflow_context": kratos_cashflow,
     }
 
+    defense_v2 = specialist_model if isinstance(specialist_model, dict) else {}
+    if symbol_text in {"RHM.DE", "RHM.F", "RNMBY", "RNMBF"} and defense_v2.get("applicable"):
+        checks["defense_specialist_score"] = defense_v2.get("specialist_score") or {}
+        checks["defense_earnings_basis"] = defense_v2.get("earnings_basis") or {}
+        checks["defense_specialist_valuation"] = defense_v2.get("specialist_valuation") or {}
+
     core_statuses = [
         checks["backlog"]["status"],
         checks["revenue_coverage"]["status"],
@@ -20349,6 +20641,17 @@ def build_defense_special_control(base_control, company_type, symbol):
         released = True
         confidence_cap = "Mittel"
 
+    # V2.20.113: Rheinmetall specialist score/earnings/multiple are the valuation path.
+    if symbol_text in {"RHM.DE", "RHM.F", "RNMBY", "RNMBF"} and defense_v2.get("applicable"):
+        if not snapshot_fresh or not defense_v2.get("valuation_anchor_complete"):
+            overall_status = "Defense-V2 nicht freigegeben"
+            released = False
+            confidence_cap = "Niedrig"
+        else:
+            overall_status = "High-Growth Prime Specialist Model freigegeben"
+            released = True
+            confidence_cap = "Mittel"
+
     # KTOS V2.20.72: primary-source growth/visibility, owner-operating adjustment quality and the
     # FY26 profitability bridge are usable, but valuation remains deliberately fail-closed because
     # a 2027 operating earnings horizon is not yet company-guided. This does not alter Rheinmetall.
@@ -20365,12 +20668,12 @@ def build_defense_special_control(base_control, company_type, symbol):
         "released": released,
         "confidence_cap": confidence_cap,
         "step3b_status": (
-            "Kratos FY26 Primärdaten + Profitabilitätsbrücke vollständig – 2027 Earnings-Horizont noch gesperrt"
-            if symbol_text == "KTOS" and snapshot_fresh
+            f"{APP_BUILD_VERSION} Defense High-Growth Prime Specialist Model V2 vollständig – Fair Value freigegeben"
+            if symbol_text in {"RHM.DE", "RHM.F", "RNMBY", "RNMBF"} and released
             else (
-                "Schritt 3B vollständig – Fair Value freigegeben"
-                if released
-                else "Schritt 3B nicht freigegeben"
+                "Kratos FY26 Primärdaten + Profitabilitätsbrücke vollständig – 2027 Earnings-Horizont noch gesperrt"
+                if symbol_text == "KTOS" and snapshot_fresh
+                else ("Schritt 3B vollständig – Fair Value freigegeben" if released else "Schritt 3B nicht freigegeben")
             )
         ),
         "overall_status": overall_status,
@@ -20386,8 +20689,10 @@ def build_defense_special_control(base_control, company_type, symbol):
             )
             if symbol_text == "KTOS"
             else (
-                "Die Defense-Spezialkontrolle prüft Backlog, Revenue Coverage, Fixed Orders, Book-to-Bill und Margentrend. "
-                "Sie verändert den 100-Punkte-Multiple-Score nicht."
+                f"{APP_BUILD_VERSION} Defense V2: Backlog/Fixed Orders, Revenue Coverage, organische Guidance, Operating Margin/Result, Same-Basis-Earnings-Trajectory, Cash Conversion, Bilanz und Execution bestimmen den eigenen Specialist Score und das Ziel-KGV. "
+                "Generischer Umsatz-/Gewinnwachstums-, ROE-, Yahoo-FCF- und Net-Debt/FCF-Score bleiben ausschließlich Diagnosekontext."
+                if symbol_text in {"RHM.DE", "RHM.F", "RNMBY", "RNMBF"}
+                else "Die Defense-Spezialkontrolle prüft Backlog, Revenue Coverage, Fixed Orders, Book-to-Bill und Margentrend. Sie verändert den 100-Punkte-Multiple-Score nicht."
             )
         ),
     })
@@ -25856,6 +26161,7 @@ def calculate_valuation_confidence(
     is_gold_precious_metals_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "gold_precious_metals_current_share_pe"
     is_luxury_premium_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "luxury_premium_owner_earnings_pe"
     is_asset_management_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "asset_management_through_cycle_pe"
+    is_defense_high_growth_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "defense_high_growth_current_fy_pe"
     if is_auto_valuation:
         cycle_status = str(fair_value.get("cycle_status") or "")
         cycle_level = "Mittel" if cycle_status in {"Stark", "Mittel"} else "Mittel bis Hoch"
@@ -25882,7 +26188,13 @@ def calculate_valuation_confidence(
         earnings_rank = _confidence_rank_value(earnings_level)
         if earnings_rank is not None:
             components["Asset-Manager Earnings-Basis"] = (earnings_rank, earnings_level)
-    elif not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation:
+    elif is_defense_high_growth_valuation:
+        df_earnings = ((special_control or {}).get("checks") or {}).get("defense_earnings_basis") or {}
+        earnings_level = df_earnings.get("confidence") or "Niedrig"
+        earnings_rank = _confidence_rank_value(earnings_level)
+        if earnings_rank is not None:
+            components["Defense Current-FY Earnings-Basis"] = (earnings_rank, earnings_level)
+    elif not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation and not is_defense_high_growth_valuation:
         eps_level = (eps_normalization or {}).get("confidence")
         eps_rank = _confidence_rank_value(eps_level)
         if eps_rank is not None:
@@ -26615,6 +26927,83 @@ def calculate_fair_value_v1(
         return result
 
 
+
+    # V2.20.113 – Rheinmetall Defense High-Growth Prime specialist valuation.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "defense_order_visibility"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        sv = checks.get("defense_specialist_valuation") or {}
+        ss = checks.get("defense_specialist_score") or {}
+        earnings = checks.get("defense_earnings_basis") or {}
+        snap = special_control.get("snapshot") or {}
+        if snap.get("model_variant") == "rheinmetall_high_growth_defense_prime_v2":
+            fv = safe_float(sv.get("fair_value_financial"))
+            if not sv.get("available") or fv is None or fv <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Defense-High-Growth-Spezialanker nicht vollständig verfügbar."
+                return result
+            quote_currency = str(context.get("quote_currency") or "").strip()
+            financial_currency = str(context.get("financial_currency") or "").strip()
+            if not quote_currency or not financial_currency:
+                result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der Defense-Bewertung sind nicht eindeutig."
+                return result
+            share_context = context.get("share_unit_context") or {}
+            share_ratio = 1.0
+            unit_notes = []
+            if share_context.get("conversion_required"):
+                if not share_context.get("conversion_available"):
+                    result["note"] = "Fair Value V1 gesperrt: abweichende Handelseinheit ohne verifizierte Aktien-/ADR-Umrechnung."
+                    return result
+                share_ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
+                if share_ratio is None or share_ratio <= 0:
+                    result["note"] = "Fair Value V1 gesperrt: Aktien-/ADR-Verhältnis ist nicht belastbar."
+                    return result
+            fvq = fv * share_ratio
+            if context.get("mixed_units"):
+                factor = safe_float(context.get("financial_to_quote_factor"))
+                if not context.get("conversion_available") or factor is None or factor <= 0:
+                    result["note"] = "Fair Value V1 gesperrt: Währungsumrechnung der Defense-Bewertung nicht belastbar verfügbar."
+                    return result
+                fvq *= factor
+                unit_notes.append(f"Währungsangleichung: {financial_currency} → {quote_currency} mit Faktor {factor:.6f}.")
+            elif quote_currency != financial_currency:
+                result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+                return result
+            cp = safe_float(current_price)
+            potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+            result.update({
+                "available": True,
+                "valuation_method": "defense_high_growth_current_fy_pe",
+                "normalized_eps": safe_float(sv.get("earnings_basis")),
+                "used_multiple": safe_float(sv.get("target_multiple")),
+                "multiple_source": f"{APP_BUILD_VERSION} Defense High-Growth Prime Specialist P/E",
+                "fair_value_financial": fv,
+                "fair_value_quote": fvq,
+                "potential_pct": potential,
+                "specialist_score": safe_float(ss.get("score")),
+                "specialist_quality_level": ss.get("quality_level"),
+                "specialist_components": ss.get("components") or {},
+                "target_multiple": safe_float(sv.get("target_multiple")),
+                "raw_score_multiple": safe_float(sv.get("raw_score_multiple")),
+                "multiple_corridor_low": safe_float(sv.get("corridor_low")),
+                "multiple_corridor_high": safe_float(sv.get("corridor_high")),
+                "cash_conversion_guard_cap": safe_float(sv.get("cash_conversion_guard_cap")),
+                "cash_conversion_guard_binding": bool(sv.get("cash_conversion_guard_binding")),
+                "premium_unlock_count": sv.get("premium_unlock_count"),
+                "premium_unlock_passed": bool(sv.get("premium_unlock_passed")),
+                "peer_reference_median_pe": safe_float(sv.get("peer_reference_median_pe")),
+                "earnings_basis_method": earnings.get("method"),
+                "defense_company": snap.get("company"),
+                "unit_conversion_applied": bool(unit_notes),
+                "unit_note": " ".join(unit_notes) if unit_notes else None,
+                "note": (
+                    "Defense High-Growth Fair Value V1 = 0Y/current-FY EPS × spezialisiertes Defense-Prime-KGV. "
+                    "Generisches Yahoo-Gewinnwachstum, TTM-FCF/Net-Debt-to-FCF, Peer-KGVs und Analystenziele fließen nicht direkt in den Fair Value ein."
+                ),
+            })
+            return result
 
     # V2.20.109 – Asset Management specialist valuation.
     if (
@@ -31941,6 +32330,22 @@ def load_stock(selected_symbol, cache_version):
                 f" {APP_BUILD_VERSION}: Generische Net-Cash-/Net-Debt-to-FCF-Punkte sind gesperrt; Bilanzqualität wird im Asset-Management-Spezialscore separat bewertet.",
         }
 
+    if is_defense_high_growth_prime_specialist(company_type, fundamental_symbol):
+        fcf_score = {
+            **fcf_score,
+            "context_score": fcf_score.get("score"),
+            "score": None,
+            "note": (fcf_score.get("note") or "") +
+                f" {APP_BUILD_VERSION}: TTM-FCF bleibt für Rheinmetall Diagnosekontext; H1 Operating FCF, Working Capital und FY26 Cash-Conversion-Guidance werden im Defense-Spezialscore separat bewertet.",
+        }
+        balance_score = {
+            **balance_score,
+            "context_score": balance_score.get("score"),
+            "score": None,
+            "note": (balance_score.get("note") or "") +
+                f" {APP_BUILD_VERSION}: Generische Net-Debt/TTM-FCF-Punkte sind für Rheinmetall gesperrt; Net Financial Debt/Equity und Finanzierung des Kapazitäts-/Akquisitionsaufbaus bestimmen die Defense-Bilanzpunkte.",
+        }
+
     # Special models receive the fundamental data package, while price is
     # still the selected market quote. Currency context converts explicitly
     # when a model needs price in the financial currency.
@@ -32037,6 +32442,13 @@ def load_stock(selected_symbol, cache_version):
         valuation_trailing_eps,
         valuation_forward_eps,
         historical.get("eps", [])
+    )
+
+    defense_high_growth_specialist_model = build_defense_high_growth_specialist_model(
+        company_type,
+        fundamental_info,
+        fundamental_symbol,
+        valuation_forward_eps,
     )
 
     ctva_separation_pre_gate_model = build_ctva_separation_pre_gate_model(
@@ -32370,6 +32782,30 @@ def load_stock(selected_symbol, cache_version):
             ),
         }
 
+    if defense_high_growth_specialist_model.get("applicable"):
+        df_score = defense_high_growth_specialist_model.get("specialist_score") or {}
+        df_val = defense_high_growth_specialist_model.get("specialist_valuation") or {}
+        df_corridor = {
+            "available": bool(df_val.get("available")),
+            "lower": safe_float(df_val.get("corridor_low")),
+            "upper": safe_float(df_val.get("corridor_high")),
+            "method": df_val.get("valuation_method_name") or "Defense High-Growth Prime Current-FY P/E",
+            "note": f"{APP_BUILD_VERSION}: 18–30× Defense-Prime-Spezialkorridor; generische Standard-Scores sind für Rheinmetall gesperrt.",
+        }
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": safe_float(df_score.get("score")),
+            "corridor": df_corridor,
+            "multiple": safe_float(df_val.get("target_multiple")),
+            "available": bool(df_score.get("available") and df_val.get("available")),
+            "earnings_basis_usable": bool(df_val.get("available")),
+            "note": (
+                f"{APP_BUILD_VERSION} verwendet für Rheinmetall keinen generischen 100-Punkte-Score. "
+                "Orderqualität/Revenue Visibility, organische Guidance, Operating Result/Margen, Same-Basis-Earnings, Cash Conversion, Bilanz und Execution bestimmen das Spezial-KGV. "
+                "Peer-KGVs und Analystenziele bleiben Kontrollschichten und setzen den Fair Value nicht."
+            ),
+        }
+
     peer_group = get_peer_group(
         company_type,
         fundamental_symbol,
@@ -32410,6 +32846,17 @@ def load_stock(selected_symbol, cache_version):
                 + " Peer-/3Y-Historical-Multiple-Guard nach geladenem Peer-Check geprüft; "
                   "Analystenziele bleiben außen vor."
             ),
+        }
+
+    if defense_high_growth_specialist_model.get("applicable"):
+        df_val_peer = dict(defense_high_growth_specialist_model.get("specialist_valuation") or {})
+        df_val_peer["peer_reference_median_pe"] = safe_float((peer_check or {}).get("peer_median"))
+        df_val_peer["peer_guard_note"] = (peer_check or {}).get("note")
+        defense_high_growth_specialist_model["specialist_valuation"] = df_val_peer
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "multiple": safe_float(df_val_peer.get("target_multiple")),
+            "note": (fundamental_multiple.get("note") or "") + " Defense-Peer-Lock geprüft; keine automatische Peer-Anpassung.",
         }
 
     if midstream_special_model.get("applicable"):
@@ -32570,7 +33017,8 @@ def load_stock(selected_symbol, cache_version):
     special_control = build_defense_special_control(
         special_control,
         company_type,
-        symbol
+        fundamental_symbol,
+        specialist_model=defense_high_growth_specialist_model,
     )
 
     special_control = build_mining_special_control(
@@ -32597,6 +33045,27 @@ def load_stock(selected_symbol, cache_version):
         bank_special_model=bank_special_model,
         insurance_special_model=insurance_special_model
     )
+
+    if defense_high_growth_specialist_model.get("applicable") and defense_high_growth_specialist_model.get("valuation_anchor_complete"):
+        df_snap_event = defense_high_growth_specialist_model.get("snapshot") or {}
+        df_score_event = defense_high_growth_specialist_model.get("specialist_score") or {}
+        df_val_event = defense_high_growth_specialist_model.get("specialist_valuation") or {}
+        special_event_warning = {
+            "level": "Gelb",
+            "icon": "🟡",
+            "title": "Rheinmetall Defense High-Growth Specialist Gate + Cash-Conversion-Guard aktiv",
+            "requires_research": False,
+            "valuation_usable": True,
+            "reason": (
+                f"Backlog/Fixed Orders und FY26-Wachstums-/Margenguidance sind primärquellenbasiert verifiziert; der Defense Quality Score beträgt {safe_float(df_score_event.get('score')):.0f}/100. "
+                f"H1 Operating Free Cash Flow liegt gleichzeitig bei {safe_float(df_snap_event.get('h1_operating_free_cashflow'))/1e9:.3f} Mrd. EUR. "
+                "Der negative Zwischenjahres-Cashflow wird wegen Working-Capital-/Kapazitätsaufbau nicht als normalisierte Earnings-Basis verwendet, bleibt aber ein reales Risiko."
+            ),
+            "action": (
+                f"{APP_BUILD_VERSION} verwendet den Defense-Spezialpfad mit Order Visibility, organischer Guidance, Operating Result/Margen, Same-Basis-Earnings, Bilanz und Execution. "
+                f"Der Cash-Conversion-Guard deckelt das Ziel-KGV bei negativem H1-OFCF auf {safe_float(df_val_event.get('cash_conversion_guard_cap')):.1f}×; generische TTM-FCF-/Net-Debt-to-FCF-Punkte und Provider-TTM-EPS bleiben Diagnosekontext."
+            ),
+        }
 
     if gold_precious_metals_specialist_model.get("applicable") and gold_precious_metals_specialist_model.get("valuation_anchor_complete"):
         gold_snap_event = gold_precious_metals_specialist_model.get("snapshot") or {}
@@ -33153,6 +33622,7 @@ def load_stock(selected_symbol, cache_version):
         "toyo_solar_specialist_model": toyo_solar_specialist_model,
         "luxury_premium_specialist_model": luxury_premium_specialist_model,
         "asset_management_specialist_model": asset_management_specialist_model,
+        "defense_high_growth_specialist_model": defense_high_growth_specialist_model,
         "ctva_separation_pre_gate_model": ctva_separation_pre_gate_model,
         "fundamental_multiple": fundamental_multiple,
         "peer_group": peer_group,
@@ -34240,6 +34710,7 @@ if selected_symbol:
                 toyo_solar_eps_context_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                 luxury_premium_eps_context_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                 asset_management_eps_context_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
+                defense_high_growth_eps_context_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                 ctva_eps_context_ui = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 if bank_core_eps_active:
                     normalized_eps = safe_float(
@@ -34253,7 +34724,7 @@ if selected_symbol:
                     normalized_eps_label = "Versicherungs-Core-TTM-EPS"
                 else:
                     normalized_eps = eps_result["normalized_eps"]
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or asset_management_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or asset_management_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -34339,6 +34810,19 @@ if selected_symbol:
                             "TOYO Solar: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
                             f"{APP_BUILD_VERSION} verwendet für den Fair Value den Q2-2026 Net-Income-Run-Rate auf der tatsächlichen 30.06.-Aktienzahl; Yahoo Current-FY/+1Y-Konsens bleibt nur Horizont-Kontext."
                         )
+                    elif defense_high_growth_eps_context_ui:
+                        df_eps_model_ui = data.get("defense_high_growth_specialist_model") or {}
+                        df_eps_basis_ui = df_eps_model_ui.get("earnings_basis") or {}
+                        st.info(
+                            "Rheinmetall / Defense High-Growth Prime: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                            f"{APP_BUILD_VERSION} verwendet für den Fair Value den 0Y/current-FY-EPS-Konsens als Bewertungsanker und validiert ihn separat gegen FY2025/H1-2026 Adjusted-EPS-Trajectory, organische Guidance und Margenentwicklung."
+                        )
+                        if df_eps_basis_ui.get("available"):
+                            st.write(
+                                "**Defense Current-FY Earnings-Basis:** " + format_eps(df_eps_basis_ui.get("value"), financial_currency) +
+                                " · FY2025 Adjusted EPS " + format_eps(df_eps_basis_ui.get("fy2025_adjusted_eps"), financial_currency) +
+                                " · H1 2026 Adjusted EPS " + format_eps(df_eps_basis_ui.get("h1_2026_adjusted_eps"), financial_currency)
+                            )
                     elif asset_management_eps_context_ui:
                         am_eps_model_ui = data.get("asset_management_specialist_model") or {}
                         am_eps_basis_ui = am_eps_model_ui.get("earnings_basis") or {}
@@ -34422,6 +34906,16 @@ if selected_symbol:
                         "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
                         "die UA/UAA-/OMC-Spezialbewertungssicherheit wird ausschließlich aus der eigenen Primärquellen-Basis, Spezialmethode und den Turnaround-/Post-Merger-Risikogates bestimmt."
                     )
+                elif defense_high_growth_eps_context_ui:
+                    df_eps_conf_ui = ((data.get("defense_high_growth_specialist_model") or {}).get("earnings_basis") or {})
+                    df_eps_level_ui = str(df_eps_conf_ui.get("confidence") or "Niedrig")
+                    if df_eps_level_ui == "Hoch":
+                        st.success("Defense Current-FY Earnings-Basis: **Hohe Sicherheit**")
+                    elif df_eps_level_ui == "Mittel":
+                        st.warning("Defense Current-FY Earnings-Basis: **Mittlere Sicherheit**")
+                    else:
+                        st.error("Defense Current-FY Earnings-Basis: **Niedrige Sicherheit**")
+                    st.caption("Provider/GAAP-TTM-EPS und das generische EPS-Divergenz-Gate steuern weder Defense-Fair-Value noch Defense-Bewertungssicherheit.")
                 elif asset_management_eps_context_ui:
                     am_eps_conf_ui = ((data.get("asset_management_specialist_model") or {}).get("earnings_basis") or {})
                     am_eps_level_ui = str(am_eps_conf_ui.get("confidence") or "Niedrig")
@@ -34494,6 +34988,11 @@ if selected_symbol:
                         st.caption(
                             "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
                             " Diese Standard-TTM-/Forward-Divergenz steuert weder den UA/UAA-/OMC-Spezial-Fair-Value noch dessen Bewertungssicherheit; maßgeblich ist ausschließlich der jeweilige Primärquellen-Anker des Spezialmodells."
+                        )
+                    elif defense_high_growth_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
+                            " Bei Rheinmetall steuert diese Provider/GAAP-TTM-/Current-FY-Divergenz weder den Defense-Spezial-Fair-Value noch dessen Bewertungssicherheit; maßgeblich ist der separate Current-FY-Earnings-Anker mit Primärquellen-Credibility-Gate."
                         )
                     elif asset_management_eps_context_ui:
                         st.caption(
@@ -35248,6 +35747,7 @@ if selected_symbol:
                 is_toyo_solar_score_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                 is_luxury_premium_score_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                 is_asset_management_score_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
+                is_defense_high_growth_score_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                 is_kratos_score_ui = str(selected_symbol or "").upper() == "KTOS"
                 is_bkr_score_ui = str(selected_symbol or "").upper() == "BKR"
 
@@ -35281,6 +35781,9 @@ if selected_symbol:
                 elif is_toyo_solar_score_ui:
                     st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Der generische Wachstumsscore wird nicht verwendet.")
                     st.caption("Wachstum/Skalierung werden aus Q2/H1-2026-Umsatz, Auslieferungen und Manufacturing-Ramp aus Primärquellen bewertet; Yahoo-Wachstumswerte bleiben Diagnosekontext.")
+                elif is_defense_high_growth_score_ui:
+                    st.info("ℹ️ Im Defense-High-Growth-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
+                    st.caption("Rheinmetall wird über Backlog/Fixed Orders, organische FY26-Wachstums-Guidance, Operating-Result-Wachstum und Revenue Visibility aus Primärquellen bewertet. Yahoo-Gewinnwachstum bleibt Diagnosekontext.")
                 elif is_asset_management_score_ui:
                     st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
                     st.caption("AUM-Anstieg wird von organischen Long-Term-Net-Flows getrennt; Marktperformance, FX und Akquisitionen erzeugen keine Growth-Punkte wie bei einem Industrieunternehmen.")
@@ -35400,7 +35903,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_asset_management_score_ui:
+                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_asset_management_score_ui and not is_defense_high_growth_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -35430,6 +35933,7 @@ if selected_symbol:
                 is_gold_precious_metals_profitability_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_profitability_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                 is_asset_management_profitability_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
+                is_defense_high_growth_profitability_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                 is_bkr_profitability_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                 if is_bkr_profitability_ui:
@@ -35446,6 +35950,9 @@ if selected_symbol:
                 elif is_gold_precious_metals_profitability_ui:
                     st.info("ℹ️ Im GOLD-Precious-Metals-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption(f"Für einen Edelmetallhändler ist Umsatzmarge strukturell wenig aussagekräftig. {APP_BUILD_VERSION} bewertet Gross-Margin-Resilienz, Gross Profit, EBITDA-Skalierung und Q4 Adjusted-Pretax-Momentum aus Primärquellen.")
+                elif is_defense_high_growth_profitability_ui:
+                    st.info("ℹ️ Im Defense-High-Growth-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
+                    st.caption("Bewertet werden H1/Q2 Operating Margin, FY26-Margenguidance, Operating-Result-Wachstum und Same-Basis Adjusted-EPS-Trajectory. Yahoo-Nettomarge und ROE bleiben Diagnosekontext.")
                 elif is_asset_management_profitability_ui:
                     st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption("Hoher ROE ist bei kapitalarmen Asset Managern strukturell leichter erreichbar. Bewertet werden stattdessen Core/Adjusted Operating Margin, Margentrend und Earnings-Stabilität.")
@@ -35600,6 +36107,7 @@ if selected_symbol:
                     and not is_gold_precious_metals_profitability_ui
                     and not is_toyo_solar_profitability_ui
                     and not is_asset_management_profitability_ui
+                    and not is_defense_high_growth_profitability_ui
                 ):
                     st.caption(
                         "Die Profitabilität basiert derzeit auf "
@@ -35729,6 +36237,7 @@ if selected_symbol:
                     is_toyo_solar_fcf_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     is_luxury_premium_fcf_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                     is_asset_management_fcf_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
+                    is_defense_high_growth_fcf_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                     is_bkr_model_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                     if is_bkr_model_ui:
@@ -35749,6 +36258,9 @@ if selected_symbol:
                     elif is_toyo_solar_fcf_ui:
                         st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
                         st.caption(f"{APP_BUILD_VERSION} verwendet ausschließlich issuer-ausgewiesenen H1 Operating Cash Flow minus CapEx als Cash-Conversion-Komponente. Yahoo-TTM-FCF bleibt Diagnosekontext.")
+                    elif is_defense_high_growth_fcf_ui:
+                        st.info("ℹ️ Im Defense-High-Growth-Spezialmodell berücksichtigt: Der generische Yahoo-/TTM-FCF-Margen-Score wird nicht verwendet.")
+                        st.caption("Rheinmetalls H1 Operating FCF, Working-Capital-/Kapazitätsaufbau und FY26 Cash-Conversion-Guidance werden separat bewertet. Negativer H1-OFCF löst einen downside-only Multiple-Cap aus; er wird nicht mechanisch in Net-Debt/FCF übersetzt.")
                     elif is_asset_management_fcf_ui:
                         st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Margen-Score wird nicht verwendet.")
                         st.caption("Asset-light Cash Conversion bleibt Diagnose- und Kapitalallokationskontext; sie rechtfertigt allein kein Premium-KGV. Maßgeblich sind Net Flows, Fee-Qualität, Core-Marge und Through-Cycle-Earnings.")
@@ -35829,6 +36341,7 @@ if selected_symbol:
                     and not bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 ):
                     st.caption(
@@ -35958,6 +36471,7 @@ if selected_symbol:
                     is_toyo_solar_balance_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     is_luxury_premium_balance_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                     is_asset_management_balance_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
+                    is_defense_high_growth_balance_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                     is_bkr_balance_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                     if is_bkr_balance_ui:
@@ -35978,6 +36492,9 @@ if selected_symbol:
                     elif is_toyo_solar_balance_ui:
                         st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("TOYO bewertet Liquidität, tatsächliche Aktienverwässerung, RDO/Warrants, Rest-ATM und den 357-Mio.-USD-HJT-Finanzierungsbedarf separat; Yahoo-Schulden/FCF bleiben Kontext.")
+                    elif is_defense_high_growth_balance_ui:
+                        st.info("ℹ️ Im Defense-High-Growth-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
+                        st.caption("Rheinmetall bewertet Net Financial Debt relativ zum Eigenkapital und den Finanzierungs-/Kapazitätsaufbau separat. Ein temporär schwacher TTM-/H1-Cashflow darf die Bilanz nicht mechanisch über Net-Debt/FCF auf 0/15 drücken.")
                     elif is_asset_management_balance_ui:
                         st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("Net Cash oder geringe Verschuldung sind positiv, geben aber nicht automatisch 15/15 Punkte. Seed Capital, Akquisitionen, Buybacks und echte Netto-Aktienzahlentwicklung werden im Spezialscore separat bewertet.")
@@ -36070,6 +36587,7 @@ if selected_symbol:
                     and not bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 ):
                     st.caption(
@@ -38005,6 +38523,7 @@ if selected_symbol:
                 is_semicap_peer_metric = peer_check.get("metric") == "Semicap Forward P/E reference"
                 is_nvidia_peer_metric = peer_check.get("metric") == "NVIDIA Forward P/E reference"
                 is_kratos_peer_metric = peer_check.get("metric") == "Kratos Defense-Tech Forward P/E reference"
+                is_defense_high_growth_peer_metric = peer_check.get("metric") == "Defense High-Growth Prime Forward P/E reference-only"
                 is_bkr_peer_metric = peer_check.get("metric") == "Baker Hughes Component Forward P/E reference"
                 is_medical_devices_peer_metric = peer_check.get("metric") == "Medical Devices Forward P/E guarded reference"
                 is_asset_management_peer_metric = peer_check.get("metric") == "Traditional Asset Manager Forward P/E reference guard"
@@ -38019,10 +38538,27 @@ if selected_symbol:
 
                 else:
 
-                    st.write(
-                        "**Geladene Peer-EV/EBITDA-Werte:**"
-                        if is_midstream_peer_metric else ("**Automotive Peer-Forward-KGVs (Referenz):**" if is_automotive_peer_metric else ("**Semicap Peer-Forward-KGVs (Referenz):**" if is_semicap_peer_metric else ("**NVIDIA Peer-Forward-KGVs (Referenz):**" if is_nvidia_peer_metric else ("**Kratos Defense-Tech Peer-Forward-KGVs (Referenz):**" if is_kratos_peer_metric else ("**Baker Hughes Component Peer-Forward-KGVs (Referenz):**" if is_bkr_peer_metric else ("**Medical-Devices Peer-Forward-KGVs (Kalibrierung):**" if is_medical_devices_peer_metric else ("**Asset-Management Peer-Forward-KGVs (Referenz):**" if is_asset_management_peer_metric else "**Geladene Peer-KGVs:**")))))))
-                    )
+                    if is_midstream_peer_metric:
+                        peer_header = "**Geladene Peer-EV/EBITDA-Werte:**"
+                    elif is_automotive_peer_metric:
+                        peer_header = "**Automotive Peer-Forward-KGVs (Referenz):**"
+                    elif is_semicap_peer_metric:
+                        peer_header = "**Semicap Peer-Forward-KGVs (Referenz):**"
+                    elif is_nvidia_peer_metric:
+                        peer_header = "**NVIDIA Peer-Forward-KGVs (Referenz):**"
+                    elif is_kratos_peer_metric:
+                        peer_header = "**Kratos Defense-Tech Peer-Forward-KGVs (Referenz):**"
+                    elif is_defense_high_growth_peer_metric:
+                        peer_header = "**Defense High-Growth Prime Peer-Forward-KGVs (reference-only):**"
+                    elif is_bkr_peer_metric:
+                        peer_header = "**Baker Hughes Component Peer-Forward-KGVs (Referenz):**"
+                    elif is_medical_devices_peer_metric:
+                        peer_header = "**Medical-Devices Peer-Forward-KGVs (Kalibrierung):**"
+                    elif is_asset_management_peer_metric:
+                        peer_header = "**Asset-Management Peer-Forward-KGVs (Referenz):**"
+                    else:
+                        peer_header = "**Geladene Peer-KGVs:**"
+                    st.write(peer_header)
 
                     for row in peer_check["peer_rows"]:
                         if row["usable"]:
@@ -38229,34 +38765,25 @@ if selected_symbol:
                         peer_check["note"]
                     )
 
-                st.caption(
-                    "Der Peer-Check ist nur ein externer Realitätscheck. Er verändert den "
-                    "100-Punkte-Multiple-Score nicht. "
-                    + (
-                        "Mindestens 3 voll vergleichbare Peers sind für eine automatische Midstream-Anpassung Pflicht; "
-                        "der Median wird statt des Durchschnitts verwendet."
-                        if is_midstream_peer_metric else (
-                            "Mindestens 3 cycle-normalisierte und zyklusvergleichbare Peers sind für eine automatische Automotive-Anpassung Pflicht; "
-                            "der Median wird statt des Durchschnitts verwendet."
-                            if is_automotive_peer_metric else (
-                                "Mindestens 3 produkt-/toolmix-, earnings- und zyklus-/visibilitätsvergleichbare normalisierte Peers sind für eine automatische Semicap-Anpassung Pflicht; "
-                                "der Median wird statt des Durchschnitts verwendet."
-                                if is_semicap_peer_metric else (
-                                    "Mindestens 3 AI-/Geschäftsmix-, earnings- und Nachfrage-/Zyklus-vergleichbare normalisierte Peers sind für eine automatische NVIDIA-Anpassung Pflicht; Median statt Durchschnitt, duale ±5-%-Caps."
-                                    if is_nvidia_peer_metric else (
-                                        "Kratos V2.20.72: Reife Defense-Primes bleiben reference-only, bis mindestens 3 Peers bei Wachstumsphase, Produkt-/Technologiemix, Margenprofil und normalisierter Earnings-Basis vergleichbar sind."
-                                        if is_kratos_peer_metric else (
-                                            "Baker Hughes V2.20.73: SLB/HAL/FTI/GEV bleiben Teilsegment-Referenzen. Eine automatische Anpassung wäre erst bei mindestens 3 voll vergleichbaren Post-Chart Peers mit normalisierter Earnings-/Kapitalstrukturbasis zulässig."
-                                            if is_bkr_peer_metric else
-                                            ("Medical Devices V2.20.103: Mindestens 3 Core-Peers müssen Struktur, 0Y/current-FY-Horizont und verifizierte Same-Basis-Earnings gemeinsam erfüllen. Provider-Forward-KGVs mit +1Y/unklarem Horizont oder ungeklärter Accounting-Basis bleiben reference-only; Median statt Durchschnitt, danach weiterhin ±5-%-Cap." if is_medical_devices_peer_metric else
-                                            "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet.")
-                                        )
-                                    )
-                                )
-                            )
-                        )
-                    )
-                )
+                if is_midstream_peer_metric:
+                    peer_explain = "Mindestens 3 voll vergleichbare Peers sind für eine automatische Midstream-Anpassung Pflicht; der Median wird statt des Durchschnitts verwendet."
+                elif is_automotive_peer_metric:
+                    peer_explain = "Mindestens 3 cycle-normalisierte und zyklusvergleichbare Peers sind für eine automatische Automotive-Anpassung Pflicht; der Median wird statt des Durchschnitts verwendet."
+                elif is_semicap_peer_metric:
+                    peer_explain = "Mindestens 3 produkt-/toolmix-, earnings- und zyklus-/visibilitätsvergleichbare normalisierte Peers sind für eine automatische Semicap-Anpassung Pflicht; der Median wird statt des Durchschnitts verwendet."
+                elif is_nvidia_peer_metric:
+                    peer_explain = "Mindestens 3 AI-/Geschäftsmix-, earnings- und Nachfrage-/Zyklus-vergleichbare normalisierte Peers sind für eine automatische NVIDIA-Anpassung Pflicht; Median statt Durchschnitt, duale ±5-%-Caps."
+                elif is_kratos_peer_metric:
+                    peer_explain = "Kratos V2.20.72: Reife Defense-Primes bleiben reference-only, bis mindestens 3 Peers bei Wachstumsphase, Produkt-/Technologiemix, Margenprofil und normalisierter Earnings-Basis vergleichbar sind."
+                elif is_defense_high_growth_peer_metric:
+                    peer_explain = f"Defense High-Growth {APP_BUILD_VERSION}: BAE/Leonardo/Thales/Saab bleiben reference-only, bis Current-FY-Horizont, Wachstumsphase, Order Visibility und Earnings-Basis gemeinsam normalisiert sind; keine automatische ±5-%-Absenkung."
+                elif is_bkr_peer_metric:
+                    peer_explain = "Baker Hughes V2.20.73: SLB/HAL/FTI/GEV bleiben Teilsegment-Referenzen. Eine automatische Anpassung wäre erst bei mindestens 3 voll vergleichbaren Post-Chart Peers mit normalisierter Earnings-/Kapitalstrukturbasis zulässig."
+                elif is_medical_devices_peer_metric:
+                    peer_explain = "Medical Devices V2.20.103: Mindestens 3 Core-Peers müssen Struktur, 0Y/current-FY-Horizont und verifizierte Same-Basis-Earnings gemeinsam erfüllen. Provider-Forward-KGVs mit +1Y/unklarem Horizont oder ungeklärter Accounting-Basis bleiben reference-only; Median statt Durchschnitt, danach weiterhin ±5-%-Cap."
+                else:
+                    peer_explain = "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
+                st.caption("Der Peer-Check ist nur ein externer Realitätscheck. Er verändert den 100-Punkte-Multiple-Score nicht. " + peer_explain)
 
                 st.caption(
                     "Der Peer-Check erzeugt selbst noch keinen Fair Value. "
@@ -39072,6 +39599,10 @@ if selected_symbol:
                         st.subheader(
                             "🛡️ Modul 6 – Schritt 3B: Kratos Defense-Tech Growth-, FY26-Owner-Operating- & 2027-Horizon-Prüfung"
                         )
+                    elif str((special_control.get("snapshot") or {}).get("model_variant") or "") == "rheinmetall_high_growth_defense_prime_v2":
+                        st.subheader(
+                            f"🛡️ Modul 6 – Schritt 3B: Defense High-Growth Prime Specialist Model V2 · {APP_BUILD_VERSION}"
+                        )
                     else:
                         st.subheader(
                             "🛡️ Modul 6 – Schritt 3B: "
@@ -39210,6 +39741,45 @@ if selected_symbol:
                                 "**Margentrend:** "
                                 f"{margin_trend.get('overall_status', '–')}"
                             )
+
+                        if str(snapshot.get("model_variant") or "") == "rheinmetall_high_growth_defense_prime_v2":
+                            ds = checks.get("defense_specialist_score") or {}
+                            de = checks.get("defense_earnings_basis") or {}
+                            dv = checks.get("defense_specialist_valuation") or {}
+                            st.markdown("**Rheinmetall Defense High-Growth Prime Specialist Score**")
+                            if ds.get("available"):
+                                st.metric("Defense Quality Score", f"{safe_float(ds.get('score')):.0f}/100 · {text_or_dash(ds.get('quality_level'))}")
+                                for label, pts in (ds.get("components") or {}).items():
+                                    st.write(f"• {label}: **{pts}**")
+                            growth_mid_ui = safe_float(ds.get("organic_growth_guidance_mid_pct"))
+                            if growth_mid_ui is not None:
+                                st.write(f"**FY26 organische Wachstums-Guidance Midpoint:** {growth_mid_ui:.1f} %")
+                            nd_eq_ui = safe_float(ds.get("net_debt_to_equity_pct"))
+                            if nd_eq_ui is not None:
+                                st.write(f"**Net Financial Debt / Equity:** {nd_eq_ui:.1f} %")
+                            st.markdown("**Defense Earnings-Basis**")
+                            if de.get("available"):
+                                st.metric("0Y/current-FY EPS-Bewertungsbasis", format_eps(de.get("value"), financial_currency))
+                                if de.get("fy2025_adjusted_eps") is not None:
+                                    st.write(f"**FY2025 Adjusted EPS:** {format_eps(de.get('fy2025_adjusted_eps'), financial_currency)}")
+                                if de.get("h1_2026_adjusted_eps") is not None and de.get("h1_2025_adjusted_eps") is not None:
+                                    st.write(f"**H1 2026 / H1 2025 Adjusted EPS:** {format_eps(de.get('h1_2026_adjusted_eps'), financial_currency)} / {format_eps(de.get('h1_2025_adjusted_eps'), financial_currency)}")
+                                if de.get("h1_adjusted_eps_growth_pct") is not None:
+                                    st.write(f"**H1 Adjusted-EPS-Wachstum:** {de.get('h1_adjusted_eps_growth_pct'):+.1f} %")
+                                st.write(f"**Earnings-Basis-Sicherheit:** {de.get('confidence', '–')}")
+                                st.caption(de.get("method"))
+                            if dv.get("available"):
+                                st.markdown("**Defense-Prime Bewertung**")
+                                st.write(f"**Spezial-KGV-Korridor:** {dv.get('corridor_low'):.2f}× – {dv.get('corridor_high'):.2f}×")
+                                st.write(f"**Score-KGV vor Cash Guard:** {dv.get('raw_score_multiple'):.2f}×")
+                                st.write(f"**Ziel-KGV:** {dv.get('target_multiple'):.2f}×")
+                                st.write(f"**Cash-Conversion-Guard:** max. {dv.get('cash_conversion_guard_cap'):.2f}× · {'bindend' if dv.get('cash_conversion_guard_binding') else 'nicht bindend'}")
+                                st.write(f"**Premium-Unlock:** {dv.get('premium_unlock_count')}/5 · {'bestanden' if dv.get('premium_unlock_passed') else 'nicht bestanden'}")
+                                peer_ref_ui = safe_float(dv.get("peer_reference_median_pe"))
+                                if peer_ref_ui is not None:
+                                    st.write(f"**Defense-Peer-Median (reference-only):** {peer_ref_ui:.2f}×")
+                                st.metric("Rheinmetall Fair Value – Fundamentalwährung", format_eps(dv.get("fair_value_financial"), financial_currency))
+                                st.caption("Peer-KGVs und Analystenziele verändern diesen Fair Value nicht. Negativer H1-OFCF wirkt ausschließlich über den downside-only Cash-Conversion-Guard.")
 
                         if str(snapshot.get("model_variant") or "").startswith("kratos"):
                             kg = checks.get("kratos_growth_visibility") or {}
