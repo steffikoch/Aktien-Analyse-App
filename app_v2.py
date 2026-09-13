@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.100"
+APP_BUILD_VERSION = "V2.20.101"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,10 +25,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Generic Same-Basis Earnings Growth Guard V2"
+    f"Build {APP_BUILD_VERSION} · FY-Guidance-First Same-Basis Growth Guard V3"
 )
 
 
+# V2.20.101: FY-Guidance-First Same-Basis Earnings Growth Guard V3. When an active high-confidence accounting-basis bridge has fresh issuer Current-FY Adjusted/Core/Operating EPS guidance and a same-basis prior-FY EPS, the growth score now uses FY guidance midpoint vs. prior FY as the primary annual growth anchor. Multi-quarter YTD same-basis growth remains a momentum/plausibility control and is shown separately; it no longer displaces the annual guidance anchor. Without a verified same-basis FY bridge, the V2.20.100 YTD -> latest-quarter fail-closed fallback remains intact.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -27627,7 +27628,7 @@ def _verified_adjusted_ttm_snapshot(symbol):
         return None
     if expected is not None and abs(calculated - expected) > 0.03:
         return None
-    return {**row, "adjusted_ttm_eps": calculated}
+    return {**row, "fy_prior": fy, "adjusted_ttm_eps": calculated}
 
 
 def build_eps_accounting_basis_alignment(symbol, raw_trailing_eps, valuation_forward_eps, horizon_alignment, generic_snapshot=None):
@@ -27665,6 +27666,8 @@ def build_eps_accounting_basis_alignment(symbol, raw_trailing_eps, valuation_for
         "note": None,
         "blocked_by_basis_mismatch": False,
         "generic_discovery": generic_discovery,
+        "official_guidance_active": bool(guidance),
+        "guidance": guidance if guidance else None,
     }
 
     if snapshot is None:
@@ -27804,17 +27807,12 @@ def _same_basis_ytd_label(current_fy, completed_quarters):
     return f"YTD {year} vs. YTD {year - 1}"
 
 
-def derive_same_basis_earnings_growth(symbol, eps_basis_alignment):
-    """Derive earnings growth on the exact valuation EPS basis, fail-closed.
+def _same_basis_ytd_growth_context(symbol, eps_basis_alignment):
+    """Return verified same-basis YTD growth for momentum control/fallback.
 
-    Priority:
-    1) Generic primary-source period records -> Q1..Qn current vs same prior-year
-       quarters (multi-quarter YTD; preferred because it is less noisy).
-    2) Verified TTM bridge aggregates -> current_partial / prior_partial.
-    3) Time-bounded latest-quarter verified fallback (diagnostic/regression only).
-
-    The function never activates unless accounting-basis alignment is already
-    active and the source basis family matches that valuation family.
+    This is the V2.20.100 engine isolated from the primary annual-growth choice.
+    It never establishes accounting comparability itself; it only runs after the
+    valuation bridge is already active and on one confirmed earnings-basis family.
     """
     alignment = eps_basis_alignment if isinstance(eps_basis_alignment, dict) else {}
     if not alignment.get("active"):
@@ -27831,7 +27829,7 @@ def derive_same_basis_earnings_growth(symbol, eps_basis_alignment):
             completed = safe_float(snapshot.get("completed_quarters"))
             completed = int(completed) if completed is not None else None
 
-            # Preferred path: reconstruct YTD from explicit period records.
+            # Preferred momentum path: reconstruct YTD from explicit period records.
             if records and completed in (1, 2, 3):
                 quarter_rows = []
                 current_years = []
@@ -27881,8 +27879,7 @@ def derive_same_basis_earnings_growth(symbol, eps_basis_alignment):
                                 "completed_quarters": completed,
                             }
 
-            # Verified snapshots may store the same YTD components already
-            # aggregated (for example H1 current/prior) without raw quarter rows.
+            # Verified snapshots may store the same YTD components already aggregated.
             current_partial = safe_float(snapshot.get("current_partial"))
             prior_partial = safe_float(snapshot.get("prior_partial"))
             completed = completed if completed in (1, 2, 3) else None
@@ -27910,6 +27907,99 @@ def derive_same_basis_earnings_growth(symbol, eps_basis_alignment):
                     "completed_quarters": completed,
                     "latest_quarter_context": latest,
                 }
+    return None
+
+
+def _same_basis_prior_fy_eps(snapshot):
+    if not isinstance(snapshot, dict):
+        return None
+    value = safe_float(snapshot.get("fy_prior"))
+    if value is not None and value > 0:
+        return value
+    current_fy = safe_float(snapshot.get("current_fy"))
+    if current_fy is not None:
+        key = f"fy_{int(current_fy) - 1}"
+        value = safe_float(snapshot.get(key))
+        if value is not None and value > 0:
+            return value
+    # Backward compatibility for older verified rows whose field was named by year.
+    for key, raw in snapshot.items():
+        if re.fullmatch(r"fy_20\d{2}", str(key or "")):
+            value = safe_float(raw)
+            if value is not None and value > 0:
+                return value
+    return None
+
+
+def derive_same_basis_earnings_growth(symbol, eps_basis_alignment):
+    """V2.20.101 – derive earnings growth on the valuation accounting basis.
+
+    Priority:
+    1) Fresh issuer Current-FY guidance midpoint vs prior-FY same-basis EPS.
+       This annual bridge is the primary growth-score anchor.
+    2) Multi-quarter YTD same-basis EPS growth as momentum/fallback.
+    3) Time-bounded latest-quarter same-basis fallback.
+
+    YTD growth is attached to an FY-guidance result as momentum context and does
+    not replace or average the annual guidance growth. The guard remains fail-
+    closed: accounting-basis alignment must already be active and families must
+    match before any provider growth is overridden.
+    """
+    alignment = eps_basis_alignment if isinstance(eps_basis_alignment, dict) else {}
+    if not alignment.get("active"):
+        return None
+    valuation_family = alignment.get("basis_family")
+    if not valuation_family:
+        return None
+
+    snapshot = alignment.get("snapshot") if isinstance(alignment.get("snapshot"), dict) else None
+    momentum = _same_basis_ytd_growth_context(symbol, alignment)
+
+    # Guidance-first annual anchor: only on a fresh official same-basis bridge.
+    guidance = alignment.get("guidance") if isinstance(alignment.get("guidance"), dict) else None
+    if snapshot and alignment.get("official_guidance_active") and guidance:
+        guidance_family = _eps_basis_family(guidance.get("basis"))
+        snapshot_family = snapshot.get("basis_family") or _eps_basis_family(snapshot.get("basis"))
+        current_fy = safe_float(guidance.get("fiscal_year"))
+        snapshot_fy = safe_float(snapshot.get("current_fy"))
+        forward_eps = safe_float(alignment.get("valuation_forward_eps"))
+        prior_fy_eps = _same_basis_prior_fy_eps(snapshot)
+        same_year = bool(
+            current_fy is not None and snapshot_fy is not None
+            and int(current_fy) == int(snapshot_fy)
+        )
+        if (
+            guidance_family == valuation_family == snapshot_family
+            and same_year
+            and forward_eps is not None and forward_eps > 0
+            and prior_fy_eps is not None and prior_fy_eps > 0
+        ):
+            growth = forward_eps / prior_fy_eps - 1.0
+            momentum_growth = safe_float((momentum or {}).get("calculated_growth"))
+            momentum_gap = (
+                abs(growth - momentum_growth)
+                if momentum_growth is not None else None
+            )
+            return {
+                "basis": guidance.get("basis") or snapshot.get("basis") or alignment.get("ttm_basis"),
+                "basis_family": valuation_family,
+                "period": f"FY{int(current_fy)} Guidance vs. FY{int(current_fy) - 1}",
+                "current_eps": forward_eps,
+                "prior_eps": prior_fy_eps,
+                "calculated_growth": growth,
+                "method": "Issuer Current-FY guidance midpoint vs prior-FY same-basis EPS",
+                "source_name": guidance.get("source") or snapshot.get("source_name") or "Unternehmens-Guidance + Primärquellen",
+                "source_urls": snapshot.get("source_urls") or [],
+                "generic": True,
+                "aggregation": "FY-guidance",
+                "current_fy": int(current_fy),
+                "momentum_context": momentum,
+                "momentum_gap": momentum_gap,
+            }
+
+    # No valid annual guidance bridge: retain V2.20.100 YTD preference.
+    if momentum:
+        return momentum
 
     # Last-resort verified quarter bridge: only when its family matches the
     # already active valuation basis. It cannot establish comparability itself.
@@ -29594,11 +29684,18 @@ def load_stock(selected_symbol, cache_version):
         "same_basis_earnings_growth_snapshot": same_basis_earnings_growth if same_basis_earnings_growth_active else None,
     })
     if same_basis_earnings_growth_active:
+        _same_basis_momentum = same_basis_earnings_growth.get("momentum_context") or {}
+        _momentum_growth = safe_float(_same_basis_momentum.get("calculated_growth"))
+        _momentum_note = (
+            f" YTD-Momentumcheck: {_same_basis_momentum.get('period')} "
+            f"({_momentum_growth * 100:.1f} %) bleibt Plausibilitätskontext und steuert den Score nicht."
+            if _momentum_growth is not None else ""
+        )
         growth_score["note"] = (growth_score.get("note") or "") + (
-            " Same-Basis Growth Guard V2.20.100: Der Wachstumsscore verwendet "
+            f" Same-Basis Growth Guard {APP_BUILD_VERSION}: Der Wachstumsscore verwendet "
             f"{same_basis_earnings_growth.get('basis')} · {same_basis_earnings_growth.get('period')} "
             f"({earnings_growth_for_score * 100:.1f} %) aus Primärquellen; "
-            "Yahoo-/GAAP-Gewinnwachstum bleibt Rohdatenkontext."
+            "Yahoo-/GAAP-Gewinnwachstum bleibt Rohdatenkontext." + _momentum_note
         )
 
     if is_bank_company_type(company_type):
@@ -31799,12 +31896,20 @@ if selected_symbol:
 
                 same_basis_growth_ui = data.get("same_basis_earnings_growth_snapshot") or {}
                 if data.get("same_basis_earnings_growth_active") and same_basis_growth_ui:
+                    _momentum_ui = same_basis_growth_ui.get("momentum_context") or {}
+                    _momentum_ui_growth = safe_float(_momentum_ui.get("calculated_growth"))
+                    _momentum_ui_text = (
+                        f" Momentumkontrolle: {text_or_dash(_momentum_ui.get('period'))} "
+                        f"mit {_momentum_ui_growth * 100:.1f} %; dieser YTD-Wert ist Plausibilitätskontext und steuert den Score nicht."
+                        if _momentum_ui_growth is not None else ""
+                    )
                     st.info(
                         f"🧮 **Same-Basis Growth Guard {APP_BUILD_VERSION}:** "
                         f"Für Wachstumsscore und Profitabilitätsbremse wird {text_or_dash(same_basis_growth_ui.get('basis'))} "
                         f"auf Basis {text_or_dash(same_basis_growth_ui.get('period'))} mit "
                         f"{safe_float(data.get('earnings_growth_for_score')) * 100:.1f} % verwendet. "
-                        f"Methode: {text_or_dash(same_basis_growth_ui.get('method'))}. "
+                        f"Methode: {text_or_dash(same_basis_growth_ui.get('method'))}."
+                        f"{_momentum_ui_text} "
                         "Das oben gezeigte Yahoo-/GAAP-Gewinnwachstum bleibt reine Rohdaten-/Diagnoseinformation."
                     )
 
