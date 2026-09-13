@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.108"
+APP_BUILD_VERSION = "V2.20.109"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset Management Specialist Model V1"
+    f"Build {APP_BUILD_VERSION} · Asset Management Specialist Model V1 · Load-Order Hotfix"
 )
 
 
@@ -38,7 +38,7 @@ st.caption(
 # V2.20.106: Targeted LVMH rendering hotfix. Profile-aware balance metric prevents the Hermès-only restated-net-cash field from being formatted for LVMH; Luxury FCF/profitability captions are profile-neutral. No valuation math changed.
 # V2.20.107: Luxury Search Guard & UI/Calendar Cleanup V2.2. Adds Hermès/RMS.PA as the preferred primary-listing result for Hermes/Hermès search aliases so Federated Hermes/FHI cannot outrank it for the luxury-company name. Replaces misleading generic Luxury growth placeholders with specialist-context copy, harmonizes Luxury-Family UI wording and profile-aware FCF labels, and adds official non-valuation calendar fallbacks for Hermès (22 Oct 2026 Q3 revenue) and LVMH (October 2026 Q3 revenue when Yahoo has no future event). No scores, earnings bases, corridors, multiples, Fair Values or signal rules changed.
 
-# V2.20.108: Asset Management Specialist Model V1. Routes Financial Services / Asset Management away from Standard-Unternehmen. Generic revenue/earnings growth, ROE, Yahoo-FCF margin and Net-Cash points are diagnosis-only. A 100-point specialist score uses organic Long-Term flows, AUM quality, Fee-Mix/Effective-Fee-Rate quality, fee-/net-revenue growth, Core/Adjusted operating margin, Through-Cycle earnings, balance quality, capital allocation and franchise diversification. Valuation uses a non-linear 9–18x P/E corridor with Organic-Flow, Premium-Unlock, Money-Market and Peer/3Y-Historical safety guards. FHI/TROW/BEN/IVZ are the validated V1 core universe; BlackRock is premium-reference only. Janus Henderson is excluded after its 30-Jun-2026 take-private/delisting. Unknown Asset Managers fail closed rather than falling back to the generic model.
+# V2.20.109: Asset Management Specialist Model V1 · Load-Order Hotfix. Routes Financial Services / Asset Management away from Standard-Unternehmen. Generic revenue/earnings growth, ROE, Yahoo-FCF margin and Net-Cash points are diagnosis-only. A 100-point specialist score uses organic Long-Term flows, AUM quality, Fee-Mix/Effective-Fee-Rate quality, fee-/net-revenue growth, Core/Adjusted operating margin, Through-Cycle earnings, balance quality, capital allocation and franchise diversification. Valuation uses a non-linear 9–18x P/E corridor with Organic-Flow, Premium-Unlock, Money-Market and Peer/3Y-Historical safety guards. FHI/TROW/BEN/IVZ are the validated V1 core universe; BlackRock is premium-reference only. Janus Henderson is excluded after its 30-Jun-2026 take-private/delisting. Unknown Asset Managers fail closed rather than falling back to the generic model.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -6053,7 +6053,7 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel"
         }
 
-    # V2.20.108 – dedicated traditional/public asset-management route.
+    # V2.20.109 – dedicated traditional/public asset-management route.
     # Legal & General is intentionally handled above as a mixed insurance/asset-management group.
     if (
         ("financial services" in sector_text or "financial" == sector_text)
@@ -15385,7 +15385,7 @@ def apply_toyo_solar_action_brake(new_buy_signal, holding_signal, specialist_mod
 
 
 # =========================================================
-# V2.20.108 – Asset Management Specialist Model V1
+# V2.20.109 – Asset Management Specialist Model V1 · Load-Order Hotfix
 # =========================================================
 
 def is_asset_management_specialist_type(company_type, symbol=None):
@@ -18752,7 +18752,7 @@ def get_special_control(company_type, symbol):
                 "JHG/Take-private Delisting Guard",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Load-Order Hotfix",
             "note": (
                 "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
                 "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
@@ -26402,7 +26402,7 @@ def calculate_fair_value_v1(
 
 
 
-    # V2.20.108 – Asset Management specialist valuation.
+    # V2.20.109 – Asset Management specialist valuation.
     if (
         isinstance(special_control, dict)
         and special_control.get("control_key") == "asset_management_specialist"
@@ -31906,18 +31906,6 @@ def load_stock(selected_symbol, cache_version):
             ),
         }
 
-    if asset_management_specialist_model.get("applicable"):
-        asset_management_specialist_model = apply_asset_management_peer_historical_guard(
-            asset_management_specialist_model, peer_check
-        )
-        am_val_guarded = asset_management_specialist_model.get("specialist_valuation") or {}
-        fundamental_multiple = {
-            **fundamental_multiple,
-            "multiple": safe_float(am_val_guarded.get("target_multiple")),
-            "available": bool(am_val_guarded.get("available") and asset_management_specialist_model.get("valuation_anchor_complete")),
-            "note": (fundamental_multiple.get("note") or "") + " Peer-/3Y-Historical-Multiple-Guard geprüft; Analystenziele bleiben außen vor.",
-        }
-
     if midstream_special_model.get("applicable"):
         ms = midstream_special_model.get("midstream_score") or {}
         mv = midstream_special_model.get("midstream_valuation") or {}
@@ -32180,6 +32168,31 @@ def load_stock(selected_symbol, cache_version):
             False
         )
     )
+
+    # V2.20.109 – Asset-management peer/historical guard must run only AFTER
+    # peer_check has been calculated. V2.20.108 referenced peer_check before
+    # assignment in V2.20.108 for FHI/TROW/BEN/IVZ, which caused the selected stock to fail
+    # during load with the generic UI error "Die Aktie konnte nicht geladen werden."
+    if asset_management_specialist_model.get("applicable"):
+        asset_management_specialist_model = apply_asset_management_peer_historical_guard(
+            asset_management_specialist_model,
+            peer_check,
+        )
+        am_val_guarded = asset_management_specialist_model.get("specialist_valuation") or {}
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "multiple": safe_float(am_val_guarded.get("target_multiple")),
+            "available": bool(
+                am_val_guarded.get("available")
+                and asset_management_specialist_model.get("valuation_anchor_complete")
+            ),
+            "earnings_basis_usable": bool(am_val_guarded.get("available")),
+            "note": (
+                (fundamental_multiple.get("note") or "")
+                + " Peer-/3Y-Historical-Multiple-Guard nach geladenem Peer-Check geprüft; "
+                  "Analystenziele bleiben außen vor."
+            ),
+        }
 
     if midstream_special_model.get("applicable"):
         midstream_special_model["midstream_valuation"] = apply_midstream_peer_overlay(
@@ -38068,7 +38081,7 @@ if selected_symbol:
 
                 if special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Load-Order Hotfix")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
