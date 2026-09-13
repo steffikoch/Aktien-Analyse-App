@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.97"
+APP_BUILD_VERSION = "V2.20.98"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,10 +25,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · TOYO High-Growth Solar Policy & Dilution Specialist Model V1"
+    f"Build {APP_BUILD_VERSION} · GOLD Precious-Metals Distribution & Lending Specialist Model V1"
 )
 
 
+# V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
 # V2.20.97: TOYO High-Growth Solar / Policy & Dilution Specialist Model V1. Adds a dedicated primary-source TOYO valuation path using Q2/H1 2026 growth, margins, issuer cash conversion, actual quarter-end share count, policy/trade exposure, June equity/warrant issuance, remaining ATM capacity and the Texas HJT capex plan. The sole earnings anchor is a conservative latest-quarter current-share run-rate, not Yahoo consensus or H1 annualization. A downside-only policy P/E cap plus financing/dilution P/E cap constrain the operational quality multiple, and an explicit action brake limits Buy/Add to Observe/Hold while Section 232, Ethiopia circumvention/CBP and the major Texas financing plan remain unresolved. Generic Yahoo EPS/FCF/Net-Debt-to-FCF remain context-only.
 # V2.20.96: CTVA Separation Detection & SOTP Pre-Gate. Adds a dedicated Corteva/Vylor/New-Corteva structural-separation router using the verified Q2 2026 separation milestones, H1 Seed/Crop-Protection segment economics and the public Form-10/SEC/IR source set. The planned Oct. 1 separation is recognized as a confirmed structural break rather than an unexplained EPS anomaly. Full SOTP remains fail-closed until the Sep. 15 standalone Investor-Day anchors and final capital structures/Form-10 effectiveness are available; no synthetic Fair Value is created. Corteva IR routing is corrected to investors.corteva.com/financial-information/quarterly-earnings-reports and SEC filings. Generic EPS/FCF/Net-Debt-to-FCF remain context only for CTVA.
 # V2.20.95: Specialist Context Isolation & UA/OMC UI Cleanup. No valuation formulas, scores, multiples, Fair Values or signal rules changed. UA/UAA and OMC now label Standard-EPS, Yahoo/Cashflow-Statement FCF and generic Net-Debt/FCF strictly as diagnosis context; standard EPS divergence/confidence can no longer appear as if it limits specialist valuation confidence.
@@ -877,6 +878,7 @@ def evaluate_generic_eps_basis_comparability(
         "zyklisch", "bank", "versicherung", "reit", "immobilien",
         "autohersteller", "midstream", "halbleiterausrüstung / lithografie",
         "halbleiter / fabless / ai-wachstum", "energy technology / oilfield services",
+        "edelmetall-handel / distribution & lending",
         "early-stage", "projektentwicklung",
     ]
     if any(term in type_name for term in excluded_terms):
@@ -14645,6 +14647,323 @@ def apply_turnaround_postmerger_action_brake(new_buy_signal, holding_signal, spe
 
 
 # =========================================================
+# V2.20.98 – GOLD Precious-Metals Distribution & Lending Specialist Model V1
+# =========================================================
+
+def is_gold_precious_metals_specialist_type(company_type, symbol=None):
+    sym = str(symbol or "").upper().strip()
+    type_name = normalized_company_type_name(company_type)
+    return sym == "GOLD" or "edelmetall-handel / distribution & lending" in type_name
+
+
+def get_verified_gold_precious_metals_snapshot(symbol):
+    """Time-bounded Gold.com FY2026 primary-source snapshot.
+
+    The business turns over very large metal notional volumes, uses forward
+    sales, metal borrowing and inventory-finance structures, and actively
+    hedges inventory.  Revenue and generic industrial FCF therefore are not
+    suitable valuation denominators.  V2.20.98 uses gross profit, EBITDA,
+    inventory/hedge containment, secured-lending quality and liquidity for the
+    operating quality score.  The per-share valuation anchor is deliberately
+    conservative: issuer adjusted pre-tax income is reduced by the depreciation
+    add-back, taxed at the reported FY2026 effective tax rate and divided by the
+    *actual June-30 share count* rather than the lower FY weighted-average count.
+    """
+    if str(symbol or "").upper().strip() != "GOLD":
+        return None
+
+    fy26_revenue = 25_513_409_000.0
+    fy25_revenue = 10_978_614_000.0
+    fy26_gross_profit = 453_144_000.0
+    fy25_gross_profit = 210_916_000.0
+    fy26_ebitda = 179_750_000.0
+    fy25_ebitda = 64_445_000.0
+    fy26_gaap_pretax = 109_522_000.0
+    fy26_tax_expense = 20_907_000.0
+    fy26_adjusted_pretax = 139_940_000.0
+    fy26_depreciation_addback = 10_390_000.0
+    shares_outstanding = 29_121_293.0
+    shares_outstanding_2025 = 24_639_386.0
+    weighted_diluted_shares = 27_262_600.0
+
+    effective_tax_rate = fy26_tax_expense / fy26_gaap_pretax
+    conservative_adjusted_pretax = fy26_adjusted_pretax - fy26_depreciation_addback
+    conservative_adjusted_after_tax = conservative_adjusted_pretax * (1.0 - effective_tax_rate)
+    current_share_earnings_basis = conservative_adjusted_after_tax / shares_outstanding
+
+    inventory = 2_360_336_000.0
+    net_metal_price_risk = 4_871_000.0
+    secured_loans = 115_128_000.0
+    loans_below_75_ltv = 92_933_000.0
+
+    return {
+        "symbol": "GOLD",
+        "company": "Gold.com, Inc.",
+        "as_of_date": "30.06.2026",
+        "published_date": "10.09.2026",
+        "source_name": "Gold.com FY2026 Results + FY2026 Form 10-K",
+        "results_url": "https://ir.gold.com/news-events/press-releases/detail/223/gold-com-reports-fiscal-fourth-quarter-and-full-year-2026-results",
+        "financial_results_url": "https://ir.gold.com/financial-information/financial-results",
+        "ten_k_url": "https://ir.gold.com/sec-filings/all-sec-filings/content/0001193125-26-386799/gold-20260630.htm",
+        "valuation_basis_name": "FY2026 conservative current-share adjusted earnings / specialist P/E",
+        "fy26_revenue": fy26_revenue,
+        "fy25_revenue": fy25_revenue,
+        "fy26_revenue_growth_pct": (fy26_revenue / fy25_revenue - 1.0) * 100.0,
+        "forward_sales_increase": 8_323_000_000.0,
+        "revenue_growth_ex_forward_sales_pct": 94.8,
+        "fy26_gross_profit": fy26_gross_profit,
+        "fy25_gross_profit": fy25_gross_profit,
+        "fy26_gross_profit_growth_pct": (fy26_gross_profit / fy25_gross_profit - 1.0) * 100.0,
+        "fy26_gross_margin_pct": fy26_gross_profit / fy26_revenue * 100.0,
+        "fy25_gross_margin_pct": fy25_gross_profit / fy25_revenue * 100.0,
+        "gross_margin_change_bps": (fy26_gross_profit / fy26_revenue - fy25_gross_profit / fy25_revenue) * 10000.0,
+        "fy26_ebitda": fy26_ebitda,
+        "fy25_ebitda": fy25_ebitda,
+        "fy26_ebitda_growth_pct": (fy26_ebitda / fy25_ebitda - 1.0) * 100.0,
+        "fy26_ebitda_to_gross_profit_pct": fy26_ebitda / fy26_gross_profit * 100.0,
+        "fy26_gaap_net_income_attributable": 82_341_000.0,
+        "fy26_gaap_diluted_eps": 3.02,
+        "fy26_gaap_pretax": fy26_gaap_pretax,
+        "fy26_tax_expense": fy26_tax_expense,
+        "fy26_effective_tax_rate_pct": effective_tax_rate * 100.0,
+        "fy26_adjusted_pretax_non_gaap": fy26_adjusted_pretax,
+        "fy26_depreciation_addback": fy26_depreciation_addback,
+        "conservative_adjusted_pretax": conservative_adjusted_pretax,
+        "conservative_adjusted_after_tax": conservative_adjusted_after_tax,
+        "current_share_earnings_basis": current_share_earnings_basis,
+        "weighted_diluted_shares": weighted_diluted_shares,
+        "shares_outstanding": shares_outstanding,
+        "shares_outstanding_2025": shares_outstanding_2025,
+        "share_count_increase_pct": (shares_outstanding / shares_outstanding_2025 - 1.0) * 100.0,
+        "q4_revenue": 5_005_014_000.0,
+        "q4_revenue_growth_pct": 99.2,
+        "q4_gross_profit": 110_297_000.0,
+        "q4_gross_profit_growth_pct": 35.0,
+        "q4_ebitda": 28_188_000.0,
+        "q4_ebitda_prior": 29_153_000.0,
+        "q4_ebitda_growth_pct": (28_188_000.0 / 29_153_000.0 - 1.0) * 100.0,
+        "q4_adjusted_pretax": 24_741_000.0,
+        "q4_adjusted_pretax_prior": 19_163_000.0,
+        "q4_adjusted_pretax_growth_pct": (24_741_000.0 / 19_163_000.0 - 1.0) * 100.0,
+        "cash": 577_976_000.0,
+        "current_assets": 3_604_351_000.0,
+        "current_liabilities": 3_146_769_000.0,
+        "stockholders_equity": 938_366_000.0,
+        "trading_credit_facility": 427_500_000.0,
+        "trading_credit_facility_drawn": 0.0,
+        "notes_payable": 4_206_000.0,
+        "borrowed_precious_metals": 776_061_000.0,
+        "product_financing_arrangements": 89_249_000.0,
+        "inventory": inventory,
+        "net_metal_price_risk": net_metal_price_risk,
+        "net_metal_price_risk_to_inventory_pct": net_metal_price_risk / inventory * 100.0,
+        "secured_loans": secured_loans,
+        "secured_loans_below_75_ltv": loans_below_75_ltv,
+        "secured_loans_below_75_ltv_pct": loans_below_75_ltv / secured_loans * 100.0,
+        "secured_loans_nonperforming": 0.0,
+        "recent_acquisitions": ["SGI", "Pinehurst", "AMS", "Monex", "SMI"],
+        "special_dividend_per_share": 1.00,
+        "quarterly_dividend_per_share": 0.20,
+        "valuation_confidence_cap": "Niedrig bis Mittel",
+        "note": (
+            "Das extreme Umsatzwachstum ist durch Primärquellen erklärt und bei diesem Geschäftsmodell kein geeigneter Bewertungsnenner: "
+            "Forward Sales, höhere Gold-/Silberpreise, Goldvolumen und mehrere Akquisitionen vergrößern den Umsatznotional stark. "
+            "V2.20.98 bewertet deshalb Gross Profit, EBITDA, Hedge-/Inventarrisiko, gesicherte Kreditqualität und Liquidität. "
+            "Der Earnings-Anker rechnet keine Akquisitions-Run-Rate hoch und verwendet die tatsächliche 30.06.-Aktienzahl."
+        ),
+    }
+
+
+def build_gold_precious_metals_specialist_score(snapshot):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    result = {"available": False, "score": None, "quality_level": None, "components": {}, "note": None}
+    if str(snap.get("symbol") or "").upper() != "GOLD":
+        result["note"] = "GOLD-Spezialscore nicht anwendbar."
+        return result
+
+    required = [
+        safe_float(snap.get("fy26_gross_profit_growth_pct")),
+        safe_float(snap.get("gross_margin_change_bps")),
+        safe_float(snap.get("fy26_ebitda_growth_pct")),
+        safe_float(snap.get("q4_gross_profit_growth_pct")),
+        safe_float(snap.get("q4_ebitda_growth_pct")),
+        safe_float(snap.get("q4_adjusted_pretax_growth_pct")),
+        safe_float(snap.get("net_metal_price_risk_to_inventory_pct")),
+        safe_float(snap.get("secured_loans_below_75_ltv_pct")),
+        safe_float(snap.get("cash")),
+        safe_float(snap.get("trading_credit_facility")),
+        safe_float(snap.get("trading_credit_facility_drawn")),
+        safe_float(snap.get("share_count_increase_pct")),
+    ]
+    if any(v is None for v in required):
+        result["note"] = "GOLD-Spezialscore gesperrt: mindestens eine FY2026-Primärkennzahl fehlt."
+        return result
+
+    gp_growth, margin_change_bps, ebitda_growth, q4_gp_growth, q4_ebitda_growth, q4_adj_growth, hedge_ratio_pct, ltv_lt75_pct, cash, facility, facility_drawn, share_growth = required
+
+    gp_growth_pts = 15.0 if gp_growth >= 50 else 12.0 if gp_growth >= 20 else 8.0 if gp_growth >= 10 else 4.0 if gp_growth >= 0 else 0.0
+    margin_pts = 15.0 if margin_change_bps >= 0 else 12.0 if margin_change_bps >= -10 else 9.0 if margin_change_bps >= -25 else 6.0 if margin_change_bps >= -50 else 3.0
+    ebitda_pts = 15.0 if ebitda_growth >= 50 else 12.0 if ebitda_growth >= 20 else 8.0 if ebitda_growth >= 10 else 4.0 if ebitda_growth >= 0 else 0.0
+
+    q4_pts = 0.0
+    q4_pts += 4.0 if q4_gp_growth >= 20 else 3.0 if q4_gp_growth >= 10 else 2.0 if q4_gp_growth >= 0 else 0.0
+    q4_pts += 4.0 if q4_adj_growth >= 15 else 3.0 if q4_adj_growth >= 5 else 2.0 if q4_adj_growth >= 0 else 0.0
+    q4_pts += 2.0 if q4_ebitda_growth >= 0 else 1.0 if q4_ebitda_growth >= -10 else 0.0
+
+    hedge_pts = 15.0 if hedge_ratio_pct <= 0.50 else 12.0 if hedge_ratio_pct <= 1.0 else 8.0 if hedge_ratio_pct <= 2.5 else 4.0 if hedge_ratio_pct <= 5.0 else 0.0
+
+    no_npl = safe_float(snap.get("secured_loans_nonperforming")) == 0.0
+    if no_npl and ltv_lt75_pct >= 85:
+        lending_pts = 10.0
+    elif no_npl and ltv_lt75_pct >= 80:
+        lending_pts = 9.0
+    elif no_npl and ltv_lt75_pct >= 70:
+        lending_pts = 7.0
+    elif no_npl:
+        lending_pts = 5.0
+    else:
+        lending_pts = 2.0
+
+    if facility_drawn <= 0 and cash >= facility:
+        liquidity_pts = 10.0
+    elif cash >= facility * 0.50:
+        liquidity_pts = 8.0
+    elif cash >= facility * 0.25:
+        liquidity_pts = 6.0
+    else:
+        liquidity_pts = 3.0
+
+    if share_growth <= 5:
+        integration_pts = 10.0
+    elif share_growth <= 10:
+        integration_pts = 7.0
+    elif share_growth <= 15:
+        integration_pts = 5.0
+    elif share_growth <= 20:
+        integration_pts = 3.0
+    else:
+        integration_pts = 1.0
+
+    components = {
+        "Gross-Profit-Wachstum": gp_growth_pts,
+        "Gross-Margin-Resilienz": margin_pts,
+        "EBITDA-Skalierung": ebitda_pts,
+        "Q4 Ergebnisqualität / Momentum": q4_pts,
+        "Inventar-/Hedge-Kontrolle": hedge_pts,
+        "Secured-Lending-Qualität": lending_pts,
+        "Liquidität / Funding": liquidity_pts,
+        "Akquisitions-/Dilution-Integration": integration_pts,
+    }
+    score = max(0.0, min(100.0, round(sum(components.values()), 2)))
+    result.update({
+        "available": True,
+        "score": score,
+        "quality_level": _specialist_quality_level(score),
+        "components": components,
+        "note": (
+            "Der GOLD Quality Score verwendet keine Umsatzmarge, keinen Yahoo-FCF und keine industrielle Netto-Schulden/FCF-Logik. "
+            "Gross Profit/EBITDA messen die operative Ertragskraft; Hedge-, Lending-, Funding- und Dilution-Kontrollen prüfen die für einen Edelmetallhändler relevanten Risiken."
+        ),
+    })
+    return result
+
+
+def build_gold_precious_metals_specialist_valuation(snapshot, specialist_score):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    score_data = specialist_score if isinstance(specialist_score, dict) else {}
+    result = {
+        "available": False,
+        "valuation_method_name": "GOLD current-share conservative adjusted P/E",
+        "earnings_basis": None,
+        "target_multiple": None,
+        "corridor_low": 9.0,
+        "corridor_high": 14.0,
+        "fair_value_financial": None,
+        "note": None,
+    }
+    if not score_data.get("available"):
+        result["note"] = "GOLD-Spezialbewertung gesperrt: Quality Score fehlt."
+        return result
+
+    earnings = safe_float(snap.get("current_share_earnings_basis"))
+    score = safe_float(score_data.get("score"))
+    if earnings is None or earnings <= 0 or score is None:
+        result["note"] = "GOLD-Spezialbewertung gesperrt: konservative Current-Share-Earnings-Basis fehlt."
+        return result
+
+    low, high = 9.0, 14.0
+    target = low + (high - low) * (score / 100.0)
+    fair = earnings * target
+    result.update({
+        "available": True,
+        "earnings_basis": earnings,
+        "target_multiple": target,
+        "corridor_low": low,
+        "corridor_high": high,
+        "fair_value_financial": fair,
+        "score": score,
+        "note": (
+            "Fair Value = konservative FY2026 Current-Share-Earnings-Basis × scoregesteuertes 9–14× Spezial-KGV. "
+            "Die Earnings-Basis entfernt den vom Unternehmen vorgenommenen Depreciation-Add-back, verwendet den gemeldeten FY2026-Steuersatz und die tatsächliche 30.06.-Aktienzahl. "
+            "Keine Umsatz-, Yahoo-FCF-, Net-Debt/FCF- oder Analystenziel-Komponente fließt in den Fair Value ein."
+        ),
+    })
+    return result
+
+
+def build_gold_precious_metals_specialist_model(company_type, fundamental_info, symbol):
+    if not is_gold_precious_metals_specialist_type(company_type, symbol) or str(symbol or "").upper().strip() != "GOLD":
+        return {"applicable": False}
+    snapshot = get_verified_gold_precious_metals_snapshot(symbol)
+    if not snapshot:
+        return {
+            "applicable": True,
+            "primary_source_complete": False,
+            "specialist_score": {"available": False},
+            "specialist_valuation": {"available": False},
+            "valuation_anchor_complete": False,
+            "readiness": "GOLD-Primärquellen-Snapshot fehlt",
+        }
+    score = build_gold_precious_metals_specialist_score(snapshot)
+    valuation = build_gold_precious_metals_specialist_valuation(snapshot, score)
+    return {
+        "applicable": True,
+        "primary_source_complete": True,
+        "snapshot": snapshot,
+        "specialist_score": score,
+        "specialist_valuation": valuation,
+        "valuation_anchor_complete": bool(score.get("available") and valuation.get("available")),
+        "readiness": "GOLD-Spezialbewertung freigegeben" if valuation.get("available") else "GOLD-Spezialbewertung gesperrt",
+    }
+
+
+def build_gold_precious_metals_special_control(control, specialist_model):
+    if not isinstance(control, dict) or control.get("control_key") != "gold_precious_metals_distribution_lending":
+        return control
+    model = specialist_model if isinstance(specialist_model, dict) else {}
+    score = model.get("specialist_score") or {}
+    valuation = model.get("specialist_valuation") or {}
+    snap = model.get("snapshot") or {}
+    released = bool(model.get("valuation_anchor_complete") and score.get("available") and valuation.get("available"))
+    out = dict(control)
+    out.update({
+        "implemented": True,
+        "released": released,
+        "confidence_cap": snap.get("valuation_confidence_cap") or "Niedrig bis Mittel",
+        "router_status": "Schritt 3B freigegeben" if released else "Schritt 3B nicht freigegeben",
+        "step3b_status": "GOLD Precious-Metals-Fair-Value freigegeben" if released else "GOLD Fair Value gesperrt",
+        "snapshot": snap,
+        "checks": {"specialist_score": score, "specialist_valuation": valuation},
+        "note": (
+            "V2.20.98 trennt Gold.com vom generischen Umsatz-/FCF-/Net-Debt-to-FCF-Pfad. Das FY2026-Umsatzwachstum ist durch Forward Sales, "
+            "Metallpreise/-volumen und Akquisitionen erklärt und wird nicht als Bewertungsnenner verwendet. Gross Profit, EBITDA, Hedge-/Inventarrisiko, "
+            "Secured Lending, Funding und aktuelle Dilution bestimmen die Quality-Basis; der Fair Value verwendet ausschließlich die konservative Current-Share-Earnings-Referenz."
+        ),
+    })
+    return out
+
+
+# =========================================================
 # V2.20.97 – TOYO High-Growth Solar / Policy & Dilution Specialist Model V1
 # =========================================================
 
@@ -16819,6 +17138,30 @@ def get_special_control(company_type, symbol):
                 "V2.20.73 behandelt Baker Hughes als Energy-Technology-Plattform statt als integrierten Ölproduzenten. "
                 "Q2 2026 bildet OFSE/IET vor der Chart-Übernahme ab, während der aktuelle Kurs bereits nach dem Closing vom 16.07.2026 liegt. "
                 "Deshalb bleiben generischer Öl-&-Gas-KGV-Pfad, Standard-FCF/Bilanz-Score und Fair Value gesperrt, bis eine belastbare Post-Chart Earnings- und Kapitalstrukturbasis vorliegt."
+            ),
+        }
+
+    if symbol_text == "GOLD" or "edelmetall-handel / distribution & lending" in type_name:
+        return {
+            "required": True,
+            "control_key": "gold_precious_metals_distribution_lending",
+            "control_name": "Gold.com / Gross-Profit-, EBITDA-, Hedge-, Lending- & Funding-Kontrolle",
+            "planned_checks": [
+                "FY2026 Gross-Profit-Wachstum und Gross-Margin-Resilienz statt Umsatzmarge",
+                "FY2026/Q4 EBITDA- und Adjusted-Pre-Tax-Ergebnisqualität",
+                "Forward-Sales-/Metallpreis-/Akquisitions-Erklärung des extremen Umsatzwachstums",
+                "Inventargröße versus netto verbleibendes Metallpreisrisiko nach Hedges",
+                "Secured-Lending-LTV und Non-Performing-Loans",
+                "Cash, ungezogene Trading Credit Facility und Funding-Abhängigkeit",
+                "tatsächliche 30.06.-Aktienzahl und Verwässerung gegenüber Vorjahr",
+                "konservative Adjusted-Earnings-Brücke ohne Depreciation-Add-back",
+                "scoregesteuerter 9–14× Spezial-KGV-Korridor",
+                "Analysten-Kursziel ausschließlich Reality Check",
+            ],
+            "status": "Router aktiv – V2.20.98 GOLD Precious-Metals Distribution & Lending Specialist Model V1",
+            "note": (
+                "GOLD wird nicht in den generischen Umsatzwachstums-/Yahoo-FCF-Pfad gedrückt. V2.20.98 verwendet FY2026-Primärdaten, "
+                "eine konservative Current-Share-Earnings-Basis sowie geschäftsmodellspezifische Hedge-, Lending- und Funding-Kontrollen."
             ),
         }
 
@@ -23657,6 +24000,7 @@ def calculate_valuation_confidence(
     is_utility_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "regulated_utility_core_eps_pe"
     is_turnaround_postmerger_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") in {"ua_turnaround_psales", "omc_post_merger_adjusted_pe"}
     is_toyo_solar_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "toyo_policy_dilution_pe"
+    is_gold_precious_metals_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "gold_precious_metals_current_share_pe"
     if is_auto_valuation:
         cycle_status = str(fair_value.get("cycle_status") or "")
         cycle_level = "Mittel" if cycle_status in {"Stark", "Mittel"} else "Mittel bis Hoch"
@@ -23677,7 +24021,7 @@ def calculate_valuation_confidence(
     elif is_utility_valuation:
         guidance_level = "Hoch"
         components["Current-FY Core/Adjusted EPS Guidance"] = (_confidence_rank_value(guidance_level), guidance_level)
-    elif not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation:
+    elif not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation:
         eps_level = (eps_normalization or {}).get("confidence")
         eps_rank = _confidence_rank_value(eps_level)
         if eps_rank is not None:
@@ -24409,6 +24753,106 @@ def calculate_fair_value_v1(
         })
         return result
 
+
+
+    # V2.20.98 – GOLD precious-metals distribution & lending specialist valuation.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "gold_precious_metals_distribution_lending"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        sv = checks.get("specialist_valuation") or {}
+        ss = checks.get("specialist_score") or {}
+        snap = special_control.get("snapshot") or {}
+        fv = safe_float(sv.get("fair_value_financial"))
+        if not sv.get("available") or fv is None or fv <= 0:
+            result["note"] = "Fair Value V1 gesperrt: GOLD Precious-Metals-Spezialanker nicht vollständig verfügbar."
+            return result
+
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der GOLD-Spezialbewertung sind nicht eindeutig."
+            return result
+
+        share_context = context.get("share_unit_context") or {}
+        share_ratio = 1.0
+        unit_notes = []
+        if share_context.get("conversion_required"):
+            if not share_context.get("conversion_available"):
+                result["note"] = "Fair Value V1 gesperrt: abweichende Handelseinheit ohne verifizierte Aktien-/ADR-Umrechnung."
+                return result
+            share_ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
+            if share_ratio is None or share_ratio <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Aktien-/ADR-Verhältnis ist nicht belastbar."
+                return result
+            unit_notes.append(
+                "Aktieneinheit ausdrücklich angeglichen: 1 "
+                f"{share_context.get('quote_unit_name') or 'Handelseinheit'} = {share_ratio:g} "
+                f"{share_context.get('fundamental_unit_name') or 'Fundamentalaktien'}."
+            )
+
+        fvq = fv * share_ratio
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Währungsumrechnung der GOLD-Spezialbewertung nicht belastbar verfügbar."
+                return result
+            fvq *= factor
+            if context.get("conversion_kind") == "gbp_pence":
+                unit_notes.append("Währungseinheit ausdrücklich angeglichen: 1 GBP = 100 GBp.")
+            else:
+                unit_notes.append(
+                    f"Währungsangleichung: {financial_currency} → {quote_currency} mit Faktor {factor:.6f}."
+                )
+        elif quote_currency != financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+
+        cp = safe_float(current_price)
+        potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+        result.update({
+            "available": True,
+            "valuation_method": "gold_precious_metals_current_share_pe",
+            "normalized_eps": safe_float(sv.get("earnings_basis")),
+            "used_multiple": safe_float(sv.get("target_multiple")),
+            "multiple_source": "V2.20.98 GOLD Gross-Profit/EBITDA Quality P/E",
+            "fair_value_financial": fv,
+            "fair_value_quote": fvq,
+            "potential_pct": potential,
+            "specialist_score": safe_float(ss.get("score")),
+            "specialist_quality_level": ss.get("quality_level"),
+            "specialist_components": ss.get("components") or {},
+            "target_multiple": safe_float(sv.get("target_multiple")),
+            "multiple_corridor_low": safe_float(sv.get("corridor_low")),
+            "multiple_corridor_high": safe_float(sv.get("corridor_high")),
+            "specialist_valuation_method_name": sv.get("valuation_method_name"),
+            "earnings_basis_name": snap.get("valuation_basis_name"),
+            "fy26_gross_profit": safe_float(snap.get("fy26_gross_profit")),
+            "fy26_gross_profit_growth_pct": safe_float(snap.get("fy26_gross_profit_growth_pct")),
+            "fy26_gross_margin_pct": safe_float(snap.get("fy26_gross_margin_pct")),
+            "fy26_ebitda": safe_float(snap.get("fy26_ebitda")),
+            "fy26_ebitda_growth_pct": safe_float(snap.get("fy26_ebitda_growth_pct")),
+            "inventory": safe_float(snap.get("inventory")),
+            "net_metal_price_risk": safe_float(snap.get("net_metal_price_risk")),
+            "net_metal_price_risk_to_inventory_pct": safe_float(snap.get("net_metal_price_risk_to_inventory_pct")),
+            "secured_loans": safe_float(snap.get("secured_loans")),
+            "secured_loans_below_75_ltv_pct": safe_float(snap.get("secured_loans_below_75_ltv_pct")),
+            "secured_loans_nonperforming": safe_float(snap.get("secured_loans_nonperforming")),
+            "cash": safe_float(snap.get("cash")),
+            "trading_credit_facility": safe_float(snap.get("trading_credit_facility")),
+            "trading_credit_facility_drawn": safe_float(snap.get("trading_credit_facility_drawn")),
+            "shares_outstanding": safe_float(snap.get("shares_outstanding")),
+            "share_count_increase_pct": safe_float(snap.get("share_count_increase_pct")),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "GOLD-Fair-Value V1 = konservative FY2026 Current-Share-Earnings-Basis × scoregesteuertes Spezial-KGV. "
+                "Yahoo-Umsatz, Yahoo-FCF, industrielle Netto-Schulden/FCF-Logik und Analysten-Kursziele fließen nicht in den Fair Value ein."
+            ),
+        })
+        return result
 
 
     # V2.20.97 – TOYO high-growth solar / policy & dilution-capped valuation.
@@ -28987,8 +29431,27 @@ def load_stock(selected_symbol, cache_version):
         profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None,
             "brake_text": "Bei Baker Hughes wird die generische Nettomargen-/ROE-Punktelogik nicht als Bewertungsbaustein verwendet; Q2 OFSE/IET Adjusted-EBITDA-Margen und eine spätere konsolidierte Post-Chart Profitabilitätsbasis werden separat geprüft."}
 
+    if is_gold_precious_metals_specialist_type(company_type, fundamental_symbol):
+        growth_score = {
+            **growth_score,
+            "context_score": growth_score.get("score"),
+            "score": None,
+            "note": (
+                "GOLD V2.20.98: Generisches Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext. "
+                "Der freigegebene Precious-Metals-Spezialpfad bewertet Gross-Profit-/EBITDA-Skalierung und Q4-Ergebnisqualität aus FY2026-Primärquellen."
+            ),
+        }
+        profitability_score = {
+            **profitability_score,
+            "context_score": profitability_score.get("score"),
+            "score": None,
+            "brake_text": (
+                "GOLD V2.20.98: Generische Nettomargen-/ROE-Punkte bleiben Diagnosekontext. "
+                "Der freigegebene Spezialpfad bewertet Gross-Margin-Resilienz, EBITDA, Hedge-/Inventar-, Lending-, Funding- und Dilution-Qualität."
+            ),
+        }
+
     fail_closed_context_terms = [
-        "edelmetall-handel / distribution & lending",
         "healthcare / diagnostics & research / cro + data",
         "agriculture / seeds & crop protection",
         "advertising / marketing services",
@@ -29148,6 +29611,12 @@ def load_stock(selected_symbol, cache_version):
     )
 
     turnaround_postmerger_specialist_model = build_turnaround_postmerger_specialist_model(
+        company_type,
+        fundamental_info,
+        fundamental_symbol
+    )
+
+    gold_precious_metals_specialist_model = build_gold_precious_metals_specialist_model(
         company_type,
         fundamental_info,
         fundamental_symbol
@@ -29397,6 +29866,29 @@ def load_stock(selected_symbol, cache_version):
             ),
         }
 
+    if gold_precious_metals_specialist_model.get("applicable"):
+        gold_score_fm = gold_precious_metals_specialist_model.get("specialist_score") or {}
+        gold_val_fm = gold_precious_metals_specialist_model.get("specialist_valuation") or {}
+        gold_corridor = {
+            "available": bool(gold_val_fm.get("available")),
+            "lower": safe_float(gold_val_fm.get("corridor_low")),
+            "upper": safe_float(gold_val_fm.get("corridor_high")),
+            "method": gold_val_fm.get("valuation_method_name") or "GOLD Precious-Metals Specialist P/E",
+            "note": "V2.20.98: Der Korridor gehört ausschließlich zum GOLD-Primärquellenmodell; generische Yahoo-Wachstums-/FCF-Scores bleiben Diagnosekontext.",
+        }
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": safe_float(gold_score_fm.get("score")),
+            "corridor": gold_corridor,
+            "multiple": safe_float(gold_val_fm.get("target_multiple")),
+            "available": bool(gold_score_fm.get("available") and gold_val_fm.get("available")),
+            "earnings_basis_usable": bool(gold_val_fm.get("available")),
+            "note": (
+                "V2.20.98 verwendet für Gold.com keinen generischen 100-Punkte-Score. Der GOLD Quality Score setzt das Spezial-KGV aus Gross Profit/EBITDA, "
+                "Hedge-/Inventar-, Lending-, Funding- und Dilution-Qualität; die konservative Current-Share-Earnings-Basis ist der einzige Fair-Value-Anker."
+            ),
+        }
+
     if toyo_solar_specialist_model.get("applicable"):
         ty_score = toyo_solar_specialist_model.get("specialist_score") or {}
         ty_val = toyo_solar_specialist_model.get("specialist_valuation") or {}
@@ -29527,6 +30019,11 @@ def load_stock(selected_symbol, cache_version):
         turnaround_postmerger_specialist_model
     )
 
+    special_control = build_gold_precious_metals_special_control(
+        special_control,
+        gold_precious_metals_specialist_model
+    )
+
     special_control = build_toyo_solar_special_control(
         special_control,
         toyo_solar_specialist_model
@@ -29606,6 +30103,26 @@ def load_stock(selected_symbol, cache_version):
         bank_special_model=bank_special_model,
         insurance_special_model=insurance_special_model
     )
+
+    if gold_precious_metals_specialist_model.get("applicable") and gold_precious_metals_specialist_model.get("valuation_anchor_complete"):
+        gold_snap_event = gold_precious_metals_specialist_model.get("snapshot") or {}
+        special_event_warning = {
+            "level": "Gelb",
+            "icon": "🟡",
+            "title": "GOLD FY2026 Revenue-Quality / Transformation Gate geklärt",
+            "requires_research": False,
+            "valuation_usable": True,
+            "reason": (
+                f"Das extreme Umsatzwachstum ist durch Primärquellen erklärt: FY2026 Umsatz +{safe_float(gold_snap_event.get('fy26_revenue_growth_pct')):.1f} %, "
+                f"Gross Profit +{safe_float(gold_snap_event.get('fy26_gross_profit_growth_pct')):.1f} %. Der Umsatzanstieg enthält rund "
+                f"{safe_float(gold_snap_event.get('forward_sales_increase'))/1e9:.3f} Mrd. USD zusätzliche Forward Sales sowie höhere Metallpreise/-volumen und mehrere Akquisitionen. "
+                "Für einen Edelmetallhändler ist deshalb das Yahoo-Umsatzwachstum kein Standard-Bewertungsnenner."
+            ),
+            "action": (
+                "Keine weitere generische Sonderereignis-Recherche erforderlich. V2.20.98 verwendet den GOLD-Spezialpfad mit Gross Profit/EBITDA, "
+                "Hedge-/Inventar-, Secured-Lending-, Funding- und Dilution-Kontrolle sowie einer konservativen Current-Share-Earnings-Basis."
+            ),
+        }
 
     if toyo_solar_specialist_model.get("applicable") and toyo_solar_specialist_model.get("valuation_anchor_complete"):
         special_event_warning = {
@@ -30081,6 +30598,7 @@ def load_stock(selected_symbol, cache_version):
         "regulated_utility_specialist_model": regulated_utility_specialist_model,
         "adjusted_earnings_specialist_model": adjusted_earnings_specialist_model,
         "turnaround_postmerger_specialist_model": turnaround_postmerger_specialist_model,
+        "gold_precious_metals_specialist_model": gold_precious_metals_specialist_model,
         "toyo_solar_specialist_model": toyo_solar_specialist_model,
         "ctva_separation_pre_gate_model": ctva_separation_pre_gate_model,
         "fundamental_multiple": fundamental_multiple,
@@ -30747,6 +31265,7 @@ if selected_symbol:
                 is_bkr_fcf_context = is_baker_hughes_energy_tech_company_type(company_type)
                 is_utility_fcf_context = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 is_turnaround_postmerger_fcf_context = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                is_gold_precious_metals_fcf_context = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_fcf_context = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                 is_ctva_fcf_context = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 if fcf_ctx.get("score_eligible"):
@@ -30810,6 +31329,11 @@ if selected_symbol:
                             "Bei Regulated Utilities bleibt der Yahoo-/Cashflow-Statement-FCF ausschließlich Diagnosekontext. "
                             "Er fließt weder in Utility Quality Score, Credit-/Leverage-Prüfung, Ziel-KGV, Bewertungszonen noch Fair Value ein; "
                             "maßgeblich sind FFO/Credit, Rate Base, regulatorische Rückgewinnung und der offizielle Kapital-/Finanzierungsplan."
+                        )
+                    elif is_gold_precious_metals_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            "Bei GOLD bleibt der Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. V2.20.98 bewertet Working Capital, Forward Sales, Metallborrowing/Product Financing, Inventar-/Hedge-Risiko, Secured Lending und Funding separat; Yahoo-FCF steuert weder Quality Score, Ziel-KGV noch Fair Value."
                         )
                     elif is_toyo_solar_fcf_context:
                         st.caption(
@@ -30886,6 +31410,11 @@ if selected_symbol:
                                 "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info und Cashflow-Statement liefern abweichende FCF-Kontextwerte. "
                                 f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Für Baker Hughes V2.20.73 bleiben beide Yahoo-Werte reine Kontextdaten; "
                                 "maßgeblich im Post-Chart Primary-Source Gate ist ausschließlich der offiziell ausgewiesene Q2-Free-Cashflow."
+                            )
+                        elif is_gold_precious_metals_fcf_context:
+                            st.info(
+                                "ℹ️ FCF-Quellenabweichung im GOLD-Spezialkontext: Yahoo quoteSummary/info und Cashflow-Statement liefern deutlich unterschiedliche FCF-Werte. "
+                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Werte bleiben reine Diagnose-/Rohdaten und beeinflussen weder GOLD Quality Score, Current-Share-Earnings-Basis, Ziel-KGV noch Fair Value."
                             )
                         elif is_toyo_solar_fcf_context:
                             st.info(
@@ -31127,6 +31656,10 @@ if selected_symbol:
                     == INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION
                 )
 
+                utility_eps_context_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
+                turnaround_postmerger_eps_context_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                gold_precious_metals_eps_context_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
+                toyo_solar_eps_context_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                 ctva_eps_context_ui = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 if bank_core_eps_active:
                     normalized_eps = safe_float(
@@ -31140,11 +31673,7 @@ if selected_symbol:
                     normalized_eps_label = "Versicherungs-Core-TTM-EPS"
                 else:
                     normalized_eps = eps_result["normalized_eps"]
-                    utility_eps_context_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
-                    turnaround_postmerger_eps_context_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
-                    toyo_solar_eps_context_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
-                    ctva_eps_context_ui = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui or turnaround_postmerger_eps_context_ui or toyo_solar_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -31219,6 +31748,12 @@ if selected_symbol:
                             f"V2.20.95 verwendet für den Fair Value stattdessen direkt die aktuelle {text_or_dash(util_eps_snap_ui.get('earnings_basis_name'))} "
                             "und prüft Rate Base, ROE, Credit, Dividende und Finanzierung separat."
                         )
+                    elif gold_precious_metals_eps_context_ui:
+                        gold_eps_snap_ui = (data.get("gold_precious_metals_specialist_model") or {}).get("snapshot") or {}
+                        st.info(
+                            "GOLD Precious Metals: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                            "V2.20.98 verwendet für den Fair Value eine konservative FY2026 Current-Share-Earnings-Basis aus Primärquellen: Adjusted Pretax abzüglich Depreciation-Add-back, nach gemeldetem FY2026-Steuersatz und geteilt durch die tatsächliche 30.06.-Aktienzahl."
+                        )
                     elif toyo_solar_eps_context_ui:
                         st.info(
                             "TOYO Solar: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
@@ -31252,7 +31787,12 @@ if selected_symbol:
                     )
                 )
 
-                if toyo_solar_eps_context_ui:
+                if gold_precious_metals_eps_context_ui:
+                    st.info(
+                        "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
+                        "die GOLD-Spezialbewertungssicherheit wird ausschließlich aus FY2026-Primärdaten, Gross-Profit/EBITDA-Qualität, Hedge-/Inventar-, Secured-Lending-, Funding- und Dilution-Kontrollen bestimmt."
+                    )
+                elif toyo_solar_eps_context_ui:
                     st.info(
                         "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
                         "die TOYO-Spezialbewertungssicherheit wird ausschließlich aus Q2/H1-Primärdaten, current-share Earnings-Basis sowie Policy-/Trade-, Dilution-/Finanzierungs- und CapEx-Risikogates bestimmt."
@@ -31304,6 +31844,11 @@ if selected_symbol:
                             " Diese TTM-/Forward-Divergenz steuert weder Utility-Fair-Value noch Utility-Bewertungssicherheit; "
                             "maßgeblich ist die Current-FY Core/Adjusted-EPS-Guidance plus Regulierungs-/Credit-/Risiko-Gates."
                         )
+                    elif gold_precious_metals_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
+                            " Bei GOLD steuert diese Standard-TTM-/Forward-Divergenz weder den Spezial-Fair-Value noch dessen Bewertungssicherheit; maßgeblich ist die konservative FY2026 Current-Share-Earnings-Basis aus Primärquellen."
+                        )
                     elif toyo_solar_eps_context_ui:
                         st.caption(
                             "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
@@ -31331,6 +31876,11 @@ if selected_symbol:
                         st.caption(
                             "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die Utility-Bewertungssicherheit nicht. "
                             "Die Utility-Sicherheit wird ausschließlich aus Guidance-, Regulierungs-, Credit-, Finanzierungs- und Spezialrisiko-Gates bestimmt."
+                        )
+                    elif gold_precious_metals_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die GOLD-Spezialbewertungssicherheit nicht. "
+                            "Die GOLD-Sicherheit stammt ausschließlich aus Primärquellen-Gross-Profit/EBITDA-, Hedge-/Inventar-, Lending-, Funding- und Current-Share-Earnings-Kontrollen."
                         )
                     elif toyo_solar_eps_context_ui:
                         st.caption(
@@ -32052,6 +32602,7 @@ if selected_symbol:
                 is_adjusted_specialist_score_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                 is_utility_specialist_score_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 is_turnaround_postmerger_score_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                is_gold_precious_metals_score_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_score_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                 is_kratos_score_ui = str(selected_symbol or "").upper() == "KTOS"
                 is_bkr_score_ui = str(selected_symbol or "").upper() == "BKR"
@@ -32080,6 +32631,9 @@ if selected_symbol:
                 elif is_turnaround_postmerger_score_ui:
                     st.info("ℹ️ Im UA/OMC-Spezialmodell berücksichtigt: Der generische Wachstumsscore wird nicht verwendet.")
                     st.caption("UA bewertet Nachfrage-/Revenue-Turnaround; OMC bewertet Core Organic Growth auf post-merger Basis. Yahoo-Wachstumswerte bleiben Diagnosekontext.")
+                elif is_gold_precious_metals_score_ui:
+                    st.info("ℹ️ Im GOLD-Precious-Metals-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
+                    st.caption("V2.20.98 bewertet Wachstum über FY2026 Gross-Profit- und EBITDA-Skalierung sowie Q4-Ergebnisqualität. Das extreme Yahoo-Umsatzwachstum bleibt Diagnosekontext, weil Forward Sales, Metallpreise/-volumen und Akquisitionen den Umsatznotional stark verändern.")
                 elif is_toyo_solar_score_ui:
                     st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Der generische Wachstumsscore wird nicht verwendet.")
                     st.caption("Wachstum/Skalierung werden aus Q2/H1-2026-Umsatz, Auslieferungen und Manufacturing-Ramp aus Primärquellen bewertet; Yahoo-Wachstumswerte bleiben Diagnosekontext.")
@@ -32193,7 +32747,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_turnaround_postmerger_score_ui:
+                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -32220,6 +32774,7 @@ if selected_symbol:
                 is_adjusted_specialist_profitability_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                 is_utility_specialist_profitability_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 is_turnaround_postmerger_profitability_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                is_gold_precious_metals_profitability_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_profitability_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                 is_bkr_profitability_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
@@ -32234,6 +32789,9 @@ if selected_symbol:
                 elif is_turnaround_postmerger_profitability_ui:
                     st.info("ℹ️ Im UA/OMC-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption("UA nutzt Adjusted Operating Income und Bruttomargenqualität; OMC Core Adjusted EBITA und Adjusted EPS. Generische Yahoo-Margen/ROE bleiben Kontext.")
+                elif is_gold_precious_metals_profitability_ui:
+                    st.info("ℹ️ Im GOLD-Precious-Metals-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
+                    st.caption("Für einen Edelmetallhändler ist Umsatzmarge strukturell wenig aussagekräftig. V2.20.98 bewertet Gross-Margin-Resilienz, Gross Profit, EBITDA-Skalierung und Q4 Adjusted-Pretax-Momentum aus Primärquellen.")
                 elif is_toyo_solar_profitability_ui:
                     st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption("TOYO bewertet Gross Margin, Adjusted-EBITDA-Marge und aktuelle Q2/H1-Ertragsqualität aus Primärquellen; Yahoo-Nettomarge/ROE bleiben Diagnosekontext.")
@@ -32382,6 +32940,7 @@ if selected_symbol:
                     and not is_adjusted_specialist_profitability_ui
                     and not is_utility_specialist_profitability_ui
                     and not is_turnaround_postmerger_profitability_ui
+                    and not is_gold_precious_metals_profitability_ui
                     and not is_toyo_solar_profitability_ui
                 ):
                     st.caption(
@@ -32508,6 +33067,7 @@ if selected_symbol:
                     is_adjusted_specialist_fcf_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     is_utility_specialist_fcf_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     is_turnaround_postmerger_fcf_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                    is_gold_precious_metals_fcf_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     is_toyo_solar_fcf_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     is_bkr_model_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
@@ -32523,6 +33083,9 @@ if selected_symbol:
                     elif is_turnaround_postmerger_fcf_ui:
                         st.info("ℹ️ Im UA/OMC-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
                         st.caption("UA berücksichtigt Liquidität und Restrukturierungs-Cash-Kontext; OMC Integration/Finanzierungsqualität. Yahoo-TTM-FCF ist kein Fair-Value-Anker.")
+                    elif is_gold_precious_metals_fcf_ui:
+                        st.info("ℹ️ Im GOLD-Precious-Metals-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
+                        st.caption("V2.20.98 behandelt Yahoo-FCF nur als Diagnosekontext. Working Capital, Metallborrowing/Product Financing und Forward Sales machen einen industriellen FCF-Margenvergleich ungeeignet; stattdessen werden Inventar-/Hedge-Kontrolle, Secured Lending und Funding bewertet.")
                     elif is_toyo_solar_fcf_ui:
                         st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
                         st.caption("V2.20.97 verwendet ausschließlich issuer-ausgewiesenen H1 Operating Cash Flow minus CapEx als Cash-Conversion-Komponente. Yahoo-TTM-FCF bleibt Diagnosekontext.")
@@ -32592,6 +33155,7 @@ if selected_symbol:
                     and not bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 ):
@@ -32718,6 +33282,7 @@ if selected_symbol:
                     is_adjusted_specialist_balance_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     is_utility_specialist_balance_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     is_turnaround_postmerger_balance_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                    is_gold_precious_metals_balance_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     is_toyo_solar_balance_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     is_bkr_balance_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
@@ -32733,6 +33298,9 @@ if selected_symbol:
                     elif is_turnaround_postmerger_balance_ui:
                         st.info("ℹ️ Im UA/OMC-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("UA bewertet Cash, Revolver und Restrukturierungsfortschritt; OMC berücksichtigt die post-IPG Zins-/Finanzierungslast. Yahoo-Schulden/FCF bleiben Kontext.")
+                    elif is_gold_precious_metals_balance_ui:
+                        st.info("ℹ️ Im GOLD-Precious-Metals-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
+                        st.caption("V2.20.98 trennt operative Finanzierung von Industrieverschuldung: Cash, Trading-Credit-Facility, Notes Payable, Borrowed Metals, Product Financing, Inventar und verbleibendes Netto-Metallpreisrisiko werden separat geprüft. Borrowed Metals/Product Financing werden nicht mechanisch als klassische Netto-Schulden/FCF interpretiert.")
                     elif is_toyo_solar_balance_ui:
                         st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("TOYO bewertet Liquidität, tatsächliche Aktienverwässerung, RDO/Warrants, Rest-ATM und den 357-Mio.-USD-HJT-Finanzierungsbedarf separat; Yahoo-Schulden/FCF bleiben Kontext.")
@@ -32818,6 +33386,7 @@ if selected_symbol:
                     and not bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 ):
@@ -35066,6 +35635,94 @@ if selected_symbol:
                         "nachfolgenden Fair-Value-Schritt, solange sie noch "
                         "nicht vollständig implementiert und freigegeben sind."
                     )
+
+                if special_control.get("control_key") == "gold_precious_metals_distribution_lending":
+                    st.divider()
+                    st.subheader("🥇 Modul 6 – Schritt 3B: GOLD Precious-Metals Distribution & Lending Spezialmodell V1")
+                    if special_control.get("implemented"):
+                        checks_gold = special_control.get("checks") or {}
+                        snap_gold = special_control.get("snapshot") or {}
+                        score_gold = checks_gold.get("specialist_score") or {}
+                        val_gold = checks_gold.get("specialist_valuation") or {}
+                        st.write(
+                            f"**Primärdatenstand:** {text_or_dash(snap_gold.get('as_of_date'))} "
+                            f"(veröffentlicht {text_or_dash(snap_gold.get('published_date'))})"
+                        )
+                        st.caption(text_or_dash(snap_gold.get("source_name")))
+                        source_links_gold = []
+                        if snap_gold.get("results_url"):
+                            source_links_gold.append(f"[FY2026 Results]({snap_gold.get('results_url')})")
+                        if snap_gold.get("ten_k_url"):
+                            source_links_gold.append(f"[FY2026 Form 10-K]({snap_gold.get('ten_k_url')})")
+                        if snap_gold.get("financial_results_url"):
+                            source_links_gold.append(f"[Financial Results]({snap_gold.get('financial_results_url')})")
+                        if source_links_gold:
+                            st.markdown(" · ".join(source_links_gold))
+
+                        g1, g2 = st.columns(2)
+                        with g1:
+                            st.metric("FY2026 Gross-Profit-Wachstum", f"{safe_float(snap_gold.get('fy26_gross_profit_growth_pct')):.1f} %")
+                            st.metric("FY2026 Gross Margin", f"{safe_float(snap_gold.get('fy26_gross_margin_pct')):.2f} %")
+                            st.metric("FY2026 EBITDA-Wachstum", f"{safe_float(snap_gold.get('fy26_ebitda_growth_pct')):.1f} %")
+                            st.write(
+                                "**Q4 Ergebnisqualität:** Gross Profit "
+                                f"{safe_float(snap_gold.get('q4_gross_profit_growth_pct')):+.1f} % · EBITDA "
+                                f"{safe_float(snap_gold.get('q4_ebitda_growth_pct')):+.1f} % · Adjusted Pretax "
+                                f"{safe_float(snap_gold.get('q4_adjusted_pretax_growth_pct')):+.1f} %"
+                            )
+                        with g2:
+                            st.metric("Netto-Metallpreisrisiko / Inventar", f"{safe_float(snap_gold.get('net_metal_price_risk_to_inventory_pct')):.3f} %")
+                            st.metric("Secured Loans unter 75 % LTV", f"{safe_float(snap_gold.get('secured_loans_below_75_ltv_pct')):.1f} %")
+                            st.metric("Aktienzahl vs. FY2025", f"{safe_float(snap_gold.get('share_count_increase_pct')):+.1f} %")
+                            st.write(
+                                "**Funding:** Cash " + format_money(snap_gold.get("cash"), financial_currency) +
+                                " · Trading Facility " + format_money(snap_gold.get("trading_credit_facility"), financial_currency) +
+                                " · gezogen " + format_money(snap_gold.get("trading_credit_facility_drawn"), financial_currency)
+                            )
+
+                        st.info(
+                            "Umsatz und Yahoo-FCF sind bei GOLD ausschließlich Diagnosekontext. Das FY2026-Umsatzwachstum wird durch Forward Sales, "
+                            "Metallpreise/-volumen und Akquisitionen mitbestimmt; der Spezialpfad bewertet deshalb Gross Profit/EBITDA, Hedge-/Inventar-, Lending- und Funding-Qualität."
+                        )
+                        st.write("**Konservative Earnings-Brücke:**")
+                        st.write(
+                            "Adjusted Pretax " + format_money(snap_gold.get("fy26_adjusted_pretax_non_gaap"), financial_currency) +
+                            " − Depreciation-Add-back " + format_money(snap_gold.get("fy26_depreciation_addback"), financial_currency) +
+                            f" → Steuersatz {safe_float(snap_gold.get('fy26_effective_tax_rate_pct')):.1f} % → "
+                            f"{safe_float(snap_gold.get('shares_outstanding'))/1e6:.2f} Mio. tatsächliche 30.06.-Aktien"
+                        )
+                        st.metric(
+                            "Konservative Current-Share-Earnings-Basis",
+                            format_eps(snap_gold.get("current_share_earnings_basis"), financial_currency),
+                        )
+
+                        if score_gold.get("available"):
+                            st.metric(
+                                "GOLD Precious-Metals Quality Score",
+                                f"{safe_float(score_gold.get('score')):.0f}/100 · {text_or_dash(score_gold.get('quality_level'))}",
+                            )
+                            components_gold = score_gold.get("components") or {}
+                            if components_gold:
+                                st.write("**Score-Komponenten:** " + " · ".join(
+                                    f"{name} {safe_float(points):.0f}" for name, points in components_gold.items()
+                                ))
+                        if val_gold.get("available"):
+                            st.write(
+                                f"**Spezial-KGV-Korridor:** {safe_float(val_gold.get('corridor_low')):.2f}× – "
+                                f"{safe_float(val_gold.get('corridor_high')):.2f}× · "
+                                f"**Ziel-KGV:** {safe_float(val_gold.get('target_multiple')):.2f}×"
+                            )
+                            st.metric(
+                                "GOLD Fair Value – Fundamentalwährung",
+                                format_currency_value(val_gold.get("fair_value_financial"), financial_currency, 2),
+                            )
+                        if special_control.get("released"):
+                            st.success("GOLD-Spezialkontrolle vollständig – Fair Value freigegeben.")
+                        else:
+                            st.warning("GOLD-Spezialkontrolle noch nicht vollständig – Fair Value bleibt gesperrt.")
+                        st.caption(text_or_dash(special_control.get("note")))
+                    else:
+                        st.warning("GOLD-Spezialkontrolle ist erkannt, aber noch nicht implementiert.")
 
                 if special_control.get("control_key") == "toyo_solar_policy_dilution":
                     st.divider()
@@ -38250,6 +38907,15 @@ if selected_symbol:
                                 "**Abstand der Bewertungsanker:** "
                                 f"{fair_value.get('anchor_spread_pct'):.1f} %"
                             )
+                    elif fair_value.get("valuation_method") == "gold_precious_metals_current_share_pe":
+                        st.write("**Bewertungsformel:** konservative FY2026 Current-Share-Earnings-Basis × scoregesteuertes GOLD Precious-Metals Spezial-KGV")
+                        st.write(f"**Spezialistischer Quality Score:** {fair_value.get('specialist_score'):.0f}/100 · {fair_value.get('specialist_quality_level')}")
+                        st.write("**Konservative Current-Share-Earnings-Basis:** " + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"]))
+                        st.write(f"**Ziel-KGV:** {fair_value.get('target_multiple'):.2f}× · **Korridor:** {fair_value.get('multiple_corridor_low'):.2f}× – {fair_value.get('multiple_corridor_high'):.2f}×")
+                        st.write(f"**FY2026 Gross-Profit-Wachstum:** {fair_value.get('fy26_gross_profit_growth_pct'):.1f} % · **EBITDA-Wachstum:** {fair_value.get('fy26_ebitda_growth_pct'):.1f} %")
+                        st.write(f"**Netto-Metallpreisrisiko / Inventar:** {fair_value.get('net_metal_price_risk_to_inventory_pct'):.3f} % · **Secured Loans <75 % LTV:** {fair_value.get('secured_loans_below_75_ltv_pct'):.1f} %")
+                        st.write(f"**Aktienzahl:** {fair_value.get('shares_outstanding')/1e6:.2f} Mio. · Veränderung vs. FY2025 {fair_value.get('share_count_increase_pct'):+.1f} %")
+                        st.caption("Yahoo-Umsatz, Yahoo-FCF, industrielle Net-Debt/FCF-Logik und Analysten-Kursziele sind kein Bestandteil des GOLD-Fair-Values.")
                     elif fair_value.get("valuation_method") == "toyo_policy_dilution_pe":
                         st.write("**Bewertungsformel:** Q2-2026 Current-Share Earnings-Run-Rate × operatives Quality-P/E; danach downside-only Policy- und Financing/Dilution-Caps")
                         st.write(f"**Spezialistischer Quality Score:** {fair_value.get('specialist_score'):.0f}/100 · {fair_value.get('specialist_quality_level')}")
@@ -38523,6 +39189,10 @@ if selected_symbol:
                             "Versicherungs-Fair-Value V1 wurde aus zwei unabhängigen, versicherungsspezifischen "
                             "Bewertungsankern berechnet und erst nach der Schritt-3B-Freigabe veröffentlicht."
                         )
+                    elif fair_value.get("valuation_method") == "gold_precious_metals_current_share_pe":
+                        st.success(
+                            "GOLD-Fair-Value V1 wurde aus der konservativen FY2026 Current-Share-Earnings-Basis und dem primärquellenbasierten Precious-Metals Quality Score berechnet."
+                        )
                     elif fair_value.get("valuation_method") == "toyo_policy_dilution_pe":
                         st.success(
                             "TOYO-Fair-Value V1 wurde aus einer konservativen Q2-current-share Earnings-Basis und einem operativen Quality-P/E berechnet; Policy- und Financing/Dilution-Caps wirken ausschließlich downside-only."
@@ -38607,6 +39277,11 @@ if selected_symbol:
                             "Utility-Sicherheitsisolierung: Die Standard-TTM-/Forward-EPS-Divergenz ist kein Bestandteil der Bewertungssicherheit. "
                             "Die angezeigte Sicherheitsstufe stammt ausschließlich aus Unternehmenstyp/Utility-Methode, Current-FY Core/Adjusted-EPS-Guidance "
                             "und der Utility-Spezialkontrolle einschließlich Regulierungs-/Credit-/Finanzierungs-/Tail-Risk-Gates."
+                        )
+                    elif fair_value.get("valuation_method") == "gold_precious_metals_current_share_pe":
+                        st.info(
+                            "GOLD-Sicherheitsisolierung: Standard-TTM-/Forward-EPS, Yahoo-Umsatzwachstum, Yahoo-FCF und generische Net-Debt/FCF-Logik sind kein Bestandteil der Bewertungssicherheit. "
+                            "Die Sicherheitsstufe stammt aus Unternehmenstyp/Methode und der GOLD-Spezialkontrolle mit Gross-Profit/EBITDA-, Hedge-/Inventar-, Lending-, Funding- und Dilution-Prüfung."
                         )
                     elif fair_value.get("valuation_method") == "toyo_policy_dilution_pe":
                         st.info(
