@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.105"
+APP_BUILD_VERSION = "V2.20.106"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Luxury Family & Primary-Listing Guard V2"
+    f"Build {APP_BUILD_VERSION} · Luxury Family LVMH Render Guard V2.1"
 )
 
 
@@ -35,6 +35,7 @@ st.caption(
 # V2.20.103: Medical-Devices Peer Horizon & Accounting-Basis Guard V2. The V2.20.102 structural peer set remains intact, but automatic peer-multiple adjustments are now fail-closed unless at least three Core-Peers are comparable on all three dimensions: business structure, earnings horizon and accounting-basis family. Provider Forward-P/E remains visible as market reference; it can change the Stryker/Medical-Devices target P/E only when the reported Forward-EPS is demonstrably current-FY (0Y) rather than +1Y/unknown and a fresh issuer guidance bridge verifies the same Adjusted/Core/Operating/GAAP basis family as the target valuation anchor. If fewer than three peers pass, the reference median is shown but the score-derived fundamental P/E and Fair Value remain unchanged. The ±5% cap remains as a second safety layer for any future fully verified peer set.
 
 # V2.20.105: Luxury Family & Primary-Listing Guard V2. Keeps the validated Hermès premium-franchise route, adds a separate LVMH diversified-luxury primary-source profile, and injects MC.PA / Paris as the preferred LVMH main listing ahead of OTC LVMHF. Hermès keeps the 24–36x ultra-premium corridor; LVMH receives a lower 18–30x diversified-luxury corridor driven by H1 2026 organic growth, recurring operating margin, operating FCF conversion, net-debt/equity, earnings stability, portfolio resilience and debt reduction. Luxury peers remain reference-only until same-horizon/same-basis comparability is verified.
+# V2.20.106: Targeted LVMH rendering hotfix. Profile-aware balance metric prevents the Hermès-only restated-net-cash field from being formatted for LVMH; Luxury FCF/profitability captions are profile-neutral. No valuation math changed.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -16387,7 +16388,7 @@ def get_peer_group(company_type, symbol, industry=None):
             "target_symbol": own_symbol,
             "peer_model": "luxury_premium_reference_v1",
             "note": (
-                "Luxury-Family-Peer-Lock V2.20.105 aktiv. Hermès, LVMH, Richemont, Moncler und Kering dienen – jeweils ohne das Zielunternehmen selbst – als Markt-Referenzen. "
+                f"Luxury-Family-Peer-Lock {APP_BUILD_VERSION} aktiv. Hermès, LVMH, Richemont, Moncler und Kering dienen – jeweils ohne das Zielunternehmen selbst – als Markt-Referenzen. "
                 "Ohne verifizierte Current-FY-Horizon- und Accounting-Basis-Gleichheit darf ihr Forward-KGV-Median weder Ziel-KGV noch Fair Value verändern."
             ),
         }
@@ -30767,7 +30768,7 @@ def load_stock(selected_symbol, cache_version):
             "score": None,
             "brake_text": (
                 f"Luxury {APP_BUILD_VERSION}: Generische Nettomargen-/ROE-Punkte bleiben Diagnosekontext. "
-                "Der Spezialpfad bewertet Recurring Operating Margin, issuer-adjustierte Earnings, FCF-Conversion und Net Cash."
+                "Der Spezialpfad bewertet Recurring Operating Margin, issuer-adjustierte Earnings, FCF-Conversion und profilabhängige Bilanzqualität."
             ),
         }
 
@@ -34513,8 +34514,12 @@ if selected_symbol:
                         st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
                         st.caption(f"{APP_BUILD_VERSION} verwendet ausschließlich issuer-ausgewiesenen H1 Operating Cash Flow minus CapEx als Cash-Conversion-Komponente. Yahoo-TTM-FCF bleibt Diagnosekontext.")
                     elif is_luxury_premium_fcf_ui:
-                        st.info("ℹ️ Im Luxury-Premium-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
-                        st.caption(f"{APP_BUILD_VERSION} verwendet Hermès' issuer-definierten Adjusted Free Cash Flow und Cash Conversion; Yahoo-TTM-FCF bleibt Diagnosekontext.")
+                        st.info("ℹ️ Im Luxury-Family-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
+                        lx_fcf_snap_ui = (data.get("luxury_premium_specialist_model") or {}).get("snapshot") or {}
+                        if lx_fcf_snap_ui.get("luxury_profile") == "ultra_premium_single_house":
+                            st.caption(f"{APP_BUILD_VERSION} verwendet Hermès' issuer-definierten Adjusted Free Cash Flow und Cash Conversion; Yahoo-TTM-FCF bleibt Diagnosekontext.")
+                        else:
+                            st.caption(f"{APP_BUILD_VERSION} verwendet bei LVMH den issuer-ausgewiesenen Operating Free Cash Flow und die Cash-Conversion im diversifizierten Luxury-Profil; Yahoo-TTM-FCF bleibt Diagnosekontext.")
                     elif is_nvidia_model_ui:
                         st.info("ℹ️ NVIDIA/Fabless-AI-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
                         st.caption("V2.20.67 verwendet ausschließlich den von NVIDIA ausgewiesenen Q2-FY2027-Free-Cashflow in der FCF-/Liquiditätskomponente des AI-Quality-Scores. Yahoo-TTM-FCF bleibt Kontext und beeinflusst weder Demand-/Horizon-Gates noch Fair Value.")
@@ -37136,7 +37141,10 @@ if selected_symbol:
                         with l2:
                             st.metric("Adjusted FCF Wachstum", f"{safe_float(snap_lx.get('h1_adjusted_fcf_growth_pct')):.1f} %")
                             st.metric("Adjusted FCF / Adjusted Net Income", f"{safe_float(snap_lx.get('h1_adjusted_fcf_to_adjusted_net_income_pct')):.1f} %")
-                            st.metric("Restated Net Cash / Equity", f"{safe_float(snap_lx.get('restated_net_cash_to_equity_pct')):.1f} %")
+                            if snap_lx.get("luxury_profile") == "ultra_premium_single_house":
+                                st.metric("Restated Net Cash / Equity", f"{safe_float(snap_lx.get('restated_net_cash_to_equity_pct')):.1f} %")
+                            else:
+                                st.metric("Net Financial Debt / Equity", f"{safe_float(snap_lx.get('net_debt_to_equity_pct')):.1f} %")
                         if snap_lx.get("luxury_profile") == "ultra_premium_single_house":
                             st.write(
                                 f"**Franchise-Resilienz:** Leather Goods {safe_float(snap_lx.get('leather_goods_growth_constant_fx_pct')):+.1f} % · "
