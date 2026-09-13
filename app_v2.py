@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.111"
+APP_BUILD_VERSION = "V2.20.112"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset Management Specialist Model V1 · BEN Flow Definition Fix"
+    f"Build {APP_BUILD_VERSION} · Asset Management Specialist Model V1 · EPS Confidence Isolation"
 )
 
 
@@ -41,6 +41,7 @@ st.caption(
 # V2.20.109: Asset Management Specialist Model V1 · Load-Order Hotfix. Routes Financial Services / Asset Management away from Standard-Unternehmen. Generic revenue/earnings growth, ROE, Yahoo-FCF margin and Net-Cash points are diagnosis-only. A 100-point specialist score uses organic Long-Term flows, AUM quality, Fee-Mix/Effective-Fee-Rate quality, fee-/net-revenue growth, Core/Adjusted operating margin, Through-Cycle earnings, balance quality, capital allocation and franchise diversification. Valuation uses a non-linear 9–18x P/E corridor with Organic-Flow, Premium-Unlock, Money-Market and Peer/3Y-Historical safety guards. FHI/TROW/BEN/IVZ are the validated V1 core universe; BlackRock is premium-reference only. Janus Henderson is excluded after its 30-Jun-2026 take-private/delisting. Unknown Asset Managers fail closed rather than falling back to the generic model.
 # V2.20.110: Asset Management UI Consistency Cleanup. No valuation mathematics changed. Asset-manager green special-event copy now explicitly hands off to the specialist path; generic FCF and Net-Cash scoring footers are hidden for Asset Management (and Luxury, where they were likewise contradictory); specialist quality labels are aligned with the global signal scale (70+ Gut, 50–69 Ausreichend); and Asset-Management peer UI separates active Core-Peers from BlackRock premium-reference counts.
 # V2.20.111: Asset Management BEN Flow Definition Fix. Hardens Long-Term flow-rate handling: an annualized rate is used only when the long-term denominator, period and acquisition separation are explicitly verified (or an issuer-verified annualized organic rate exists). Otherwise only verified flow direction/absolute flows receive a capped directional score and cannot unlock a valuation premium. BEN beginning Long-Term AUM is corrected to 1.5827T USD (cash management excluded), producing a verified 9M annualized Long-Term net-flow rate of about +5.33%; the previous +5.08% used total beginning AUM as denominator. Also fixes the special-event UI lookup so the same flow status is shown consistently and removes the mixed red/yellow multiple-guard icon.
+# V2.20.112: Asset Manager EPS Confidence Isolation. The generic Provider/GAAP TTM-vs-Current-FY divergence remains visible only as diagnostic context for Asset Management. Valuation confidence now uses the specialist Through-Cycle earnings bridge (specialist TTM, Current-FY and 3Y Through-Cycle EPS) instead of the generic EPS-normalization confidence. A same-basis specialist consistency check is stored with the earnings basis; its confidence can limit the Asset-Manager valuation, while the generic divergence can no longer do so. No Asset-Manager score, flow, P/E, Fair-Value or signal threshold mathematics changed.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -15387,7 +15388,7 @@ def apply_toyo_solar_action_brake(new_buy_signal, holding_signal, specialist_mod
 
 
 # =========================================================
-# V2.20.111 – Asset Management Specialist Model V1 · BEN Flow Definition Fix
+# V2.20.112 – Asset Management Specialist Model V1 · EPS Confidence Isolation
 # =========================================================
 
 def is_asset_management_specialist_type(company_type, symbol=None):
@@ -15909,9 +15910,12 @@ def build_asset_management_specialist_score(snapshot):
 
 def build_asset_management_earnings_basis(snapshot, trailing_eps, current_fy_eps, historical_eps):
     snap = snapshot if isinstance(snapshot, dict) else {}
-    trailing = safe_float(snap.get("issuer_adjusted_ttm_eps"))
+    issuer_adjusted_ttm = safe_float(snap.get("issuer_adjusted_ttm_eps"))
+    trailing = issuer_adjusted_ttm
+    ttm_source = "Issuer-adjusted TTM"
     if trailing is None:
         trailing = safe_float(trailing_eps)
+        ttm_source = "Provider/GAAP TTM"
     current_fy = safe_float(current_fy_eps)
     through_cycle = safe_float(snap.get("through_cycle_eps"))
     if through_cycle is None:
@@ -15920,16 +15924,49 @@ def build_asset_management_earnings_basis(snapshot, trailing_eps, current_fy_eps
         return {
             "available": False,
             "normalized_eps": None,
+            "confidence": "Niedrig",
+            "same_basis_consistency_available": False,
             "note": "Asset-Manager Earnings-Basis fail-closed: TTM, Current-FY oder 3Y-Through-Cycle-EPS fehlt.",
         }
+
     normalized = 0.30 * trailing + 0.50 * current_fy + 0.20 * through_cycle
+
+    # V2.20.112: Asset-Manager confidence is measured only inside the
+    # specialist earnings family.  The generic Yahoo/GAAP TTM divergence is
+    # diagnosis-only once the Asset-Management path is active.  Through-Cycle
+    # EPS is deliberately a smoothing anchor, so the confidence brake uses the
+    # current specialist TTM-vs-Current-FY consistency as its main comparison.
+    ttm_current_divergence_pct = abs(current_fy / trailing - 1.0) * 100.0
+    through_cycle_current_divergence_pct = abs(current_fy / through_cycle - 1.0) * 100.0
+    if ttm_current_divergence_pct <= 20.0:
+        confidence = "Hoch"
+    elif ttm_current_divergence_pct <= 40.0:
+        confidence = "Mittel"
+    else:
+        confidence = "Niedrig"
+
     return {
         "available": True,
         "normalized_eps": normalized,
         "ttm_eps": trailing,
         "current_fy_eps": current_fy,
         "through_cycle_eps": through_cycle,
+        "ttm_source": ttm_source,
+        "earnings_basis_family": (
+            "Issuer-adjusted / Current-FY / Through-Cycle"
+            if issuer_adjusted_ttm is not None
+            else "Provider/GAAP TTM / Current-FY / Through-Cycle"
+        ),
+        "same_basis_consistency_available": True,
+        "ttm_current_fy_divergence_pct": ttm_current_divergence_pct,
+        "through_cycle_current_fy_divergence_pct": through_cycle_current_divergence_pct,
+        "confidence": confidence,
         "method": "30 % TTM + 50 % Current-FY + 20 % 3Y Through-Cycle EPS",
+        "confidence_note": (
+            f"Asset-Manager Same-Basis-Konsistenz: Specialist-TTM und Current-FY weichen um "
+            f"{ttm_current_divergence_pct:.1f} % voneinander ab. Die 3Y-Through-Cycle-Komponente bleibt "
+            "bewusst ein Glättungsanker und wird nicht als generische TTM/Forward-Divergenz behandelt."
+        ),
         "note": "Ein einzelnes starkes Marktjahr wird nicht fast vollständig kapitalisiert; Current-FY bleibt der wichtigste Horizont, Through-Cycle glättet die Zyklik.",
     }
 
@@ -18922,7 +18959,7 @@ def get_special_control(company_type, symbol):
                 "JHG/Take-private Delisting Guard",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · BEN Flow Definition Fix",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · EPS Confidence Isolation",
             "note": (
                 "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
                 "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
@@ -25818,6 +25855,7 @@ def calculate_valuation_confidence(
     is_toyo_solar_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "toyo_policy_dilution_pe"
     is_gold_precious_metals_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "gold_precious_metals_current_share_pe"
     is_luxury_premium_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "luxury_premium_owner_earnings_pe"
+    is_asset_management_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "asset_management_through_cycle_pe"
     if is_auto_valuation:
         cycle_status = str(fair_value.get("cycle_status") or "")
         cycle_level = "Mittel" if cycle_status in {"Stark", "Mittel"} else "Mittel bis Hoch"
@@ -25838,6 +25876,12 @@ def calculate_valuation_confidence(
     elif is_utility_valuation:
         guidance_level = "Hoch"
         components["Current-FY Core/Adjusted EPS Guidance"] = (_confidence_rank_value(guidance_level), guidance_level)
+    elif is_asset_management_valuation:
+        am_earnings = ((special_control or {}).get("checks") or {}).get("earnings_basis") or {}
+        earnings_level = am_earnings.get("confidence") or "Niedrig"
+        earnings_rank = _confidence_rank_value(earnings_level)
+        if earnings_rank is not None:
+            components["Asset-Manager Earnings-Basis"] = (earnings_rank, earnings_level)
     elif not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation:
         eps_level = (eps_normalization or {}).get("confidence")
         eps_rank = _confidence_rank_value(eps_level)
@@ -34378,6 +34422,27 @@ if selected_symbol:
                         "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
                         "die UA/UAA-/OMC-Spezialbewertungssicherheit wird ausschließlich aus der eigenen Primärquellen-Basis, Spezialmethode und den Turnaround-/Post-Merger-Risikogates bestimmt."
                     )
+                elif asset_management_eps_context_ui:
+                    am_eps_conf_ui = ((data.get("asset_management_specialist_model") or {}).get("earnings_basis") or {})
+                    am_eps_level_ui = str(am_eps_conf_ui.get("confidence") or "Niedrig")
+                    am_eps_div_ui = safe_float(am_eps_conf_ui.get("ttm_current_fy_divergence_pct"))
+                    am_eps_label_ui = {
+                        "Hoch": "Hohe Sicherheit",
+                        "Mittel": "Mittlere Sicherheit",
+                        "Niedrig": "Niedrige Sicherheit",
+                    }.get(am_eps_level_ui, "Niedrige Sicherheit")
+                    am_eps_msg_ui = f"Asset-Manager Earnings-Basis: **{am_eps_label_ui}**"
+                    if am_eps_level_ui == "Hoch":
+                        st.success(am_eps_msg_ui)
+                    elif am_eps_level_ui == "Mittel":
+                        st.warning(am_eps_msg_ui)
+                    else:
+                        st.error(am_eps_msg_ui)
+                    if am_eps_div_ui is not None:
+                        st.caption(
+                            f"Spezialpfad-Konsistenz: TTM und Current-FY derselben Asset-Manager-Earnings-Familie weichen um {am_eps_div_ui:.1f} % ab. "
+                            "Die 3Y-Through-Cycle-Komponente ist ein Glättungsanker."
+                        )
                 elif confidence == "Hoch":
 
                     st.success(
@@ -34430,6 +34495,12 @@ if selected_symbol:
                             "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
                             " Diese Standard-TTM-/Forward-Divergenz steuert weder den UA/UAA-/OMC-Spezial-Fair-Value noch dessen Bewertungssicherheit; maßgeblich ist ausschließlich der jeweilige Primärquellen-Anker des Spezialmodells."
                         )
+                    elif asset_management_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
+                            " Bei Asset Management bleibt diese Provider/GAAP-Divergenz ausschließlich Diagnosekontext. "
+                            "Fair Value und Bewertungssicherheit verwenden die separate Through-Cycle-Earnings-Basis des Spezialmodells."
+                        )
                     else:
                         st.warning(eps_result["eps_divergence_note"])
 
@@ -34462,6 +34533,11 @@ if selected_symbol:
                         st.caption(
                             "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die UA/UAA-/OMC-Spezialbewertungssicherheit nicht. "
                             "Die Spezialmodell-Sicherheit stammt ausschließlich aus Primärquellen-Anker, Methode sowie Turnaround-/Integration-/Finanzierungsrisiken."
+                        )
+                    elif asset_management_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die Asset-Management-Spezialbewertungssicherheit nicht. "
+                            "Die Asset-Manager-Sicherheit stammt aus der Through-Cycle-Earnings-Basis, Unternehmenstyp/Methode, Peer-Check und Spezialkontrolle."
                         )
                     else:
                         st.warning(eps_result["confidence_note"])
@@ -38305,7 +38381,7 @@ if selected_symbol:
 
                 if special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · BEN Flow Definition Fix")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · EPS Confidence Isolation")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
@@ -42122,6 +42198,14 @@ if selected_symbol:
                                 "Post-Merger-Sicherheitsisolierung: Das strukturell verzerrte GAAP-TTM, die Standard-TTM-/Forward-EPS-Divergenz und Yahoo-FCF sind kein Bestandteil der OMC-Bewertungssicherheit. "
                                 "Die angezeigte Sicherheitsstufe stammt ausschließlich aus Post-Merger-Methode, H1-2026 Adjusted-EPS-Run-Rate und der Spezialkontrolle einschließlich Integration-, Synergie- und Finanzierungsrisiken."
                             )
+                    elif fair_value.get("valuation_method") == "asset_management_through_cycle_pe":
+                        am_conf_basis_ui = (((data.get("special_control") or {}).get("checks") or {}).get("earnings_basis") or {})
+                        st.info(
+                            "Asset-Manager-Sicherheitsisolierung: Die generische Provider/GAAP-TTM-/Forward-Divergenz ist kein Bestandteil der Bewertungssicherheit. "
+                            "Maßgeblich ist die separate 30/50/20 Through-Cycle-Earnings-Basis plus Unternehmenstyp/Methode, Peer-Check und Asset-Management-Spezialkontrolle."
+                        )
+                        if am_conf_basis_ui.get("confidence_note"):
+                            st.caption(am_conf_basis_ui.get("confidence_note"))
                     else:
                         eps_confidence_note = data.get(
                             "eps_normalization", {}
