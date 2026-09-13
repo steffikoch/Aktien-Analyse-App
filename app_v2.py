@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.107"
+APP_BUILD_VERSION = "V2.20.108"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Luxury Search Guard & UI/Calendar Cleanup V2.2"
+    f"Build {APP_BUILD_VERSION} · Asset Management Specialist Model V1"
 )
 
 
@@ -37,6 +37,8 @@ st.caption(
 # V2.20.105: Luxury Family & Primary-Listing Guard V2. Keeps the validated Hermès premium-franchise route, adds a separate LVMH diversified-luxury primary-source profile, and injects MC.PA / Paris as the preferred LVMH main listing ahead of OTC LVMHF. Hermès keeps the 24–36x ultra-premium corridor; LVMH receives a lower 18–30x diversified-luxury corridor driven by H1 2026 organic growth, recurring operating margin, operating FCF conversion, net-debt/equity, earnings stability, portfolio resilience and debt reduction. Luxury peers remain reference-only until same-horizon/same-basis comparability is verified.
 # V2.20.106: Targeted LVMH rendering hotfix. Profile-aware balance metric prevents the Hermès-only restated-net-cash field from being formatted for LVMH; Luxury FCF/profitability captions are profile-neutral. No valuation math changed.
 # V2.20.107: Luxury Search Guard & UI/Calendar Cleanup V2.2. Adds Hermès/RMS.PA as the preferred primary-listing result for Hermes/Hermès search aliases so Federated Hermes/FHI cannot outrank it for the luxury-company name. Replaces misleading generic Luxury growth placeholders with specialist-context copy, harmonizes Luxury-Family UI wording and profile-aware FCF labels, and adds official non-valuation calendar fallbacks for Hermès (22 Oct 2026 Q3 revenue) and LVMH (October 2026 Q3 revenue when Yahoo has no future event). No scores, earnings bases, corridors, multiples, Fair Values or signal rules changed.
+
+# V2.20.108: Asset Management Specialist Model V1. Routes Financial Services / Asset Management away from Standard-Unternehmen. Generic revenue/earnings growth, ROE, Yahoo-FCF margin and Net-Cash points are diagnosis-only. A 100-point specialist score uses organic Long-Term flows, AUM quality, Fee-Mix/Effective-Fee-Rate quality, fee-/net-revenue growth, Core/Adjusted operating margin, Through-Cycle earnings, balance quality, capital allocation and franchise diversification. Valuation uses a non-linear 9–18x P/E corridor with Organic-Flow, Premium-Unlock, Money-Market and Peer/3Y-Historical safety guards. FHI/TROW/BEN/IVZ are the validated V1 core universe; BlackRock is premium-reference only. Janus Henderson is excluded after its 30-Jun-2026 take-private/delisting. Unknown Asset Managers fail closed rather than falling back to the generic model.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -5569,6 +5571,7 @@ def is_special_fcf_model(company_type):
         "energy technology / oilfield services",
         "edelmetall-handel / distribution & lending",
         "luxury goods / premium franchise",
+        "asset manager / investment management",
         "credit bureau / data & analytics",
         "healthcare / diagnostics & research / cro + data",
         "agriculture / seeds & crop protection",
@@ -5814,6 +5817,7 @@ def is_special_balance_model(company_type):
         "energy technology / oilfield services",
         "edelmetall-handel / distribution & lending",
         "luxury goods / premium franchise",
+        "asset manager / investment management",
         "credit bureau / data & analytics",
         "healthcare / diagnostics & research / cro + data",
         "agriculture / seeds & crop protection",
@@ -6047,6 +6051,25 @@ def classify_company(name, symbol, sector, industry):
                 "Solvency-/Kapitalprüfung"
             ),
             "confidence_cap": "Mittel"
+        }
+
+    # V2.20.108 – dedicated traditional/public asset-management route.
+    # Legal & General is intentionally handled above as a mixed insurance/asset-management group.
+    if (
+        ("financial services" in sector_text or "financial" == sector_text)
+        and ("asset management" in industry_text or "investment management" in industry_text)
+    ):
+        return {
+            "type": "Asset Manager / Investment Management",
+            "method": (
+                "Primary-source AUM/Net-Flows + Fee-Mix/Effective-Fee-Rate + "
+                "Core/Adjusted Operating Margin + Through-Cycle EPS + Kapitalallokation + "
+                "Asset-Manager-KGV; generischer Standard-Korridor gesperrt"
+            ),
+            "confidence_cap": "Mittel",
+            "business_model": "Kapitalarmes, fee-basiertes Investment-Management-Geschäft mit AUM-/Flow- und Marktzyklusabhängigkeit",
+            "core_segments": "Long-Term Assets · Equity · Fixed Income · Multi-Asset/Alternatives · Liquidity/Money Market (profilabhängig)",
+            "focus_areas": "Organic Net Flows · AUM-Qualität · Fee-Mix/Effective Fee Rate · Adjusted Operating Margin · Through-Cycle EPS · Kapitalallokation",
         }
 
     # Midstream-Infrastruktur: Yahoo-Branche Oil & Gas Midstream wird
@@ -15362,6 +15385,582 @@ def apply_toyo_solar_action_brake(new_buy_signal, holding_signal, specialist_mod
 
 
 # =========================================================
+# V2.20.108 – Asset Management Specialist Model V1
+# =========================================================
+
+def is_asset_management_specialist_type(company_type, symbol=None):
+    type_name = normalized_company_type_name(company_type)
+    return "asset manager / investment management" in type_name
+
+
+def _asset_manager_score_level(score):
+    value = safe_float(score)
+    if value is None:
+        return None
+    if value >= 90:
+        return "Sehr stark"
+    if value >= 80:
+        return "Stark"
+    if value >= 65:
+        return "Gut"
+    if value >= 50:
+        return "Mittel"
+    return "Schwach"
+
+
+def _asset_manager_flow_points(flow_rate_pct):
+    value = safe_float(flow_rate_pct)
+    if value is None:
+        return None
+    if value <= -5.0:
+        return 0.0
+    if value <= -2.0:
+        return 3.0
+    if value <= 0.0:
+        return 6.0
+    if value <= 2.0:
+        return 9.0
+    if value <= 5.0:
+        return 12.0
+    return 15.0
+
+
+def _asset_manager_aum_points(aum_growth_pct, flow_rate_pct):
+    growth = safe_float(aum_growth_pct)
+    flow = safe_float(flow_rate_pct)
+    if growth is None:
+        return None
+    if growth < 0:
+        pts = 0.0
+    elif growth < 3:
+        pts = 1.0
+    elif growth < 6:
+        pts = 2.0
+    elif growth < 10:
+        pts = 3.0
+    elif growth < 15:
+        pts = 4.0
+    else:
+        pts = 5.0
+    # Rising markets are not organic growth. Negative/flat organic flows cap
+    # the AUM sub-score even when headline AUM rises strongly.
+    if flow is not None and flow <= 0:
+        pts = min(pts, 2.0)
+    return pts
+
+
+def _asset_manager_fee_growth_points(growth_pct, quality_cap=None):
+    value = safe_float(growth_pct)
+    if value is None:
+        return None
+    if value < 0:
+        pts = 0.0
+    elif value < 3:
+        pts = 3.0
+    elif value < 6:
+        pts = 5.0
+    elif value <= 10:
+        pts = 8.0
+    else:
+        pts = 10.0
+    cap = safe_float(quality_cap)
+    if cap is not None:
+        pts = min(pts, cap)
+    return pts
+
+
+def _asset_manager_margin_points(margin_pct, margin_change_bps=None):
+    value = safe_float(margin_pct)
+    if value is None:
+        return None
+    if value < 20:
+        pts = 3.0
+    elif value < 25:
+        pts = 6.0
+    elif value < 27.5:
+        pts = 9.0
+    elif value < 30:
+        pts = 10.0
+    elif value < 35:
+        pts = 11.0
+    elif value <= 40:
+        pts = 13.0
+    else:
+        pts = 15.0
+    change = safe_float(margin_change_bps)
+    if change is not None and change <= -300:
+        pts = max(0.0, pts - 2.0)
+    return pts
+
+
+def _asset_manager_target_pe_from_score(score):
+    """Non-linear 9–18x corridor agreed for traditional listed asset managers."""
+    value = safe_float(score)
+    if value is None:
+        return None
+    value = max(0.0, min(100.0, value))
+    if value < 50:
+        return 9.0 + (value / 50.0) * 1.5
+    if value < 65:
+        return 10.5 + ((value - 50.0) / 15.0) * 1.5
+    if value < 80:
+        return 12.0 + ((value - 65.0) / 15.0) * 2.0
+    if value < 90:
+        return 14.0 + ((value - 80.0) / 10.0) * 2.0
+    return 16.0 + ((value - 90.0) / 10.0) * 2.0
+
+
+def _asset_manager_history_median_eps(historical_eps):
+    rows = _eps_history_rows(historical_eps)
+    values = [safe_float(row.get("value")) for row in rows[:3]]
+    values = [v for v in values if v is not None and v > 0]
+    if not values:
+        return None
+    return float(pd.Series(values).median())
+
+
+def get_verified_asset_manager_snapshot(symbol):
+    """Primary-source specialist snapshots for the V1 validation universe.
+
+    Values are deliberately limited to metrics explicitly disclosed by the
+    issuer/SEC. Unknown asset managers remain fail-closed rather than falling
+    back to the generic Standard-Unternehmen score.
+    """
+    sym = str(symbol or "").upper().strip()
+    snapshots = {
+        "FHI": {
+            "symbol": "FHI",
+            "company": "Federated Hermes, Inc.",
+            "as_of_date": "30.06.2026",
+            "published_date": "30.07.2026",
+            "source_name": "Federated Hermes Q2 2026 Form 10-Q + Q2 Earnings Release",
+            "source_url": "https://www.sec.gov/Archives/edgar/data/1056288/000105628826000026/fhi-20260630.htm",
+            "total_aum": 911.6e9,
+            "beginning_total_aum": 902.6e9,
+            "long_term_aum": 234.7e9,
+            "money_market_aum": 676.9e9,
+            "beginning_long_term_aum": 219.980e9,
+            "ytd_long_term_net_flows": 0.107e9,
+            "flow_period_fraction_year": 0.5,
+            "q2_long_term_net_flows": -1.730e9,
+            "long_term_revenue_share_pct": 49.75,
+            "money_market_revenue_share_pct": 50.25,
+            "fee_revenue_growth_pct": 14.3,
+            "fee_growth_quality_cap": 8.0,
+            "operating_margin_pct": 27.7,
+            "earnings_stability_score": 10.0,
+            "fee_mix_score": 10.0,
+            "balance_quality_score": 9.0,
+            "capital_allocation_score": 9.0,
+            "franchise_diversification_score": 3.0,
+            "historical_forward_pe_3y_median": 10.11,
+            "valuation_confidence_cap": "Mittel",
+            "note": "Money-Market-AUM dominiert, aber Long-Term Assets liefern einen überproportionalen Umsatzanteil. H1-Long-Term-Flows sind nahezu flach; Q2 war negativ.",
+        },
+        "TROW": {
+            "symbol": "TROW",
+            "company": "T. Rowe Price Group, Inc.",
+            "as_of_date": "30.06.2026",
+            "published_date": "31.07.2026",
+            "source_name": "T. Rowe Price Q2 2026 Earnings Release + Form 10-Q",
+            "source_url": "https://investors.troweprice.com/node/28726/html",
+            "total_aum": 1.8934e12,
+            "beginning_total_aum": 1.7756e12,
+            "long_term_aum": 1.8934e12,
+            "money_market_aum": 0.0,
+            "beginning_long_term_aum": 1.7758e12,
+            "ytd_long_term_net_flows": -20.2e9,
+            "flow_period_fraction_year": 0.5,
+            "q2_long_term_net_flows": -6.5e9,
+            "fee_revenue_growth_pct": 8.3,
+            "effective_fee_rate_bps": 38.1,
+            "effective_fee_rate_prior_year_bps": 39.6,
+            "operating_margin_pct": 37.1,
+            "issuer_adjusted_ttm_eps": 10.34,
+            "through_cycle_eps": 9.33,
+            "earnings_stability_score": 10.0,
+            "fee_mix_score": 12.0,
+            "balance_quality_score": 10.0,
+            "capital_allocation_score": 10.0,
+            "franchise_diversification_score": 4.0,
+            "historical_forward_pe_3y_median": 11.90,
+            "valuation_confidence_cap": "Mittel",
+            "note": "Sehr starke Bilanz und hohe Marge, aber anhaltende Long-Term-Nettoabflüsse und sinkende effektive Fee Rate begrenzen das Multiple.",
+        },
+        "BEN": {
+            "symbol": "BEN",
+            "company": "Franklin Templeton, Inc. (formerly Franklin Resources, Inc.)",
+            "as_of_date": "30.06.2026",
+            "published_date": "31.07.2026",
+            "source_name": "Franklin Templeton Q3 FY2026 Earnings Release + Form 10-Q",
+            "source_url": "https://www.sec.gov/Archives/edgar/data/38777/000003877726000217/ben-20260630.htm",
+            "total_aum": 1.7916e12,
+            "beginning_total_aum": 1.6612e12,
+            "long_term_aum": 1.70e12,
+            "money_market_aum": 0.0,
+            "beginning_long_term_aum": 1.6612e12,
+            "ytd_long_term_net_flows": 63.3e9,
+            "flow_period_fraction_year": 0.75,
+            "q3_long_term_net_flows": 18.4e9,
+            "fee_revenue_growth_pct": 8.2,
+            "operating_margin_pct": 26.7,
+            "issuer_adjusted_ttm_eps": 2.80,
+            "through_cycle_eps": 2.39,
+            "earnings_stability_score": 8.0,
+            "fee_mix_score": 14.0,
+            "balance_quality_score": 8.0,
+            "capital_allocation_score": 10.0,
+            "franchise_diversification_score": 5.0,
+            "historical_forward_pe_3y_median": 9.55,
+            "valuation_confidence_cap": "Mittel",
+            "note": "Starke positive Long-Term-Flows und breiter Alternatives-/Multi-Boutique-Mix. Für Earnings und Marge wird die issuer-adjustierte Same-Basis verwendet; Akquisitionskomplexität begrenzt den Stability-/Balance-Score.",
+        },
+        "IVZ": {
+            "symbol": "IVZ",
+            "company": "Invesco Ltd.",
+            "as_of_date": "30.06.2026",
+            "published_date": "28.07.2026",
+            "source_name": "Invesco Q2 2026 Earnings Release + Form 10-Q",
+            "source_url": "https://www.sec.gov/Archives/edgar/data/914208/000091420826000235/ivz-20260630.htm",
+            "total_aum": 2.4703e12,
+            "beginning_total_aum": 2.1699e12,
+            "long_term_aum": 2.2126e12,
+            "money_market_aum": 214.5e9,
+            "beginning_long_term_aum": 1.91e12,
+            "ytd_long_term_net_flows": 66.9e9,
+            "flow_period_fraction_year": 0.5,
+            "q2_long_term_net_flows": 45.1e9,
+            "issuer_annualized_organic_growth_pct": 7.0,
+            "q2_annualized_organic_growth_pct": 8.5,
+            "fee_revenue_growth_pct": 17.2,
+            "operating_margin_pct": 36.0,
+            "issuer_adjusted_ttm_eps": 2.51,
+            "through_cycle_eps": 1.71,
+            "earnings_stability_score": 10.0,
+            "fee_mix_score": 14.0,
+            "balance_quality_score": 7.0,
+            "capital_allocation_score": 8.0,
+            "franchise_diversification_score": 5.0,
+            "historical_forward_pe_3y_median": 10.98,
+            "valuation_confidence_cap": "Mittel",
+            "note": "Starke organische Long-Term-Flows, hoher ETF/Index-/QQQ-Anteil und breite Plattform. Earnings verwenden issuer-adjustierte Same-Basis; verbleibende Nettoverschuldung begrenzt die Bilanzpunkte.",
+        },
+        # Janus Henderson was taken private on 30 June 2026 at USD 52/share.
+        # A stale quote must never re-enter the active peer or valuation set.
+        "JHG": {
+            "symbol": "JHG",
+            "company": "Janus Henderson Group plc",
+            "inactive_delisted": True,
+            "take_private_date": "30.06.2026",
+            "take_private_cash_usd": 52.0,
+            "source_name": "Janus Henderson take-private closing announcement / SEC",
+            "source_url": "https://www.sec.gov/Archives/edgar/data/1274173/000110465926079401/tm2619303d2_ex99-1.htm",
+            "valuation_confidence_cap": "Niedrig",
+            "note": "Take-private abgeschlossen; Aktie von der NYSE delistet. Kein aktueller öffentlicher Peer und kein laufender Fair-Value-Anker.",
+        },
+    }
+    return snapshots.get(sym)
+
+
+def build_asset_management_specialist_score(snapshot):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    result = {"available": False, "score": None, "quality_level": None, "components": {}, "note": None}
+    if not snap or snap.get("inactive_delisted"):
+        result["note"] = "Asset-Management-Spezialscore nicht verfügbar: aktiver Primärquellen-Snapshot fehlt oder Titel ist delistet."
+        return result
+
+    total_aum = safe_float(snap.get("total_aum"))
+    begin_total = safe_float(snap.get("beginning_total_aum"))
+    begin_lt = safe_float(snap.get("beginning_long_term_aum"))
+    flows = safe_float(snap.get("ytd_long_term_net_flows"))
+    period = safe_float(snap.get("flow_period_fraction_year"))
+    issuer_rate = safe_float(snap.get("issuer_annualized_organic_growth_pct"))
+    if issuer_rate is not None:
+        flow_rate = issuer_rate
+    elif begin_lt is not None and begin_lt > 0 and flows is not None and period is not None and period > 0:
+        flow_rate = (flows / begin_lt) / period * 100.0
+    else:
+        flow_rate = None
+    aum_growth = None
+    if total_aum is not None and begin_total is not None and begin_total > 0:
+        aum_growth = (total_aum / begin_total - 1.0) * 100.0
+
+    flow_pts = _asset_manager_flow_points(flow_rate)
+    aum_pts = _asset_manager_aum_points(aum_growth, flow_rate)
+    fee_mix_pts = safe_float(snap.get("fee_mix_score"))
+    fee_growth_pts = _asset_manager_fee_growth_points(
+        snap.get("fee_revenue_growth_pct"), snap.get("fee_growth_quality_cap")
+    )
+    margin_pts = _asset_manager_margin_points(
+        snap.get("operating_margin_pct"), snap.get("operating_margin_change_bps")
+    )
+    earnings_pts = safe_float(snap.get("earnings_stability_score"))
+    balance_pts = safe_float(snap.get("balance_quality_score"))
+    capital_pts = safe_float(snap.get("capital_allocation_score"))
+    franchise_pts = safe_float(snap.get("franchise_diversification_score"))
+    required = [flow_pts, aum_pts, fee_mix_pts, fee_growth_pts, margin_pts, earnings_pts, balance_pts, capital_pts, franchise_pts]
+    if any(v is None for v in required):
+        result["note"] = "Asset-Management-Spezialscore fail-closed: AUM/Flow/Fee/Margin- oder Qualitätsdaten unvollständig."
+        return result
+
+    components = {
+        "AUM-Wachstum & Organic Net Flows": flow_pts + aum_pts,
+        "Fee-Mix / Effective-Fee-Rate-Qualität": fee_mix_pts,
+        "Fee-/Net-Revenue-Wachstum": fee_growth_pts,
+        "Operating Margin & Margenstabilität": margin_pts,
+        "Earnings-Stabilität / EPS-Qualität": earnings_pts,
+        "Bilanzqualität": balance_pts,
+        "Kapitalallokation / Buybacks / Ausschüttungen": capital_pts,
+        "Franchise- / Produktdiversifikation": franchise_pts,
+    }
+    score = max(0.0, min(100.0, round(sum(components.values()), 2)))
+    money_market_share = None
+    if total_aum and total_aum > 0:
+        mm = safe_float(snap.get("money_market_aum"))
+        if mm is not None:
+            money_market_share = mm / total_aum * 100.0
+
+    # Premium unlock: 4/5 structural conditions. This is not an additive score;
+    # it only determines whether a >15x valuation can be justified.
+    unlock_checks = {
+        "positive_long_term_flows": bool(flow_rate is not None and flow_rate >= 2.0),
+        "high_quality_fee_mix": bool(fee_mix_pts >= 12.0),
+        "sustainable_fee_growth": bool(safe_float(snap.get("fee_revenue_growth_pct")) is not None and safe_float(snap.get("fee_revenue_growth_pct")) >= 6.0),
+        "strong_core_margin": bool(safe_float(snap.get("operating_margin_pct")) is not None and safe_float(snap.get("operating_margin_pct")) >= 30.0),
+        "strong_capital_allocation": bool(capital_pts >= 8.0),
+    }
+    unlock_count = sum(1 for passed in unlock_checks.values() if passed)
+    result.update({
+        "available": True,
+        "score": score,
+        "quality_level": _asset_manager_score_level(score),
+        "components": components,
+        "annualized_long_term_organic_flow_pct": flow_rate,
+        "headline_aum_growth_pct": aum_growth,
+        "money_market_aum_share_pct": money_market_share,
+        "premium_unlock_checks": unlock_checks,
+        "premium_unlock_count": unlock_count,
+        "premium_unlocked": unlock_count >= 4,
+        "note": (
+            "Der Asset-Management Quality Score ersetzt den generischen Umsatz-/ROE-/Yahoo-FCF-/Net-Cash-Score. "
+            "AUM-Anstieg durch Marktperformance wird nicht wie organisches Wachstum behandelt; Net Flows, Fee-Qualität, "
+            "Core-Marge, Through-Cycle-Earnings und Kapitalallokation steuern die Bewertung."
+        ),
+    })
+    return result
+
+
+def build_asset_management_earnings_basis(snapshot, trailing_eps, current_fy_eps, historical_eps):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    trailing = safe_float(snap.get("issuer_adjusted_ttm_eps"))
+    if trailing is None:
+        trailing = safe_float(trailing_eps)
+    current_fy = safe_float(current_fy_eps)
+    through_cycle = safe_float(snap.get("through_cycle_eps"))
+    if through_cycle is None:
+        through_cycle = _asset_manager_history_median_eps(historical_eps)
+    if any(v is None or v <= 0 for v in [trailing, current_fy, through_cycle]):
+        return {
+            "available": False,
+            "normalized_eps": None,
+            "note": "Asset-Manager Earnings-Basis fail-closed: TTM, Current-FY oder 3Y-Through-Cycle-EPS fehlt.",
+        }
+    normalized = 0.30 * trailing + 0.50 * current_fy + 0.20 * through_cycle
+    return {
+        "available": True,
+        "normalized_eps": normalized,
+        "ttm_eps": trailing,
+        "current_fy_eps": current_fy,
+        "through_cycle_eps": through_cycle,
+        "method": "30 % TTM + 50 % Current-FY + 20 % 3Y Through-Cycle EPS",
+        "note": "Ein einzelnes starkes Marktjahr wird nicht fast vollständig kapitalisiert; Current-FY bleibt der wichtigste Horizont, Through-Cycle glättet die Zyklik.",
+    }
+
+
+def build_asset_management_specialist_valuation(snapshot, specialist_score, earnings_basis):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    score_data = specialist_score if isinstance(specialist_score, dict) else {}
+    earnings = earnings_basis if isinstance(earnings_basis, dict) else {}
+    result = {
+        "available": False,
+        "valuation_method_name": "Asset Manager Through-Cycle EPS / Specialist P/E",
+        "corridor_low": 9.0,
+        "corridor_high": 18.0,
+        "target_multiple": None,
+        "fair_value_financial": None,
+        "note": None,
+    }
+    if not score_data.get("available") or not earnings.get("available"):
+        result["note"] = "Asset-Management-Spezialbewertung gesperrt: Quality Score oder Through-Cycle-Earnings-Basis fehlt."
+        return result
+    score = safe_float(score_data.get("score"))
+    normalized_eps = safe_float(earnings.get("normalized_eps"))
+    if score is None or normalized_eps is None or normalized_eps <= 0:
+        result["note"] = "Asset-Management-Spezialbewertung gesperrt: nicht positive Earnings- oder Score-Basis."
+        return result
+    raw_target = _asset_manager_target_pe_from_score(score)
+    target = raw_target
+    caps = []
+    flow_rate = safe_float(score_data.get("annualized_long_term_organic_flow_pct"))
+    if flow_rate is not None and flow_rate <= -5.0:
+        target = min(target, 11.5)
+        caps.append("Organic-Flow-Guard <= -5 %: max. 11,5×")
+    elif flow_rate is not None and flow_rate <= -2.0:
+        target = min(target, 12.5)
+        caps.append("Organic-Flow-Guard <= -2 %: max. 12,5×")
+    if target > 15.0 and not score_data.get("premium_unlocked"):
+        target = 15.0
+        caps.append("Premium-Unlock <4/5: max. 15×")
+    mm_share = safe_float(score_data.get("money_market_aum_share_pct"))
+    mm_rev = safe_float(snap.get("money_market_revenue_share_pct"))
+    mm_guard = bool(mm_share is not None and mm_share > 70.0 and mm_rev is not None and mm_rev > 55.0)
+    if mm_guard:
+        target = min(target, 13.0)
+        caps.append("Money-Market Concentration Guard: max. 13×")
+    result.update({
+        "available": True,
+        "earnings_basis": normalized_eps,
+        "earnings_basis_detail": earnings,
+        "score": score,
+        "raw_score_multiple": raw_target,
+        "target_multiple": target,
+        "pre_peer_guard_multiple": target,
+        "flow_cap_applied": bool(flow_rate is not None and flow_rate <= -2.0),
+        "money_market_guard_applied": mm_guard,
+        "premium_unlock_count": int(score_data.get("premium_unlock_count") or 0),
+        "premium_unlocked": bool(score_data.get("premium_unlocked")),
+        "caps": caps,
+        "fair_value_financial": normalized_eps * target,
+        "note": (
+            "Fair Value = geglättete Asset-Manager-Earnings × nichtlinear scoregesteuertes 9–18× Spezial-KGV. "
+            "Negative Organic Flows und fehlender Premium-Unlock wirken ausschließlich downside-only."
+        ),
+    })
+    return result
+
+
+def build_asset_management_specialist_model(company_type, fundamental_info, symbol, trailing_eps, current_fy_eps, historical_eps):
+    if not is_asset_management_specialist_type(company_type, symbol):
+        return {"applicable": False}
+    snapshot = get_verified_asset_manager_snapshot(symbol)
+    if not snapshot:
+        return {
+            "applicable": True,
+            "primary_source_complete": False,
+            "specialist_score": {"available": False},
+            "earnings_basis": {"available": False},
+            "specialist_valuation": {"available": False},
+            "valuation_anchor_complete": False,
+            "readiness": "Asset-Management-Spezialdaten unvollständig · Fair Value fail-closed",
+        }
+    if snapshot.get("inactive_delisted"):
+        return {
+            "applicable": True,
+            "primary_source_complete": True,
+            "inactive_delisted": True,
+            "snapshot": snapshot,
+            "specialist_score": {"available": False},
+            "earnings_basis": {"available": False},
+            "specialist_valuation": {"available": False},
+            "valuation_anchor_complete": False,
+            "readiness": "Take-private abgeschlossen / delistet · laufende Börsenbewertung gesperrt",
+        }
+    score = build_asset_management_specialist_score(snapshot)
+    earnings = build_asset_management_earnings_basis(snapshot, trailing_eps, current_fy_eps, historical_eps)
+    valuation = build_asset_management_specialist_valuation(snapshot, score, earnings)
+    return {
+        "applicable": True,
+        "primary_source_complete": True,
+        "snapshot": snapshot,
+        "specialist_score": score,
+        "earnings_basis": earnings,
+        "specialist_valuation": valuation,
+        "valuation_anchor_complete": bool(score.get("available") and earnings.get("available") and valuation.get("available")),
+        "readiness": "Asset-Management-Spezialbewertung freigegeben" if valuation.get("available") else "Asset-Management-Spezialbewertung gesperrt",
+    }
+
+
+def apply_asset_management_peer_historical_guard(specialist_model, peer_check):
+    model = dict(specialist_model or {})
+    if not model.get("applicable"):
+        return model
+    valuation = dict(model.get("specialist_valuation") or {})
+    snap = model.get("snapshot") or {}
+    if not valuation.get("available"):
+        model["specialist_valuation"] = valuation
+        return model
+    target = safe_float(valuation.get("target_multiple"))
+    earnings = safe_float(valuation.get("earnings_basis"))
+    peer_median = safe_float((peer_check or {}).get("peer_median"))
+    historical = safe_float(snap.get("historical_forward_pe_3y_median"))
+    refs = [v for v in [peer_median, historical] if v is not None and v > 0]
+    combined = float(pd.Series(refs).median()) if refs else None
+    soft = combined * 1.15 if combined is not None else None
+    hard = combined * 1.25 if combined is not None else None
+    guard_status = "none"
+    cap_applied = False
+    if target is not None and combined is not None:
+        if target > hard:
+            guard_status = "hard"
+            if not valuation.get("premium_unlocked"):
+                target = hard
+                cap_applied = True
+        elif target > soft:
+            guard_status = "soft"
+    if target is not None and earnings is not None and target > 0 and earnings > 0:
+        valuation["target_multiple"] = target
+        valuation["fair_value_financial"] = earnings * target
+    valuation.update({
+        "peer_reference_median_pe": peer_median,
+        "historical_forward_pe_3y_median": historical,
+        "combined_guard_reference_pe": combined,
+        "soft_guard_threshold_pe": soft,
+        "hard_guard_threshold_pe": hard,
+        "multiple_guard_status": guard_status,
+        "historical_peer_cap_applied": cap_applied,
+        "note": (valuation.get("note") or "") + (
+            " Asset-Manager Peer/Historical Guard: 3Y-Historie und öffentliche Core-Peers sind Plausibilitätsgrenzen; "
+            "ein >25-%-Premium wird ohne bestandenen strukturellen Premium-Unlock gekappt."
+        ),
+    })
+    model["specialist_valuation"] = valuation
+    model["valuation_anchor_complete"] = bool(model.get("valuation_anchor_complete") and valuation.get("available"))
+    return model
+
+
+def build_asset_management_special_control(control, specialist_model):
+    if not isinstance(control, dict) or control.get("control_key") != "asset_management_specialist":
+        return control
+    model = specialist_model if isinstance(specialist_model, dict) else {}
+    snap = model.get("snapshot") or {}
+    score = model.get("specialist_score") or {}
+    earnings = model.get("earnings_basis") or {}
+    valuation = model.get("specialist_valuation") or {}
+    inactive = bool(model.get("inactive_delisted") or snap.get("inactive_delisted"))
+    released = bool(model.get("valuation_anchor_complete") and valuation.get("available") and not inactive)
+    out = dict(control)
+    out.update({
+        "implemented": True,
+        "released": released,
+        "confidence_cap": snap.get("valuation_confidence_cap") or "Mittel",
+        "router_status": "Schritt 3B freigegeben" if released else "Schritt 3B nicht freigegeben",
+        "step3b_status": model.get("readiness"),
+        "snapshot": snap,
+        "checks": {
+            "specialist_score": score,
+            "earnings_basis": earnings,
+            "specialist_valuation": valuation,
+        },
+        "note": (
+            f"{APP_BUILD_VERSION} trennt Asset Manager vom generischen Standard-KGV-/ROE-/Yahoo-FCF-Pfad. "
+            "AUM und organische Net Flows, Fee-Mix/Effective Fee Rate, Core/Adjusted Margin, Through-Cycle EPS, Bilanz und Kapitalallokation steuern Score und Multiple. "
+            "Peer-/Historical-Multiples bleiben Safety Guards; Analystenziele bleiben ausschließlich Reality Check."
+        ),
+    })
+    return out
+
+
+# =========================================================
 # V2.20.105 – Luxury Goods Family / Premium Franchise Specialist Model V2
 # =========================================================
 
@@ -15999,7 +16598,8 @@ def get_valuation_corridor(company_type):
         "consumer / athletic apparel & footwear / turnaround",
         "solar manufacturing / high-growth / policy-sensitive",
         "specialty materials / specialty chemicals",
-        "luxury goods / premium franchise"
+        "luxury goods / premium franchise",
+        "asset manager / investment management"
     ]
 
     if any(
@@ -16406,6 +17006,33 @@ def get_peer_group(company_type, symbol, industry=None):
                 "werden nicht mehr automatisch auf Mondelez übertragen. Bis ein kalibriertes internationales "
                 "Snacks-/Confectionery-Set vorliegt, bleibt das Fundamental-Multiple unverändert."
             )
+        }
+
+    if "asset manager / investment management" in type_name:
+        core = [
+            ("FHI", "Federated Hermes"),
+            ("TROW", "T. Rowe Price"),
+            ("BEN", "Franklin Templeton"),
+            ("IVZ", "Invesco"),
+        ]
+        peers = [
+            {"symbol": ps, "name": pn, "role": "core"}
+            for ps, pn in core
+            if ps.upper() != own_symbol
+        ]
+        if own_symbol != "BLK":
+            peers.append({"symbol": "BLK", "name": "BlackRock", "role": "premium_reference"})
+        return {
+            "available": len([p for p in peers if p.get("role") == "core"]) >= 3,
+            "peers": peers,
+            "count": len(peers),
+            "target_symbol": own_symbol,
+            "peer_model": "asset_management_reference_guard_v1",
+            "note": (
+                f"Asset-Management Peer Guard {APP_BUILD_VERSION}: FHI, TROW, BEN und IVZ bilden den traditionellen öffentlichen Core-Cluster; "
+                "das Zielunternehmen wird ausgeschlossen. BlackRock bleibt Premium-Referenz und beeinflusst den Core-Median nicht. "
+                "Janus Henderson (JHG) ist seit dem Take-private vom 30.06.2026 delistet und wird ausdrücklich nicht mehr als aktueller Peer verwendet."
+            ),
         }
 
     if "luxury goods / premium franchise" in type_name:
@@ -17776,6 +18403,54 @@ def _calculate_kratos_peer_reference(peer_group, fundamental_multiple, cache_ver
     return result
 
 
+def _calculate_asset_management_peer_reference(peer_group, fundamental_multiple, cache_version):
+    result = {
+        "method_supported": True,
+        "metric": "Traditional Asset Manager Forward P/E reference guard",
+        "peer_rows": [],
+        "usable_count": 0,
+        "core_usable_count": 0,
+        "peer_median": None,
+        "premium_reference_pe": None,
+        "adjustment_pct": 0.0,
+        "adjusted_multiple": safe_float(fundamental_multiple),
+        "applied": False,
+        "note": None,
+    }
+    core_values = []
+    for peer in (peer_group or {}).get("peers", []):
+        pdx = dict(load_peer_forward_pe(peer.get("symbol"), cache_version) or {})
+        role = peer.get("role") or "core"
+        pe = safe_float(pdx.get("forward_pe"))
+        usable = bool(pdx.get("usable") and pe is not None and pe > 0)
+        row = {
+            "symbol": peer.get("symbol"),
+            "name": peer.get("name"),
+            "role": role,
+            "usable": usable,
+            "forward_pe": pe,
+            "source": pdx.get("source"),
+            "reason": pdx.get("reason"),
+            "adjustment_eligible": False,
+        }
+        result["peer_rows"].append(row)
+        if usable and role == "core":
+            core_values.append(pe)
+        if usable and role == "premium_reference":
+            result["premium_reference_pe"] = pe
+    result["usable_count"] = sum(1 for row in result["peer_rows"] if row.get("usable"))
+    result["core_usable_count"] = len(core_values)
+    if len(core_values) >= 3:
+        result["peer_median"] = float(pd.Series(core_values).median())
+    result["note"] = (
+        f"Asset-Management Peer Guard {APP_BUILD_VERSION}: Der Median wird nur bei mindestens drei aktiven traditionellen Core-Peers freigegeben. "
+        "BlackRock ist Premium-Referenz, Janus Henderson ist nach dem Take-private vom 30.06.2026 ausgeschlossen. "
+        "Bei weniger als drei brauchbaren Core-Peers bleibt der Peer-Median gesperrt; der 3Y-Historical-Guard darf weiterhin downside-only prüfen. "
+        "Der Peer-Median setzt keinen Fair Value; er dient zusammen mit dem 3Y-Historical-Median nur als Premium-Safety-Guard."
+    )
+    return result
+
+
 def _calculate_luxury_premium_peer_reference(peer_group, fundamental_multiple, cache_version):
     result = {
         "method_supported": True,
@@ -17857,6 +18532,11 @@ def calculate_peer_check(
 
     if (peer_group or {}).get("peer_model") == "medical_devices_v2":
         return _calculate_medical_devices_peer_overlay(
+            peer_group, fundamental_multiple, cache_version
+        )
+
+    if (peer_group or {}).get("peer_model") == "asset_management_reference_guard_v1":
+        return _calculate_asset_management_peer_reference(
             peer_group, fundamental_multiple, cache_version
         )
 
@@ -18051,6 +18731,31 @@ def get_special_control(company_type, symbol):
                 "V2.20.73 behandelt Baker Hughes als Energy-Technology-Plattform statt als integrierten Ölproduzenten. "
                 "Q2 2026 bildet OFSE/IET vor der Chart-Übernahme ab, während der aktuelle Kurs bereits nach dem Closing vom 16.07.2026 liegt. "
                 "Deshalb bleiben generischer Öl-&-Gas-KGV-Pfad, Standard-FCF/Bilanz-Score und Fair Value gesperrt, bis eine belastbare Post-Chart Earnings- und Kapitalstrukturbasis vorliegt."
+            ),
+        }
+
+    if "asset manager / investment management" in type_name:
+        return {
+            "required": True,
+            "control_key": "asset_management_specialist",
+            "control_name": "Asset Management / AUM-, Flow-, Fee-Mix-, Margin- & Through-Cycle-Earnings-Kontrolle",
+            "planned_checks": [
+                "Total AUM und Long-Term AUM aus Primärquelle",
+                "Long-Term Organic Net Flows getrennt von Marktperformance, FX und Akquisitionen",
+                "Fee-Mix / Effective Fee Rate statt AUM-Menge allein",
+                "Core/Adjusted Operating Margin und Margentrend",
+                "30/50/20 Through-Cycle-EPS-Basis",
+                "Bilanzqualität ohne generischen Net-Cash-15/15-Bonus",
+                "Netto-Buybacks / Dividenden / Kapitaldisziplin",
+                "9–18× nichtlinearer Asset-Manager-KGV-Korridor",
+                "Organic-Flow-, Premium-, Peer- und 3Y-Historical-Multiple-Guards",
+                "JHG/Take-private Delisting Guard",
+                "Analysten-Kursziel ausschließlich Reality Check",
+            ],
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1",
+            "note": (
+                "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
+                "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
             ),
         }
 
@@ -25697,6 +26402,82 @@ def calculate_fair_value_v1(
 
 
 
+    # V2.20.108 – Asset Management specialist valuation.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "asset_management_specialist"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        sv = checks.get("specialist_valuation") or {}
+        ss = checks.get("specialist_score") or {}
+        earnings = checks.get("earnings_basis") or {}
+        snap = special_control.get("snapshot") or {}
+        fv = safe_float(sv.get("fair_value_financial"))
+        if not sv.get("available") or fv is None or fv <= 0:
+            result["note"] = "Fair Value V1 gesperrt: Asset-Management-Spezialanker nicht vollständig verfügbar."
+            return result
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der Asset-Management-Bewertung sind nicht eindeutig."
+            return result
+        share_context = context.get("share_unit_context") or {}
+        share_ratio = 1.0
+        unit_notes = []
+        if share_context.get("conversion_required"):
+            if not share_context.get("conversion_available"):
+                result["note"] = "Fair Value V1 gesperrt: abweichende Handelseinheit ohne verifizierte Aktien-/ADR-Umrechnung."
+                return result
+            share_ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
+            if share_ratio is None or share_ratio <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Aktien-/ADR-Verhältnis ist nicht belastbar."
+                return result
+        fvq = fv * share_ratio
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Währungsumrechnung der Asset-Management-Bewertung nicht belastbar verfügbar."
+                return result
+            fvq *= factor
+            unit_notes.append(f"Währungsangleichung: {financial_currency} → {quote_currency} mit Faktor {factor:.6f}.")
+        elif quote_currency != financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+        cp = safe_float(current_price)
+        potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+        result.update({
+            "available": True,
+            "valuation_method": "asset_management_through_cycle_pe",
+            "normalized_eps": safe_float(sv.get("earnings_basis")),
+            "used_multiple": safe_float(sv.get("target_multiple")),
+            "multiple_source": f"{APP_BUILD_VERSION} Asset Management Specialist P/E",
+            "fair_value_financial": fv,
+            "fair_value_quote": fvq,
+            "potential_pct": potential,
+            "specialist_score": safe_float(ss.get("score")),
+            "specialist_quality_level": ss.get("quality_level"),
+            "specialist_components": ss.get("components") or {},
+            "target_multiple": safe_float(sv.get("target_multiple")),
+            "raw_score_multiple": safe_float(sv.get("raw_score_multiple")),
+            "multiple_corridor_low": safe_float(sv.get("corridor_low")),
+            "multiple_corridor_high": safe_float(sv.get("corridor_high")),
+            "annualized_long_term_organic_flow_pct": safe_float(ss.get("annualized_long_term_organic_flow_pct")),
+            "headline_aum_growth_pct": safe_float(ss.get("headline_aum_growth_pct")),
+            "peer_reference_median_pe": safe_float(sv.get("peer_reference_median_pe")),
+            "historical_forward_pe_3y_median": safe_float(sv.get("historical_forward_pe_3y_median")),
+            "multiple_guard_status": sv.get("multiple_guard_status"),
+            "earnings_basis_method": earnings.get("method"),
+            "asset_manager_company": snap.get("company"),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "Asset-Management Fair Value V1 = Through-Cycle EPS × spezialisiertes Asset-Manager-KGV. "
+                "Generischer ROE-/Yahoo-FCF-/Net-Cash-Score und Analystenziele fließen nicht direkt in den Fair Value ein."
+            ),
+        })
+        return result
+
     # V2.20.105 – Luxury Family / Premium-Franchise specialist valuation.
     if (
         isinstance(special_control, dict)
@@ -30792,6 +31573,26 @@ def load_stock(selected_symbol, cache_version):
             ),
         }
 
+    if is_asset_management_specialist_type(company_type, fundamental_symbol):
+        growth_score = {
+            **growth_score,
+            "context_score": growth_score.get("score"),
+            "score": None,
+            "note": (
+                f"Asset Management {APP_BUILD_VERSION}: Generisches Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext. "
+                "Der Spezialpfad bewertet AUM, organische Long-Term-Net-Flows, Fee-/Net-Revenue-Qualität und Flow-Momentum aus Primärquellen."
+            ),
+        }
+        profitability_score = {
+            **profitability_score,
+            "context_score": profitability_score.get("score"),
+            "score": None,
+            "brake_text": (
+                f"Asset Management {APP_BUILD_VERSION}: Nettomarge und ROE erhalten keine generischen Punkte. "
+                "Maßgeblich sind Core/Adjusted Operating Margin, Through-Cycle-Earnings, Fee-Mix und Kapitalallokation."
+            ),
+        }
+
     if is_luxury_premium_specialist_type(company_type, fundamental_symbol):
         growth_score = {
             **growth_score,
@@ -30906,6 +31707,22 @@ def load_stock(selected_symbol, cache_version):
             "Kennzahl für die Standardbewertung berechnet."
         )
 
+    if is_asset_management_specialist_type(company_type, fundamental_symbol):
+        fcf_score = {
+            **fcf_score,
+            "context_score": fcf_score.get("score"),
+            "score": None,
+            "note": (fcf_score.get("note") or "") +
+                f" {APP_BUILD_VERSION}: Yahoo-/Cashflow-Statement-FCF bleibt beim Asset Manager Diagnosekontext und erzeugt keine generischen Multiple-Punkte.",
+        }
+        balance_score = {
+            **balance_score,
+            "context_score": balance_score.get("score"),
+            "score": None,
+            "note": (balance_score.get("note") or "") +
+                f" {APP_BUILD_VERSION}: Generische Net-Cash-/Net-Debt-to-FCF-Punkte sind gesperrt; Bilanzqualität wird im Asset-Management-Spezialscore separat bewertet.",
+        }
+
     # Special models receive the fundamental data package, while price is
     # still the selected market quote. Currency context converts explicitly
     # when a model needs price in the financial currency.
@@ -30995,6 +31812,15 @@ def load_stock(selected_symbol, cache_version):
         fundamental_symbol
     )
 
+    asset_management_specialist_model = build_asset_management_specialist_model(
+        company_type,
+        fundamental_info,
+        fundamental_symbol,
+        valuation_trailing_eps,
+        valuation_forward_eps,
+        historical.get("eps", [])
+    )
+
     ctva_separation_pre_gate_model = build_ctva_separation_pre_gate_model(
         company_type,
         fundamental_info,
@@ -31078,6 +31904,18 @@ def load_stock(selected_symbol, cache_version):
                 "Der versicherungsspezifische Score steuert getrennte P/B- und Core-KGV-"
                 "Zielkorridore; die eigentliche Dual-Anchor-Bewertung erfolgt in Schritt 3B."
             ),
+        }
+
+    if asset_management_specialist_model.get("applicable"):
+        asset_management_specialist_model = apply_asset_management_peer_historical_guard(
+            asset_management_specialist_model, peer_check
+        )
+        am_val_guarded = asset_management_specialist_model.get("specialist_valuation") or {}
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "multiple": safe_float(am_val_guarded.get("target_multiple")),
+            "available": bool(am_val_guarded.get("available") and asset_management_specialist_model.get("valuation_anchor_complete")),
+            "note": (fundamental_multiple.get("note") or "") + " Peer-/3Y-Historical-Multiple-Guard geprüft; Analystenziele bleiben außen vor.",
         }
 
     if midstream_special_model.get("applicable"):
@@ -31303,6 +32141,29 @@ def load_stock(selected_symbol, cache_version):
             ),
         }
 
+    if asset_management_specialist_model.get("applicable"):
+        am_score = asset_management_specialist_model.get("specialist_score") or {}
+        am_val = asset_management_specialist_model.get("specialist_valuation") or {}
+        am_corridor = {
+            "available": bool(am_val.get("available")),
+            "lower": safe_float(am_val.get("corridor_low")),
+            "upper": safe_float(am_val.get("corridor_high")),
+            "method": am_val.get("valuation_method_name") or "Asset Manager Through-Cycle P/E",
+            "note": f"{APP_BUILD_VERSION}: 9–18× Asset-Manager-Spezialkorridor; generische Standard-Scores sind gesperrt.",
+        }
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": safe_float(am_score.get("score")),
+            "corridor": am_corridor,
+            "multiple": safe_float(am_val.get("target_multiple")),
+            "available": bool(am_score.get("available") and am_val.get("available")),
+            "earnings_basis_usable": bool(am_val.get("available")),
+            "note": (
+                f"{APP_BUILD_VERSION} verwendet für Asset Manager keinen generischen 100-Punkte-Score. "
+                "AUM/Organic Flows, Fee-Mix/Effective Fee Rate, Core Margin, Through-Cycle-EPS, Bilanz und Kapitalallokation bestimmen das Spezial-KGV."
+            ),
+        }
+
     peer_group = get_peer_group(
         company_type,
         fundamental_symbol,
@@ -31424,6 +32285,11 @@ def load_stock(selected_symbol, cache_version):
     special_control = build_luxury_premium_special_control(
         special_control,
         luxury_premium_specialist_model
+    )
+
+    special_control = build_asset_management_special_control(
+        special_control,
+        asset_management_specialist_model
     )
 
     special_control = build_ctva_separation_special_control(
@@ -32023,6 +32889,7 @@ def load_stock(selected_symbol, cache_version):
         "gold_precious_metals_specialist_model": gold_precious_metals_specialist_model,
         "toyo_solar_specialist_model": toyo_solar_specialist_model,
         "luxury_premium_specialist_model": luxury_premium_specialist_model,
+        "asset_management_specialist_model": asset_management_specialist_model,
         "ctva_separation_pre_gate_model": ctva_separation_pre_gate_model,
         "fundamental_multiple": fundamental_multiple,
         "peer_group": peer_group,
@@ -33109,6 +33976,7 @@ if selected_symbol:
                 gold_precious_metals_eps_context_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 toyo_solar_eps_context_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                 luxury_premium_eps_context_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
+                asset_management_eps_context_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                 ctva_eps_context_ui = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 if bank_core_eps_active:
                     normalized_eps = safe_float(
@@ -33122,7 +33990,7 @@ if selected_symbol:
                     normalized_eps_label = "Versicherungs-Core-TTM-EPS"
                 else:
                     normalized_eps = eps_result["normalized_eps"]
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or asset_management_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -33208,6 +34076,22 @@ if selected_symbol:
                             "TOYO Solar: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
                             f"{APP_BUILD_VERSION} verwendet für den Fair Value den Q2-2026 Net-Income-Run-Rate auf der tatsächlichen 30.06.-Aktienzahl; Yahoo Current-FY/+1Y-Konsens bleibt nur Horizont-Kontext."
                         )
+                    elif asset_management_eps_context_ui:
+                        am_eps_model_ui = data.get("asset_management_specialist_model") or {}
+                        am_eps_basis_ui = am_eps_model_ui.get("earnings_basis") or {}
+                        if am_eps_basis_ui.get("available"):
+                            st.info(
+                                "Asset Management: Die Standard-TTM/Forward-EPS-Normalisierung bleibt Diagnosekontext. "
+                                f"{APP_BUILD_VERSION} verwendet für den Fair Value eine Through-Cycle-Basis aus 30 % TTM, 50 % Current-FY und 20 % 3Y-Median-EPS."
+                            )
+                            st.write(
+                                "**Asset-Manager Earnings-Basis:** " + format_eps(am_eps_basis_ui.get("normalized_eps"), financial_currency) +
+                                " · TTM " + format_eps(am_eps_basis_ui.get("ttm_eps"), financial_currency) +
+                                " · Current FY " + format_eps(am_eps_basis_ui.get("current_fy_eps"), financial_currency) +
+                                " · 3Y Through-Cycle " + format_eps(am_eps_basis_ui.get("through_cycle_eps"), financial_currency)
+                            )
+                        else:
+                            st.warning("Asset-Management Through-Cycle-Earnings-Basis unvollständig – Fair Value bleibt fail-closed.")
                     elif luxury_premium_eps_context_ui:
                         lx_eps_snap_ui = (data.get("luxury_premium_specialist_model") or {}).get("snapshot") or {}
                         lx_company_ui = lx_eps_snap_ui.get("company") or "Luxury-Unternehmen"
@@ -34068,6 +34952,7 @@ if selected_symbol:
                 is_gold_precious_metals_score_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_score_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                 is_luxury_premium_score_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
+                is_asset_management_score_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                 is_kratos_score_ui = str(selected_symbol or "").upper() == "KTOS"
                 is_bkr_score_ui = str(selected_symbol or "").upper() == "BKR"
 
@@ -34101,6 +34986,9 @@ if selected_symbol:
                 elif is_toyo_solar_score_ui:
                     st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Der generische Wachstumsscore wird nicht verwendet.")
                     st.caption("Wachstum/Skalierung werden aus Q2/H1-2026-Umsatz, Auslieferungen und Manufacturing-Ramp aus Primärquellen bewertet; Yahoo-Wachstumswerte bleiben Diagnosekontext.")
+                elif is_asset_management_score_ui:
+                    st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
+                    st.caption("AUM-Anstieg wird von organischen Long-Term-Net-Flows getrennt; Marktperformance, FX und Akquisitionen erzeugen keine Growth-Punkte wie bei einem Industrieunternehmen.")
                 elif is_luxury_premium_score_ui:
                     st.info("ℹ️ Im Luxury-Family-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
                     st.caption(
@@ -34217,7 +35105,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui:
+                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_asset_management_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -34246,6 +35134,7 @@ if selected_symbol:
                 is_turnaround_postmerger_profitability_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 is_gold_precious_metals_profitability_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_profitability_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
+                is_asset_management_profitability_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                 is_bkr_profitability_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                 if is_bkr_profitability_ui:
@@ -34262,6 +35151,9 @@ if selected_symbol:
                 elif is_gold_precious_metals_profitability_ui:
                     st.info("ℹ️ Im GOLD-Precious-Metals-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption(f"Für einen Edelmetallhändler ist Umsatzmarge strukturell wenig aussagekräftig. {APP_BUILD_VERSION} bewertet Gross-Margin-Resilienz, Gross Profit, EBITDA-Skalierung und Q4 Adjusted-Pretax-Momentum aus Primärquellen.")
+                elif is_asset_management_profitability_ui:
+                    st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
+                    st.caption("Hoher ROE ist bei kapitalarmen Asset Managern strukturell leichter erreichbar. Bewertet werden stattdessen Core/Adjusted Operating Margin, Margentrend und Earnings-Stabilität.")
                 elif is_toyo_solar_profitability_ui:
                     st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption("TOYO bewertet Gross Margin, Adjusted-EBITDA-Marge und aktuelle Q2/H1-Ertragsqualität aus Primärquellen; Yahoo-Nettomarge/ROE bleiben Diagnosekontext.")
@@ -34412,6 +35304,7 @@ if selected_symbol:
                     and not is_turnaround_postmerger_profitability_ui
                     and not is_gold_precious_metals_profitability_ui
                     and not is_toyo_solar_profitability_ui
+                    and not is_asset_management_profitability_ui
                 ):
                     st.caption(
                         "Die Profitabilität basiert derzeit auf "
@@ -34540,6 +35433,7 @@ if selected_symbol:
                     is_gold_precious_metals_fcf_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     is_toyo_solar_fcf_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     is_luxury_premium_fcf_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
+                    is_asset_management_fcf_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                     is_bkr_model_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                     if is_bkr_model_ui:
@@ -34560,6 +35454,9 @@ if selected_symbol:
                     elif is_toyo_solar_fcf_ui:
                         st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
                         st.caption(f"{APP_BUILD_VERSION} verwendet ausschließlich issuer-ausgewiesenen H1 Operating Cash Flow minus CapEx als Cash-Conversion-Komponente. Yahoo-TTM-FCF bleibt Diagnosekontext.")
+                    elif is_asset_management_fcf_ui:
+                        st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Margen-Score wird nicht verwendet.")
+                        st.caption("Asset-light Cash Conversion bleibt Diagnose- und Kapitalallokationskontext; sie rechtfertigt allein kein Premium-KGV. Maßgeblich sind Net Flows, Fee-Qualität, Core-Marge und Through-Cycle-Earnings.")
                     elif is_luxury_premium_fcf_ui:
                         st.info("ℹ️ Im Luxury-Family-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
                         lx_fcf_snap_ui = (data.get("luxury_premium_specialist_model") or {}).get("snapshot") or {}
@@ -34763,6 +35660,7 @@ if selected_symbol:
                     is_gold_precious_metals_balance_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     is_toyo_solar_balance_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     is_luxury_premium_balance_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
+                    is_asset_management_balance_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                     is_bkr_balance_ui = is_baker_hughes_energy_tech_company_type(company_type)
 
                     if is_bkr_balance_ui:
@@ -34783,6 +35681,9 @@ if selected_symbol:
                     elif is_toyo_solar_balance_ui:
                         st.info("ℹ️ Im TOYO-Solar-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("TOYO bewertet Liquidität, tatsächliche Aktienverwässerung, RDO/Warrants, Rest-ATM und den 357-Mio.-USD-HJT-Finanzierungsbedarf separat; Yahoo-Schulden/FCF bleiben Kontext.")
+                    elif is_asset_management_balance_ui:
+                        st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
+                        st.caption("Net Cash oder geringe Verschuldung sind positiv, geben aber nicht automatisch 15/15 Punkte. Seed Capital, Akquisitionen, Buybacks und echte Netto-Aktienzahlentwicklung werden im Spezialscore separat bewertet.")
                     elif is_luxury_premium_balance_ui:
                         st.info("ℹ️ Im Luxury-Family-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption(f"{APP_BUILD_VERSION} bewertet die profilabhängige issuer-Bilanzqualität direkt (Hermès: Restated Net Cash; LVMH: Net Financial Debt/Equity und Debt Reduction); generische Yahoo-Schulden/FCF bleiben Kontext.")
@@ -37164,6 +38065,73 @@ if selected_symbol:
                         "nachfolgenden Fair-Value-Schritt, solange sie noch "
                         "nicht vollständig implementiert und freigegeben sind."
                     )
+
+                if special_control.get("control_key") == "asset_management_specialist":
+                    st.divider()
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1")
+                    if special_control.get("implemented"):
+                        checks_am = special_control.get("checks") or {}
+                        snap_am = special_control.get("snapshot") or {}
+                        score_am = checks_am.get("specialist_score") or {}
+                        earn_am = checks_am.get("earnings_basis") or {}
+                        val_am = checks_am.get("specialist_valuation") or {}
+                        if snap_am.get("inactive_delisted"):
+                            st.error(
+                                f"{text_or_dash(snap_am.get('company'))}: Take-private am {text_or_dash(snap_am.get('take_private_date'))} "
+                                f"zu {safe_float(snap_am.get('take_private_cash_usd')):.2f} USD je Aktie abgeschlossen; Titel delistet. "
+                                "Kein laufender Fair Value und kein aktueller Peer-Status."
+                            )
+                        else:
+                            st.write(f"**Primärdatenstand:** {text_or_dash(snap_am.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_am.get('published_date'))})")
+                            st.caption(text_or_dash(snap_am.get("source_name")))
+                            if snap_am.get("source_url"):
+                                st.markdown(f"[Primärquelle]({snap_am.get('source_url')})")
+                            a1, a2 = st.columns(2)
+                            with a1:
+                                st.metric("Total AUM", format_money(snap_am.get("total_aum"), financial_currency))
+                                st.metric("Long-Term AUM", format_money(snap_am.get("long_term_aum"), financial_currency))
+                                if safe_float(snap_am.get("money_market_aum")) is not None:
+                                    st.metric("Money-Market / Liquidity AUM", format_money(snap_am.get("money_market_aum"), financial_currency))
+                            with a2:
+                                if score_am.get("available"):
+                                    st.metric("Annualisierte Long-Term Organic Flows", f"{safe_float(score_am.get('annualized_long_term_organic_flow_pct')):+.2f} %")
+                                    st.metric("Headline-AUM-Wachstum", f"{safe_float(score_am.get('headline_aum_growth_pct')):+.1f} %")
+                                st.metric("Core/Adjusted Operating Margin", f"{safe_float(snap_am.get('operating_margin_pct')):.1f} %")
+                            if score_am.get("available"):
+                                st.metric("Asset Management Quality Score", f"{safe_float(score_am.get('score')):.0f}/100 · {text_or_dash(score_am.get('quality_level'))}")
+                                st.write("**Score-Komponenten:** " + " · ".join(f"{name} {safe_float(points):.0f}" for name, points in score_am.get("components", {}).items()))
+                                st.write(f"**Premium-Unlock:** {int(score_am.get('premium_unlock_count') or 0)}/5 Bedingungen · " + ("bestanden" if score_am.get("premium_unlocked") else "nicht bestanden"))
+                            if earn_am.get("available"):
+                                st.metric("Through-Cycle Earnings-Basis", format_eps(earn_am.get("normalized_eps"), financial_currency))
+                                st.caption(text_or_dash(earn_am.get("method")))
+                            if val_am.get("available"):
+                                st.write(
+                                    f"**Asset-Manager-KGV-Korridor:** {safe_float(val_am.get('corridor_low')):.2f}× – {safe_float(val_am.get('corridor_high')):.2f}× · "
+                                    f"**Ziel-KGV:** {safe_float(val_am.get('target_multiple')):.2f}×"
+                                )
+                                guard_status = str(val_am.get("multiple_guard_status") or "none")
+                                if guard_status == "hard":
+                                    st.warning(
+                                        "🔴/🟡 Asset Manager Multiple Guard: Zielmultiple liegt deutlich über Peer-/3Y-Historical-Referenz. "
+                                        + ("Downside-Cap angewendet." if val_am.get("historical_peer_cap_applied") else "Premium-Unlock rechtfertigt die höhere Bewertung; Guard bleibt sichtbar.")
+                                    )
+                                elif guard_status == "soft":
+                                    st.info("🟡 Asset Manager Multiple Guard: moderates Premium gegenüber Peer-/3Y-Historical-Referenz; keine automatische Änderung.")
+                                st.write(
+                                    "**Peer-/Historical-Referenz:** Core-Peer-Median " +
+                                    (f"{safe_float(val_am.get('peer_reference_median_pe')):.2f}×" if safe_float(val_am.get('peer_reference_median_pe')) is not None else "–") +
+                                    " · 3Y Historical Median " +
+                                    (f"{safe_float(val_am.get('historical_forward_pe_3y_median')):.2f}×" if safe_float(val_am.get('historical_forward_pe_3y_median')) is not None else "–")
+                                )
+                                st.metric(f"{text_or_dash(snap_am.get('company'))} Fair Value – Fundamentalwährung", format_currency_value(val_am.get("fair_value_financial"), financial_currency, 2))
+                            st.caption(text_or_dash(snap_am.get("note")))
+                        if special_control.get("released"):
+                            st.success("Asset-Management-Spezialkontrolle vollständig – Fair Value freigegeben.")
+                        else:
+                            st.warning("Asset-Management-Spezialkontrolle nicht vollständig – Fair Value bleibt gesperrt.")
+                        st.caption(text_or_dash(special_control.get("note")))
+                    else:
+                        st.warning("Asset-Management-Spezialkontrolle erkannt, aber noch nicht implementiert.")
 
                 if special_control.get("control_key") == "luxury_premium_franchise":
                     st.divider()
