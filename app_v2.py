@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.114"
+APP_BUILD_VERSION = "V2.20.115"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +25,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Defense UI Cleanup & Analyst Target Horizon Guard"
+    f"Build {APP_BUILD_VERSION} · Reference-Only Peer & Specialist UI Cleanup"
 )
 
 
@@ -43,6 +43,7 @@ st.caption(
 # V2.20.111: Asset Management BEN Flow Definition Fix. Hardens Long-Term flow-rate handling: an annualized rate is used only when the long-term denominator, period and acquisition separation are explicitly verified (or an issuer-verified annualized organic rate exists). Otherwise only verified flow direction/absolute flows receive a capped directional score and cannot unlock a valuation premium. BEN beginning Long-Term AUM is corrected to 1.5827T USD (cash management excluded), producing a verified 9M annualized Long-Term net-flow rate of about +5.33%; the previous +5.08% used total beginning AUM as denominator. Also fixes the special-event UI lookup so the same flow status is shown consistently and removes the mixed red/yellow multiple-guard icon.
 # V2.20.112: Asset Manager EPS Confidence Isolation. The generic Provider/GAAP TTM-vs-Current-FY divergence remains visible only as diagnostic context for Asset Management. Valuation confidence now uses the specialist Through-Cycle earnings bridge (specialist TTM, Current-FY and 3Y Through-Cycle EPS) instead of the generic EPS-normalization confidence. A same-basis specialist consistency check is stored with the earnings basis; its confidence can limit the Asset-Manager valuation, while the generic divergence can no longer do so. No Asset-Manager score, flow, P/E, Fair-Value or signal threshold mathematics changed.
 # V2.20.114: Defense UI Cleanup & Analyst Target Horizon Guard. Keeps Rheinmetall score, Current-FY earnings basis, 18–30x corridor, 27.25x target P/E and Fair Value mathematics unchanged. Removes the stale generic ±5% peer-adjustment promise from the Defense High-Growth UI, makes Book-to-Bill explicitly part of the specialist Order-Quality/Visibility score, isolates the KTOS-only diagnostic caption from Rheinmetall, and adds a fail-safe Reality-Check horizon guard. When the own valuation is explicitly 0Y/current-FY while the external analyst target has no verified identical FY horizon and next-FY EPS is materially higher, the numerical target gap remains visible but is labelled horizon-limited and cannot trigger the external conflict brake.
+# V2.20.115: Reference-Only Peer & Specialist UI Cleanup. No valuation scores, earnings bases, corridors, target multiples, Fair Values, zone thresholds or signal rules are recalibrated. Luxury and Rheinmetall Defense reference-only peer sets are explicitly non-blocking and are removed from valuation-confidence limiting factors; missing peer quotes cannot block their specialist Fair Values. Luxury profitability copy now reflects Recurring Operating Margin / issuer earnings instead of generic Net Margin/ROE. Defense Fair-Value UI labels the 0Y/current-FY earnings anchor correctly. Reference-only peer UI no longer promises a three-peer requirement or a later ±5% adjustment.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -18646,6 +18647,7 @@ def _calculate_defense_high_growth_peer_reference(peer_group, fundamental_multip
         "adjusted_multiple": safe_float(fundamental_multiple),
         "applied": False,
         "comparability_gate_passed": False,
+        "reference_only": True,
         "note": None,
     }
     vals = []
@@ -18728,6 +18730,7 @@ def _calculate_luxury_premium_peer_reference(peer_group, fundamental_multiple, c
         "adjustment_pct": 0.0,
         "adjusted_multiple": safe_float(fundamental_multiple),
         "applied": False,
+        "reference_only": True,
         "note": None,
     }
     for peer in (peer_group or {}).get("peers", []):
@@ -26201,7 +26204,17 @@ def calculate_valuation_confidence(
         if eps_rank is not None:
             components["EPS-Normalisierung"] = (eps_rank, eps_level)
 
-    if isinstance(peer_check, dict) and peer_check.get("method_supported") and not is_semicap_valuation and not is_nvidia_valuation:
+    # V2.20.115: a peer layer that is explicitly reference-only cannot limit
+    # valuation confidence. It neither sets the target multiple nor gates the
+    # specialist Fair Value, so missing/weak quote coverage is informational only.
+    peer_is_reference_only = bool(isinstance(peer_check, dict) and peer_check.get("reference_only"))
+    if (
+        isinstance(peer_check, dict)
+        and peer_check.get("method_supported")
+        and not peer_is_reference_only
+        and not is_semicap_valuation
+        and not is_nvidia_valuation
+    ):
         usable_peers = int(peer_check.get("usable_count") or 0)
         peer_level = "Hoch" if peer_check.get("applied") and usable_peers >= 3 else "Mittel"
         components["Peer-Check"] = (_confidence_rank_value(peer_level), peer_level)
@@ -36028,6 +36041,7 @@ if selected_symbol:
                 is_turnaround_postmerger_profitability_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 is_gold_precious_metals_profitability_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_profitability_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
+                is_luxury_premium_profitability_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                 is_asset_management_profitability_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                 is_defense_high_growth_profitability_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                 is_bkr_profitability_ui = is_baker_hughes_energy_tech_company_type(company_type)
@@ -36046,6 +36060,9 @@ if selected_symbol:
                 elif is_gold_precious_metals_profitability_ui:
                     st.info("ℹ️ Im GOLD-Precious-Metals-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption(f"Für einen Edelmetallhändler ist Umsatzmarge strukturell wenig aussagekräftig. {APP_BUILD_VERSION} bewertet Gross-Margin-Resilienz, Gross Profit, EBITDA-Skalierung und Q4 Adjusted-Pretax-Momentum aus Primärquellen.")
+                elif is_luxury_premium_profitability_ui:
+                    st.info("ℹ️ Im Luxury-Family-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
+                    st.caption("Bewertet werden Recurring Operating Margin, issuer-basierte Owner Earnings, Cash-Conversion und profilabhängige Bilanz-/Franchise-Qualität. Yahoo-Nettomarge und ROE bleiben Diagnosekontext.")
                 elif is_defense_high_growth_profitability_ui:
                     st.info("ℹ️ Im Defense-High-Growth-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption("Bewertet werden H1/Q2 Operating Margin, FY26-Margenguidance, Operating-Result-Wachstum und Same-Basis Adjusted-EPS-Trajectory. Yahoo-Nettomarge und ROE bleiben Diagnosekontext.")
@@ -36202,6 +36219,7 @@ if selected_symbol:
                     and not is_turnaround_postmerger_profitability_ui
                     and not is_gold_precious_metals_profitability_ui
                     and not is_toyo_solar_profitability_ui
+                    and not is_luxury_premium_profitability_ui
                     and not is_asset_management_profitability_ui
                     and not is_defense_high_growth_profitability_ui
                 ):
@@ -38573,7 +38591,16 @@ if selected_symbol:
                         f"{peer_group['count']}"
                     )
 
-                    if peer_group["count"] >= 3:
+                    reference_only_peer_group_ui = peer_group.get("peer_model") in {
+                        "defense_high_growth_prime_reference_v2",
+                        "luxury_premium_reference_v1",
+                    }
+                    if reference_only_peer_group_ui:
+                        st.info(
+                            "Reference-only Peer-Set: Es gilt keine Mindestanzahl als Freigabe- oder Sicherheitsbedingung. "
+                            "Fehlende Peer-KGVs blockieren den Spezial-Fair-Value nicht und verändern weder Score noch Ziel-Multiple."
+                        )
+                    elif peer_group["count"] >= 3:
                         st.success(
                             "Mindestens 3 vorgesehene Peers "
                             "vorhanden. Ob mindestens 3 davon "
@@ -38598,14 +38625,17 @@ if selected_symbol:
                     peer_group["note"]
                 )
 
-                if is_defense_high_growth_prime_specialist(
-                    company_type,
-                    data.get("fundamental_symbol") or data.get("symbol"),
-                ):
+                if peer_group.get("peer_model") == "defense_high_growth_prime_reference_v2":
                     st.caption(
                         "Schritt 2A verändert weder Defense Quality Score noch Fundamental-Multiple. "
-                        "Die Peer-KGVs werden in Schritt 2B als reference-only geladen; der Defense "
-                        "High-Growth Peer Lock erlaubt keine automatische ±5-%-Anpassung."
+                        "Die Peer-KGVs werden in Schritt 2B ausschließlich als reference-only geladen; "
+                        "es gibt keine automatische ±5-%-Anpassung und keinen Peer-bedingten Confidence-Abzug."
+                    )
+                elif peer_group.get("peer_model") == "luxury_premium_reference_v1":
+                    st.caption(
+                        "Schritt 2A verändert weder Luxury-Family Quality Score noch Fundamental-Multiple. "
+                        "Die Luxury-Peer-KGVs werden in Schritt 2B ausschließlich als reference-only geladen; "
+                        "es gibt keine automatische ±5-%-Anpassung und keinen Peer-bedingten Confidence-Abzug."
                     )
                 else:
                     st.caption(
@@ -38633,6 +38663,7 @@ if selected_symbol:
                 is_bkr_peer_metric = peer_check.get("metric") == "Baker Hughes Component Forward P/E reference"
                 is_medical_devices_peer_metric = peer_check.get("metric") == "Medical Devices Forward P/E guarded reference"
                 is_asset_management_peer_metric = peer_check.get("metric") == "Traditional Asset Manager Forward P/E reference guard"
+                is_luxury_peer_metric = peer_check.get("metric") == "Luxury Goods Forward P/E reference-only"
 
                 if not peer_check[
                     "method_supported"
@@ -38662,6 +38693,8 @@ if selected_symbol:
                         peer_header = "**Medical-Devices Peer-Forward-KGVs (Kalibrierung):**"
                     elif is_asset_management_peer_metric:
                         peer_header = "**Asset-Management Peer-Forward-KGVs (Referenz):**"
+                    elif is_luxury_peer_metric:
+                        peer_header = "**Luxury-Family Peer-Forward-KGVs (reference-only):**"
                     else:
                         peer_header = "**Geladene Peer-KGVs:**"
                     st.write(peer_header)
@@ -38887,14 +38920,29 @@ if selected_symbol:
                     peer_explain = "Baker Hughes V2.20.73: SLB/HAL/FTI/GEV bleiben Teilsegment-Referenzen. Eine automatische Anpassung wäre erst bei mindestens 3 voll vergleichbaren Post-Chart Peers mit normalisierter Earnings-/Kapitalstrukturbasis zulässig."
                 elif is_medical_devices_peer_metric:
                     peer_explain = "Medical Devices V2.20.103: Mindestens 3 Core-Peers müssen Struktur, 0Y/current-FY-Horizont und verifizierte Same-Basis-Earnings gemeinsam erfüllen. Provider-Forward-KGVs mit +1Y/unklarem Horizont oder ungeklärter Accounting-Basis bleiben reference-only; Median statt Durchschnitt, danach weiterhin ±5-%-Cap."
+                elif is_luxury_peer_metric:
+                    peer_explain = f"Luxury-Family {APP_BUILD_VERSION}: Hermès/LVMH/Richemont/Moncler/Kering bleiben reference-only, bis Current-FY-Horizont und dieselbe Primary-source Owner-Earnings-Basis gemeinsam verifiziert sind. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische ±5-%-Anpassung."
                 else:
                     peer_explain = "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
-                st.caption("Der Peer-Check ist nur ein externer Realitätscheck. Er verändert den 100-Punkte-Multiple-Score nicht. " + peer_explain)
 
-                st.caption(
-                    "Der Peer-Check erzeugt selbst noch keinen Fair Value. "
-                    "Die eigentliche Fair-Value-Rechnung folgt separat."
-                )
+                if peer_check.get("reference_only"):
+                    st.caption(
+                        "Der Peer-Check ist eine reine Markt-Referenz. Er verändert weder Spezialscore noch Ziel-Multiple oder Fair Value; "
+                        "fehlende/zu wenige Peer-Daten blockieren die Spezialbewertung nicht und begrenzen nicht die Bewertungssicherheit. " + peer_explain
+                    )
+                else:
+                    st.caption("Der Peer-Check ist nur ein externer Realitätscheck. Er verändert den 100-Punkte-Multiple-Score nicht. " + peer_explain)
+
+                if peer_check.get("reference_only"):
+                    st.caption(
+                        "Der Spezial-Fair-Value wird unabhängig von der Verfügbarkeit dieser Referenz-Peers berechnet; "
+                        "die Peer-Schicht erzeugt selbst keinen Fair Value."
+                    )
+                else:
+                    st.caption(
+                        "Der Peer-Check erzeugt selbst noch keinen Fair Value. "
+                        "Die eigentliche Fair-Value-Rechnung folgt separat."
+                    )
 
                 st.divider()
 
@@ -42689,6 +42737,18 @@ if selected_symbol:
                             st.write(f"**Implizite annualisierte H1-FCF-Rendite:** {fair_value.get('implied_annualized_fcf_yield_pct'):.2f} % · Minimum {fair_value.get('minimum_fcf_yield_pct'):.1f} %")
                             st.write(f"**FCF-Safety Gate:** {'BESTANDEN' if fair_value.get('fcf_safety_passed') else 'NICHT BESTANDEN'}")
                         st.caption("Demand Quality, Gross Margin, Konzentration, China und Working Capital werden nicht nochmals als Multiple-Caps verwendet. Yahoo Forward-EPS und Yahoo-FCF/EV-EBITDA bleiben außerhalb des Fair Values; Peer-Werte dürfen in V2.20.67 nur nach bestandenem Normalized Comparability Gate wirken.")
+                    elif fair_value.get("valuation_method") == "defense_high_growth_current_fy_pe":
+                        st.write("**Bewertungsformel:** Defense Current-FY Earnings-Basis × spezialisiertes Defense-Prime-KGV")
+                        st.write(
+                            "**Defense Current-FY Earnings-Basis:** "
+                            + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"])
+                        )
+                        st.write(f"**Verwendetes Multiple:** {fair_value.get('used_multiple'):.2f}×")
+                        st.write(f"**Multiple-Quelle:** {fair_value.get('multiple_source')}")
+                        st.caption(
+                            "Die Bezeichnung 'normalisiertes EPS' des generischen Pfads wird hier bewusst nicht verwendet: "
+                            "der Defense-Fair-Value verankert sich explizit am 0Y/current-FY-Earnings-Horizont."
+                        )
                     elif fair_value.get("valuation_method") == "reit_paffo":
                         st.write("**Bewertungsformel:** Offizieller AFFO-Guidance-Mittelwert × scoregesteuertes Ziel-P/AFFO")
                         st.write(f"**REIT-Score:** {fair_value.get('reit_score'):.0f}/100 · {fair_value.get('reit_quality_level')}")
@@ -42896,6 +42956,16 @@ if selected_symbol:
                         )
                         if am_conf_basis_ui.get("confidence_note"):
                             st.caption(am_conf_basis_ui.get("confidence_note"))
+                    elif fair_value.get("valuation_method") == "luxury_premium_owner_earnings_pe":
+                        st.info(
+                            "Luxury-Sicherheitsisolierung: Die Luxury-Peer-KGVs sind reference-only und daher kein Begrenzungsfaktor der Bewertungssicherheit. "
+                            "Maßgeblich bleiben Unternehmenstyp/Methode und die freigegebene Luxury-Family-Spezialkontrolle mit Primary-source Owner Earnings."
+                        )
+                    elif fair_value.get("valuation_method") == "defense_high_growth_current_fy_pe":
+                        st.info(
+                            "Defense-Sicherheitsisolierung: BAE/Leonardo/Thales/Saab sind reference-only und daher kein Begrenzungsfaktor der Bewertungssicherheit. "
+                            "Maßgeblich bleiben Unternehmenstyp/Methode, Defense Current-FY Earnings-Basis und die Defense-Spezialkontrolle."
+                        )
                     else:
                         eps_confidence_note = data.get(
                             "eps_normalization", {}
