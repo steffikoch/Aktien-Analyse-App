@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.102"
+APP_BUILD_VERSION = "V2.20.103"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,12 +25,14 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Medical-Devices Peer Calibration & Safety Overlay V1"
+    f"Build {APP_BUILD_VERSION} · Medical-Devices Peer Horizon & Accounting-Basis Guard V2"
 )
 
 
 # V2.20.101: FY-Guidance-First Same-Basis Earnings Growth Guard V3. When an active high-confidence accounting-basis bridge has fresh issuer Current-FY Adjusted/Core/Operating EPS guidance and a same-basis prior-FY EPS, the growth score now uses FY guidance midpoint vs. prior FY as the primary annual growth anchor. Multi-quarter YTD same-basis growth remains a momentum/plausibility control and is shown separately; it no longer displaces the annual guidance anchor. Without a verified same-basis FY bridge, the V2.20.100 YTD -> latest-quarter fail-closed fallback remains intact.
 # V2.20.102: Medical-Devices Peer Calibration & Safety Overlay V1. Standard-company issuers with Yahoo industry “Medical Devices” receive a dedicated structural peer set (SYK/MDT/BSX/ZBH/EW plus broad/high-growth reference peers BDX/ISRG). Provider Forward-P/E is used only as a market-multiple calibration layer; at least three structurally comparable core peers are required, the eligible-peer median is used, and any automatic adjustment to the score-derived fundamental P/E is capped at ±5 %. The issuer EPS basis, 100-point score and FY-guidance-first Same-Basis Growth Guard remain unchanged. Broad-scope or high-growth outlier peers are reference-only.
+
+# V2.20.103: Medical-Devices Peer Horizon & Accounting-Basis Guard V2. The V2.20.102 structural peer set remains intact, but automatic peer-multiple adjustments are now fail-closed unless at least three Core-Peers are comparable on all three dimensions: business structure, earnings horizon and accounting-basis family. Provider Forward-P/E remains visible as market reference; it can change the Stryker/Medical-Devices target P/E only when the reported Forward-EPS is demonstrably current-FY (0Y) rather than +1Y/unknown and a fresh issuer guidance bridge verifies the same Adjusted/Core/Operating/GAAP basis family as the target valuation anchor. If fewer than three peers pass, the reference median is shown but the score-derived fundamental P/E and Fair Value remain unchanged. The ±5% cap remains as a second safety layer for any future fully verified peer set.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -15936,14 +15938,15 @@ def get_peer_group(company_type, symbol, industry=None):
                 "peers": filtered,
                 "count": len(filtered),
                 "target_symbol": own_symbol,
-                "peer_model": "medical_devices_v1",
+                "peer_model": "medical_devices_v2",
                 "industry": industry_text,
                 "note": (
-                    "Medical-Devices-Peer-Kalibrierung V2.20.102 aktiv. Core-Peers werden strukturell "
-                    "von breiteren bzw. hoch bewerteten Referenz-Peers getrennt. Mindestens 3 brauchbare "
-                    "Core-Peers sind Pflicht; der Median statt Durchschnitt wird verwendet. Der Peer-Layer "
-                    "darf das scoregesteuerte Fundamental-KGV maximal um ±5 % verändern und ersetzt weder "
-                    "die normalisierte EPS-Basis noch den 100-Punkte-Score."
+                    "Medical-Devices Peer Horizon & Accounting-Basis Guard V2.20.103 aktiv. Core-Peers werden strukturell "
+                    "von breiteren bzw. hoch bewerteten Referenz-Peers getrennt. Eine automatische Anpassung "
+                    "ist nur zulässig, wenn mindestens 3 Core-Peers zusätzlich auf vergleichbarem Current-FY-"
+                    "Horizont und derselben verifizierten Earnings-Basis wie der Zielwert stehen. Provider-Forward-"
+                    "KGVs mit +1Y/unklarem Horizont oder ungeklärter GAAP/Adjusted-Basis bleiben reine Referenz. "
+                    "Median statt Durchschnitt; selbst nach bestandenem Gate bleibt die Wirkung auf ±5 % begrenzt."
                 ),
             }
         return {
@@ -16017,11 +16020,13 @@ def peer_forward_pe_is_supported(company_type):
 
 @st.cache_data(ttl=900)
 def load_peer_forward_pe(peer_symbol, cache_version):
-    """Load a directly reported Yahoo Forward-P/E with safe recovery.
+    """Load Yahoo peer Forward-P/E plus explicit earnings-horizon diagnostics.
 
-    Primary source is ticker.info. If quoteSummary/info is incomplete, the
-    Yahoo valuation-measures table is used as a second *reported* source.
-    No peer multiple is estimated from unrelated accounting figures.
+    V2.20.103 keeps the reported provider Forward-P/E as a market reference, but
+    also loads 0Y/current-FY and +1Y analyst EPS separately. The peer overlay may
+    use the reported Forward-P/E only when its embedded Forward-EPS can be tied
+    to the current-FY horizon and the accounting basis is independently verified.
+    No horizon or accounting basis is guessed from the Forward-P/E alone.
     """
 
     try:
@@ -16032,15 +16037,11 @@ def load_peer_forward_pe(peer_symbol, cache_version):
         except Exception:
             peer_info = {}
 
-        forward_pe = safe_float(
-            peer_info.get("forwardPE")
-        )
-
+        forward_pe = safe_float(peer_info.get("forwardPE"))
         if forward_pe is None:
-            forward_pe = safe_float(
-                peer_info.get("forwardPe")
-            )
+            forward_pe = safe_float(peer_info.get("forwardPe"))
 
+        raw_forward_eps = safe_float(peer_info.get("forwardEps"))
         source = "Yahoo quoteSummary/info"
 
         if forward_pe is None:
@@ -16068,26 +16069,59 @@ def load_peer_forward_pe(peer_symbol, cache_version):
             except Exception:
                 forward_pe = None
 
-        if (
-            forward_pe is None
-            or forward_pe <= 0
-            or forward_pe > 100
-        ):
+        try:
+            horizon_ctx = _analyst_eps_horizon_context(peer_ticker) or {}
+        except Exception:
+            horizon_ctx = {}
+
+        current_fy_eps = safe_float(horizon_ctx.get("current_fy_eps"))
+        next_fy_eps = safe_float(horizon_ctx.get("next_fy_eps"))
+
+        # Provider Forward-EPS horizon is accepted only when it numerically
+        # matches one explicit analyst horizon. Ambiguous/absent matches remain
+        # unknown and therefore cannot pass the automatic peer gate.
+        provider_horizon = "unknown"
+        provider_horizon_note = "Provider-Forward-EPS konnte keinem expliziten 0Y/+1Y-Horizont sicher zugeordnet werden."
+        if raw_forward_eps is not None and raw_forward_eps > 0:
+            cur_gap = abs(raw_forward_eps / current_fy_eps - 1.0) if current_fy_eps and current_fy_eps > 0 else None
+            nxt_gap = abs(raw_forward_eps / next_fy_eps - 1.0) if next_fy_eps and next_fy_eps > 0 else None
+            cur_match = cur_gap is not None and cur_gap <= 0.06
+            nxt_match = nxt_gap is not None and nxt_gap <= 0.06
+            if cur_match and not nxt_match:
+                provider_horizon = "current_fy"
+                provider_horizon_note = "Provider-Forward-EPS entspricht näherungsweise dem 0Y/current-FY-Konsens."
+            elif nxt_match and not cur_match:
+                provider_horizon = "next_fy"
+                provider_horizon_note = "Provider-Forward-EPS entspricht näherungsweise dem +1Y-Konsens."
+            elif cur_match and nxt_match:
+                provider_horizon = "ambiguous"
+                provider_horizon_note = "Provider-Forward-EPS passt sowohl zu 0Y als auch +1Y; Horizont bleibt mehrdeutig."
+
+        if forward_pe is None or forward_pe <= 0 or forward_pe > 100:
             return {
                 "usable": False,
                 "forward_pe": None,
                 "source": None,
-                "reason": (
-                    "Kein plausibles positives "
-                    "Forward-KGV verfügbar."
-                )
+                "reason": "Kein plausibles positives Forward-KGV verfügbar.",
+                "raw_forward_eps": raw_forward_eps,
+                "current_fy_eps": current_fy_eps,
+                "next_fy_eps": next_fy_eps,
+                "provider_forward_horizon": provider_horizon,
+                "provider_horizon_note": provider_horizon_note,
+                "horizon_source": horizon_ctx.get("source"),
             }
 
         return {
             "usable": True,
             "forward_pe": float(forward_pe),
             "source": source,
-            "reason": None
+            "reason": None,
+            "raw_forward_eps": raw_forward_eps,
+            "current_fy_eps": current_fy_eps,
+            "next_fy_eps": next_fy_eps,
+            "provider_forward_horizon": provider_horizon,
+            "provider_horizon_note": provider_horizon_note,
+            "horizon_source": horizon_ctx.get("source"),
         }
 
     except Exception:
@@ -16095,10 +16129,13 @@ def load_peer_forward_pe(peer_symbol, cache_version):
             "usable": False,
             "forward_pe": None,
             "source": None,
-            "reason": (
-                "Peer-Daten konnten nicht zuverlässig "
-                "geladen werden."
-            )
+            "reason": "Peer-Daten konnten nicht zuverlässig geladen werden.",
+            "raw_forward_eps": None,
+            "current_fy_eps": None,
+            "next_fy_eps": None,
+            "provider_forward_horizon": "unknown",
+            "provider_horizon_note": "Horizontdiagnose nicht verfügbar.",
+            "horizon_source": None,
         }
 
 
@@ -16141,38 +16178,148 @@ MEDICAL_DEVICES_PEER_COMPARABILITY = {
 }
 
 
-def _medical_devices_peer_comparability(symbol, peer_data):
+def _medical_devices_verified_earnings_profile(symbol):
+    """Return a fail-closed, primary-source earnings-basis profile for one peer.
+
+    A peer is *not* considered accounting-basis comparable merely because Yahoo
+    publishes a Forward-P/E. We require a fresh issuer current-FY EPS guidance
+    with an explicit basis label. A verified TTM bridge is helpful context but is
+    not required to display the peer as a market reference.
+    """
+    sym = str(symbol or "").upper()
+    guidance = _verified_current_fy_eps_guidance(sym)
+    snapshot = _verified_adjusted_ttm_snapshot(sym)
+    if not guidance:
+        return {
+            "verified": False,
+            "basis_family": None,
+            "basis_label": None,
+            "fiscal_year": None,
+            "guidance_mid": None,
+            "source": None,
+            "snapshot_available": bool(snapshot),
+            "note": "Keine frische verifizierte Current-FY-Primärguidance mit expliziter EPS-Basis hinterlegt.",
+        }
+    family = _eps_basis_family(guidance.get("basis"))
+    mid = safe_float(guidance.get("mid"))
+    if not family or mid is None or mid <= 0:
+        return {
+            "verified": False,
+            "basis_family": family,
+            "basis_label": guidance.get("basis"),
+            "fiscal_year": guidance.get("fiscal_year"),
+            "guidance_mid": mid,
+            "source": guidance.get("source"),
+            "snapshot_available": bool(snapshot),
+            "note": "Primärguidance vorhanden, aber Earnings-Basis oder Guidance-Mittelpunkt nicht belastbar verifiziert.",
+        }
+    return {
+        "verified": True,
+        "basis_family": family,
+        "basis_label": guidance.get("basis"),
+        "fiscal_year": guidance.get("fiscal_year"),
+        "guidance_mid": mid,
+        "source": guidance.get("source"),
+        "snapshot_available": bool(snapshot),
+        "note": f"Verifizierte Current-FY-Primärguidance: FY{guidance.get('fiscal_year')} {guidance.get('basis')}.",
+    }
+
+
+def _medical_devices_peer_comparability(symbol, peer_data, target_symbol=None):
     sym = str(symbol or "").upper()
     meta = dict(MEDICAL_DEVICES_PEER_COMPARABILITY.get(sym, {}))
     structure_ok = bool(meta.get("core_comparable", False))
     usable = bool((peer_data or {}).get("usable"))
+
+    target_profile = _medical_devices_verified_earnings_profile(target_symbol)
+    peer_profile = _medical_devices_verified_earnings_profile(sym)
+
+    provider_horizon = str((peer_data or {}).get("provider_forward_horizon") or "unknown")
+    horizon_ok = provider_horizon == "current_fy"
+
+    # The reported peer Forward-P/E denominator must also be numerically close
+    # to the issuer's explicitly labelled current-FY guidance. This avoids
+    # calling an adjusted/GAAP basis comparable merely because the label exists.
+    raw_forward_eps = safe_float((peer_data or {}).get("raw_forward_eps"))
+    peer_guidance_mid = safe_float(peer_profile.get("guidance_mid"))
+    provider_vs_guidance_gap = None
+    if raw_forward_eps is not None and raw_forward_eps > 0 and peer_guidance_mid is not None and peer_guidance_mid > 0:
+        provider_vs_guidance_gap = abs(raw_forward_eps / peer_guidance_mid - 1.0)
+
+    target_family = target_profile.get("basis_family")
+    peer_family = peer_profile.get("basis_family")
+    basis_ok = bool(
+        target_profile.get("verified")
+        and peer_profile.get("verified")
+        and target_family
+        and peer_family
+        and target_family == peer_family
+        and provider_vs_guidance_gap is not None
+        and provider_vs_guidance_gap <= 0.08
+    )
+
+    horizon_note = (peer_data or {}).get("provider_horizon_note") or "Forward-P/E-Horizont nicht verifiziert."
+    if horizon_ok:
+        horizon_note = "0Y/current-FY-Horizont verifiziert."
+
+    if basis_ok:
+        basis_note = (
+            f"Earnings-Basis verifiziert: Peer {peer_profile.get('basis_label')} passt zur Zielbasis "
+            f"{target_profile.get('basis_label')}; Provider-Forward-EPS liegt innerhalb 8 % der Primärguidance."
+        )
+    elif not target_profile.get("verified"):
+        basis_note = "Zielunternehmen besitzt keine verifizierte Current-FY-Earnings-Basis für einen automatischen Peer-Abgleich."
+    elif not peer_profile.get("verified"):
+        basis_note = "Peer-Earnings-Basis nicht durch frische Current-FY-Primärguidance verifiziert."
+    elif target_family != peer_family:
+        basis_note = (
+            f"Accounting-Basis nicht gleichartig: Ziel={target_profile.get('basis_label') or '–'}, "
+            f"Peer={peer_profile.get('basis_label') or '–'}."
+        )
+    elif provider_vs_guidance_gap is None or provider_vs_guidance_gap > 0.08:
+        basis_note = "Provider-Forward-EPS lässt sich nicht ausreichend eng an die verifizierte Peer-Primärguidance anbinden."
+    else:
+        basis_note = "Accounting-Basis nicht ausreichend verifiziert."
+
     return {
         "structure": meta.get("structure", "Medical-Devices-Struktur nicht klassifiziert"),
         "structure_comparable": structure_ok,
         "structure_note": meta.get("note") or "Keine ausreichende strukturelle Peer-Klassifikation.",
-        "earnings_basis": "provider_consensus_forward_eps",
-        "earnings_basis_note": (
-            "Forward-KGV ist ein einheitlich geladener Provider-Marktwert; die unternehmensindividuellen Adjusted-Reconciliations "
-            "werden nicht als identisch unterstellt. Deshalb gilt selbst bei Core-Peers ein strikter ±5-%-Safety-Cap."
-        ),
-        "adjustment_eligible": bool(usable and structure_ok),
+        "provider_forward_horizon": provider_horizon,
+        "horizon_comparable": bool(horizon_ok),
+        "horizon_note": horizon_note,
+        "target_basis_family": target_family,
+        "peer_basis_family": peer_family,
+        "target_basis_label": target_profile.get("basis_label"),
+        "peer_basis_label": peer_profile.get("basis_label"),
+        "accounting_basis_comparable": bool(basis_ok),
+        "accounting_basis_note": basis_note,
+        "provider_vs_guidance_gap": provider_vs_guidance_gap,
+        "earnings_basis": "verified_current_fy_same_basis" if basis_ok else "provider_forward_eps_reference_only",
+        "adjustment_eligible": bool(usable and structure_ok and horizon_ok and basis_ok),
     }
 
 
 def _calculate_medical_devices_peer_overlay(peer_group, fundamental_multiple, cache_version):
-    """V2.20.102 Medical-Devices market-multiple calibration with safety caps.
+    """V2.20.103 Medical-Devices peer guard: structure + horizon + basis.
 
-    The target issuer keeps its own normalized/adjusted earnings basis and score.
-    Yahoo/provider Forward-P/E is used only to calibrate the market multiple. Broad
-    medical-technology and high-growth platform outliers remain reference-only.
+    The provider Forward-P/E median is always allowed as a market reference.
+    Automatic multiple changes are fail-closed and require >=3 Core-Peers whose
+    business structure, current-FY horizon and accounting-basis family are all
+    verified against the target issuer. The legacy ±5 % cap remains a second
+    safety layer after the stricter comparability gate.
     """
     result = {
         "method_supported": True,
-        "metric": "Medical Devices Forward P/E calibration",
+        "metric": "Medical Devices Forward P/E guarded reference",
         "peer_rows": [],
         "usable_count": 0,
+        "structural_core_count": 0,
+        "horizon_comparable_count": 0,
+        "basis_comparable_count": 0,
         "adjustment_eligible_count": 0,
         "peer_median": None,
+        "structural_core_median": None,
         "eligible_peer_median": None,
         "comparability_gate_passed": False,
         "adjustment_pct": 0.0,
@@ -16182,9 +16329,10 @@ def _calculate_medical_devices_peer_overlay(peer_group, fundamental_multiple, ca
         "note": None,
     }
 
+    target_symbol = (peer_group or {}).get("target_symbol")
     for peer in (peer_group or {}).get("peers", []):
         pdx = dict(load_peer_forward_pe(peer.get("symbol"), cache_version) or {})
-        comp = _medical_devices_peer_comparability(peer.get("symbol"), pdx)
+        comp = _medical_devices_peer_comparability(peer.get("symbol"), pdx, target_symbol=target_symbol)
         result["peer_rows"].append({
             "symbol": peer.get("symbol"),
             "name": peer.get("name"),
@@ -16192,6 +16340,9 @@ def _calculate_medical_devices_peer_overlay(peer_group, fundamental_multiple, ca
             "forward_pe": safe_float(pdx.get("forward_pe")),
             "source": pdx.get("source"),
             "reason": pdx.get("reason"),
+            "raw_forward_eps": safe_float(pdx.get("raw_forward_eps")),
+            "current_fy_eps": safe_float(pdx.get("current_fy_eps")),
+            "next_fy_eps": safe_float(pdx.get("next_fy_eps")),
             **comp,
         })
 
@@ -16199,11 +16350,24 @@ def _calculate_medical_devices_peer_overlay(peer_group, fundamental_multiple, ca
         r["forward_pe"] for r in result["peer_rows"]
         if r.get("usable") and r.get("forward_pe") is not None and r.get("forward_pe") > 0
     ]
+    structural = [r for r in result["peer_rows"] if r.get("usable") and r.get("structure_comparable")]
+    horizon_rows = [r for r in structural if r.get("horizon_comparable")]
+    basis_rows = [r for r in horizon_rows if r.get("accounting_basis_comparable")]
     eligible = [
-        r["forward_pe"] for r in result["peer_rows"]
+        r["forward_pe"] for r in basis_rows
         if r.get("adjustment_eligible") and r.get("forward_pe") is not None and r.get("forward_pe") > 0
     ]
+
     result["usable_count"] = len(refs)
+    result["structural_core_count"] = len(structural)
+    structural_values = [
+        r.get("forward_pe") for r in structural
+        if r.get("forward_pe") is not None and r.get("forward_pe") > 0
+    ]
+    if len(structural_values) >= 3:
+        result["structural_core_median"] = float(pd.Series(structural_values).median())
+    result["horizon_comparable_count"] = len(horizon_rows)
+    result["basis_comparable_count"] = len(basis_rows)
     result["adjustment_eligible_count"] = len(eligible)
 
     base = safe_float(fundamental_multiple)
@@ -16214,8 +16378,11 @@ def _calculate_medical_devices_peer_overlay(peer_group, fundamental_multiple, ca
 
     if len(eligible) < 3:
         result["note"] = (
-            "Medical-Devices Comparability Gate nicht bestanden: Weniger als 3 brauchbare strukturelle Core-Peers. "
-            "Vorhandene Forward-KGVs bleiben reine Markt-Referenz und verändern weder Ziel-KGV noch Fair Value."
+            "Medical-Devices Peer Horizon & Accounting-Basis Gate nicht bestanden: Für eine automatische Anpassung "
+            "werden mindestens 3 Core-Peers benötigt, die zugleich strukturell vergleichbar sind, deren Provider-"
+            "Forward-KGV eindeutig auf dem 0Y/current-FY-Horizont liegt und deren EPS-Basis durch frische Primärguidance "
+            "als dieselbe Basisfamilie wie beim Zielunternehmen verifiziert ist. Vorhandene Forward-KGVs und der "
+            "Referenzmedian bleiben sichtbar, verändern aber weder Ziel-KGV noch Fair Value."
         )
         return result
 
@@ -16225,7 +16392,7 @@ def _calculate_medical_devices_peer_overlay(peer_group, fundamental_multiple, ca
 
     if base is None or base <= 0:
         result["note"] = (
-            "Medical-Devices Comparability Gate bestanden, aber kein positives Fundamental-KGV als Ausgangsanker verfügbar."
+            "Medical-Devices Peer Horizon & Accounting-Basis Gate bestanden, aber kein positives Fundamental-KGV als Ausgangsanker verfügbar."
         )
         return result
 
@@ -16237,16 +16404,15 @@ def _calculate_medical_devices_peer_overlay(peer_group, fundamental_multiple, ca
 
     if abs(raw) <= 0.05:
         result["note"] = (
-            "Medical-Devices Comparability Gate bestanden: Der Core-Peer-Median liegt innerhalb ±5 % des "
-            "Fundamental-KGVs; die tatsächliche Differenz wird vollständig als Markt-Kalibrierung berücksichtigt. "
-            "Die eigene EPS-Basis und der 100-Punkte-Score bleiben unverändert."
+            "Medical-Devices Peer Horizon & Accounting-Basis Gate bestanden: Mindestens 3 Core-Peers sind "
+            "strukturell sowie auf Current-FY-/Same-Basis-Ebene vergleichbar. Die tatsächliche Median-Differenz "
+            "wird als Markt-Kalibrierung berücksichtigt; EPS-Basis und 100-Punkte-Score bleiben unverändert."
         )
     else:
         result["note"] = (
-            "Medical-Devices Comparability Gate bestanden: Der Abstand des Core-Peer-Medians zum Fundamental-KGV "
-            "ist größer als 5 %. Die automatische Markt-Kalibrierung wird deshalb strikt auf ±5 % begrenzt. "
-            "Breitere bzw. High-Growth-Referenz-Peers beeinflussen den Anpassungsmedian nicht; die eigene EPS-Basis "
-            "und der 100-Punkte-Score bleiben unverändert."
+            "Medical-Devices Peer Horizon & Accounting-Basis Gate bestanden: Mindestens 3 Core-Peers sind "
+            "strukturell sowie auf Current-FY-/Same-Basis-Ebene vergleichbar. Der Median-Abstand ist größer als 5 %, "
+            "deshalb bleibt die automatische Markt-Kalibrierung strikt auf ±5 % begrenzt."
         )
     return result
 
@@ -17138,7 +17304,7 @@ def calculate_peer_check(
             peer_group, fundamental_multiple, cache_version
         )
 
-    if (peer_group or {}).get("peer_model") == "medical_devices_v1":
+    if (peer_group or {}).get("peer_model") == "medical_devices_v2":
         return _calculate_medical_devices_peer_overlay(
             peer_group, fundamental_multiple, cache_version
         )
@@ -35858,7 +36024,7 @@ if selected_symbol:
                 is_nvidia_peer_metric = peer_check.get("metric") == "NVIDIA Forward P/E reference"
                 is_kratos_peer_metric = peer_check.get("metric") == "Kratos Defense-Tech Forward P/E reference"
                 is_bkr_peer_metric = peer_check.get("metric") == "Baker Hughes Component Forward P/E reference"
-                is_medical_devices_peer_metric = peer_check.get("metric") == "Medical Devices Forward P/E calibration"
+                is_medical_devices_peer_metric = peer_check.get("metric") == "Medical Devices Forward P/E guarded reference"
 
                 if not peer_check[
                     "method_supported"
@@ -35927,11 +36093,22 @@ if selected_symbol:
                                     f"· {structure} · Wachstum/Earnings nicht normalisiert · {eligibility}"
                                 )
                             elif is_medical_devices_peer_metric:
-                                eligibility = "Core-Peer / Anpassung zulässig" if row.get("adjustment_eligible") else "nur Referenz"
+                                eligibility = "voll vergleichbar / Anpassung zulässig" if row.get("adjustment_eligible") else "nur Referenz"
                                 structure = row.get("structure") or "Medical-Devices-Struktur"
+                                horizon_label = (
+                                    "0Y/current-FY verifiziert" if row.get("horizon_comparable")
+                                    else (
+                                        "+1Y-Horizont" if row.get("provider_forward_horizon") == "next_fy"
+                                        else "Forward-Horizont nicht verifiziert"
+                                    )
+                                )
+                                basis_label = (
+                                    f"Same-Basis {row.get('peer_basis_label')}" if row.get("accounting_basis_comparable")
+                                    else "Accounting-Basis nicht verifiziert"
+                                )
                                 st.write(
                                     f"• {row['name']} ({row['symbol']}): {peer_value:.2f}×{source_text} "
-                                    f"· {structure} · {eligibility}"
+                                    f"· {structure} · {horizon_label} · {basis_label} · {eligibility}"
                                 )
                             else:
                                 st.write(
@@ -35946,6 +36123,19 @@ if selected_symbol:
                         + f"{peer_check['usable_count']}"
                     )
                     if is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric or is_kratos_peer_metric or is_bkr_peer_metric or is_medical_devices_peer_metric:
+                        if is_medical_devices_peer_metric:
+                            st.write(
+                                "**Strukturell vergleichbare Core-Peers:** "
+                                f"{peer_check.get('structural_core_count', 0)}"
+                            )
+                            st.write(
+                                "**Davon 0Y/current-FY-Horizont verifiziert:** "
+                                f"{peer_check.get('horizon_comparable_count', 0)}"
+                            )
+                            st.write(
+                                "**Davon zusätzlich Accounting-Basis vergleichbar:** "
+                                f"{peer_check.get('basis_comparable_count', 0)}"
+                            )
                         st.write(
                             "**Für automatische Anpassung voll vergleichbar:** "
                             f"{peer_check.get('adjustment_eligible_count', 0)}"
@@ -35956,7 +36146,7 @@ if selected_symbol:
                                 if is_midstream_peer_metric else (
                                     "Automotive Comparability Gate bestanden: mindestens 3 cycle-normalisierte, zyklusvergleichbare Peers."
                                     if is_automotive_peer_metric else
-                                    ("Medical-Devices Comparability Gate bestanden: mindestens 3 strukturell vergleichbare Core-Peers." if is_medical_devices_peer_metric else ("NVIDIA Comparability Gate bestanden: mindestens 3 voll vergleichbare normalisierte AI-Peers." if is_nvidia_peer_metric else "Semicap Comparability Gate bestanden: mindestens 3 produkt-/earnings-/zyklusvergleichbare normalisierte Peers."))
+                                    ("Medical-Devices Peer Horizon & Accounting-Basis Gate bestanden: mindestens 3 Core-Peers sind strukturell, auf Current-FY-Horizont und auf derselben verifizierten Earnings-Basis vergleichbar." if is_medical_devices_peer_metric else ("NVIDIA Comparability Gate bestanden: mindestens 3 voll vergleichbare normalisierte AI-Peers." if is_nvidia_peer_metric else "Semicap Comparability Gate bestanden: mindestens 3 produkt-/earnings-/zyklusvergleichbare normalisierte Peers."))
                                 )
                             )
                         else:
@@ -35967,7 +36157,7 @@ if selected_symbol:
                             elif is_kratos_peer_metric:
                                 st.warning("Kratos Normalized Comparability Gate nicht bestanden: 0/4 Anpassungs-Peers. Referenzmedian bleibt ohne Einfluss auf Multiple und Fair Value.")
                             elif is_medical_devices_peer_metric:
-                                st.warning("Medical-Devices Comparability Gate nicht bestanden: weniger als 3 brauchbare Core-Peers. Referenzmedian bleibt ohne Einfluss auf Multiple und Fair Value.")
+                                st.warning("Medical-Devices Peer Horizon & Accounting-Basis Gate nicht bestanden: weniger als 3 Core-Peers sind zugleich strukturell, auf Current-FY-Horizont und auf derselben verifizierten Earnings-Basis vergleichbar. Referenzmedian bleibt ohne Einfluss auf Multiple und Fair Value.")
                             else:
                                 st.warning(
                                     "Comparability Gate nicht bestanden: Referenzmedian bleibt ohne Einfluss auf Zielmultiple und Fair Value."
@@ -35979,9 +36169,15 @@ if selected_symbol:
                             f"{peer_check['peer_median']:.2f}×"
                         )
 
+                    if is_medical_devices_peer_metric and peer_check.get("structural_core_median") is not None:
+                        st.metric(
+                            "Medical-Devices struktureller Core-Peer-Median (nur Referenz)",
+                            f"{peer_check['structural_core_median']:.2f}×"
+                        )
+
                     if is_medical_devices_peer_metric and peer_check.get("eligible_peer_median") is not None:
                         st.metric(
-                            "Medical-Devices Core-Peer-Median Forward-KGV",
+                            "Medical-Devices voll vergleichbarer Peer-Median Forward-KGV",
                             f"{peer_check['eligible_peer_median']:.2f}×"
                         )
 
@@ -36056,7 +36252,7 @@ if selected_symbol:
                                         if is_kratos_peer_metric else (
                                             "Baker Hughes V2.20.73: SLB/HAL/FTI/GEV bleiben Teilsegment-Referenzen. Eine automatische Anpassung wäre erst bei mindestens 3 voll vergleichbaren Post-Chart Peers mit normalisierter Earnings-/Kapitalstrukturbasis zulässig."
                                             if is_bkr_peer_metric else
-                                            ("Medical Devices V2.20.102: Mindestens 3 strukturell vergleichbare Core-Peers sind Pflicht; Median statt Durchschnitt. Provider-Forward-KGV dient nur als Markt-Kalibrierung, die automatische Wirkung ist auf ±5 % begrenzt." if is_medical_devices_peer_metric else
+                                            ("Medical Devices V2.20.103: Mindestens 3 Core-Peers müssen Struktur, 0Y/current-FY-Horizont und verifizierte Same-Basis-Earnings gemeinsam erfüllen. Provider-Forward-KGVs mit +1Y/unklarem Horizont oder ungeklärter Accounting-Basis bleiben reference-only; Median statt Durchschnitt, danach weiterhin ±5-%-Cap." if is_medical_devices_peer_metric else
                                             "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet.")
                                         )
                                     )
