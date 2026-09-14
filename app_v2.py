@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.121"
+APP_BUILD_VERSION = "V2.20.122"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,7 +26,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Security Identity & Search Presentation Guard"
+    f"Build {APP_BUILD_VERSION} · Branded Staples Graceful Fail-Closed & Issuer Guard"
 )
 
 
@@ -51,6 +51,7 @@ st.caption(
 # V2.20.119: Security Search & Primary Exchange Resolver V1. Search now accepts company name, ticker/symbol, WKN and ISIN in one field. WKN/ISIN are mapped through the public OpenFIGI mapping API (unauthenticated fallback, fail-soft) and then resolved to Yahoo listings. Ranking separates issuer identity from listing identity: exact identifiers and exact tickers are strong signals, normalized legal-name matches outrank similarly named issuers, verified/preferred home listings outrank secondary German/local listings, and alternatives remain selectable underneath. Coca-Cola name search now prefers The Coca-Cola Company (KO) over Coca-Cola Consolidated (COKE), while exact COKE still selects COKE. Valuation mathematics and specialist routing are unchanged.
 # V2.20.120: Search UI & Listing Consistency Cleanup. Exact ticker searches now enrich the result set with alternative listings of the resolved issuer, so KO/RHM.DE still stay first while secondary listings remain selectable underneath. Result ordering is explicitly grouped as selected/preferred listing -> same-issuer alternatives -> other issuers. Mobile labels front-load symbol, exchange and currency before the long company name. Canonical security identity is no longer inherited from the first hit when the user selects a different issuer (e.g. COKE from a Coca-Cola name search). No valuation or specialist-model mathematics changed.
 # V2.20.121: Security Identity & Search Presentation Guard. Search results now separate preferred listing, ordinary same-issuer exchange listings, obvious depositary/OTC/local-wrapper instruments and other issuers. Search-label currency is filled from Yahoo when available and otherwise from a conservative exchange-currency map (display only; never used in valuation). Exact-ticker alternative ranking no longer rewards symbol-prefix matches strongly enough to push Buenos-Aires/local wrappers above XETRA or other major venues. Mobile labels use explicit group names and omit repeated issuer names for same-issuer alternatives. WKN/ISIN verification remains an identity anchor; ambiguous instrument identity stays labelled conservatively rather than being assumed equivalent. No valuation or specialist-model mathematics changed.
+# V2.20.122: Branded Staples Graceful Fail-Closed & Issuer Guard. Fixes the KO/Nestlé family-route UI crash caused by stale load-scope variable references when no issuer snapshot exists. Uncalibrated Branded-Consumer-Staples members now bypass generic Adjusted-TTM discovery, render an explicit family fail-closed status, keep generic EPS/FCF/ROE/Net-Debt scoring as diagnosis-only, and produce no Fair Value or action signal. Coca-Cola parent routing is narrowed to KO/The Coca-Cola Company so Coca-Cola Consolidated (COKE) no longer inherits the global brand-owner specialist type. MDLZ/PEP specialist valuation mathematics and the V2.20.121 search/identity behavior are unchanged.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -6288,7 +6289,18 @@ def classify_company(name, symbol, sector, industry):
             ),
         }
 
-    if symbol_text == "KO" or "coca-cola" in name_text or "coca cola" in name_text:
+    # V2.20.122 – exact issuer guard: bottlers/distributors such as COKE/KOF/CCEP
+    # must never inherit The Coca-Cola Company brand-owner specialist route merely
+    # because their legal name contains "Coca-Cola". Secondary listings of the
+    # parent remain supported through the explicit parent-company name.
+    coca_cola_parent_name = (
+        "the coca-cola company" in name_text
+        or "coca-cola company (the)" in name_text
+        or "coca cola company (the)" in name_text
+        or "coca-cola co/the" in name_text
+        or "coca cola co/the" in name_text
+    )
+    if symbol_text == "KO" or coca_cola_parent_name:
         return {
             "type": "Defensiver Konsum / Global Beverages / Branded Consumer Staples",
             "method": "Issuer-spezifischer Branded-Consumer-Staples-Pfad erforderlich; bis Kalibrierung fail-closed",
@@ -30916,6 +30928,13 @@ def discover_generic_primary_adjusted_ttm(
 def _should_try_generic_adjusted_ttm(company_type, raw_ttm, current_fy_eps, website, symbol):
     if _verified_adjusted_ttm_snapshot(symbol) is not None:
         return False
+    # V2.20.122 – Branded Consumer Staples has an explicit issuer-specific owner
+    # path. Running the generic IR Adjusted-TTM reconstructor for KO/Nestlé (or
+    # calibrated MDLZ/PEP) is both unnecessary and unsafe: the generic bridge is
+    # diagnosis for ordinary companies, while this family must either use its
+    # own primary-source snapshot or fail closed without substitution.
+    if is_branded_consumer_staples_specialist_type(company_type, symbol):
+        return False
     raw = safe_float(raw_ttm)
     fwd = safe_float(current_fy_eps)
     if raw is None or fwd is None or raw <= 0 or fwd <= 0 or not website:
@@ -34365,6 +34384,31 @@ def load_stock(selected_symbol, cache_version):
                 "GAAP-EPS-Sprünge, generischer FCF/Net-Debt-to-FCF, Peer-KGVs und Analysten-/Morningstar-Ziele bleiben außerhalb der Fair-Value-Formel."
             ),
         }
+    elif branded_consumer_staples_specialist_model.get("applicable"):
+        bcs_pending_symbol = str(branded_consumer_staples_specialist_model.get("symbol") or fundamental_symbol or "").upper()
+        bcs_pending_label = {
+            "KO": "The Coca-Cola Company",
+            "NESN.SW": "Nestlé S.A.",
+            "NSRGY": "Nestlé S.A. (ADR)",
+            "NSRGF": "Nestlé S.A. (OTC)",
+        }.get(bcs_pending_symbol, bcs_pending_symbol or "Branded Consumer Staples")
+        special_event_warning = {
+            "level": "Gelb",
+            "icon": "🟡",
+            "title": f"{bcs_pending_label} Branded Consumer Staples Family Gate – fail-closed",
+            "requires_research": True,
+            "valuation_usable": False,
+            "reason": (
+                "Die Branded-Consumer-Staples-Familie ist korrekt erkannt, aber für diesen Emittenten liegt noch kein "
+                "freigegebener issuer-spezifischer Primärquellen-Snapshot mit eigenen Schwellen für Organic/Volume, "
+                "Underlying/Core Margin/EPS, Cash Conversion, Leverage/Funding und Kapitalallokation vor. "
+                "Generische GAAP-/Yahoo-EPS-, ROE-, FCF- und Net-Debt/FCF-Mechaniken bleiben deshalb gesperrt."
+            ),
+            "action": (
+                "Issuer-spezifisches Branded-Consumer-Staples-Profil kalibrieren und mit Primärquellen freigeben. "
+                "Bis dahin kein Fair Value, keine Bewertungszone und kein Kauf-/Nachkauf-/Reduzieren-/Verkaufen-Signal."
+            ),
+        }
 
     if ctva_separation_pre_gate_model.get("applicable") and ctva_separation_pre_gate_model.get("separation_confirmed"):
         ctva_snap_event = ctva_separation_pre_gate_model.get("snapshot") or {}
@@ -35606,12 +35650,19 @@ if selected_symbol:
                             f"Bei TOYO bleibt der Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. {APP_BUILD_VERSION} verwendet für Cash Conversion ausschließlich den issuer-ausgewiesenen H1 Operating Cash Flow minus CapEx; Yahoo-FCF steuert weder Quality Score, Ziel-KGV noch Fair Value."
                         )
                     elif is_branded_consumer_staples_fcf_context:
-                        bcs_fcf_snap_ui = (data.get("branded_consumer_staples_specialist_model") or {}).get("snapshot") or {}
-                        bcs_fcf_company_ui = bcs_fcf_snap_ui.get("company") or fundamental_symbol or "Branded Consumer Staples"
-                        st.caption(
-                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
-                            f"Bei {bcs_fcf_company_ui} bleibt der Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. {APP_BUILD_VERSION} verwendet issuer-spezifische FCF-/Cash-Conversion-Primärdaten und Guidance; Yahoo-FCF steuert weder Quality Score, Ziel-KGV noch Fair Value."
-                        )
+                        bcs_fcf_model_ui = data.get("branded_consumer_staples_specialist_model") or {}
+                        bcs_fcf_snap_ui = bcs_fcf_model_ui.get("snapshot") or {}
+                        bcs_fcf_company_ui = bcs_fcf_snap_ui.get("company") or data.get("fundamental_symbol") or data.get("symbol") or "Branded Consumer Staples"
+                        if bcs_fcf_snap_ui:
+                            st.caption(
+                                "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                                f"Bei {bcs_fcf_company_ui} bleibt der Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. {APP_BUILD_VERSION} verwendet issuer-spezifische FCF-/Cash-Conversion-Primärdaten und Guidance; Yahoo-FCF steuert weder Quality Score, Ziel-KGV noch Fair Value."
+                            )
+                        else:
+                            st.warning(
+                                "Branded-Consumer-Staples-Familienroute aktiv: Yahoo-/Cashflow-Statement-FCF bleibt ausschließlich Diagnosekontext. "
+                                "Der issuer-spezifische FCF-/Cash-Conversion-Anker ist noch nicht kalibriert; generischer FCF-Score, Net-Debt/FCF und Fair Value bleiben gesperrt."
+                            )
                     elif is_luxury_premium_fcf_context:
                         st.caption(
                             "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
@@ -36060,15 +36111,22 @@ if selected_symbol:
                             f"{APP_BUILD_VERSION} verwendet für den Fair Value den Q2-2026 Net-Income-Run-Rate auf der tatsächlichen 30.06.-Aktienzahl; Yahoo Current-FY/+1Y-Konsens bleibt nur Horizont-Kontext."
                         )
                     elif branded_consumer_staples_eps_context_ui:
-                        bcs_eps_snap_ui = (data.get("branded_consumer_staples_specialist_model") or {}).get("snapshot") or {}
-                        bcs_eps_company_ui = bcs_eps_snap_ui.get("company") or fundamental_symbol or "Branded Consumer Staples"
-                        bcs_eps_basis_label_ui = "Core EPS" if bcs_eps_snap_ui.get("specialist_profile") == "global_snacks_beverages_integrated" else "Adjusted EPS"
-                        st.info(
-                            f"{bcs_eps_company_ui} / Branded Consumer Staples: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
-                            f"{APP_BUILD_VERSION} verwendet für den Fair Value die primärquellenbasierte Current-FY {bcs_eps_basis_label_ui}-Basis "
-                            + format_eps(bcs_eps_snap_ui.get("current_fy_adjusted_eps_reference"), financial_currency)
-                            + "; GAAP-EPS-Sprünge und Yahoo-EPS werden nicht mit diesem Anker vermischt."
-                        )
+                        bcs_eps_model_ui = data.get("branded_consumer_staples_specialist_model") or {}
+                        bcs_eps_snap_ui = bcs_eps_model_ui.get("snapshot") or {}
+                        bcs_eps_company_ui = bcs_eps_snap_ui.get("company") or data.get("fundamental_symbol") or data.get("symbol") or "Branded Consumer Staples"
+                        if bcs_eps_snap_ui:
+                            bcs_eps_basis_label_ui = "Core EPS" if bcs_eps_snap_ui.get("specialist_profile") == "global_snacks_beverages_integrated" else "Adjusted EPS"
+                            st.info(
+                                f"{bcs_eps_company_ui} / Branded Consumer Staples: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                                f"{APP_BUILD_VERSION} verwendet für den Fair Value die primärquellenbasierte Current-FY {bcs_eps_basis_label_ui}-Basis "
+                                + format_eps(bcs_eps_snap_ui.get("current_fy_adjusted_eps_reference"), financial_currency)
+                                + "; GAAP-EPS-Sprünge und Yahoo-EPS werden nicht mit diesem Anker vermischt."
+                            )
+                        else:
+                            st.warning(
+                                f"{bcs_eps_company_ui} / Branded Consumer Staples: Standard-TTM/Forward-EPS bleibt ausschließlich Diagnosekontext. "
+                                "Eine issuer-spezifische Current-FY Adjusted/Core-EPS-Basis ist noch nicht kalibriert; die App mischt daher weder GAAP-TTM noch Yahoo-Forward/Current-FY-EPS zu einem Ersatzanker. Fair Value bleibt fail-closed."
+                            )
                     elif defense_high_growth_eps_context_ui:
                         df_eps_model_ui = data.get("defense_high_growth_specialist_model") or {}
                         df_eps_basis_ui = df_eps_model_ui.get("earnings_basis") or {}
