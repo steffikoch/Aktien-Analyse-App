@@ -4,6 +4,7 @@ import pandas as pd
 import math
 import re
 import time
+import unicodedata
 from datetime import datetime
 from urllib.parse import urlparse, parse_qs, unquote, urljoin
 from xml.etree import ElementTree as ET
@@ -17,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.118"
+APP_BUILD_VERSION = "V2.20.119"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -25,7 +26,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Branded Consumer Staples Family Expansion"
+    f"Build {APP_BUILD_VERSION} · Security Search & Primary Exchange Resolver V1"
 )
 
 
@@ -47,6 +48,7 @@ st.caption(
 # V2.20.116: Specialist UI Final Consistency Cleanup. No valuation mathematics changed. Bumps the analysis cache key with the build version so stale specialist dictionaries from older builds cannot leak old version labels or pre-cleanup confidence metadata into a new UI. Defense/Luxury reference-only peers are hard-excluded from confidence limiting even if a stale/malformed peer object lacks its reference_only flag. Horizon-guard explanation is de-duplicated in Module 8; current-build labels are regenerated consistently.
 # V2.20.117: Branded Consumer Staples Specialist Model V1. First validated issuer: Mondelez (MDLZ). Replaces the generic packaged-food score with a primary-source 100-point model covering organic growth/volume-mix, adjusted operating margin, adjusted earnings quality, FCF conversion, leverage/financing, brand/category/geography diversification, capital allocation and commodity/pricing resilience. Valuation uses a transparent Current-FY Adjusted-EPS reference and a score-driven 17–25x P/E corridor. Branded-staples peers are reference-only; analyst/Morningstar targets remain Reality Check only and never set score, target P/E or Fair Value.
 # V2.20.118: Branded Consumer Staples Family Expansion. Adds PepsiCo (PEP) as a second fully primary-source specialist profile with its own snacks+beverages thresholds, 2026 Core-EPS/organic-growth/FCF-conversion guidance, core-margin/volume, leverage/funding, brand/portfolio and capital-allocation logic. PEP no longer falls into the generic Consumer Defensive score. Coca-Cola (KO) and Nestlé primary/ADR symbols are family-routed fail-closed until issuer-specific snapshots are calibrated, preventing silent fallback to generic ROE/FCF/Net-Debt scoring. MDLZ V2.20.117 mathematics are preserved.
+# V2.20.119: Security Search & Primary Exchange Resolver V1. Search now accepts company name, ticker/symbol, WKN and ISIN in one field. WKN/ISIN are mapped through the public OpenFIGI mapping API (unauthenticated fallback, fail-soft) and then resolved to Yahoo listings. Ranking separates issuer identity from listing identity: exact identifiers and exact tickers are strong signals, normalized legal-name matches outrank similarly named issuers, verified/preferred home listings outrank secondary German/local listings, and alternatives remain selectable underneath. Coca-Cola name search now prefers The Coca-Cola Company (KO) over Coca-Cola Consolidated (COKE), while exact COKE still selects COKE. Valuation mathematics and specialist routing are unchanged.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -6825,600 +6827,499 @@ def classify_company(name, symbol, sector, industry):
 
 
 # =========================================================
-# Aktiensuche
+# Aktiensuche / Security Identity & Primary Listing Resolver
 # =========================================================
 
-def find_stock(search_text):
+SEARCH_EXCHANGE_PRIORITY = {
+    # US primary venues
+    "NYQ": 120, "NMS": 120, "NGM": 115, "NCM": 110, "ASE": 105,
+    # Main/home venues used by Yahoo
+    "GER": 118,  # XETRA
+    "PAR": 118, "AMS": 118, "LSE": 118, "MIL": 118,
+    "SWX": 118, "STO": 116, "CPH": 116, "OSL": 116, "HEL": 116,
+    "TAI": 120, "HKG": 118, "JPX": 118, "TOR": 118, "ASX": 118,
+    # Secondary venues
+    "FRA": 88, "SAO": 75,
+}
 
-    query = search_text.strip()
-
-    if not query:
-        return None
-
-    query_upper = query.upper()
-    normalized_query = " ".join(query_upper.split())
-
-    # Eindeutige Hauptnotierungen für bekannte Suchnamen.
-    # Kurze bzw. mehrdeutige Firmennamen werden bewusst vor der
-    # allgemeinen Yahoo-Suche geroutet, damit keine ähnlich
-    # benannten Nebenwerte gewählt werden. Direkt eingegebene
-    # Ticker wie CS.PA oder MUV2.DE bleiben unverändert respektiert.
-    primary_name_routes = {
-        "AXA": {
-            "symbol": "CS.PA",
-            "quoteType": "EQUITY",
-            "longname": "AXA SA",
-            "exchange": "PAR"
-        },
-        "AXA SA": {
-            "symbol": "CS.PA",
-            "quoteType": "EQUITY",
-            "longname": "AXA SA",
-            "exchange": "PAR"
-        },
-        "MUNICH RE": {
-            "symbol": "MUV2.DE",
-            "quoteType": "EQUITY",
-            "longname": (
-                "Münchener Rückversicherungs-Gesellschaft "
-                "Aktiengesellschaft in München"
-            ),
-            "exchange": "GER"
-        },
-        "MUNICHRE": {
-            "symbol": "MUV2.DE",
-            "quoteType": "EQUITY",
-            "longname": (
-                "Münchener Rückversicherungs-Gesellschaft "
-                "Aktiengesellschaft in München"
-            ),
-            "exchange": "GER"
-        },
-        "MÜNCHENER RÜCK": {
-            "symbol": "MUV2.DE",
-            "quoteType": "EQUITY",
-            "longname": (
-                "Münchener Rückversicherungs-Gesellschaft "
-                "Aktiengesellschaft in München"
-            ),
-            "exchange": "GER"
-        },
-        "MUENCHENER RUECK": {
-            "symbol": "MUV2.DE",
-            "quoteType": "EQUITY",
-            "longname": (
-                "Münchener Rückversicherungs-Gesellschaft "
-                "Aktiengesellschaft in München"
-            ),
-            "exchange": "GER"
-        },
-        "MÜNCHENER RÜCKVERSICHERUNG": {
-            "symbol": "MUV2.DE",
-            "quoteType": "EQUITY",
-            "longname": (
-                "Münchener Rückversicherungs-Gesellschaft "
-                "Aktiengesellschaft in München"
-            ),
-            "exchange": "GER"
-        },
-        "MUENCHENER RUECKVERSICHERUNG": {
-            "symbol": "MUV2.DE",
-            "quoteType": "EQUITY",
-            "longname": (
-                "Münchener Rückversicherungs-Gesellschaft "
-                "Aktiengesellschaft in München"
-            ),
-            "exchange": "GER"
-        },
-        "ING": {
-            "symbol": "INGA.AS",
-            "quoteType": "EQUITY",
-            "longname": "ING Groep N.V.",
-            "exchange": "AMS"
-        },
-        "ING GROEP": {
-            "symbol": "INGA.AS",
-            "quoteType": "EQUITY",
-            "longname": "ING Groep N.V.",
-            "exchange": "AMS"
-        },
-        "ING GROEP N.V.": {
-            "symbol": "INGA.AS",
-            "quoteType": "EQUITY",
-            "longname": "ING Groep N.V.",
-            "exchange": "AMS"
-        },
-        "HERMES": {
-            "symbol": "RMS.PA",
-            "quoteType": "EQUITY",
-            "longname": "Hermès International Société en commandite par actions",
-            "exchange": "PAR"
-        },
-        "HERMÈS": {
-            "symbol": "RMS.PA",
-            "quoteType": "EQUITY",
-            "longname": "Hermès International Société en commandite par actions",
-            "exchange": "PAR"
-        },
-        "HERMES INTERNATIONAL": {
-            "symbol": "RMS.PA",
-            "quoteType": "EQUITY",
-            "longname": "Hermès International Société en commandite par actions",
-            "exchange": "PAR"
-        },
-        "HERMÈS INTERNATIONAL": {
-            "symbol": "RMS.PA",
-            "quoteType": "EQUITY",
-            "longname": "Hermès International Société en commandite par actions",
-            "exchange": "PAR"
-        },
-        "LVMH": {
-            "symbol": "MC.PA",
-            "quoteType": "EQUITY",
-            "longname": "LVMH Moët Hennessy - Louis Vuitton, Société Européenne",
-            "exchange": "PAR"
-        },
-        "LVMH MOET HENNESSY": {
-            "symbol": "MC.PA",
-            "quoteType": "EQUITY",
-            "longname": "LVMH Moët Hennessy - Louis Vuitton, Société Européenne",
-            "exchange": "PAR"
-        },
-        "LVMH MOËT HENNESSY": {
-            "symbol": "MC.PA",
-            "quoteType": "EQUITY",
-            "longname": "LVMH Moët Hennessy - Louis Vuitton, Société Européenne",
-            "exchange": "PAR"
-        },
-        "LOUIS VUITTON": {
-            "symbol": "MC.PA",
-            "quoteType": "EQUITY",
-            "longname": "LVMH Moët Hennessy - Louis Vuitton, Société Européenne",
-            "exchange": "PAR"
-        }
-    }
-
-    if normalized_query in primary_name_routes:
-        return primary_name_routes[normalized_query]
-
-    # Eindeutiger TSMC-Fall:
-    # "TSMC" bedeutet Heimatnotierung Taiwan.
-    # Direkt eingegebene Ticker wie "TSM" oder "2330.TW"
-    # werden weiterhin unverändert respektiert.
-    if query_upper == "TSMC":
-        return {
-            "symbol": "2330.TW",
-            "quoteType": "EQUITY",
-            "longname": (
-                "Taiwan Semiconductor Manufacturing "
-                "Company Limited"
-            ),
-            "exchange": "TAI"
-        }
-
-    search = yf.Search(
-        query,
-        max_results=10,
-        news_count=0
-    )
-
-    quotes = search.quotes or []
-
-    if not quotes:
-        return None
-
-    equities = [
-        item for item in quotes
-        if str(
-            item.get("quoteType", "")
-        ).upper() == "EQUITY"
-    ]
-
-    candidates = equities if equities else quotes
-    query_upper = query.upper()
-
-    for item in candidates:
-
-        symbol = str(
-            item.get("symbol", "")
-        ).upper()
-
-        if symbol == query_upper:
-            return item
-
-    # Bekannte Unternehmen mit klarer Heimat-/Hauptnotierung
-    preferred_primary_symbols = {
-        "TSMC": "2330.TW",
-        "TAIWAN SEMICONDUCTOR": "2330.TW",
-        "TAIWAN SEMICONDUCTOR MANUFACTURING": "2330.TW",
-        "TAIWAN SEMICONDUCTOR MANUFACTURING COMPANY": "2330.TW",
-    }
-
-    for key, preferred_symbol in preferred_primary_symbols.items():
-        if key in normalized_query:
-            for item in candidates:
-                symbol = str(item.get("symbol", "")).upper()
-                if symbol == preferred_symbol:
-                    return item
-
-            return {
-                "symbol": preferred_symbol,
-                "quoteType": "EQUITY",
-                "longname": "Taiwan Semiconductor Manufacturing Company Limited",
-                "exchange": "TAI"
-            }
-
-    # Allgemeine Priorisierung:
-    # Heimat-/größere Primärmärkte vor Nebenbörsen/Depositary Receipts.
-    preferred_exchange_order = {
-        "NMS": 100,
-        "NGM": 95,
-        "NCM": 90,
-        "NYQ": 100,
-        "ASE": 85,
-        "GER": 90,
-        "FRA": 85,
-        "LSE": 90,
-        "AMS": 90,
-        "PAR": 90,
-        "MIL": 90,
-        "STO": 90,
-        "CPH": 90,
-        "OSL": 90,
-        "HEL": 90,
-        "SWX": 90,
-        "TAI": 100,
-        "HKG": 95,
-        "JPX": 95,
-        "TOR": 95,
-        "ASX": 95,
-        "SAO": 40
-    }
-
-    def candidate_score(item):
-        symbol = str(item.get("symbol", "")).upper()
-        exchange = str(item.get("exchange", "")).upper()
-        longname = str(
-            item.get("longname")
-            or item.get("shortname")
-            or ""
-        ).upper()
-
-        score = preferred_exchange_order.get(exchange, 50)
-
-        # Namensnähe
-        query_words = [
-            word for word in normalized_query.split()
-            if len(word) >= 3
-        ]
-        if query_words:
-            matches = sum(
-                1 for word in query_words
-                if word in longname
-            )
-            score += matches * 10
-
-        # Nebenbörsen-Symbole leicht abwerten
-        secondary_suffixes = [
-            ".F", ".BE", ".MU", ".DU", ".HM", ".HA", ".SG",
-            ".VI", ".MX", ".SA"
-        ]
-        if any(symbol.endswith(suffix) for suffix in secondary_suffixes):
-            score -= 25
-
-        return score
-
-    return max(
-        candidates,
-        key=candidate_score
-    )
-
-
-# =========================================================
-# Aktiensuche – Vorschläge / Autocomplete
-# =========================================================
-
-@st.cache_data(
-    ttl=900,
-    show_spinner=False
+SEARCH_SECONDARY_SUFFIXES = (
+    ".F", ".BE", ".MU", ".DU", ".HM", ".HA", ".SG", ".VI", ".MX", ".SA"
 )
+
+SEARCH_LEGAL_WORDS = {
+    "THE", "INC", "INCORPORATED", "CORP", "CORPORATION", "COMPANY", "CO",
+    "PLC", "LTD", "LIMITED", "SA", "SAS", "SE", "NV", "AG", "KGAA",
+    "GMBH", "SPA", "BV", "HOLDING", "HOLDINGS", "GROUP", "GRUPPE",
+    "AKTIENGESELLSCHAFT", "SOCIETE", "SCA", "OYJ", "ASA", "AB",
+}
+
+PRIMARY_SEARCH_ALIASES = [
+    {
+        "aliases": ["AXA", "AXA SA"],
+        "symbol": "CS.PA", "quoteType": "EQUITY", "longname": "AXA SA",
+        "exchange": "PAR", "exchDisp": "Paris", "currency": "EUR",
+    },
+    {
+        "aliases": [
+            "MUNICH RE", "MUNICHRE", "MÜNCHENER RÜCK", "MUENCHENER RUECK",
+            "MÜNCHENER RÜCKVERSICHERUNG", "MUENCHENER RUECKVERSICHERUNG",
+        ],
+        "symbol": "MUV2.DE", "quoteType": "EQUITY",
+        "longname": "Münchener Rückversicherungs-Gesellschaft Aktiengesellschaft in München",
+        "exchange": "GER", "exchDisp": "XETRA", "currency": "EUR",
+    },
+    {
+        "aliases": [
+            "TSMC", "TAIWAN SEMICONDUCTOR", "TAIWAN SEMICONDUCTOR MANUFACTURING",
+            "TAIWAN SEMICONDUCTOR MANUFACTURING COMPANY",
+        ],
+        "symbol": "2330.TW", "quoteType": "EQUITY",
+        "longname": "Taiwan Semiconductor Manufacturing Company Limited",
+        "exchange": "TAI", "exchDisp": "Taiwan", "currency": "TWD",
+    },
+    {
+        "aliases": ["MICROSOFT", "MICROSOFT CORPORATION"],
+        "symbol": "MSFT", "quoteType": "EQUITY", "longname": "Microsoft Corporation",
+        "exchange": "NMS", "exchDisp": "NASDAQ", "currency": "USD",
+    },
+    {
+        "aliases": ["ING", "ING GROEP", "ING GROEP N.V."],
+        "symbol": "INGA.AS", "quoteType": "EQUITY", "longname": "ING Groep N.V.",
+        "exchange": "AMS", "exchDisp": "Amsterdam", "currency": "EUR",
+    },
+    {
+        "aliases": ["HERMES", "HERMÈS", "HERMES INTERNATIONAL", "HERMÈS INTERNATIONAL"],
+        "symbol": "RMS.PA", "quoteType": "EQUITY",
+        "longname": "Hermès International Société en commandite par actions",
+        "exchange": "PAR", "exchDisp": "Paris", "currency": "EUR",
+    },
+    {
+        "aliases": [
+            "LVMH", "LVMH MOET HENNESSY", "LVMH MOËT HENNESSY", "LOUIS VUITTON",
+            "LVMH MOET HENNESSY LOUIS VUITTON",
+        ],
+        "symbol": "MC.PA", "quoteType": "EQUITY",
+        "longname": "LVMH Moët Hennessy - Louis Vuitton, Société Européenne",
+        "exchange": "PAR", "exchDisp": "Paris", "currency": "EUR",
+    },
+    {
+        "aliases": ["COCA COLA", "COCA-COLA", "THE COCA COLA COMPANY", "THE COCA-COLA COMPANY"],
+        "symbol": "KO", "quoteType": "EQUITY", "longname": "The Coca-Cola Company",
+        "exchange": "NYQ", "exchDisp": "NYSE", "currency": "USD",
+    },
+    {
+        "aliases": ["PEPSICO", "PEPSI CO", "PEPSI"],
+        "symbol": "PEP", "quoteType": "EQUITY", "longname": "PepsiCo, Inc.",
+        "exchange": "NMS", "exchDisp": "NASDAQ", "currency": "USD",
+    },
+    {
+        "aliases": ["MONDELEZ", "MONDELEZ INTERNATIONAL"],
+        "symbol": "MDLZ", "quoteType": "EQUITY", "longname": "Mondelez International, Inc.",
+        "exchange": "NMS", "exchDisp": "NASDAQ", "currency": "USD",
+    },
+    {
+        "aliases": ["NESTLE", "NESTLÉ", "NESTLE SA", "NESTLÉ SA"],
+        "symbol": "NESN.SW", "quoteType": "EQUITY", "longname": "Nestlé S.A.",
+        "exchange": "SWX", "exchDisp": "Swiss", "currency": "CHF",
+    },
+]
+
+
+def _fold_search_text(value):
+    text = str(value or "").strip().upper()
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = text.replace("&", " AND ")
+    text = re.sub(r"[^A-Z0-9]+", " ", text)
+    return " ".join(text.split())
+
+
+def _company_core_name(value):
+    folded = _fold_search_text(value)
+    words = [word for word in folded.split() if word not in SEARCH_LEGAL_WORDS]
+    return " ".join(words)
+
+
+def _detect_security_query_type(query):
+    compact = re.sub(r"\s+", "", str(query or "").upper())
+
+    # ISIN = 2 letters + 9 alphanumeric characters + one check digit.
+    if re.fullmatch(r"[A-Z]{2}[A-Z0-9]{9}[0-9]", compact):
+        return "isin"
+
+    # WKN = six alphanumeric characters. Requiring at least one digit avoids
+    # interpreting ordinary six-letter company names (AIRBUS etc.) as a WKN.
+    if re.fullmatch(r"[A-Z0-9]{6}", compact) and any(ch.isdigit() for ch in compact):
+        return "wkn"
+
+    # Ticker-like input is recorded as a hint only. Company names without
+    # spaces (PEPSICO, MONDELEZ) are still handled by name scoring below.
+    if re.fullmatch(r"[A-Z0-9.\-^=]{1,15}", compact):
+        return "ticker_or_name"
+
+    return "name"
+
+
+def _alias_matches_query(alias, query_folded):
+    alias_folded = _fold_search_text(alias)
+    if not alias_folded or not query_folded:
+        return False
+    return (
+        alias_folded == query_folded
+        or alias_folded.startswith(query_folded)
+        or query_folded.startswith(alias_folded)
+    )
+
+
+def _primary_alias_rows(query):
+    folded = _fold_search_text(query)
+    output = []
+    for route in PRIMARY_SEARCH_ALIASES:
+        if any(_alias_matches_query(alias, folded) for alias in route.get("aliases", [])):
+            row = {key: value for key, value in route.items() if key != "aliases"}
+            row["_preferred"] = True
+            row["_source"] = "primary_alias"
+            output.append(row)
+    return output
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def _resolve_identifier_openfigi(identifier, query_type):
+    """Resolve WKN/ISIN to issuer metadata. Fail-soft: search still works without OpenFIGI."""
+    id_type = {
+        "wkn": "ID_WERTPAPIER",
+        "isin": "ID_ISIN",
+    }.get(query_type)
+
+    if not id_type:
+        return []
+
+    compact = re.sub(r"\s+", "", str(identifier or "").upper())
+    try:
+        response = requests.post(
+            "https://api.openfigi.com/v3/mapping",
+            json=[{"idType": id_type, "idValue": compact}],
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "AktienAnalyseV2/2.20.119 security-resolver",
+            },
+            timeout=5,
+        )
+        if response.status_code != 200:
+            return []
+        payload = response.json()
+    except Exception:
+        return []
+
+    if not isinstance(payload, list) or not payload:
+        return []
+
+    data = payload[0].get("data") if isinstance(payload[0], dict) else None
+    if not isinstance(data, list):
+        return []
+
+    rows = []
+    seen = set()
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("marketSector", "")).upper() != "EQUITY":
+            continue
+        security_type = " ".join([
+            str(item.get("securityType", "")),
+            str(item.get("securityType2", "")),
+        ]).upper()
+        if security_type and "COMMON STOCK" not in security_type and "DEPOSITARY" not in security_type:
+            continue
+        key = (
+            str(item.get("shareClassFIGI") or item.get("compositeFIGI") or item.get("figi") or ""),
+            str(item.get("ticker") or ""),
+            str(item.get("exchCode") or ""),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append({
+            "name": item.get("name"),
+            "ticker": item.get("ticker"),
+            "exchCode": item.get("exchCode"),
+            "shareClassFIGI": item.get("shareClassFIGI"),
+            "compositeFIGI": item.get("compositeFIGI"),
+            "figi": item.get("figi"),
+            "securityType": item.get("securityType2") or item.get("securityType"),
+        })
+
+    # Stable issuer-level preference: common-stock rows with a share-class FIGI first.
+    rows.sort(
+        key=lambda row: (
+            1 if row.get("shareClassFIGI") else 0,
+            1 if str(row.get("securityType", "")).upper() == "COMMON STOCK" else 0,
+        ),
+        reverse=True,
+    )
+    return rows[:12]
+
+
+def _safe_yahoo_search(query, max_results=25):
+    try:
+        search = yf.Search(str(query), max_results=max_results, news_count=0)
+        return search.quotes or []
+    except Exception:
+        return []
+
+
+def _identifier_company_keys(openfigi_rows):
+    keys = set()
+    for row in openfigi_rows or []:
+        core = _company_core_name(row.get("name"))
+        if core:
+            keys.add(core)
+    return keys
+
+
+def _identifier_tickers(openfigi_rows):
+    return {
+        str(row.get("ticker") or "").upper().strip()
+        for row in (openfigi_rows or [])
+        if str(row.get("ticker") or "").strip()
+    }
+
+
+def _identifier_name_matches(candidate_core, identifier_keys):
+    if not candidate_core:
+        return False
+    if candidate_core in identifier_keys:
+        return True
+
+    candidate_tokens = set(candidate_core.split())
+    if not candidate_tokens:
+        return False
+
+    for key in identifier_keys:
+        key_tokens = set(key.split())
+        if not key_tokens:
+            continue
+        union = candidate_tokens | key_tokens
+        overlap = candidate_tokens & key_tokens
+        if len(overlap) >= 2 and union and (len(overlap) / len(union)) >= 0.75:
+            return True
+    return False
+
+
+def _listing_candidate_score(item, query, query_type, identifier_rows=None):
+    query_upper = str(query or "").strip().upper()
+    query_folded = _fold_search_text(query)
+    query_core = _company_core_name(query)
+
+    symbol = str(item.get("symbol", "")).upper().strip()
+    exchange = str(item.get("exchange", "")).upper().strip()
+    name = str(item.get("longname") or item.get("shortname") or "")
+    name_folded = _fold_search_text(name)
+    name_core = _company_core_name(name)
+
+    score = SEARCH_EXCHANGE_PRIORITY.get(exchange, 70)
+
+    # Exact security symbol is always a major signal. It lets COKE stay COKE
+    # when the user actually types COKE, while name-search "Coca-Cola" can
+    # correctly prefer KO through the issuer-name match below.
+    if symbol == query_upper:
+        score += 5000
+    elif query_upper and symbol.startswith(query_upper):
+        score += 300
+
+    if item.get("_preferred"):
+        score += 3600
+
+    # WKN/ISIN: issuer identity from OpenFIGI outranks ordinary text similarity.
+    figi_company_keys = _identifier_company_keys(identifier_rows)
+    figi_tickers = _identifier_tickers(identifier_rows)
+    yahoo_base_symbol = symbol.split(".", 1)[0]
+    ticker_verified = bool(
+        symbol in figi_tickers
+        or yahoo_base_symbol in figi_tickers
+    )
+    name_verified = _identifier_name_matches(name_core, figi_company_keys)
+    if query_type in {"wkn", "isin"} and (ticker_verified or name_verified):
+        score += 6200
+        item["_identifier_verified"] = True
+
+    # Name matching strips legal forms and leading articles. This is what makes
+    # "Coca-Cola" match THE COCA-COLA COMPANY more strongly than COCA-COLA
+    # CONSOLIDATED, without hard-coding the subsidiary/bottler as equivalent.
+    if query_core and name_core == query_core:
+        score += 3000
+    elif query_core and name_core.startswith(query_core + " "):
+        score += 900
+    elif query_core and query_core in name_core:
+        score += 400
+
+    if query_folded and name_folded == query_folded:
+        score += 1000
+    elif query_folded and name_folded.startswith(query_folded):
+        score += 300
+
+    query_words = [word for word in query_core.split() if len(word) >= 2]
+    score += sum(20 for word in query_words if word in name_core.split())
+
+    yahoo_rank = item.get("_yahoo_rank")
+    if yahoo_rank is not None:
+        try:
+            score += max(0, 100 - int(yahoo_rank) * 4)
+        except Exception:
+            pass
+
+    if any(symbol.endswith(suffix) for suffix in SEARCH_SECONDARY_SUFFIXES):
+        score -= 550
+
+    # OTC/unspecified markets should not outrank a clear home listing merely
+    # because the company name is identical.
+    if exchange in {"PNK", "OQX", "OQB", "YHD", "CCC"}:
+        score -= 700
+
+    return score
+
+
+def _same_issuer(item_a, item_b):
+    a = _company_core_name(item_a.get("name") or item_a.get("longname") or item_a.get("shortname"))
+    b = _company_core_name(item_b.get("name") or item_b.get("longname") or item_b.get("shortname"))
+    return bool(a and b and a == b)
+
+
+@st.cache_data(ttl=900, show_spinner=False)
 def search_stock_suggestions(search_text):
     """
-    Lightweight search for the selection window.
+    V2.20.119 security search.
 
-    Only Yahoo search results are loaded here. Full company/financial data
-    are requested only after the user explicitly selects a stock.
+    One input accepts company name, ticker/symbol, WKN or ISIN. The resolver
+    determines issuer identity first and ranks the most likely primary/home
+    listing above alternative listings. Full financial data are still loaded
+    only after an explicit user selection.
     """
     query = str(search_text or "").strip()
-
     if len(query) < 2:
         return []
 
-    query_upper = query.upper()
-    normalized_query = " ".join(query_upper.split())
+    query_type = _detect_security_query_type(query)
+    identifier_rows = _resolve_identifier_openfigi(query, query_type)
 
     suggestions = []
+    suggestions.extend(_primary_alias_rows(query))
 
-    # Known main listings are injected as suggestions when the typed text
-    # already clearly points toward the company. This preserves our tested
-    # primary-listing routing without auto-loading the analysis.
-    preferred_aliases = [
-        {
-            "aliases": ["AXA", "AXA SA"],
-            "symbol": "CS.PA",
-            "quoteType": "EQUITY",
-            "longname": "AXA SA",
-            "exchange": "PAR",
-            "exchDisp": "Paris",
-            "_preferred": True,
-        },
-        {
-            "aliases": [
-                "MUNICH RE",
-                "MUNICHRE",
-                "MÜNCHENER RÜCK",
-                "MUENCHENER RUECK",
-                "MÜNCHENER RÜCKVERSICHERUNG",
-                "MUENCHENER RUECKVERSICHERUNG",
-            ],
-            "symbol": "MUV2.DE",
-            "quoteType": "EQUITY",
-            "longname": (
-                "Münchener Rückversicherungs-Gesellschaft "
-                "Aktiengesellschaft in München"
-            ),
-            "exchange": "GER",
-            "exchDisp": "XETRA",
-            "_preferred": True,
-        },
-        {
-            "aliases": [
-                "TSMC",
-                "TAIWAN SEMICONDUCTOR",
-                "TAIWAN SEMICONDUCTOR MANUFACTURING",
-                "TAIWAN SEMICONDUCTOR MANUFACTURING COMPANY",
-            ],
-            "symbol": "2330.TW",
-            "quoteType": "EQUITY",
-            "longname": "Taiwan Semiconductor Manufacturing Company Limited",
-            "exchange": "TAI",
-            "exchDisp": "Taiwan",
-            "_preferred": True,
-        },
-        {
-            "aliases": [
-                "MICROSOFT",
-                "MICROSOFT CORPORATION",
-            ],
-            "symbol": "MSFT",
-            "quoteType": "EQUITY",
-            "longname": "Microsoft Corporation",
-            "exchange": "NMS",
-            "exchDisp": "NASDAQ",
-            "_preferred": True,
-        },
-        {
-            "aliases": [
-                "ING",
-                "ING GROEP",
-                "ING GROEP N.V.",
-            ],
-            "symbol": "INGA.AS",
-            "quoteType": "EQUITY",
-            "longname": "ING Groep N.V.",
-            "exchange": "AMS",
-            "exchDisp": "Amsterdam",
-            "_preferred": True,
-        },
-        {
-            "aliases": [
-                "HERMES",
-                "HERMÈS",
-                "HERMES INTERNATIONAL",
-                "HERMÈS INTERNATIONAL",
-            ],
-            "symbol": "RMS.PA",
-            "quoteType": "EQUITY",
-            "longname": "Hermès International Société en commandite par actions",
-            "exchange": "PAR",
-            "exchDisp": "Paris",
-            "currency": "EUR",
-            "_preferred": True,
-        },
-        {
-            "aliases": [
-                "LVMH",
-                "LVMH MOET HENNESSY",
-                "LVMH MOËT HENNESSY",
-                "LOUIS VUITTON",
-                "LVMH MOET HENNESSY LOUIS VUITTON",
-            ],
-            "symbol": "MC.PA",
-            "quoteType": "EQUITY",
-            "longname": "LVMH Moët Hennessy - Louis Vuitton, Société Européenne",
-            "exchange": "PAR",
-            "exchDisp": "Paris",
-            "currency": "EUR",
-            "_preferred": True,
-        },
-    ]
+    # Always search the literal input once.
+    search_terms = [query]
 
-    for preferred in preferred_aliases:
-        matches_alias = any(
-            alias.startswith(normalized_query)
-            or normalized_query.startswith(alias)
-            for alias in preferred["aliases"]
-        )
+    # WKN/ISIN mapping supplies issuer names. We search those names in Yahoo
+    # rather than inventing Yahoo suffixes from FIGI exchange codes.
+    if identifier_rows:
+        for row in identifier_rows:
+            name = str(row.get("name") or "").strip()
+            ticker = str(row.get("ticker") or "").strip()
+            if name and name not in search_terms:
+                search_terms.append(name)
+            if ticker and ticker not in search_terms:
+                search_terms.append(ticker)
+            if len(search_terms) >= 4:
+                break
 
-        if matches_alias:
-            suggestions.append(
-                {
-                    key: value
-                    for key, value in preferred.items()
-                    if key != "aliases"
-                }
-            )
+    global_rank = 0
+    for term in search_terms[:4]:
+        for item in _safe_yahoo_search(term, max_results=25):
+            if str(item.get("quoteType", "")).upper() != "EQUITY":
+                continue
+            row = dict(item)
+            row.setdefault("_preferred", False)
+            row["_yahoo_rank"] = global_rank
+            row["_source"] = "yahoo"
+            suggestions.append(row)
+            global_rank += 1
 
-    try:
-        search = yf.Search(
-            query,
-            max_results=25,
-            news_count=0
-        )
-        quotes = search.quotes or []
-    except Exception:
-        quotes = []
-
-    equities = [
-        item for item in quotes
-        if str(item.get("quoteType", "")).upper() == "EQUITY"
-    ]
-
-    for yahoo_rank, item in enumerate(equities):
-        row = dict(item)
-        row["_preferred"] = False
-        row["_yahoo_rank"] = yahoo_rank
-        suggestions.append(row)
-
-    preferred_exchange_order = {
-        "NMS": 100,
-        "NGM": 95,
-        "NCM": 90,
-        "NYQ": 100,
-        "ASE": 85,
-        "GER": 90,
-        "FRA": 85,
-        "LSE": 90,
-        "AMS": 90,
-        "PAR": 90,
-        "MIL": 90,
-        "STO": 90,
-        "CPH": 90,
-        "OSL": 90,
-        "HEL": 90,
-        "SWX": 90,
-        "TAI": 100,
-        "HKG": 95,
-        "JPX": 95,
-        "TOR": 95,
-        "ASX": 95,
-        "SAO": 40,
-    }
-
-    secondary_suffixes = [
-        ".F", ".BE", ".MU", ".DU", ".HM", ".HA", ".SG",
-        ".VI", ".MX", ".SA"
-    ]
-
-    def suggestion_score(item):
-        symbol = str(item.get("symbol", "")).upper()
-        exchange = str(item.get("exchange", "")).upper()
-        name = str(
-            item.get("longname")
-            or item.get("shortname")
-            or ""
-        ).upper()
-
-        score = preferred_exchange_order.get(exchange, 50)
-
-        # 1) Tested main listings / aliases have top priority.
-        #    This deliberately outranks an exact ticker match when the
-        #    exact ticker is an ADR/secondary listing (for example ING
-        #    on NYSE versus INGA.AS in Amsterdam). The user still has to
-        #    select the result explicitly.
-        if item.get("_preferred"):
-            score += 2600
-
-        # 2) Exact ticker matches remain a very strong signal, but below
-        #    a deliberately defined primary/home listing.
-        if symbol == query_upper:
-            score += 1400
-        elif symbol.startswith(query_upper):
-            score += 180
-
-        # 3) Name-prefix matches are more useful than a match somewhere
-        #    inside the company name. This improves short 2–3 letter input.
-        if name == normalized_query:
-            score += 800
-        elif name.startswith(normalized_query):
-            score += 360
-        elif normalized_query and normalized_query in name:
-            score += 120
-
-        name_words = [
-            word for word in name.replace("-", " ").split()
-            if word
-        ]
-        if normalized_query and any(
-            word.startswith(normalized_query)
-            for word in name_words
-        ):
-            score += 180
-
-        query_words = [
-            word for word in normalized_query.split()
-            if len(word) >= 2
-        ]
-        score += sum(
-            18 for word in query_words
-            if word in name
-        )
-
-        # 4) Preserve some of Yahoo's own relevance order as a tie-breaker.
-        yahoo_rank = item.get("_yahoo_rank")
-        if yahoo_rank is not None:
-            try:
-                score += max(0, 80 - int(yahoo_rank) * 4)
-            except Exception:
-                pass
-
-        # 5) Secondary/local side listings remain slightly less preferred.
-        if any(
-            symbol.endswith(suffix)
-            for suffix in secondary_suffixes
-        ):
-            score -= 25
-
-        return score
-
-    # Highest-quality result wins for duplicate symbols.
+    # Highest-quality occurrence wins for a duplicate Yahoo symbol.
     by_symbol = {}
     for item in suggestions:
         symbol = str(item.get("symbol", "")).upper().strip()
         if not symbol:
             continue
-
-        if (
-            symbol not in by_symbol
-            or suggestion_score(item) > suggestion_score(by_symbol[symbol])
-        ):
+        current = by_symbol.get(symbol)
+        if current is None or _listing_candidate_score(
+            item, query, query_type, identifier_rows
+        ) > _listing_candidate_score(current, query, query_type, identifier_rows):
             by_symbol[symbol] = item
 
     ranked = sorted(
         by_symbol.values(),
-        key=suggestion_score,
-        reverse=True
+        key=lambda item: _listing_candidate_score(item, query, query_type, identifier_rows),
+        reverse=True,
     )
 
+    if not ranked:
+        return []
+
+    top = ranked[0]
+    top_score = _listing_candidate_score(top, query, query_type, identifier_rows)
+    top_symbol = str(top.get("symbol", "")).upper()
+    top_exchange = str(top.get("exchDisp") or top.get("exchange") or "–")
+
     clean_results = []
-    for item in ranked[:8]:
+    for idx, item in enumerate(ranked[:12]):
+        symbol = str(item.get("symbol", "")).upper()
+        name = item.get("longname") or item.get("shortname") or symbol or "Unbekannt"
+        exchange = item.get("exchDisp") or item.get("exchange") or "–"
+        score = _listing_candidate_score(item, query, query_type, identifier_rows)
+
+        if idx == 0:
+            role = "primary"
+            if item.get("_identifier_verified"):
+                role_label = "✓ WKN/ISIN → bevorzugtes Listing"
+            elif symbol == str(query or "").strip().upper():
+                role_label = "✓ Exakter Ticker"
+            elif item.get("_preferred"):
+                role_label = "✓ Hauptlisting"
+            else:
+                role_label = "✓ Empfohlenes Listing"
+        elif _same_issuer(
+            {"name": name},
+            {"name": top.get("longname") or top.get("shortname") or top_symbol},
+        ):
+            role = "alternative"
+            role_label = "↳ Weitere Notierung"
+        else:
+            role = "other_issuer"
+            role_label = "• Weiterer Treffer"
+
         clean_results.append({
-            "symbol": str(item.get("symbol", "")).upper(),
-            "name": (
-                item.get("longname")
-                or item.get("shortname")
-                or item.get("symbol")
-                or "Unbekannt"
-            ),
-            "exchange": (
-                item.get("exchDisp")
-                or item.get("exchange")
-                or "–"
-            ),
+            "symbol": symbol,
+            "name": name,
+            "exchange": exchange,
+            "exchange_code": item.get("exchange"),
             "currency": item.get("currency"),
+            "listing_role": role,
+            "listing_role_label": role_label,
+            "search_score": score,
+            "query_type": query_type,
+            "identifier_verified": bool(item.get("_identifier_verified")),
+            "canonical_name": top.get("longname") or top.get("shortname") or name,
+            "primary_symbol": top_symbol,
+            "primary_exchange": top_exchange,
+            "primary_score": top_score,
         })
 
     return clean_results
+
+
+def find_stock(search_text):
+    """Backward-compatible single-result helper: returns the top ranked listing."""
+    results = search_stock_suggestions(search_text)
+    if not results:
+        return None
+    top = results[0]
+    return {
+        "symbol": top.get("symbol"),
+        "quoteType": "EQUITY",
+        "longname": top.get("name"),
+        "exchange": top.get("exchange_code") or top.get("exchange"),
+        "exchDisp": top.get("exchange"),
+        "currency": top.get("currency"),
+    }
 
 
 # =========================================================
@@ -34818,7 +34719,7 @@ def historical_table(historical, currency):
 search_text = st.text_input(
     "Aktie suchen",
     placeholder=(
-        "Ab 2 Zeichen suchen, z. B. Mi, AX, Rh, TSMC oder MSFT"
+        "Name, Ticker, WKN oder ISIN eingeben, z. B. Coca-Cola, KO, 850663 oder US1912161007"
     )
 ).strip()
 
@@ -34827,8 +34728,7 @@ selected_symbol = None
 if search_text:
     if len(search_text) < 2:
         st.caption(
-            "Bitte mindestens 2 Zeichen eingeben. "
-            "Danach öffnet sich automatisch die Aktienauswahl."
+            "Bitte mindestens 2 Zeichen eingeben. Name, Ticker, WKN und ISIN werden automatisch erkannt."
         )
     else:
         with st.spinner("Passende Aktien werden gesucht..."):
@@ -34845,6 +34745,7 @@ if search_text:
             def suggestion_label(symbol):
                 item = suggestion_map[symbol]
                 parts = [
+                    str(item.get("listing_role_label") or "• Treffer"),
                     str(item["name"]),
                     str(item["symbol"]),
                     str(item["exchange"]),
@@ -34863,11 +34764,40 @@ if search_text:
                 format_func=suggestion_label
             )
 
+            top_hit = suggestions[0]
             st.caption(
-                "Die vollständigen Finanzdaten werden erst nach deiner "
-                "Auswahl geladen. So wird kein erster Suchtreffer "
-                "automatisch als richtige Aktie angenommen."
+                f"{top_hit.get('listing_role_label', '✓ Empfohlenes Listing')}: "
+                f"{top_hit['name']} · {top_hit['symbol']} · {top_hit['exchange']}"
+                + (f" · {top_hit['currency']}" if top_hit.get('currency') else "")
+                + ". Weitere Notierungen bzw. ähnlich benannte Unternehmen stehen darunter. "
+                  "Die vollständigen Finanzdaten werden weiterhin erst nach deiner Auswahl geladen."
             )
+
+            if top_hit.get("query_type") in {"wkn", "isin"}:
+                if top_hit.get("identifier_verified"):
+                    st.caption(
+                        "✓ Wertpapierkennung erkannt und auf Emittent/Listing aufgelöst. "
+                        "Die Hauptnotierung wird zuerst angezeigt."
+                    )
+                else:
+                    st.warning(
+                        "WKN/ISIN erkannt, aber die externe Kennungsauflösung konnte nicht "
+                        "eindeutig bestätigt werden. Bitte den ausgewählten Treffer prüfen."
+                    )
+
+            if selected_symbol:
+                selected_search_item = suggestion_map[selected_symbol]
+                st.session_state["security_identity_v1"] = {
+                    "query": search_text,
+                    "query_type": selected_search_item.get("query_type"),
+                    "selected_symbol": selected_symbol,
+                    "selected_exchange": selected_search_item.get("exchange"),
+                    "canonical_name": selected_search_item.get("canonical_name"),
+                    "primary_symbol": selected_search_item.get("primary_symbol"),
+                    "primary_exchange": selected_search_item.get("primary_exchange"),
+                    "listing_role": selected_search_item.get("listing_role"),
+                    "identifier_verified": selected_search_item.get("identifier_verified", False),
+                }
         else:
             st.warning(
                 "Keine passende Aktie in der automatischen Suche gefunden."
