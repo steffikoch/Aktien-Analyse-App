@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.119"
+APP_BUILD_VERSION = "V2.20.120"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,7 +26,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Security Search & Primary Exchange Resolver V1"
+    f"Build {APP_BUILD_VERSION} · Search UI & Listing Consistency Cleanup"
 )
 
 
@@ -49,6 +49,7 @@ st.caption(
 # V2.20.117: Branded Consumer Staples Specialist Model V1. First validated issuer: Mondelez (MDLZ). Replaces the generic packaged-food score with a primary-source 100-point model covering organic growth/volume-mix, adjusted operating margin, adjusted earnings quality, FCF conversion, leverage/financing, brand/category/geography diversification, capital allocation and commodity/pricing resilience. Valuation uses a transparent Current-FY Adjusted-EPS reference and a score-driven 17–25x P/E corridor. Branded-staples peers are reference-only; analyst/Morningstar targets remain Reality Check only and never set score, target P/E or Fair Value.
 # V2.20.118: Branded Consumer Staples Family Expansion. Adds PepsiCo (PEP) as a second fully primary-source specialist profile with its own snacks+beverages thresholds, 2026 Core-EPS/organic-growth/FCF-conversion guidance, core-margin/volume, leverage/funding, brand/portfolio and capital-allocation logic. PEP no longer falls into the generic Consumer Defensive score. Coca-Cola (KO) and Nestlé primary/ADR symbols are family-routed fail-closed until issuer-specific snapshots are calibrated, preventing silent fallback to generic ROE/FCF/Net-Debt scoring. MDLZ V2.20.117 mathematics are preserved.
 # V2.20.119: Security Search & Primary Exchange Resolver V1. Search now accepts company name, ticker/symbol, WKN and ISIN in one field. WKN/ISIN are mapped through the public OpenFIGI mapping API (unauthenticated fallback, fail-soft) and then resolved to Yahoo listings. Ranking separates issuer identity from listing identity: exact identifiers and exact tickers are strong signals, normalized legal-name matches outrank similarly named issuers, verified/preferred home listings outrank secondary German/local listings, and alternatives remain selectable underneath. Coca-Cola name search now prefers The Coca-Cola Company (KO) over Coca-Cola Consolidated (COKE), while exact COKE still selects COKE. Valuation mathematics and specialist routing are unchanged.
+# V2.20.120: Search UI & Listing Consistency Cleanup. Exact ticker searches now enrich the result set with alternative listings of the resolved issuer, so KO/RHM.DE still stay first while secondary listings remain selectable underneath. Result ordering is explicitly grouped as selected/preferred listing -> same-issuer alternatives -> other issuers. Mobile labels front-load symbol, exchange and currency before the long company name. Canonical security identity is no longer inherited from the first hit when the user selects a different issuer (e.g. COKE from a Coca-Cola name search). No valuation or specialist-model mathematics changed.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -7001,7 +7002,7 @@ def _resolve_identifier_openfigi(identifier, query_type):
             json=[{"idType": id_type, "idValue": compact}],
             headers={
                 "Content-Type": "application/json",
-                "User-Agent": "AktienAnalyseV2/2.20.119 security-resolver",
+                "User-Agent": "AktienAnalyseV2/2.20.120 security-resolver",
             },
             timeout=5,
         )
@@ -7188,12 +7189,14 @@ def _same_issuer(item_a, item_b):
 @st.cache_data(ttl=900, show_spinner=False)
 def search_stock_suggestions(search_text):
     """
-    V2.20.119 security search.
+    V2.20.120 security search.
 
     One input accepts company name, ticker/symbol, WKN or ISIN. The resolver
     determines issuer identity first and ranks the most likely primary/home
-    listing above alternative listings. Full financial data are still loaded
-    only after an explicit user selection.
+    listing above alternative listings. Exact ticker searches are enriched
+    with same-issuer alternative listings after the exact security has been
+    identified. Full financial data are still loaded only after an explicit
+    user selection.
     """
     query = str(search_text or "").strip()
     if len(query) < 2:
@@ -7222,16 +7225,44 @@ def search_stock_suggestions(search_text):
                 break
 
     global_rank = 0
-    for term in search_terms[:4]:
+
+    def append_yahoo_results(term, source="yahoo"):
+        nonlocal global_rank
         for item in _safe_yahoo_search(term, max_results=25):
             if str(item.get("quoteType", "")).upper() != "EQUITY":
                 continue
             row = dict(item)
             row.setdefault("_preferred", False)
             row["_yahoo_rank"] = global_rank
-            row["_source"] = "yahoo"
+            row["_source"] = source
             suggestions.append(row)
             global_rank += 1
+
+    for term in search_terms[:4]:
+        append_yahoo_results(term)
+
+    # V2.20.120 – ticker consistency enrichment.
+    # Yahoo often returns only the exact ticker for queries such as KO or
+    # RHM.DE. Once that exact security has identified the issuer, search the
+    # issuer name as a second phase so alternative listings can be shown below
+    # the exact ticker without weakening the exact-ticker priority.
+    query_upper = query.upper()
+    exact_ticker_candidates = [
+        item for item in suggestions
+        if str(item.get("symbol", "")).upper().strip() == query_upper
+    ]
+    if query_type == "ticker_or_name" and exact_ticker_candidates:
+        exact_item = max(
+            exact_ticker_candidates,
+            key=lambda item: _listing_candidate_score(
+                item, query, query_type, identifier_rows
+            ),
+        )
+        issuer_name = str(
+            exact_item.get("longname") or exact_item.get("shortname") or ""
+        ).strip()
+        if issuer_name and _fold_search_text(issuer_name) != _fold_search_text(query):
+            append_yahoo_results(issuer_name, source="ticker_issuer_expansion")
 
     # Highest-quality occurrence wins for a duplicate Yahoo symbol.
     by_symbol = {}
@@ -7258,9 +7289,39 @@ def search_stock_suggestions(search_text):
     top_score = _listing_candidate_score(top, query, query_type, identifier_rows)
     top_symbol = str(top.get("symbol", "")).upper()
     top_exchange = str(top.get("exchDisp") or top.get("exchange") or "–")
+    top_name = top.get("longname") or top.get("shortname") or top_symbol or "Unbekannt"
+
+    # V2.20.120 – explicit display grouping. Same-issuer alternatives are kept
+    # directly under the preferred/exact listing. Other issuers follow only
+    # after those alternatives, even if their raw text-search rank was higher.
+    same_issuer_alternatives = []
+    other_issuers = []
+    for item in ranked[1:]:
+        item_name = item.get("longname") or item.get("shortname") or item.get("symbol")
+        if _same_issuer({"name": item_name}, {"name": top_name}):
+            same_issuer_alternatives.append(item)
+        else:
+            other_issuers.append(item)
+
+    same_issuer_alternatives.sort(
+        key=lambda item: _listing_candidate_score(item, query, query_type, identifier_rows),
+        reverse=True,
+    )
+    other_issuers.sort(
+        key=lambda item: _listing_candidate_score(item, query, query_type, identifier_rows),
+        reverse=True,
+    )
+
+    # Keep the dropdown useful on mobile while preserving the most relevant
+    # exchange alternatives and a few genuinely different issuer matches.
+    ordered_ranked = (
+        [top]
+        + same_issuer_alternatives[:8]
+        + other_issuers[:4]
+    )[:13]
 
     clean_results = []
-    for idx, item in enumerate(ranked[:12]):
+    for idx, item in enumerate(ordered_ranked):
         symbol = str(item.get("symbol", "")).upper()
         name = item.get("longname") or item.get("shortname") or symbol or "Unbekannt"
         exchange = item.get("exchDisp") or item.get("exchange") or "–"
@@ -7270,21 +7331,29 @@ def search_stock_suggestions(search_text):
             role = "primary"
             if item.get("_identifier_verified"):
                 role_label = "✓ WKN/ISIN → bevorzugtes Listing"
-            elif symbol == str(query or "").strip().upper():
+            elif symbol == query_upper:
                 role_label = "✓ Exakter Ticker"
             elif item.get("_preferred"):
                 role_label = "✓ Hauptlisting"
             else:
                 role_label = "✓ Empfohlenes Listing"
-        elif _same_issuer(
-            {"name": name},
-            {"name": top.get("longname") or top.get("shortname") or top_symbol},
-        ):
+            canonical_name = top_name
+            primary_symbol = top_symbol
+            primary_exchange = top_exchange
+        elif _same_issuer({"name": name}, {"name": top_name}):
             role = "alternative"
             role_label = "↳ Weitere Notierung"
+            canonical_name = top_name
+            primary_symbol = top_symbol
+            primary_exchange = top_exchange
         else:
             role = "other_issuer"
             role_label = "• Weiterer Treffer"
+            # Critical identity guard: selecting another issuer must never
+            # inherit the first hit's canonical name or primary ticker.
+            canonical_name = name
+            primary_symbol = symbol
+            primary_exchange = str(exchange)
 
         clean_results.append({
             "symbol": symbol,
@@ -7297,13 +7366,33 @@ def search_stock_suggestions(search_text):
             "search_score": score,
             "query_type": query_type,
             "identifier_verified": bool(item.get("_identifier_verified")),
-            "canonical_name": top.get("longname") or top.get("shortname") or name,
-            "primary_symbol": top_symbol,
-            "primary_exchange": top_exchange,
-            "primary_score": top_score,
+            "canonical_name": canonical_name,
+            "primary_symbol": primary_symbol,
+            "primary_exchange": primary_exchange,
+            "primary_score": top_score if role != "other_issuer" else score,
         })
 
     return clean_results
+
+
+def _compact_suggestion_label(item):
+    """Mobile-first selectbox label: security identity before long issuer name."""
+    role = str(item.get("listing_role") or "")
+    if role == "primary":
+        marker = "✓"
+    elif role == "alternative":
+        marker = "↳"
+    else:
+        marker = "•"
+
+    core = [
+        str(item.get("symbol") or "–"),
+        str(item.get("exchange") or "–"),
+    ]
+    if item.get("currency"):
+        core.append(str(item.get("currency")))
+
+    return marker + " " + " · ".join(core) + " — " + str(item.get("name") or "Unbekannt")
 
 
 def find_stock(search_text):
@@ -34743,18 +34832,7 @@ if search_text:
             }
 
             def suggestion_label(symbol):
-                item = suggestion_map[symbol]
-                parts = [
-                    str(item.get("listing_role_label") or "• Treffer"),
-                    str(item["name"]),
-                    str(item["symbol"]),
-                    str(item["exchange"]),
-                ]
-
-                if item.get("currency"):
-                    parts.append(str(item["currency"]))
-
-                return " · ".join(parts)
+                return _compact_suggestion_label(suggestion_map[symbol])
 
             selected_symbol = st.selectbox(
                 "Treffer auswählen",
@@ -34767,9 +34845,11 @@ if search_text:
             top_hit = suggestions[0]
             st.caption(
                 f"{top_hit.get('listing_role_label', '✓ Empfohlenes Listing')}: "
-                f"{top_hit['name']} · {top_hit['symbol']} · {top_hit['exchange']}"
+                f"{top_hit['symbol']} · {top_hit['exchange']}"
                 + (f" · {top_hit['currency']}" if top_hit.get('currency') else "")
-                + ". Weitere Notierungen bzw. ähnlich benannte Unternehmen stehen darunter. "
+                + f" — {top_hit['name']}. "
+                  "Weitere Notierungen desselben Unternehmens stehen direkt darunter; "
+                  "andere ähnlich benannte Unternehmen folgen anschließend. "
                   "Die vollständigen Finanzdaten werden weiterhin erst nach deiner Auswahl geladen."
             )
 
