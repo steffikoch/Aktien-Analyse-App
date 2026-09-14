@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.120"
+APP_BUILD_VERSION = "V2.20.121"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,7 +26,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Search UI & Listing Consistency Cleanup"
+    f"Build {APP_BUILD_VERSION} · Security Identity & Search Presentation Guard"
 )
 
 
@@ -50,6 +50,7 @@ st.caption(
 # V2.20.118: Branded Consumer Staples Family Expansion. Adds PepsiCo (PEP) as a second fully primary-source specialist profile with its own snacks+beverages thresholds, 2026 Core-EPS/organic-growth/FCF-conversion guidance, core-margin/volume, leverage/funding, brand/portfolio and capital-allocation logic. PEP no longer falls into the generic Consumer Defensive score. Coca-Cola (KO) and Nestlé primary/ADR symbols are family-routed fail-closed until issuer-specific snapshots are calibrated, preventing silent fallback to generic ROE/FCF/Net-Debt scoring. MDLZ V2.20.117 mathematics are preserved.
 # V2.20.119: Security Search & Primary Exchange Resolver V1. Search now accepts company name, ticker/symbol, WKN and ISIN in one field. WKN/ISIN are mapped through the public OpenFIGI mapping API (unauthenticated fallback, fail-soft) and then resolved to Yahoo listings. Ranking separates issuer identity from listing identity: exact identifiers and exact tickers are strong signals, normalized legal-name matches outrank similarly named issuers, verified/preferred home listings outrank secondary German/local listings, and alternatives remain selectable underneath. Coca-Cola name search now prefers The Coca-Cola Company (KO) over Coca-Cola Consolidated (COKE), while exact COKE still selects COKE. Valuation mathematics and specialist routing are unchanged.
 # V2.20.120: Search UI & Listing Consistency Cleanup. Exact ticker searches now enrich the result set with alternative listings of the resolved issuer, so KO/RHM.DE still stay first while secondary listings remain selectable underneath. Result ordering is explicitly grouped as selected/preferred listing -> same-issuer alternatives -> other issuers. Mobile labels front-load symbol, exchange and currency before the long company name. Canonical security identity is no longer inherited from the first hit when the user selects a different issuer (e.g. COKE from a Coca-Cola name search). No valuation or specialist-model mathematics changed.
+# V2.20.121: Security Identity & Search Presentation Guard. Search results now separate preferred listing, ordinary same-issuer exchange listings, obvious depositary/OTC/local-wrapper instruments and other issuers. Search-label currency is filled from Yahoo when available and otherwise from a conservative exchange-currency map (display only; never used in valuation). Exact-ticker alternative ranking no longer rewards symbol-prefix matches strongly enough to push Buenos-Aires/local wrappers above XETRA or other major venues. Mobile labels use explicit group names and omit repeated issuer names for same-issuer alternatives. WKN/ISIN verification remains an identity anchor; ambiguous instrument identity stays labelled conservatively rather than being assumed equivalent. No valuation or specialist-model mathematics changed.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -7002,7 +7003,7 @@ def _resolve_identifier_openfigi(identifier, query_type):
             json=[{"idType": id_type, "idValue": compact}],
             headers={
                 "Content-Type": "application/json",
-                "User-Agent": "AktienAnalyseV2/2.20.120 security-resolver",
+                "User-Agent": "AktienAnalyseV2/2.20.121 security-resolver",
             },
             timeout=5,
         )
@@ -7126,7 +7127,10 @@ def _listing_candidate_score(item, query, query_type, identifier_rows=None):
     if symbol == query_upper:
         score += 5000
     elif query_upper and symbol.startswith(query_upper):
-        score += 300
+        # V2.20.121: a shared symbol prefix is only a weak hint.  In V2.20.120
+        # KO.BA/KOD.BA could otherwise outrank major secondary venues such as
+        # XETRA simply because they start with "KO".
+        score += 20
 
     if item.get("_preferred"):
         score += 3600
@@ -7186,10 +7190,104 @@ def _same_issuer(item_a, item_b):
     return bool(a and b and a == b)
 
 
+# Search-result currency is presentation metadata only.  It is deliberately
+# isolated from the valuation currency engine.  Yahoo Search often omits the
+# currency even though the venue is known, so V2.20.121 fills only well-known
+# exchange/currency pairs and otherwise leaves the value blank.
+SEARCH_EXCHANGE_CURRENCY = {
+    "NYQ": "USD", "NMS": "USD", "NGM": "USD", "NCM": "USD", "ASE": "USD",
+    "PNK": "USD", "OQX": "USD", "OQB": "USD",
+    "GER": "EUR", "FRA": "EUR", "HAM": "EUR", "BER": "EUR", "MUN": "EUR",
+    "DUS": "EUR", "STU": "EUR", "PAR": "EUR", "AMS": "EUR", "MIL": "EUR",
+    "VIE": "EUR", "VSE": "EUR", "HEL": "EUR",
+    "SWX": "CHF", "LSE": "GBP", "STO": "SEK", "CPH": "DKK", "OSL": "NOK",
+    "WSE": "PLN", "TAI": "TWD", "HKG": "HKD", "JPX": "JPY",
+    "TOR": "CAD", "ASX": "AUD", "BUE": "ARS",
+}
+
+SEARCH_EXCHANGE_DISPLAY_CURRENCY = {
+    "NYSE": "USD", "NASDAQ": "USD", "OTC MARKETS": "USD",
+    "XETRA": "EUR", "FRANKFURT": "EUR", "HAMBURG": "EUR", "BERLIN": "EUR",
+    "MUNICH": "EUR", "DUSSELDORF": "EUR", "DÜSSELDORF": "EUR", "STUTTGART": "EUR",
+    "VIENNA": "EUR", "PARIS": "EUR", "AMSTERDAM": "EUR", "MILAN": "EUR", "HELSINKI": "EUR",
+    "SWISS": "CHF", "LONDON": "GBP", "STOCKHOLM": "SEK",
+    "COPENHAGEN": "DKK", "OSLO": "NOK", "WSE": "PLN", "WARSAW": "PLN",
+    "TAIWAN": "TWD", "HONG KONG": "HKD", "TOKYO": "JPY",
+    "TORONTO": "CAD", "AUSTRALIA": "AUD", "BUENOS AIRES": "ARS",
+}
+
+
+def _search_result_currency(item):
+    direct = str(item.get("currency") or "").upper().strip()
+    if direct:
+        return direct, "yahoo"
+
+    exchange_code = str(item.get("exchange") or "").upper().strip()
+    inferred = SEARCH_EXCHANGE_CURRENCY.get(exchange_code)
+    if inferred:
+        return inferred, "exchange_fallback"
+
+    display = str(item.get("exchDisp") or "").upper().strip()
+    inferred = SEARCH_EXCHANGE_DISPLAY_CURRENCY.get(display)
+    if inferred:
+        return inferred, "exchange_fallback"
+
+    return None, None
+
+
+SEARCH_ALTERNATIVE_VENUE_PRIORITY = {
+    "XETRA": 130, "PARIS": 125, "AMSTERDAM": 125, "MILAN": 123,
+    "SWISS": 123, "LONDON": 123, "FRANKFURT": 115, "VIENNA": 105,
+    "WSE": 100, "WARSAW": 100, "HAMBURG": 92, "BERLIN": 90,
+    "MUNICH": 90, "DUSSELDORF": 90, "DÜSSELDORF": 90, "STUTTGART": 90,
+    "OTC MARKETS": 10, "BUENOS AIRES": 10,
+}
+
+
+def _same_issuer_listing_sort_score(item):
+    """Venue-first ordering inside the same issuer after the primary listing."""
+    display = str(item.get("exchDisp") or "").upper().strip()
+    exchange_code = str(item.get("exchange") or "").upper().strip()
+    score = SEARCH_ALTERNATIVE_VENUE_PRIORITY.get(
+        display, SEARCH_EXCHANGE_PRIORITY.get(exchange_code, 80)
+    )
+    yahoo_rank = item.get("_yahoo_rank")
+    if yahoo_rank is not None:
+        try:
+            score += max(0, 20 - int(yahoo_rank)) / 100.0
+        except Exception:
+            pass
+    return score
+
+
+def _is_obvious_other_instrument(item, primary_item=None):
+    """Conservative display-only instrument split; never changes valuation identity.
+
+    We only separate cases that are visibly not an ordinary home/secondary
+    common-share listing: OTC/depositary rows, Buenos-Aires local wrappers and
+    names explicitly marked ADR/ADS/depositary receipt.  Everything else stays
+    in the neutral 'Weitere Notierung' bucket rather than being over-classified.
+    """
+    exchange_code = str(item.get("exchange") or "").upper().strip()
+    exchange_display = str(item.get("exchDisp") or "").upper().strip()
+    symbol = str(item.get("symbol") or "").upper().strip()
+    name = _fold_search_text(item.get("longname") or item.get("shortname") or "")
+
+    if exchange_code in {"PNK", "OQX", "OQB", "YHD", "CCC"}:
+        return True
+    if "OTC" in exchange_display:
+        return True
+    if exchange_display == "BUENOS AIRES" or symbol.endswith(".BA"):
+        return True
+    if any(term in name for term in ("ADR", "ADS", "DEPOSITARY RECEIPT", "DEPOSITARY SHARES")):
+        return True
+    return False
+
+
 @st.cache_data(ttl=900, show_spinner=False)
 def search_stock_suggestions(search_text):
     """
-    V2.20.120 security search.
+    V2.20.121 security search.
 
     One input accepts company name, ticker/symbol, WKN or ISIN. The resolver
     determines issuer identity first and ranks the most likely primary/home
@@ -7291,19 +7389,28 @@ def search_stock_suggestions(search_text):
     top_exchange = str(top.get("exchDisp") or top.get("exchange") or "–")
     top_name = top.get("longname") or top.get("shortname") or top_symbol or "Unbekannt"
 
-    # V2.20.120 – explicit display grouping. Same-issuer alternatives are kept
-    # directly under the preferred/exact listing. Other issuers follow only
-    # after those alternatives, even if their raw text-search rank was higher.
+    # V2.20.121 – four explicit display groups:
+    # preferred listing -> ordinary same-issuer listings -> obvious alternate
+    # instruments/wrappers -> other issuers.  This keeps ADR/OTC/CEDEAR-style
+    # rows visible without presenting them as equivalent exchange listings.
     same_issuer_alternatives = []
+    same_issuer_other_instruments = []
     other_issuers = []
     for item in ranked[1:]:
         item_name = item.get("longname") or item.get("shortname") or item.get("symbol")
         if _same_issuer({"name": item_name}, {"name": top_name}):
-            same_issuer_alternatives.append(item)
+            if _is_obvious_other_instrument(item, top):
+                same_issuer_other_instruments.append(item)
+            else:
+                same_issuer_alternatives.append(item)
         else:
             other_issuers.append(item)
 
     same_issuer_alternatives.sort(
+        key=_same_issuer_listing_sort_score,
+        reverse=True,
+    )
+    same_issuer_other_instruments.sort(
         key=lambda item: _listing_candidate_score(item, query, query_type, identifier_rows),
         reverse=True,
     )
@@ -7312,12 +7419,13 @@ def search_stock_suggestions(search_text):
         reverse=True,
     )
 
-    # Keep the dropdown useful on mobile while preserving the most relevant
-    # exchange alternatives and a few genuinely different issuer matches.
+    # Keep the dropdown useful on mobile. Ordinary exchange listings get more
+    # room than wrappers/OTC instruments or similarly named issuers.
     ordered_ranked = (
         [top]
-        + same_issuer_alternatives[:8]
-        + other_issuers[:4]
+        + same_issuer_alternatives[:6]
+        + same_issuer_other_instruments[:3]
+        + other_issuers[:3]
     )[:13]
 
     clean_results = []
@@ -7329,40 +7437,54 @@ def search_stock_suggestions(search_text):
 
         if idx == 0:
             role = "primary"
+            role_label = "✓ Hauptlisting"
             if item.get("_identifier_verified"):
-                role_label = "✓ WKN/ISIN → bevorzugtes Listing"
+                match_reason = "WKN/ISIN bestätigt"
             elif symbol == query_upper:
-                role_label = "✓ Exakter Ticker"
+                match_reason = "Exakter Ticker"
             elif item.get("_preferred"):
-                role_label = "✓ Hauptlisting"
+                match_reason = "Bevorzugter Emittent"
             else:
-                role_label = "✓ Empfohlenes Listing"
+                match_reason = "Empfohlenes Listing"
+            canonical_name = top_name
+            primary_symbol = top_symbol
+            primary_exchange = top_exchange
+        elif _same_issuer({"name": name}, {"name": top_name}) and _is_obvious_other_instrument(item, top):
+            role = "other_instrument"
+            role_label = "◇ Anderes Instrument"
+            match_reason = "Gleicher Emittent; OTC/Depositary/lokaler Wrapper"
             canonical_name = top_name
             primary_symbol = top_symbol
             primary_exchange = top_exchange
         elif _same_issuer({"name": name}, {"name": top_name}):
             role = "alternative"
             role_label = "↳ Weitere Notierung"
+            match_reason = "Gleicher Emittent; alternative Börsennotierung"
             canonical_name = top_name
             primary_symbol = top_symbol
             primary_exchange = top_exchange
         else:
             role = "other_issuer"
-            role_label = "• Weiterer Treffer"
+            role_label = "• Anderes Unternehmen"
+            match_reason = "Ähnlicher Suchtreffer; eigener Emittent"
             # Critical identity guard: selecting another issuer must never
             # inherit the first hit's canonical name or primary ticker.
             canonical_name = name
             primary_symbol = symbol
             primary_exchange = str(exchange)
 
+        search_currency, currency_source = _search_result_currency(item)
+
         clean_results.append({
             "symbol": symbol,
             "name": name,
             "exchange": exchange,
             "exchange_code": item.get("exchange"),
-            "currency": item.get("currency"),
+            "currency": search_currency,
+            "currency_source": currency_source,
             "listing_role": role,
             "listing_role_label": role_label,
+            "match_reason": match_reason,
             "search_score": score,
             "query_type": query_type,
             "identifier_verified": bool(item.get("_identifier_verified")),
@@ -7376,14 +7498,14 @@ def search_stock_suggestions(search_text):
 
 
 def _compact_suggestion_label(item):
-    """Mobile-first selectbox label: security identity before long issuer name."""
+    """V2.20.121 mobile-first label with explicit result grouping."""
     role = str(item.get("listing_role") or "")
-    if role == "primary":
-        marker = "✓"
-    elif role == "alternative":
-        marker = "↳"
-    else:
-        marker = "•"
+    role_prefix = {
+        "primary": "✓ Hauptlisting",
+        "alternative": "↳ Weitere Notierung",
+        "other_instrument": "◇ Anderes Instrument",
+        "other_issuer": "• Anderes Unternehmen",
+    }.get(role, "• Treffer")
 
     core = [
         str(item.get("symbol") or "–"),
@@ -7392,7 +7514,12 @@ def _compact_suggestion_label(item):
     if item.get("currency"):
         core.append(str(item.get("currency")))
 
-    return marker + " " + " · ".join(core) + " — " + str(item.get("name") or "Unbekannt")
+    # Repeating the same long issuer name on every alternative wastes the most
+    # valuable mobile width. Keep it only for the main listing and other issuers.
+    label = role_prefix + " · " + " · ".join(core)
+    if role in {"primary", "other_issuer"}:
+        label += " — " + str(item.get("name") or "Unbekannt")
+    return label
 
 
 def find_stock(search_text):
@@ -34844,12 +34971,13 @@ if search_text:
 
             top_hit = suggestions[0]
             st.caption(
-                f"{top_hit.get('listing_role_label', '✓ Empfohlenes Listing')}: "
+                f"{top_hit.get('listing_role_label', '✓ Hauptlisting')}: "
                 f"{top_hit['symbol']} · {top_hit['exchange']}"
                 + (f" · {top_hit['currency']}" if top_hit.get('currency') else "")
                 + f" — {top_hit['name']}. "
-                  "Weitere Notierungen desselben Unternehmens stehen direkt darunter; "
-                  "andere ähnlich benannte Unternehmen folgen anschließend. "
+                  "Danach folgen weitere Börsennotierungen desselben Emittenten, "
+                  "offensichtliche ADR/OTC/Local-Wrapper separat als andere Instrumente "
+                  "und erst anschließend ähnlich benannte andere Unternehmen. "
                   "Die vollständigen Finanzdaten werden weiterhin erst nach deiner Auswahl geladen."
             )
 
@@ -34876,6 +35004,8 @@ if search_text:
                     "primary_symbol": selected_search_item.get("primary_symbol"),
                     "primary_exchange": selected_search_item.get("primary_exchange"),
                     "listing_role": selected_search_item.get("listing_role"),
+                    "selected_currency": selected_search_item.get("currency"),
+                    "identity_match_reason": selected_search_item.get("match_reason"),
                     "identifier_verified": selected_search_item.get("identifier_verified", False),
                 }
         else:
