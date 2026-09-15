@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.125"
+APP_BUILD_VERSION = "V2.20.126"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,7 +26,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Integrated Oil & Gas Specialist Model V1"
+    f"Build {APP_BUILD_VERSION} · Integrated Oil & Gas Structural Comparability & Shell Identity Guard"
 )
 
 
@@ -55,6 +55,7 @@ st.caption(
 # V2.20.123: Branded Staples Family Gate Isolation & Cleanup. Separates an uncalibrated Branded-Consumer-Staples family member from the Special-Event engine: KO/Nestlé now use an explicit Family Calibration Gate, do not auto-launch ad-hoc special-event research merely because the issuer profile is pending, and receive a dedicated no-signal reason. Branded-staples Yahoo/statement FCF divergences are diagnosis-only, reference-only peers have no minimum-count Fair-Value requirement, and SIX/Swiss primary-listing footer text is aligned with the search resolver. MDLZ/PEP valuation math and V2.20.121 search/identity logic remain unchanged.
 # V2.20.124: Energy Issuer Identity & Same-Issuer Peer Guard. Adds TotalEnergies SE as a preferred primary-listing search alias for Total Energy/Total Energies/TotalEnergies, so the Euronext Paris line TTE.PA outranks Total Energy Services (TOT.TO) on ambiguous name searches. Adds a canonical same-issuer symbol guard to peer construction so TTE.PA/NYSE TTE/verified TotalEnergies alternate lines cannot appear as the analyzed company's own peer. Euronext Paris is recognized in the exchange footer. No valuation mathematics, sector score, EPS normalization, Fair Value or signal thresholds are changed.
 # V2.20.125: Integrated Oil & Gas Specialist Model V1. Routes TotalEnergies, Shell, ExxonMobil and Chevron out of the generic cyclical revenue/profit-growth/ROE/Yahoo-FCF score. Uses issuer-primary-source 2023–2025 adjusted EPS history plus capped H1-2026 run-rate for a through-cycle earnings basis; a 100-point specialist score covers production/project growth, CFFO resilience, ROACE/ROCE, leverage, capital discipline, integrated portfolio quality, shareholder returns and commodity/execution resilience. Issuer-specific score-driven P/E corridors are model judgments; peer Forward-P/Es remain reference-only and never change score, target multiple or Fair Value.
+# V2.20.126: Integrated Oil & Gas Structural Comparability & Shell Identity Guard. Fixes the valid Euronext Amsterdam Shell symbol SHELL.AS across classification, canonical issuer mapping and same-issuer peer exclusion while preserving the verified NYSE SHEL ADS 2:1 ordinary-share route. Adds a downside-only M&A/asset-base comparability guard for ExxonMobil/Pioneer and Chevron/Hess: acquisition-affected headline production growth is capped for score purposes, and the earnings anchor uses an explicit post-acquisition adjusted-EPS bridge instead of treating the pre-/post-acquisition 3Y series as fully same-basis. Generic TTM/Forward EPS divergence is explicitly diagnosis-only for Integrated Oil & Gas confidence. Reference-only peer UI and stale generic Net-Debt/FCF copy are cleaned up; no analyst target enters the valuation.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -6641,12 +6642,12 @@ def classify_company(name, symbol, sector, industry):
             "company_profile": "Hybride Energy-Technology-Plattform mit OFSE und wachsendem IET/Chart; wesentlicher Post-Q2-Strukturbruch durch Chart-Übernahme",
         }
 
-    # V2.20.125 – Integrated Oil & Gas Major Specialist.
+    # V2.20.126 – Integrated Oil & Gas Major Specialist / Structural Comparability Guard.
     # Exact issuer identity is required so Oilfield Services / smaller E&P names
     # cannot inherit a Major profile merely from an "Oil & Gas Integrated" label.
     integrated_major_symbols = {
         "TTE.PA", "TTE", "FP.VI", "TTE.L", "TTE.BR",
-        "SHEL", "SHEL.L", "SHEL.AS",
+        "SHEL", "SHEL.L", "SHELL.AS", "SHEL.AS",
         "XOM", "CVX",
     }
     integrated_major_names = [
@@ -17366,13 +17367,13 @@ def build_branded_consumer_staples_special_control(control, specialist_model):
 
 
 # =========================================================
-# V2.20.125 – Integrated Oil & Gas Specialist Model V1
+# V2.20.126 – Integrated Oil & Gas Structural Comparability & Shell Identity Guard
 # Validated V1 family: TotalEnergies, Shell, ExxonMobil, Chevron
 # =========================================================
 
 INTEGRATED_OIL_GAS_MAJOR_SYMBOLS = {
     "TTE.PA", "TTE", "FP.VI", "TTE.L", "TTE.BR",
-    "SHEL", "SHEL.L", "SHEL.AS",
+    "SHEL", "SHEL.L", "SHELL.AS", "SHEL.AS",
     "XOM", "CVX",
 }
 
@@ -17381,7 +17382,7 @@ def _canonical_integrated_oil_major_symbol(symbol):
     sym = str(symbol or "").upper().strip()
     if sym in {"TTE.PA", "TTE", "FP.VI", "TTE.L", "TTE.BR"}:
         return "TTE"
-    if sym in {"SHEL", "SHEL.L", "SHEL.AS"}:
+    if sym in {"SHEL", "SHEL.L", "SHELL.AS", "SHEL.AS"}:
         return "SHEL"
     if sym == "XOM":
         return "XOM"
@@ -17397,7 +17398,7 @@ def is_integrated_oil_gas_specialist_type(company_type, symbol=None):
 
 
 def get_verified_integrated_oil_gas_snapshot(symbol):
-    """Issuer-specific primary-source snapshot for V2.20.125.
+    """Issuer-specific primary-source snapshot for V2.20.126.
 
     Values are frozen to public issuer primary sources available through Q2/H1 2026.
     The specialist intentionally does not substitute Yahoo revenue growth, GAAP
@@ -17515,6 +17516,20 @@ def get_verified_integrated_oil_gas_snapshot(symbol):
             "q2_2026_cffo": 23.6e9,
             "q2_2026_free_cash_flow": 17.2e9,
             "q2_2026_adjusted_earnings": 14.7e9,
+            # V2.20.126 structural comparability guard: Pioneer closed 03.05.2024.
+            # 2024/2025 headline production growth therefore spans different asset bases.
+            # The post-acquisition adjusted-EPS bridge uses four fully post-close quarters:
+            # 3Q25 1.88 + 4Q25 1.71 + 1Q26 1.16 + 2Q26 3.52 = 8.27 USD/share.
+            "structural_break_active": True,
+            "structural_break_name": "Pioneer Natural Resources acquisition",
+            "structural_break_close_date": "03.05.2024",
+            "structural_break_url": "https://corporate.exxonmobil.com/news/news-releases/2024/0503_exxonmobil-completes-acquisition-of-pioneer-natural-resources",
+            "structural_break_note": "Pioneer wurde am 03.05.2024 übernommen; FY2024 ist nur teilweise und FY2025 vollständig auf der kombinierten Asset-Basis. Headline-Produktionswachstum ist daher nicht rein organisch vergleichbar.",
+            "production_growth_score_cap": 13.0,
+            "production_growth_comparability": "Akquisitionsbeeinflusst – Pioneer/Asset-Base-Shift",
+            "post_acquisition_adjusted_eps_quarters": [1.88, 1.71, 1.16, 3.52],
+            "post_acquisition_adjusted_eps_quarter_labels": ["3Q25", "4Q25", "1Q26", "2Q26"],
+            "post_acquisition_bridge_note": "Vier vollständig post-Pioneer berichtete Adjusted-EPS-Quartale; 3Y-Historie bleibt nur Zyklusanker.",
             "portfolio_score": 9.0,
             "resilience_score": 5.0,
             "resilience_note": "Advantaged Upstream, Refining, Chemicals und strukturelle Kostensenkungen liefern hohe operative Resilienz; Commodity-Sensitivität bleibt systemisch.",
@@ -17554,6 +17569,22 @@ def get_verified_integrated_oil_gas_snapshot(symbol):
             "q2_2026_adjusted_earnings": 12.0e9,
             "q2_2026_roace_pct": 21.0,
             "q2_2026_net_debt_to_cffo": 0.6,
+            # V2.20.126 structural comparability guard: Hess closed 18.07.2025.
+            # FY2025 production growth includes the acquired Hess asset base and is not
+            # treated as fully organic. The first four reported quarters spanning/after
+            # closing provide a current combined-company adjusted-EPS bridge:
+            # 3Q25 1.85 + 4Q25 1.52 + 1Q26 1.41 + 2Q26 6.06 = 10.84 USD/share.
+            # 3Q25 straddles the 18-Jul close, therefore confidence remains capped at Mittel.
+            "structural_break_active": True,
+            "structural_break_name": "Hess Corporation acquisition",
+            "structural_break_close_date": "18.07.2025",
+            "structural_break_url": "https://www.chevron.com/newsroom/2025/q3/chevron-completes-acquisition-of-hess-corporation",
+            "structural_break_note": "Hess wurde am 18.07.2025 übernommen; FY2025 und das +12%-Produktionswachstum enthalten eine neue Asset-Basis und sind nicht als rein organisches Wachstum zu lesen.",
+            "production_growth_score_cap": 11.0,
+            "production_growth_comparability": "Akquisitionsbeeinflusst – Hess/Asset-Base-Shift",
+            "post_acquisition_adjusted_eps_quarters": [1.85, 1.52, 1.41, 6.06],
+            "post_acquisition_adjusted_eps_quarter_labels": ["3Q25", "4Q25", "1Q26", "2Q26"],
+            "post_acquisition_bridge_note": "Combined-company Bridge aus 3Q25–2Q26; 3Q25 straddelt den Hess-Close um 17 Tage, daher keine Hochstufung der Sicherheit.",
             "portfolio_score": 9.0,
             "resilience_score": 4.0,
             "resilience_note": "Hess-Integration und starkes Produktionswachstum erhöhen Qualität und Optionalität; Integrations-/Commodity-Risiken verhindern den Maximalbonus.",
@@ -17585,7 +17616,9 @@ def _integrated_oil_score_points(snapshot):
         result["note"] = "Integrated-Oil-&-Gas-Spezialscore gesperrt: mindestens eine verifizierte Primärkennzahl fehlt."
         return result
 
-    production_pts = 15.0 if prod >= 8.0 else 13.0 if prod >= 4.0 else 11.0 if prod >= 2.0 else 8.0 if prod >= 0.0 else 5.0
+    production_pts_raw = 15.0 if prod >= 8.0 else 13.0 if prod >= 4.0 else 11.0 if prod >= 2.0 else 8.0 if prod >= 0.0 else 5.0
+    production_cap = safe_float(s.get("production_growth_score_cap"))
+    production_pts = min(production_pts_raw, production_cap) if production_cap is not None else production_pts_raw
 
     cash_cover = cffo / adj_earn
     cffo_pts = 20.0 if cash_cover >= 2.2 else 18.0 if cash_cover >= 1.8 else 16.0 if cash_cover >= 1.5 else 13.0 if cash_cover >= 1.2 else 9.0
@@ -17636,20 +17669,37 @@ def _integrated_oil_score_points(snapshot):
         "cash_cover_ratio": cash_cover,
         "capex_to_cffo_pct": capex_ratio * 100.0,
         "shareholder_distributions_to_cffo_pct": distribution_ratio * 100.0,
+        "production_points_raw": production_pts_raw,
+        "production_points_cap": production_cap,
+        "production_growth_comparability": s.get("production_growth_comparability"),
+        "structural_break_active": bool(s.get("structural_break_active")),
         "note": (
             "Der Integrated-Oil-&-Gas Quality Score ersetzt generisches Yahoo-Umsatz-/Gewinnwachstum, ROE, "
             "TTM-FCF-Marge und Net-Debt/TTM-FCF. Er verwendet Produktions-/Projektwachstum, issuer-CFFO, "
             "ROACE/ROCE, issuer-Leverage, Investitionsdisziplin, integriertes Portfolio, Ausschüttungen und Resilienz."
+            + (
+                f" Strukturbruch aktiv: Headline-Produktionswachstum ist {s.get('production_growth_comparability') or 'akquisitionsbeeinflusst'}; "
+                f"Production/Project Growth wird downside-only auf {production_pts:.0f}/15 Punkte begrenzt."
+                if s.get("structural_break_active") and production_cap is not None and production_pts < production_pts_raw
+                else ""
+            )
         ),
     })
     return result
 
 
 def _integrated_oil_through_cycle_earnings(snapshot):
-    """70% 3Y adjusted-EPS median + 30% capped H1-2026 annualized run-rate.
+    """Integrated-major earnings bridge with structural comparability guard.
 
-    The current run-rate is capped to 75–125% of the 2023–2025 median so a
-    temporary commodity spike/slump cannot become the valuation anchor.
+    Normal case (TTE/Shell): 70% 3Y adjusted-EPS median + 30% capped H1-2026
+    annualized run-rate. The run-rate is capped to 75–125% of the 3Y median.
+
+    Structural-break case (Exxon/Pioneer; Chevron/Hess): pre-/post-acquisition
+    years are not described as fully same-basis. A verified post-acquisition
+    four-quarter Adjusted-EPS bridge receives 60% weight, while the 3Y median
+    remains a 40% commodity-cycle anchor. The post-acquisition anchor is also
+    capped to 75–125% of the historical median. This is a downside-only
+    comparability guard; it never uses analyst targets or peer multiples.
     """
     s = snapshot or {}
     history = [
@@ -17658,16 +17708,62 @@ def _integrated_oil_through_cycle_earnings(snapshot):
         safe_float(s.get("adjusted_eps_2025")),
     ]
     h1 = safe_float(s.get("h1_2026_adjusted_eps"))
-    if any(v is None or v <= 0 for v in history) or h1 is None or h1 <= 0:
-        return {"available": False, "note": "Through-Cycle Adjusted-EPS-Basis gesperrt: 2023–2025 oder H1-2026 Same-Basis-EPS fehlen."}
+    if any(v is None or v <= 0 for v in history):
+        return {"available": False, "note": "Through-Cycle Adjusted-EPS-Basis gesperrt: 2023–2025 Same-Issuer Adjusted EPS fehlen."}
+
     median_eps = float(pd.Series(history).median())
-    current_run = h1 * 2.0
     floor_run = median_eps * 0.75
     cap_run = median_eps * 1.25
+
+    structural = bool(s.get("structural_break_active"))
+    q_values_raw = s.get("post_acquisition_adjusted_eps_quarters") or []
+    q_values = [safe_float(v) for v in q_values_raw]
+    if structural:
+        if len(q_values) != 4 or any(v is None or v <= 0 for v in q_values):
+            return {
+                "available": False,
+                "structural_break_active": True,
+                "note": "Structural-Comparability Gate fail-closed: vier verifizierte post-acquisition Adjusted-EPS-Quartale fehlen.",
+            }
+        post_ttm_raw = float(sum(q_values))
+        post_ttm_used = min(max(post_ttm_raw, floor_run), cap_run)
+        earnings_basis = 0.40 * median_eps + 0.60 * post_ttm_used
+        return {
+            "available": True,
+            "bridge_mode": "structural_post_acquisition_ttm",
+            "structural_break_active": True,
+            "structural_break_name": s.get("structural_break_name"),
+            "structural_break_close_date": s.get("structural_break_close_date"),
+            "structural_break_note": s.get("structural_break_note"),
+            "structural_break_url": s.get("structural_break_url"),
+            "history_adjusted_eps": history,
+            "median_adjusted_eps_3y": median_eps,
+            "post_acquisition_adjusted_eps_quarters": q_values,
+            "post_acquisition_adjusted_eps_quarter_labels": s.get("post_acquisition_adjusted_eps_quarter_labels") or [],
+            "post_acquisition_adjusted_eps_ttm_raw": post_ttm_raw,
+            "post_acquisition_adjusted_eps_ttm_used": post_ttm_used,
+            "post_acquisition_anchor_capped": abs(post_ttm_raw - post_ttm_used) > 1e-9,
+            "run_rate_floor": floor_run,
+            "run_rate_cap": cap_run,
+            "h1_2026_adjusted_eps": h1,
+            "annualized_h1_2026_adjusted_eps_raw": h1 * 2.0 if h1 is not None else None,
+            "annualized_h1_2026_adjusted_eps_used": None,
+            "run_rate_capped": False,
+            "earnings_basis": earnings_basis,
+            "confidence": "Mittel",
+            "method": "40% 3Y-Median Adjusted EPS als Commodity-Cycle-Anker + 60% verifizierter post-acquisition 4Q Adjusted-EPS-Bridge; Post-Acquisition-Anker auf 75–125% des 3Y-Medians begrenzt",
+            "structural_bridge_note": s.get("post_acquisition_bridge_note"),
+        }
+
+    if h1 is None or h1 <= 0:
+        return {"available": False, "note": "Through-Cycle Adjusted-EPS-Basis gesperrt: H1-2026 Same-Basis-EPS fehlen."}
+    current_run = h1 * 2.0
     used_run = min(max(current_run, floor_run), cap_run)
     earnings_basis = 0.70 * median_eps + 0.30 * used_run
     return {
         "available": True,
+        "bridge_mode": "standard_through_cycle_h1",
+        "structural_break_active": False,
         "history_adjusted_eps": history,
         "median_adjusted_eps_3y": median_eps,
         "h1_2026_adjusted_eps": h1,
@@ -17677,9 +17773,9 @@ def _integrated_oil_through_cycle_earnings(snapshot):
         "run_rate_cap": cap_run,
         "run_rate_capped": abs(current_run - used_run) > 1e-9,
         "earnings_basis": earnings_basis,
+        "confidence": "Mittel",
         "method": "70% 3Y-Median Adjusted EPS + 30% H1-2026 annualisiert, Run-Rate auf 75–125% des 3Y-Medians begrenzt",
     }
-
 
 def build_integrated_oil_gas_specialist_valuation(snapshot, specialist_score):
     s = snapshot or {}
@@ -18239,7 +18335,7 @@ def calculate_fundamental_multiple(
 # financial statements or changes valuation units.
 PEER_SAME_ISSUER_SYMBOL_GROUPS = (
     frozenset({"TTE.PA", "TTE", "FP.VI", "TTE.L", "TTE.BR"}),
-    frozenset({"SHEL", "SHEL.L", "SHEL.AS"}),
+    frozenset({"SHEL", "SHEL.L", "SHELL.AS", "SHEL.AS"}),
 )
 
 
@@ -20422,8 +20518,9 @@ def get_special_control(company_type, symbol):
             "control_key": "integrated_oil_gas_major",
             "control_name": f"{issuer_label} / Integrated Oil & Gas Through-Cycle-, CFFO-, ROCE- & Capital-Discipline-Kontrolle",
             "planned_checks": [
-                "2023–2025 Adjusted EPS auf issuer-identischer Basis",
-                "H1-2026 Adjusted EPS nur als gekappter Run-Rate-Kontext (75–125% des 3Y-Medians)",
+                "2023–2025 Adjusted EPS als Commodity-Cycle-Historie; bei M&A-Strukturbruch nicht als vollständig same-asset-base bezeichnen",
+                "H1-2026 / post-acquisition Adjusted EPS als gekappter aktueller Earnings-Kontext (75–125% des 3Y-Medians)",
+                "Structural Asset-Base / M&A Comparability Guard (Pioneer/Hess) mit post-acquisition EPS-Bridge und downside-only Production-Growth-Cap",
                 "Production / Project Growth statt nominalem Umsatzwachstum",
                 "Issuer-CFFO und CFFO/Adjusted-Earnings-Resilienz",
                 "ROACE/ROCE statt generischem ROE",
@@ -27709,8 +27806,9 @@ def calculate_valuation_confidence(
     elif is_integrated_oil_gas_valuation:
         oil_earnings = ((special_control or {}).get("checks") or {}).get("specialist_valuation") or {}
         oil_bridge = oil_earnings.get("earnings_bridge") or {}
-        earnings_level = "Mittel" if oil_bridge.get("available") else "Niedrig"
-        components["Integrated-Oil Through-Cycle Adjusted EPS"] = (_confidence_rank_value(earnings_level), earnings_level)
+        earnings_level = oil_bridge.get("confidence") or ("Mittel" if oil_bridge.get("available") else "Niedrig")
+        earnings_label = "Integrated-Oil Structural/Post-Acquisition Adjusted EPS" if oil_bridge.get("structural_break_active") else "Integrated-Oil Through-Cycle Adjusted EPS"
+        components[earnings_label] = (_confidence_rank_value(earnings_level), earnings_level)
     elif is_asset_management_valuation:
         am_earnings = ((special_control or {}).get("checks") or {}).get("earnings_basis") or {}
         earnings_level = am_earnings.get("confidence") or "Niedrig"
@@ -28628,7 +28726,7 @@ def calculate_fair_value_v1(
         })
         return result
 
-    # V2.20.125 – Integrated Oil & Gas Major specialist valuation.
+    # V2.20.126 – Integrated Oil & Gas Major specialist valuation / structural comparability.
     if (
         isinstance(special_control, dict)
         and special_control.get("control_key") == "integrated_oil_gas_major"
@@ -28701,6 +28799,15 @@ def calculate_fair_value_v1(
             "annualized_h1_2026_adjusted_eps_raw": safe_float(bridge.get("annualized_h1_2026_adjusted_eps_raw")),
             "annualized_h1_2026_adjusted_eps_used": safe_float(bridge.get("annualized_h1_2026_adjusted_eps_used")),
             "run_rate_capped": bool(bridge.get("run_rate_capped")),
+            "earnings_bridge_mode": bridge.get("bridge_mode"),
+            "structural_break_active": bool(bridge.get("structural_break_active")),
+            "structural_break_name": bridge.get("structural_break_name"),
+            "structural_break_close_date": bridge.get("structural_break_close_date"),
+            "structural_break_note": bridge.get("structural_break_note"),
+            "structural_bridge_note": bridge.get("structural_bridge_note"),
+            "post_acquisition_adjusted_eps_ttm_raw": safe_float(bridge.get("post_acquisition_adjusted_eps_ttm_raw")),
+            "post_acquisition_adjusted_eps_ttm_used": safe_float(bridge.get("post_acquisition_adjusted_eps_ttm_used")),
+            "post_acquisition_anchor_capped": bool(bridge.get("post_acquisition_anchor_capped")),
             "integrated_oil_company": snap.get("company"),
             "integrated_oil_profile": snap.get("specialist_profile"),
             "fy2025_production_growth_pct": safe_float(snap.get("fy2025_production_growth_pct")),
@@ -31639,7 +31746,7 @@ def _should_try_generic_adjusted_ttm(company_type, raw_ttm, current_fy_eps, webs
     # own primary-source snapshot or fail closed without substitution.
     if is_branded_consumer_staples_specialist_type(company_type, symbol):
         return False
-    # V2.20.125 – Integrated majors use a frozen issuer-primary Through-Cycle
+    # V2.20.126 – Integrated majors use a frozen issuer-primary Through-Cycle / Structural bridge
     # Adjusted-EPS bridge; generic Adjusted-TTM reconstruction must not substitute it.
     if is_integrated_oil_gas_specialist_type(company_type, symbol):
         return False
@@ -35170,6 +35277,10 @@ def load_stock(selected_symbol, cache_version):
             oil_lev_event = safe_float(oil_snap_event.get("fy2025_leverage_pct"))
         oil_bridge_event = oil_val_event.get("earnings_bridge") or {}
         oil_cap_note = "; H1-2026-Run-Rate wurde zyklusbegrenzt" if oil_bridge_event.get("run_rate_capped") else ""
+        if oil_bridge_event.get("structural_break_active"):
+            oil_cap_note = (
+                f"; Structural-Comparability Guard aktiv ({oil_bridge_event.get('structural_break_name')}, Close {oil_bridge_event.get('structural_break_close_date')})"
+            )
         special_event_warning = {
             "level": "Gelb",
             "icon": "🟡",
@@ -35184,7 +35295,8 @@ def load_stock(selected_symbol, cache_version):
             "action": (
                 f"{APP_BUILD_VERSION} verwendet den Integrated-Oil-&-Gas-Spezialpfad mit Quality Score {safe_float(oil_score_event.get('score')):.0f}/100, "
                 "Through-Cycle Adjusted EPS, issuer-CFFO/ROACE/Leverage, Investitionsdisziplin, Portfoliointegration und Kapitalallokation. "
-                "Generische Umsatz-/Gewinnwachstums-, ROE-, TTM-FCF- und Net-Debt/TTM-FCF-Scores bleiben Diagnosekontext; Peer-KGVs sind reference-only."
+                + ("Bei strukturellem M&A-Bruch wird die post-acquisition Adjusted-EPS-Bridge verwendet und akquisitionsbeeinflusstes Production Growth downside-only gedeckelt. " if oil_bridge_event.get("structural_break_active") else "")
+                + "Generische Umsatz-/Gewinnwachstums-, ROE-, TTM-FCF- und Net-Debt/TTM-FCF-Scores bleiben Diagnosekontext; Peer-KGVs sind reference-only."
             ),
         }
 
@@ -38654,6 +38766,7 @@ if selected_symbol:
                     and not bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
@@ -40869,6 +40982,12 @@ if selected_symbol:
                         "Die Luxury-Peer-KGVs werden in Schritt 2B ausschließlich als reference-only geladen; "
                         "es gibt keine automatische ±5-%-Anpassung und keinen Peer-bedingten Confidence-Abzug."
                     )
+                elif peer_group.get("peer_model") == "integrated_oil_gas_major_reference_v1":
+                    st.caption(
+                        "Schritt 2A verändert weder Integrated-Oil-&-Gas Quality Score noch Ziel-KGV. "
+                        "Die Major-Peer-KGVs werden ausschließlich als reference-only Marktvergleich geladen; "
+                        "es gibt keine automatische ±5-%-Anpassung, kein Peer-Gate und keinen Peer-bedingten Confidence-Abzug."
+                    )
                 else:
                     st.caption(
                         "Schritt 2A verändert weder Multiple Score "
@@ -41125,6 +41244,7 @@ if selected_symbol:
                             and peer_check[
                                 "adjusted_multiple"
                             ] is not None
+                            and not peer_check.get("reference_only")
                         ):
 
                             st.metric(
@@ -41134,9 +41254,12 @@ if selected_symbol:
                                 )
                             )
 
-                        st.warning(
-                            "Keine automatische Peer-Anpassung."
-                        )
+                        if peer_check.get("reference_only"):
+                            st.info("Reference-only: Peer-KGVs verändern Ziel-Multiple und Fair Value nicht.")
+                        else:
+                            st.warning(
+                                "Keine automatische Peer-Anpassung."
+                            )
 
                     st.caption(
                         peer_check["note"]
@@ -41371,19 +41494,43 @@ if selected_symbol:
                             if components_oil:
                                 st.write("**Score-Komponenten:** " + " · ".join(f"{k} {safe_float(v):.0f}" for k, v in components_oil.items()))
                         if bridge_oil.get("available"):
-                            st.write(
-                                "**Through-Cycle Adjusted EPS:** " + format_eps(bridge_oil.get("earnings_basis"), oil_ccy) +
-                                " · 3Y-Median " + format_eps(bridge_oil.get("median_adjusted_eps_3y"), oil_ccy) +
-                                " · H1-2026 annualisiert roh " + format_eps(bridge_oil.get("annualized_h1_2026_adjusted_eps_raw"), oil_ccy) +
-                                " · verwendet " + format_eps(bridge_oil.get("annualized_h1_2026_adjusted_eps_used"), oil_ccy)
-                            )
+                            if bridge_oil.get("bridge_mode") == "structural_post_acquisition_ttm":
+                                st.write(
+                                    "**Structural-Comparability Earnings-Basis:** " + format_eps(bridge_oil.get("earnings_basis"), oil_ccy) +
+                                    " · 3Y-Cycle-Median " + format_eps(bridge_oil.get("median_adjusted_eps_3y"), oil_ccy) +
+                                    " · Post-Acquisition 4Q Adjusted EPS roh " + format_eps(bridge_oil.get("post_acquisition_adjusted_eps_ttm_raw"), oil_ccy) +
+                                    " · verwendet " + format_eps(bridge_oil.get("post_acquisition_adjusted_eps_ttm_used"), oil_ccy)
+                                )
+                                labels_oil = bridge_oil.get("post_acquisition_adjusted_eps_quarter_labels") or []
+                                values_oil = bridge_oil.get("post_acquisition_adjusted_eps_quarters") or []
+                                if labels_oil and values_oil and len(labels_oil) == len(values_oil):
+                                    st.caption("Post-Acquisition Quartale: " + " · ".join(f"{lab} {val:.2f}" for lab, val in zip(labels_oil, values_oil)))
+                                st.warning(text_or_dash(bridge_oil.get("structural_break_note")))
+                                if bridge_oil.get("structural_break_url"):
+                                    st.markdown(f"[M&A-/Structural-Break-Primärquelle]({bridge_oil.get('structural_break_url')})")
+                                if bridge_oil.get("structural_bridge_note"):
+                                    st.caption(bridge_oil.get("structural_bridge_note"))
+                            else:
+                                st.write(
+                                    "**Through-Cycle Adjusted EPS:** " + format_eps(bridge_oil.get("earnings_basis"), oil_ccy) +
+                                    " · 3Y-Median " + format_eps(bridge_oil.get("median_adjusted_eps_3y"), oil_ccy) +
+                                    " · H1-2026 annualisiert roh " + format_eps(bridge_oil.get("annualized_h1_2026_adjusted_eps_raw"), oil_ccy) +
+                                    " · verwendet " + format_eps(bridge_oil.get("annualized_h1_2026_adjusted_eps_used"), oil_ccy)
+                                )
                             st.caption(text_or_dash(bridge_oil.get("method")))
+                            if score_oil.get("production_points_cap") is not None and safe_float(score_oil.get("production_points_raw")) is not None:
+                                if safe_float(score_oil.get("production_points_raw")) > safe_float(score_oil.get("production_points_cap")):
+                                    st.caption(
+                                        f"Structural Growth Guard: Production/Project Growth {safe_float(score_oil.get('production_points_raw')):.0f}/15 roh → "
+                                        f"{safe_float((score_oil.get('components') or {}).get('Production / Project Growth')):.0f}/15 verwendet · "
+                                        f"{text_or_dash(score_oil.get('production_growth_comparability'))}."
+                                    )
                         if val_oil.get("available"):
                             st.write(
                                 f"**Integrated-Major-KGV-Korridor:** {safe_float(val_oil.get('corridor_low')):.2f}× – {safe_float(val_oil.get('corridor_high')):.2f}× · "
                                 f"**Ziel-KGV:** {safe_float(val_oil.get('target_multiple')):.2f}×"
                             )
-                            st.metric("Fair Value – Fundamentalwährung", format_money(val_oil.get("fair_value_financial"), oil_ccy))
+                            st.metric("Fair Value – Berichtswährung / Specialist-Basis", format_money(val_oil.get("fair_value_financial"), oil_ccy))
                             if safe_float(val_oil.get("peer_reference_median_pe")) is not None:
                                 st.caption(f"Peer-KGV-Median – nur Referenz: {safe_float(val_oil.get('peer_reference_median_pe')):.2f}×")
                             st.success("Integrated-Oil-&-Gas-Spezialkontrolle vollständig – Fair Value freigegeben.")
@@ -44985,13 +45132,26 @@ if selected_symbol:
                         st.write(f"**Integrated Oil & Gas Quality Score:** {fair_value.get('specialist_score'):.0f}/100 · {fair_value.get('specialist_quality_level')}")
                         st.write("**Through-Cycle Adjusted-EPS-Basis:** " + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"]))
                         st.write(f"**Ziel-KGV:** {fair_value.get('target_multiple'):.2f}× · **Korridor:** {fair_value.get('multiple_corridor_low'):.2f}× – {fair_value.get('multiple_corridor_high'):.2f}×")
-                        st.write(
-                            "**3Y Adjusted-EPS-Median:** " + format_eps(fair_value.get("median_adjusted_eps_3y"), fair_value["financial_currency"]) +
-                            " · **H1-2026 annualisiert roh:** " + format_eps(fair_value.get("annualized_h1_2026_adjusted_eps_raw"), fair_value["financial_currency"]) +
-                            " · **verwendet:** " + format_eps(fair_value.get("annualized_h1_2026_adjusted_eps_used"), fair_value["financial_currency"])
-                        )
-                        if fair_value.get("run_rate_capped"):
-                            st.caption("Zyklus-Cap aktiv: H1-2026-Run-Rate wurde auf 75–125 % des 3Y-Adjusted-EPS-Medians begrenzt.")
+                        if fair_value.get("earnings_bridge_mode") == "structural_post_acquisition_ttm":
+                            st.write(
+                                "**3Y Adjusted-EPS-Median (Cycle Anchor):** " + format_eps(fair_value.get("median_adjusted_eps_3y"), fair_value["financial_currency"]) +
+                                " · **Post-Acquisition 4Q Adjusted EPS roh:** " + format_eps(fair_value.get("post_acquisition_adjusted_eps_ttm_raw"), fair_value["financial_currency"]) +
+                                " · **verwendet:** " + format_eps(fair_value.get("post_acquisition_adjusted_eps_ttm_used"), fair_value["financial_currency"])
+                            )
+                            st.warning(
+                                f"Structural Asset-Base Guard aktiv: {fair_value.get('structural_break_name')} · Close {fair_value.get('structural_break_close_date')}. "
+                                "Pre-/Post-Acquisition-Jahre werden nicht als vollständig same-asset-base behandelt."
+                            )
+                            if fair_value.get("structural_bridge_note"):
+                                st.caption(fair_value.get("structural_bridge_note"))
+                        else:
+                            st.write(
+                                "**3Y Adjusted-EPS-Median:** " + format_eps(fair_value.get("median_adjusted_eps_3y"), fair_value["financial_currency"]) +
+                                " · **H1-2026 annualisiert roh:** " + format_eps(fair_value.get("annualized_h1_2026_adjusted_eps_raw"), fair_value["financial_currency"]) +
+                                " · **verwendet:** " + format_eps(fair_value.get("annualized_h1_2026_adjusted_eps_used"), fair_value["financial_currency"])
+                            )
+                            if fair_value.get("run_rate_capped"):
+                                st.caption("Zyklus-Cap aktiv: H1-2026-Run-Rate wurde auf 75–125 % des 3Y-Adjusted-EPS-Medians begrenzt.")
                         st.write(f"**FY2025 Production Growth:** {fair_value.get('fy2025_production_growth_pct'):+.1f} % · **ROACE/ROCE:** {fair_value.get('fy2025_roace_pct'):.1f} %")
                         oil_lev_fv_ui = safe_float(fair_value.get("q2_2026_leverage_pct"))
                         if oil_lev_fv_ui is None:
@@ -45437,6 +45597,18 @@ if selected_symbol:
                             st.info(
                                 "Post-Merger-Sicherheitsisolierung: Das strukturell verzerrte GAAP-TTM, die Standard-TTM-/Forward-EPS-Divergenz und Yahoo-FCF sind kein Bestandteil der OMC-Bewertungssicherheit. "
                                 "Die angezeigte Sicherheitsstufe stammt ausschließlich aus Post-Merger-Methode, H1-2026 Adjusted-EPS-Run-Rate und der Spezialkontrolle einschließlich Integration-, Synergie- und Finanzierungsrisiken."
+                            )
+                    elif fair_value.get("valuation_method") == "integrated_oil_gas_through_cycle_pe":
+                        oil_conf_bridge_ui = ((((data.get("special_control") or {}).get("checks") or {}).get("specialist_valuation") or {}).get("earnings_bridge") or {})
+                        if oil_conf_bridge_ui.get("structural_break_active"):
+                            st.info(
+                                "Integrated-Oil-Sicherheitsisolierung: Die generische Provider/GAAP-TTM-/Forward-Divergenz ist Diagnosekontext und begrenzt die Specialist-Sicherheit nicht separat. "
+                                "Maßgeblich sind Unternehmenstyp/Methode, issuer-primary CFFO/ROACE/Leverage sowie der Structural Asset-Base Guard mit post-acquisition Adjusted-EPS-Bridge; die Sicherheit bleibt wegen M&A-/Commodity-Vergleichbarkeit auf Mittel gedeckelt."
+                            )
+                        else:
+                            st.info(
+                                "Integrated-Oil-Sicherheitsisolierung: Die generische Provider/GAAP-TTM-/Forward-Divergenz ist Diagnosekontext und begrenzt die Specialist-Sicherheit nicht separat. "
+                                "Maßgeblich sind Unternehmenstyp/Methode, issuer-primary CFFO/ROACE/Leverage und die Through-Cycle Adjusted-EPS-Brücke des Integrated-Oil-Specialist."
                             )
                     elif fair_value.get("valuation_method") == "asset_management_through_cycle_pe":
                         am_conf_basis_ui = (((data.get("special_control") or {}).get("checks") or {}).get("earnings_basis") or {})
