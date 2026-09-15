@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.127"
+APP_BUILD_VERSION = "V2.20.128"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,7 +26,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Integrated Oil & Gas Final Diagnostic Cleanup & Cycle Position"
+    f"Build {APP_BUILD_VERSION} · Integrated Oil & Gas Final Release Cleanup"
 )
 
 
@@ -57,6 +57,7 @@ st.caption(
 # V2.20.125: Integrated Oil & Gas Specialist Model V1. Routes TotalEnergies, Shell, ExxonMobil and Chevron out of the generic cyclical revenue/profit-growth/ROE/Yahoo-FCF score. Uses issuer-primary-source 2023–2025 adjusted EPS history plus capped H1-2026 run-rate for a through-cycle earnings basis; a 100-point specialist score covers production/project growth, CFFO resilience, ROACE/ROCE, leverage, capital discipline, integrated portfolio quality, shareholder returns and commodity/execution resilience. Issuer-specific score-driven P/E corridors are model judgments; peer Forward-P/Es remain reference-only and never change score, target multiple or Fair Value.
 # V2.20.126: Integrated Oil & Gas Structural Comparability & Shell Identity Guard. Fixes the valid Euronext Amsterdam Shell symbol SHELL.AS across classification, canonical issuer mapping and same-issuer peer exclusion while preserving the verified NYSE SHEL ADS 2:1 ordinary-share route. Adds a downside-only M&A/asset-base comparability guard for ExxonMobil/Pioneer and Chevron/Hess: acquisition-affected headline production growth is capped for score purposes, and the earnings anchor uses an explicit post-acquisition adjusted-EPS bridge instead of treating the pre-/post-acquisition 3Y series as fully same-basis. Generic TTM/Forward EPS divergence is explicitly diagnosis-only for Integrated Oil & Gas confidence. Reference-only peer UI and stale generic Net-Debt/FCF copy are cleaned up; no analyst target enters the valuation.
 # V2.20.127: Integrated Oil & Gas Final Diagnostic Cleanup & Cycle Position. No score/corridor/Fair-Value recalibration. Fixes market-cap display currency by treating Yahoo marketCap as a listing-currency field, adds Euronext Amsterdam main-listing recognition, removes the stale generic Net-Debt/FCF footer from Integrated Oil & Gas, separates generic EPS diagnostic quality from Specialist earnings-basis confidence, renders structural XOM/CVX earnings bridges correctly in the early EPS block, and adds a diagnosis-only issuer-primary Earnings-Cycle Position plus a provider Current-FY consensus gap where units are directly comparable.
+# V2.20.128: Integrated Oil & Gas Final Release Cleanup. No score, earnings-basis, corridor, target-multiple, Fair-Value, zone or signal recalibration. Corrects Yahoo UK-listing marketCap unit handling: GBp/GBX share-price quotes use GBP for the absolute market-cap amount, preventing the Shell NYSE ADS/fundamental-source path from applying an erroneous extra 0.01 pence factor. Also suppresses the stale generic "Netto-Cash 15/15 / Netto-Schulden/FCF" footer whenever the Integrated-Oil-&-Gas specialist is active. All V2.20.127 Integrated-Major valuation outputs and guards are otherwise preserved.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -33792,13 +33793,19 @@ def load_stock(selected_symbol, cache_version):
         or quote_currency
     )
 
-    # Yahoo marketCap is a listing/quote-currency field, not a reporting-currency
-    # statement value. Keep that unit separate so cross-listing issuers such as
-    # Shell do not show artificial market-cap differences from a wrong FX label.
-    market_cap_currency = (
+    # Yahoo marketCap is an absolute market-value field tied to the listing, but
+    # UK shares can quote their *price* in GBp/GBX while Yahoo still reports the
+    # absolute marketCap amount in GBP. Treating that amount as pence creates an
+    # erroneous extra 0.01 factor (observed on the SHEL -> SHEL.L route).
+    market_cap_currency_raw = (
         fundamental_info.get("currency")
         or quote_currency
         or financial_currency
+    )
+    market_cap_currency = (
+        "GBP"
+        if _normalize_currency_code(market_cap_currency_raw) == "GBp"
+        else _normalize_currency_code(market_cap_currency_raw)
     )
 
     fx_conversion = load_fx_conversion(
@@ -39150,6 +39157,7 @@ if selected_symbol:
                     and not bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 ):
                     st.caption(
