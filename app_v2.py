@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.122"
+APP_BUILD_VERSION = "V2.20.123"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,7 +26,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Branded Staples Graceful Fail-Closed & Issuer Guard"
+    f"Build {APP_BUILD_VERSION} · Branded Staples Family Gate Isolation & Cleanup"
 )
 
 
@@ -52,6 +52,7 @@ st.caption(
 # V2.20.120: Search UI & Listing Consistency Cleanup. Exact ticker searches now enrich the result set with alternative listings of the resolved issuer, so KO/RHM.DE still stay first while secondary listings remain selectable underneath. Result ordering is explicitly grouped as selected/preferred listing -> same-issuer alternatives -> other issuers. Mobile labels front-load symbol, exchange and currency before the long company name. Canonical security identity is no longer inherited from the first hit when the user selects a different issuer (e.g. COKE from a Coca-Cola name search). No valuation or specialist-model mathematics changed.
 # V2.20.121: Security Identity & Search Presentation Guard. Search results now separate preferred listing, ordinary same-issuer exchange listings, obvious depositary/OTC/local-wrapper instruments and other issuers. Search-label currency is filled from Yahoo when available and otherwise from a conservative exchange-currency map (display only; never used in valuation). Exact-ticker alternative ranking no longer rewards symbol-prefix matches strongly enough to push Buenos-Aires/local wrappers above XETRA or other major venues. Mobile labels use explicit group names and omit repeated issuer names for same-issuer alternatives. WKN/ISIN verification remains an identity anchor; ambiguous instrument identity stays labelled conservatively rather than being assumed equivalent. No valuation or specialist-model mathematics changed.
 # V2.20.122: Branded Staples Graceful Fail-Closed & Issuer Guard. Fixes the KO/Nestlé family-route UI crash caused by stale load-scope variable references when no issuer snapshot exists. Uncalibrated Branded-Consumer-Staples members now bypass generic Adjusted-TTM discovery, render an explicit family fail-closed status, keep generic EPS/FCF/ROE/Net-Debt scoring as diagnosis-only, and produce no Fair Value or action signal. Coca-Cola parent routing is narrowed to KO/The Coca-Cola Company so Coca-Cola Consolidated (COKE) no longer inherits the global brand-owner specialist type. MDLZ/PEP specialist valuation mathematics and the V2.20.121 search/identity behavior are unchanged.
+# V2.20.123: Branded Staples Family Gate Isolation & Cleanup. Separates an uncalibrated Branded-Consumer-Staples family member from the Special-Event engine: KO/Nestlé now use an explicit Family Calibration Gate, do not auto-launch ad-hoc special-event research merely because the issuer profile is pending, and receive a dedicated no-signal reason. Branded-staples Yahoo/statement FCF divergences are diagnosis-only, reference-only peers have no minimum-count Fair-Value requirement, and SIX/Swiss primary-listing footer text is aligned with the search resolver. MDLZ/PEP valuation math and V2.20.121 search/identity logic remain unchanged.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -19571,6 +19572,7 @@ def _calculate_luxury_premium_peer_reference(peer_group, fundamental_multiple, c
 def _calculate_branded_consumer_staples_peer_reference(peer_group, fundamental_multiple, cache_version):
     result = {
         "method_supported": True,
+        "metric": "Branded Consumer Staples Forward P/E reference-only",
         "peer_rows": [],
         "usable_count": 0,
         "peer_median": None,
@@ -34237,6 +34239,19 @@ def load_stock(selected_symbol, cache_version):
         insurance_special_model=insurance_special_model
     )
 
+    # V2.20.123 – Family calibration is not a special event.  Keep a
+    # dedicated gate so an uncalibrated KO/Nestlé profile can fail closed
+    # without launching the ad-hoc Special-Event research engine or using
+    # Special-Event language for a normal model-readiness condition.
+    branded_consumer_family_gate = {
+        "active": False,
+        "blocked": False,
+        "title": None,
+        "reason": None,
+        "action": None,
+        "symbol": None,
+    }
+
     if defense_high_growth_specialist_model.get("applicable") and defense_high_growth_specialist_model.get("valuation_anchor_complete"):
         df_snap_event = defense_high_growth_specialist_model.get("snapshot") or {}
         df_score_event = defense_high_growth_specialist_model.get("specialist_score") or {}
@@ -34392,22 +34407,37 @@ def load_stock(selected_symbol, cache_version):
             "NSRGY": "Nestlé S.A. (ADR)",
             "NSRGF": "Nestlé S.A. (OTC)",
         }.get(bcs_pending_symbol, bcs_pending_symbol or "Branded Consumer Staples")
-        special_event_warning = {
-            "level": "Gelb",
-            "icon": "🟡",
-            "title": f"{bcs_pending_label} Branded Consumer Staples Family Gate – fail-closed",
-            "requires_research": True,
-            "valuation_usable": False,
+        branded_consumer_family_gate = {
+            "active": True,
+            "blocked": True,
+            "symbol": bcs_pending_symbol,
+            "title": f"{bcs_pending_label} Branded Consumer Staples Family Calibration Gate – fail-closed",
             "reason": (
                 "Die Branded-Consumer-Staples-Familie ist korrekt erkannt, aber für diesen Emittenten liegt noch kein "
                 "freigegebener issuer-spezifischer Primärquellen-Snapshot mit eigenen Schwellen für Organic/Volume, "
                 "Underlying/Core Margin/EPS, Cash Conversion, Leverage/Funding und Kapitalallokation vor. "
-                "Generische GAAP-/Yahoo-EPS-, ROE-, FCF- und Net-Debt/FCF-Mechaniken bleiben deshalb gesperrt."
+                "Das ist ein Modell-/Kalibrierungsstatus und kein automatisch angenommenes Sonderereignis. "
+                "Generische GAAP-/Yahoo-EPS-, ROE-, FCF- und Net-Debt/FCF-Mechaniken bleiben gesperrt."
             ),
             "action": (
                 "Issuer-spezifisches Branded-Consumer-Staples-Profil kalibrieren und mit Primärquellen freigeben. "
                 "Bis dahin kein Fair Value, keine Bewertungszone und kein Kauf-/Nachkauf-/Reduzieren-/Verkaufen-Signal."
             ),
+        }
+        # The pending family profile must not masquerade as an unresolved
+        # Special Event.  Generic EPS diagnostics are context-only on this route.
+        special_event_warning = {
+            "level": "Grün",
+            "icon": "🟢",
+            "title": "Keine separate Sonderereignis-Prüfung ausgelöst",
+            "requires_research": False,
+            "valuation_usable": True,
+            "reason": (
+                "Der aktuelle Bewertungsstopp entsteht ausschließlich durch das noch nicht kalibrierte issuer-spezifische "
+                "Branded-Consumer-Staples-Profil. Aus generischen GAAP-/Yahoo-EPS-Divergenzen wird auf diesem Family-Pfad "
+                "keine Ad-hoc-Sonderursache abgeleitet."
+            ),
+            "action": "Keine automatische Sonderereignis-Recherche erforderlich; maßgeblich ist die Family-Kalibrierung.",
         }
 
     if ctva_separation_pre_gate_model.get("applicable") and ctva_separation_pre_gate_model.get("separation_confirmed"):
@@ -34670,6 +34700,22 @@ def load_stock(selected_symbol, cache_version):
         special_event_warning=special_event_warning
     )
 
+    if branded_consumer_family_gate.get("active") and branded_consumer_family_gate.get("blocked"):
+        family_signal_reason = (
+            "Kein Handlungssignal, weil das issuer-spezifische Branded-Consumer-Staples-Profil noch nicht kalibriert "
+            "und mit Primärquellen freigegeben ist. Das ist kein Sonderereignis-Gate; der Fair Value fällt bewusst geschlossen aus."
+        )
+        new_buy_signal = {
+            "available": False,
+            "signal": "Kein Handlungssignal – Specialist-Profil noch nicht kalibriert",
+            "fundamental_strength": "Nicht bestimmbar",
+            "reason": family_signal_reason,
+            "family_calibration_blocked": True,
+            "special_event_blocked": False,
+            "next_step": branded_consumer_family_gate.get("action"),
+        }
+        holding_signal = dict(new_buy_signal)
+
     new_buy_signal, holding_signal = apply_regulated_utility_action_brake(
         new_buy_signal,
         holding_signal,
@@ -34861,6 +34907,7 @@ def load_stock(selected_symbol, cache_version):
         "structural_break": structural_break,
         "eps_normalization": eps_normalization,
         "special_event_warning": special_event_warning,
+        "branded_consumer_family_gate": branded_consumer_family_gate,
         "growth_score": growth_score,
         "profitability_score": profitability_score,
         "fcf_score": fcf_score,
@@ -35773,6 +35820,15 @@ if selected_symbol:
                                 f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
                                 f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Werte bleiben Diagnose-/Rohdaten und beeinflussen weder Spezialscore-Earnings-/Revenue-Anker noch Zielmultiple oder Fair Value."
                             )
+                        elif is_branded_consumer_staples_fcf_context:
+                            st.info(
+                                "ℹ️ FCF-Quellenabweichung im Branded-Consumer-Staples-Kontext: Yahoo quoteSummary/info zeigt "
+                                f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
+                                f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
+                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Werte bleiben reine Diagnose-/Rohdaten. "
+                                "Für den Specialist-Pfad zählt ausschließlich der freigegebene issuer-spezifische FCF-/Cash-Conversion-Anker; "
+                                "bei noch nicht kalibriertem Profil bleibt dieser Anker gesperrt."
+                            )
                         else:
                             st.warning(
                                 "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info zeigt "
@@ -36508,6 +36564,19 @@ if selected_symbol:
                     )
 
                 st.divider()
+
+                family_gate_ui = data.get("branded_consumer_family_gate", {}) or {}
+                if family_gate_ui.get("active"):
+                    st.subheader("🧭 Branded Consumer Staples Family Calibration Gate")
+                    st.warning("**🟡 " + text_or_dash(family_gate_ui.get("title")) + "**")
+                    if family_gate_ui.get("reason"):
+                        st.write(family_gate_ui.get("reason"))
+                    st.info("**Bewertungsschutz:** " + text_or_dash(family_gate_ui.get("action")))
+                    st.caption(
+                        "Dieser Family-Status ist kein Sonderereignis. Deshalb startet allein wegen der fehlenden "
+                        "Issuer-Kalibrierung keine automatische Sonderereignis-Recherche."
+                    )
+                    st.divider()
 
                 st.subheader("🚦 Sonderereignis-Warnampel")
 
@@ -39848,6 +39917,7 @@ if selected_symbol:
                     reference_only_peer_group_ui = peer_group.get("peer_model") in {
                         "defense_high_growth_prime_reference_v2",
                         "luxury_premium_reference_v1",
+                        "branded_consumer_staples_reference_v2",
                     }
                     if reference_only_peer_group_ui:
                         st.info(
@@ -39885,6 +39955,12 @@ if selected_symbol:
                         "Die Peer-KGVs werden in Schritt 2B ausschließlich als reference-only geladen; "
                         "es gibt keine automatische ±5-%-Anpassung und keinen Peer-bedingten Confidence-Abzug."
                     )
+                elif peer_group.get("peer_model") == "branded_consumer_staples_reference_v2":
+                    st.caption(
+                        "Schritt 2A verändert weder Branded-Consumer-Staples Quality Score noch Fundamental-Multiple. "
+                        "Die Family-Peers werden ausschließlich als Markt-Referenz geladen; es gibt keine Mindestanzahl als "
+                        "Fair-Value-Gate, keine automatische Peer-Anpassung und keinen Peer-bedingten Confidence-Abzug."
+                    )
                 elif peer_group.get("peer_model") == "luxury_premium_reference_v1":
                     st.caption(
                         "Schritt 2A verändert weder Luxury-Family Quality Score noch Fundamental-Multiple. "
@@ -39918,6 +39994,7 @@ if selected_symbol:
                 is_medical_devices_peer_metric = peer_check.get("metric") == "Medical Devices Forward P/E guarded reference"
                 is_asset_management_peer_metric = peer_check.get("metric") == "Traditional Asset Manager Forward P/E reference guard"
                 is_luxury_peer_metric = peer_check.get("metric") == "Luxury Goods Forward P/E reference-only"
+                is_branded_consumer_staples_peer_metric = peer_check.get("metric") == "Branded Consumer Staples Forward P/E reference-only"
 
                 if not peer_check[
                     "method_supported"
@@ -39949,6 +40026,8 @@ if selected_symbol:
                         peer_header = "**Asset-Management Peer-Forward-KGVs (Referenz):**"
                     elif is_luxury_peer_metric:
                         peer_header = "**Luxury-Family Peer-Forward-KGVs (reference-only):**"
+                    elif is_branded_consumer_staples_peer_metric:
+                        peer_header = "**Branded-Consumer-Staples Peer-Forward-KGVs (reference-only):**"
                     else:
                         peer_header = "**Geladene Peer-KGVs:**"
                     st.write(peer_header)
@@ -40176,6 +40255,8 @@ if selected_symbol:
                     peer_explain = "Medical Devices V2.20.103: Mindestens 3 Core-Peers müssen Struktur, 0Y/current-FY-Horizont und verifizierte Same-Basis-Earnings gemeinsam erfüllen. Provider-Forward-KGVs mit +1Y/unklarem Horizont oder ungeklärter Accounting-Basis bleiben reference-only; Median statt Durchschnitt, danach weiterhin ±5-%-Cap."
                 elif is_luxury_peer_metric:
                     peer_explain = f"Luxury-Family {APP_BUILD_VERSION}: Hermès/LVMH/Richemont/Moncler/Kering bleiben reference-only, bis Current-FY-Horizont und dieselbe Primary-source Owner-Earnings-Basis gemeinsam verifiziert sind. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische ±5-%-Anpassung."
+                elif is_branded_consumer_staples_peer_metric:
+                    peer_explain = f"Branded Consumer Staples {APP_BUILD_VERSION}: Family-Peers sind reine Markt-Referenzen. Es gibt keine Mindestanzahl als Fair-Value-Gate; fehlende oder wenige Peer-KGVs verändern weder Specialist Score noch Ziel-KGV, Fair Value oder Bewertungssicherheit."
                 else:
                     peer_explain = "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
 
@@ -40217,8 +40298,30 @@ if selected_symbol:
                     or bool(event_warning.get("requires_research"))
                     and event_warning.get("valuation_usable") is False
                 )
+                family_calibration_gate = data.get("branded_consumer_family_gate", {}) or {}
+                family_calibration_blocked = bool(
+                    family_calibration_gate.get("active") and family_calibration_gate.get("blocked")
+                )
 
-                if special_event_red:
+                if family_calibration_blocked:
+                    st.warning(
+                        "**Branded Consumer Staples Family Calibration Gate aktiv – "
+                        "issuer-spezifisches Specialist-Profil noch nicht freigegeben.**"
+                    )
+                    st.write(
+                        "**Status:** Family-Kalibrierung offen · Fair Value und Handlungssignale fail-closed"
+                    )
+                    st.info(family_calibration_gate.get("action"))
+                    if special_control["required"]:
+                        st.write(
+                            "**Erforderliche Spezialkontrolle:** "
+                            f"{special_control['control_name']}"
+                        )
+                        st.write(
+                            "**Status der regulären Spezialkontrolle:** "
+                            f"{special_control.get('router_status', special_control.get('status'))}"
+                        )
+                elif special_event_red:
                     st.error(
                         "**Sonderereignis-Prüfung durch Warnampel ausgelöst – "
                         "Vergleichbarkeit muss geklärt werden.**"
@@ -40294,7 +40397,12 @@ if selected_symbol:
                         ]
                     )
 
-                if special_event_red:
+                if family_calibration_blocked:
+                    st.caption(
+                        "Die Sperre stammt ausschließlich aus dem noch nicht kalibrierten Family-Specialist-Profil. "
+                        "Sie ist kein Sonderereignis-Gate und benötigt keine automatische Ursachenrecherche."
+                    )
+                elif special_event_red:
                     st.caption(
                         "Die Sonderereignis-Warnampel wirkt hier als vorgeschaltete "
                         "Bewertungssperre. Erst nach Klärung der Ursache darf die "
@@ -44510,6 +44618,18 @@ if selected_symbol:
                             + str(new_buy_signal.get("next_step"))
                         )
 
+                elif new_buy_signal.get("family_calibration_blocked"):
+                    st.warning(
+                        "**🟡 Kein Handlungssignal – Specialist-Profil noch nicht kalibriert**"
+                    )
+                    st.write(
+                        "Weder **kaufen**, **nachkaufen**, **reduzieren** noch **verkaufen** wird aus generischen "
+                        "Diagnosewerten abgeleitet. Der issuer-spezifische Branded-Consumer-Staples-Snapshot muss zuerst freigegeben werden."
+                    )
+                    st.caption(new_buy_signal.get("reason"))
+                    if new_buy_signal.get("next_step"):
+                        st.info("**Nächster Schritt:** " + str(new_buy_signal.get("next_step")))
+
                 elif new_buy_signal.get("special_event_blocked"):
                     st.error(
                         "**🔴 Kein Handlungssignal – Sonderprüfung offen**"
@@ -44796,7 +44916,13 @@ if selected_symbol:
                 elif symbol_upper.endswith(".DE"):
 
                     st.success(
-                        "✓ Deutsche Börsennotierung erkannt"
+                        "✓ Deutsche Hauptnotierung / XETRA erkannt"
+                    )
+
+                elif exchange_code in ["EBS", "SWX", "VTX"] or symbol_upper.endswith(".SW"):
+
+                    st.success(
+                        "✓ Hauptnotierung / SIX Swiss Exchange erkannt"
                     )
 
                 else:
