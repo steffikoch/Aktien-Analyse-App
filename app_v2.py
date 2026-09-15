@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.126"
+APP_BUILD_VERSION = "V2.20.127"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,7 +26,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Integrated Oil & Gas Structural Comparability & Shell Identity Guard"
+    f"Build {APP_BUILD_VERSION} · Integrated Oil & Gas Final Diagnostic Cleanup & Cycle Position"
 )
 
 
@@ -56,6 +56,7 @@ st.caption(
 # V2.20.124: Energy Issuer Identity & Same-Issuer Peer Guard. Adds TotalEnergies SE as a preferred primary-listing search alias for Total Energy/Total Energies/TotalEnergies, so the Euronext Paris line TTE.PA outranks Total Energy Services (TOT.TO) on ambiguous name searches. Adds a canonical same-issuer symbol guard to peer construction so TTE.PA/NYSE TTE/verified TotalEnergies alternate lines cannot appear as the analyzed company's own peer. Euronext Paris is recognized in the exchange footer. No valuation mathematics, sector score, EPS normalization, Fair Value or signal thresholds are changed.
 # V2.20.125: Integrated Oil & Gas Specialist Model V1. Routes TotalEnergies, Shell, ExxonMobil and Chevron out of the generic cyclical revenue/profit-growth/ROE/Yahoo-FCF score. Uses issuer-primary-source 2023–2025 adjusted EPS history plus capped H1-2026 run-rate for a through-cycle earnings basis; a 100-point specialist score covers production/project growth, CFFO resilience, ROACE/ROCE, leverage, capital discipline, integrated portfolio quality, shareholder returns and commodity/execution resilience. Issuer-specific score-driven P/E corridors are model judgments; peer Forward-P/Es remain reference-only and never change score, target multiple or Fair Value.
 # V2.20.126: Integrated Oil & Gas Structural Comparability & Shell Identity Guard. Fixes the valid Euronext Amsterdam Shell symbol SHELL.AS across classification, canonical issuer mapping and same-issuer peer exclusion while preserving the verified NYSE SHEL ADS 2:1 ordinary-share route. Adds a downside-only M&A/asset-base comparability guard for ExxonMobil/Pioneer and Chevron/Hess: acquisition-affected headline production growth is capped for score purposes, and the earnings anchor uses an explicit post-acquisition adjusted-EPS bridge instead of treating the pre-/post-acquisition 3Y series as fully same-basis. Generic TTM/Forward EPS divergence is explicitly diagnosis-only for Integrated Oil & Gas confidence. Reference-only peer UI and stale generic Net-Debt/FCF copy are cleaned up; no analyst target enters the valuation.
+# V2.20.127: Integrated Oil & Gas Final Diagnostic Cleanup & Cycle Position. No score/corridor/Fair-Value recalibration. Fixes market-cap display currency by treating Yahoo marketCap as a listing-currency field, adds Euronext Amsterdam main-listing recognition, removes the stale generic Net-Debt/FCF footer from Integrated Oil & Gas, separates generic EPS diagnostic quality from Specialist earnings-basis confidence, renders structural XOM/CVX earnings bridges correctly in the early EPS block, and adds a diagnosis-only issuer-primary Earnings-Cycle Position plus a provider Current-FY consensus gap where units are directly comparable.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -17688,6 +17689,21 @@ def _integrated_oil_score_points(snapshot):
     return result
 
 
+def _integrated_oil_cycle_position_label(pct):
+    value = safe_float(pct)
+    if value is None:
+        return None
+    if value >= 35.0:
+        return "deutlich über Through-Cycle"
+    if value >= 15.0:
+        return "über Through-Cycle"
+    if value > -15.0:
+        return "nahe Through-Cycle"
+    if value > -35.0:
+        return "unter Through-Cycle"
+    return "deutlich unter Through-Cycle"
+
+
 def _integrated_oil_through_cycle_earnings(snapshot):
     """Integrated-major earnings bridge with structural comparability guard.
 
@@ -17728,6 +17744,7 @@ def _integrated_oil_through_cycle_earnings(snapshot):
         post_ttm_raw = float(sum(q_values))
         post_ttm_used = min(max(post_ttm_raw, floor_run), cap_run)
         earnings_basis = 0.40 * median_eps + 0.60 * post_ttm_used
+        current_vs_cycle_pct = (post_ttm_raw / earnings_basis - 1.0) * 100.0 if earnings_basis > 0 else None
         return {
             "available": True,
             "bridge_mode": "structural_post_acquisition_ttm",
@@ -17743,6 +17760,10 @@ def _integrated_oil_through_cycle_earnings(snapshot):
             "post_acquisition_adjusted_eps_ttm_raw": post_ttm_raw,
             "post_acquisition_adjusted_eps_ttm_used": post_ttm_used,
             "post_acquisition_anchor_capped": abs(post_ttm_raw - post_ttm_used) > 1e-9,
+            "current_earnings_reference_name": "Post-Acquisition 4Q Adjusted EPS",
+            "current_earnings_reference_raw": post_ttm_raw,
+            "current_vs_through_cycle_pct": current_vs_cycle_pct,
+            "earnings_cycle_position": _integrated_oil_cycle_position_label(current_vs_cycle_pct),
             "run_rate_floor": floor_run,
             "run_rate_cap": cap_run,
             "h1_2026_adjusted_eps": h1,
@@ -17760,6 +17781,7 @@ def _integrated_oil_through_cycle_earnings(snapshot):
     current_run = h1 * 2.0
     used_run = min(max(current_run, floor_run), cap_run)
     earnings_basis = 0.70 * median_eps + 0.30 * used_run
+    current_vs_cycle_pct = (current_run / earnings_basis - 1.0) * 100.0 if earnings_basis > 0 else None
     return {
         "available": True,
         "bridge_mode": "standard_through_cycle_h1",
@@ -17772,6 +17794,10 @@ def _integrated_oil_through_cycle_earnings(snapshot):
         "run_rate_floor": floor_run,
         "run_rate_cap": cap_run,
         "run_rate_capped": abs(current_run - used_run) > 1e-9,
+        "current_earnings_reference_name": "H1-2026 annualisierte Adjusted EPS",
+        "current_earnings_reference_raw": current_run,
+        "current_vs_through_cycle_pct": current_vs_cycle_pct,
+        "earnings_cycle_position": _integrated_oil_cycle_position_label(current_vs_cycle_pct),
         "earnings_basis": earnings_basis,
         "confidence": "Mittel",
         "method": "70% 3Y-Median Adjusted EPS + 30% H1-2026 annualisiert, Run-Rate auf 75–125% des 3Y-Medians begrenzt",
@@ -28808,6 +28834,10 @@ def calculate_fair_value_v1(
             "post_acquisition_adjusted_eps_ttm_raw": safe_float(bridge.get("post_acquisition_adjusted_eps_ttm_raw")),
             "post_acquisition_adjusted_eps_ttm_used": safe_float(bridge.get("post_acquisition_adjusted_eps_ttm_used")),
             "post_acquisition_anchor_capped": bool(bridge.get("post_acquisition_anchor_capped")),
+            "current_earnings_reference_name": bridge.get("current_earnings_reference_name"),
+            "current_earnings_reference_raw": safe_float(bridge.get("current_earnings_reference_raw")),
+            "current_vs_through_cycle_pct": safe_float(bridge.get("current_vs_through_cycle_pct")),
+            "earnings_cycle_position": bridge.get("earnings_cycle_position"),
             "integrated_oil_company": snap.get("company"),
             "integrated_oil_profile": snap.get("specialist_profile"),
             "fy2025_production_growth_pct": safe_float(snap.get("fy2025_production_growth_pct")),
@@ -33762,6 +33792,15 @@ def load_stock(selected_symbol, cache_version):
         or quote_currency
     )
 
+    # Yahoo marketCap is a listing/quote-currency field, not a reporting-currency
+    # statement value. Keep that unit separate so cross-listing issuers such as
+    # Shell do not show artificial market-cap differences from a wrong FX label.
+    market_cap_currency = (
+        fundamental_info.get("currency")
+        or quote_currency
+        or financial_currency
+    )
+
     fx_conversion = load_fx_conversion(
         financial_currency,
         quote_currency,
@@ -35608,6 +35647,33 @@ def load_stock(selected_symbol, cache_version):
         currency_context
     )
 
+    # V2.20.127 – diagnosis-only current-cycle / consensus gap. This never
+    # changes score, target multiple, Fair Value, zones or signals. Provider
+    # Current-FY consensus is shown only when quote/report/share units are
+    # directly comparable; mixed-currency and ADS routes remain fail-safe.
+    if fair_value.get("valuation_method") == "integrated_oil_gas_through_cycle_pe" and fair_value.get("available"):
+        specialist_basis_diag = safe_float(fair_value.get("normalized_eps"))
+        provider_current_fy_diag = safe_float(valuation_forward_eps)
+        share_diag = currency_context.get("share_unit_context") or {}
+        directly_comparable_provider_eps = bool(
+            specialist_basis_diag is not None
+            and specialist_basis_diag > 0
+            and provider_current_fy_diag is not None
+            and provider_current_fy_diag > 0
+            and not currency_context.get("mixed_units")
+            and not share_diag.get("conversion_required")
+        )
+        fair_value["provider_current_fy_consensus_eps"] = provider_current_fy_diag if directly_comparable_provider_eps else None
+        fair_value["provider_current_fy_vs_through_cycle_pct"] = (
+            (provider_current_fy_diag / specialist_basis_diag - 1.0) * 100.0
+            if directly_comparable_provider_eps else None
+        )
+        fair_value["provider_current_fy_gap_note"] = (
+            "Provider Current-FY Konsens ist nur Diagnosekontext und verändert weder Specialist Score noch Ziel-KGV oder Fair Value."
+            if directly_comparable_provider_eps
+            else "Provider Current-FY Konsens wird wegen abweichender Währungs-/Aktieneinheit nicht als numerischer Through-Cycle-Vergleich gezeigt."
+        )
+
     valuation_confidence = calculate_valuation_confidence(
         company_type,
         eps_normalization,
@@ -35779,6 +35845,7 @@ def load_stock(selected_symbol, cache_version):
         ),
 
         "market_cap": fundamental_info.get("marketCap"),
+        "market_cap_currency": market_cap_currency,
         "trailing_eps": trailing_eps,
         "forward_eps": forward_eps,
         "valuation_trailing_eps": valuation_trailing_eps,
@@ -36226,7 +36293,7 @@ if selected_symbol:
                 else:
                     display_currency_context = build_display_currency_context(
                         display_choice,
-                        [currency, financial_currency],
+                        [currency, financial_currency, data.get("market_cap_currency")],
                         CACHE_VERSION,
                     )
                     set_display_currency_context(display_currency_context)
@@ -36338,13 +36405,19 @@ if selected_symbol:
 
                 with col1:
 
+                    market_cap_currency_ui = data.get("market_cap_currency") or financial_currency
                     st.metric(
                         "Marktkapitalisierung",
                         format_money(
                             data["market_cap"],
-                            financial_currency
+                            market_cap_currency_ui
                         )
                     )
+                    if data.get("market_cap") is not None:
+                        st.caption(
+                            f"Provider-/Listing-Marktkapitalisierung in {market_cap_currency_ui}; "
+                            f"Berichtswährung {financial_currency}. Dieses Feld ist kein direkter Bewertungsanker."
+                        )
 
                     st.metric(
                         "EPS aktuell (TTM, Provider/GAAP)",
@@ -37124,17 +37197,30 @@ if selected_symbol:
                         oil_eps_val_ui = oil_eps_model_ui.get("specialist_valuation") or {}
                         oil_eps_bridge_ui = oil_eps_val_ui.get("earnings_bridge") or {}
                         if oil_eps_bridge_ui.get("available"):
-                            st.info(
-                                f"{oil_eps_snap_ui.get('company') or 'Integrated Oil & Gas Major'}: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
-                                f"{APP_BUILD_VERSION} verwendet für den Fair Value eine Through-Cycle Adjusted-EPS-Basis aus 70 % 3Y-Median (2023–2025) und 30 % annualisiertem H1-2026-Adjusted-EPS; "
-                                "die aktuelle Run-Rate wird auf 75–125 % des 3Y-Medians begrenzt."
-                            )
-                            st.write(
-                                "**Integrated-Oil Earnings-Basis:** " + format_eps(oil_eps_bridge_ui.get("earnings_basis"), financial_currency) +
-                                " · 3Y-Median " + format_eps(oil_eps_bridge_ui.get("median_adjusted_eps_3y"), financial_currency) +
-                                " · H1 2026 annualisiert roh " + format_eps(oil_eps_bridge_ui.get("annualized_h1_2026_adjusted_eps_raw"), financial_currency) +
-                                " · verwendet " + format_eps(oil_eps_bridge_ui.get("annualized_h1_2026_adjusted_eps_used"), financial_currency)
-                            )
+                            if oil_eps_bridge_ui.get("bridge_mode") == "structural_post_acquisition_ttm":
+                                st.info(
+                                    f"{oil_eps_snap_ui.get('company') or 'Integrated Oil & Gas Major'}: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                                    f"{APP_BUILD_VERSION} verwendet bei bestätigtem M&A-/Asset-Base-Bruch 40 % 3Y-Adjusted-EPS-Median als Commodity-Cycle-Anker und 60 % verifizierte post-acquisition 4Q Adjusted EPS; "
+                                    "der Post-Acquisition-Anker wird auf 75–125 % des 3Y-Medians begrenzt."
+                                )
+                                st.write(
+                                    "**Integrated-Oil Structural Earnings-Basis:** " + format_eps(oil_eps_bridge_ui.get("earnings_basis"), financial_currency) +
+                                    " · 3Y-Cycle-Median " + format_eps(oil_eps_bridge_ui.get("median_adjusted_eps_3y"), financial_currency) +
+                                    " · Post-Acquisition 4Q roh " + format_eps(oil_eps_bridge_ui.get("post_acquisition_adjusted_eps_ttm_raw"), financial_currency) +
+                                    " · verwendet " + format_eps(oil_eps_bridge_ui.get("post_acquisition_adjusted_eps_ttm_used"), financial_currency)
+                                )
+                            else:
+                                st.info(
+                                    f"{oil_eps_snap_ui.get('company') or 'Integrated Oil & Gas Major'}: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                                    f"{APP_BUILD_VERSION} verwendet für den Fair Value eine Through-Cycle Adjusted-EPS-Basis aus 70 % 3Y-Median (2023–2025) und 30 % annualisiertem H1-2026-Adjusted-EPS; "
+                                    "die aktuelle Run-Rate wird auf 75–125 % des 3Y-Medians begrenzt."
+                                )
+                                st.write(
+                                    "**Integrated-Oil Earnings-Basis:** " + format_eps(oil_eps_bridge_ui.get("earnings_basis"), financial_currency) +
+                                    " · 3Y-Median " + format_eps(oil_eps_bridge_ui.get("median_adjusted_eps_3y"), financial_currency) +
+                                    " · H1 2026 annualisiert roh " + format_eps(oil_eps_bridge_ui.get("annualized_h1_2026_adjusted_eps_raw"), financial_currency) +
+                                    " · verwendet " + format_eps(oil_eps_bridge_ui.get("annualized_h1_2026_adjusted_eps_used"), financial_currency)
+                                )
                         else:
                             st.warning("Integrated-Oil-&-Gas Through-Cycle-Earnings-Basis unvollständig – Fair Value bleibt fail-closed.")
                     elif branded_consumer_staples_eps_context_ui:
@@ -37281,6 +37367,19 @@ if selected_symbol:
                             f"Spezialpfad-Konsistenz: TTM und Current-FY derselben Asset-Manager-Earnings-Familie weichen um {am_eps_div_ui:.1f} % ab. "
                             "Die 3Y-Through-Cycle-Komponente ist ein Glättungsanker."
                         )
+                elif integrated_oil_gas_eps_context_ui:
+                    oil_diag_label_ui = {
+                        "Hoch": "hoch",
+                        "Mittel": "mittel",
+                        "Niedrig": "niedrig",
+                    }.get(str(confidence or ""), "nicht bestimmt")
+                    oil_bridge_conf_ui = (((data.get("integrated_oil_gas_specialist_model") or {}).get("specialist_valuation") or {}).get("earnings_bridge") or {})
+                    oil_special_conf_ui = str(oil_bridge_conf_ui.get("confidence") or "Mittel")
+                    st.info(
+                        f"Standard-EPS-Diagnosequalität: **{oil_diag_label_ui}** · nur Kontext. "
+                        f"Integrated-Oil Specialist-Earnings-Basis: **{oil_special_conf_ui}**."
+                    )
+
                 elif confidence == "Hoch":
 
                     st.success(
@@ -37344,6 +37443,12 @@ if selected_symbol:
                             " Bei Asset Management bleibt diese Provider/GAAP-Divergenz ausschließlich Diagnosekontext. "
                             "Fair Value und Bewertungssicherheit verwenden die separate Through-Cycle-Earnings-Basis des Spezialmodells."
                         )
+                    elif integrated_oil_gas_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
+                            " Beim Integrated-Oil-&-Gas-Specialist ist diese Provider/GAAP-Divergenz ausschließlich Diagnosekontext; "
+                            "Fair Value und Bewertungssicherheit verwenden die issuer-primary Through-Cycle-/Structural-Earnings-Brücke."
+                        )
                     else:
                         st.warning(eps_result["eps_divergence_note"])
 
@@ -37381,6 +37486,11 @@ if selected_symbol:
                         st.caption(
                             "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die Asset-Management-Spezialbewertungssicherheit nicht. "
                             "Die Asset-Manager-Sicherheit stammt aus der Through-Cycle-Earnings-Basis, Unternehmenstyp/Methode, Peer-Check und Spezialkontrolle."
+                        )
+                    elif integrated_oil_gas_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die Integrated-Oil-&-Gas-Spezialbewertungssicherheit nicht. "
+                            "Maßgeblich sind issuer-primary CFFO/ROACE/Leverage sowie die Through-Cycle- bzw. Structural-Adjusted-EPS-Brücke."
                         )
                     else:
                         st.warning(eps_result["confidence_note"])
@@ -38768,6 +38878,7 @@ if selected_symbol:
                     and not bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 ):
@@ -41530,7 +41641,15 @@ if selected_symbol:
                                 f"**Integrated-Major-KGV-Korridor:** {safe_float(val_oil.get('corridor_low')):.2f}× – {safe_float(val_oil.get('corridor_high')):.2f}× · "
                                 f"**Ziel-KGV:** {safe_float(val_oil.get('target_multiple')):.2f}×"
                             )
-                            st.metric("Fair Value – Berichtswährung / Specialist-Basis", format_money(val_oil.get("fair_value_financial"), oil_ccy))
+                            st.metric("Fair Value – Specialist-Basis", format_money(val_oil.get("fair_value_financial"), oil_ccy))
+                            st.caption(f"Berechnet in {oil_ccy}; Anzeige erfolgt ggf. in der gewählten Anzeige-Währung.")
+                            cycle_gap_oil = safe_float(bridge_oil.get("current_vs_through_cycle_pct"))
+                            if cycle_gap_oil is not None:
+                                st.info(
+                                    f"Earnings-Cycle Position (issuer-primary): {bridge_oil.get('current_earnings_reference_name') or 'aktuelle Earnings-Referenz'} "
+                                    f"liegt {cycle_gap_oil:+.1f} % gegenüber der Through-Cycle-Basis · "
+                                    f"{bridge_oil.get('earnings_cycle_position') or 'Diagnose'}; kein direkter Multiple-/Fair-Value-Input."
+                                )
                             if safe_float(val_oil.get("peer_reference_median_pe")) is not None:
                                 st.caption(f"Peer-KGV-Median – nur Referenz: {safe_float(val_oil.get('peer_reference_median_pe')):.2f}×")
                             st.success("Integrated-Oil-&-Gas-Spezialkontrolle vollständig – Fair Value freigegeben.")
@@ -45152,6 +45271,20 @@ if selected_symbol:
                             )
                             if fair_value.get("run_rate_capped"):
                                 st.caption("Zyklus-Cap aktiv: H1-2026-Run-Rate wurde auf 75–125 % des 3Y-Adjusted-EPS-Medians begrenzt.")
+                        cycle_gap_fv_ui = safe_float(fair_value.get("current_vs_through_cycle_pct"))
+                        if cycle_gap_fv_ui is not None:
+                            st.write(
+                                f"**Earnings-Cycle Position (issuer-primary):** {cycle_gap_fv_ui:+.1f} % vs. Through-Cycle · "
+                                f"{fair_value.get('earnings_cycle_position') or 'Diagnose'}"
+                            )
+                        provider_gap_fv_ui = safe_float(fair_value.get("provider_current_fy_vs_through_cycle_pct"))
+                        if provider_gap_fv_ui is not None:
+                            st.caption(
+                                "Provider Current-FY Konsens vs. Through-Cycle: "
+                                f"{provider_gap_fv_ui:+.1f} %. Nur Diagnosekontext; kein Score-, Multiple- oder Fair-Value-Input."
+                            )
+                        elif fair_value.get("provider_current_fy_gap_note"):
+                            st.caption(fair_value.get("provider_current_fy_gap_note"))
                         st.write(f"**FY2025 Production Growth:** {fair_value.get('fy2025_production_growth_pct'):+.1f} % · **ROACE/ROCE:** {fair_value.get('fy2025_roace_pct'):.1f} %")
                         oil_lev_fv_ui = safe_float(fair_value.get("q2_2026_leverage_pct"))
                         if oil_lev_fv_ui is None:
@@ -46094,6 +46227,12 @@ if selected_symbol:
 
                     st.success(
                         "✓ Hauptnotierung / Euronext Paris erkannt"
+                    )
+
+                elif exchange_code == "AMS" or symbol_upper.endswith(".AS"):
+
+                    st.success(
+                        "✓ Hauptnotierung / Euronext Amsterdam erkannt"
                     )
 
                 else:
