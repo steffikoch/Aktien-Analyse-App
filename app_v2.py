@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.123"
+APP_BUILD_VERSION = "V2.20.124"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,7 +26,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Branded Staples Family Gate Isolation & Cleanup"
+    f"Build {APP_BUILD_VERSION} · Energy Issuer Identity & Same-Issuer Peer Guard"
 )
 
 
@@ -53,6 +53,7 @@ st.caption(
 # V2.20.121: Security Identity & Search Presentation Guard. Search results now separate preferred listing, ordinary same-issuer exchange listings, obvious depositary/OTC/local-wrapper instruments and other issuers. Search-label currency is filled from Yahoo when available and otherwise from a conservative exchange-currency map (display only; never used in valuation). Exact-ticker alternative ranking no longer rewards symbol-prefix matches strongly enough to push Buenos-Aires/local wrappers above XETRA or other major venues. Mobile labels use explicit group names and omit repeated issuer names for same-issuer alternatives. WKN/ISIN verification remains an identity anchor; ambiguous instrument identity stays labelled conservatively rather than being assumed equivalent. No valuation or specialist-model mathematics changed.
 # V2.20.122: Branded Staples Graceful Fail-Closed & Issuer Guard. Fixes the KO/Nestlé family-route UI crash caused by stale load-scope variable references when no issuer snapshot exists. Uncalibrated Branded-Consumer-Staples members now bypass generic Adjusted-TTM discovery, render an explicit family fail-closed status, keep generic EPS/FCF/ROE/Net-Debt scoring as diagnosis-only, and produce no Fair Value or action signal. Coca-Cola parent routing is narrowed to KO/The Coca-Cola Company so Coca-Cola Consolidated (COKE) no longer inherits the global brand-owner specialist type. MDLZ/PEP specialist valuation mathematics and the V2.20.121 search/identity behavior are unchanged.
 # V2.20.123: Branded Staples Family Gate Isolation & Cleanup. Separates an uncalibrated Branded-Consumer-Staples family member from the Special-Event engine: KO/Nestlé now use an explicit Family Calibration Gate, do not auto-launch ad-hoc special-event research merely because the issuer profile is pending, and receive a dedicated no-signal reason. Branded-staples Yahoo/statement FCF divergences are diagnosis-only, reference-only peers have no minimum-count Fair-Value requirement, and SIX/Swiss primary-listing footer text is aligned with the search resolver. MDLZ/PEP valuation math and V2.20.121 search/identity logic remain unchanged.
+# V2.20.124: Energy Issuer Identity & Same-Issuer Peer Guard. Adds TotalEnergies SE as a preferred primary-listing search alias for Total Energy/Total Energies/TotalEnergies, so the Euronext Paris line TTE.PA outranks Total Energy Services (TOT.TO) on ambiguous name searches. Adds a canonical same-issuer symbol guard to peer construction so TTE.PA/NYSE TTE/verified TotalEnergies alternate lines cannot appear as the analyzed company's own peer. Euronext Paris is recognized in the exchange footer. No valuation mathematics, sector score, EPS normalization, Fair Value or signal thresholds are changed.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -6918,6 +6919,15 @@ PRIMARY_SEARCH_ALIASES = [
         "exchange": "PAR", "exchDisp": "Paris", "currency": "EUR",
     },
     {
+        "aliases": [
+            "TOTALENERGIES", "TOTALENERGIES SE", "TOTAL ENERGIES", "TOTAL ENERGIES SE",
+            "TOTAL ENERGY", "TOTAL ENERGY SE"
+        ],
+        "exact_aliases": True,
+        "symbol": "TTE.PA", "quoteType": "EQUITY", "longname": "TotalEnergies SE",
+        "exchange": "PAR", "exchDisp": "Paris", "currency": "EUR",
+    },
+    {
         "aliases": ["COCA COLA", "COCA-COLA", "THE COCA COLA COMPANY", "THE COCA-COLA COMPANY"],
         "symbol": "KO", "quoteType": "EQUITY", "longname": "The Coca-Cola Company",
         "exchange": "NYQ", "exchDisp": "NYSE", "currency": "USD",
@@ -6990,8 +7000,17 @@ def _primary_alias_rows(query):
     folded = _fold_search_text(query)
     output = []
     for route in PRIMARY_SEARCH_ALIASES:
-        if any(_alias_matches_query(alias, folded) for alias in route.get("aliases", [])):
-            row = {key: value for key, value in route.items() if key != "aliases"}
+        aliases = route.get("aliases", [])
+        if route.get("exact_aliases"):
+            matched = any(_fold_search_text(alias) == folded for alias in aliases)
+        else:
+            matched = any(_alias_matches_query(alias, folded) for alias in aliases)
+        if matched:
+            row = {
+                key: value
+                for key, value in route.items()
+                if key not in {"aliases", "exact_aliases"}
+            }
             row["_preferred"] = True
             row["_source"] = "primary_alias"
             output.append(row)
@@ -17761,6 +17780,25 @@ def calculate_fundamental_multiple(
 # Modul 6 – Schritt 2A: Peer-Gruppe festlegen
 # =========================================================
 
+# V2.20.124 – Canonical issuer equivalence is deliberately explicit and
+# conservative.  It is used only to prevent the analyzed issuer from appearing
+# in its own peer set across primary/ADR/secondary symbols; it never merges
+# financial statements or changes valuation units.
+PEER_SAME_ISSUER_SYMBOL_GROUPS = (
+    frozenset({"TTE.PA", "TTE", "FP.VI", "TTE.L", "TTE.BR"}),
+)
+
+
+def _same_canonical_issuer_symbol(symbol_a, symbol_b):
+    a = str(symbol_a or "").strip().upper()
+    b = str(symbol_b or "").strip().upper()
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    return any(a in group and b in group for group in PEER_SAME_ISSUER_SYMBOL_GROUPS)
+
+
 def get_peer_group(company_type, symbol, industry=None):
     type_name = str(
         company_type.get("type", "")
@@ -17904,7 +17942,7 @@ def get_peer_group(company_type, symbol, industry=None):
             ("HO.PA", "Thales"),
             ("SAAB-B.ST", "Saab"),
         ]
-        filtered = [{"symbol": ps, "name": pn} for ps, pn in peers if ps.upper() != own_symbol]
+        filtered = [{"symbol": ps, "name": pn} for ps, pn in peers if not _same_canonical_issuer_symbol(ps, own_symbol)]
         return {
             "available": True,
             "peers": filtered,
@@ -17959,7 +17997,7 @@ def get_peer_group(company_type, symbol, industry=None):
         peers = family_peers.get(own_symbol, [
             ("PEP", "PepsiCo"), ("MDLZ", "Mondelez"), ("KO", "Coca-Cola"), ("NESN.SW", "Nestlé")
         ])
-        filtered = [{"symbol": ps, "name": pn} for ps, pn in peers if ps.upper() != own_symbol]
+        filtered = [{"symbol": ps, "name": pn} for ps, pn in peers if not _same_canonical_issuer_symbol(ps, own_symbol)]
         return {
             "available": True,
             "peers": filtered,
@@ -17984,7 +18022,7 @@ def get_peer_group(company_type, symbol, industry=None):
         filtered = [
             {"symbol": ps, "name": pn}
             for ps, pn in peers
-            if ps.upper() != own_symbol
+            if not _same_canonical_issuer_symbol(ps, own_symbol)
         ]
         return {
             "available": True,
@@ -18005,7 +18043,7 @@ def get_peer_group(company_type, symbol, industry=None):
                     "name": peer_name
                 }
                 for peer_symbol, peer_name in peers
-                if peer_symbol.upper() != own_symbol
+                if not _same_canonical_issuer_symbol(peer_symbol, own_symbol)
             ]
 
             return {
@@ -18040,6 +18078,12 @@ def get_peer_group(company_type, symbol, industry=None):
                     )
                     if key == "autohersteller / zyklisch"
                     else (
+                        f"Integrated-Oil-&-Gas Peer Identity Guard {APP_BUILD_VERSION}: Shell, Exxon Mobil, Chevron und TotalEnergies bilden den vorgesehenen Major-Cluster; "
+                        "der analysierte Emittent wird über kanonische Issuer-Identität auch dann ausgeschlossen, wenn Primärlisting, ADR oder Zweitlisting unterschiedliche Ticker verwenden. "
+                        "Für zyklische Öl-&-Gas-Unternehmen bleibt der einfache Forward-KGV-Peer-Overlay weiterhin gesperrt; die Peers sind bis zum eigenen Specialist-Modell nur Referenz."
+                    )
+                    if key == "öl & gas / zyklisch"
+                    else (
                         "NVIDIA-/Fabless-AI-Peer-Gruppe automatisch ausgewählt. V2.20.67 behandelt AVGO, AMD, QCOM und MRVL weiter "
                         "nur als Markt-Referenzen. Ihre Yahoo-Forward-KGVs dürfen ohne bestandenes NVIDIA Normalized Comparability Gate " 
                         "weder die FY27-Operating-Earnings-Basis noch Ziel-KGV oder Fair Value verändern."
@@ -18064,7 +18108,7 @@ def get_peer_group(company_type, symbol, industry=None):
         peers = [
             {"symbol": ps, "name": pn, "role": "core"}
             for ps, pn in core
-            if ps.upper() != own_symbol
+            if not _same_canonical_issuer_symbol(ps, own_symbol)
         ]
         if own_symbol != "BLK":
             peers.append({"symbol": "BLK", "name": "BlackRock", "role": "premium_reference"})
@@ -18092,7 +18136,7 @@ def get_peer_group(company_type, symbol, industry=None):
         filtered = [
             {"symbol": ps, "name": pn}
             for ps, pn in peers
-            if ps.upper() != own_symbol
+            if not _same_canonical_issuer_symbol(ps, own_symbol)
         ]
         return {
             "available": len(filtered) > 0,
@@ -18120,7 +18164,7 @@ def get_peer_group(company_type, symbol, industry=None):
             filtered = [
                 {"symbol": ps, "name": pn}
                 for ps, pn in peers
-                if ps.upper() != own_symbol
+                if not _same_canonical_issuer_symbol(ps, own_symbol)
             ]
             return {
                 "available": len(filtered) > 0,
@@ -44923,6 +44967,12 @@ if selected_symbol:
 
                     st.success(
                         "✓ Hauptnotierung / SIX Swiss Exchange erkannt"
+                    )
+
+                elif exchange_code == "PAR" or symbol_upper.endswith(".PA"):
+
+                    st.success(
+                        "✓ Hauptnotierung / Euronext Paris erkannt"
                     )
 
                 else:
