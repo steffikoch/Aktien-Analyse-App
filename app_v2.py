@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.124"
+APP_BUILD_VERSION = "V2.20.125"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,7 +26,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Energy Issuer Identity & Same-Issuer Peer Guard"
+    f"Build {APP_BUILD_VERSION} · Integrated Oil & Gas Specialist Model V1"
 )
 
 
@@ -54,6 +54,7 @@ st.caption(
 # V2.20.122: Branded Staples Graceful Fail-Closed & Issuer Guard. Fixes the KO/Nestlé family-route UI crash caused by stale load-scope variable references when no issuer snapshot exists. Uncalibrated Branded-Consumer-Staples members now bypass generic Adjusted-TTM discovery, render an explicit family fail-closed status, keep generic EPS/FCF/ROE/Net-Debt scoring as diagnosis-only, and produce no Fair Value or action signal. Coca-Cola parent routing is narrowed to KO/The Coca-Cola Company so Coca-Cola Consolidated (COKE) no longer inherits the global brand-owner specialist type. MDLZ/PEP specialist valuation mathematics and the V2.20.121 search/identity behavior are unchanged.
 # V2.20.123: Branded Staples Family Gate Isolation & Cleanup. Separates an uncalibrated Branded-Consumer-Staples family member from the Special-Event engine: KO/Nestlé now use an explicit Family Calibration Gate, do not auto-launch ad-hoc special-event research merely because the issuer profile is pending, and receive a dedicated no-signal reason. Branded-staples Yahoo/statement FCF divergences are diagnosis-only, reference-only peers have no minimum-count Fair-Value requirement, and SIX/Swiss primary-listing footer text is aligned with the search resolver. MDLZ/PEP valuation math and V2.20.121 search/identity logic remain unchanged.
 # V2.20.124: Energy Issuer Identity & Same-Issuer Peer Guard. Adds TotalEnergies SE as a preferred primary-listing search alias for Total Energy/Total Energies/TotalEnergies, so the Euronext Paris line TTE.PA outranks Total Energy Services (TOT.TO) on ambiguous name searches. Adds a canonical same-issuer symbol guard to peer construction so TTE.PA/NYSE TTE/verified TotalEnergies alternate lines cannot appear as the analyzed company's own peer. Euronext Paris is recognized in the exchange footer. No valuation mathematics, sector score, EPS normalization, Fair Value or signal thresholds are changed.
+# V2.20.125: Integrated Oil & Gas Specialist Model V1. Routes TotalEnergies, Shell, ExxonMobil and Chevron out of the generic cyclical revenue/profit-growth/ROE/Yahoo-FCF score. Uses issuer-primary-source 2023–2025 adjusted EPS history plus capped H1-2026 run-rate for a through-cycle earnings basis; a 100-point specialist score covers production/project growth, CFFO resilience, ROACE/ROCE, leverage, capital discipline, integrated portfolio quality, shareholder returns and commodity/execution resilience. Issuer-specific score-driven P/E corridors are model judgments; peer Forward-P/Es remain reference-only and never change score, target multiple or Fair Value.
 # V2.20.100: Generic Same-Basis Earnings Growth Guard V2. Generalizes the V2.20.99 Stryker-only growth override. Whenever the generic/verified accounting-basis alignment has already established a primary-source Adjusted/Core/Operating TTM basis, the growth score now derives earnings growth from the same primary-source family automatically. It prefers multi-quarter YTD EPS growth (Q1..Qn current year versus the same Q1..Qn prior year) to reduce single-quarter noise, falls back only to a validated latest-quarter bridge when no aggregate bridge exists, and keeps Yahoo/GAAP growth as diagnosis context. The guard is fail-closed: it never activates without an active same-basis valuation bridge and matching accounting-basis family.
 # V2.20.99: GAAP/Adjusted EPS Comparability & Same-Basis Growth Guard V1. Adds Stryker (SYK) as a verified same-basis regression case: official FY2026 Adjusted-EPS guidance is used as the current-FY anchor, and Adjusted TTM EPS is reconstructed from FY2025 minus H1 2025 plus H1 2026 primary-source Adjusted EPS. Provider GAAP TTM remains context only. A new time-bounded same-basis earnings-growth override allows the generic growth/profitability brake to use issuer-reported Adjusted EPS growth when the valuation EPS basis is also adjusted, preventing GAAP growth from being mixed with adjusted forward earnings. GOLD UI wording is also tightened: FY2026 Results and 10-K publication dates are separated, and the current-share earnings anchor is labelled as an adjusted basis with depreciation not added back rather than simply "conservative".
 # V2.20.98: GOLD Precious-Metals Distribution & Lending Specialist Model V1. Adds a dedicated Gold.com (GOLD) FY2026 primary-source path. Extreme Yahoo revenue growth is no longer treated as an unresolved generic anomaly for this business model: official FY2026 results explain the move through higher metal prices/volumes, forward sales and acquisitions. Generic Yahoo revenue-growth, FCF, net-debt/FCF and standard EPS normalization remain diagnosis-only. The specialist score uses gross-profit growth/margin, EBITDA, Q4 operating quality, inventory/hedge containment, secured-lending quality, liquidity and current-share dilution/integration. The valuation anchor is a conservative primary-source current-share earnings proxy that starts with issuer adjusted pre-tax income, removes the depreciation add-back, applies the FY2026 effective tax rate and divides by the June-30 actual share count. A conservative 9–14x specialist P/E corridor is score-driven; analyst targets remain Module 8 only.
@@ -568,6 +569,21 @@ def validate_valuation_currency_context(currency_context):
 # =========================================================
 
 VERIFIED_SHARE_UNIT_ROUTES = {
+    # Shell plc – NYSE SHEL is an ADS and each ADS represents two ordinary shares.
+    # V2.20.125 routes per-share specialist fundamentals to the LSE ordinary share
+    # while keeping the selected NYSE quote as the trading instrument.
+    "SHEL": {
+        "fundamental_symbol": "SHEL.L",
+        "quote_unit_name": "Shell ADS / ADR",
+        "fundamental_unit_name": "Shell-Stammaktie",
+        "fundamental_shares_per_quote_unit": 2.0,
+        "source_name": "Shell plc – Share information / 2025 Annual Report",
+        "source_url": "https://www.shell.com/investors/information-for-shareholders/share-information.html",
+        "source_note": (
+            "Verifiziertes Verhältnis: 1 Shell ADS (NYSE: SHEL) repräsentiert 2 Shell-Stammaktien."
+        ),
+    },
+
     # Toyota Motor Corporation 2026 Form 20-F:
     # NYSE ticker TM is an American Depositary Share (ADS), and each ADS
     # represents ten Toyota common shares. Fundamentals are therefore routed
@@ -6623,6 +6639,27 @@ def classify_company(name, symbol, sector, industry):
             "focus_areas": "Oilfield Services & Equipment · LNG/Gas Technology · Power Systems · Industrial Technology · Chart Thermal Management / Air & Gas Handling / Lifecycle Services",
             "customer_profile": "Globale Energie-, LNG-, Gasinfrastruktur-, Industrie-, Data-Center- und Upstream-Kunden",
             "company_profile": "Hybride Energy-Technology-Plattform mit OFSE und wachsendem IET/Chart; wesentlicher Post-Q2-Strukturbruch durch Chart-Übernahme",
+        }
+
+    # V2.20.125 – Integrated Oil & Gas Major Specialist.
+    # Exact issuer identity is required so Oilfield Services / smaller E&P names
+    # cannot inherit a Major profile merely from an "Oil & Gas Integrated" label.
+    integrated_major_symbols = {
+        "TTE.PA", "TTE", "FP.VI", "TTE.L", "TTE.BR",
+        "SHEL", "SHEL.L", "SHEL.AS",
+        "XOM", "CVX",
+    }
+    integrated_major_names = [
+        "totalenergies", "total energies se",
+        "shell plc", "exxon mobil", "exxonmobil", "chevron corporation",
+    ]
+    if symbol_text in integrated_major_symbols or any(term in name_text for term in integrated_major_names):
+        return {
+            "type": "Integrated Oil & Gas / Global Major",
+            "method": "Primary-source Through-Cycle Adjusted EPS + Integrated-Major Quality Score + issuer-spezifisches P/E",
+            "confidence_cap": "Mittel",
+            "business_model": "Global integrierter Energie-Major mit Upstream plus Downstream/Refining/Marketing und ergänzenden Gas/LNG/Chemicals/Power-Aktivitäten",
+            "focus_areas": "Production/Projects · CFFO Resilience · ROACE/ROCE · Leverage · CapEx Discipline · Integrated Portfolio · Shareholder Returns · Commodity/Execution Resilience",
         }
 
     # Öl & Gas – nach dem spezifischen Midstream-Router.
@@ -17327,6 +17364,422 @@ def build_branded_consumer_staples_special_control(control, specialist_model):
     return out
 
 
+
+# =========================================================
+# V2.20.125 – Integrated Oil & Gas Specialist Model V1
+# Validated V1 family: TotalEnergies, Shell, ExxonMobil, Chevron
+# =========================================================
+
+INTEGRATED_OIL_GAS_MAJOR_SYMBOLS = {
+    "TTE.PA", "TTE", "FP.VI", "TTE.L", "TTE.BR",
+    "SHEL", "SHEL.L", "SHEL.AS",
+    "XOM", "CVX",
+}
+
+
+def _canonical_integrated_oil_major_symbol(symbol):
+    sym = str(symbol or "").upper().strip()
+    if sym in {"TTE.PA", "TTE", "FP.VI", "TTE.L", "TTE.BR"}:
+        return "TTE"
+    if sym in {"SHEL", "SHEL.L", "SHEL.AS"}:
+        return "SHEL"
+    if sym == "XOM":
+        return "XOM"
+    if sym == "CVX":
+        return "CVX"
+    return sym
+
+
+def is_integrated_oil_gas_specialist_type(company_type, symbol=None):
+    sym = _canonical_integrated_oil_major_symbol(symbol)
+    type_name = normalized_company_type_name(company_type)
+    return sym in {"TTE", "SHEL", "XOM", "CVX"} or "integrated oil & gas / global major" in type_name
+
+
+def get_verified_integrated_oil_gas_snapshot(symbol):
+    """Issuer-specific primary-source snapshot for V2.20.125.
+
+    Values are frozen to public issuer primary sources available through Q2/H1 2026.
+    The specialist intentionally does not substitute Yahoo revenue growth, GAAP
+    earnings growth, ROE, TTM-FCF margin or Net-Debt/TTM-FCF for these metrics.
+    """
+    sym = _canonical_integrated_oil_major_symbol(symbol)
+
+    if sym == "TTE":
+        return {
+            "symbol": "TTE",
+            "company": "TotalEnergies SE",
+            "specialist_profile": "integrated_major_multi_energy",
+            "reporting_currency": "USD",
+            "as_of_date": "30.06.2026",
+            "published_date": "23.07.2026",
+            "source_name": "TotalEnergies FY2025 Results/Factbook + Q2/H1 2026 Results",
+            "fy2025_url": "https://totalenergies.com/newsroom/fourth-quarter-and-full-year-2025-results/?lang=eng",
+            "fy2025_factbook_url": "https://totalenergies.com/sites/g/files/nytnzq121/files/documents/totalenergies_factbook-2025_2026_en.pdf",
+            "q2_2026_url": "https://totalenergies.com/system/files/documents/totalenergies_pr-results-2q26_2026_en.pdf",
+            "adjusted_eps_2023": 9.40,
+            "adjusted_eps_2024": 7.77,
+            "adjusted_eps_2025": 6.89,
+            "h1_2026_adjusted_eps": 5.14,
+            "fy2025_adjusted_earnings": 15.587e9,
+            "fy2025_cffo": 27.839e9,
+            "fy2025_roace_pct": 12.6,
+            "fy2025_leverage_metric_name": "Gearing",
+            "fy2025_leverage_pct": 14.7,
+            "q2_2026_leverage_pct": 13.1,
+            "fy2025_capital_investment": 17.091e9,
+            "fy2025_shareholder_distributions": 15.6e9,
+            "fy2025_production_kboed": 2529.0,
+            "fy2025_production_growth_pct": 3.9,
+            "q2_2026_cffo": 9.804e9,
+            "q2_2026_adjusted_earnings": 6.027e9,
+            "q2_2026_adjusted_eps": 2.68,
+            "q2_2026_reported_production_yoy_pct": -4.0,
+            "q2_2026_organic_production_growth_ex_disruption_pct": 4.0,
+            "portfolio_score": 10.0,
+            "resilience_score": 4.0,
+            "resilience_note": "Starke Upstream/LNG/Downstream/Power-Integration; Middle-East-Produktionsausfälle bleiben ein realer Ausführungs-/Geopolitik-Risikoabschlag.",
+            "corridor_low": 8.0,
+            "corridor_high": 13.0,
+            "valuation_confidence_cap": "Mittel",
+        }
+
+    if sym == "SHEL":
+        return {
+            "symbol": "SHEL",
+            "company": "Shell plc",
+            "specialist_profile": "integrated_major_gas_lng_trading",
+            "reporting_currency": "USD",
+            "as_of_date": "30.06.2026",
+            "published_date": "30.07.2026",
+            "source_name": "Shell 2025 Annual Report + Q2/H1 2026 Results",
+            "fy2025_url": "https://www.shell.com/investors/results-and-reporting/annual-report",
+            "q2_2026_url": "https://www.shell.com/investors/results-and-reporting/quarterly-results/_jcr_content/root/main/section/simple/promo_1962010312_cop/links/item1.stream/1785372069018/bc8fbda1b9bf1a883a12938b6c100aa51acf8abf/q2-2026-qra-document.pdf",
+            "adjusted_eps_2023": 4.20,
+            "adjusted_eps_2024": 3.76,
+            "adjusted_eps_2025": 3.15,
+            "h1_2026_adjusted_eps": 2.98,
+            "fy2025_adjusted_earnings": 18.528e9,
+            "fy2025_cffo": 42.863e9,
+            "fy2025_roace_pct": 9.4,
+            "fy2025_leverage_metric_name": "Gearing",
+            "fy2025_leverage_pct": 20.7,
+            "q2_2026_leverage_pct": 18.7,
+            "fy2025_capital_investment": 20.915e9,
+            "fy2025_shareholder_distributions": 22.4e9,
+            "fy2025_production_kboed": 2800.0,
+            "fy2024_production_kboed": 2836.0,
+            "fy2025_production_growth_pct": (2800.0 / 2836.0 - 1.0) * 100.0,
+            "q2_2026_cffo": 21.4e9,
+            "q2_2026_free_cash_flow": 17.524e9,
+            "q2_2026_adjusted_earnings": 9.845e9,
+            "q2_2026_adjusted_eps": 1.76,
+            "h1_2026_roace_pct": 12.4,
+            "portfolio_score": 10.0,
+            "resilience_score": 4.0,
+            "resilience_note": "Sehr breite Integrated-Gas/Upstream/Marketing/Chemicals-Struktur; ARC-Transaktion und Trading-/Commodity-Volatilität begrenzen den Resilienzbonus.",
+            "corridor_low": 8.0,
+            "corridor_high": 13.0,
+            "valuation_confidence_cap": "Mittel",
+        }
+
+    if sym == "XOM":
+        return {
+            "symbol": "XOM",
+            "company": "Exxon Mobil Corporation",
+            "specialist_profile": "integrated_major_upstream_refining_chemicals",
+            "reporting_currency": "USD",
+            "as_of_date": "30.06.2026",
+            "published_date": "31.07.2026",
+            "source_name": "ExxonMobil FY2025 Results + Q1/Q2 2026 Results",
+            "fy2025_url": "https://corporate.exxonmobil.com/news/news-releases/2026/0130-exxonmobil-announces-2025-results",
+            "q2_2026_url": "https://corporate.exxonmobil.com/news/news-releases",
+            "adjusted_eps_2023": 9.52,
+            "adjusted_eps_2024": 7.79,
+            "adjusted_eps_2025": 6.99,
+            "h1_2026_adjusted_eps": 4.68,
+            "fy2025_adjusted_earnings": 30.109e9,
+            "fy2025_cffo": 51.970e9,
+            "fy2025_free_cash_flow": 26.131e9,
+            "fy2025_roace_pct": 9.3,
+            "fy2025_leverage_metric_name": "Net debt / capital",
+            "fy2025_leverage_pct": 11.0,
+            "fy2025_debt_to_capital_pct": 14.0,
+            "fy2025_capital_investment": 28.997e9,
+            "fy2025_shareholder_distributions": 37.2e9,
+            "fy2025_production_kboed": 4736.0,
+            "fy2024_production_kboed": 4333.0,
+            "fy2025_production_growth_pct": (4736.0 / 4333.0 - 1.0) * 100.0,
+            "q1_2026_adjusted_eps": 1.16,
+            "q2_2026_adjusted_eps": 3.52,
+            "q2_2026_cffo": 23.6e9,
+            "q2_2026_free_cash_flow": 17.2e9,
+            "q2_2026_adjusted_earnings": 14.7e9,
+            "portfolio_score": 9.0,
+            "resilience_score": 5.0,
+            "resilience_note": "Advantaged Upstream, Refining, Chemicals und strukturelle Kostensenkungen liefern hohe operative Resilienz; Commodity-Sensitivität bleibt systemisch.",
+            "corridor_low": 10.0,
+            "corridor_high": 16.0,
+            "valuation_confidence_cap": "Mittel",
+        }
+
+    if sym == "CVX":
+        return {
+            "symbol": "CVX",
+            "company": "Chevron Corporation",
+            "specialist_profile": "integrated_major_upstream_hess_refining",
+            "reporting_currency": "USD",
+            "as_of_date": "30.06.2026",
+            "published_date": "31.07.2026",
+            "source_name": "Chevron FY2025 Results + Q1/Q2 2026 Results",
+            "fy2025_url": "https://www.chevron.com/newsroom/2026/q1/chevron-reports-fourth-quarter-2025-results",
+            "q2_2026_url": "https://www.chevron.com/newsroom/2026/q3/chevron-reports-second-quarter-2026-results",
+            "adjusted_eps_2023": 13.13,
+            "adjusted_eps_2024": 10.05,
+            "adjusted_eps_2025": 7.29,
+            "h1_2026_adjusted_eps": 7.47,
+            "fy2025_adjusted_earnings": 13.521e9,
+            "fy2025_cffo": 33.939e9,
+            "fy2025_roace_pct": 6.6,
+            "fy2025_leverage_metric_name": "Net debt ratio",
+            "fy2025_leverage_pct": 15.6,
+            "fy2025_capital_investment": 17.347e9,
+            "fy2025_shareholder_distributions": 27.1e9,
+            "fy2025_production_growth_pct": 12.0,
+            "fy2025_production_kboed": 3700.0,
+            "q1_2026_adjusted_eps": 1.41,
+            "q2_2026_adjusted_eps": 6.06,
+            "q2_2026_cffo_ex_wc": 19.7e9,
+            "q2_2026_adjusted_free_cash_flow": 15.4e9,
+            "q2_2026_adjusted_earnings": 12.0e9,
+            "q2_2026_roace_pct": 21.0,
+            "q2_2026_net_debt_to_cffo": 0.6,
+            "portfolio_score": 9.0,
+            "resilience_score": 4.0,
+            "resilience_note": "Hess-Integration und starkes Produktionswachstum erhöhen Qualität und Optionalität; Integrations-/Commodity-Risiken verhindern den Maximalbonus.",
+            "corridor_low": 9.0,
+            "corridor_high": 15.0,
+            "valuation_confidence_cap": "Mittel",
+        }
+
+    return None
+
+
+def _integrated_oil_score_points(snapshot):
+    """100-point integrated-major quality score; all drivers are issuer-primary data."""
+    result = {"available": False, "score": None, "quality_level": None, "components": {}, "note": None}
+    s = snapshot or {}
+
+    prod = safe_float(s.get("fy2025_production_growth_pct"))
+    cffo = safe_float(s.get("fy2025_cffo"))
+    adj_earn = safe_float(s.get("fy2025_adjusted_earnings"))
+    roce = safe_float(s.get("fy2025_roace_pct"))
+    leverage = safe_float(s.get("fy2025_leverage_pct"))
+    capex = safe_float(s.get("fy2025_capital_investment"))
+    distributions = safe_float(s.get("fy2025_shareholder_distributions"))
+    portfolio_static = safe_float(s.get("portfolio_score"))
+    resilience_static = safe_float(s.get("resilience_score"))
+
+    required = [prod, cffo, adj_earn, roce, leverage, capex, distributions, portfolio_static, resilience_static]
+    if any(v is None for v in required) or cffo <= 0 or adj_earn <= 0:
+        result["note"] = "Integrated-Oil-&-Gas-Spezialscore gesperrt: mindestens eine verifizierte Primärkennzahl fehlt."
+        return result
+
+    production_pts = 15.0 if prod >= 8.0 else 13.0 if prod >= 4.0 else 11.0 if prod >= 2.0 else 8.0 if prod >= 0.0 else 5.0
+
+    cash_cover = cffo / adj_earn
+    cffo_pts = 20.0 if cash_cover >= 2.2 else 18.0 if cash_cover >= 1.8 else 16.0 if cash_cover >= 1.5 else 13.0 if cash_cover >= 1.2 else 9.0
+
+    roce_pts = 15.0 if roce >= 15.0 else 13.0 if roce >= 12.0 else 11.0 if roce >= 10.0 else 9.0 if roce >= 8.0 else 7.0 if roce >= 6.0 else 4.0
+
+    leverage_pts = 15.0 if leverage <= 12.0 else 13.0 if leverage <= 16.0 else 11.0 if leverage <= 20.0 else 8.0 if leverage <= 25.0 else 5.0
+
+    capex_ratio = capex / cffo
+    capital_pts = 10.0 if capex_ratio <= 0.50 else 9.0 if capex_ratio <= 0.60 else 7.0 if capex_ratio <= 0.70 else 5.0 if capex_ratio <= 0.85 else 3.0
+
+    portfolio_pts = max(0.0, min(10.0, portfolio_static))
+
+    distribution_ratio = distributions / cffo
+    if 0.35 <= distribution_ratio <= 0.60:
+        returns_pts = 9.0
+    elif 0.25 <= distribution_ratio < 0.35:
+        returns_pts = 8.0
+    elif 0.60 < distribution_ratio <= 0.70:
+        returns_pts = 8.0
+    elif 0.70 < distribution_ratio <= 0.85:
+        returns_pts = 7.0
+    elif distribution_ratio > 0.85:
+        returns_pts = 5.0
+    else:
+        returns_pts = 6.0
+    if s.get("dividend_growth_confirmed"):
+        returns_pts = min(10.0, returns_pts + 1.0)
+
+    resilience_pts = max(0.0, min(5.0, resilience_static))
+
+    components = {
+        "Production / Project Growth": production_pts,
+        "CFFO / Cash-Flow Resilience": cffo_pts,
+        "ROACE / ROCE": roce_pts,
+        "Leverage / Balance": leverage_pts,
+        "Capital / Investment Discipline": capital_pts,
+        "Portfolio Integration / Diversification": portfolio_pts,
+        "Shareholder Returns / Capital Allocation": returns_pts,
+        "Commodity / Execution Resilience": resilience_pts,
+    }
+    score = max(0.0, min(100.0, round(sum(components.values()), 2)))
+    result.update({
+        "available": True,
+        "score": score,
+        "quality_level": _specialist_quality_level(score),
+        "components": components,
+        "cash_cover_ratio": cash_cover,
+        "capex_to_cffo_pct": capex_ratio * 100.0,
+        "shareholder_distributions_to_cffo_pct": distribution_ratio * 100.0,
+        "note": (
+            "Der Integrated-Oil-&-Gas Quality Score ersetzt generisches Yahoo-Umsatz-/Gewinnwachstum, ROE, "
+            "TTM-FCF-Marge und Net-Debt/TTM-FCF. Er verwendet Produktions-/Projektwachstum, issuer-CFFO, "
+            "ROACE/ROCE, issuer-Leverage, Investitionsdisziplin, integriertes Portfolio, Ausschüttungen und Resilienz."
+        ),
+    })
+    return result
+
+
+def _integrated_oil_through_cycle_earnings(snapshot):
+    """70% 3Y adjusted-EPS median + 30% capped H1-2026 annualized run-rate.
+
+    The current run-rate is capped to 75–125% of the 2023–2025 median so a
+    temporary commodity spike/slump cannot become the valuation anchor.
+    """
+    s = snapshot or {}
+    history = [
+        safe_float(s.get("adjusted_eps_2023")),
+        safe_float(s.get("adjusted_eps_2024")),
+        safe_float(s.get("adjusted_eps_2025")),
+    ]
+    h1 = safe_float(s.get("h1_2026_adjusted_eps"))
+    if any(v is None or v <= 0 for v in history) or h1 is None or h1 <= 0:
+        return {"available": False, "note": "Through-Cycle Adjusted-EPS-Basis gesperrt: 2023–2025 oder H1-2026 Same-Basis-EPS fehlen."}
+    median_eps = float(pd.Series(history).median())
+    current_run = h1 * 2.0
+    floor_run = median_eps * 0.75
+    cap_run = median_eps * 1.25
+    used_run = min(max(current_run, floor_run), cap_run)
+    earnings_basis = 0.70 * median_eps + 0.30 * used_run
+    return {
+        "available": True,
+        "history_adjusted_eps": history,
+        "median_adjusted_eps_3y": median_eps,
+        "h1_2026_adjusted_eps": h1,
+        "annualized_h1_2026_adjusted_eps_raw": current_run,
+        "annualized_h1_2026_adjusted_eps_used": used_run,
+        "run_rate_floor": floor_run,
+        "run_rate_cap": cap_run,
+        "run_rate_capped": abs(current_run - used_run) > 1e-9,
+        "earnings_basis": earnings_basis,
+        "method": "70% 3Y-Median Adjusted EPS + 30% H1-2026 annualisiert, Run-Rate auf 75–125% des 3Y-Medians begrenzt",
+    }
+
+
+def build_integrated_oil_gas_specialist_valuation(snapshot, specialist_score):
+    s = snapshot or {}
+    score_data = specialist_score or {}
+    result = {
+        "available": False,
+        "valuation_method_name": "Integrated Oil & Gas Through-Cycle Adjusted P/E",
+        "earnings_basis": None,
+        "target_multiple": None,
+        "fair_value_financial": None,
+        "corridor_low": safe_float(s.get("corridor_low")),
+        "corridor_high": safe_float(s.get("corridor_high")),
+        "peer_reference_median_pe": None,
+        "note": None,
+    }
+    earnings = _integrated_oil_through_cycle_earnings(s)
+    if not score_data.get("available") or not earnings.get("available"):
+        result["note"] = "Integrated-Oil-&-Gas-Spezialbewertung gesperrt: Quality Score oder Through-Cycle Earnings fehlen."
+        result["earnings_bridge"] = earnings
+        return result
+    low = safe_float(s.get("corridor_low"))
+    high = safe_float(s.get("corridor_high"))
+    score = safe_float(score_data.get("score"))
+    basis = safe_float(earnings.get("earnings_basis"))
+    if any(v is None for v in [low, high, score, basis]) or low <= 0 or high <= low or basis <= 0:
+        result["note"] = "Integrated-Oil-&-Gas-Spezialbewertung gesperrt: Korridor oder Earnings-Basis unvollständig."
+        result["earnings_bridge"] = earnings
+        return result
+    target = low + (high - low) * (score / 100.0)
+    fair = basis * target
+    result.update({
+        "available": True,
+        "earnings_basis": basis,
+        "earnings_bridge": earnings,
+        "target_multiple": target,
+        "fair_value_financial": fair,
+        "score": score,
+        "note": (
+            f"Fair Value = Through-Cycle Adjusted EPS × scoregesteuertes {low:.0f}–{high:.0f}× issuer-spezifisches Integrated-Major-KGV. "
+            "Peer-KGVs und Analystenziele bleiben reference-only/Reality Check und verändern den fundamentalen Fair Value nicht."
+        ),
+    })
+    return result
+
+
+def build_integrated_oil_gas_specialist_model(company_type, fundamental_info, symbol):
+    if not is_integrated_oil_gas_specialist_type(company_type, symbol):
+        return {"applicable": False}
+    sym = _canonical_integrated_oil_major_symbol(symbol)
+    snapshot = get_verified_integrated_oil_gas_snapshot(sym)
+    if not snapshot:
+        return {
+            "applicable": True,
+            "symbol": sym,
+            "primary_source_complete": False,
+            "specialist_score": {"available": False},
+            "specialist_valuation": {"available": False},
+            "valuation_anchor_complete": False,
+            "readiness": "Integrated-Oil-&-Gas-Primärquellen-Snapshot fehlt; Fair Value fail-closed.",
+        }
+    score = _integrated_oil_score_points(snapshot)
+    valuation = build_integrated_oil_gas_specialist_valuation(snapshot, score)
+    return {
+        "applicable": True,
+        "symbol": sym,
+        "primary_source_complete": True,
+        "snapshot": snapshot,
+        "specialist_score": score,
+        "specialist_valuation": valuation,
+        "valuation_anchor_complete": bool(score.get("available") and valuation.get("available")),
+        "readiness": "Integrated-Oil-&-Gas-Spezialbewertung freigegeben" if valuation.get("available") else "Integrated-Oil-&-Gas-Spezialbewertung gesperrt",
+    }
+
+
+def build_integrated_oil_gas_special_control(control, specialist_model):
+    if not isinstance(control, dict) or control.get("control_key") != "integrated_oil_gas_major":
+        return control
+    model = specialist_model if isinstance(specialist_model, dict) else {}
+    snap = model.get("snapshot") or {}
+    score = model.get("specialist_score") or {}
+    valuation = model.get("specialist_valuation") or {}
+    company = snap.get("company") or model.get("symbol") or "Integrated Oil & Gas Major"
+    released = bool(model.get("valuation_anchor_complete") and score.get("available") and valuation.get("available"))
+    out = dict(control)
+    out.update({
+        "implemented": True,
+        "released": released,
+        "confidence_cap": snap.get("valuation_confidence_cap") or "Mittel",
+        "router_status": "Schritt 3B freigegeben" if released else "Schritt 3B nicht freigegeben",
+        "step3b_status": "Integrated-Oil-&-Gas-Fair-Value freigegeben" if released else "Integrated-Oil-&-Gas-Fair-Value gesperrt",
+        "snapshot": snap,
+        "checks": {"specialist_score": score, "specialist_valuation": valuation},
+        "note": (
+            f"{APP_BUILD_VERSION} trennt {company} vom generischen zyklischen Umsatz-/Gewinnwachstums-, ROE-, Yahoo-FCF- und Net-Debt/TTM-FCF-Pfad. "
+            "Through-Cycle Adjusted EPS, Production/Projects, CFFO, ROACE/ROCE, Leverage, Investitionsdisziplin, Portfoliointegration und Kapitalallokation bestimmen die Spezialbewertung."
+        ),
+    })
+    return out
+
+
 # =========================================================
 # V2.20.96 – Corteva Separation Detection & SOTP Pre-Gate
 # =========================================================
@@ -17786,6 +18239,7 @@ def calculate_fundamental_multiple(
 # financial statements or changes valuation units.
 PEER_SAME_ISSUER_SYMBOL_GROUPS = (
     frozenset({"TTE.PA", "TTE", "FP.VI", "TTE.L", "TTE.BR"}),
+    frozenset({"SHEL", "SHEL.L", "SHEL.AS"}),
 )
 
 
@@ -17952,6 +18406,32 @@ def get_peer_group(company_type, symbol, industry=None):
             "note": (
                 f"Defense High-Growth Peer Lock {APP_BUILD_VERSION}: BAE Systems, Leonardo, Thales und Saab sind Markt-Referenzen. "
                 "Ohne verifizierte Gleichheit von Current-FY-Horizont, Wachstumsphase, Order Visibility und Earnings-Basis darf ihr Forward-KGV-Median das Rheinmetall-Ziel-KGV nicht automatisch absenken."
+            ),
+        }
+
+    if is_integrated_oil_gas_specialist_type(company_type, own_symbol):
+        major_peers = [
+            ("TTE.PA", "TotalEnergies"),
+            ("SHEL", "Shell"),
+            ("XOM", "Exxon Mobil"),
+            ("CVX", "Chevron"),
+        ]
+        filtered = [
+            {"symbol": ps, "name": pn}
+            for ps, pn in major_peers
+            if not _same_canonical_issuer_symbol(ps, own_symbol)
+        ]
+        return {
+            "available": True,
+            "peers": filtered,
+            "count": len(filtered),
+            "target_symbol": own_symbol,
+            "peer_model": "integrated_oil_gas_major_reference_v1",
+            "reference_only": True,
+            "note": (
+                f"Integrated Oil & Gas Major Peer Lock {APP_BUILD_VERSION}: TotalEnergies, Shell, ExxonMobil und Chevron bilden den Major-Referenzcluster; "
+                "der analysierte Emittent wird über kanonische Issuer-Identität ausgeschlossen. Forward-KGVs bleiben reine Markt-Referenzen und verändern weder Specialist Score, "
+                "Through-Cycle Earnings, Ziel-KGV noch Fair Value."
             ),
         }
 
@@ -19651,6 +20131,48 @@ def _calculate_branded_consumer_staples_peer_reference(peer_group, fundamental_m
     return result
 
 
+
+def _calculate_integrated_oil_gas_peer_reference(peer_group, fundamental_multiple, cache_version):
+    result = {
+        "method_supported": True,
+        "metric": "Integrated Oil & Gas Major Forward P/E reference-only",
+        "peer_rows": [],
+        "usable_count": 0,
+        "peer_median": None,
+        "adjustment_pct": 0.0,
+        "adjusted_multiple": safe_float(fundamental_multiple),
+        "applied": False,
+        "reference_only": True,
+        "comparability_gate_passed": False,
+        "note": None,
+    }
+    vals = []
+    for peer in (peer_group or {}).get("peers", []):
+        pdx = dict(load_peer_forward_pe(peer.get("symbol"), cache_version) or {})
+        pe = safe_float(pdx.get("forward_pe"))
+        usable = bool(pdx.get("usable") and pe is not None and pe > 0)
+        result["peer_rows"].append({
+            "symbol": peer.get("symbol"),
+            "name": peer.get("name"),
+            "usable": usable,
+            "forward_pe": pe,
+            "source": pdx.get("source"),
+            "reason": pdx.get("reason"),
+            "adjustment_eligible": False,
+        })
+        if usable:
+            vals.append(pe)
+    result["usable_count"] = len(vals)
+    if vals:
+        result["peer_median"] = float(pd.Series(vals).median())
+    result["note"] = (
+        f"Integrated Oil & Gas Major Peer Lock {APP_BUILD_VERSION}: Forward-KGVs der anderen Majors sind reine Markt-Referenzen. "
+        "Der eigene Fair Value verwendet issuer-spezifische Through-Cycle Adjusted EPS und einen scoregesteuerten Korridor; "
+        "unterschiedliche Commodity-Mixe, LNG-/Refining-/Chemicals-/Power-Anteile, Leverage und Accounting-Basen verhindern jede automatische Peer-Anpassung."
+    )
+    return result
+
+
 def calculate_peer_check(
     company_type,
     peer_group,
@@ -19712,6 +20234,11 @@ def calculate_peer_check(
 
     if (peer_group or {}).get("peer_model") == "luxury_premium_reference_v1":
         return _calculate_luxury_premium_peer_reference(
+            peer_group, fundamental_multiple, cache_version
+        )
+
+    if (peer_group or {}).get("peer_model") == "integrated_oil_gas_major_reference_v1":
+        return _calculate_integrated_oil_gas_peer_reference(
             peer_group, fundamental_multiple, cache_version
         )
 
@@ -19882,6 +20409,38 @@ def get_special_control(company_type, symbol):
     # fachlich vereinbarte Spezialkontrollen.
     # Er lädt noch keine Spezialdaten und verändert
     # weder Multiple Score noch Bewertungs-Multiple.
+
+    if is_integrated_oil_gas_specialist_type(company_type, symbol_text):
+        issuer_label = {
+            "TTE": "TotalEnergies",
+            "SHEL": "Shell",
+            "XOM": "ExxonMobil",
+            "CVX": "Chevron",
+        }.get(_canonical_integrated_oil_major_symbol(symbol_text), "Integrated Oil & Gas Major")
+        return {
+            "required": True,
+            "control_key": "integrated_oil_gas_major",
+            "control_name": f"{issuer_label} / Integrated Oil & Gas Through-Cycle-, CFFO-, ROCE- & Capital-Discipline-Kontrolle",
+            "planned_checks": [
+                "2023–2025 Adjusted EPS auf issuer-identischer Basis",
+                "H1-2026 Adjusted EPS nur als gekappter Run-Rate-Kontext (75–125% des 3Y-Medians)",
+                "Production / Project Growth statt nominalem Umsatzwachstum",
+                "Issuer-CFFO und CFFO/Adjusted-Earnings-Resilienz",
+                "ROACE/ROCE statt generischem ROE",
+                "Issuer-Gearing / Net-Debt-to-Capital statt Net-Debt/TTM-FCF",
+                "CapEx/CFFO-Investitionsdisziplin",
+                "Upstream/LNG/Downstream/Marketing/Chemicals/Power-Portfolioqualität",
+                "Dividenden + Buybacks relativ zum CFFO",
+                "Commodity-/Geopolitik-/Integration-/Execution-Resilienz",
+                "issuer-spezifischer scoregesteuerter P/E-Korridor",
+                "Major-Peers reference-only; Analystenziele ausschließlich Reality Check",
+            ],
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Integrated Oil & Gas Specialist Model V1",
+            "note": (
+                f"{issuer_label} wird nicht mehr über den generischen zyklischen 100-Punkte-Score bewertet. "
+                "Der Spezialpfad normalisiert Adjusted EPS durch den Zyklus und bewertet Cashflow, Kapitalrendite, Bilanz, Investitionsdisziplin und integrierte Portfolioqualität aus Primärquellen."
+            ),
+        }
 
     if symbol_text == "BKR" or "energy technology / oilfield services" in type_name:
         return {
@@ -27124,6 +27683,7 @@ def calculate_valuation_confidence(
     is_gold_precious_metals_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "gold_precious_metals_current_share_pe"
     is_luxury_premium_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "luxury_premium_owner_earnings_pe"
     is_branded_consumer_staples_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "branded_consumer_staples_adjusted_pe"
+    is_integrated_oil_gas_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "integrated_oil_gas_through_cycle_pe"
     is_asset_management_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "asset_management_through_cycle_pe"
     is_defense_high_growth_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "defense_high_growth_current_fy_pe"
     if is_auto_valuation:
@@ -27146,6 +27706,11 @@ def calculate_valuation_confidence(
     elif is_utility_valuation:
         guidance_level = "Hoch"
         components["Current-FY Core/Adjusted EPS Guidance"] = (_confidence_rank_value(guidance_level), guidance_level)
+    elif is_integrated_oil_gas_valuation:
+        oil_earnings = ((special_control or {}).get("checks") or {}).get("specialist_valuation") or {}
+        oil_bridge = oil_earnings.get("earnings_bridge") or {}
+        earnings_level = "Mittel" if oil_bridge.get("available") else "Niedrig"
+        components["Integrated-Oil Through-Cycle Adjusted EPS"] = (_confidence_rank_value(earnings_level), earnings_level)
     elif is_asset_management_valuation:
         am_earnings = ((special_control or {}).get("checks") or {}).get("earnings_basis") or {}
         earnings_level = am_earnings.get("confidence") or "Niedrig"
@@ -27158,7 +27723,7 @@ def calculate_valuation_confidence(
         earnings_rank = _confidence_rank_value(earnings_level)
         if earnings_rank is not None:
             components["Defense Current-FY Earnings-Basis"] = (earnings_rank, earnings_level)
-    elif not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation and not is_branded_consumer_staples_valuation and not is_defense_high_growth_valuation:
+    elif not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation and not is_branded_consumer_staples_valuation and not is_integrated_oil_gas_valuation and not is_defense_high_growth_valuation:
         eps_level = (eps_normalization or {}).get("confidence")
         eps_rank = _confidence_rank_value(eps_level)
         if eps_rank is not None:
@@ -27176,6 +27741,7 @@ def calculate_valuation_confidence(
         and not is_nvidia_valuation
         and not is_luxury_premium_valuation
         and not is_branded_consumer_staples_valuation
+        and not is_integrated_oil_gas_valuation
         and not is_defense_high_growth_valuation
     ):
         usable_peers = int(peer_check.get("usable_count") or 0)
@@ -28058,6 +28624,98 @@ def calculate_fair_value_v1(
             "note": (
                 "Asset-Management Fair Value V1 = Through-Cycle EPS × spezialisiertes Asset-Manager-KGV. "
                 "Generischer ROE-/Yahoo-FCF-/Net-Cash-Score und Analystenziele fließen nicht direkt in den Fair Value ein."
+            ),
+        })
+        return result
+
+    # V2.20.125 – Integrated Oil & Gas Major specialist valuation.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "integrated_oil_gas_major"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        sv = checks.get("specialist_valuation") or {}
+        ss = checks.get("specialist_score") or {}
+        snap = special_control.get("snapshot") or {}
+        bridge = sv.get("earnings_bridge") or {}
+        fv = safe_float(sv.get("fair_value_financial"))
+        if not sv.get("available") or fv is None or fv <= 0:
+            result["note"] = "Fair Value V1 gesperrt: Integrated-Oil-&-Gas-Spezialanker nicht vollständig verfügbar."
+            return result
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der Integrated-Oil-&-Gas-Bewertung sind nicht eindeutig."
+            return result
+        share_context = context.get("share_unit_context") or {}
+        share_ratio = 1.0
+        unit_notes = []
+        if share_context.get("conversion_required"):
+            if not share_context.get("conversion_available"):
+                result["note"] = "Fair Value V1 gesperrt: abweichende Handelseinheit ohne verifizierte Aktien-/ADR-Umrechnung."
+                return result
+            share_ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
+            if share_ratio is None or share_ratio <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Aktien-/ADR-Verhältnis ist nicht belastbar."
+                return result
+            unit_notes.append(
+                "Aktieneinheit ausdrücklich angeglichen: 1 "
+                f"{share_context.get('quote_unit_name') or 'Handelseinheit'} = {share_ratio:g} "
+                f"{share_context.get('fundamental_unit_name') or 'Fundamentalaktien'}."
+            )
+        fvq = fv * share_ratio
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Währungsumrechnung der Integrated-Oil-&-Gas-Bewertung nicht belastbar verfügbar."
+                return result
+            fvq *= factor
+            unit_notes.append(
+                f"Währungsangleichung: {financial_currency} → {quote_currency} mit Faktor {factor:.6f}."
+            )
+        elif quote_currency != financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+        cp = safe_float(current_price)
+        potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+        result.update({
+            "available": True,
+            "valuation_method": "integrated_oil_gas_through_cycle_pe",
+            "normalized_eps": safe_float(sv.get("earnings_basis")),
+            "used_multiple": safe_float(sv.get("target_multiple")),
+            "multiple_source": f"{APP_BUILD_VERSION} Integrated Oil & Gas Specialist P/E",
+            "fair_value_financial": fv,
+            "fair_value_quote": fvq,
+            "potential_pct": potential,
+            "specialist_score": safe_float(ss.get("score")),
+            "specialist_quality_level": ss.get("quality_level"),
+            "specialist_components": ss.get("components") or {},
+            "target_multiple": safe_float(sv.get("target_multiple")),
+            "multiple_corridor_low": safe_float(sv.get("corridor_low")),
+            "multiple_corridor_high": safe_float(sv.get("corridor_high")),
+            "earnings_basis_method": bridge.get("method"),
+            "adjusted_eps_history": bridge.get("history_adjusted_eps") or [],
+            "median_adjusted_eps_3y": safe_float(bridge.get("median_adjusted_eps_3y")),
+            "h1_2026_adjusted_eps": safe_float(bridge.get("h1_2026_adjusted_eps")),
+            "annualized_h1_2026_adjusted_eps_raw": safe_float(bridge.get("annualized_h1_2026_adjusted_eps_raw")),
+            "annualized_h1_2026_adjusted_eps_used": safe_float(bridge.get("annualized_h1_2026_adjusted_eps_used")),
+            "run_rate_capped": bool(bridge.get("run_rate_capped")),
+            "integrated_oil_company": snap.get("company"),
+            "integrated_oil_profile": snap.get("specialist_profile"),
+            "fy2025_production_growth_pct": safe_float(snap.get("fy2025_production_growth_pct")),
+            "fy2025_cffo": safe_float(snap.get("fy2025_cffo")),
+            "fy2025_roace_pct": safe_float(snap.get("fy2025_roace_pct")),
+            "fy2025_leverage_pct": safe_float(snap.get("fy2025_leverage_pct")),
+            "q2_2026_leverage_pct": safe_float(snap.get("q2_2026_leverage_pct")),
+            "fy2025_capital_investment": safe_float(snap.get("fy2025_capital_investment")),
+            "fy2025_shareholder_distributions": safe_float(snap.get("fy2025_shareholder_distributions")),
+            "peer_reference_median_pe": safe_float(sv.get("peer_reference_median_pe")),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "Integrated Oil & Gas Fair Value V1 = Through-Cycle Adjusted EPS × scoregesteuertes issuer-spezifisches Major-KGV. "
+                "Generisches Yahoo-Umsatz-/Gewinnwachstum, ROE, TTM-FCF-Marge, Net-Debt/TTM-FCF, Peer-KGVs und Analystenziele fließen nicht direkt in den fundamentalen Fair Value ein."
             ),
         })
         return result
@@ -30981,6 +31639,10 @@ def _should_try_generic_adjusted_ttm(company_type, raw_ttm, current_fy_eps, webs
     # own primary-source snapshot or fail closed without substitution.
     if is_branded_consumer_staples_specialist_type(company_type, symbol):
         return False
+    # V2.20.125 – Integrated majors use a frozen issuer-primary Through-Cycle
+    # Adjusted-EPS bridge; generic Adjusted-TTM reconstruction must not substitute it.
+    if is_integrated_oil_gas_specialist_type(company_type, symbol):
+        return False
     raw = safe_float(raw_ttm)
     fwd = safe_float(current_fy_eps)
     if raw is None or fwd is None or raw <= 0 or fwd <= 0 or not website:
@@ -33350,6 +34012,26 @@ def load_stock(selected_symbol, cache_version):
             ),
         }
 
+    if is_integrated_oil_gas_specialist_type(company_type, fundamental_symbol):
+        growth_score = {
+            **growth_score,
+            "context_score": growth_score.get("score"),
+            "score": None,
+            "note": (
+                f"Integrated Oil & Gas {APP_BUILD_VERSION}: Generisches Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext. "
+                "Der Spezialpfad bewertet Production/Project Growth und Through-Cycle Adjusted Earnings statt Commodity-getriebenes nominales Wachstum."
+            ),
+        }
+        profitability_score = {
+            **profitability_score,
+            "context_score": profitability_score.get("score"),
+            "score": None,
+            "brake_text": (
+                f"Integrated Oil & Gas {APP_BUILD_VERSION}: Nettomarge und ROE erhalten keine generischen Multiple-Punkte. "
+                "Maßgeblich sind issuer-ROACE/ROCE, CFFO-Resilienz, Portfolioqualität und Kapitaldisziplin."
+            ),
+        }
+
     if is_branded_consumer_staples_specialist_type(company_type, fundamental_symbol):
         growth_score = {
             **growth_score,
@@ -33500,6 +34182,22 @@ def load_stock(selected_symbol, cache_version):
                 f" {APP_BUILD_VERSION}: Generische Net-Cash-/Net-Debt-to-FCF-Punkte sind gesperrt; Bilanzqualität wird im Asset-Management-Spezialscore separat bewertet.",
         }
 
+    if is_integrated_oil_gas_specialist_type(company_type, fundamental_symbol):
+        fcf_score = {
+            **fcf_score,
+            "context_score": fcf_score.get("score"),
+            "score": None,
+            "note": (fcf_score.get("note") or "") +
+                f" {APP_BUILD_VERSION}: Yahoo-/Statement-TTM-FCF bleibt Diagnosekontext; issuer-CFFO, FCF und Cash-Conversion werden im Integrated-Major-Spezialscore separat bewertet.",
+        }
+        balance_score = {
+            **balance_score,
+            "context_score": balance_score.get("score"),
+            "score": None,
+            "note": (balance_score.get("note") or "") +
+                f" {APP_BUILD_VERSION}: Generische Net-Debt/TTM-FCF-Punkte sind gesperrt; issuer-Gearing bzw. Net-Debt-to-Capital bestimmt die Spezial-Bilanzqualität.",
+        }
+
     if is_branded_consumer_staples_specialist_type(company_type, fundamental_symbol):
         fcf_score = {
             **fcf_score,
@@ -33622,6 +34320,12 @@ def load_stock(selected_symbol, cache_version):
     )
 
     branded_consumer_staples_specialist_model = build_branded_consumer_staples_specialist_model(
+        company_type,
+        fundamental_info,
+        fundamental_symbol
+    )
+
+    integrated_oil_gas_specialist_model = build_integrated_oil_gas_specialist_model(
         company_type,
         fundamental_info,
         fundamental_symbol
@@ -33951,6 +34655,35 @@ def load_stock(selected_symbol, cache_version):
             ),
         }
 
+    if integrated_oil_gas_specialist_model.get("applicable"):
+        oil_score = integrated_oil_gas_specialist_model.get("specialist_score") or {}
+        oil_val = integrated_oil_gas_specialist_model.get("specialist_valuation") or {}
+        oil_snap = integrated_oil_gas_specialist_model.get("snapshot") or {}
+        oil_company = oil_snap.get("company") or fundamental_symbol or "Integrated Oil & Gas Major"
+        oil_low = safe_float(oil_val.get("corridor_low"))
+        oil_high = safe_float(oil_val.get("corridor_high"))
+        oil_corridor_text = (f"{oil_low:.0f}–{oil_high:.0f}×" if oil_low is not None and oil_high is not None else "issuer-spezifisch / fail-closed")
+        oil_corridor = {
+            "available": bool(oil_val.get("available")),
+            "lower": oil_low,
+            "upper": oil_high,
+            "method": oil_val.get("valuation_method_name") or "Integrated Oil & Gas Through-Cycle Adjusted P/E",
+            "note": f"{APP_BUILD_VERSION}: {oil_corridor_text} Integrated-Major-Spezialkorridor; generische zyklische Wachstum/ROE/TTM-FCF-Scores sind gesperrt.",
+        }
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": safe_float(oil_score.get("score")),
+            "corridor": oil_corridor,
+            "multiple": safe_float(oil_val.get("target_multiple")),
+            "available": bool(oil_score.get("available") and oil_val.get("available")),
+            "earnings_basis_usable": bool(oil_val.get("available")),
+            "note": (
+                f"{APP_BUILD_VERSION} verwendet für {oil_company} keinen generischen zyklischen 100-Punkte-Score. "
+                "Production/Projects, issuer-CFFO, ROACE/ROCE, Leverage, Investitionsdisziplin, Portfoliointegration, Ausschüttungen und Resilienz bestimmen das Spezial-KGV; "
+                "Through-Cycle Adjusted EPS ist der einzige Earnings-Anker. Peers und Analystenziele bleiben Kontrollschichten."
+            ),
+        }
+
     if branded_consumer_staples_specialist_model.get("applicable"):
         bcs_score = branded_consumer_staples_specialist_model.get("specialist_score") or {}
         bcs_val = branded_consumer_staples_specialist_model.get("specialist_valuation") or {}
@@ -34043,6 +34776,17 @@ def load_stock(selected_symbol, cache_version):
             False
         )
     )
+
+    if integrated_oil_gas_specialist_model.get("applicable"):
+        oil_val_peer = dict(integrated_oil_gas_specialist_model.get("specialist_valuation") or {})
+        oil_val_peer["peer_reference_median_pe"] = safe_float((peer_check or {}).get("peer_median"))
+        oil_val_peer["peer_guard_note"] = (peer_check or {}).get("note")
+        integrated_oil_gas_specialist_model["specialist_valuation"] = oil_val_peer
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "multiple": safe_float(oil_val_peer.get("target_multiple")),
+            "note": (fundamental_multiple.get("note") or "") + " Integrated-Major-Peer-Lock geprüft; keine automatische Peer-Anpassung.",
+        }
 
     if branded_consumer_staples_specialist_model.get("applicable"):
         bcs_val_peer = dict(branded_consumer_staples_specialist_model.get("specialist_valuation") or {})
@@ -34195,6 +34939,11 @@ def load_stock(selected_symbol, cache_version):
     special_control = build_luxury_premium_special_control(
         special_control,
         luxury_premium_specialist_model
+    )
+
+    special_control = build_integrated_oil_gas_special_control(
+        special_control,
+        integrated_oil_gas_specialist_model
     )
 
     special_control = build_branded_consumer_staples_special_control(
@@ -34405,6 +35154,37 @@ def load_stock(selected_symbol, cache_version):
             "action": (
                 f"{APP_BUILD_VERSION} verwendet den Luxury-Family-Spezialpfad mit Primary-source Owner Earnings, issuer-Cashflow und {lx_balance_text}. "
                 "Keine generische Sonderrecherche erforderlich; Luxury-Peers bleiben reference-only bis Horizon-/Accounting-Basis-Vergleichbarkeit verifiziert ist."
+            ),
+        }
+
+    if integrated_oil_gas_specialist_model.get("applicable") and integrated_oil_gas_specialist_model.get("valuation_anchor_complete"):
+        oil_snap_event = integrated_oil_gas_specialist_model.get("snapshot") or {}
+        oil_score_event = integrated_oil_gas_specialist_model.get("specialist_score") or {}
+        oil_val_event = integrated_oil_gas_specialist_model.get("specialist_valuation") or {}
+        oil_company_event = oil_snap_event.get("company") or fundamental_symbol or "Integrated Oil & Gas Major"
+        oil_prod_event = safe_float(oil_snap_event.get("fy2025_production_growth_pct"))
+        oil_cffo_event = safe_float(oil_snap_event.get("fy2025_cffo"))
+        oil_roce_event = safe_float(oil_snap_event.get("fy2025_roace_pct"))
+        oil_lev_event = safe_float(oil_snap_event.get("q2_2026_leverage_pct"))
+        if oil_lev_event is None:
+            oil_lev_event = safe_float(oil_snap_event.get("fy2025_leverage_pct"))
+        oil_bridge_event = oil_val_event.get("earnings_bridge") or {}
+        oil_cap_note = "; H1-2026-Run-Rate wurde zyklusbegrenzt" if oil_bridge_event.get("run_rate_capped") else ""
+        special_event_warning = {
+            "level": "Gelb",
+            "icon": "🟡",
+            "title": f"{oil_company_event} Integrated Oil & Gas Specialist Gate aktiv",
+            "requires_research": False,
+            "valuation_usable": True,
+            "reason": (
+                f"FY2025 Produktion {oil_prod_event:+.1f} %, CFFO {oil_cffo_event/1e9:.1f} Mrd. {oil_snap_event.get('reporting_currency') or 'USD'}, "
+                f"ROACE/ROCE {oil_roce_event:.1f} % und aktueller Leverage-Kontext {oil_lev_event:.1f} %. "
+                "Der Rohstoffzyklus wird nicht über nominales Yahoo-Umsatz-/Gewinnwachstum oder ROE bewertet" + oil_cap_note + "."
+            ),
+            "action": (
+                f"{APP_BUILD_VERSION} verwendet den Integrated-Oil-&-Gas-Spezialpfad mit Quality Score {safe_float(oil_score_event.get('score')):.0f}/100, "
+                "Through-Cycle Adjusted EPS, issuer-CFFO/ROACE/Leverage, Investitionsdisziplin, Portfoliointegration und Kapitalallokation. "
+                "Generische Umsatz-/Gewinnwachstums-, ROE-, TTM-FCF- und Net-Debt/TTM-FCF-Scores bleiben Diagnosekontext; Peer-KGVs sind reference-only."
             ),
         }
 
@@ -34971,6 +35751,7 @@ def load_stock(selected_symbol, cache_version):
         "gold_precious_metals_specialist_model": gold_precious_metals_specialist_model,
         "toyo_solar_specialist_model": toyo_solar_specialist_model,
         "luxury_premium_specialist_model": luxury_premium_specialist_model,
+        "integrated_oil_gas_specialist_model": integrated_oil_gas_specialist_model,
         "branded_consumer_staples_specialist_model": branded_consumer_staples_specialist_model,
         "asset_management_specialist_model": asset_management_specialist_model,
         "defense_high_growth_specialist_model": defense_high_growth_specialist_model,
@@ -35666,6 +36447,7 @@ if selected_symbol:
                 is_gold_precious_metals_fcf_context = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_fcf_context = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                 is_luxury_premium_fcf_context = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
+                is_integrated_oil_gas_fcf_context = bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                 is_branded_consumer_staples_fcf_context = bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                 is_ctva_fcf_context = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 if fcf_ctx.get("score_eligible"):
@@ -35740,6 +36522,14 @@ if selected_symbol:
                             "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
                             f"Bei TOYO bleibt der Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. {APP_BUILD_VERSION} verwendet für Cash Conversion ausschließlich den issuer-ausgewiesenen H1 Operating Cash Flow minus CapEx; Yahoo-FCF steuert weder Quality Score, Ziel-KGV noch Fair Value."
                         )
+                    elif is_integrated_oil_gas_fcf_context:
+                        oil_fcf_context_model_ui = data.get("integrated_oil_gas_specialist_model") or {}
+                        oil_fcf_context_snap_ui = oil_fcf_context_model_ui.get("snapshot") or {}
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            f"Bei {oil_fcf_context_snap_ui.get('company') or 'Integrated Oil & Gas Major'} bleibt Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. "
+                            f"{APP_BUILD_VERSION} verwendet FY2025 issuer-CFFO, CapEx, Adjusted Earnings und aktuelle Cashflow-/Leverage-Primärdaten; Yahoo-FCF steuert weder Quality Score, Ziel-KGV noch Fair Value."
+                        )
                     elif is_branded_consumer_staples_fcf_context:
                         bcs_fcf_model_ui = data.get("branded_consumer_staples_specialist_model") or {}
                         bcs_fcf_snap_ui = bcs_fcf_model_ui.get("snapshot") or {}
@@ -35778,7 +36568,12 @@ if selected_symbol:
                             "Cashflow-Statement-Wert verwendet."
                         )
                     if fcf_ctx.get("material_divergence"):
-                        if is_bank_fcf_context:
+                        if is_integrated_oil_gas_fcf_context:
+                            st.info(
+                                "FCF-Quellenabweichung im Integrated-Oil-&-Gas-Kontext: Yahoo Levered FCF und Cashflow-Statement-FCF bleiben beide Diagnose-/Rohdaten. "
+                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Bewertungsrelevant sind ausschließlich die issuer-spezifischen CFFO-/CapEx-/Cashflow-Primärdaten des Specialist-Modells."
+                            )
+                        elif is_bank_fcf_context:
                             st.warning(
                                 "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info zeigt "
                                 f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
@@ -36108,6 +36903,7 @@ if selected_symbol:
                 gold_precious_metals_eps_context_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 toyo_solar_eps_context_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                 luxury_premium_eps_context_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
+                integrated_oil_gas_eps_context_ui = bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                 branded_consumer_staples_eps_context_ui = bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                 asset_management_eps_context_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                 defense_high_growth_eps_context_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
@@ -36124,7 +36920,7 @@ if selected_symbol:
                     normalized_eps_label = "Versicherungs-Core-TTM-EPS"
                 else:
                     normalized_eps = eps_result["normalized_eps"]
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or utility_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -36210,6 +37006,25 @@ if selected_symbol:
                             "TOYO Solar: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
                             f"{APP_BUILD_VERSION} verwendet für den Fair Value den Q2-2026 Net-Income-Run-Rate auf der tatsächlichen 30.06.-Aktienzahl; Yahoo Current-FY/+1Y-Konsens bleibt nur Horizont-Kontext."
                         )
+                    elif integrated_oil_gas_eps_context_ui:
+                        oil_eps_model_ui = data.get("integrated_oil_gas_specialist_model") or {}
+                        oil_eps_snap_ui = oil_eps_model_ui.get("snapshot") or {}
+                        oil_eps_val_ui = oil_eps_model_ui.get("specialist_valuation") or {}
+                        oil_eps_bridge_ui = oil_eps_val_ui.get("earnings_bridge") or {}
+                        if oil_eps_bridge_ui.get("available"):
+                            st.info(
+                                f"{oil_eps_snap_ui.get('company') or 'Integrated Oil & Gas Major'}: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                                f"{APP_BUILD_VERSION} verwendet für den Fair Value eine Through-Cycle Adjusted-EPS-Basis aus 70 % 3Y-Median (2023–2025) und 30 % annualisiertem H1-2026-Adjusted-EPS; "
+                                "die aktuelle Run-Rate wird auf 75–125 % des 3Y-Medians begrenzt."
+                            )
+                            st.write(
+                                "**Integrated-Oil Earnings-Basis:** " + format_eps(oil_eps_bridge_ui.get("earnings_basis"), financial_currency) +
+                                " · 3Y-Median " + format_eps(oil_eps_bridge_ui.get("median_adjusted_eps_3y"), financial_currency) +
+                                " · H1 2026 annualisiert roh " + format_eps(oil_eps_bridge_ui.get("annualized_h1_2026_adjusted_eps_raw"), financial_currency) +
+                                " · verwendet " + format_eps(oil_eps_bridge_ui.get("annualized_h1_2026_adjusted_eps_used"), financial_currency)
+                            )
+                        else:
+                            st.warning("Integrated-Oil-&-Gas Through-Cycle-Earnings-Basis unvollständig – Fair Value bleibt fail-closed.")
                     elif branded_consumer_staples_eps_context_ui:
                         bcs_eps_model_ui = data.get("branded_consumer_staples_specialist_model") or {}
                         bcs_eps_snap_ui = bcs_eps_model_ui.get("snapshot") or {}
@@ -37176,6 +37991,7 @@ if selected_symbol:
                 is_gold_precious_metals_score_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_score_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                 is_luxury_premium_score_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
+                is_integrated_oil_gas_score_ui = bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                 is_branded_consumer_staples_score_ui = bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                 is_asset_management_score_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                 is_defense_high_growth_score_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
@@ -37218,6 +38034,14 @@ if selected_symbol:
                 elif is_asset_management_score_ui:
                     st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
                     st.caption("AUM-Anstieg wird von organischen Long-Term-Net-Flows getrennt; Marktperformance, FX und Akquisitionen erzeugen keine Growth-Punkte wie bei einem Industrieunternehmen.")
+                elif is_integrated_oil_gas_score_ui:
+                    oil_growth_model_ui = data.get("integrated_oil_gas_specialist_model") or {}
+                    oil_growth_snap_ui = oil_growth_model_ui.get("snapshot") or {}
+                    st.info("ℹ️ Im Integrated-Oil-&-Gas-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
+                    st.caption(
+                        f"{oil_growth_snap_ui.get('company') or 'Integrated Oil & Gas Major'} wird über Production/Project Growth und Through-Cycle Adjusted Earnings aus Primärquellen bewertet. "
+                        "Commodity-getriebenes Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext und erzeugt keine Multiple-Punkte."
+                    )
                 elif is_branded_consumer_staples_score_ui:
                     bcs_growth_model_ui = data.get("branded_consumer_staples_specialist_model") or {}
                     bcs_growth_snap_ui = bcs_growth_model_ui.get("snapshot") or {}
@@ -37345,7 +38169,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_branded_consumer_staples_score_ui and not is_asset_management_score_ui and not is_defense_high_growth_score_ui:
+                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_integrated_oil_gas_score_ui and not is_branded_consumer_staples_score_ui and not is_asset_management_score_ui and not is_defense_high_growth_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -37375,6 +38199,7 @@ if selected_symbol:
                 is_gold_precious_metals_profitability_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_profitability_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                 is_luxury_premium_profitability_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
+                is_integrated_oil_gas_profitability_ui = bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                 is_branded_consumer_staples_profitability_ui = bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                 is_asset_management_profitability_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                 is_defense_high_growth_profitability_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
@@ -37394,6 +38219,13 @@ if selected_symbol:
                 elif is_gold_precious_metals_profitability_ui:
                     st.info("ℹ️ Im GOLD-Precious-Metals-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption(f"Für einen Edelmetallhändler ist Umsatzmarge strukturell wenig aussagekräftig. {APP_BUILD_VERSION} bewertet Gross-Margin-Resilienz, Gross Profit, EBITDA-Skalierung und Q4 Adjusted-Pretax-Momentum aus Primärquellen.")
+                elif is_integrated_oil_gas_profitability_ui:
+                    oil_profit_snap_ui = (data.get("integrated_oil_gas_specialist_model") or {}).get("snapshot") or {}
+                    st.info("ℹ️ Im Integrated-Oil-&-Gas-Spezialmodell berücksichtigt: Generische Nettomargen-/ROE-Punkte werden nicht verwendet.")
+                    st.caption(
+                        f"{APP_BUILD_VERSION} bewertet {oil_profit_snap_ui.get('company') or 'den Major'} über issuer-ROACE/ROCE, CFFO-Resilienz, Investitionsdisziplin und Portfolioqualität. "
+                        "Nettomarge und ROE bleiben reine Diagnosewerte."
+                    )
                 elif is_branded_consumer_staples_profitability_ui:
                     bcs_profit_model_ui = data.get("branded_consumer_staples_specialist_model") or {}
                     bcs_profit_snap_ui = bcs_profit_model_ui.get("snapshot") or {}
@@ -37564,6 +38396,7 @@ if selected_symbol:
                     and not is_gold_precious_metals_profitability_ui
                     and not is_toyo_solar_profitability_ui
                     and not is_luxury_premium_profitability_ui
+                    and not is_integrated_oil_gas_profitability_ui
                     and not is_branded_consumer_staples_profitability_ui
                     and not is_asset_management_profitability_ui
                     and not is_defense_high_growth_profitability_ui
@@ -37695,6 +38528,7 @@ if selected_symbol:
                     is_gold_precious_metals_fcf_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     is_toyo_solar_fcf_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     is_luxury_premium_fcf_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
+                    is_integrated_oil_gas_fcf_ui = bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                     is_branded_consumer_staples_fcf_ui = bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                     is_asset_management_fcf_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                     is_defense_high_growth_fcf_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
@@ -37724,6 +38558,15 @@ if selected_symbol:
                     elif is_asset_management_fcf_ui:
                         st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Margen-Score wird nicht verwendet.")
                         st.caption("Asset-light Cash Conversion bleibt Diagnose- und Kapitalallokationskontext; sie rechtfertigt allein kein Premium-KGV. Maßgeblich sind Net Flows, Fee-Qualität, Core-Marge und Through-Cycle-Earnings.")
+                    elif is_integrated_oil_gas_fcf_ui:
+                        oil_fcf_model_ui = data.get("integrated_oil_gas_specialist_model") or {}
+                        oil_fcf_snap_ui = oil_fcf_model_ui.get("snapshot") or {}
+                        st.info("ℹ️ Im Integrated-Oil-&-Gas-Spezialmodell berücksichtigt: Der generische TTM-FCF-Score wird nicht verwendet.")
+                        if oil_fcf_snap_ui:
+                            st.caption(
+                                f"{APP_BUILD_VERSION} bewertet FY2025 issuer-CFFO ({format_money(oil_fcf_snap_ui.get('fy2025_cffo'), oil_fcf_snap_ui.get('reporting_currency') or financial_currency)}) "
+                                "relativ zu Adjusted Earnings und Capex sowie aktuelle Cashflow-Resilienz separat. Yahoo-/Statement-TTM-FCF bleibt Diagnosekontext."
+                            )
                     elif is_branded_consumer_staples_fcf_ui:
                         bcs_fcf_score_snap_ui = (data.get("branded_consumer_staples_specialist_model") or {}).get("snapshot") or {}
                         st.info("ℹ️ Im Branded-Consumer-Staples-Spezialmodell berücksichtigt: Der generische TTM-FCF-Score wird nicht verwendet.")
@@ -37809,6 +38652,7 @@ if selected_symbol:
                     and not bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
@@ -37940,6 +38784,7 @@ if selected_symbol:
                     is_gold_precious_metals_balance_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     is_toyo_solar_balance_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     is_luxury_premium_balance_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
+                    is_integrated_oil_gas_balance_ui = bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                     is_branded_consumer_staples_balance_ui = bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                     is_asset_management_balance_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                     is_defense_high_growth_balance_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
@@ -37969,6 +38814,18 @@ if selected_symbol:
                     elif is_asset_management_balance_ui:
                         st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("Net Cash oder geringe Verschuldung sind positiv, geben aber nicht automatisch 15/15 Punkte. Seed Capital, Akquisitionen, Buybacks und echte Netto-Aktienzahlentwicklung werden im Spezialscore separat bewertet.")
+                    elif is_integrated_oil_gas_balance_ui:
+                        oil_balance_snap_ui = (data.get("integrated_oil_gas_specialist_model") or {}).get("snapshot") or {}
+                        st.info("ℹ️ Im Integrated-Oil-&-Gas-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
+                        if oil_balance_snap_ui:
+                            oil_lev_name_ui = oil_balance_snap_ui.get("fy2025_leverage_metric_name") or "Issuer-Leverage"
+                            oil_lev_ui = safe_float(oil_balance_snap_ui.get("q2_2026_leverage_pct"))
+                            if oil_lev_ui is None:
+                                oil_lev_ui = safe_float(oil_balance_snap_ui.get("fy2025_leverage_pct"))
+                            st.caption(
+                                f"{APP_BUILD_VERSION} verwendet {oil_lev_name_ui} aus Primärquellen ({oil_lev_ui:.1f} %) und bewertet Bilanz/Funding separat. "
+                                "Net-Debt/TTM-FCF bleibt Diagnosekontext und erzeugt keine generischen Punkte."
+                            )
                     elif is_branded_consumer_staples_balance_ui:
                         bcs_balance_snap_ui = (data.get("branded_consumer_staples_specialist_model") or {}).get("snapshot") or {}
                         st.info("ℹ️ Im Branded-Consumer-Staples-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
@@ -39962,6 +40819,7 @@ if selected_symbol:
                         "defense_high_growth_prime_reference_v2",
                         "luxury_premium_reference_v1",
                         "branded_consumer_staples_reference_v2",
+                        "integrated_oil_gas_major_reference_v1",
                     }
                     if reference_only_peer_group_ui:
                         st.info(
@@ -40039,6 +40897,7 @@ if selected_symbol:
                 is_asset_management_peer_metric = peer_check.get("metric") == "Traditional Asset Manager Forward P/E reference guard"
                 is_luxury_peer_metric = peer_check.get("metric") == "Luxury Goods Forward P/E reference-only"
                 is_branded_consumer_staples_peer_metric = peer_check.get("metric") == "Branded Consumer Staples Forward P/E reference-only"
+                is_integrated_oil_gas_peer_metric = peer_check.get("metric") == "Integrated Oil & Gas Major Forward P/E reference-only"
 
                 if not peer_check[
                     "method_supported"
@@ -40072,6 +40931,8 @@ if selected_symbol:
                         peer_header = "**Luxury-Family Peer-Forward-KGVs (reference-only):**"
                     elif is_branded_consumer_staples_peer_metric:
                         peer_header = "**Branded-Consumer-Staples Peer-Forward-KGVs (reference-only):**"
+                    elif is_integrated_oil_gas_peer_metric:
+                        peer_header = "**Integrated-Oil-&-Gas Major Peer-Forward-KGVs (reference-only):**"
                     else:
                         peer_header = "**Geladene Peer-KGVs:**"
                     st.write(peer_header)
@@ -40301,6 +41162,8 @@ if selected_symbol:
                     peer_explain = f"Luxury-Family {APP_BUILD_VERSION}: Hermès/LVMH/Richemont/Moncler/Kering bleiben reference-only, bis Current-FY-Horizont und dieselbe Primary-source Owner-Earnings-Basis gemeinsam verifiziert sind. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische ±5-%-Anpassung."
                 elif is_branded_consumer_staples_peer_metric:
                     peer_explain = f"Branded Consumer Staples {APP_BUILD_VERSION}: Family-Peers sind reine Markt-Referenzen. Es gibt keine Mindestanzahl als Fair-Value-Gate; fehlende oder wenige Peer-KGVs verändern weder Specialist Score noch Ziel-KGV, Fair Value oder Bewertungssicherheit."
+                elif is_integrated_oil_gas_peer_metric:
+                    peer_explain = f"Integrated Oil & Gas {APP_BUILD_VERSION}: Die anderen globalen Majors sind reine Markt-Referenzen. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Peer-Anpassung; Score, Through-Cycle-EPS, Ziel-KGV und Fair Value bleiben issuer-spezifisch."
                 else:
                     peer_explain = "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
 
@@ -40466,7 +41329,71 @@ if selected_symbol:
                         "nicht vollständig implementiert und freigegeben sind."
                     )
 
-                if special_control.get("control_key") == "asset_management_specialist":
+                if special_control.get("control_key") == "integrated_oil_gas_major":
+                    st.divider()
+                    st.subheader("🛢️ Modul 6 – Schritt 3B: Integrated Oil & Gas Major Specialist")
+                    if special_control.get("implemented"):
+                        checks_oil = special_control.get("checks") or {}
+                        snap_oil = special_control.get("snapshot") or {}
+                        score_oil = checks_oil.get("specialist_score") or {}
+                        val_oil = checks_oil.get("specialist_valuation") or {}
+                        bridge_oil = val_oil.get("earnings_bridge") or {}
+                        oil_ccy = snap_oil.get("reporting_currency") or financial_currency
+                        st.write(f"**Unternehmen / Profil:** {text_or_dash(snap_oil.get('company'))} · {text_or_dash(snap_oil.get('specialist_profile'))}")
+                        st.write(f"**Primärdatenstand:** {text_or_dash(snap_oil.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_oil.get('published_date'))})")
+                        st.caption(text_or_dash(snap_oil.get("source_name")))
+                        oil_links = []
+                        if snap_oil.get("fy2025_url"):
+                            oil_links.append(f"[FY2025 Primärquelle]({snap_oil.get('fy2025_url')})")
+                        if snap_oil.get("fy2025_factbook_url"):
+                            oil_links.append(f"[FY2025 Factbook]({snap_oil.get('fy2025_factbook_url')})")
+                        if snap_oil.get("q2_2026_url"):
+                            oil_links.append(f"[Q2/H1 2026 Primärquelle]({snap_oil.get('q2_2026_url')})")
+                        if oil_links:
+                            st.markdown(" · ".join(oil_links))
+                        o1, o2 = st.columns(2)
+                        with o1:
+                            st.metric("FY2025 Production Growth", f"{safe_float(snap_oil.get('fy2025_production_growth_pct')):+.1f} %")
+                            st.metric("FY2025 CFFO", format_money(snap_oil.get("fy2025_cffo"), oil_ccy))
+                            st.metric("FY2025 ROACE / ROCE", f"{safe_float(snap_oil.get('fy2025_roace_pct')):.1f} %")
+                        with o2:
+                            lev_ui = safe_float(snap_oil.get("q2_2026_leverage_pct"))
+                            lev_label = "Q2 2026 " + str(snap_oil.get("fy2025_leverage_metric_name") or "Leverage")
+                            if lev_ui is None:
+                                lev_ui = safe_float(snap_oil.get("fy2025_leverage_pct"))
+                                lev_label = "FY2025 " + str(snap_oil.get("fy2025_leverage_metric_name") or "Leverage")
+                            st.metric(lev_label, f"{lev_ui:.1f} %")
+                            st.metric("FY2025 Capital Investment", format_money(snap_oil.get("fy2025_capital_investment"), oil_ccy))
+                            st.metric("FY2025 Shareholder Distributions", format_money(snap_oil.get("fy2025_shareholder_distributions"), oil_ccy))
+                        if score_oil.get("available"):
+                            st.metric("Integrated Oil & Gas Quality Score", f"{safe_float(score_oil.get('score')):.0f}/100 · {text_or_dash(score_oil.get('quality_level'))}")
+                            components_oil = score_oil.get("components") or {}
+                            if components_oil:
+                                st.write("**Score-Komponenten:** " + " · ".join(f"{k} {safe_float(v):.0f}" for k, v in components_oil.items()))
+                        if bridge_oil.get("available"):
+                            st.write(
+                                "**Through-Cycle Adjusted EPS:** " + format_eps(bridge_oil.get("earnings_basis"), oil_ccy) +
+                                " · 3Y-Median " + format_eps(bridge_oil.get("median_adjusted_eps_3y"), oil_ccy) +
+                                " · H1-2026 annualisiert roh " + format_eps(bridge_oil.get("annualized_h1_2026_adjusted_eps_raw"), oil_ccy) +
+                                " · verwendet " + format_eps(bridge_oil.get("annualized_h1_2026_adjusted_eps_used"), oil_ccy)
+                            )
+                            st.caption(text_or_dash(bridge_oil.get("method")))
+                        if val_oil.get("available"):
+                            st.write(
+                                f"**Integrated-Major-KGV-Korridor:** {safe_float(val_oil.get('corridor_low')):.2f}× – {safe_float(val_oil.get('corridor_high')):.2f}× · "
+                                f"**Ziel-KGV:** {safe_float(val_oil.get('target_multiple')):.2f}×"
+                            )
+                            st.metric("Fair Value – Fundamentalwährung", format_money(val_oil.get("fair_value_financial"), oil_ccy))
+                            if safe_float(val_oil.get("peer_reference_median_pe")) is not None:
+                                st.caption(f"Peer-KGV-Median – nur Referenz: {safe_float(val_oil.get('peer_reference_median_pe')):.2f}×")
+                            st.success("Integrated-Oil-&-Gas-Spezialkontrolle vollständig – Fair Value freigegeben.")
+                        else:
+                            st.warning("Integrated-Oil-&-Gas-Spezialanker unvollständig – Fair Value bleibt fail-closed.")
+                        st.caption(text_or_dash(special_control.get("note")))
+                    else:
+                        st.warning("Integrated-Oil-&-Gas-Spezialkontrolle noch nicht implementiert/freigegeben.")
+
+                elif special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
                     st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · EPS Confidence Isolation")
                     if special_control.get("implemented"):
@@ -44053,6 +44980,28 @@ if selected_symbol:
                                 "**Abstand der Bewertungsanker:** "
                                 f"{fair_value.get('anchor_spread_pct'):.1f} %"
                             )
+                    elif fair_value.get("valuation_method") == "integrated_oil_gas_through_cycle_pe":
+                        st.write("**Bewertungsformel:** Through-Cycle Adjusted EPS × scoregesteuertes issuer-spezifisches Integrated-Major-KGV")
+                        st.write(f"**Integrated Oil & Gas Quality Score:** {fair_value.get('specialist_score'):.0f}/100 · {fair_value.get('specialist_quality_level')}")
+                        st.write("**Through-Cycle Adjusted-EPS-Basis:** " + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"]))
+                        st.write(f"**Ziel-KGV:** {fair_value.get('target_multiple'):.2f}× · **Korridor:** {fair_value.get('multiple_corridor_low'):.2f}× – {fair_value.get('multiple_corridor_high'):.2f}×")
+                        st.write(
+                            "**3Y Adjusted-EPS-Median:** " + format_eps(fair_value.get("median_adjusted_eps_3y"), fair_value["financial_currency"]) +
+                            " · **H1-2026 annualisiert roh:** " + format_eps(fair_value.get("annualized_h1_2026_adjusted_eps_raw"), fair_value["financial_currency"]) +
+                            " · **verwendet:** " + format_eps(fair_value.get("annualized_h1_2026_adjusted_eps_used"), fair_value["financial_currency"])
+                        )
+                        if fair_value.get("run_rate_capped"):
+                            st.caption("Zyklus-Cap aktiv: H1-2026-Run-Rate wurde auf 75–125 % des 3Y-Adjusted-EPS-Medians begrenzt.")
+                        st.write(f"**FY2025 Production Growth:** {fair_value.get('fy2025_production_growth_pct'):+.1f} % · **ROACE/ROCE:** {fair_value.get('fy2025_roace_pct'):.1f} %")
+                        oil_lev_fv_ui = safe_float(fair_value.get("q2_2026_leverage_pct"))
+                        if oil_lev_fv_ui is None:
+                            oil_lev_fv_ui = safe_float(fair_value.get("fy2025_leverage_pct"))
+                        st.write(f"**Leverage-Kontext:** {oil_lev_fv_ui:.1f} % · **FY2025 CFFO:** " + format_money(fair_value.get("fy2025_cffo"), fair_value["financial_currency"]))
+                        if safe_float(fair_value.get("peer_reference_median_pe")) is not None:
+                            st.caption(f"Peer-Forward-KGV-Median – nur Referenz: {fair_value.get('peer_reference_median_pe'):.2f}×; keine automatische Anpassung.")
+                        st.caption(
+                            f"{fair_value.get('integrated_oil_company') or 'Integrated Oil & Gas Major'}: Generisches Yahoo-Umsatz-/Gewinnwachstum, ROE, TTM-FCF, Net-Debt/TTM-FCF, Peer-KGVs und Analystenziele sind kein direkter Bestandteil des fundamentalen Fair Values."
+                        )
                     elif fair_value.get("valuation_method") == "branded_consumer_staples_adjusted_pe":
                         bcs_fv_profile_ui = fair_value.get("specialist_profile")
                         bcs_fv_company_ui = fair_value.get("specialist_company") or "Branded Consumer Staples"
