@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.135"
+APP_BUILD_VERSION = "V2.20.136"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Coca-Cola Fair-Value Rendering Hotfix"
+    f"Build {APP_BUILD_VERSION} · Insurance Unsupported-Issuer Fail-Closed Hotfix"
 )
 
 
+# V2.20.136: Insurance Unsupported-Issuer Fail-Closed Hotfix. No valuation mathematics changed. Fixes an uninitialized insurance primary_gate return field that caused unsupported insurers such as Munich Re (MUV2.DE) to abort the entire stock load before the intended fail-closed insurance path could render. Unsupported insurers now remain classified as Insurance, show Yahoo context only, keep Core-TTM/official-book-value/Solvency/insurance-score and Dual-Anchor Fair Value blocked until an issuer-specific verified primary-source snapshot exists, and emit no valuation signal. Allianz V2.20.44 mathematics are unchanged.
 # V2.20.135: Coca-Cola Fair-Value Rendering Hotfix. No valuation mathematics changed. Hardens the Branded-Consumer-Staples Fair-Value UI so optional issuer context metrics are formatted fail-soft instead of raising a TypeError when a diagnostic field is missing at render time. KO keeps the V2.20.134 primary-source score, Current-FY Comparable-EPS anchor, 20–28x corridor, target multiple and Fair Value unchanged; MDLZ/PEP/Nestlé and all other specialist paths are unchanged.
 # V2.20.134: Coca-Cola Branded Consumer Staples Specialist V1. Adds an issuer-primary KO profile using Q2/H1 2026 organic revenue, unit-case volume, comparable operating margin/EPS, raised FY2026 comparable-EPS and FCF guidance, current balance-sheet/funding data, dividend durability and global brand/franchise-system resilience. Valuation uses a primary-source Current-FY Comparable-EPS anchor and a KO-specific score-driven 20–28x P/E corridor. MDLZ/PEP mathematics stay frozen, Nestlé remains family-routed fail-closed, and Branded-Staples peers remain reference-only. Also isolates generic EPS-normalization confidence as diagnosis-only for the whole Branded-Staples family.
 # V2.20.133: Midstream Final UI Consistency Cleanup. No valuation mathematics changed. Removes the duplicated Structural-Break next-step copy for WMB/OKE, replaces stale generic Midstream peer-adjustment promises with explicit reference-only wording in Module 6, and keeps the V2.20.131/132 Midstream score, target-multiple, Fair-Value, peer-lock and fail-closed mechanics unchanged.
@@ -9151,6 +9152,28 @@ def build_insurance_special_model(
         and solvency_ii is not None
         and solvency_ii > 100
     )
+
+    # V2.20.136 – schema-preserving fail-closed insurance gate.
+    # Prior builds returned an uninitialized local ``primary_gate`` here,
+    # which aborted the complete stock load for every insurance issuer before
+    # the intended unsupported-issuer fallback could render. This gate is
+    # informational only; valuation release continues to be controlled by the
+    # existing primary_source_complete/Core-TTM/book-value/score/dual-anchor checks.
+    primary_gate = {
+        "available": bool(primary_source_complete),
+        "passed": bool(primary_source_complete),
+        "snapshot_fresh": bool(snapshot_fresh),
+        "note": (
+            "Versicherungs-Primärquellen-Gate bestanden."
+            if primary_source_complete
+            else (
+                "Versicherungs-Primärquellen-Gate nicht freigegeben: Für diesen "
+                "Emittenten liegt kein aktueller verifizierter issuer-spezifischer "
+                "Primärquellen-Snapshot vor. Yahoo-/Standarddaten bleiben Kontext; "
+                "Versicherungs-Score und Dual-Anchor-Fair-Value bleiben fail-closed."
+            )
+        ),
+    }
 
     quote_price = safe_float(price)
     price_financial = convert_quote_price_to_financial_share_unit(
