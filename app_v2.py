@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.143"
+APP_BUILD_VERSION = "V2.21.0"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Capital One Card-Issuer Bank & Payment-Network Specialist V1"
+    f"Build {APP_BUILD_VERSION} · Universal Company Classification & Valuation Family Router V1"
 )
 
 
+# V2.21.0: Universal Company Classification & Valuation Family Router V1. Adds a reusable family layer above issuer-specific valuation logic. Existing released specialist mathematics remain frozen. The router enriches every classification with a valuation family, routes ambiguous Financial-Services issuers (especially Credit Services / Consumer Finance / Payments / Capital Markets) away from the industrial Standard-Unternehmen path, and fail-closes unreleased family models. A scalable Security Family Master supplies high-confidence overrides for ambiguous issuers such as Synchrony, while sector/industry/business-summary rules cover thousands of additional securities without requiring one code branch per stock. Generic growth, margin/ROE, Yahoo-FCF and Net-Debt/FCF scoring are blocked whenever the universal family gate marks the model as specialist-required. The Standard-Unternehmen path is retained only where the family is explicitly generic-compatible.
 # V2.20.142: American Express Closed-Loop Card & Credit Specialist V1. Routes AXP out of Standard-Unternehmen into an issuer-primary hybrid payments-and-lending model. Uses Q2/H1 2026 Billed Business/Network Volume, revenue mix (discount revenue, card fees and net interest income), FY2026 EPS guidance, Card balances, delinquency/write-off/reserve metrics, ROE/ROCE, CET1/SLR, official book value, deposit funding and capital returns. Generic Yahoo FCF margin and Net-Debt/FCF are diagnosis-only. Valuation uses a 70% FY2026-guidance P/E anchor plus 30% official book-value/P-B anchor, with score-driven 14–22x P/E and 3.5–6.5x P/B corridors and a fail-closed anchor-consistency gate. Visa/Mastercard and all prior specialist mathematics remain unchanged.
 # V2.20.143: Capital One Card-Issuer Bank & Payment-Network Specialist V1. Routes COF out of Standard-Unternehmen into an issuer-primary hybrid lender/payments model, blocks acquisition-distorted Yahoo growth plus generic FCF/Net-Debt scoring, uses official Adjusted-TTM EPS, NIM/efficiency, card credit quality, CET1/ROTCE/TBV, funding and Global Payment Network volume, and applies a downside-only Post-Discover/Brex integration overlay to separate P/E and P/TBV anchors. Also fixes the Capital One IR quarterly-results/news-release routes. AXP, Visa/Mastercard, JPM and all prior specialist mathematics remain unchanged.
 # V2.20.141: Mastercard Payment Network Specialist V1. Extends the V2.20.140 Payment-Network family from Visa to Mastercard without changing Visa mathematics. Mastercard receives an issuer-primary Q2/H1 2026 snapshot using GDV, cross-border volume, switched transactions, net-revenue/Adjusted-EPS growth, non-GAAP operating margin, official operating cash flow/capex, capital returns and current litigation/regulatory disclosures. Its earnings anchor is a fully covered issuer-primary Adjusted-TTM EPS bridge from Q3 2025 through Q2 2026 (4.38 + 4.76 + 4.60 + 5.04 = 18.78 USD), avoiding an invented FY2026 EPS point estimate. The Mastercard Quality Score is 91/100 in the same 22–32x family corridor; a yellow Regulatory & Litigation Overlay caps the used P/E downside-only at 30.5x and confidence at Medium. Payment-Network UI is issuer-neutralized; Visa retains its V2.20.140 score, EPS bridge, 30.0x risk cap and Fair-Value mathematics unchanged. Existing utility, bank, insurance, REIT, midstream and branded-consumer mathematics remain unchanged.
@@ -5682,7 +5683,8 @@ def calculate_profitability_score(
     ).lower()
 
     special_model = (
-        "bank" in type_name
+        is_universal_family_fail_closed(company_type)
+        or "bank" in type_name
         or "versicherung" in type_name
         or "reit" in type_name
         or "immobilien" in type_name
@@ -5692,10 +5694,13 @@ def calculate_profitability_score(
 
     if special_model:
         special_text = (
-            "Bei Banken wird die generische Margen-/ROE-Profitabilitätslogik nicht verwendet. "
-            "Die Ertragskraft wird im Bank-Score über normalisierten ROTCE und Ertragsqualität bewertet."
-            if "bank" in type_name
+            f"Universal Family Router {APP_BUILD_VERSION}: Für die Bewertungsfamilie {company_type.get('valuation_family') or company_type.get('type')} wird die generische Margen-/ROE-Profitabilitätslogik nicht verwendet. Das Familienmodell ist noch nicht freigegeben."
+            if is_universal_family_fail_closed(company_type)
             else (
+                "Bei Banken wird die generische Margen-/ROE-Profitabilitätslogik nicht verwendet. "
+                "Die Ertragskraft wird im Bank-Score über normalisierten ROTCE und Ertragsqualität bewertet."
+                if "bank" in type_name
+                else (
                 "Bei American Express wird die generische Margen-/ROE-Profitabilitätslogik nicht verwendet. "
                 "ROE/ROCE, CET1 und Kreditqualität werden im Closed-Loop-Spezialscore bewertet."
                 if "closed-loop payments & consumer credit" in type_name
@@ -5704,6 +5709,7 @@ def calculate_profitability_score(
                     "eine eigene Profitabilitätslogik verwendet."
                 )
             )
+        )
         )
         return {
             "score": None,
@@ -5881,6 +5887,9 @@ def is_oilfield_services_energy_tech_specialist_type(company_type, symbol=None):
 # =========================================================
 
 def is_special_fcf_model(company_type):
+    if is_universal_family_fail_closed(company_type):
+        return True
+
     type_name = str(
         company_type.get("type", "")
     ).lower()
@@ -6130,6 +6139,9 @@ def calculate_fcf_score(
 # =========================================================
 
 def is_special_balance_model(company_type):
+    if is_universal_family_fail_closed(company_type):
+        return True
+
     type_name = str(
         company_type.get("type", "")
     ).lower()
@@ -6337,6 +6349,290 @@ def calculate_balance_score(
 # =========================================================
 # Unternehmen klassifizieren
 # =========================================================
+
+# =========================================================
+# V2.21.0 – Universal Valuation Family Router
+# =========================================================
+
+# The family layer is intentionally separate from issuer snapshots.  It is
+# designed to scale to thousands of securities: most stocks are classified by
+# sector/industry/business-summary rules; only genuinely ambiguous issuers need
+# a compact Security Family Master override.  The existing released specialist
+# calculations remain untouched.
+UNIVERSAL_VALUATION_FAMILY_CATALOG = {
+    "bank": {"label": "Bank / Deposits & Lending", "policy": "specialist"},
+    "consumer_finance_card": {"label": "Consumer Finance / Card Issuer", "policy": "specialist"},
+    "closed_loop_card": {"label": "Closed-Loop Card / Consumer Credit", "policy": "specialist"},
+    "payment_network": {"label": "Payment Network / Capital-Light Payments", "policy": "specialist"},
+    "payments_processor": {"label": "Payments Processor / Merchant Acquirer", "policy": "specialist"},
+    "capital_markets": {"label": "Capital Markets / Brokerage / Exchange", "policy": "specialist"},
+    "credit_data_analytics": {"label": "Credit Bureau / Data & Analytics", "policy": "specialist"},
+    "asset_manager": {"label": "Asset Management", "policy": "specialist"},
+    "insurance": {"label": "Insurance", "policy": "specialist"},
+    "reinsurance": {"label": "Reinsurance", "policy": "specialist"},
+    "reit": {"label": "REIT / Real Estate", "policy": "specialist"},
+    "real_estate_services": {"label": "Real Estate Services / Development", "policy": "specialist"},
+    "regulated_utility": {"label": "Regulated Utility", "policy": "specialist"},
+    "midstream": {"label": "Midstream Infrastructure", "policy": "specialist"},
+    "integrated_oil": {"label": "Integrated Oil & Gas Major", "policy": "specialist"},
+    "oilfield_services": {"label": "Oilfield Services / Energy Technology", "policy": "specialist"},
+    "oil_gas_cyclical": {"label": "Oil & Gas / Cyclical Producer", "policy": "generic_compatible"},
+    "mining": {"label": "Mining / Materials", "policy": "specialist"},
+    "specialty_chemicals": {"label": "Specialty Chemicals / Materials", "policy": "specialist"},
+    "pharma": {"label": "Pharma", "policy": "generic_compatible"},
+    "biotech": {"label": "Biotechnology", "policy": "specialist"},
+    "medical_devices": {"label": "Medical Devices", "policy": "generic_compatible"},
+    "healthcare_services": {"label": "Healthcare Services", "policy": "generic_compatible"},
+    "semiconductors": {"label": "Semiconductors", "policy": "specialist"},
+    "semicap": {"label": "Semiconductor Equipment", "policy": "specialist"},
+    "software": {"label": "Software / SaaS", "policy": "specialist"},
+    "it_hardware_services": {"label": "IT Hardware / Services", "policy": "generic_compatible"},
+    "telecom": {"label": "Telecommunications", "policy": "generic_compatible"},
+    "branded_staples": {"label": "Branded Consumer Staples", "policy": "specialist"},
+    "retail": {"label": "Retail", "policy": "specialist"},
+    "luxury_apparel": {"label": "Luxury / Apparel / Premium Consumer", "policy": "specialist"},
+    "automotive": {"label": "Automotive", "policy": "specialist"},
+    "aerospace_defense": {"label": "Aerospace & Defense", "policy": "specialist"},
+    "industrials": {"label": "Industrials / Capital Goods", "policy": "specialist"},
+    "transport_logistics": {"label": "Transportation / Logistics", "policy": "generic_compatible"},
+    "media_internet": {"label": "Media / Internet / Platforms", "policy": "generic_compatible"},
+    "advertising": {"label": "Advertising / Marketing Services", "policy": "specialist"},
+    "general_corporate": {"label": "General Corporate / Standard", "policy": "generic_compatible"},
+    "financial_unresolved": {"label": "Financial Services / Untertyp noch nicht eindeutig", "policy": "specialist"},
+}
+
+# Only high-confidence ambiguity overrides belong here.  This table is meant to
+# stay compact; the rule engine below does the broad coverage work.
+UNIVERSAL_SECURITY_FAMILY_MASTER = {
+    # Consumer finance / card issuers
+    "SYF": "consumer_finance_card",
+    "ALLY": "consumer_finance_card",
+    "BFH": "consumer_finance_card",
+    "OMF": "consumer_finance_card",
+    "LC": "consumer_finance_card",
+    # Pure / mostly capital-light payment processors and merchant acquirers
+    "PYPL": "payments_processor",
+    "XYZ": "payments_processor",
+    "FI": "payments_processor",
+    "FIS": "payments_processor",
+    "GPN": "payments_processor",
+    "ADYEN.AS": "payments_processor",
+    # Capital-markets issuers whose Yahoo industry is often too broad for a bank route
+    "GS": "capital_markets",
+    "MS": "capital_markets",
+    "SCHW": "capital_markets",
+    "IBKR": "capital_markets",
+    "CME": "capital_markets",
+    "ICE": "capital_markets",
+}
+
+
+def _universal_family_meta(family_id):
+    meta = UNIVERSAL_VALUATION_FAMILY_CATALOG.get(family_id) or UNIVERSAL_VALUATION_FAMILY_CATALOG["general_corporate"]
+    return family_id, dict(meta)
+
+
+def _infer_universal_family_from_existing_type(company_type, name_text=""):
+    type_name = normalized_company_type_name(company_type)
+    name_text = str(name_text or "").lower()
+    checks = [
+        ("card issuer / diversified lending", "consumer_finance_card"),
+        ("closed-loop payments & consumer credit", "closed_loop_card"),
+        ("payment network / capital-light payments", "payment_network"),
+        ("asset manager / investment management", "asset_manager"),
+        ("credit bureau / data & analytics", "credit_data_analytics"),
+        ("bank", "bank"),
+        ("versicherung", "reinsurance" if ("munich re" in name_text or "rück" in name_text or "reinsurance" in name_text) else "insurance"),
+        ("reit", "reit"),
+        ("immobilien", "reit"),
+        ("midstream", "midstream"),
+        ("integrated oil & gas", "integrated_oil"),
+        ("oilfield services / energy technology", "oilfield_services"),
+        ("energy technology / oilfield services", "oilfield_services"),
+        ("öl & gas / zyklisch", "oil_gas_cyclical"),
+        ("rohstoffe", "mining"),
+        ("specialty materials", "specialty_chemicals"),
+        ("pharma", "pharma"),
+        ("biotechnologie", "biotech"),
+        ("halbleiterausrüstung", "semicap"),
+        ("halbleiter", "semiconductors"),
+        ("software", "software"),
+        ("telekommunikation", "telecom"),
+        ("defensiver konsum", "branded_staples"),
+        ("luxury goods", "luxury_apparel"),
+        ("consumer / athletic apparel", "luxury_apparel"),
+        ("consumer / specialty retail", "retail"),
+        ("autohersteller", "automotive"),
+        ("autozulieferer", "automotive"),
+        ("defense", "aerospace_defense"),
+        ("aerospace", "aerospace_defense"),
+        ("versorger", "regulated_utility"),
+        ("advertising", "advertising"),
+        ("industrie", "industrials"),
+    ]
+    for token, family_id in checks:
+        if token in type_name:
+            return family_id
+    return None
+
+
+def _infer_universal_family_from_metadata(symbol, sector, industry, business_summary):
+    sym = str(symbol or "").upper().strip()
+    sector_text = str(sector or "").lower()
+    industry_text = str(industry or "").lower()
+    summary_text = str(business_summary or "").lower()
+    combined = " ".join([sector_text, industry_text, summary_text])
+
+    if sym in UNIVERSAL_SECURITY_FAMILY_MASTER:
+        return UNIVERSAL_SECURITY_FAMILY_MASTER[sym], "security_family_master"
+
+    # Financial Services is intentionally conservative: an unidentified lender,
+    # broker or payments company must never inherit industrial FCF/net-debt math.
+    if "financial" in sector_text:
+        if any(x in industry_text for x in ["bank", "banks", "banking"]):
+            return "bank", "sector_industry_rule"
+        if "asset management" in industry_text or "investment management" in industry_text:
+            return "asset_manager", "sector_industry_rule"
+        if "insurance" in industry_text:
+            return "insurance", "sector_industry_rule"
+        if "credit services" in industry_text or "consumer finance" in industry_text:
+            lending_terms = [
+                "consumer finance", "credit card", "private label", "installment loan", "loan receivable",
+                "consumer lending", "consumer banking", "financing products", "deposit products",
+            ]
+            processor_terms = [
+                "merchant acquiring", "payment processing", "payment processor", "payment solutions",
+                "checkout", "digital payments", "merchant services",
+            ]
+            has_lending = any(term in combined for term in lending_terms)
+            has_processor = any(term in combined for term in processor_terms)
+            if has_lending and not has_processor:
+                return "consumer_finance_card", "business_summary_rule"
+            if has_processor and not has_lending:
+                return "payments_processor", "business_summary_rule"
+            return "financial_unresolved", "sector_industry_rule"
+        if any(x in industry_text for x in ["capital markets", "financial data", "stock exchanges", "brokerage"]):
+            return "capital_markets", "sector_industry_rule"
+        if any(x in industry_text for x in ["mortgage finance", "financial conglomerates"]):
+            return "financial_unresolved", "sector_industry_rule"
+        return "financial_unresolved", "sector_rule"
+
+    if "real estate" in sector_text:
+        if "reit" in industry_text:
+            return "reit", "sector_industry_rule"
+        return "real_estate_services", "sector_rule"
+
+    if "medical devices" in industry_text:
+        return "medical_devices", "industry_rule"
+    if any(x in industry_text for x in ["medical care facilities", "health information services", "healthcare plans"]):
+        return "healthcare_services", "industry_rule"
+    if "biotechnology" in industry_text:
+        return "biotech", "industry_rule"
+    if "drug manufacturers" in industry_text or "pharmaceutical" in industry_text:
+        return "pharma", "industry_rule"
+
+    if "semiconductor equipment" in industry_text:
+        return "semicap", "industry_rule"
+    if "semiconductor" in industry_text:
+        return "semiconductors", "industry_rule"
+    if "software" in industry_text:
+        return "software", "industry_rule"
+    if any(x in industry_text for x in ["computer hardware", "information technology services", "communication equipment"]):
+        return "it_hardware_services", "industry_rule"
+
+    if "utilities" in sector_text or "utility" in sector_text:
+        return "regulated_utility", "sector_rule"
+    if "telecom" in combined or "telecommunication" in combined:
+        return "telecom", "metadata_rule"
+    if "aerospace & defense" in industry_text or "aerospace and defense" in industry_text:
+        return "aerospace_defense", "industry_rule"
+    if "industrials" in sector_text:
+        if any(x in industry_text for x in ["integrated freight", "trucking", "railroads", "air freight", "marine shipping"]):
+            return "transport_logistics", "industry_rule"
+        return "industrials", "sector_rule"
+
+    if "consumer defensive" in sector_text:
+        return "branded_staples", "sector_rule"
+    if "consumer cyclical" in sector_text:
+        if "specialty retail" in industry_text:
+            return "retail", "industry_rule"
+        if "luxury" in combined or "apparel" in industry_text or "footwear" in industry_text:
+            return "luxury_apparel", "metadata_rule"
+        return "general_corporate", "sector_rule"
+
+    if "communication services" in sector_text:
+        return "media_internet", "sector_rule"
+
+    return "general_corporate", "fallback"
+
+
+def apply_universal_valuation_family_router(base_classification, name, symbol, sector, industry, business_summary=None):
+    """Attach a reusable valuation family without disturbing released specialist math.
+
+    Only a generic Standard-Unternehmen classification may be re-routed by this
+    V1 architecture layer. Existing explicit specialist types are enriched with
+    family metadata but otherwise left byte-for-byte equivalent in their method
+    and valuation path.
+    """
+    out = dict(base_classification or {})
+    name_text = str(name or "").lower()
+    current_type = normalized_company_type_name(out)
+
+    existing_family = _infer_universal_family_from_existing_type(out, name_text=name_text)
+    if "untertyp noch nicht eindeutig" in current_type:
+        existing_family = None
+    if existing_family:
+        family_id, meta = _universal_family_meta(existing_family)
+        out.setdefault("valuation_family_id", family_id)
+        out.setdefault("valuation_family", meta["label"])
+        out.setdefault("family_router_source", "existing_specialist_route")
+        out.setdefault("family_policy", meta["policy"])
+        out.setdefault("family_model_status", "existing_route")
+        out.setdefault("universal_family_fail_closed", False)
+        return out
+
+    family_id, source = _infer_universal_family_from_metadata(
+        symbol, sector, industry, business_summary
+    )
+    family_id, meta = _universal_family_meta(family_id)
+    out["valuation_family_id"] = family_id
+    out["valuation_family"] = meta["label"]
+    out["family_router_source"] = source
+    out["family_policy"] = meta["policy"]
+
+    # Non-standard types already have deliberate routing elsewhere.  Enrich only.
+    if "standard-unternehmen" not in current_type:
+        out["family_model_status"] = "existing_route"
+        out["universal_family_fail_closed"] = False
+        return out
+
+    if meta["policy"] == "specialist":
+        out["type"] = meta["label"]
+        out["method"] = (
+            f"Universal Family Router: {meta['label']} erkannt; familiengerechte Kennzahlen/Anker erforderlich. "
+            "Generischer Standard-Score, Yahoo-FCF/Net-Debt-to-FCF und Standard-KGV sind bis zur Freigabe des Familienmodells gesperrt."
+        )
+        out["confidence_cap"] = "Niedrig bis Mittel"
+        out["family_model_status"] = "defined_unreleased"
+        out["universal_family_fail_closed"] = True
+        out["business_model"] = out.get("business_model") or (
+            "Geschäftsmodell wurde einer wiederverwendbaren Bewertungsfamilie zugeordnet; "
+            "issuer-spezifische Overrides sind nur noch für echte Sonderfälle vorgesehen."
+        )
+        out["focus_areas"] = out.get("focus_areas") or (
+            "Familienkennzahlen statt industrieller Standard-FCF-/Net-Debt-Logik; "
+            "Primärdaten-/Comparability-Gate vor Fair Value"
+        )
+    else:
+        out["family_model_status"] = "generic_compatible"
+        out["universal_family_fail_closed"] = False
+
+    return out
+
+
+def is_universal_family_fail_closed(company_type):
+    return bool((company_type or {}).get("universal_family_fail_closed"))
+
 
 def classify_company(name, symbol, sector, industry):
 
@@ -6737,7 +7033,8 @@ def classify_company(name, symbol, sector, industry):
     if (
         symbol_text == "TRU"
         or "transunion" in name_text
-        or "financial data & stock exchanges" in industry_text
+        or "credit bureau" in industry_text
+        or "credit reporting" in industry_text
     ):
         return {
             "type": "Credit Bureau / Data & Analytics",
@@ -20608,6 +20905,19 @@ def get_valuation_corridor(company_type):
         company_type.get("type", "")
     ).lower()
 
+    if is_universal_family_fail_closed(company_type):
+        family_label = company_type.get("valuation_family") or company_type.get("type") or "Bewertungsfamilie"
+        return {
+            "available": False,
+            "lower": None,
+            "upper": None,
+            "method": None,
+            "note": (
+                f"Universal Family Router {APP_BUILD_VERSION}: {family_label} ist erkannt, aber das wiederverwendbare Familienmodell ist noch nicht freigegeben. "
+                "Der Standard-KGV-Korridor bleibt fail-closed; es wird kein Multiple geschätzt."
+            ),
+        }
+
     corridors = [
         (
             "halbleiterausrüstung / lithografie",
@@ -23916,6 +24226,36 @@ def get_special_control(company_type, symbol):
                 "verifizierten Daten aufgebaut. Der Fair Value wird ausschließlich bei "
                 "vollständiger und konsistenter Dual-Anchor-Prüfung freigegeben."
             )
+        }
+
+    if is_universal_family_fail_closed(company_type):
+        family_label = company_type.get("valuation_family") or company_type.get("type") or "Bewertungsfamilie"
+        return {
+            "required": True,
+            "implemented": False,
+            "released": False,
+            "control_key": "universal_family_model_gate",
+            "control_name": f"Universal Family / {family_label} Modell-Gate",
+            "planned_checks": [
+                "Familiengerechte Earnings-/Cashflow-/Kapital-Kennzahlen statt industrieller Standardmetriken",
+                "Primärquellen-/Comparability-Basis für die aktuelle Periode",
+                "familiengerechter Bewertungsanker und Korridor",
+                "issuer-spezifische Overrides nur bei echten Struktur-/Sonderfällen",
+                "Analystenziele ausschließlich Reality Check, nie Fair-Value-Anker",
+            ],
+            "status": "Bewertungsfamilie erkannt · Familienmodell noch nicht freigegeben",
+            "router_status": "Bewertungsfamilie erkannt · Familienmodell noch nicht freigegeben",
+            "confidence_cap": "Niedrig bis Mittel",
+            "note": (
+                f"{family_label} wurde durch den Universal Company Classification & Valuation Family Router erkannt. "
+                "Bis das wiederverwendbare Familienmodell freigegeben ist, bleiben Standard-Score, Standard-KGV, Fair Value, Bewertungszone und Handlungssignale gesperrt. "
+                "Das ist ein Modellbereitschafts-Gate und kein Sonderereignis des Unternehmens."
+            ),
+            "router_note": (
+                f"{family_label} wurde durch den Universal Company Classification & Valuation Family Router erkannt. "
+                "Bis das wiederverwendbare Familienmodell freigegeben ist, bleiben Standard-Score, Standard-KGV, Fair Value, Bewertungszone und Handlungssignale gesperrt. "
+                "Das ist ein Modellbereitschafts-Gate und kein Sonderereignis des Unternehmens."
+            ),
         }
 
     return {
@@ -36907,11 +37247,27 @@ def load_stock(selected_symbol, cache_version):
         or quote_info.get("earningsTimestampStart")
     )
 
+    _sector_for_classification = fundamental_info.get("sector") or quote_info.get("sector")
+    _industry_for_classification = fundamental_info.get("industry") or quote_info.get("industry")
+    _summary_for_classification = (
+        fundamental_info.get("longBusinessSummary")
+        or quote_info.get("longBusinessSummary")
+        or fundamental_info.get("description")
+        or quote_info.get("description")
+    )
     company_type = classify_company(
         name,
         fundamental_symbol,
-        fundamental_info.get("sector") or quote_info.get("sector"),
-        fundamental_info.get("industry") or quote_info.get("industry")
+        _sector_for_classification,
+        _industry_for_classification,
+    )
+    company_type = apply_universal_valuation_family_router(
+        company_type,
+        name,
+        fundamental_symbol,
+        _sector_for_classification,
+        _industry_for_classification,
+        _summary_for_classification,
     )
 
     historical = build_historical_data(
@@ -37396,6 +37752,27 @@ def load_stock(selected_symbol, cache_version):
             "score": None,
             "brake_text": (profitability_score.get("brake_text") or "") +
                 f" {APP_BUILD_VERSION}: generische Margen-/ROE-Punkte bleiben für diesen Untertyp Diagnosekontext, bis ein kalibriertes Branchenmodell freigegeben ist."
+        }
+
+    if is_universal_family_fail_closed(company_type):
+        _family_label = company_type.get("valuation_family") or company_type.get("type") or "Bewertungsfamilie"
+        growth_score = {
+            **growth_score,
+            "context_score": growth_score.get("score"),
+            "score": None,
+            "note": (
+                f"Universal Family Router {APP_BUILD_VERSION}: {_family_label} erkannt. "
+                "Generisches Umsatz-/Gewinnwachstum bleibt Diagnosekontext; das Familienmodell ist noch nicht freigegeben."
+            ),
+        }
+        profitability_score = {
+            **profitability_score,
+            "context_score": profitability_score.get("score"),
+            "score": None,
+            "brake_text": (
+                f"Universal Family Router {APP_BUILD_VERSION}: {_family_label} erkannt. "
+                "Generische Nettomargen-/ROE-Punkte bleiben Diagnosekontext; das Familienmodell ist noch nicht freigegeben."
+            ),
         }
 
     score_fcf_input = (
@@ -38508,6 +38885,21 @@ def load_stock(selected_symbol, cache_version):
         bank_special_model=bank_special_model,
         insurance_special_model=insurance_special_model
     )
+
+    if is_universal_family_fail_closed(company_type) and str(special_event_warning.get("level") or "").lower() == "grün":
+        _family_label = company_type.get("valuation_family") or company_type.get("type") or "Bewertungsfamilie"
+        special_event_warning = {
+            **special_event_warning,
+            "title": "Keine Sonderauffälligkeit – Familienmodell-Gate separat aktiv",
+            "reason": (
+                f"Die EPS-/Vergleichbarkeitsprüfung zeigt kein materielles Sonderereignis. "
+                f"Unabhängig davon wurde {_family_label} als eigene Bewertungsfamilie erkannt."
+            ),
+            "action": (
+                "Keine Sonderereignis-Recherche nötig. Der Universal Family Router blockiert lediglich die industrielle Standardbewertung, "
+                "bis das wiederverwendbare Familienmodell freigegeben ist."
+            ),
+        }
 
     # V2.20.123 – Family calibration is not a special event.  Keep a
     # dedicated gate so an uncalibrated Nestlé profile can fail closed
@@ -39832,6 +40224,32 @@ if selected_symbol:
                     f"{company_type['confidence_cap']}"
                 )
 
+                if company_type.get("valuation_family"):
+                    st.write(f"**Bewertungsfamilie:** {company_type.get('valuation_family')}")
+                    _family_source_labels = {
+                        "security_family_master": "Security Family Master",
+                        "business_summary_rule": "Geschäftsmodell-Regel",
+                        "sector_industry_rule": "Sektor-/Branchenregel",
+                        "industry_rule": "Branchenregel",
+                        "sector_rule": "Sektorregel",
+                        "metadata_rule": "Metadatenregel",
+                        "existing_specialist_route": "bestehender Spezialpfad",
+                        "fallback": "Fallback",
+                    }
+                    _family_source = _family_source_labels.get(
+                        company_type.get("family_router_source"),
+                        company_type.get("family_router_source") or "–",
+                    )
+                    st.caption(
+                        f"Universal Family Router {APP_BUILD_VERSION}: {len(UNIVERSAL_VALUATION_FAMILY_CATALOG)} Bewertungsfamilien · "
+                        f"Quelle {_family_source} · Status {company_type.get('family_model_status') or '–'}"
+                    )
+                    if is_universal_family_fail_closed(company_type):
+                        st.warning(
+                            "Familie erkannt, aber das wiederverwendbare Familienmodell ist noch nicht freigegeben. "
+                            "Die App bleibt deshalb fail-closed und verwendet nicht den industriellen Standardpfad."
+                        )
+
                 if company_type.get("business_model"):
                     st.write(f"**Geschäftsmodell:** {company_type['business_model']}")
                 if company_type.get("core_segments"):
@@ -40617,6 +41035,7 @@ if selected_symbol:
                 asset_management_eps_context_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                 defense_high_growth_eps_context_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                 ctva_eps_context_ui = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
+                universal_family_eps_context_ui = is_universal_family_fail_closed(company_type)
                 if bank_core_eps_active:
                     normalized_eps = safe_float(
                         bank_core_eps_ui.get("bank_normalized_core_eps")
@@ -40633,7 +41052,7 @@ if selected_symbol:
                     )
                 else:
                     normalized_eps = eps_result["normalized_eps"]
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (universal_family_eps_context_ui or is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -40707,6 +41126,14 @@ if selected_symbol:
                         st.info(
                             "NVIDIA/Fabless-AI: Diese Standard-Normalisierung bleibt in V2.20.67 ausschließlich Kontext. "
                             "Das Earnings-Horizon-Alignment verwendet eine separate operative FY27-Proxy-Basis; das Standard-EPS bleibt für NVIDIA nicht freigegeben."
+                        )
+                    elif universal_family_eps_context_ui:
+                        st.info(
+                            f"Universal Family Router {APP_BUILD_VERSION}: Diese Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                            f"Für die Bewertungsfamilie {company_type.get('valuation_family') or company_type.get('type')} wird erst nach Freigabe des wiederverwendbaren Familienmodells eine Earnings-Basis als Fair-Value-Anker zugelassen."
+                        )
+                        st.caption(
+                            "Analysten-EPS, Yahoo-FCF, Net-Debt/FCF und das industrielle Standard-KGV dürfen das Family-Model-Gate nicht umgehen."
                         )
                     elif cof_card_bank_eps_context_ui:
                         cof_eps_model_ui = data.get("cof_card_bank_specialist_model") or {}
@@ -40924,7 +41351,12 @@ if selected_symbol:
                     )
                 )
 
-                if gold_precious_metals_eps_context_ui:
+                if universal_family_eps_context_ui:
+                    st.info(
+                        f"Standard-EPS-Normalisierung: **nur Diagnosekontext** · Universal Family Router {APP_BUILD_VERSION} hält "
+                        f"{company_type.get('valuation_family') or company_type.get('type')} bis zur Freigabe des Familienmodells fail-closed."
+                    )
+                elif gold_precious_metals_eps_context_ui:
                     st.info(
                         "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
                         "die GOLD-Spezialbewertungssicherheit wird ausschließlich aus FY2026-Primärdaten, Gross-Profit/EBITDA-Qualität, Hedge-/Inventar-, Secured-Lending-, Funding- und Dilution-Kontrollen bestimmt."
@@ -41061,6 +41493,11 @@ if selected_symbol:
                         st.caption("Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) + " Diese Divergenz steuert das Kratos-Sondermodell nicht; GAAP/Adjusted-EPS werden separat geprüft.")
                     elif is_nvidia_ai_growth_company_type(company_type):
                         st.caption("Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) + " Diese Divergenz steuert das NVIDIA-Sondermodell nicht.")
+                    elif universal_family_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
+                            " Diese Provider-EPS-Divergenz ist beim Universal Family Gate nur Diagnosekontext und kann weder Fair Value noch Bewertungssignal freigeben."
+                        )
                     elif cof_card_bank_eps_context_ui:
                         st.caption(
                             "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
@@ -41942,6 +42379,7 @@ if selected_symbol:
                 is_defense_high_growth_score_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                 is_kratos_score_ui = str(selected_symbol or "").upper() == "KTOS"
                 is_bkr_score_ui = str(selected_symbol or "").upper() == "BKR"
+                is_universal_family_score_ui = is_universal_family_fail_closed(company_type)
 
                 if is_bkr_score_ui:
                     st.info(
@@ -41955,7 +42393,13 @@ if selected_symbol:
                         "Sie bestimmen weder eine Kratos-Earnings-Basis noch ein Fundamental-Multiple oder einen Fair Value. Maßgeblich ist zunächst das primärquellenbasierte Growth-/Backlog-/Owner-Operating-Earnings-Gate."
                     )
 
-                if is_bkr_score_ui:
+                if is_universal_family_score_ui:
+                    st.info(
+                        f"Universal Family Router {APP_BUILD_VERSION}: Der generische Umsatz-/Gewinnwachstums-Score wird für "
+                        f"{company_type.get('valuation_family') or company_type.get('type')} nicht verwendet."
+                    )
+                    st.caption("Provider-Wachstum bleibt Diagnosekontext; Familienkennzahlen und eine vergleichbare Primärdatenbasis müssen zuerst freigegeben werden.")
+                elif is_bkr_score_ui:
                     st.info("Baker Hughes/Post-Chart-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.129 bewertet Q2 Orders/RPO und OFSE/IET Segmententwicklung aus Primärquellen.")
                     st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf einen späteren Post-Chart Bewertungsanker.")
                 elif is_cof_card_bank_score_ui:
@@ -42157,7 +42601,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_payment_network_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_oilfield_services_score_ui and not is_integrated_oil_gas_score_ui and not is_branded_consumer_staples_score_ui and not is_asset_management_score_ui and not is_defense_high_growth_score_ui:
+                if not is_universal_family_score_ui and not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_payment_network_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_oilfield_services_score_ui and not is_integrated_oil_gas_score_ui and not is_branded_consumer_staples_score_ui and not is_asset_management_score_ui and not is_defense_high_growth_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -42196,8 +42640,15 @@ if selected_symbol:
                 is_asset_management_profitability_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                 is_defense_high_growth_profitability_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                 is_bkr_profitability_ui = is_baker_hughes_energy_tech_company_type(company_type)
+                is_universal_family_profitability_ui = is_universal_family_fail_closed(company_type)
 
-                if is_bkr_profitability_ui:
+                if is_universal_family_profitability_ui:
+                    st.info(
+                        f"Universal Family Router {APP_BUILD_VERSION}: Die generische Nettomargen-/ROE-Punktelogik wird für "
+                        f"{company_type.get('valuation_family') or company_type.get('type')} nicht verwendet."
+                    )
+                    st.caption("Profitabilität wird erst über die familiengerechten Kennzahlen des freigegebenen Family Models bewertet.")
+                elif is_bkr_profitability_ui:
                     st.info("Baker Hughes/Post-Chart-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. Q2 OFSE-/IET-Adjusted-EBITDA-Margen werden separat aus der Primärquelle gezeigt; eine konsolidierte Post-Chart Profitabilitätsbasis folgt später.")
                 elif is_cof_card_bank_profitability_ui:
                     cof_prof_snap_ui = (data.get("cof_card_bank_specialist_model") or {}).get("snapshot") or {}
@@ -42436,6 +42887,7 @@ if selected_symbol:
                     and not is_branded_consumer_staples_profitability_ui
                     and not is_asset_management_profitability_ui
                     and not is_defense_high_growth_profitability_ui
+                    and not is_universal_family_profitability_ui
                 ):
                     st.caption(
                         "Die Profitabilität basiert derzeit auf "
@@ -42573,8 +43025,15 @@ if selected_symbol:
                     is_asset_management_fcf_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                     is_defense_high_growth_fcf_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                     is_bkr_model_ui = is_baker_hughes_energy_tech_company_type(company_type)
+                    is_universal_family_fcf_ui = is_universal_family_fail_closed(company_type)
 
-                    if is_bkr_model_ui:
+                    if is_universal_family_fcf_ui:
+                        st.info(
+                            f"Universal Family Router {APP_BUILD_VERSION}: Der generische Yahoo-/Cashflow-Statement-FCF-Margen-Score ist für "
+                            f"{company_type.get('valuation_family') or company_type.get('type')} gesperrt."
+                        )
+                        st.caption("Yahoo-FCF bleibt Diagnosekontext; das Family Model muss zuerst eine geschäftsmodellgerechte Cashflow-/Kapitalmetrik definieren.")
+                    elif is_bkr_model_ui:
                         st.info("ℹ️ Baker Hughes/Post-Chart-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
                         st.caption("V2.20.129 verwendet den offiziell ausgewiesenen Q2-Free-Cashflow im Primärdaten-Gate. Yahoo-TTM-FCF bleibt Kontext; Q2-FCF wird nicht auf das post-Chart Gesamtunternehmen hochgerechnet.")
                     elif is_cof_card_bank_specialist_fcf_ui:
@@ -42879,8 +43338,15 @@ if selected_symbol:
                     is_asset_management_balance_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                     is_defense_high_growth_balance_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                     is_bkr_balance_ui = is_baker_hughes_energy_tech_company_type(company_type)
+                    is_universal_family_balance_ui = is_universal_family_fail_closed(company_type)
 
-                    if is_bkr_balance_ui:
+                    if is_universal_family_balance_ui:
+                        st.info(
+                            f"Universal Family Router {APP_BUILD_VERSION}: Die generische Netto-Schulden/FCF- bzw. Netto-Cash-Logik ist für "
+                            f"{company_type.get('valuation_family') or company_type.get('type')} gesperrt."
+                        )
+                        st.caption("Bilanz-/Kapitalqualität wird erst mit den familiengerechten Kennzahlen des freigegebenen Family Models bewertet.")
+                    elif is_bkr_balance_ui:
                         st.info("ℹ️ Baker Hughes/Post-Chart-Modell: Standard-Netto-Schulden/FCF-Score ist gesperrt")
                         st.caption("Die 30.06.2026 Cash-/Debt-Werte enthalten wesentliche Chart-Transaktionsfinanzierung. Sie dürfen nicht als aktuelle operative Netto-Cash-/Leverage-Basis interpretiert werden; Post-Chart Leverage wird separat geprüft.")
                     elif is_cof_card_bank_balance_ui:
@@ -45628,6 +46094,23 @@ if selected_symbol:
                         "Erforderliche Spezialkontrollen sperren den "
                         "nachfolgenden Fair-Value-Schritt, solange sie noch "
                         "nicht vollständig implementiert und freigegeben sind."
+                    )
+
+                if special_control.get("control_key") == "universal_family_model_gate":
+                    st.divider()
+                    st.subheader("🧭 Modul 6 – Schritt 3B: Universal Valuation Family Gate")
+                    st.warning(
+                        f"Bewertungsfamilie erkannt: {company_type.get('valuation_family') or company_type.get('type')}. "
+                        "Das wiederverwendbare Familienmodell ist in diesem Build noch nicht freigegeben."
+                    )
+                    st.write(
+                        "**Bewertungsschutz:** Generischer Wachstumsscore, Nettomargen-/ROE-Score, Yahoo-FCF-Marge, "
+                        "Net-Debt/FCF, Standard-KGV, Fair Value, Bewertungszonen und Handlungssignale bleiben gesperrt."
+                    )
+                    st.info(
+                        "Neue Aktien derselben Familie benötigen künftig keinen eigenen Aktienpfad. "
+                        "Nach Freigabe eines Familienmodells greifen sie automatisch über Family Router + Primärdaten-/Comparability-Gate; "
+                        "issuer-spezifische Overrides bleiben nur für echte Sonderfälle."
                     )
 
                 if special_control.get("control_key") == "oilfield_services_energy_technology":
