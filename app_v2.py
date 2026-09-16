@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.141"
+APP_BUILD_VERSION = "V2.20.142"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Mastercard Payment Network Specialist V1"
+    f"Build {APP_BUILD_VERSION} · American Express Closed-Loop Card & Credit Specialist V1"
 )
 
 
+# V2.20.142: American Express Closed-Loop Card & Credit Specialist V1. Routes AXP out of Standard-Unternehmen into an issuer-primary hybrid payments-and-lending model. Uses Q2/H1 2026 Billed Business/Network Volume, revenue mix (discount revenue, card fees and net interest income), FY2026 EPS guidance, Card balances, delinquency/write-off/reserve metrics, ROE/ROCE, CET1/SLR, official book value, deposit funding and capital returns. Generic Yahoo FCF margin and Net-Debt/FCF are diagnosis-only. Valuation uses a 70% FY2026-guidance P/E anchor plus 30% official book-value/P-B anchor, with score-driven 14–22x P/E and 3.5–6.5x P/B corridors and a fail-closed anchor-consistency gate. Visa/Mastercard and all prior specialist mathematics remain unchanged.
 # V2.20.141: Mastercard Payment Network Specialist V1. Extends the V2.20.140 Payment-Network family from Visa to Mastercard without changing Visa mathematics. Mastercard receives an issuer-primary Q2/H1 2026 snapshot using GDV, cross-border volume, switched transactions, net-revenue/Adjusted-EPS growth, non-GAAP operating margin, official operating cash flow/capex, capital returns and current litigation/regulatory disclosures. Its earnings anchor is a fully covered issuer-primary Adjusted-TTM EPS bridge from Q3 2025 through Q2 2026 (4.38 + 4.76 + 4.60 + 5.04 = 18.78 USD), avoiding an invented FY2026 EPS point estimate. The Mastercard Quality Score is 91/100 in the same 22–32x family corridor; a yellow Regulatory & Litigation Overlay caps the used P/E downside-only at 30.5x and confidence at Medium. Payment-Network UI is issuer-neutralized; Visa retains its V2.20.140 score, EPS bridge, 30.0x risk cap and Fair-Value mathematics unchanged. Existing utility, bank, insurance, REIT, midstream and branded-consumer mathematics remain unchanged.
 # V2.20.139: NextEra Energy Utility Specialist V1. Adds an issuer-primary NEE snapshot using the current FY2026 adjusted-EPS guidance, 8%+ standalone long-term adjusted-EPS growth, FPL regulatory-capital growth and reported regulatory ROE, the 2026-2029 FPL authorized ROE framework, NEE agency-adjusted credit targets/ratings, FPL 2026 capital-investment plan, dividend policy and current Dominion-combination status. NEE receives a premium-growth Regulated-Utility score and a 16-24x Adjusted-EPS P/E corridor. The pending Dominion transaction is not credited with merger EPS accretion or the combined-company 9%+/11% growth targets; instead a downside-only transaction/regulatory overlay caps the used P/E at 22.0x and valuation confidence at Medium until required regulatory approvals and closing. EIX/POR score, corridor, risk-cap and Fair-Value mathematics remain unchanged.
 # V2.20.138: Regulated Utility Unsupported-Issuer Fail-Closed Hotfix. No released EIX/POR valuation mathematics changed. Extends the Regulated-Utility family route to unsupported regulated-electric issuers such as NextEra Energy (NEE) so Yahoo/statement FCF and generic EPS normalization remain context-only, while the utility score, Core/Adjusted-EPS guidance anchor, target P/E and Fair Value stay fail-closed until an issuer-specific verified snapshot exists. Also prevents Step 3B from formatting missing utility snapshot fields and crashing the entire stock load, and aligns the green-event next-step wording with the utility specialist gate.
@@ -5546,6 +5547,7 @@ def profitability_margin_points(
         or "reit" in type_name
         or "immobilien" in type_name
         or "biotechnologie" in type_name
+        or "closed-loop payments & consumer credit" in type_name
     ):
         return None
 
@@ -5623,6 +5625,7 @@ def profitability_roe_points(
         or "reit" in type_name
         or "immobilien" in type_name
         or "biotechnologie" in type_name
+        or "closed-loop payments & consumer credit" in type_name
     ):
         return None
 
@@ -5892,6 +5895,7 @@ def is_special_fcf_model(company_type):
         "solar manufacturing / high-growth / policy-sensitive",
         "specialty materials / specialty chemicals",
         "payment network / capital-light payments",
+        "closed-loop payments & consumer credit",
         "versorger"
     ]
 
@@ -6140,6 +6144,7 @@ def is_special_balance_model(company_type):
         "solar manufacturing / high-growth / policy-sensitive",
         "specialty materials / specialty chemicals",
         "payment network / capital-light payments",
+        "closed-loop payments & consumer credit",
         "versorger"
     ]
 
@@ -6349,6 +6354,24 @@ def classify_company(name, symbol, sector, industry):
                 "kein Standard-KGV"
             ),
             "confidence_cap": "Niedrig"
+        }
+
+    # V2.20.142 – American Express is a closed-loop payment/card issuer with
+    # material lending and funding economics. It must not fall into either the
+    # pure Visa/Mastercard network route or the generic industrial FCF model.
+    if (
+        symbol_text == "AXP"
+        or "american express" in name_text
+    ):
+        return {
+            "type": "Card Issuer / Closed-Loop Payments & Consumer Credit",
+            "method": (
+                "Issuer-primary FY2026 EPS Guidance + Spending/Revenue + Credit Quality + "
+                "ROE/CET1 + offizieller Buchwert/P-B Dual-Anchor; generischer FCF-/Net-Debt-Score gesperrt"
+            ),
+            "confidence_cap": "Mittel",
+            "business_model": "Closed-Loop-Zahlungsnetzwerk mit eigener Kartenemission, Kreditbuch, Einlagen-/Wholesale-Funding und Premium-Membership-Economics",
+            "focus_areas": "Billed Business · Discount Revenue/Card Fees/NII · Card Balances · Delinquencies/Write-offs/Reserves · ROE · CET1 · Book Value · EPS Guidance · Capital Returns",
         }
 
     # V2.20.141 – exact global payment-network route. Do not classify every
@@ -15607,6 +15630,252 @@ def build_regulated_utility_special_control(control, utility_model):
 
 
 # =========================================================
+# V2.20.142 – American Express Closed-Loop Card & Credit Specialist V1
+# =========================================================
+
+AXP_CLOSED_LOOP_SPECIALIST_VERSION = "v220142_axp_closed_loop_card_credit_v1"
+
+
+def is_closed_loop_card_credit_specialist_type(company_type, symbol=None):
+    type_name = str((company_type or {}).get("type") or "").lower()
+    sym = str(symbol or "").upper().strip()
+    return sym == "AXP" or "closed-loop payments & consumer credit" in type_name
+
+
+def get_verified_axp_closed_loop_snapshot(symbol):
+    sym = str(symbol or "").upper().strip()
+    if sym != "AXP":
+        return None
+    return {
+        "symbol": "AXP",
+        "company": "American Express Company",
+        "specialist_display_name": "American Express Closed-Loop Card & Credit Spezialmodell V1",
+        "reporting_currency": "USD",
+        "as_of_date": "30.06.2026",
+        "published_date": "24.07.2026",
+        "valid_until": "22.10.2026",
+        "integration_version": AXP_CLOSED_LOOP_SPECIALIST_VERSION,
+        "source_name": "American Express Q2 2026 Earnings Release + Supplemental Financial Tables + 2026 DFAST",
+        "source_url": "https://ir.americanexpress.com/news/investor-relations-news/investor-relations-news-details/2026/American-Express-Reports-Second-Quarter-2026-Financial-Results/default.aspx",
+        "supplement_url": "https://s26.q4cdn.com/747928648/files/doc_earnings/2026/q2/supplemental-info/Q2-2026-Earnings-Tables.pdf",
+        "business_model_note": (
+            "American Express kombiniert ein geschlossenes Zahlungsnetzwerk mit eigener Kartenemission, Card-Balances/Kreditrisiko, "
+            "Einlagen-/Wholesale-Funding und Membership-/Merchant-Economics. Die Bewertung darf deshalb weder Visa/Mastercard-Netzwerklogik "
+            "noch industrielle Free-Cashflow-/Net-Debt-Logik übernehmen."
+        ),
+        "q2_billed_business": 455.8e9,
+        "q2_billed_business_growth_pct": 9.0,
+        "q2_network_volumes": 516.8e9,
+        "q2_network_volumes_growth_pct": 9.0,
+        "q2_revenue_net_interest": 19.637e9,
+        "q2_revenue_growth_pct": 10.0,
+        "q2_discount_revenue": 10.163e9,
+        "q2_discount_revenue_growth_pct": 9.0,
+        "q2_net_card_fees": 2.862e9,
+        "q2_net_card_fees_growth_pct": 15.0,
+        "q2_net_interest_income": 4.649e9,
+        "q2_net_interest_income_growth_pct": 11.0,
+        "q2_eps": 4.53,
+        "q2_eps_growth_pct": 11.0,
+        "h1_eps": 8.81,
+        "h1_eps_growth_pct": 14.0,
+        "fy2026_revenue_growth_guidance_pct": 10.0,
+        "fy2026_eps_guidance_low": 17.30,
+        "fy2026_eps_guidance_high": 17.90,
+        "fy2026_eps_guidance_mid": 17.60,
+        "card_balances": 218.054e9,
+        "card_balances_growth_pct": 8.0,
+        "net_interest_yield_pct": 8.1,
+        "q2_provision_credit_losses": 1.084e9,
+        "q2_provision_yoy_pct": -23.0,
+        "net_writeoff_rate_principal_pct": 2.0,
+        "net_writeoff_rate_all_pct": 2.2,
+        "past_due_30d_pct": 1.2,
+        "credit_loss_reserve": 5.866e9,
+        "reserve_to_card_balances_pct": 2.7,
+        "roe_pct": 36.4,
+        "roce_pct": 37.8,
+        "book_value_per_share": 48.42,
+        "book_value_growth_yoy_pct": 10.0,
+        "cet1_pct": 10.4,
+        "tier1_pct": 11.0,
+        "slr_pct": 8.2,
+        "customer_deposits": 156.973e9,
+        "short_term_borrowings": 2.032e9,
+        "long_term_debt": 57.017e9,
+        "shareholders_equity": 34.280e9,
+        "shares_outstanding_end": 675e6,
+        "shares_outstanding_prior_yoy": 696e6,
+        "share_count_change_yoy_pct": (675.0 / 696.0 - 1.0) * 100.0,
+        "quarterly_dividend": 0.95,
+        "quarterly_dividend_growth_pct": 16.0,
+        "stress_capital_buffer_pct": 2.5,
+        "score_components": {
+            "Spending / Membership Economics": 17.0,
+            "Revenue / Fee / NII Mix": 18.0,
+            "Credit Quality / Reserves": 18.0,
+            "Capital / ROE": 19.0,
+            "Earnings / Guidance": 14.0,
+            "Capital Returns / Funding": 4.0,
+        },
+        "pe_corridor_low": 14.0,
+        "pe_corridor_high": 22.0,
+        "pb_corridor_low": 3.5,
+        "pb_corridor_high": 6.5,
+        "earnings_anchor_weight": 0.70,
+        "book_anchor_weight": 0.30,
+        "anchor_gap_limit_pct": 25.0,
+        "valuation_confidence_cap": "Mittel",
+    }
+
+
+def build_axp_closed_loop_score(snapshot):
+    snap = snapshot or {}
+    comps = snap.get("score_components") or {}
+    required = [
+        snap.get("q2_billed_business_growth_pct"), snap.get("q2_revenue_growth_pct"),
+        snap.get("past_due_30d_pct"), snap.get("net_writeoff_rate_principal_pct"),
+        snap.get("roe_pct"), snap.get("cet1_pct"), snap.get("fy2026_eps_guidance_mid"),
+        snap.get("book_value_per_share"),
+    ]
+    if any(safe_float(v) is None for v in required) or not comps:
+        return {"available": False, "note": "AXP Closed-Loop-Score gesperrt: issuer-primary Qualitäts-/Kapitaldaten unvollständig."}
+    score = sum(float(v) for v in comps.values())
+    if not (0 <= score <= 100):
+        return {"available": False, "note": "AXP Closed-Loop-Score gesperrt: Score außerhalb 0–100."}
+    quality = "Sehr stark" if score >= 85 else ("Stark" if score >= 75 else "Solide")
+    return {
+        "available": True,
+        "score": score,
+        "quality_level": quality,
+        "components": comps,
+        "note": (
+            "Der AXP-Score trennt Membership-/Spend- und Merchant-Economics von Kreditqualität und Bankkapital. "
+            "Yahoo-FCF-Marge, Net-Debt/FCF und generischer ROE erhalten keine Standardpunkte."
+        ),
+    }
+
+
+def build_axp_closed_loop_valuation(snapshot, score_data):
+    snap = snapshot or {}
+    score_data = score_data or {}
+    result = {"available": False}
+    if not score_data.get("available"):
+        result["note"] = "AXP-Spezialbewertung gesperrt: Quality Score nicht vollständig."
+        return result
+    score = safe_float(score_data.get("score"))
+    eps = safe_float(snap.get("fy2026_eps_guidance_mid"))
+    bvps = safe_float(snap.get("book_value_per_share"))
+    pe_low, pe_high = safe_float(snap.get("pe_corridor_low")), safe_float(snap.get("pe_corridor_high"))
+    pb_low, pb_high = safe_float(snap.get("pb_corridor_low")), safe_float(snap.get("pb_corridor_high"))
+    if None in (score, eps, bvps, pe_low, pe_high, pb_low, pb_high) or eps <= 0 or bvps <= 0:
+        result["note"] = "AXP-Spezialbewertung gesperrt: EPS-/Book-Value-/Multiple-Basis unvollständig."
+        return result
+    target_pe = pe_low + (pe_high - pe_low) * (score / 100.0)
+    target_pb = pb_low + (pb_high - pb_low) * (score / 100.0)
+    earnings_anchor = eps * target_pe
+    book_anchor = bvps * target_pb
+    avg_anchor = (earnings_anchor + book_anchor) / 2.0
+    gap_pct = abs(earnings_anchor - book_anchor) / avg_anchor * 100.0 if avg_anchor > 0 else None
+    gap_limit = safe_float(snap.get("anchor_gap_limit_pct")) or 25.0
+    if gap_pct is None or gap_pct > gap_limit:
+        result.update({
+            "target_pe": target_pe, "target_pb": target_pb,
+            "earnings_anchor": earnings_anchor, "book_anchor": book_anchor,
+            "anchor_gap_pct": gap_pct,
+            "note": f"AXP Dual-Anchor fail-closed: Abstand der EPS/P-E- und Book/P-B-Anker überschreitet {gap_limit:.0f} %."
+        })
+        return result
+    ew = safe_float(snap.get("earnings_anchor_weight")) or 0.70
+    bw = safe_float(snap.get("book_anchor_weight")) or 0.30
+    fair = earnings_anchor * ew + book_anchor * bw
+    result.update({
+        "available": True,
+        "valuation_method_name": "American Express Closed-Loop EPS/P-E + Book-Value/P-B Dual-Anchor",
+        "earnings_basis": eps,
+        "earnings_basis_name": "FY2026 EPS Guidance Midpoint",
+        "book_value_basis": bvps,
+        "target_pe": target_pe,
+        "target_pb": target_pb,
+        "pe_corridor_low": pe_low,
+        "pe_corridor_high": pe_high,
+        "pb_corridor_low": pb_low,
+        "pb_corridor_high": pb_high,
+        "earnings_anchor": earnings_anchor,
+        "book_anchor": book_anchor,
+        "earnings_anchor_weight": ew,
+        "book_anchor_weight": bw,
+        "anchor_gap_pct": gap_pct,
+        "anchor_gap_limit_pct": gap_limit,
+        "fair_value_financial": fair,
+        "confidence_cap": snap.get("valuation_confidence_cap") or "Mittel",
+        "note": (
+            "Fair Value = 70 % FY2026 EPS-Guidance/P-E-Anker + 30 % offizieller Book-Value/P-B-Anker. "
+            "Der Buchwertanker verhindert, dass ein kreditfinanziertes Closed-Loop-Modell wie ein reines kapitalarmes Payment Network bewertet wird."
+        ),
+    })
+    return result
+
+
+def build_axp_closed_loop_specialist_model(company_type, fundamental_info, symbol):
+    applicable = is_closed_loop_card_credit_specialist_type(company_type, symbol)
+    if not applicable:
+        return {"applicable": False}
+    sym = str(symbol or "").upper().strip()
+    snap = get_verified_axp_closed_loop_snapshot(sym)
+    if not snap:
+        note = "Closed-Loop-Card-&-Credit-Familie erkannt, aber issuer-spezifischer Primärquellen-Snapshot fehlt; Fair Value bleibt fail-closed."
+        return {"applicable": True, "issuer_supported": False, "snapshot": None, "closed_loop_score": {"available": False, "note": note}, "closed_loop_valuation": {"available": False, "note": note}, "valuation_anchor_complete": False, "note": note}
+    try:
+        fresh = datetime.strptime(snap["published_date"], "%d.%m.%Y").date() <= datetime.now().date() <= datetime.strptime(snap["valid_until"], "%d.%m.%Y").date()
+    except Exception:
+        fresh = False
+    stale = "AXP Primärquellen-Snapshot ist veraltet oder zeitlich ungültig."
+    score = build_axp_closed_loop_score(snap) if fresh else {"available": False, "note": stale}
+    valuation = build_axp_closed_loop_valuation(snap, score) if fresh else {"available": False, "note": stale}
+    complete = bool(fresh and score.get("available") and valuation.get("available"))
+    return {
+        "applicable": True,
+        "symbol": sym,
+        "issuer_supported": True,
+        "primary_source_complete": bool(fresh),
+        "snapshot_fresh": bool(fresh),
+        "snapshot": snap,
+        "closed_loop_score": score,
+        "closed_loop_valuation": valuation,
+        "valuation_anchor_complete": complete,
+        "readiness": "AXP Closed-Loop-Spezialbewertung freigegeben" if complete else "AXP Closed-Loop-Spezialbewertung gesperrt",
+    }
+
+
+def build_axp_closed_loop_special_control(control, model):
+    if not isinstance(control, dict) or control.get("control_key") != "closed_loop_card_credit":
+        return control
+    model = model if isinstance(model, dict) else {}
+    snap = model.get("snapshot") or {}
+    score = model.get("closed_loop_score") or {}
+    val = model.get("closed_loop_valuation") or {}
+    released = bool(model.get("issuer_supported") and model.get("primary_source_complete") and model.get("valuation_anchor_complete") and score.get("available") and val.get("available"))
+    out = dict(control)
+    out.update({
+        "implemented": bool(model.get("issuer_supported")),
+        "released": released,
+        "issuer_supported": bool(model.get("issuer_supported")),
+        "confidence_cap": (val.get("confidence_cap") or snap.get("valuation_confidence_cap") or "Mittel"),
+        "router_status": "Schritt 3B freigegeben" if released else "Schritt 3B nicht freigegeben",
+        "step3b_status": "AXP Closed-Loop Dual-Anchor freigegeben" if released else "AXP Closed-Loop Fair Value gesperrt",
+        "snapshot": snap,
+        "checks": {"closed_loop_score": score, "closed_loop_valuation": val},
+        "note": (
+            f"{APP_BUILD_VERSION} trennt American Express sowohl vom reinen Visa/Mastercard-Payment-Network-Pfad als auch vom industriellen Standardmodell. "
+            "Spending/Membership, Revenue-Mix, Credit Quality, ROE/CET1, Book Value, Funding und Kapitalrückführung werden issuer-primary geprüft."
+            if released else (model.get("note") or val.get("note") or score.get("note"))
+        ),
+    })
+    return out
+
+
+# =========================================================
 # V2.20.141 – Visa + Mastercard Payment Network Specialist V2
 # =========================================================
 
@@ -22914,6 +23183,28 @@ def get_special_control(company_type, symbol):
             "note": (
                 "UA/UAA und OMC werden nicht in das generische EPS-/FCF-Modell gedrückt. "
                 "Der Bewertungsanker wird erst in Schritt 3B aus aktuellem Primärquellen-Kontext freigegeben."
+            ),
+        }
+
+    if symbol_text == "AXP" or "closed-loop payments & consumer credit" in type_name:
+        return {
+            "required": True,
+            "control_key": "closed_loop_card_credit",
+            "control_name": "Closed-Loop Card & Credit / Spending-, Credit-, Capital- & Dual-Anchor-Kontrolle",
+            "planned_checks": [
+                "FY2026 issuer EPS Guidance als Earnings-Basis",
+                "Billed Business / Network Volumes / Discount Revenue / Card Fees / NII",
+                "Card Balances / Net Interest Yield",
+                "30+ Days Past Due / Net Write-offs / Reserve Coverage",
+                "ROE/ROCE + CET1/SLR / Stress Capital Buffer",
+                "Offizieller Book Value je Aktie / P-B-Anker",
+                "Deposit-/Debt-Funding und Capital Returns",
+                "Dual-Anchor-Konsistenz-Gate",
+                "Analysten-Kursziel nur Reality Check, nie Fair-Value-Anker",
+            ],
+            "status": f"Router aktiv – {APP_BUILD_VERSION} American Express Closed-Loop Card & Credit Specialist",
+            "note": (
+                "AXP wird als Closed-Loop Payment/Card-Issuer mit eigenem Kreditbuch bewertet. Generischer FCF-/Net-Debt-Score und Visa/Mastercard-Netzwerk-Multiple bleiben gesperrt."
             ),
         }
 
@@ -31539,6 +31830,74 @@ def calculate_fair_value_v1(
         return result
 
 
+    # V2.20.142 – American Express Closed-Loop Card & Credit Dual-Anchor valuation.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "closed_loop_card_credit"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        cv = checks.get("closed_loop_valuation") or {}
+        cs = checks.get("closed_loop_score") or {}
+        snap = special_control.get("snapshot") or {}
+        fv = safe_float(cv.get("fair_value_financial"))
+        if not cv.get("available") or fv is None or fv <= 0:
+            result["note"] = "Fair Value V1 gesperrt: AXP Closed-Loop Dual-Anchor nicht vollständig verfügbar."
+            return result
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der AXP-Bewertung sind nicht eindeutig."
+            return result
+        fvq = fv
+        unit_notes = []
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Währungsumrechnung der AXP-Bewertung nicht belastbar verfügbar."
+                return result
+            fvq *= factor
+            unit_notes.append(f"Währungsangleichung: {financial_currency} → {quote_currency} mit Faktor {factor:.6f}.")
+        elif quote_currency != financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+        cp = safe_float(current_price)
+        potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+        result.update({
+            "available": True,
+            "valuation_method": "closed_loop_card_credit_dual_anchor",
+            "normalized_eps": safe_float(cv.get("earnings_basis")),
+            "used_multiple": safe_float(cv.get("target_pe")),
+            "multiple_source": f"{APP_BUILD_VERSION} AXP Closed-Loop Quality Score → FY2026 EPS/P-E + Book-Value/P-B Dual-Anchor",
+            "fair_value_financial": fv,
+            "fair_value_quote": fvq,
+            "potential_pct": potential,
+            "specialist_score": safe_float(cs.get("score")),
+            "specialist_quality_level": cs.get("quality_level"),
+            "specialist_components": cs.get("components") or {},
+            "earnings_basis_name": cv.get("earnings_basis_name"),
+            "book_value_basis": safe_float(cv.get("book_value_basis")),
+            "target_pe": safe_float(cv.get("target_pe")),
+            "target_pb": safe_float(cv.get("target_pb")),
+            "pe_corridor_low": safe_float(cv.get("pe_corridor_low")),
+            "pe_corridor_high": safe_float(cv.get("pe_corridor_high")),
+            "pb_corridor_low": safe_float(cv.get("pb_corridor_low")),
+            "pb_corridor_high": safe_float(cv.get("pb_corridor_high")),
+            "earnings_anchor": safe_float(cv.get("earnings_anchor")),
+            "book_anchor": safe_float(cv.get("book_anchor")),
+            "earnings_anchor_weight": safe_float(cv.get("earnings_anchor_weight")),
+            "book_anchor_weight": safe_float(cv.get("book_anchor_weight")),
+            "anchor_gap_pct": safe_float(cv.get("anchor_gap_pct")),
+            "anchor_gap_limit_pct": safe_float(cv.get("anchor_gap_limit_pct")),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "American-Express-Fair-Value V1 = 70 % issuer-primary FY2026 EPS-Guidance/P-E-Anker + 30 % offizieller Book-Value/P-B-Anker. "
+                "Yahoo-FCF, Net-Debt/FCF und reine Payment-Network-Multiples bleiben außerhalb des Fair Values."
+            ),
+        })
+        return result
+
     # V2.20.141 – Visa/Mastercard Payment Network Adjusted-Earnings valuation.
     if (
         isinstance(special_control, dict)
@@ -36841,6 +37200,12 @@ def load_stock(selected_symbol, cache_version):
         fundamental_symbol
     )
 
+    axp_closed_loop_specialist_model = build_axp_closed_loop_specialist_model(
+        company_type,
+        fundamental_info,
+        fundamental_symbol
+    )
+
     payment_network_specialist_model = build_payment_network_specialist_model(
         company_type,
         fundamental_info,
@@ -36917,6 +37282,12 @@ def load_stock(selected_symbol, cache_version):
         fundamental_info,
         fundamental_symbol
     )
+
+    if axp_closed_loop_specialist_model.get("applicable"):
+        growth_score = {**growth_score, "context_score": growth_score.get("score"), "score": None, "note": "AXP Closed-Loop-Spezialmodell: Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext; maßgeblich sind Billed Business, Revenue-Mix und issuer-primary EPS-Guidance."}
+        profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None, "brake_text": "AXP Closed-Loop-Spezialmodell: Generische Nettomarge/ROE-Punkte sind gesperrt; ROE/ROCE, CET1 und Kreditqualität werden im eigenen Score bewertet."}
+        fcf_score = {**fcf_score, "context_score": fcf_score.get("score"), "score": None, "note": "AXP Closed-Loop-Spezialmodell: Yahoo-/Statement-FCF ist Diagnosekontext und kein Multiple-Baustein; Einlagen, Card Balances, Reserven und Kapitalquoten sind maßgeblich."}
+        balance_score = {**balance_score, "context_score": balance_score.get("score"), "score": None, "note": "AXP Closed-Loop-Spezialmodell: Net-Debt/FCF ist für das finanzielle Funding-Modell gesperrt; CET1/SLR, Deposits, Debt und Reservequalität werden separat bewertet."}
 
     fundamental_multiple = calculate_fundamental_multiple(
         company_type,
@@ -37071,6 +37442,29 @@ def load_stock(selected_symbol, cache_version):
                 "REITs verwenden kein Standard-EPS-/FCF-Multiple. V2.20.48 verwendet den "
                 "eigenen 100-Punkte-REIT-Score und einen scoregesteuerten P/AFFO-Anker. "
                 "NAV bleibt ohne belastbare Primärquelle gesperrt."
+            ),
+        }
+
+    if axp_closed_loop_specialist_model.get("applicable"):
+        axp_score_fm = axp_closed_loop_specialist_model.get("closed_loop_score") or {}
+        axp_val_fm = axp_closed_loop_specialist_model.get("closed_loop_valuation") or {}
+        axp_corridor = {
+            "available": bool(axp_val_fm.get("available")),
+            "lower": safe_float(axp_val_fm.get("pe_corridor_low")),
+            "upper": safe_float(axp_val_fm.get("pe_corridor_high")),
+            "method": axp_val_fm.get("valuation_method_name") or "AXP Closed-Loop Dual-Anchor",
+            "note": f"{APP_BUILD_VERSION}: AXP verwendet getrennte EPS/P-E- und Book-Value/P-B-Anker; der sichtbare Korridor ist der Earnings-P/E-Korridor."
+        }
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": safe_float(axp_score_fm.get("score")),
+            "corridor": axp_corridor,
+            "multiple": safe_float(axp_val_fm.get("target_pe")),
+            "available": bool(axp_score_fm.get("available") and axp_val_fm.get("available")),
+            "earnings_basis_usable": bool(axp_val_fm.get("available")),
+            "note": (
+                f"{APP_BUILD_VERSION} verwendet für American Express keinen generischen Standard-Score. "
+                "Spending/Membership, Revenue-/Fee-/NII-Mix, Credit Quality, ROE/CET1, Funding und Kapitalrückführung bestimmen den Closed-Loop-Score; Fair Value folgt aus einem 70/30 Dual-Anchor."
             ),
         }
 
@@ -37554,6 +37948,11 @@ def load_stock(selected_symbol, cache_version):
         symbol
     )
 
+    special_control = build_axp_closed_loop_special_control(
+        special_control,
+        axp_closed_loop_specialist_model
+    )
+
     special_control = build_payment_network_special_control(
         special_control,
         payment_network_specialist_model
@@ -38006,6 +38405,24 @@ def load_stock(selected_symbol, cache_version):
                     "Analystenziele bleiben nur externer Reality Check."
                 ),
             }
+
+    if axp_closed_loop_specialist_model.get("applicable") and axp_closed_loop_specialist_model.get("valuation_anchor_complete"):
+        axp_snap_event = axp_closed_loop_specialist_model.get("snapshot") or {}
+        special_event_warning = {
+            "level": "Grün",
+            "icon": "🟢",
+            "title": "AXP Closed-Loop Credit & Capital Gate aktiv",
+            "requires_research": False,
+            "valuation_usable": True,
+            "reason": (
+                f"Q2 Billed Business +{safe_float(axp_snap_event.get('q2_billed_business_growth_pct')):.1f} %, Revenue +{safe_float(axp_snap_event.get('q2_revenue_growth_pct')):.1f} %, "
+                f"30+ Days Past Due {safe_float(axp_snap_event.get('past_due_30d_pct')):.1f} %, Net Write-off {safe_float(axp_snap_event.get('net_writeoff_rate_principal_pct')):.1f} %, "
+                f"ROE {safe_float(axp_snap_event.get('roe_pct')):.1f} % und CET1 {safe_float(axp_snap_event.get('cet1_pct')):.1f} %. Die Kredit-/Kapitalbasis ist aktuell vollständig issuer-primary abgedeckt."
+            ),
+            "action": (
+                f"{APP_BUILD_VERSION} verwendet ausschließlich die FY2026-EPS-Guidance sowie einen separaten Book-Value-Anker. Yahoo-FCF, Net-Debt/FCF und Visa/Mastercard-Multiples bleiben außerhalb der Bewertung."
+            ),
+        }
 
     if payment_network_specialist_model.get("applicable") and payment_network_specialist_model.get("valuation_anchor_complete"):
         pn_snap_event = payment_network_specialist_model.get("snapshot") or {}
@@ -38521,6 +38938,7 @@ def load_stock(selected_symbol, cache_version):
         "reit_special_model": reit_special_model,
         "regulated_utility_specialist_model": regulated_utility_specialist_model,
         "payment_network_specialist_model": payment_network_specialist_model,
+        "axp_closed_loop_specialist_model": axp_closed_loop_specialist_model,
         "adjusted_earnings_specialist_model": adjusted_earnings_specialist_model,
         "turnaround_postmerger_specialist_model": turnaround_postmerger_specialist_model,
         "gold_precious_metals_specialist_model": gold_precious_metals_specialist_model,
@@ -39263,6 +39681,7 @@ if selected_symbol:
                 is_bkr_fcf_context = is_baker_hughes_energy_tech_company_type(company_type)
                 is_utility_fcf_context = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 is_payment_network_fcf_context = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
+                is_axp_closed_loop_fcf_context = bool((data.get("axp_closed_loop_specialist_model") or {}).get("applicable"))
                 is_turnaround_postmerger_fcf_context = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 is_gold_precious_metals_fcf_context = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_fcf_context = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
@@ -39324,6 +39743,12 @@ if selected_symbol:
                             "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
                             "Bei Baker Hughes bleibt dieser Yahoo-TTM-FCF reine Kontextinformation. V2.20.129 verwendet im Post-Chart Primary-Source Gate den offiziell ausgewiesenen Q2-Free-Cashflow; "
                             "Yahoo-FCF steuert weder Score, Leverage noch Fair Value."
+                        )
+                    elif is_axp_closed_loop_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            "Bei American Express ist industrieller Free Cash Flow kein Bewertungsbaustein. "
+                            "Maßgeblich sind Billed Business/Revenue-Mix, Card Balances, Kreditqualität, CET1/SLR, Funding und Book Value."
                         )
                     elif is_payment_network_fcf_context:
                         st.caption(
@@ -39727,6 +40152,7 @@ if selected_symbol:
 
                 utility_eps_context_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 payment_network_eps_context_ui = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
+                axp_closed_loop_eps_context_ui = bool((data.get("axp_closed_loop_specialist_model") or {}).get("applicable"))
                 turnaround_postmerger_eps_context_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 gold_precious_metals_eps_context_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 toyo_solar_eps_context_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
@@ -39753,7 +40179,7 @@ if selected_symbol:
                     )
                 else:
                     normalized_eps = eps_result["normalized_eps"]
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -39828,6 +40254,17 @@ if selected_symbol:
                             "NVIDIA/Fabless-AI: Diese Standard-Normalisierung bleibt in V2.20.67 ausschließlich Kontext. "
                             "Das Earnings-Horizon-Alignment verwendet eine separate operative FY27-Proxy-Basis; das Standard-EPS bleibt für NVIDIA nicht freigegeben."
                         )
+                    elif axp_closed_loop_eps_context_ui:
+                        axp_eps_model_ui = data.get("axp_closed_loop_specialist_model") or {}
+                        axp_eps_snap_ui = axp_eps_model_ui.get("snapshot") or {}
+                        axp_eps_val_ui = axp_eps_model_ui.get("closed_loop_valuation") or {}
+                        st.info(
+                            "American Express Closed-Loop-Modell: Die Standard-TTM/Forward-EPS-Normalisierung bleibt Diagnosekontext. "
+                            f"{APP_BUILD_VERSION} verwendet die issuer-primary FY2026-EPS-Guidance als Earnings-Anker und einen separaten offiziellen Book-Value/P-B-Anker."
+                        )
+                        if axp_eps_val_ui.get("available"):
+                            st.write("**FY2026 EPS Guidance:** 17.30–17.90 USD · Mittelpunkt 17.60 USD")
+                            st.caption("Analysten-EPS, Yahoo-FCF und Standard-KGV werden nicht mit diesem Earnings-Anker vermischt.")
                     elif payment_network_eps_context_ui:
                         pn_eps_model_ui = data.get("payment_network_specialist_model") or {}
                         pn_eps_snap_ui = pn_eps_model_ui.get("snapshot") or {}
@@ -40997,6 +41434,7 @@ if selected_symbol:
                 is_adjusted_specialist_score_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                 is_utility_specialist_score_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 is_payment_network_score_ui = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
+                is_axp_closed_loop_score_ui = bool((data.get("axp_closed_loop_specialist_model") or {}).get("applicable"))
                 is_turnaround_postmerger_score_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 is_gold_precious_metals_score_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_score_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
@@ -41024,6 +41462,9 @@ if selected_symbol:
                 if is_bkr_score_ui:
                     st.info("Baker Hughes/Post-Chart-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.129 bewertet Q2 Orders/RPO und OFSE/IET Segmententwicklung aus Primärquellen.")
                     st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf einen späteren Post-Chart Bewertungsanker.")
+                elif is_axp_closed_loop_score_ui:
+                    st.info("ℹ️ Im AXP Closed-Loop-Card-&-Credit-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
+                    st.caption("Wachstum wird über Billed Business/Network Volumes, Revenue-Mix und FY2026-EPS-Guidance aus Primärquellen bewertet; Yahoo-Wachstum bleibt Diagnosekontext.")
                 elif is_payment_network_score_ui:
                     pn_score_model_ui = data.get("payment_network_specialist_model") or {}
                     pn_score_snap_ui = pn_score_model_ui.get("snapshot") or {}
@@ -41244,6 +41685,7 @@ if selected_symbol:
                 is_adjusted_specialist_profitability_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                 is_utility_specialist_profitability_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 is_payment_network_profitability_ui = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
+                is_axp_closed_loop_profitability_ui = bool((data.get("axp_closed_loop_specialist_model") or {}).get("applicable"))
                 is_turnaround_postmerger_profitability_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 is_gold_precious_metals_profitability_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_profitability_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
@@ -41257,6 +41699,9 @@ if selected_symbol:
 
                 if is_bkr_profitability_ui:
                     st.info("Baker Hughes/Post-Chart-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. Q2 OFSE-/IET-Adjusted-EBITDA-Margen werden separat aus der Primärquelle gezeigt; eine konsolidierte Post-Chart Profitabilitätsbasis folgt später.")
+                elif is_axp_closed_loop_profitability_ui:
+                    st.info("ℹ️ Im AXP Closed-Loop-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
+                    st.caption("AXP bewertet ROE/ROCE zusammen mit CET1, Kreditqualität, Reserve Coverage und Membership-/Revenue-Economics; Yahoo-ROE bleibt Kontext.")
                 elif is_payment_network_profitability_ui:
                     pn_profit_model_ui = data.get("payment_network_specialist_model") or {}
                     pn_profit_snap_ui = pn_profit_model_ui.get("snapshot") or {}
@@ -41611,6 +42056,7 @@ if selected_symbol:
                     is_adjusted_specialist_fcf_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     is_utility_specialist_fcf_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     is_payment_network_specialist_fcf_ui = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
+                    is_axp_closed_loop_specialist_fcf_ui = bool((data.get("axp_closed_loop_specialist_model") or {}).get("applicable"))
                     is_turnaround_postmerger_fcf_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                     is_gold_precious_metals_fcf_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     is_toyo_solar_fcf_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
@@ -41625,6 +42071,9 @@ if selected_symbol:
                     if is_bkr_model_ui:
                         st.info("ℹ️ Baker Hughes/Post-Chart-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
                         st.caption("V2.20.129 verwendet den offiziell ausgewiesenen Q2-Free-Cashflow im Primärdaten-Gate. Yahoo-TTM-FCF bleibt Kontext; Q2-FCF wird nicht auf das post-Chart Gesamtunternehmen hochgerechnet.")
+                    elif is_axp_closed_loop_specialist_fcf_ui:
+                        st.info("ℹ️ AXP Closed-Loop-Modell: Der generische Yahoo-/Statement-FCF-Margen-Score wird nicht verwendet.")
+                        st.caption("Einlagen, Card Balances, Kreditreserven, CET1/SLR und Funding sind für AXP aussagekräftiger als industrieller Free Cash Flow.")
                     elif is_payment_network_specialist_fcf_ui:
                         pn_fcf_model_ui = data.get("payment_network_specialist_model") or {}
                         pn_fcf_snap_ui = pn_fcf_model_ui.get("snapshot") or {}
@@ -41909,6 +42358,7 @@ if selected_symbol:
                     is_adjusted_specialist_balance_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     is_utility_specialist_balance_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     is_payment_network_balance_ui = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
+                    is_axp_closed_loop_balance_ui = bool((data.get("axp_closed_loop_specialist_model") or {}).get("applicable"))
                     is_turnaround_postmerger_balance_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                     is_gold_precious_metals_balance_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     is_toyo_solar_balance_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
@@ -41923,6 +42373,14 @@ if selected_symbol:
                     if is_bkr_balance_ui:
                         st.info("ℹ️ Baker Hughes/Post-Chart-Modell: Standard-Netto-Schulden/FCF-Score ist gesperrt")
                         st.caption("Die 30.06.2026 Cash-/Debt-Werte enthalten wesentliche Chart-Transaktionsfinanzierung. Sie dürfen nicht als aktuelle operative Netto-Cash-/Leverage-Basis interpretiert werden; Post-Chart Leverage wird separat geprüft.")
+                    elif is_axp_closed_loop_balance_ui:
+                        axp_bal_snap_ui = (data.get("axp_closed_loop_specialist_model") or {}).get("snapshot") or {}
+                        st.info("ℹ️ AXP Closed-Loop-Modell: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
+                        if axp_bal_snap_ui:
+                            st.caption(
+                                f"CET1 {safe_float(axp_bal_snap_ui.get('cet1_pct')):.1f} % · SLR {safe_float(axp_bal_snap_ui.get('slr_pct')):.1f} % · "
+                                f"Customer Deposits {format_money(axp_bal_snap_ui.get('customer_deposits'), 'USD')} · Credit-Loss Reserve {format_money(axp_bal_snap_ui.get('credit_loss_reserve'), 'USD')}."
+                            )
                     elif is_payment_network_balance_ui:
                         pn_balance_model_ui = data.get("payment_network_specialist_model") or {}
                         pn_balance_snap_ui = pn_balance_model_ui.get("snapshot") or {}
@@ -43608,8 +44066,25 @@ if selected_symbol:
                 is_semicap_valuation_ui = is_semicap_lithography_company_type(company_type)
                 is_nvidia_valuation_ui = is_nvidia_ai_growth_company_type(company_type)
                 is_bkr_valuation_ui = is_baker_hughes_energy_tech_company_type(company_type)
+                is_axp_closed_loop_valuation_ui = bool((data.get("axp_closed_loop_specialist_model") or {}).get("applicable"))
 
-                if is_bank_valuation_ui:
+                if is_axp_closed_loop_valuation_ui:
+                    axp_model_m6 = data.get("axp_closed_loop_specialist_model") or {}
+                    axp_score_m6 = axp_model_m6.get("closed_loop_score") or {}
+                    axp_val_m6 = axp_model_m6.get("closed_loop_valuation") or {}
+                    if axp_score_m6.get("available"):
+                        st.write(f"**Verwendeter Closed-Loop Quality Score:** {safe_float(axp_score_m6.get('score')):.0f}/100")
+                    st.write(f"**EPS/P-E-Korridor:** {safe_float(axp_val_m6.get('pe_corridor_low')):.1f}× bis {safe_float(axp_val_m6.get('pe_corridor_high')):.1f}×")
+                    st.write(f"**Book-Value/P-B-Korridor:** {safe_float(axp_val_m6.get('pb_corridor_low')):.1f}× bis {safe_float(axp_val_m6.get('pb_corridor_high')):.1f}×")
+                    if axp_val_m6.get("available"):
+                        st.metric("Ziel-KGV", f"{safe_float(axp_val_m6.get('target_pe')):.2f}×")
+                        st.metric("Ziel-P/B", f"{safe_float(axp_val_m6.get('target_pb')):.2f}×")
+                        st.success("AXP Dual-Anchor freigegeben: FY2026 EPS/P-E und offizieller Book Value/P-B werden getrennt berechnet und erst danach 70/30 kombiniert.")
+                    else:
+                        st.warning("AXP Dual-Anchor noch nicht freigegeben.")
+                    st.caption(multiple_result.get("note"))
+                    st.caption("Yahoo-FCF, Net-Debt/FCF und Visa/Mastercard-Netzwerk-Multiples sind kein Bestandteil des AXP-Fair-Values.")
+                elif is_bank_valuation_ui:
                     bank_model_m6 = data.get("bank_special_model") or {}
                     bank_score_m6 = bank_model_m6.get("bank_score") or {}
                     bank_val_m6 = bank_model_m6.get("bank_valuation") or {}
@@ -45296,6 +45771,40 @@ if selected_symbol:
                                 st.write("**Fundamentaler Post-Merger-Fair-Value:** " + format_eps(val_tp.get("fair_value_financial"), "USD"))
                                 st.caption("Die 9,06-USD-Referenz ist eine mechanische H1-Annualisierung, keine Management-FY-Guidance; deshalb bleibt die Bewertungssicherheit auf Mittel begrenzt.")
                         st.success("Bewertungsfreigabe JA: Spezialscore und issuer-spezifischer Bewertungsanker sind vollständig; Analystenziele bleiben ausschließlich Modul 8.")
+                        st.caption(special_control.get("note"))
+                    else:
+                        st.warning(special_control.get("note"))
+
+                if special_control.get("control_key") == "closed_loop_card_credit":
+                    st.divider()
+                    snap_axp = special_control.get("snapshot") or {}
+                    st.subheader("💳 Modul 6 – Schritt 3B: American Express Closed-Loop Card & Credit Spezialmodell V1")
+                    if special_control.get("implemented"):
+                        checks_axp = special_control.get("checks") or {}
+                        score_axp = checks_axp.get("closed_loop_score") or {}
+                        val_axp = checks_axp.get("closed_loop_valuation") or {}
+                        st.write(f"**Operativer Datenstand:** {text_or_dash(snap_axp.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_axp.get('published_date'))})")
+                        st.caption(text_or_dash(snap_axp.get("source_name")))
+                        st.info(text_or_dash(snap_axp.get("business_model_note")))
+                        if score_axp.get("available"):
+                            st.metric("Closed-Loop Card & Credit Quality Score", f"{safe_float(score_axp.get('score')):.0f}/100 · {text_or_dash(score_axp.get('quality_level'))}")
+                            st.markdown("**Score-Komponenten:**")
+                            for label, value in (score_axp.get("components") or {}).items():
+                                st.write(f"• {label}: {safe_float(value):.1f} Punkte")
+                        st.write(f"**Q2 Billed Business / Network Volumes:** {format_money(snap_axp.get('q2_billed_business'), 'USD')} (+{safe_float(snap_axp.get('q2_billed_business_growth_pct')):.1f} %) / {format_money(snap_axp.get('q2_network_volumes'), 'USD')} (+{safe_float(snap_axp.get('q2_network_volumes_growth_pct')):.1f} %)")
+                        st.write(f"**Q2 Revenue / Discount Revenue / Net Card Fees / NII:** +{safe_float(snap_axp.get('q2_revenue_growth_pct')):.1f} % / +{safe_float(snap_axp.get('q2_discount_revenue_growth_pct')):.1f} % / +{safe_float(snap_axp.get('q2_net_card_fees_growth_pct')):.1f} % / +{safe_float(snap_axp.get('q2_net_interest_income_growth_pct')):.1f} %")
+                        st.write(f"**Card Balances:** {format_money(snap_axp.get('card_balances'), 'USD')} (+{safe_float(snap_axp.get('card_balances_growth_pct')):.1f} %) · **Net Interest Yield:** {safe_float(snap_axp.get('net_interest_yield_pct')):.1f} %")
+                        st.write(f"**Credit Quality:** 30+ Days Past Due {safe_float(snap_axp.get('past_due_30d_pct')):.1f} % · Net Write-off {safe_float(snap_axp.get('net_writeoff_rate_principal_pct')):.1f} % · Reserve/Card Balances {safe_float(snap_axp.get('reserve_to_card_balances_pct')):.1f} %")
+                        st.write(f"**ROE / ROCE / CET1 / SLR:** {safe_float(snap_axp.get('roe_pct')):.1f} % / {safe_float(snap_axp.get('roce_pct')):.1f} % / {safe_float(snap_axp.get('cet1_pct')):.1f} % / {safe_float(snap_axp.get('slr_pct')):.1f} %")
+                        st.write(f"**FY2026 EPS Guidance:** {safe_float(snap_axp.get('fy2026_eps_guidance_low')):.2f}–{safe_float(snap_axp.get('fy2026_eps_guidance_high')):.2f} USD · Mittelpunkt {safe_float(snap_axp.get('fy2026_eps_guidance_mid')):.2f} USD")
+                        st.write(f"**Offizieller Book Value/Aktie:** {safe_float(snap_axp.get('book_value_per_share')):.2f} USD (+{safe_float(snap_axp.get('book_value_growth_yoy_pct')):.1f} % YoY)")
+                        if val_axp.get("available"):
+                            st.write(f"**Ziel-KGV / Ziel-P/B:** {safe_float(val_axp.get('target_pe')):.2f}× / {safe_float(val_axp.get('target_pb')):.2f}×")
+                            st.write(f"**Fair-Value-Anker EPS/P-E:** {format_eps(val_axp.get('earnings_anchor'), 'USD')} · **Book/P-B:** {format_eps(val_axp.get('book_anchor'), 'USD')}")
+                            st.write(f"**Abstand der Anker:** {safe_float(val_axp.get('anchor_gap_pct')):.1f} % (Fail-Closed > {safe_float(val_axp.get('anchor_gap_limit_pct')):.0f} %)")
+                            st.success("Bewertungsfreigabe JA: Closed-Loop Quality Score, FY2026 EPS Guidance und offizieller Book Value sind vollständig und ausreichend konsistent.")
+                        else:
+                            st.warning(text_or_dash(val_axp.get("note")))
                         st.caption(special_control.get("note"))
                     else:
                         st.warning(special_control.get("note"))
@@ -48757,6 +49266,15 @@ if selected_symbol:
                         st.write(f"**Ziel-KGV:** {fair_value.get('target_multiple'):.2f}× · **Korridor:** {fair_value.get('multiple_corridor_low'):.2f}× – {fair_value.get('multiple_corridor_high'):.2f}×")
                         st.write("**Reconstructed Adjusted TTM (nur Kontext):** " + format_eps(fair_value.get("reconstructed_adjusted_ttm_context"), fair_value["financial_currency"]))
                         st.caption("Die H1-Annualisierung ist keine FY-Guidance. GAAP-TTM, FY2025 pre-merger Mix und Analysten-Kursziele sind kein Bestandteil des Fair Values.")
+                    elif fair_value.get("valuation_method") == "closed_loop_card_credit_dual_anchor":
+                        st.write("**Bewertungsformel:** 70 % FY2026 EPS-Guidance × Closed-Loop-KGV + 30 % offizieller Book Value × P/B")
+                        st.write(f"**Closed-Loop Card & Credit Quality Score:** {safe_float(fair_value.get('specialist_score')):.0f}/100 · {text_or_dash(fair_value.get('specialist_quality_level'))}")
+                        st.write("**FY2026 EPS-Guidance-Mittelpunkt:** " + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"]))
+                        st.write(f"**Ziel-KGV:** {safe_float(fair_value.get('target_pe')):.2f}× · **Korridor:** {safe_float(fair_value.get('pe_corridor_low')):.1f}× – {safe_float(fair_value.get('pe_corridor_high')):.1f}×")
+                        st.write(f"**Offizieller Book Value/Aktie:** {safe_float(fair_value.get('book_value_basis')):.2f} {fair_value['financial_currency']} · **Ziel-P/B:** {safe_float(fair_value.get('target_pb')):.2f}× · **Korridor:** {safe_float(fair_value.get('pb_corridor_low')):.1f}× – {safe_float(fair_value.get('pb_corridor_high')):.1f}×")
+                        st.write(f"**EPS/P-E-Fair-Value-Anker:** {format_eps(fair_value.get('earnings_anchor'), fair_value['financial_currency'])} · **Book/P-B-Anker:** {format_eps(fair_value.get('book_anchor'), fair_value['financial_currency'])}")
+                        st.write(f"**Abstand der Bewertungsanker:** {safe_float(fair_value.get('anchor_gap_pct')):.1f} %")
+                        st.caption("Yahoo-/Statement-FCF, Net-Debt/FCF, generischer ROE und Visa/Mastercard-Multiples sind kein Bestandteil des AXP-Fair-Values.")
                     elif fair_value.get("valuation_method") == "payment_network_adjusted_pe":
                         st.write(
                             f"**Bewertungsformel:** {text_or_dash(fair_value.get('earnings_basis_name'))} × "
