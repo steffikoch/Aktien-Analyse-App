@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.139"
+APP_BUILD_VERSION = "V2.20.140"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · NextEra Energy Utility Specialist V1"
+    f"Build {APP_BUILD_VERSION} · Visa Payment Network Specialist V1"
 )
 
 
+# V2.20.140: Visa Payment Network Specialist V1. Adds an exact Visa/Mastercard payment-network family route so card-network economics cannot fall back into the generic Standard-Unternehmen score. Visa receives an issuer-primary Q3/9M FY2026 snapshot using payments volume, cross-border volume, processed transactions, net-revenue/Adjusted-EPS growth, non-GAAP operating margin, official free cash flow/cash conversion and capital returns. The FY2026 Adjusted-EPS anchor is built from 9M non-GAAP EPS plus an explicitly model-defined 14% translation of management's qualitative Q4 "low-end of mid-teens" adjusted constant-dollar EPS-growth outlook; analyst EPS is only a plausibility reference. The Visa Quality Score uses a 22–32x Payment-Network P/E corridor. Material interchange/debit litigation remains a yellow downside-only Regulatory & Litigation Overlay that caps the used P/E at 30.0x and confidence at Medium. Mastercard is routed into the same family but stays fail-closed until issuer-specific calibration. Existing utility, bank, insurance, REIT, midstream and branded-consumer mathematics remain unchanged.
 # V2.20.139: NextEra Energy Utility Specialist V1. Adds an issuer-primary NEE snapshot using the current FY2026 adjusted-EPS guidance, 8%+ standalone long-term adjusted-EPS growth, FPL regulatory-capital growth and reported regulatory ROE, the 2026-2029 FPL authorized ROE framework, NEE agency-adjusted credit targets/ratings, FPL 2026 capital-investment plan, dividend policy and current Dominion-combination status. NEE receives a premium-growth Regulated-Utility score and a 16-24x Adjusted-EPS P/E corridor. The pending Dominion transaction is not credited with merger EPS accretion or the combined-company 9%+/11% growth targets; instead a downside-only transaction/regulatory overlay caps the used P/E at 22.0x and valuation confidence at Medium until required regulatory approvals and closing. EIX/POR score, corridor, risk-cap and Fair-Value mathematics remain unchanged.
 # V2.20.138: Regulated Utility Unsupported-Issuer Fail-Closed Hotfix. No released EIX/POR valuation mathematics changed. Extends the Regulated-Utility family route to unsupported regulated-electric issuers such as NextEra Energy (NEE) so Yahoo/statement FCF and generic EPS normalization remain context-only, while the utility score, Core/Adjusted-EPS guidance anchor, target P/E and Fair Value stay fail-closed until an issuer-specific verified snapshot exists. Also prevents Step 3B from formatting missing utility snapshot fields and crashing the entire stock load, and aligns the green-event next-step wording with the utility specialist gate.
 # V2.20.137: Munich Re Reinsurance Specialist V1. Adds a verified MUV2.DE/Munich Re primary-source profile using H1 2026 issuer-reported IFRS earnings/EPS, H1 RoE, Solvency II, official carrying amount per share, H1 combined ratios, FY2026 net-result guidance and 2025 dividend/buyback context. Munich Re uses a reinsurer-calibrated Dual-Anchor valuation with 55% official book-value/P-B and 45% reported-TTM-EPS/P-E, profile-specific 1.1–2.2x P/B and 7.0–11.5x P/E corridors, while Allianz V2.20.44 mathematics remain unchanged. Yahoo FCF/ROE/book value stay context-only and the valuation remains fail-closed if the official snapshot is stale or any primary-source bridge is incomplete.
@@ -5890,6 +5891,7 @@ def is_special_fcf_model(company_type):
         "consumer / athletic apparel & footwear / turnaround",
         "solar manufacturing / high-growth / policy-sensitive",
         "specialty materials / specialty chemicals",
+        "payment network / capital-light payments",
         "versorger"
     ]
 
@@ -6137,6 +6139,7 @@ def is_special_balance_model(company_type):
         "consumer / athletic apparel & footwear / turnaround",
         "solar manufacturing / high-growth / policy-sensitive",
         "specialty materials / specialty chemicals",
+        "payment network / capital-light payments",
         "versorger"
     ]
 
@@ -6346,6 +6349,25 @@ def classify_company(name, symbol, sector, industry):
                 "kein Standard-KGV"
             ),
             "confidence_cap": "Niedrig"
+        }
+
+    # V2.20.140 – exact global payment-network route. Do not classify every
+    # "Credit Services" issuer here: Visa/Mastercard have network economics
+    # unlike card issuers, lenders, BNPL or merchant-acquiring hybrids.
+    if (
+        symbol_text in {"V", "MA"}
+        or "visa inc" in name_text
+        or "mastercard incorporated" in name_text
+    ):
+        return {
+            "type": "Payment Network / Capital-Light Payments",
+            "method": (
+                "Issuer-primary Adjusted EPS + Network Growth + Cash Conversion + "
+                "Regulatory/Litigation Risk Overlay; generischer Standard-Score gesperrt"
+            ),
+            "confidence_cap": "Mittel",
+            "business_model": "Globales, kapitalarmes Zahlungsnetzwerk; keine klassische Bank-/Kreditvergabe",
+            "focus_areas": "Payments Volume · Cross-Border Volume · Processed Transactions · Net Revenue · Adjusted EPS · Cash Conversion · Capital Returns · Regulatory/Litigation Risk",
         }
 
     # Legal & General: Finanzkonzern mit Versicherung und Asset Management.
@@ -15584,6 +15606,297 @@ def build_regulated_utility_special_control(control, utility_model):
     return out
 
 
+# =========================================================
+# V2.20.140 – Visa Payment Network Specialist V1
+# =========================================================
+
+PAYMENT_NETWORK_SPECIALIST_VERSION = "v220140_visa_payment_network_specialist_v1"
+
+
+def is_payment_network_specialist_type(company_type, symbol=None):
+    type_name = str((company_type or {}).get("type") or "").lower()
+    sym = str(symbol or "").upper().strip()
+    return (
+        "payment network / capital-light payments" in type_name
+        or sym in {"V", "MA"}
+    )
+
+
+def get_verified_payment_network_snapshot(symbol):
+    """Curated issuer-primary payment-network snapshot.
+
+    V2.20.140 intentionally calibrates Visa only. Mastercard is routed into the
+    same economic family but remains fail-closed until its own primary-source
+    thresholds and snapshot are approved.
+    """
+    sym = str(symbol or "").upper().strip()
+    if sym != "V":
+        return None
+
+    q3_revenue = 11.633e9
+    q3_non_gaap_opex = 3.878e9
+    ytd_fcf = 15.164e9
+    ytd_non_gaap_net_income = 18.762e9
+    q4_2025_non_gaap_eps = 2.98
+    q4_growth_translation_pct = 14.0
+    implied_q4_2026_eps = q4_2025_non_gaap_eps * (1.0 + q4_growth_translation_pct / 100.0)
+    implied_fy2026_eps = 9.79 + implied_q4_2026_eps
+
+    return {
+        "symbol": "V",
+        "company": "Visa Inc.",
+        "reporting_currency": "USD",
+        "as_of_date": "30.06.2026",
+        "published_date": "28.07.2026",
+        "valid_until": "27.10.2026",
+        "integration_version": PAYMENT_NETWORK_SPECIALIST_VERSION,
+        "source_name": "Visa Fiscal Q3 2026 Financial Results + Form 10-Q",
+        "source_url": "https://s1.q4cdn.com/050606653/files/doc_financials/2026/q3/Visa-Inc-Third-Quarter-2026-Financial-Results-Presentation.pdf",
+        "sec_source_url": "https://www.sec.gov/Archives/edgar/data/1403161/000140316126000104/v-20260630.htm",
+        "business_model_note": (
+            "Visa ist laut 10-Q ein globales Payments-Technology-Unternehmen und keine Finanzinstitution; "
+            "Visa emittiert keine Karten, vergibt keinen Kredit und setzt keine Karteninhaberzinsen/-gebühren."
+        ),
+        "q3_net_revenue": q3_revenue,
+        "q3_net_revenue_growth_pct": 14.0,
+        "ytd_net_revenue": 33.764e9,
+        "ytd_net_revenue_growth_pct": 15.0,
+        "q3_non_gaap_net_income": 6.296e9,
+        "q3_non_gaap_eps": 3.32,
+        "q3_non_gaap_eps_growth_pct": 11.0,
+        "ytd_non_gaap_net_income": ytd_non_gaap_net_income,
+        "ytd_non_gaap_eps": 9.79,
+        "ytd_non_gaap_eps_growth_pct": 15.0,
+        "q3_payments_volume_growth_pct": 10.0,
+        "q3_cross_border_ex_intra_europe_growth_pct": 12.0,
+        "q3_cross_border_total_growth_pct": 13.0,
+        "q3_processed_transactions_growth_pct": 10.0,
+        "q3_processed_transactions": 71.662e9,
+        "q3_non_gaap_operating_expense": q3_non_gaap_opex,
+        "q3_non_gaap_operating_margin_pct": ((q3_revenue - q3_non_gaap_opex) / q3_revenue) * 100.0,
+        "q3_operating_cash_flow": 6.554e9,
+        "q3_capex": 0.417e9,
+        "q3_fcf": 6.137e9,
+        "ytd_operating_cash_flow": 16.342e9,
+        "ytd_capex": 1.178e9,
+        "ytd_fcf": ytd_fcf,
+        "ytd_fcf_conversion_pct": (ytd_fcf / ytd_non_gaap_net_income) * 100.0,
+        "cash_and_investment_securities": 13.9e9,
+        "q3_share_repurchases": 4.878e9,
+        "q3_dividends": 1.273e9,
+        "ytd_share_repurchases": 16.537e9,
+        "ytd_dividends": 3.852e9,
+        "ytd_capital_returns": 20.389e9,
+        "fy2025_non_gaap_eps": 11.47,
+        "q4_2025_non_gaap_eps": q4_2025_non_gaap_eps,
+        "q4_2026_eps_growth_outlook": "Low-end of mid-teens (Non-GAAP adjusted constant-dollar)",
+        "fy2026_eps_growth_outlook": "Low-end of mid-teens (Non-GAAP adjusted constant-dollar)",
+        "fy2026_net_revenue_growth_outlook": "Low-end of low-teens (Non-GAAP adjusted constant-dollar)",
+        "q4_eps_growth_translation_pct": q4_growth_translation_pct,
+        "q4_eps_growth_translation_note": (
+            "Modellannahme V2.20.140: Die qualitative Visa-Angabe 'low-end of mid-teens' wird ausschließlich "
+            "für die FY2026-EPS-Brücke mit 14,0% übersetzt. 14,0% ist keine von Visa veröffentlichte Punktschätzung."
+        ),
+        "implied_q4_2026_non_gaap_eps": implied_q4_2026_eps,
+        "fy2026_adjusted_eps_implied": implied_fy2026_eps,
+        "earnings_basis_name": "Guidance-implied FY2026 Adjusted EPS Bridge",
+        "litigation_us_covered_accrual_ytd": 1.131e9,
+        "litigation_escrow_deposits_ytd": 0.875e9,
+        "litigation_escrow_balance": 0.888e9,
+        "total_accrued_litigation": 1.274e9,
+        "interchange_mdl_preliminary_approval_date": "09.06.2026",
+        "interchange_mdl_final_approval_motion_date": "15.07.2026",
+        "europe_merchant_claims_active": True,
+        "risk_overlay_name": "Visa Regulatory & Litigation Overlay",
+        "risk_overlay_level": "Gelb",
+        "risk_pe_cap": 30.0,
+        "risk_note": (
+            "Interchange-/Debit-Litigation und regulatorische Unsicherheit bleiben materiell. Der U.S.-MDL-Vergleich war "
+            "zum Q3-Berichtsstand erst vorläufig genehmigt; Visa weist weitere U.S.-/Europa-Verfahren sowie erhebliche "
+            "Litigation-Abgrenzungen aus. Der Overlay wirkt ausschließlich downside-only auf das P/E."
+        ),
+        "valuation_confidence_cap": "Mittel",
+    }
+
+
+def build_payment_network_specialist_score(snapshot):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    result = {"available": False, "score": None, "quality_level": None, "components": {}, "note": None}
+    if str(snap.get("symbol") or "").upper() != "V":
+        result["note"] = "Kein kalibrierter Payment-Network-Score für diesen Emittenten."
+        return result
+
+    required = [
+        "q3_payments_volume_growth_pct", "q3_cross_border_ex_intra_europe_growth_pct",
+        "q3_processed_transactions_growth_pct", "q3_net_revenue_growth_pct",
+        "q3_non_gaap_eps_growth_pct", "q3_non_gaap_operating_margin_pct",
+        "ytd_fcf_conversion_pct", "ytd_capital_returns",
+    ]
+    if any(safe_float(snap.get(k)) is None for k in required):
+        result["note"] = "Payment-Network-Score gesperrt: mindestens eine issuer-primary Qualitätskennzahl fehlt."
+        return result
+
+    # Transparent V1 issuer calibration. The components are intentionally based
+    # only on Visa primary-source operating/cash-return metrics, never on analyst targets.
+    components = {
+        "Network Volume / Transactions": 19.0,
+        "Cross-Border / Monetization": 14.0,
+        "Net Revenue + Adjusted EPS Growth": 24.0,
+        "Operating Margin / Franchise Economics": 15.0,
+        "FCF Conversion": 13.0,
+        "Capital Returns / Balance": 8.0,
+    }
+    score = round(sum(components.values()), 2)
+    result.update({
+        "available": True,
+        "score": score,
+        "quality_level": _specialist_quality_level(score),
+        "components": components,
+        "note": (
+            "Der Payment-Network-Score bewertet Netzwerkvolumen/Transaktionen, Cross-Border-Monetarisierung, "
+            "Net-Revenue-/Adjusted-EPS-Wachstum, non-GAAP Operating Margin, issuer-primary Free-Cashflow-Conversion "
+            "und Kapitalrückführungsqualität. Generischer ROE-, Yahoo-FCF- und Net-Debt/FCF-Score bleibt außen vor."
+        ),
+    })
+    return result
+
+
+def build_payment_network_specialist_valuation(snapshot, specialist_score):
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    score_data = specialist_score if isinstance(specialist_score, dict) else {}
+    result = {
+        "available": False,
+        "valuation_method_name": None,
+        "earnings_basis": None,
+        "base_target_pe": None,
+        "target_pe": None,
+        "corridor_low": None,
+        "corridor_high": None,
+        "risk_pe_cap": None,
+        "risk_overlay_applied": False,
+        "risk_overlay_effect_pct": None,
+        "fair_value_financial": None,
+        "note": None,
+    }
+    if str(snap.get("symbol") or "").upper() != "V" or not score_data.get("available"):
+        result["note"] = "Payment-Network-Spezialbewertung gesperrt: issuer-spezifischer Score nicht vollständig."
+        return result
+
+    earnings = safe_float(snap.get("fy2026_adjusted_eps_implied"))
+    score = safe_float(score_data.get("score"))
+    if earnings is None or earnings <= 0 or score is None:
+        result["note"] = "Payment-Network-Spezialbewertung gesperrt: FY2026 Adjusted-EPS-Brücke oder Score fehlt."
+        return result
+
+    low, high = 22.0, 32.0
+    base_target = low + (high - low) * (score / 100.0)
+    risk_cap = safe_float(snap.get("risk_pe_cap"))
+    target = min(base_target, risk_cap) if risk_cap is not None and risk_cap > 0 else base_target
+    risk_applied = target < base_target - 1e-9
+    risk_effect = ((target / base_target) - 1.0) * 100.0 if base_target > 0 else None
+    fair = earnings * target
+    result.update({
+        "available": True,
+        "valuation_method_name": "Visa Payment Network Adjusted-EPS P/E + Regulatory/Litigation Overlay",
+        "earnings_basis": earnings,
+        "base_target_pe": base_target,
+        "target_pe": target,
+        "corridor_low": low,
+        "corridor_high": high,
+        "risk_pe_cap": risk_cap,
+        "risk_overlay_applied": risk_applied,
+        "risk_overlay_effect_pct": risk_effect,
+        "risk_overlay_name": snap.get("risk_overlay_name"),
+        "risk_overlay_level": snap.get("risk_overlay_level"),
+        "risk_note": snap.get("risk_note"),
+        "fair_value_financial": fair,
+        "note": (
+            "Fair Value = issuer-primary Guidance-implied FY2026 Adjusted EPS Bridge × Payment-Network Quality-P/E; "
+            "anschließend wirkt ausschließlich ein downside-only Regulatory/Litigation P/E-Cap. Analystenziele sind kein Bewertungsanker."
+        ),
+    })
+    return result
+
+
+def build_payment_network_specialist_model(company_type, fundamental_info, symbol):
+    applicable = is_payment_network_specialist_type(company_type, symbol)
+    if not applicable:
+        return {"applicable": False}
+    sym = str(symbol or "").upper().strip()
+    snapshot = get_verified_payment_network_snapshot(sym)
+    if not snapshot:
+        note = (
+            f"Payment-Network-Familie erkannt, aber kein freigegebener issuer-spezifischer Primärquellen-Snapshot für {sym or 'diesen Emittenten'}. "
+            "Generischer Standard-Score, Yahoo-FCF/Net-Debt-to-FCF und Standard-KGV bleiben gesperrt; Fair Value bleibt fail-closed."
+        )
+        return {
+            "applicable": True, "symbol": sym, "issuer_supported": False, "primary_source_complete": False,
+            "snapshot": None,
+            "specialist_score": {"available": False, "note": note},
+            "specialist_valuation": {"available": False, "note": note},
+            "valuation_anchor_complete": False,
+            "readiness": "Payment-Network-Issuer noch nicht kalibriert",
+            "note": note,
+        }
+
+    # Freshness gate is explicit so stale Visa data can never silently keep a Fair Value alive.
+    fresh = False
+    try:
+        valid_until = datetime.strptime(str(snapshot.get("valid_until")), "%d.%m.%Y").date()
+        published = datetime.strptime(str(snapshot.get("published_date")), "%d.%m.%Y").date()
+        today = datetime.now().date()
+        fresh = published <= today <= valid_until
+    except Exception:
+        fresh = False
+
+    score = build_payment_network_specialist_score(snapshot) if fresh else {"available": False, "note": "Visa Primärquellen-Snapshot ist veraltet oder zeitlich ungültig."}
+    valuation = build_payment_network_specialist_valuation(snapshot, score) if fresh else {"available": False, "note": "Visa Primärquellen-Snapshot ist veraltet oder zeitlich ungültig."}
+    complete = bool(fresh and score.get("available") and valuation.get("available"))
+    return {
+        "applicable": True,
+        "symbol": sym,
+        "issuer_supported": True,
+        "primary_source_complete": bool(fresh),
+        "snapshot_fresh": bool(fresh),
+        "snapshot": snapshot,
+        "specialist_score": score,
+        "specialist_valuation": valuation,
+        "valuation_anchor_complete": complete,
+        "readiness": "Payment-Network-Spezialbewertung freigegeben" if complete else "Payment-Network-Spezialbewertung gesperrt",
+    }
+
+
+def build_payment_network_special_control(control, payment_model):
+    if not isinstance(control, dict) or control.get("control_key") != "payment_network_adjusted_eps":
+        return control
+    model = payment_model if isinstance(payment_model, dict) else {}
+    snap = model.get("snapshot") or {}
+    score = model.get("specialist_score") or {}
+    valuation = model.get("specialist_valuation") or {}
+    released = bool(
+        model.get("issuer_supported") and model.get("primary_source_complete")
+        and model.get("valuation_anchor_complete") and score.get("available") and valuation.get("available")
+    )
+    out = dict(control)
+    out.update({
+        "implemented": bool(model.get("issuer_supported")),
+        "released": released,
+        "issuer_supported": bool(model.get("issuer_supported")),
+        "confidence_cap": (snap.get("valuation_confidence_cap") if snap else None) or "Mittel",
+        "router_status": "Schritt 3B freigegeben" if released else "Schritt 3B nicht freigegeben – Issuer noch nicht kalibriert",
+        "step3b_status": "Payment-Network-Fair-Value freigegeben" if released else "Payment-Network-Fair-Value gesperrt",
+        "snapshot": snap,
+        "checks": {"specialist_score": score, "specialist_valuation": valuation},
+        "note": (
+            "V2.20.140 trennt Visa/Mastercard von Banken und dem generischen Standard-Unternehmen-Pfad. Visa nutzt issuer-primary "
+            "Netzwerk-, Adjusted-Earnings-, Cash-Conversion- und Kapitalrückführungsdaten; Visa-spezifische Litigation-/Regulatory-Risiken "
+            "dürfen das Quality-P/E ausschließlich downside-only begrenzen. Analystenziele bleiben Modul 8."
+            if model.get("issuer_supported") else (model.get("note") or "Payment-Network-Spezialroute noch nicht kalibriert.")
+        ),
+    })
+    return out
+
+
 def apply_regulated_utility_action_brake(new_buy_signal, holding_signal, utility_model):
     """Downside-only action overlay for risks that are not reliably priceable by a single P/E.
 
@@ -22418,6 +22731,30 @@ def get_special_control(company_type, symbol):
             "note": (
                 "UA/UAA und OMC werden nicht in das generische EPS-/FCF-Modell gedrückt. "
                 "Der Bewertungsanker wird erst in Schritt 3B aus aktuellem Primärquellen-Kontext freigegeben."
+            ),
+        }
+
+    if symbol_text in {"V", "MA"} or "payment network / capital-light payments" in type_name:
+        return {
+            "required": True,
+            "control_key": "payment_network_adjusted_eps",
+            "control_name": "Payment Network / Adjusted-Earnings-, Network-Growth-, Cash-Conversion- & Regulatory-Risk-Kontrolle",
+            "planned_checks": [
+                "Issuer-primary Non-GAAP/Adjusted EPS statt generischem Standard-EPS-Mix",
+                "Payments Volume und Processed Transactions",
+                "Cross-Border Volume / Monetarisierungsqualität",
+                "Net Revenue und Adjusted-EPS-Wachstum",
+                "Non-GAAP Operating Margin / Franchise Economics",
+                "Issuer-primary Free Cash Flow / Cash Conversion",
+                "Share Repurchases + Dividends / Kapitalrückführungsqualität",
+                "Regulatory/Litigation Risk Overlay downside-only",
+                "Scoregesteuerter Payment-Network-P/E-Korridor",
+                "Analysten-Kursziel nur Reality Check, nie Fair-Value-Anker",
+            ],
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Visa Payment Network Specialist V1",
+            "note": (
+                "Visa/Mastercard werden als globale Payment Networks statt als Bank oder generisches Standard-Unternehmen behandelt. "
+                "Nur issuer-spezifisch kalibrierte Primärdaten dürfen Score, Adjusted-EPS-Anker und Ziel-KGV freigeben."
             ),
         }
 
@@ -29415,6 +29752,7 @@ def calculate_valuation_confidence(
     is_semicap_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "semicap_quality_adjusted_pe"
     is_nvidia_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "nvidia_ai_quality_operating_pe"
     is_utility_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "regulated_utility_core_eps_pe"
+    is_payment_network_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "payment_network_adjusted_pe"
     is_turnaround_postmerger_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") in {"ua_turnaround_psales", "omc_post_merger_adjusted_pe"}
     is_toyo_solar_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "toyo_policy_dilution_pe"
     is_gold_precious_metals_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "gold_precious_metals_current_share_pe"
@@ -29444,6 +29782,11 @@ def calculate_valuation_confidence(
     elif is_utility_valuation:
         guidance_level = "Hoch"
         components["Current-FY Core/Adjusted EPS Guidance"] = (_confidence_rank_value(guidance_level), guidance_level)
+    elif is_payment_network_valuation:
+        # Visa management gives a qualitative FY/Q4 growth range, so the 14% translation
+        # into an exact FY2026 EPS bridge is intentionally capped at Medium confidence.
+        earnings_level = "Mittel"
+        components["Visa FY2026 Adjusted-EPS Guidance Bridge"] = (_confidence_rank_value(earnings_level), earnings_level)
     elif is_oilfield_services_energy_tech_valuation:
         of_valuation = ((special_control or {}).get("checks") or {}).get("specialist_valuation") or {}
         of_bridge = of_valuation.get("earnings_bridge") or {}
@@ -29467,7 +29810,7 @@ def calculate_valuation_confidence(
         earnings_rank = _confidence_rank_value(earnings_level)
         if earnings_rank is not None:
             components["Defense Current-FY Earnings-Basis"] = (earnings_rank, earnings_level)
-    elif not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation and not is_branded_consumer_staples_valuation and not is_oilfield_services_energy_tech_valuation and not is_integrated_oil_gas_valuation and not is_defense_high_growth_valuation:
+    elif not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation and not is_branded_consumer_staples_valuation and not is_oilfield_services_energy_tech_valuation and not is_integrated_oil_gas_valuation and not is_defense_high_growth_valuation and not is_payment_network_valuation:
         eps_level = (eps_normalization or {}).get("confidence")
         eps_rank = _confidence_rank_value(eps_level)
         if eps_rank is not None:
@@ -31012,6 +31355,88 @@ def calculate_fair_value_v1(
         })
         return result
 
+
+    # V2.20.140 – Visa Payment Network Adjusted-EPS valuation.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "payment_network_adjusted_eps"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        pv = checks.get("specialist_valuation") or {}
+        ps = checks.get("specialist_score") or {}
+        snap = special_control.get("snapshot") or {}
+        fv = safe_float(pv.get("fair_value_financial"))
+        if not pv.get("available") or fv is None or fv <= 0:
+            result["note"] = "Fair Value V1 gesperrt: Payment-Network-Spezialanker nicht vollständig verfügbar."
+            return result
+
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der Payment-Network-Bewertung sind nicht eindeutig."
+            return result
+
+        share_context = context.get("share_unit_context") or {}
+        share_ratio = 1.0
+        unit_notes = []
+        if share_context.get("conversion_required"):
+            if not share_context.get("conversion_available"):
+                result["note"] = "Fair Value V1 gesperrt: abweichende Handelseinheit ohne verifizierte Aktien-/ADR-Umrechnung."
+                return result
+            share_ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
+            if share_ratio is None or share_ratio <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Aktien-/ADR-Verhältnis ist nicht belastbar."
+                return result
+
+        fvq = fv * share_ratio
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Währungsumrechnung der Payment-Network-Bewertung nicht belastbar verfügbar."
+                return result
+            fvq *= factor
+            unit_notes.append(f"Währungsangleichung: {financial_currency} → {quote_currency} mit Faktor {factor:.6f}.")
+        elif quote_currency != financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+
+        cp = safe_float(current_price)
+        potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+        result.update({
+            "available": True,
+            "valuation_method": "payment_network_adjusted_pe",
+            "normalized_eps": safe_float(pv.get("earnings_basis")),
+            "used_multiple": safe_float(pv.get("target_pe")),
+            "multiple_source": "V2.20.140 Visa Payment Network Quality Score → Adjusted-EPS P/E → downside-only Regulatory/Litigation Overlay",
+            "fair_value_financial": fv,
+            "fair_value_quote": fvq,
+            "potential_pct": potential,
+            "specialist_score": safe_float(ps.get("score")),
+            "specialist_quality_level": ps.get("quality_level"),
+            "specialist_components": ps.get("components") or {},
+            "earnings_basis_name": snap.get("earnings_basis_name"),
+            "target_pe": safe_float(pv.get("target_pe")),
+            "base_target_pe": safe_float(pv.get("base_target_pe")),
+            "pe_corridor_low": safe_float(pv.get("corridor_low")),
+            "pe_corridor_high": safe_float(pv.get("corridor_high")),
+            "risk_pe_cap": safe_float(pv.get("risk_pe_cap")),
+            "risk_overlay_applied": bool(pv.get("risk_overlay_applied")),
+            "risk_overlay_effect_pct": safe_float(pv.get("risk_overlay_effect_pct")),
+            "risk_overlay_name": pv.get("risk_overlay_name"),
+            "risk_overlay_level": pv.get("risk_overlay_level"),
+            "risk_note": pv.get("risk_note"),
+            "q4_growth_translation_pct": safe_float(snap.get("q4_eps_growth_translation_pct")),
+            "q4_growth_translation_note": snap.get("q4_eps_growth_translation_note"),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "Visa Payment-Network-Fair-Value V1 = issuer-primary Guidance-implied FY2026 Adjusted-EPS Bridge × "
+                "Payment-Network Quality-P/E; danach ausschließlich downside-only Regulatory/Litigation Overlay. "
+                "Standard-ROE, Yahoo-TTM-FCF/Net-Debt-to-FCF und Analysten-Kursziele bleiben außerhalb des Fair Values."
+            ),
+        })
+        return result
 
     # V2.20.139 – EIX / POR / NEE regulated-utility Core/Adjusted EPS valuation.
     if (
@@ -36229,6 +36654,12 @@ def load_stock(selected_symbol, cache_version):
         fundamental_symbol
     )
 
+    payment_network_specialist_model = build_payment_network_specialist_model(
+        company_type,
+        fundamental_info,
+        fundamental_symbol
+    )
+
     adjusted_earnings_specialist_model = build_adjusted_earnings_specialist_model(
         company_type,
         fundamental_info,
@@ -36453,6 +36884,36 @@ def load_stock(selected_symbol, cache_version):
                 "REITs verwenden kein Standard-EPS-/FCF-Multiple. V2.20.48 verwendet den "
                 "eigenen 100-Punkte-REIT-Score und einen scoregesteuerten P/AFFO-Anker. "
                 "NAV bleibt ohne belastbare Primärquelle gesperrt."
+            ),
+        }
+
+    if payment_network_specialist_model.get("applicable"):
+        pn_score_fm = payment_network_specialist_model.get("specialist_score") or {}
+        pn_val_fm = payment_network_specialist_model.get("specialist_valuation") or {}
+        pn_supported_fm = bool(payment_network_specialist_model.get("issuer_supported"))
+        pn_corridor = {
+            "available": bool(pn_val_fm.get("available")),
+            "lower": safe_float(pn_val_fm.get("corridor_low")),
+            "upper": safe_float(pn_val_fm.get("corridor_high")),
+            "method": pn_val_fm.get("valuation_method_name") or "Payment-Network Adjusted-EPS P/E",
+            "note": (
+                "V2.20.140: Der Payment-Network-Quality-Score setzt den P/E-Basisanker. "
+                "Regulatory/Litigation-Risiken dürfen das tatsächlich verwendete Ziel-KGV ausschließlich downside-only begrenzen."
+            ),
+        }
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": safe_float(pn_score_fm.get("score")),
+            "corridor": pn_corridor,
+            "multiple": safe_float(pn_val_fm.get("target_pe")),
+            "available": bool(pn_score_fm.get("available") and pn_val_fm.get("available")),
+            "earnings_basis_usable": bool(pn_val_fm.get("available")),
+            "note": (
+                "V2.20.140 verwendet für Visa keinen generischen Standard-Score. Network Growth, Adjusted Earnings, "
+                "Operating Margin, issuer-primary Cash Conversion und Capital Returns bestimmen Score/P-E; Litigation/Regulatory wirkt downside-only."
+                if pn_supported_fm else
+                "Payment-Network-Familienroute aktiv: generischer Standard-Score, Standard-KGV und Fair Value bleiben gesperrt, "
+                "bis ein issuer-spezifischer Primärquellen-Snapshot kalibriert ist."
             ),
         }
 
@@ -36905,6 +37366,11 @@ def load_stock(selected_symbol, cache_version):
         symbol
     )
 
+    special_control = build_payment_network_special_control(
+        special_control,
+        payment_network_specialist_model
+    )
+
     special_control = build_regulated_utility_special_control(
         special_control,
         regulated_utility_specialist_model
@@ -37350,6 +37816,27 @@ def load_stock(selected_symbol, cache_version):
                 "action": (
                     "Der Fair Value bleibt nutzbar; Integrations- und Zinsrisiko werden im Quality Score und konservativen 8–12×-KGV-Korridor berücksichtigt. "
                     "Analystenziele bleiben nur externer Reality Check."
+                ),
+            }
+
+    if payment_network_specialist_model.get("applicable") and payment_network_specialist_model.get("valuation_anchor_complete"):
+        pn_snap_event = payment_network_specialist_model.get("snapshot") or {}
+        if str(pn_snap_event.get("symbol") or "").upper() == "V":
+            special_event_warning = {
+                "level": "Gelb",
+                "icon": "🟡",
+                "title": "Visa Regulatory & Litigation Overlay aktiv",
+                "requires_research": False,
+                "valuation_usable": True,
+                "reason": (
+                    "Die operative Payment-Network-/Adjusted-Earnings-Basis ist belastbar. Gleichzeitig bleiben Interchange-/Debit-Litigation "
+                    "und regulatorische Risiken materiell: im 9M-FY2026 wurden 1,131 Mrd. USD U.S.-covered-litigation accruals erfasst; "
+                    "der Litigation-Escrow lag zum 30.06.2026 bei 0,888 Mrd. USD. Der Injunctive-Relief-MDL-Vergleich war zum Q3-Stand "
+                    "vorläufig genehmigt; weitere U.S.- und Europa-Verfahren bleiben offen."
+                ),
+                "action": (
+                    "Der Visa-Fair-Value bleibt als Specialist-Anker nutzbar. Das Quality-P/E wird downside-only auf 30,0× begrenzt; "
+                    "Analystenziele bleiben vollständig außerhalb der Bewertung."
                 ),
             }
 
@@ -37854,6 +38341,7 @@ def load_stock(selected_symbol, cache_version):
         "nvidia_special_model": nvidia_special_model,
         "reit_special_model": reit_special_model,
         "regulated_utility_specialist_model": regulated_utility_specialist_model,
+        "payment_network_specialist_model": payment_network_specialist_model,
         "adjusted_earnings_specialist_model": adjusted_earnings_specialist_model,
         "turnaround_postmerger_specialist_model": turnaround_postmerger_specialist_model,
         "gold_precious_metals_specialist_model": gold_precious_metals_specialist_model,
@@ -38595,6 +39083,7 @@ if selected_symbol:
                 is_nvidia_fcf_context = is_nvidia_ai_growth_company_type(company_type)
                 is_bkr_fcf_context = is_baker_hughes_energy_tech_company_type(company_type)
                 is_utility_fcf_context = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
+                is_payment_network_fcf_context = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
                 is_turnaround_postmerger_fcf_context = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 is_gold_precious_metals_fcf_context = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_fcf_context = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
@@ -38656,6 +39145,13 @@ if selected_symbol:
                             "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
                             "Bei Baker Hughes bleibt dieser Yahoo-TTM-FCF reine Kontextinformation. V2.20.129 verwendet im Post-Chart Primary-Source Gate den offiziell ausgewiesenen Q2-Free-Cashflow; "
                             "Yahoo-FCF steuert weder Score, Leverage noch Fair Value."
+                        )
+                    elif is_payment_network_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            "Bei Payment Networks bleibt der Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. "
+                            "V2.20.140 verwendet für Visa den offiziell ausgewiesenen Q3/YTD-Free-Cashflow und dessen Conversion relativ zum non-GAAP Net Income; "
+                            "der generische FCF-Margen- und Net-Debt/FCF-Score bleibt gesperrt."
                         )
                     elif is_utility_fcf_context:
                         st.caption(
@@ -39051,6 +39547,7 @@ if selected_symbol:
                 )
 
                 utility_eps_context_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
+                payment_network_eps_context_ui = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
                 turnaround_postmerger_eps_context_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 gold_precious_metals_eps_context_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 toyo_solar_eps_context_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
@@ -39077,7 +39574,7 @@ if selected_symbol:
                     )
                 else:
                     normalized_eps = eps_result["normalized_eps"]
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -39152,6 +39649,24 @@ if selected_symbol:
                             "NVIDIA/Fabless-AI: Diese Standard-Normalisierung bleibt in V2.20.67 ausschließlich Kontext. "
                             "Das Earnings-Horizon-Alignment verwendet eine separate operative FY27-Proxy-Basis; das Standard-EPS bleibt für NVIDIA nicht freigegeben."
                         )
+                    elif payment_network_eps_context_ui:
+                        pn_eps_model_ui = data.get("payment_network_specialist_model") or {}
+                        pn_eps_snap_ui = pn_eps_model_ui.get("snapshot") or {}
+                        pn_eps_val_ui = pn_eps_model_ui.get("specialist_valuation") or {}
+                        if pn_eps_model_ui.get("issuer_supported") and pn_eps_val_ui.get("available"):
+                            st.info(
+                                "Payment Network: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                                "V2.20.140 verwendet für Visa eine issuer-primary FY2026 Adjusted-EPS-Brücke aus 9M non-GAAP EPS plus Q4-Guidance-Bridge."
+                            )
+                            st.write(
+                                "**Visa Guidance-implied FY2026 Adjusted EPS:** " + format_eps(pn_eps_val_ui.get("earnings_basis"), financial_currency)
+                            )
+                            st.caption(text_or_dash(pn_eps_snap_ui.get("q4_eps_growth_translation_note")))
+                        else:
+                            st.warning(
+                                "Payment-Network-Familienroute aktiv, aber dieser Emittent ist noch nicht issuer-spezifisch kalibriert. "
+                                "Standard-EPS, Standard-KGV und Fair Value bleiben fail-closed."
+                            )
                     elif utility_eps_context_ui:
                         util_eps_model_ui = data.get("regulated_utility_specialist_model") or {}
                         util_eps_snap_ui = util_eps_model_ui.get("snapshot") or {}
@@ -39338,6 +39853,12 @@ if selected_symbol:
                         "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
                         "die CTVA-Separation-/SOTP-Sicherheit wird ausschließlich aus Segmenttrennung, Standalone-Zielgrößen, finaler Kapitalstruktur und Separation-Gates bestimmt."
                     )
+                elif payment_network_eps_context_ui:
+                    st.info(
+                        "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
+                        "die Visa-Payment-Network-Bewertungssicherheit wird ausschließlich aus Primärquellen, "
+                        "der Adjusted-EPS-Guidance-Bridge, Network-/Cash-Conversion-Qualität und dem Regulatory/Litigation Gate bestimmt."
+                    )
                 elif utility_eps_context_ui:
                     st.info(
                         "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
@@ -39448,6 +39969,12 @@ if selected_symbol:
                         st.caption("Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) + " Diese Divergenz steuert das Kratos-Sondermodell nicht; GAAP/Adjusted-EPS werden separat geprüft.")
                     elif is_nvidia_ai_growth_company_type(company_type):
                         st.caption("Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) + " Diese Divergenz steuert das NVIDIA-Sondermodell nicht.")
+                    elif payment_network_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
+                            " Diese TTM-/Forward-Divergenz steuert weder den Visa-Payment-Network-Fair-Value noch dessen Bewertungssicherheit; "
+                            "maßgeblich ist die issuer-primary Adjusted-EPS-Guidance-Bridge plus Network-, Cash-Conversion- und Regulatory/Litigation-Gates."
+                        )
                     elif utility_eps_context_ui:
                         st.caption(
                             "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
@@ -40288,6 +40815,7 @@ if selected_symbol:
                 is_nvidia_score_ui = is_nvidia_ai_growth_company_type(company_type)
                 is_adjusted_specialist_score_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                 is_utility_specialist_score_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
+                is_payment_network_score_ui = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
                 is_turnaround_postmerger_score_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 is_gold_precious_metals_score_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_score_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
@@ -40315,6 +40843,17 @@ if selected_symbol:
                 if is_bkr_score_ui:
                     st.info("Baker Hughes/Post-Chart-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.129 bewertet Q2 Orders/RPO und OFSE/IET Segmententwicklung aus Primärquellen.")
                     st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf einen späteren Post-Chart Bewertungsanker.")
+                elif is_payment_network_score_ui:
+                    pn_score_model_ui = data.get("payment_network_specialist_model") or {}
+                    pn_score_snap_ui = pn_score_model_ui.get("snapshot") or {}
+                    if pn_score_model_ui.get("issuer_supported"):
+                        st.info("ℹ️ Im Payment-Network-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
+                        st.caption(
+                            "Visa-Wachstum wird aus Payments Volume, Cross-Border Volume, Processed Transactions sowie Net-Revenue-/Adjusted-EPS-Wachstum aus Primärquellen bewertet. "
+                            "Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext."
+                        )
+                    else:
+                        st.warning("Payment-Network-Familienroute aktiv: generischer Wachstumsscore bleibt gesperrt; issuer-spezifische Kalibrierung fehlt.")
                 elif is_utility_specialist_score_ui:
                     util_score_model_ui = data.get("regulated_utility_specialist_model") or {}
                     if util_score_model_ui.get("issuer_supported"):
@@ -40497,7 +41036,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_oilfield_services_score_ui and not is_integrated_oil_gas_score_ui and not is_branded_consumer_staples_score_ui and not is_asset_management_score_ui and not is_defense_high_growth_score_ui:
+                if not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_payment_network_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_oilfield_services_score_ui and not is_integrated_oil_gas_score_ui and not is_branded_consumer_staples_score_ui and not is_asset_management_score_ui and not is_defense_high_growth_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -40523,6 +41062,7 @@ if selected_symbol:
                 is_nvidia_profitability_ui = is_nvidia_ai_growth_company_type(company_type)
                 is_adjusted_specialist_profitability_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                 is_utility_specialist_profitability_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
+                is_payment_network_profitability_ui = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
                 is_turnaround_postmerger_profitability_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 is_gold_precious_metals_profitability_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                 is_toyo_solar_profitability_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
@@ -40536,6 +41076,15 @@ if selected_symbol:
 
                 if is_bkr_profitability_ui:
                     st.info("Baker Hughes/Post-Chart-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. Q2 OFSE-/IET-Adjusted-EBITDA-Margen werden separat aus der Primärquelle gezeigt; eine konsolidierte Post-Chart Profitabilitätsbasis folgt später.")
+                elif is_payment_network_profitability_ui:
+                    pn_profit_model_ui = data.get("payment_network_specialist_model") or {}
+                    pn_profit_snap_ui = pn_profit_model_ui.get("snapshot") or {}
+                    st.info("ℹ️ Im Payment-Network-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
+                    if pn_profit_model_ui.get("issuer_supported") and pn_profit_snap_ui:
+                        st.caption(
+                            "Visa Franchise Economics werden über die issuer-primary non-GAAP Operating Margin und Netzwerk-/Adjusted-Earnings-Qualität bewertet. "
+                            f"Q3 non-GAAP Operating Margin: {safe_float(pn_profit_snap_ui.get('q3_non_gaap_operating_margin_pct')):.1f} %. Generischer ROE bleibt Kontext."
+                        )
                 elif is_utility_specialist_profitability_ui:
                     util_profit_model_ui = data.get("regulated_utility_specialist_model") or {}
                     if util_profit_model_ui.get("issuer_supported"):
@@ -40880,6 +41429,7 @@ if selected_symbol:
                     is_nvidia_model_ui = is_nvidia_ai_growth_company_type(company_type)
                     is_adjusted_specialist_fcf_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     is_utility_specialist_fcf_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
+                    is_payment_network_specialist_fcf_ui = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
                     is_turnaround_postmerger_fcf_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                     is_gold_precious_metals_fcf_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     is_toyo_solar_fcf_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
@@ -40894,6 +41444,15 @@ if selected_symbol:
                     if is_bkr_model_ui:
                         st.info("ℹ️ Baker Hughes/Post-Chart-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
                         st.caption("V2.20.129 verwendet den offiziell ausgewiesenen Q2-Free-Cashflow im Primärdaten-Gate. Yahoo-TTM-FCF bleibt Kontext; Q2-FCF wird nicht auf das post-Chart Gesamtunternehmen hochgerechnet.")
+                    elif is_payment_network_specialist_fcf_ui:
+                        pn_fcf_model_ui = data.get("payment_network_specialist_model") or {}
+                        pn_fcf_snap_ui = pn_fcf_model_ui.get("snapshot") or {}
+                        st.info("ℹ️ Im Payment-Network-Spezialmodell berücksichtigt: Der generische Yahoo-TTM-FCF-Margen-Score wird nicht verwendet.")
+                        if pn_fcf_model_ui.get("issuer_supported") and pn_fcf_snap_ui:
+                            st.caption(
+                                "Visa nutzt issuer-primary Free Cash Flow und Cash Conversion. "
+                                f"9M FCF {format_money(pn_fcf_snap_ui.get('ytd_fcf'), 'USD')} · Conversion zum 9M non-GAAP Net Income {safe_float(pn_fcf_snap_ui.get('ytd_fcf_conversion_pct')):.1f} %."
+                            )
                     elif is_utility_specialist_fcf_ui:
                         util_fcf_model_ui = data.get("regulated_utility_specialist_model") or {}
                         if util_fcf_model_ui.get("issuer_supported"):
@@ -41031,6 +41590,7 @@ if selected_symbol:
                     and not is_baker_hughes_energy_tech_company_type(company_type)
                     and not bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
@@ -41166,6 +41726,7 @@ if selected_symbol:
                     is_nvidia_balance_ui = is_nvidia_ai_growth_company_type(company_type)
                     is_adjusted_specialist_balance_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     is_utility_specialist_balance_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
+                    is_payment_network_balance_ui = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
                     is_turnaround_postmerger_balance_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                     is_gold_precious_metals_balance_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     is_toyo_solar_balance_ui = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
@@ -41180,6 +41741,16 @@ if selected_symbol:
                     if is_bkr_balance_ui:
                         st.info("ℹ️ Baker Hughes/Post-Chart-Modell: Standard-Netto-Schulden/FCF-Score ist gesperrt")
                         st.caption("Die 30.06.2026 Cash-/Debt-Werte enthalten wesentliche Chart-Transaktionsfinanzierung. Sie dürfen nicht als aktuelle operative Netto-Cash-/Leverage-Basis interpretiert werden; Post-Chart Leverage wird separat geprüft.")
+                    elif is_payment_network_balance_ui:
+                        pn_balance_model_ui = data.get("payment_network_specialist_model") or {}
+                        pn_balance_snap_ui = pn_balance_model_ui.get("snapshot") or {}
+                        st.info("ℹ️ Im Payment-Network-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
+                        if pn_balance_model_ui.get("issuer_supported") and pn_balance_snap_ui:
+                            st.caption(
+                                "Visa bewertet Cash/Investment Securities und Kapitalrückführungsqualität im Spezialscore. "
+                                f"Cash + Investment Securities {format_money(pn_balance_snap_ui.get('cash_and_investment_securities'), 'USD')} · "
+                                f"9M Buybacks + Dividenden {format_money(pn_balance_snap_ui.get('ytd_capital_returns'), 'USD')}."
+                            )
                     elif is_utility_specialist_balance_ui:
                         util_balance_model_ui = data.get("regulated_utility_specialist_model") or {}
                         if util_balance_model_ui.get("issuer_supported"):
@@ -41347,6 +41918,7 @@ if selected_symbol:
                     and not is_nvidia_ai_growth_company_type(company_type)
                     and not bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
@@ -44545,6 +45117,61 @@ if selected_symbol:
                         st.caption(special_control.get("note"))
                     else:
                         st.warning(special_control.get("note"))
+
+                if special_control.get("control_key") == "payment_network_adjusted_eps":
+                    st.divider()
+                    st.subheader("💳 Modul 6 – Schritt 3B: Visa Payment Network Spezialmodell V1")
+                    if special_control.get("implemented"):
+                        checks_pn = special_control.get("checks") or {}
+                        snap_pn = special_control.get("snapshot") or {}
+                        score_pn = checks_pn.get("specialist_score") or {}
+                        val_pn = checks_pn.get("specialist_valuation") or {}
+                        st.write(f"**Operativer Datenstand:** {text_or_dash(snap_pn.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_pn.get('published_date'))})")
+                        st.caption(text_or_dash(snap_pn.get("source_name")))
+                        st.info(text_or_dash(snap_pn.get("business_model_note")))
+                        if score_pn.get("available"):
+                            st.metric("Payment Network Quality Score", f"{safe_float(score_pn.get('score')):.0f}/100 · {text_or_dash(score_pn.get('quality_level'))}")
+                            st.markdown("**Score-Komponenten:**")
+                            for label, value in (score_pn.get("components") or {}).items():
+                                st.write(f"• {label}: {safe_float(value):.1f} Punkte")
+                        st.write(
+                            f"**Q3 Net Revenue / non-GAAP EPS:** +{safe_float(snap_pn.get('q3_net_revenue_growth_pct')):.1f} % / "
+                            f"{safe_float(snap_pn.get('q3_non_gaap_eps')):.2f} USD (+{safe_float(snap_pn.get('q3_non_gaap_eps_growth_pct')):.1f} %)"
+                        )
+                        st.write(
+                            f"**Payments Volume / Cross-Border ex Intra-Europe / Processed Transactions:** "
+                            f"+{safe_float(snap_pn.get('q3_payments_volume_growth_pct')):.1f} % / +{safe_float(snap_pn.get('q3_cross_border_ex_intra_europe_growth_pct')):.1f} % / +{safe_float(snap_pn.get('q3_processed_transactions_growth_pct')):.1f} %"
+                        )
+                        st.write(f"**Q3 non-GAAP Operating Margin:** {safe_float(snap_pn.get('q3_non_gaap_operating_margin_pct')):.1f} %")
+                        st.write(
+                            f"**9M Free Cash Flow:** {format_money(snap_pn.get('ytd_fcf'), 'USD')} · "
+                            f"FCF Conversion {safe_float(snap_pn.get('ytd_fcf_conversion_pct')):.1f} % · "
+                            f"9M Buybacks + Dividenden {format_money(snap_pn.get('ytd_capital_returns'), 'USD')}"
+                        )
+                        st.write(
+                            f"**9M non-GAAP EPS:** {safe_float(snap_pn.get('ytd_non_gaap_eps')):.2f} USD · "
+                            f"Q4-FY2025 non-GAAP EPS {safe_float(snap_pn.get('q4_2025_non_gaap_eps')):.2f} USD · "
+                            f"Q4-Guidance-Übersetzung {safe_float(snap_pn.get('q4_eps_growth_translation_pct')):.1f} %"
+                        )
+                        st.caption(text_or_dash(snap_pn.get("q4_eps_growth_translation_note")))
+                        if val_pn.get("available"):
+                            st.write(f"**Guidance-implied FY2026 Adjusted EPS:** {safe_float(val_pn.get('earnings_basis')):.4f} USD")
+                            st.write(f"**Payment-Network-P/E-Basiskorridor:** {safe_float(val_pn.get('corridor_low')):.2f}× – {safe_float(val_pn.get('corridor_high')):.2f}×")
+                            st.write(f"**Quality-gesteuertes P/E vor Risiko-Overlay:** {safe_float(val_pn.get('base_target_pe')):.2f}×")
+                            if val_pn.get("risk_overlay_applied"):
+                                st.warning(
+                                    f"{text_or_dash(val_pn.get('risk_overlay_name'))} aktiv: Ziel-KGV downside-only auf "
+                                    f"{safe_float(val_pn.get('target_pe')):.2f}× begrenzt (Cap {safe_float(val_pn.get('risk_pe_cap')):.2f}×)."
+                                )
+                                st.caption(text_or_dash(val_pn.get("risk_note")))
+                            st.write(f"**Verwendetes Ziel-KGV:** {safe_float(val_pn.get('target_pe')):.2f}×")
+                            st.write("**Fundamentaler Visa-Fair-Value:** " + format_eps(val_pn.get("fair_value_financial"), "USD"))
+                            st.success("Bewertungsfreigabe JA: Visa Primary-Source-, Quality-, Adjusted-EPS- und Risk-Overlay-Gates sind vollständig; Analystenziele bleiben Modul 8.")
+                        else:
+                            st.warning(val_pn.get("note") or "Payment-Network-Spezialbewertung noch nicht freigegeben.")
+                        st.caption(text_or_dash(special_control.get("note")))
+                    else:
+                        st.warning(text_or_dash(special_control.get("note")))
 
                 if special_control.get(
                     "control_key"
@@ -47914,6 +48541,20 @@ if selected_symbol:
                         st.write(f"**Ziel-KGV:** {fair_value.get('target_multiple'):.2f}× · **Korridor:** {fair_value.get('multiple_corridor_low'):.2f}× – {fair_value.get('multiple_corridor_high'):.2f}×")
                         st.write("**Reconstructed Adjusted TTM (nur Kontext):** " + format_eps(fair_value.get("reconstructed_adjusted_ttm_context"), fair_value["financial_currency"]))
                         st.caption("Die H1-Annualisierung ist keine FY-Guidance. GAAP-TTM, FY2025 pre-merger Mix und Analysten-Kursziele sind kein Bestandteil des Fair Values.")
+                    elif fair_value.get("valuation_method") == "payment_network_adjusted_pe":
+                        st.write("**Bewertungsformel:** Guidance-implied FY2026 Adjusted EPS × Payment-Network Quality-P/E; danach downside-only Regulatory/Litigation Risk Overlay")
+                        st.write(f"**Payment Network Quality Score:** {safe_float(fair_value.get('specialist_score')):.0f}/100 · {text_or_dash(fair_value.get('specialist_quality_level'))}")
+                        st.write("**Earnings-Basis (FY2026 Adjusted EPS Bridge):** " + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"]))
+                        st.write(f"**Quality-gesteuertes Ziel-KGV vor Risiko-Overlay:** {safe_float(fair_value.get('base_target_pe')):.2f}×")
+                        st.write(f"**Verwendetes Ziel-KGV:** {safe_float(fair_value.get('target_pe')):.2f}× · **Basiskorridor:** {safe_float(fair_value.get('pe_corridor_low')):.2f}× – {safe_float(fair_value.get('pe_corridor_high')):.2f}×")
+                        if fair_value.get("risk_overlay_applied"):
+                            st.warning(
+                                f"**{text_or_dash(fair_value.get('risk_overlay_name'))}:** downside-only P/E-Cap {safe_float(fair_value.get('risk_pe_cap')):.2f}× · "
+                                f"Effekt vs. Quality-P/E {safe_float(fair_value.get('risk_overlay_effect_pct')):.1f} %"
+                            )
+                            st.caption(text_or_dash(fair_value.get("risk_note")))
+                        st.caption(text_or_dash(fair_value.get("q4_growth_translation_note")))
+                        st.caption("Yahoo-TTM-FCF/Net-Debt-to-FCF, generischer ROE und Analysten-Kursziele sind kein Bestandteil des Visa-Fair-Values.")
                     elif fair_value.get("valuation_method") == "regulated_utility_core_eps_pe":
                         st.write("**Bewertungsformel:** Current-FY Core/Adjusted EPS Guidance × Utility Quality-P/E; danach downside-only Regulatory/Transaction Risk Overlay")
                         st.write(
