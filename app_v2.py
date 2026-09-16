@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.0"
+APP_BUILD_VERSION = "V2.21.1"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Company Classification & Valuation Family Router V1"
+    f"Build {APP_BUILD_VERSION} · Family-Priority & Valuation-Model Readiness Guard"
 )
 
 
+# V2.21.1: Family-Priority & Valuation-Model Readiness Guard. Makes the universal valuation family authoritative whenever the legacy company-type classifier is only a generic/ambiguous placeholder (for example Software / Untertyp noch nicht eindeutig). A recognized specialist family with no released family model is always fail-closed regardless of the legacy route: generic growth, margin/ROE, Yahoo-FCF, Net-Debt/FCF, standard P/E, Fair Value, zones and signals stay blocked. Standard EPS divergence remains diagnosis-only while an unreleased family gate is active and no longer launches ad-hoc special-event research. Adds explicit family-model readiness metadata, issuer-family FCF context wording, and the official Block investor-relations quarterly-results fallback. Existing released specialist mathematics remain frozen.
 # V2.21.0: Universal Company Classification & Valuation Family Router V1. Adds a reusable family layer above issuer-specific valuation logic. Existing released specialist mathematics remain frozen. The router enriches every classification with a valuation family, routes ambiguous Financial-Services issuers (especially Credit Services / Consumer Finance / Payments / Capital Markets) away from the industrial Standard-Unternehmen path, and fail-closes unreleased family models. A scalable Security Family Master supplies high-confidence overrides for ambiguous issuers such as Synchrony, while sector/industry/business-summary rules cover thousands of additional securities without requiring one code branch per stock. Generic growth, margin/ROE, Yahoo-FCF and Net-Debt/FCF scoring are blocked whenever the universal family gate marks the model as specialist-required. The Standard-Unternehmen path is retained only where the family is explicitly generic-compatible.
 # V2.20.142: American Express Closed-Loop Card & Credit Specialist V1. Routes AXP out of Standard-Unternehmen into an issuer-primary hybrid payments-and-lending model. Uses Q2/H1 2026 Billed Business/Network Volume, revenue mix (discount revenue, card fees and net interest income), FY2026 EPS guidance, Card balances, delinquency/write-off/reserve metrics, ROE/ROCE, CET1/SLR, official book value, deposit funding and capital returns. Generic Yahoo FCF margin and Net-Debt/FCF are diagnosis-only. Valuation uses a 70% FY2026-guidance P/E anchor plus 30% official book-value/P-B anchor, with score-driven 14–22x P/E and 3.5–6.5x P/B corridors and a fail-closed anchor-consistency gate. Visa/Mastercard and all prior specialist mathematics remain unchanged.
 # V2.20.143: Capital One Card-Issuer Bank & Payment-Network Specialist V1. Routes COF out of Standard-Unternehmen into an issuer-primary hybrid lender/payments model, blocks acquisition-distorted Yahoo growth plus generic FCF/Net-Debt scoring, uses official Adjusted-TTM EPS, NIM/efficiency, card credit quality, CET1/ROTCE/TBV, funding and Global Payment Network volume, and applies a downside-only Post-Discover/Brex integration overlay to separate P/E and P/TBV anchors. Also fixes the Capital One IR quarterly-results/news-release routes. AXP, Visa/Mastercard, JPM and all prior specialist mathematics remain unchanged.
@@ -3647,6 +3648,15 @@ def _discover_company_ir_router(
                 urljoin(root + "/", "en/financial/results.php"),
                 urljoin(root + "/", "en/publications/announcements.php"),
             ]
+        elif "block.xyz" in root.lower():
+            # V2.21.1 – Block IR is hosted on investors.block.xyz. The generic
+            # /investors/financial-results and /investors/quarterly-results
+            # guesses return 404 and must never be treated as canonical.
+            fallback_urls = [
+                "https://investors.block.xyz/financials/quarterly-earnings-reports/default.aspx",
+                "https://investors.block.xyz/financials/sec-filings/default.aspx",
+                "https://investors.block.xyz/investor-news/default.aspx",
+            ]
         elif "capitalone.com" in root.lower():
             # V2.20.143 – Capital One IR lives on investor.capitalone.com, not
             # the generic www.capitalone.com/investors/... paths.
@@ -6351,7 +6361,7 @@ def calculate_balance_score(
 # =========================================================
 
 # =========================================================
-# V2.21.0 – Universal Valuation Family Router
+# V2.21.1 – Universal Valuation Family Router + Readiness Guard
 # =========================================================
 
 # The family layer is intentionally separate from issuer snapshots.  It is
@@ -6566,20 +6576,44 @@ def _infer_universal_family_from_metadata(symbol, sector, industry, business_sum
     return "general_corporate", "fallback"
 
 
+def _legacy_classification_is_family_overrideable(current_type):
+    """Return True when the legacy classifier is generic or explicitly unresolved.
+
+    V2.21.1 family-priority rule: a high-confidence universal family must outrank
+    a placeholder such as ``Software / Untertyp noch nicht eindeutig``. Explicit
+    released specialist routes remain authoritative and are only enriched.
+    """
+    text = str(current_type or "").strip().lower()
+    if not text:
+        return True
+    if "standard-unternehmen" in text:
+        return True
+    unresolved_markers = (
+        "untertyp noch nicht eindeutig",
+        "untertyp nicht eindeutig",
+        "noch nicht eindeutig",
+        "nicht eindeutig",
+        "unresolved",
+    )
+    return any(marker in text for marker in unresolved_markers)
+
+
 def apply_universal_valuation_family_router(base_classification, name, symbol, sector, industry, business_summary=None):
     """Attach a reusable valuation family without disturbing released specialist math.
 
-    Only a generic Standard-Unternehmen classification may be re-routed by this
-    V1 architecture layer. Existing explicit specialist types are enriched with
-    family metadata but otherwise left byte-for-byte equivalent in their method
-    and valuation path.
+    Generic Standard-Unternehmen classifications and explicitly unresolved
+    legacy placeholders may be re-routed by this architecture layer. Existing
+    released specialist types are enriched with family metadata but otherwise
+    keep their established valuation path.
     """
     out = dict(base_classification or {})
     name_text = str(name or "").lower()
     current_type = normalized_company_type_name(out)
 
     existing_family = _infer_universal_family_from_existing_type(out, name_text=name_text)
-    if "untertyp noch nicht eindeutig" in current_type:
+    if _legacy_classification_is_family_overrideable(current_type):
+        # Generic/unresolved legacy labels are not evidence that a released
+        # specialist family exists. Let the universal metadata/master route win.
         existing_family = None
     if existing_family:
         family_id, meta = _universal_family_meta(existing_family)
@@ -6588,6 +6622,7 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
         out.setdefault("family_router_source", "existing_specialist_route")
         out.setdefault("family_policy", meta["policy"])
         out.setdefault("family_model_status", "existing_route")
+        out.setdefault("family_model_ready", True)
         out.setdefault("universal_family_fail_closed", False)
         return out
 
@@ -6600,9 +6635,15 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
     out["family_router_source"] = source
     out["family_policy"] = meta["policy"]
 
-    # Non-standard types already have deliberate routing elsewhere.  Enrich only.
-    if "standard-unternehmen" not in current_type:
+    # V2.21.1: Family priority is authoritative over generic/unresolved legacy
+    # placeholders. Only an explicit released specialist route is allowed to
+    # remain ahead of the universal family. This prevents an issuer such as
+    # Block (XYZ) from being tagged Payments Processor while still executing
+    # the old ambiguous Software route.
+    legacy_overrideable = _legacy_classification_is_family_overrideable(current_type)
+    if not legacy_overrideable:
         out["family_model_status"] = "existing_route"
+        out["family_model_ready"] = True
         out["universal_family_fail_closed"] = False
         return out
 
@@ -6614,6 +6655,7 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
         )
         out["confidence_cap"] = "Niedrig bis Mittel"
         out["family_model_status"] = "defined_unreleased"
+        out["family_model_ready"] = False
         out["universal_family_fail_closed"] = True
         out["business_model"] = out.get("business_model") or (
             "Geschäftsmodell wurde einer wiederverwendbaren Bewertungsfamilie zugeordnet; "
@@ -6624,8 +6666,26 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
             "Primärdaten-/Comparability-Gate vor Fair Value"
         )
     else:
-        out["family_model_status"] = "generic_compatible"
-        out["universal_family_fail_closed"] = False
+        # Generic compatibility is permitted for an actual Standard-Unternehmen.
+        # An unresolved legacy type plus only a broad fallback is not enough
+        # evidence to unlock industrial valuation math.
+        unresolved_legacy = (
+            "standard-unternehmen" not in current_type
+            and _legacy_classification_is_family_overrideable(current_type)
+        )
+        if unresolved_legacy and source == "fallback":
+            out["family_model_status"] = "classification_unresolved"
+            out["family_model_ready"] = False
+            out["universal_family_fail_closed"] = True
+            out["method"] = (
+                "Universal Family Router: Bewertungsfamilie noch nicht ausreichend sicher bestimmt; "
+                "generischer Standard-Score und Fair Value bleiben bis zur belastbaren Familienzuordnung gesperrt."
+            )
+            out["confidence_cap"] = "Niedrig"
+        else:
+            out["family_model_status"] = "generic_compatible"
+            out["family_model_ready"] = True
+            out["universal_family_fail_closed"] = False
 
     return out
 
@@ -38886,19 +38946,34 @@ def load_stock(selected_symbol, cache_version):
         insurance_special_model=insurance_special_model
     )
 
-    if is_universal_family_fail_closed(company_type) and str(special_event_warning.get("level") or "").lower() == "grün":
+    if is_universal_family_fail_closed(company_type):
         _family_label = company_type.get("valuation_family") or company_type.get("type") or "Bewertungsfamilie"
+        _diagnostic_level = str(special_event_warning.get("level") or "").strip()
+        _diagnostic_reason = str(special_event_warning.get("reason") or "").strip()
+        _diagnostic_note = (
+            f" Die generische Standard-EPS-Prüfung meldet diagnostisch {_diagnostic_level}: {_diagnostic_reason}"
+            if _diagnostic_level and _diagnostic_level.lower() != "grün" and _diagnostic_reason
+            else ""
+        )
         special_event_warning = {
-            **special_event_warning,
-            "title": "Keine Sonderauffälligkeit – Familienmodell-Gate separat aktiv",
+            "level": "Grün",
+            "icon": "🟢",
+            "title": "Keine automatische Sonderereignis-Recherche – Familienmodell-Gate aktiv",
+            "requires_research": False,
+            "valuation_usable": False,
             "reason": (
-                f"Die EPS-/Vergleichbarkeitsprüfung zeigt kein materielles Sonderereignis. "
-                f"Unabhängig davon wurde {_family_label} als eigene Bewertungsfamilie erkannt."
+                f"{_family_label} ist als eigene Bewertungsfamilie erkannt. Die Standard-TTM/Forward-EPS-Basis ist hier nur Diagnosekontext "
+                "und darf vor Freigabe des Familienmodells weder eine Bewertung noch eine ad-hoc Sonderereignis-Recherche steuern."
+                + _diagnostic_note
             ),
             "action": (
-                "Keine Sonderereignis-Recherche nötig. Der Universal Family Router blockiert lediglich die industrielle Standardbewertung, "
-                "bis das wiederverwendbare Familienmodell freigegeben ist."
+                "Keine Sonderereignis-Recherche aus der generischen EPS-Normalisierung starten. Der Universal Family Router sperrt "
+                "Standard-Score, Standard-KGV, Fair Value, Bewertungszonen und Handlungssignale, bis das wiederverwendbare Familienmodell "
+                "mit eigener Primärdaten-/Comparability-Basis freigegeben ist."
             ),
+            "family_model_gate": True,
+            "diagnostic_original_level": _diagnostic_level or None,
+            "diagnostic_original_reason": _diagnostic_reason or None,
         }
 
     # V2.20.123 – Family calibration is not a special event.  Keep a
@@ -40558,6 +40633,7 @@ if selected_symbol:
                 is_integrated_oil_gas_fcf_context = bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                 is_branded_consumer_staples_fcf_context = bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                 is_ctva_fcf_context = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
+                is_universal_family_fcf_context = is_universal_family_fail_closed(company_type)
                 if fcf_ctx.get("score_eligible"):
                     source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
                     if is_bank_fcf_context:
@@ -40684,6 +40760,12 @@ if selected_symbol:
                             "Im UA/UAA-Turnaround- und OMC-Post-Merger-Spezialmodell bleibt dieser Yahoo-/Cashflow-Statement-FCF ausschließlich Diagnosekontext. "
                             "Er steuert weder den Turnaround-P/S- noch den Post-Merger-Adjusted-P/E-Fair-Value; Cashflow-/Finanzierungsqualität wird ausschließlich in den jeweiligen Primärquellen-Komponenten des Spezial-Scores berücksichtigt."
                         )
+                    elif is_universal_family_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            f"Bei {company_type.get('valuation_family') or company_type.get('type')} bleibt dieser Yahoo-/Cashflow-Statement-FCF ausschließlich Diagnosekontext. "
+                            "Solange das Familienmodell nicht freigegeben ist, steuert er weder FCF-Score noch Net-Debt/FCF, Multiple oder Fair Value."
+                        )
                     else:
                         st.caption(
                             "FCF-Bewertungsquelle: " + str(source_text) + ". "
@@ -40791,6 +40873,14 @@ if selected_symbol:
                                 "Für den Specialist-Pfad zählt ausschließlich der freigegebene issuer-spezifische FCF-/Cash-Conversion-Anker; "
                                 "bei noch nicht kalibriertem Profil bleibt dieser Anker gesperrt."
                             )
+                        elif is_universal_family_fcf_context:
+                            st.info(
+                                "ℹ️ FCF-Quellenabweichung im Universal-Family-Gate: Yahoo quoteSummary/info zeigt "
+                                f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
+                                f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
+                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Werte bleiben Diagnose-/Rohdaten und beeinflussen "
+                                "weder Family Score noch Multiple oder Fair Value, solange das Familienmodell nicht freigegeben ist."
+                            )
                         else:
                             st.warning(
                                 "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info zeigt "
@@ -40831,6 +40921,12 @@ if selected_symbol:
                         st.caption(
                             "FCF-Kontext/Rohdaten: Nur Yahoo Levered Free Cash Flow verfügbar. "
                             "Im UA/UAA-/OMC-Spezialmodell bleibt auch dieser Wert reine Diagnoseinformation und ist kein Fair-Value- oder Sicherheitsanker."
+                        )
+                    elif is_universal_family_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: Nur Yahoo Levered Free Cash Flow verfügbar. "
+                            f"Bei {company_type.get('valuation_family') or company_type.get('type')} bleibt auch dieser Wert reine Diagnoseinformation; "
+                            "das unreleased Family Model erhält daraus weder FCF- noch Bilanzpunkte."
                         )
                     else:
                         st.warning(
