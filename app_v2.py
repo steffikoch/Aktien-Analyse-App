@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.1"
+APP_BUILD_VERSION = "V2.21.2"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Family-Priority & Valuation-Model Readiness Guard"
+    f"Build {APP_BUILD_VERSION} · Capital Markets Family Split V1"
 )
 
 
+# V2.21.2: Capital Markets Family Split V1. Splits the overly broad Capital Markets / Brokerage / Exchange family into two reusable valuation families: Exchange / Market Infrastructure and Investment Bank / Broker-Dealer. CME/ICE/NDAQ/CBOE and comparable venue/clearing operators route to Exchange / Market Infrastructure; GS/MS/SCHW/IBKR and comparable brokerage/investment-banking issuers route to Investment Bank / Broker-Dealer. Financial Data & Stock Exchanges metadata is disambiguated with business-summary terms and can route data/ratings-heavy issuers to Credit Bureau / Data & Analytics or fail closed rather than forcing exchange economics. Both new families remain defined_unreleased and therefore inherit the V2.21.1 family-priority/readiness fail-closed guard. No released specialist valuation mathematics changed.
 # V2.21.1: Family-Priority & Valuation-Model Readiness Guard. Makes the universal valuation family authoritative whenever the legacy company-type classifier is only a generic/ambiguous placeholder (for example Software / Untertyp noch nicht eindeutig). A recognized specialist family with no released family model is always fail-closed regardless of the legacy route: generic growth, margin/ROE, Yahoo-FCF, Net-Debt/FCF, standard P/E, Fair Value, zones and signals stay blocked. Standard EPS divergence remains diagnosis-only while an unreleased family gate is active and no longer launches ad-hoc special-event research. Adds explicit family-model readiness metadata, issuer-family FCF context wording, and the official Block investor-relations quarterly-results fallback. Existing released specialist mathematics remain frozen.
 # V2.21.0: Universal Company Classification & Valuation Family Router V1. Adds a reusable family layer above issuer-specific valuation logic. Existing released specialist mathematics remain frozen. The router enriches every classification with a valuation family, routes ambiguous Financial-Services issuers (especially Credit Services / Consumer Finance / Payments / Capital Markets) away from the industrial Standard-Unternehmen path, and fail-closes unreleased family models. A scalable Security Family Master supplies high-confidence overrides for ambiguous issuers such as Synchrony, while sector/industry/business-summary rules cover thousands of additional securities without requiring one code branch per stock. Generic growth, margin/ROE, Yahoo-FCF and Net-Debt/FCF scoring are blocked whenever the universal family gate marks the model as specialist-required. The Standard-Unternehmen path is retained only where the family is explicitly generic-compatible.
 # V2.20.142: American Express Closed-Loop Card & Credit Specialist V1. Routes AXP out of Standard-Unternehmen into an issuer-primary hybrid payments-and-lending model. Uses Q2/H1 2026 Billed Business/Network Volume, revenue mix (discount revenue, card fees and net interest income), FY2026 EPS guidance, Card balances, delinquency/write-off/reserve metrics, ROE/ROCE, CET1/SLR, official book value, deposit funding and capital returns. Generic Yahoo FCF margin and Net-Debt/FCF are diagnosis-only. Valuation uses a 70% FY2026-guidance P/E anchor plus 30% official book-value/P-B anchor, with score-driven 14–22x P/E and 3.5–6.5x P/B corridors and a fail-closed anchor-consistency gate. Visa/Mastercard and all prior specialist mathematics remain unchanged.
@@ -6375,7 +6376,8 @@ UNIVERSAL_VALUATION_FAMILY_CATALOG = {
     "closed_loop_card": {"label": "Closed-Loop Card / Consumer Credit", "policy": "specialist"},
     "payment_network": {"label": "Payment Network / Capital-Light Payments", "policy": "specialist"},
     "payments_processor": {"label": "Payments Processor / Merchant Acquirer", "policy": "specialist"},
-    "capital_markets": {"label": "Capital Markets / Brokerage / Exchange", "policy": "specialist"},
+    "exchange_market_infrastructure": {"label": "Exchange / Market Infrastructure", "policy": "specialist"},
+    "investment_bank_broker_dealer": {"label": "Investment Bank / Broker-Dealer", "policy": "specialist"},
     "credit_data_analytics": {"label": "Credit Bureau / Data & Analytics", "policy": "specialist"},
     "asset_manager": {"label": "Asset Management", "policy": "specialist"},
     "insurance": {"label": "Insurance", "policy": "specialist"},
@@ -6427,13 +6429,23 @@ UNIVERSAL_SECURITY_FAMILY_MASTER = {
     "FIS": "payments_processor",
     "GPN": "payments_processor",
     "ADYEN.AS": "payments_processor",
-    # Capital-markets issuers whose Yahoo industry is often too broad for a bank route
-    "GS": "capital_markets",
-    "MS": "capital_markets",
-    "SCHW": "capital_markets",
-    "IBKR": "capital_markets",
-    "CME": "capital_markets",
-    "ICE": "capital_markets",
+    # Exchange / market-infrastructure operators
+    "CME": "exchange_market_infrastructure",
+    "ICE": "exchange_market_infrastructure",
+    "NDAQ": "exchange_market_infrastructure",
+    "CBOE": "exchange_market_infrastructure",
+    "DB1.DE": "exchange_market_infrastructure",
+    "LSEG.L": "exchange_market_infrastructure",
+    "ENX.PA": "exchange_market_infrastructure",
+    # Investment banks / broker-dealers / brokerage platforms
+    "GS": "investment_bank_broker_dealer",
+    "MS": "investment_bank_broker_dealer",
+    "SCHW": "investment_bank_broker_dealer",
+    "IBKR": "investment_bank_broker_dealer",
+    "HOOD": "investment_bank_broker_dealer",
+    # Data / ratings issuers that Yahoo may group with stock exchanges
+    "SPGI": "credit_data_analytics",
+    "MCO": "credit_data_analytics",
 }
 
 
@@ -6521,8 +6533,37 @@ def _infer_universal_family_from_metadata(symbol, sector, industry, business_sum
             if has_processor and not has_lending:
                 return "payments_processor", "business_summary_rule"
             return "financial_unresolved", "sector_industry_rule"
-        if any(x in industry_text for x in ["capital markets", "financial data", "stock exchanges", "brokerage"]):
-            return "capital_markets", "sector_industry_rule"
+        if any(x in industry_text for x in ["financial data", "stock exchanges"]):
+            exchange_terms = [
+                "exchange operator", "securities exchange", "stock exchange", "options exchange",
+                "futures exchange", "derivatives marketplace", "trading venue", "clearinghouse",
+                "clearing house", "central counterparty", "market infrastructure", "electronic exchange",
+            ]
+            data_terms = [
+                "credit ratings", "ratings agency", "benchmarks", "indices", "index provider",
+                "financial intelligence", "data and analytics", "market intelligence", "risk solutions",
+            ]
+            has_exchange_economics = any(term in combined for term in exchange_terms)
+            has_data_economics = any(term in combined for term in data_terms)
+            if has_exchange_economics and not has_data_economics:
+                return "exchange_market_infrastructure", "business_summary_rule"
+            if has_data_economics and not has_exchange_economics:
+                return "credit_data_analytics", "business_summary_rule"
+            return "financial_unresolved", "sector_industry_rule"
+        if any(x in industry_text for x in ["capital markets", "brokerage"]):
+            exchange_terms = [
+                "exchange operator", "securities exchange", "stock exchange", "options exchange",
+                "futures exchange", "derivatives marketplace", "trading venue", "clearinghouse",
+                "clearing house", "market infrastructure",
+            ]
+            asset_manager_terms = [
+                "asset management", "investment management", "assets under management", "aum",
+            ]
+            if any(term in combined for term in exchange_terms):
+                return "exchange_market_infrastructure", "business_summary_rule"
+            if any(term in combined for term in asset_manager_terms):
+                return "asset_manager", "business_summary_rule"
+            return "investment_bank_broker_dealer", "sector_industry_rule"
         if any(x in industry_text for x in ["mortgage finance", "financial conglomerates"]):
             return "financial_unresolved", "sector_industry_rule"
         return "financial_unresolved", "sector_rule"
