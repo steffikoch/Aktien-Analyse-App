@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.138"
+APP_BUILD_VERSION = "V2.20.139"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Regulated Utility Unsupported-Issuer Fail-Closed Hotfix"
+    f"Build {APP_BUILD_VERSION} · NextEra Energy Utility Specialist V1"
 )
 
 
+# V2.20.139: NextEra Energy Utility Specialist V1. Adds an issuer-primary NEE snapshot using the current FY2026 adjusted-EPS guidance, 8%+ standalone long-term adjusted-EPS growth, FPL regulatory-capital growth and reported regulatory ROE, the 2026-2029 FPL authorized ROE framework, NEE agency-adjusted credit targets/ratings, FPL 2026 capital-investment plan, dividend policy and current Dominion-combination status. NEE receives a premium-growth Regulated-Utility score and a 16-24x Adjusted-EPS P/E corridor. The pending Dominion transaction is not credited with merger EPS accretion or the combined-company 9%+/11% growth targets; instead a downside-only transaction/regulatory overlay caps the used P/E at 22.0x and valuation confidence at Medium until required regulatory approvals and closing. EIX/POR score, corridor, risk-cap and Fair-Value mathematics remain unchanged.
 # V2.20.138: Regulated Utility Unsupported-Issuer Fail-Closed Hotfix. No released EIX/POR valuation mathematics changed. Extends the Regulated-Utility family route to unsupported regulated-electric issuers such as NextEra Energy (NEE) so Yahoo/statement FCF and generic EPS normalization remain context-only, while the utility score, Core/Adjusted-EPS guidance anchor, target P/E and Fair Value stay fail-closed until an issuer-specific verified snapshot exists. Also prevents Step 3B from formatting missing utility snapshot fields and crashing the entire stock load, and aligns the green-event next-step wording with the utility specialist gate.
 # V2.20.137: Munich Re Reinsurance Specialist V1. Adds a verified MUV2.DE/Munich Re primary-source profile using H1 2026 issuer-reported IFRS earnings/EPS, H1 RoE, Solvency II, official carrying amount per share, H1 combined ratios, FY2026 net-result guidance and 2025 dividend/buyback context. Munich Re uses a reinsurer-calibrated Dual-Anchor valuation with 55% official book-value/P-B and 45% reported-TTM-EPS/P-E, profile-specific 1.1–2.2x P/B and 7.0–11.5x P/E corridors, while Allianz V2.20.44 mathematics remain unchanged. Yahoo FCF/ROE/book value stay context-only and the valuation remains fail-closed if the official snapshot is stale or any primary-source bridge is incomplete.
 # V2.20.136: Insurance Unsupported-Issuer Fail-Closed Hotfix. No valuation mathematics changed. Fixes an uninitialized insurance primary_gate return field that caused unsupported insurers such as Munich Re (MUV2.DE) to abort the entire stock load before the intended fail-closed insurance path could render. Unsupported insurers now remain classified as Insurance, show Yahoo context only, keep Core-TTM/official-book-value/Solvency/insurance-score and Dual-Anchor Fair Value blocked until an issuer-specific verified primary-source snapshot exists, and emit no valuation signal. Allianz V2.20.44 mathematics are unchanged.
@@ -15141,6 +15142,71 @@ def get_verified_regulated_utility_snapshot(symbol):
             "valuation_confidence_cap": "Mittel",
         }
 
+    if sym == "NEE":
+        return {
+            "symbol": "NEE",
+            "company": "NextEra Energy, Inc.",
+            "as_of_date": "14.09.2026",
+            "published_date": "14.09.2026",
+            "source_name": "NextEra Energy Q2 2026 Earnings + Financial Policy/Credit + September 2026 Investor Update",
+            "source_url": "https://www.investor.nexteraenergy.com/news-and-events/news-releases/2026/09-14-2026-123048416",
+            "earnings_basis_name": "FY2026 Adjusted EPS Guidance",
+            "fy_eps_guidance_low": 3.92,
+            "fy_eps_guidance_high": 4.02,
+            "fy_eps_guidance_mid": 3.97,
+            "fy_eps_targeting_high_end": True,
+            # Standalone guidance is used. The proposed Dominion combination's 9%+ EPS
+            # and ~11% regulatory-capital growth expectations are deliberately NOT
+            # credited before closing.
+            "long_term_eps_growth_mid_pct": 8.0,
+            "long_term_eps_growth_basis": "Standalone NEE: 8%+ adjusted-EPS CAGR through 2032; same targeted through 2035 off 2025 base",
+            "rate_base_cagr_pct": 9.3,
+            "rate_base_growth_basis": "FPL regulatory capital employed growth Q2 2026 YoY (current operating growth indicator, not a multi-year CAGR)",
+            "rate_base_growth_label": "FPL Regulatory Capital YoY",
+            "fpl_regulatory_capital_growth_yoy_pct": 9.3,
+            "allowed_roe_pct": 10.95,
+            "authorized_roe_range_low_pct": 9.95,
+            "authorized_roe_range_high_pct": 11.95,
+            "accounting_roe_2026_mid_pct": 11.7,
+            "reported_regulatory_roe_ttm_pct": 11.7,
+            "ffo_to_debt_target_mid_pct": 18.0,
+            "ffo_to_debt_2025_actual_pct": 19.4,
+            "credit_rating_sp": "A- / Stable",
+            "credit_rating_moodys": "Baa1 / Stable",
+            "credit_rating_fitch": "A- / Stable",
+            "negative_credit_outlook": False,
+            "dividend_quarterly": 0.6232,
+            "dividend_annualized": 0.6232 * 4.0,
+            "dividend_growth_2026_pct": 10.0,
+            "long_term_dividend_growth_mid_pct": 6.0,
+            "dividend_policy_through": "2028",
+            "fpl_capex_2026_low": 12e9,
+            "fpl_capex_2026_high": 13e9,
+            "credit_facilities_total": 26.207e9,
+            "neer_q2_backlog_additions_gw": 3.6,
+            "neer_backlog_total_gw": 35.1,
+            "guidance_execution_quality": "strong",
+            "financing_quality": "strong_with_large_capex",
+            "dominion_transaction_pending": True,
+            "dominion_shareholder_approvals_complete": True,
+            "dominion_expected_close": "H2 2027",
+            "dominion_exchange_ratio": 0.8138,
+            "dominion_combined_growth_not_in_valuation": True,
+            "risk_as_of_date": "14.09.2026",
+            "risk_overlay_level": "Moderate",
+            "risk_overlay_name": "Dominion Combination Regulatory & Integration Overlay",
+            "risk_pe_cap": 22.00,
+            "risk_action_cap": None,
+            "risk_note": (
+                "Die NEE- und Dominion-Aktionäre haben der Transaktion zugestimmt, erforderliche regulatorische Genehmigungen und das Closing "
+                "stehen jedoch noch aus. Der Fair Value verwendet deshalb ausschließlich NEE-Standalone-FY2026-Adjusted-EPS und die "
+                "Standalone-8%+-Wachstumsbasis. Weder die erwartete Merger-Akkretion noch 9%+ kombiniertes EPS-Wachstum oder ~11% "
+                "kombiniertes Regulatory-Capital-Wachstum werden vorweggenommen. Der Quality-P/E-Anker wird downside-only auf 22,0x "
+                "begrenzt, bis Closing/Regulatory Visibility ausreichend belastbar ist."
+            ),
+            "valuation_confidence_cap": "Mittel",
+        }
+
     if sym == "POR":
         rate_base_cagr = ((13.1 / 8.0) ** (1.0 / 4.0) - 1.0) * 100.0
         return {
@@ -15287,6 +15353,11 @@ def _utility_dividend_points(snapshot):
         return 14.0
     if growth is not None and growth >= 5.0 and payout_low is not None and payout_high is not None and payout_high <= 75.0:
         return 13.0
+    current_growth = safe_float(snap.get("dividend_growth_2026_pct"))
+    if growth is not None and growth >= 5.0 and current_growth is not None and current_growth >= 8.0:
+        # Explicit multi-year dividend-growth policy with a current double-digit
+        # increase can earn the same quality bucket without fabricating a payout target.
+        return 13.0
     if payout_low is not None and payout_high is not None and payout_high <= 80.0:
         return 10.0
     return 7.0
@@ -15296,7 +15367,7 @@ def build_regulated_utility_specialist_score(snapshot):
     snap = snapshot if isinstance(snapshot, dict) else {}
     sym = str(snap.get("symbol") or "").upper()
     result = {"available": False, "score": None, "quality_level": None, "components": {}, "note": None}
-    if sym not in {"EIX", "POR"}:
+    if sym not in {"EIX", "POR", "NEE"}:
         result["note"] = "Kein kalibrierter Regulated-Utility-Score für diesen Emittenten."
         return result
 
@@ -15312,11 +15383,17 @@ def build_regulated_utility_specialist_score(snapshot):
     if sym == "EIX":
         components["Kapitalplan / Finanzierung"] = 10.0 if snap.get("no_equity_issuance_forecast_2026_2030") else 6.0
         components["Guidance-/Execution-Visibilität"] = 9.0 if snap.get("guidance_execution_quality") == "strong" else 7.0
-    else:
+    elif sym == "POR":
         # Planned equity is appropriate for a capital-intensive utility, but the
         # acquisition/large capex program means financing quality is not as clean as EIX's no-equity plan.
         components["Kapitalplan / Finanzierung"] = 5.0
         components["Guidance-/Execution-Visibilität"] = 8.0
+    else:  # NEE
+        # NEE's A-/Baa1/A- stable profile, >18% 2026 S&P FFO/Debt target and
+        # broad liquidity support a strong financing score. The very large
+        # capital program and pending Dominion combination keep it below full marks.
+        components["Kapitalplan / Finanzierung"] = 8.0
+        components["Guidance-/Execution-Visibilität"] = 9.0 if snap.get("guidance_execution_quality") == "strong" else 7.0
 
     if any(v is None for v in components.values()):
         result["components"] = components
@@ -15371,6 +15448,9 @@ def build_regulated_utility_specialist_valuation(snapshot, utility_score):
     elif sym == "POR":
         low, high = 13.0, 18.0
         method = "Regulated Electric Adjusted-EPS P/E + Transaction/Financing Overlay"
+    elif sym == "NEE":
+        low, high = 16.0, 24.0
+        method = "Premium Growth Utility Adjusted-EPS P/E + Dominion Transaction Overlay"
     else:
         result["note"] = "Kein kalibrierter Utility-P/E-Korridor für diesen Emittenten."
         return result
@@ -15496,8 +15576,8 @@ def build_regulated_utility_special_control(control, utility_model):
         "snapshot": snap,
         "checks": {"utility_score": score, "utility_valuation": valuation},
         "note": (
-            "V2.20.93 verwendet bei EIX/POR die aktuelle Core/Adjusted-EPS-Guidance als einzige Earnings-Basis, "
-            "bewertet Rate Base, regulatorische ROE-Qualität, FFO/Credit, Dividende und Finanzierung separat und "
+            "V2.20.139 verwendet bei EIX/POR/NEE die aktuelle Core/Adjusted-EPS-Guidance als einzige Earnings-Basis, "
+            "bewertet Rate Base bzw. Regulatory Capital, regulatorische ROE-Qualität, FFO/Credit, Dividende und Finanzierung separat und "
             "wendet danach nur downside-only Utility-Risikocaps an. Standard-FCF/Net-Debt-to-FCF und Analysten-Kursziele bleiben außerhalb des Fair Values."
         ),
     })
@@ -30933,7 +31013,7 @@ def calculate_fair_value_v1(
         return result
 
 
-    # V2.20.92 – EIX / POR regulated-utility Core/Adjusted EPS valuation.
+    # V2.20.139 – EIX / POR / NEE regulated-utility Core/Adjusted EPS valuation.
     if (
         isinstance(special_control, dict)
         and special_control.get("control_key") == "regulated_utility_core_eps"
@@ -30985,7 +31065,7 @@ def calculate_fair_value_v1(
             "valuation_method": "regulated_utility_core_eps_pe",
             "normalized_eps": safe_float(uv.get("earnings_basis")),
             "used_multiple": safe_float(uv.get("target_pe")),
-            "multiple_source": "V2.20.92 Utility Quality Score → Core/Adjusted-EPS P/E → downside-only Risk Overlay",
+            "multiple_source": "V2.20.139 Utility Quality Score → Core/Adjusted-EPS P/E → downside-only Risk Overlay",
             "fair_value_financial": fv,
             "fair_value_quote": fvq,
             "potential_pct": potential,
@@ -36385,7 +36465,7 @@ def load_stock(selected_symbol, cache_version):
             "upper": safe_float(utility_val_fm.get("corridor_high")),
             "method": utility_val_fm.get("valuation_method_name") or "Regulated-Utility Core/Adjusted EPS P/E",
             "note": (
-                "V2.20.93: Der sichtbare Basiskorridor wird vom utility-spezifischen Quality Score gesteuert. "
+                "V2.20.139: Der sichtbare Basiskorridor wird vom utility-spezifischen Quality Score gesteuert. "
                 "Ein expliziter Regulatory/Transaction Risk Overlay darf das tatsächlich verwendete Ziel-KGV anschließend nur nach unten begrenzen."
             ),
         }
@@ -36399,7 +36479,7 @@ def load_stock(selected_symbol, cache_version):
             "earnings_basis_usable": bool(utility_val_fm.get("available")),
             "note": (
                 (
-                    "V2.20.93 verwendet für Regulated Utilities keinen generischen FCF-/Bilanz-/EPS-Score. "
+                    "V2.20.139 verwendet für Regulated Utilities keinen generischen FCF-/Bilanz-/EPS-Score. "
                     "Der Utility Quality Score setzt den fundamentalen P/E-Anker auf Basis der aktuellen Core/Adjusted-EPS-Guidance; "
                     "ein expliziter Risk Overlay wirkt ausschließlich downside-only."
                 )
@@ -37307,6 +37387,22 @@ def load_stock(selected_symbol, cache_version):
                 "action": (
                     "Der Fair Value verwendet keine Akquisitionssynergien oder erwartete EPS-Akkretion. Ein downside-only P/E-Cap berücksichtigt "
                     "Finanzierungs-/Closing-Risiko; Analystenziele bleiben außerhalb der Bewertung."
+                ),
+            }
+        elif util_sym_event == "NEE":
+            special_event_warning = {
+                "level": "Gelb",
+                "icon": "🟡",
+                "title": "NEE Dominion-Combination Regulatory & Integration Overlay aktiv",
+                "requires_research": False,
+                "valuation_usable": True,
+                "reason": (
+                    "Die NEE-Standalone-FY2026-Adjusted-EPS-Guidance und FPL/NEE-Credit-/Regulatory-Daten sind belastbar. "
+                    "Die Dominion-Kombination wurde von den Aktionären genehmigt, benötigt aber weiterhin regulatorische Freigaben und soll erst H2 2027 schließen."
+                ),
+                "action": (
+                    "Der Fair Value nimmt keine Merger-Akkretion, kein 9%+ kombiniertes EPS-Wachstum und kein ~11% kombiniertes Regulatory-Capital-Wachstum vorweg. "
+                    "Ein downside-only 22,0x-P/E-Cap berücksichtigt Closing-/Regulatory-/Integrationsrisiko; Analystenziele bleiben außerhalb der Bewertung."
                 ),
             }
 
@@ -39062,7 +39158,7 @@ if selected_symbol:
                         if util_eps_model_ui.get("issuer_supported") and util_eps_snap_ui:
                             st.info(
                                 "Regulated Utility: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
-                                f"V2.20.93 verwendet für den Fair Value stattdessen direkt die aktuelle {text_or_dash(util_eps_snap_ui.get('earnings_basis_name'))} "
+                                f"V2.20.139 verwendet für den Fair Value stattdessen direkt die aktuelle {text_or_dash(util_eps_snap_ui.get('earnings_basis_name'))} "
                                 "und prüft Rate Base, ROE, Credit, Dividende und Finanzierung separat."
                             )
                         else:
@@ -44477,9 +44573,10 @@ if selected_symbol:
                             f"{safe_float(snap_u.get('fy_eps_guidance_low')):.2f}–{safe_float(snap_u.get('fy_eps_guidance_high')):.2f} USD "
                             f"· Mittelpunkt {safe_float(snap_u.get('fy_eps_guidance_mid')):.2f} USD"
                         )
+                        utility_growth_label = text_or_dash(snap_u.get("rate_base_growth_label")) if snap_u.get("rate_base_growth_label") else "Rate-Base-Wachstum"
                         st.write(
                             f"**Langfristiges EPS-Wachstum:** {safe_float(snap_u.get('long_term_eps_growth_mid_pct')):.1f} % · "
-                            f"**Rate-Base-Wachstum:** {safe_float(snap_u.get('rate_base_cagr_pct')):.1f} %"
+                            f"**{utility_growth_label}:** {safe_float(snap_u.get('rate_base_cagr_pct')):.1f} %"
                         )
                         if u_symbol == "EIX":
                             st.write(
@@ -44505,6 +44602,32 @@ if selected_symbol:
                             st.write(
                                 f"**WA-Akquisition:** {format_money(snap_u.get('wa_acquisition_purchase_price'), 'USD')} · erwartetes Closing {text_or_dash(snap_u.get('wa_acquisition_expected_close'))} · "
                                 f"2026 Equity Forward {format_money(snap_u.get('equity_forward_2026'), 'USD')}"
+                            )
+
+                        elif u_symbol == "NEE":
+                            st.write(
+                                f"**FPL Authorized-ROE-Mittelpunkt / reported regulatory ROE TTM:** {safe_float(snap_u.get('allowed_roe_pct')):.2f} % / "
+                                f"{safe_float(snap_u.get('reported_regulatory_roe_ttm_pct')):.1f} % · "
+                                f"**NEE 2026 S&P FFO/Debt-Ziel:** >{safe_float(snap_u.get('ffo_to_debt_target_mid_pct')):.0f} %"
+                            )
+                            st.write(
+                                f"**FPL Regulatory Capital Employed Q2 YoY:** {safe_float(snap_u.get('fpl_regulatory_capital_growth_yoy_pct')):.1f} % · "
+                                f"**FPL 2026 CapEx:** {format_money(snap_u.get('fpl_capex_2026_low'), 'USD')} – {format_money(snap_u.get('fpl_capex_2026_high'), 'USD')}"
+                            )
+                            st.write(
+                                f"**NEE Credit:** {text_or_dash(snap_u.get('credit_rating_sp'))} / {text_or_dash(snap_u.get('credit_rating_moodys'))} / {text_or_dash(snap_u.get('credit_rating_fitch'))} · "
+                                f"**Credit Facilities:** {format_money(snap_u.get('credit_facilities_total'), 'USD')}"
+                            )
+                            st.write(
+                                f"**Dividende annualisiert:** {safe_float(snap_u.get('dividend_annualized')):.4f} USD · "
+                                f"2026 Wachstum ~{safe_float(snap_u.get('dividend_growth_2026_pct')):.0f} % · anschließend ~{safe_float(snap_u.get('long_term_dividend_growth_mid_pct')):.0f} % p.a. bis {text_or_dash(snap_u.get('dividend_policy_through'))}"
+                            )
+                            st.write(
+                                f"**Energy Resources:** Q2 Backlog-Zugang {safe_float(snap_u.get('neer_q2_backlog_additions_gw')):.1f} GW · Gesamt-Backlog ~{safe_float(snap_u.get('neer_backlog_total_gw')):.1f} GW"
+                            )
+                            st.warning(
+                                "Dominion-Kombination bleibt außerhalb der Earnings-Basis: Aktionärsfreigaben sind erteilt, regulatorische Freigaben/Closing stehen noch aus. "
+                                "Die erwartete Merger-Akkretion sowie 9%+ kombiniertes EPS- und ~11% Regulatory-Capital-Wachstum werden im Fair Value nicht vorweggenommen."
                             )
 
                         if val_u.get("available"):
