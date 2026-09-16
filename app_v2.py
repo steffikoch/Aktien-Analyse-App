@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.132"
+APP_BUILD_VERSION = "V2.20.133"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Midstream Multi-Issuer Specialist V2 · UI & Structural-Break Consistency Cleanup"
+    f"Build {APP_BUILD_VERSION} · Midstream Multi-Issuer Specialist V2 · Final UI Consistency Cleanup"
 )
 
 
+# V2.20.133: Midstream Final UI Consistency Cleanup. No valuation mathematics changed. Removes the duplicated Structural-Break next-step copy for WMB/OKE, replaces stale generic Midstream peer-adjustment promises with explicit reference-only wording in Module 6, and keeps the V2.20.131/132 Midstream score, target-multiple, Fair-Value, peer-lock and fail-closed mechanics unchanged.
 # V2.20.132: Midstream UI & Structural-Break Consistency Cleanup. No valuation mathematics changed. Aligns the Special-Event warning with active WMB/OKE Structural-Break gates, keeps validated pre-transaction operating context visible in Step 3B, uses MLP-specific distribution wording, normalizes transaction amounts to readable USD-billion text, and translates remaining Midstream UI notes. EPD/MPLX/KMI scores, target multiples, Fair Values, peer-lock behavior and WMB/OKE fail-closed rules are unchanged.
 # V2.20.131: Midstream Multi-Issuer Specialist V2. Generalizes the released KMI Midstream path to issuer-primary KMI/EPD/MPLX profiles while preserving KMI mathematics. EPD and MPLX use issuer-defined DCF/Operational DCF, distribution coverage, LTM Adjusted EBITDA, leverage/net-debt and profile-specific C-Corp/MLP valuation corridors. WMB and OKE expose validated Q2 operating context but remain fail-closed because post-Q2 Momentum/Apollo/Brazos transactions make the current capital structure non-comparable. Midstream peers are reference-only.
 # V2.20.130: Cross-Currency EPS Unit Guard & Lenovo IR Recovery. Separates provider per-share currency from reporting currency when Yahoo listing-level trailing/forward EPS uses the listing currency while analyst/financial statement data uses the reporting currency. A consensus/implied-EPS consistency gate converts only when unit evidence is strong and fails closed for unresolved severe generic-EPS mismatches. Lenovo/0992.HK receives a verified investor.lenovo.com IR route plus current Q1 FY2026/27 primary-event evidence for the warrant fair-value loss; the evidence explains the GAAP/adjusted divergence but does not release a Fair Value. No specialist valuation mathematics changed.
@@ -10656,7 +10657,7 @@ def get_verified_midstream_snapshot(symbol):
             "project_backlog_first_year_ebitda_multiple": 5.6,
             "source_note": (
                 "Offizielle Kinder-Morgan-Q2/6M-2026-Daten. Der freigegebene KMI-"
-                "Bewertungspfad bleibt in V2.20.132 mathematisch unverändert; Yahoo-FCF, "
+                "Bewertungspfad bleibt in V2.20.133 mathematisch unverändert; Yahoo-FCF, "
                 "Standard-EPS und generische EV/EBITDA-Proxies bleiben außerhalb des Fair Values."
             ),
         }
@@ -10817,7 +10818,7 @@ def get_verified_midstream_snapshot(symbol):
             "adjusted_ebitda_guidance_midpoint_2026": 8.4e9,
             "source_note": (
                 "WMB-Q2-AFFO, Coverage und Leverage sind ausschließlich als verifizierter Pre-Momentum-Kontext sichtbar. "
-                "V2.20.132 kombiniert die Q2-Kapitalstruktur bewusst nicht mit einem Post-Closing-Aktienkurs."
+                "V2.20.133 kombiniert die Q2-Kapitalstruktur bewusst nicht mit einem Post-Closing-Aktienkurs."
             ),
         }
 
@@ -10856,7 +10857,7 @@ def get_verified_midstream_snapshot(symbol):
             "source_note": (
                 "OKE-Q2-Adjusted-EBITDA und Guidance sind ausschließlich als verifizierter operativer Kontext sichtbar. "
                 "Apollo-Closing, laufende Schuldentilgung und die ausstehende Brazos-Akquisition verhindern "
-                "in V2.20.132 eine belastbare aktuelle EV/Adjusted-EBITDA-Equity-Bridge."
+                "in V2.20.133 eine belastbare aktuelle EV/Adjusted-EBITDA-Equity-Bridge."
             ),
         }
 
@@ -11200,7 +11201,7 @@ def build_midstream_ev_ebitda_valuation(primary_gate, midstream_score, price_fin
         "fair_value_financial": fair_value,
         "current_ev_adjusted_ebitda": current_ev_multiple,
         "note": (
-            f"V2.20.132 nutzt den {snap.get('entity_structure') or 'Midstream'}-Profilkorridor als scoregesteuerten "
+            f"V2.20.133 nutzt den {snap.get('entity_structure') or 'Midstream'}-Profilkorridor als scoregesteuerten "
             "Fundamentalaner. Fair EV = offizielles LTM Adjusted EBITDA × Zielmultiple; danach wird die "
             "verifizierte Nettoverschuldung abgezogen und durch die offizielle Aktien-/Units-Basis geteilt. "
             "Peer-Multiples bleiben reference-only."
@@ -11231,7 +11232,7 @@ def apply_midstream_peer_overlay(midstream_valuation, peer_check):
     mv["peer_fair_value_cap_pct"] = 0.0
     mv["peer_fair_value_cap_applied"] = False
     mv["note"] = (
-        "V2.20.132 Midstream Peer Lock: WMB/OKE/KMI/EPD/MPLX können als Markt-Referenzen gezeigt werden, "
+        "V2.20.133 Midstream Peer Lock: WMB/OKE/KMI/EPD/MPLX können als Markt-Referenzen gezeigt werden, "
         "aber unterschiedliche C-Corp/MLP-Strukturen, issuer-definierte Cashflow-Metriken und EBITDA-/"
         "Kapitalstrukturbasen verhindern eine automatische Peer-Anpassung. Eigener Score, Zielmultiple und "
         "Fair Value bleiben issuer-spezifisch."
@@ -11408,7 +11409,7 @@ def build_midstream_special_control(base_control, midstream_model):
             ]},
         },
         "note": (
-            "Midstream-Schritt 3B V2.20.132 validiert issuer-definierten Cashflow/Coverage, LTM Adjusted EBITDA, "
+            "Midstream-Schritt 3B V2.20.133 validiert issuer-definierten Cashflow/Coverage, LTM Adjusted EBITDA, "
             "Leverage/Net Debt, Projekt-/Asset-Visibilität und die Aktien-/Units-Basis. Peer-EV/EBITDA bleibt "
             "reference-only; fehlende oder strukturell nicht vergleichbare Primärdaten sperren die Bewertung fail-closed."
         ),
@@ -19496,7 +19497,7 @@ def get_peer_group(company_type, symbol, industry=None):
                     if key == "autozulieferer / zyklisch"
                     else (
                         "Midstream-Peer-Gruppe automatisch ausgewählt. WMB, OKE, KMI, EPD und MPLX "
-                        "dienen in V2.20.132 ausschließlich als Markt-/Plausibilitätsreferenzen. "
+                        "dienen in V2.20.133 ausschließlich als Markt-/Plausibilitätsreferenzen. "
                         "Generische Yahoo-EV/EBITDA-Werte verändern weder Zielmultiple noch Fair Value."
                     )
                     if key == "öl & gas / midstream"
@@ -20243,7 +20244,7 @@ def _calculate_midstream_peer_overlay(peer_group, fundamental_multiple, cache_ve
 
     if len(eligible_values) < 3:
         result["note"] = (
-            "V2.20.132 Midstream Peer Lock: Die geladenen Yahoo-EV/EBITDA-Werte sind Markt-/"
+            "V2.20.133 Midstream Peer Lock: Die geladenen Yahoo-EV/EBITDA-Werte sind Markt-/"
             "Plausibilitätsreferenzen. Unterschiedliche C-Corp/MLP-Strukturen sowie nicht normalisierte "
             "issuer-spezifische EBITDA-/Kapitalstrukturbasen verhindern jede automatische Anpassung; "
             "Zielmultiple und Fair Value bleiben unverändert."
@@ -21981,9 +21982,9 @@ def get_special_control(company_type, symbol):
                 "Dividend-/Distribution-Coverage",
                 "Projekt-/Asset-Visibilität und Kapitalallokation"
             ],
-            "status": "Router aktiv – V2.20.132 Midstream Multi-Issuer Primary-Source Gate",
+            "status": "Router aktiv – V2.20.133 Midstream Multi-Issuer Primary-Source Gate",
             "note": (
-                "V2.20.132 trennt issuer-definierte FCF/DCF/AFFO-, Coverage-, Adjusted-EBITDA-, "
+                "V2.20.133 trennt issuer-definierte FCF/DCF/AFFO-, Coverage-, Adjusted-EBITDA-, "
                 "Leverage-, Projekt-/Asset- und Kapitalallokationskennzahlen von Yahoo-Kontextdaten. "
                 "KMI, EPD und MPLX erhalten issuer-spezifische Profile; WMB und OKE bleiben bei aktuellen "
                 "Structural Breaks fail-closed."
@@ -35643,7 +35644,7 @@ def load_stock(selected_symbol, cache_version):
             "multiple": safe_float(mv.get("target_ev_adjusted_ebitda")),
             "available": bool(ms.get("available") and mv.get("available")),
             "note": (
-                "Midstream verwendet kein Standard-EPS-/FCF-Multiple. V2.20.132 nutzt issuer-primary "
+                "Midstream verwendet kein Standard-EPS-/FCF-Multiple. V2.20.133 nutzt issuer-primary "
                 "Cashflow/Coverage, Adjusted EBITDA und Leverage im eigenen 100-Punkte-Score. "
                 "Peers bleiben reference-only; der Equity Value entsteht erst nach Abzug der verifizierten Nettoverschuldung."
             ),
@@ -36087,7 +36088,7 @@ def load_stock(selected_symbol, cache_version):
             "multiple": safe_float(mv_peer.get("target_ev_adjusted_ebitda")),
             "note": (
                 "Midstream verwendet den issuer-spezifischen 100-Punkte-Quality-Score als Fundamentalaner. "
-                "V2.20.132 hält Midstream-Peers reference-only; es gibt keine automatische Peer-Anpassung."
+                "V2.20.133 hält Midstream-Peers reference-only; es gibt keine automatische Peer-Anpassung."
             ),
         }
 
@@ -36760,7 +36761,7 @@ def load_stock(selected_symbol, cache_version):
         }
 
 
-    # V2.20.132 – known Midstream structural breaks must not be rendered as a green
+    # V2.20.133 – known Midstream structural breaks must not be rendered as a green
     # "no special event" state. This is a consistency/safety presentation guard only;
     # the valuation was already fail-closed in the Midstream specialist gate.
     if midstream_special_model.get("applicable") and midstream_special_model.get("structural_break_active"):
@@ -36778,6 +36779,10 @@ def load_stock(selected_symbol, cache_version):
             "action": (
                 "Die operativen Primärdaten bleiben als Kontext sichtbar. Midstream-Score, Zielmultiple, Fair Value, "
                 "Bewertungszonen und Handlungssignale bleiben bis zu einer belastbaren Post-Transaction-/same-basis-Kapitalstruktur gesperrt."
+            ),
+            "next_step": (
+                "Belastbare Post-Transaction-Kapitalstruktur bzw. den nächsten geeigneten Quartalsbericht abwarten; "
+                "erst danach darf die same-basis EV/Adjusted-EBITDA-Bridge neu geprüft werden."
             ),
             "midstream_structural_break": True,
             "company": ms_snapshot_event.get("company"),
@@ -39397,6 +39402,8 @@ if selected_symbol:
 
                 else:
                     event_action = event_warning.get("action")
+                    if event_warning.get("midstream_structural_break"):
+                        event_action = event_warning.get("next_step") or event_action
                     if is_reit_company_type(company_type) and event_level == "Grün":
                         event_action = (
                             "REIT-Sonderbewertung kann ohne zusätzliche Sonderrecherche weiterlaufen. "
@@ -41127,7 +41134,7 @@ if selected_symbol:
                 if midstream_model.get("applicable"):
 
                     st.divider()
-                    st.subheader("🛢️ Midstream Multi-Issuer Specialist V2.20.132 – Cashflow, Coverage, Leverage & EV/Adjusted EBITDA")
+                    st.subheader("🛢️ Midstream Multi-Issuer Specialist V2.20.133 – Cashflow, Coverage, Leverage & EV/Adjusted EBITDA")
 
                     if midstream_model.get("structural_break_active"):
                         gate_status_ui = midstream_model.get("primary_gate") or {}
@@ -42168,7 +42175,7 @@ if selected_symbol:
                             )
                         st.success(
                             "Midstream-Bewertungsanker freigegeben. Der issuer-spezifische Midstream-Score setzt den "
-                            "Fundamentalaner; Peer-EV/EBITDA-Werte bleiben in V2.20.132 reference-only."
+                            "Fundamentalaner; Peer-EV/EBITDA-Werte bleiben in V2.20.133 reference-only."
                         )
                     else:
                         st.warning(
@@ -42177,9 +42184,9 @@ if selected_symbol:
                         )
                     st.caption(multiple_result.get("note"))
                     st.caption(
-                        "Yahoo-EV/EBITDA bleibt außerhalb der Kernbewertung. Schritt 2B zeigt generische Peer-"
-                        "Werte als Referenz, erlaubt eine automatische Anpassung aber nur bei mindestens drei voll "
-                        "vergleichbaren Peers. Selbst dann greifen ein ±5-%-Multiple-Cap und ein ±5-%-Equity-Fair-Value-Cap."
+                        "Yahoo-EV/EBITDA bleibt außerhalb der Kernbewertung. Schritt 2B zeigt generische Peer-Werte "
+                        "ausschließlich als Markt-/Plausibilitätsreferenz. In V2.20.133 gibt es für Midstream keine "
+                        "automatische Peer-Anpassung; Peer-Median, Zielmultiple und Fair Value bleiben strikt getrennt."
                     )
                 elif is_reit_valuation_ui:
                     reit_model_m6 = data.get("reit_special_model") or {}
@@ -42389,7 +42396,13 @@ if selected_symbol:
                     peer_group["note"]
                 )
 
-                if peer_group.get("peer_model") == "defense_high_growth_prime_reference_v2":
+                if is_midstream_company_type(company_type):
+                    st.caption(
+                        "Schritt 2A verändert weder Midstream-Quality-Score noch Zielmultiple oder Fair Value. "
+                        "Die Peer-EV/EBITDA-Werte werden in Schritt 2B ausschließlich reference-only geladen; "
+                        "es gibt keine automatische ±5-%-Anpassung und keinen Peer-bedingten Bewertungs- oder Confidence-Effekt."
+                    )
+                elif peer_group.get("peer_model") == "defense_high_growth_prime_reference_v2":
                     st.caption(
                         "Schritt 2A verändert weder Defense Quality Score noch Fundamental-Multiple. "
                         "Die Peer-KGVs werden in Schritt 2B ausschließlich als reference-only geladen; "
@@ -42702,7 +42715,7 @@ if selected_symbol:
                     )
 
                 if is_midstream_peer_metric:
-                    peer_explain = "Midstream-Peers sind in V2.20.132 ausschließlich reference-only; ihr Median verändert weder Zielmultiple noch Fair Value."
+                    peer_explain = "Midstream-Peers sind in V2.20.133 ausschließlich reference-only; ihr Median verändert weder Zielmultiple noch Fair Value."
                 elif is_automotive_peer_metric:
                     peer_explain = "Mindestens 3 cycle-normalisierte und zyklusvergleichbare Peers sind für eine automatische Automotive-Anpassung Pflicht; der Median wird statt des Durchschnitts verwendet."
                 elif is_semicap_peer_metric:
