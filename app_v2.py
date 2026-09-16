@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.137"
+APP_BUILD_VERSION = "V2.20.138"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Munich Re Reinsurance Specialist V1"
+    f"Build {APP_BUILD_VERSION} · Regulated Utility Unsupported-Issuer Fail-Closed Hotfix"
 )
 
 
+# V2.20.138: Regulated Utility Unsupported-Issuer Fail-Closed Hotfix. No released EIX/POR valuation mathematics changed. Extends the Regulated-Utility family route to unsupported regulated-electric issuers such as NextEra Energy (NEE) so Yahoo/statement FCF and generic EPS normalization remain context-only, while the utility score, Core/Adjusted-EPS guidance anchor, target P/E and Fair Value stay fail-closed until an issuer-specific verified snapshot exists. Also prevents Step 3B from formatting missing utility snapshot fields and crashing the entire stock load, and aligns the green-event next-step wording with the utility specialist gate.
 # V2.20.137: Munich Re Reinsurance Specialist V1. Adds a verified MUV2.DE/Munich Re primary-source profile using H1 2026 issuer-reported IFRS earnings/EPS, H1 RoE, Solvency II, official carrying amount per share, H1 combined ratios, FY2026 net-result guidance and 2025 dividend/buyback context. Munich Re uses a reinsurer-calibrated Dual-Anchor valuation with 55% official book-value/P-B and 45% reported-TTM-EPS/P-E, profile-specific 1.1–2.2x P/B and 7.0–11.5x P/E corridors, while Allianz V2.20.44 mathematics remain unchanged. Yahoo FCF/ROE/book value stay context-only and the valuation remains fail-closed if the official snapshot is stale or any primary-source bridge is incomplete.
 # V2.20.136: Insurance Unsupported-Issuer Fail-Closed Hotfix. No valuation mathematics changed. Fixes an uninitialized insurance primary_gate return field that caused unsupported insurers such as Munich Re (MUV2.DE) to abort the entire stock load before the intended fail-closed insurance path could render. Unsupported insurers now remain classified as Insurance, show Yahoo context only, keep Core-TTM/official-book-value/Solvency/insurance-score and Dual-Anchor Fair Value blocked until an issuer-specific verified primary-source snapshot exists, and emit no valuation signal. Allianz V2.20.44 mathematics are unchanged.
 # V2.20.135: Coca-Cola Fair-Value Rendering Hotfix. No valuation mathematics changed. Hardens the Branded-Consumer-Staples Fair-Value UI so optional issuer context metrics are formatted fail-soft instead of raising a TypeError when a diagnostic field is missing at render time. KO keeps the V2.20.134 primary-source score, Current-FY Comparable-EPS anchor, 20–28x corridor, target multiple and Fair Value unchanged; MDLZ/PEP/Nestlé and all other specialist paths are unchanged.
@@ -15406,23 +15407,41 @@ def build_regulated_utility_specialist_valuation(snapshot, utility_score):
 
 
 def build_regulated_utility_specialist_model(company_type, fundamental_info, symbol):
-    applicable = is_regulated_utility_specialist_type(company_type) and str(symbol or "").upper() in {"EIX", "POR"}
+    # V2.20.138: every classified Regulated Electric utility stays inside the
+    # specialist family route.  Only explicitly calibrated issuers receive a
+    # snapshot/score/valuation; all others fail closed instead of falling back
+    # into generic EPS/FCF/balance logic.
+    applicable = is_regulated_utility_specialist_type(company_type)
     if not applicable:
         return {"applicable": False}
-    snapshot = get_verified_regulated_utility_snapshot(symbol)
+
+    sym = str(symbol or "").upper().strip()
+    snapshot = get_verified_regulated_utility_snapshot(sym)
     if not snapshot:
+        unsupported_note = (
+            f"Kein kalibrierter Regulated-Utility-Primärquellen-Snapshot für {sym or 'diesen Emittenten'}. "
+            "Standard-EPS und Yahoo-/Cashflow-Statement-FCF bleiben ausschließlich Diagnosekontext; "
+            "Utility-Score, Current-FY Core/Adjusted-EPS-Anker, Ziel-KGV und Fair Value bleiben fail-closed."
+        )
         return {
             "applicable": True,
+            "symbol": sym,
+            "issuer_supported": False,
             "primary_source_complete": False,
-            "utility_score": {"available": False},
-            "utility_valuation": {"available": False},
+            "snapshot": None,
+            "utility_score": {"available": False, "note": unsupported_note},
+            "utility_valuation": {"available": False, "note": unsupported_note},
             "valuation_anchor_complete": False,
-            "readiness": "Utility-Primärquellen-Snapshot fehlt",
+            "readiness": "Utility-Issuer noch nicht kalibriert",
+            "note": unsupported_note,
         }
+
     score = build_regulated_utility_specialist_score(snapshot)
     valuation = build_regulated_utility_specialist_valuation(snapshot, score)
     return {
         "applicable": True,
+        "symbol": sym,
+        "issuer_supported": True,
         "primary_source_complete": True,
         "snapshot": snapshot,
         "utility_score": score,
@@ -15439,11 +15458,38 @@ def build_regulated_utility_special_control(control, utility_model):
     score = model.get("utility_score") or {}
     valuation = model.get("utility_valuation") or {}
     snap = model.get("snapshot") or {}
-    released = bool(model.get("valuation_anchor_complete") and score.get("available") and valuation.get("available"))
+    issuer_supported = bool(model.get("issuer_supported") and model.get("primary_source_complete") and snap)
+    released = bool(
+        issuer_supported
+        and model.get("valuation_anchor_complete")
+        and score.get("available")
+        and valuation.get("available")
+    )
     out = dict(control)
+
+    if not issuer_supported:
+        sym = str(model.get("symbol") or "").upper().strip()
+        unsupported_note = model.get("note") or (
+            f"Kein kalibrierter Regulated-Utility-Primärquellen-Snapshot für {sym or 'diesen Emittenten'}. "
+            "Die Spezialkontrolle bleibt fail-closed; es wird kein Utility-Score, Ziel-KGV oder Fair Value erzeugt."
+        )
+        out.update({
+            "implemented": False,
+            "released": False,
+            "issuer_supported": False,
+            "confidence_cap": "Mittel",
+            "router_status": "Schritt 3B nicht freigegeben – Issuer noch nicht kalibriert",
+            "step3b_status": "Utility-Spezial-Fair-Value gesperrt",
+            "snapshot": {},
+            "checks": {"utility_score": score, "utility_valuation": valuation},
+            "note": unsupported_note,
+        })
+        return out
+
     out.update({
         "implemented": True,
         "released": released,
+        "issuer_supported": True,
         "confidence_cap": snap.get("valuation_confidence_cap") or "Mittel",
         "router_status": "Schritt 3B freigegeben" if released else "Schritt 3B nicht freigegeben",
         "step3b_status": "Utility-Spezial-Fair-Value freigegeben" if released else "Utility-Spezial-Fair-Value gesperrt",
@@ -36343,6 +36389,7 @@ def load_stock(selected_symbol, cache_version):
                 "Ein expliziter Regulatory/Transaction Risk Overlay darf das tatsächlich verwendete Ziel-KGV anschließend nur nach unten begrenzen."
             ),
         }
+        utility_supported_fm = bool(regulated_utility_specialist_model.get("issuer_supported"))
         fundamental_multiple = {
             **fundamental_multiple,
             "score": safe_float(utility_score_fm.get("score")),
@@ -36351,9 +36398,17 @@ def load_stock(selected_symbol, cache_version):
             "available": bool(utility_score_fm.get("available") and utility_val_fm.get("available")),
             "earnings_basis_usable": bool(utility_val_fm.get("available")),
             "note": (
-                "V2.20.93 verwendet für Regulated Utilities keinen generischen FCF-/Bilanz-/EPS-Score. "
-                "Der Utility Quality Score setzt den fundamentalen P/E-Anker auf Basis der aktuellen Core/Adjusted-EPS-Guidance; "
-                "ein expliziter Risk Overlay wirkt ausschließlich downside-only."
+                (
+                    "V2.20.93 verwendet für Regulated Utilities keinen generischen FCF-/Bilanz-/EPS-Score. "
+                    "Der Utility Quality Score setzt den fundamentalen P/E-Anker auf Basis der aktuellen Core/Adjusted-EPS-Guidance; "
+                    "ein expliziter Risk Overlay wirkt ausschließlich downside-only."
+                )
+                if utility_supported_fm
+                else (
+                    "Regulated-Utility-Familienroute aktiv: generischer FCF-/Bilanz-/EPS-Score und generischer Bewertungs-Korridor bleiben gesperrt. "
+                    "Für diesen Emittenten ist noch kein issuer-spezifischer Primärquellen-Snapshot kalibriert; daher gibt es keinen Utility-Score, "
+                    "kein Ziel-KGV und keinen Fair Value."
+                )
             ),
         }
 
@@ -39002,12 +39057,20 @@ if selected_symbol:
                             "Das Earnings-Horizon-Alignment verwendet eine separate operative FY27-Proxy-Basis; das Standard-EPS bleibt für NVIDIA nicht freigegeben."
                         )
                     elif utility_eps_context_ui:
-                        util_eps_snap_ui = (data.get("regulated_utility_specialist_model") or {}).get("snapshot") or {}
-                        st.info(
-                            "Regulated Utility: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
-                            f"V2.20.95 verwendet für den Fair Value stattdessen direkt die aktuelle {text_or_dash(util_eps_snap_ui.get('earnings_basis_name'))} "
-                            "und prüft Rate Base, ROE, Credit, Dividende und Finanzierung separat."
-                        )
+                        util_eps_model_ui = data.get("regulated_utility_specialist_model") or {}
+                        util_eps_snap_ui = util_eps_model_ui.get("snapshot") or {}
+                        if util_eps_model_ui.get("issuer_supported") and util_eps_snap_ui:
+                            st.info(
+                                "Regulated Utility: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                                f"V2.20.93 verwendet für den Fair Value stattdessen direkt die aktuelle {text_or_dash(util_eps_snap_ui.get('earnings_basis_name'))} "
+                                "und prüft Rate Base, ROE, Credit, Dividende und Finanzierung separat."
+                            )
+                        else:
+                            st.info(
+                                "Regulated Utility: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                                "Für diesen Emittenten ist noch kein issuer-spezifischer Utility-Primärquellen-Snapshot kalibriert; "
+                                "Core/Adjusted-EPS-Anker, Utility-Score, Ziel-KGV und Fair Value bleiben deshalb fail-closed."
+                            )
                     elif gold_precious_metals_eps_context_ui:
                         gold_eps_snap_ui = (data.get("gold_precious_metals_specialist_model") or {}).get("snapshot") or {}
                         st.info(
@@ -40094,6 +40157,20 @@ if selected_symbol:
                             "Für eine spätere Bewertung bleiben Nachfrage-/Guidance-, Gross-Margin-, EUV-/Systemmix- und "
                             "Liquiditäts-/FCF-Primärdaten maßgeblich."
                         )
+                    elif is_regulated_utility_specialist_type(company_type) and event_level == "Grün":
+                        util_event_model = data.get("regulated_utility_specialist_model") or {}
+                        if util_event_model.get("issuer_supported"):
+                            event_action = (
+                                "Regulated-Utility-Sonderbewertung kann ohne zusätzliche EPS-Sonderrecherche weiterlaufen. "
+                                "Für den Fair Value bleiben Current-FY Core/Adjusted EPS, Rate Base, regulatorischer ROE, "
+                                "FFO/Credit, Dividende und Finanzierung maßgeblich."
+                            )
+                        else:
+                            event_action = (
+                                "Kein separates Sonderereignis erkannt. Für diesen Regulated-Utility-Emittenten fehlt jedoch noch "
+                                "ein kalibrierter Primärquellen-Snapshot; Utility-Score, Ziel-KGV, Fair Value, Bewertungszonen und "
+                                "Handlungssignale bleiben bis zur issuer-spezifischen Kalibrierung fail-closed."
+                            )
                     st.write("**Nächster Schritt:** " + text_or_dash(event_action))
 
                 st.divider()
@@ -40143,8 +40220,13 @@ if selected_symbol:
                     st.info("Baker Hughes/Post-Chart-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.129 bewertet Q2 Orders/RPO und OFSE/IET Segmententwicklung aus Primärquellen.")
                     st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf einen späteren Post-Chart Bewertungsanker.")
                 elif is_utility_specialist_score_ui:
-                    st.info("ℹ️ Im Regulated-Utility-Spezialmodell berücksichtigt: Der generische Wachstumsscore wird nicht verwendet.")
-                    st.caption("Wachstum wird über langfristiges Core/Adjusted-EPS-Wachstum und Rate-Base-Wachstum aus Primärquellen bewertet; Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext.")
+                    util_score_model_ui = data.get("regulated_utility_specialist_model") or {}
+                    if util_score_model_ui.get("issuer_supported"):
+                        st.info("ℹ️ Im Regulated-Utility-Spezialmodell berücksichtigt: Der generische Wachstumsscore wird nicht verwendet.")
+                        st.caption("Wachstum wird über langfristiges Core/Adjusted-EPS-Wachstum und Rate-Base-Wachstum aus Primärquellen bewertet; Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext.")
+                    else:
+                        st.warning("Regulated-Utility-Familienroute aktiv: Der generische Wachstumsscore bleibt gesperrt, aber für diesen Emittenten ist noch kein kalibrierter Utility-Primärquellen-Snapshot vorhanden.")
+                        st.caption("Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext und erzeugt weder Utility-Score noch Ziel-KGV oder Fair Value.")
                 elif is_adjusted_specialist_score_ui:
                     st.info("ℹ️ Im Adjusted-Earnings-Spezialmodell berücksichtigt: Der generische Wachstumsscore wird nicht verwendet.")
                     st.caption("Wachstum wird im specialistischen Quality Score mit unternehmenstypischen Primärkennzahlen bewertet; Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext.")
@@ -40359,8 +40441,13 @@ if selected_symbol:
                 if is_bkr_profitability_ui:
                     st.info("Baker Hughes/Post-Chart-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. Q2 OFSE-/IET-Adjusted-EBITDA-Margen werden separat aus der Primärquelle gezeigt; eine konsolidierte Post-Chart Profitabilitätsbasis folgt später.")
                 elif is_utility_specialist_profitability_ui:
-                    st.info("ℹ️ Im Regulated-Utility-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
-                    st.caption("Ertragsqualität wird über Authorized/Allowed ROE, aktuelle Earnings Realization und Core/Adjusted-EPS-Guidance bewertet; Industrie-Nettomarge und generischer ROE bleiben Kontext.")
+                    util_profit_model_ui = data.get("regulated_utility_specialist_model") or {}
+                    if util_profit_model_ui.get("issuer_supported"):
+                        st.info("ℹ️ Im Regulated-Utility-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
+                        st.caption("Ertragsqualität wird über Authorized/Allowed ROE, aktuelle Earnings Realization und Core/Adjusted-EPS-Guidance bewertet; Industrie-Nettomarge und generischer ROE bleiben Kontext.")
+                    else:
+                        st.warning("Regulated-Utility-Familienroute aktiv: Die generische Nettomargen-/ROE-Punktelogik bleibt gesperrt; issuer-spezifische Authorized/Allowed-ROE- und Earnings-Realization-Daten sind noch nicht kalibriert.")
+                        st.caption("Yahoo-Nettomarge und generischer ROE bleiben reine Diagnosewerte.")
                 elif is_adjusted_specialist_profitability_ui:
                     st.info("ℹ️ Im Adjusted-Earnings-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption("Ertragsqualität wird im specialistischen Quality Score über Adjusted EBITDA/EBIT-Marge, Adjusted-EPS-Qualität und die jeweiligen Primärkennzahlen des Geschäftsmodells bewertet.")
@@ -40712,8 +40799,13 @@ if selected_symbol:
                         st.info("ℹ️ Baker Hughes/Post-Chart-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
                         st.caption("V2.20.129 verwendet den offiziell ausgewiesenen Q2-Free-Cashflow im Primärdaten-Gate. Yahoo-TTM-FCF bleibt Kontext; Q2-FCF wird nicht auf das post-Chart Gesamtunternehmen hochgerechnet.")
                     elif is_utility_specialist_fcf_ui:
-                        st.info("ℹ️ Im Regulated-Utility-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
-                        st.caption("Hohe Utility-CapEx machen industriellen Free Cash Flow als Qualitätsmaß ungeeignet. V2.20.93 verwendet stattdessen FFO/Credit, Rate Base, regulatorische Rückgewinnung und den offiziellen Kapital-/Finanzierungsplan.")
+                        util_fcf_model_ui = data.get("regulated_utility_specialist_model") or {}
+                        if util_fcf_model_ui.get("issuer_supported"):
+                            st.info("ℹ️ Im Regulated-Utility-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
+                            st.caption("Hohe Utility-CapEx machen industriellen Free Cash Flow als Qualitätsmaß ungeeignet. V2.20.93 verwendet stattdessen FFO/Credit, Rate Base, regulatorische Rückgewinnung und den offiziellen Kapital-/Finanzierungsplan.")
+                        else:
+                            st.warning("Regulated-Utility-Familienroute aktiv: Der generische Yahoo-FCF-Score bleibt gesperrt; ein issuer-spezifischer FFO/Credit- und Kapitalplan-Snapshot ist noch nicht kalibriert.")
+                            st.caption("Yahoo-/Cashflow-Statement-FCF bleibt ausschließlich Diagnosekontext und kann keinen Utility-Fair-Value freigeben.")
                     elif is_adjusted_specialist_fcf_ui:
                         st.info("ℹ️ Im Adjusted-Earnings-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Score wird nicht verwendet.")
                         st.caption("Cashflow-Qualität wird im jeweiligen Spezialmodell über FCF-Conversion, OCF/CapEx oder geschäftsmodellspezifische Primärkennzahlen geprüft; Yahoo-TTM-FCF bleibt Kontext.")
@@ -40993,8 +41085,13 @@ if selected_symbol:
                         st.info("ℹ️ Baker Hughes/Post-Chart-Modell: Standard-Netto-Schulden/FCF-Score ist gesperrt")
                         st.caption("Die 30.06.2026 Cash-/Debt-Werte enthalten wesentliche Chart-Transaktionsfinanzierung. Sie dürfen nicht als aktuelle operative Netto-Cash-/Leverage-Basis interpretiert werden; Post-Chart Leverage wird separat geprüft.")
                     elif is_utility_specialist_balance_ui:
-                        st.info("ℹ️ Im Regulated-Utility-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
-                        st.caption("Utility-Verschuldung wird über FFO-to-Debt/Credit-Ratings und den regulatorisch getragenen Kapitalplan bewertet; Yahoo-Schulden und Net-Debt/FCF bleiben Diagnosekontext.")
+                        util_balance_model_ui = data.get("regulated_utility_specialist_model") or {}
+                        if util_balance_model_ui.get("issuer_supported"):
+                            st.info("ℹ️ Im Regulated-Utility-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
+                            st.caption("Utility-Verschuldung wird über FFO-to-Debt/Credit-Ratings und den regulatorisch getragenen Kapitalplan bewertet; Yahoo-Schulden und Net-Debt/FCF bleiben Diagnosekontext.")
+                        else:
+                            st.warning("Regulated-Utility-Familienroute aktiv: Die generische Netto-Schulden/FCF-Logik bleibt gesperrt; issuer-spezifische FFO-to-Debt/Credit- und Kapitalplan-Daten sind noch nicht kalibriert.")
+                            st.caption("Yahoo-Schulden und Net-Debt/FCF bleiben reine Diagnosewerte und steuern weder Score noch Fair Value.")
                     elif is_adjusted_specialist_balance_ui:
                         st.info("ℹ️ Im Adjusted-Earnings-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("Verschuldung wird im specialistischen Quality Score über Net Leverage beziehungsweise geschäftsmodellspezifische Debt-/Cashflow-Kennzahlen geprüft; Yahoo-Schulden bleiben Kontext.")
