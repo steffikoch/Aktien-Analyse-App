@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.129"
+APP_BUILD_VERSION = "V2.20.130"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Oilfield Services & Energy Technology Specialist V1"
+    f"Build {APP_BUILD_VERSION} · Cross-Currency EPS Unit Guard & Lenovo IR Recovery"
 )
 
 
+# V2.20.130: Cross-Currency EPS Unit Guard & Lenovo IR Recovery. Separates provider per-share currency from reporting currency when Yahoo listing-level trailing/forward EPS uses the listing currency while analyst/financial statement data uses the reporting currency. A consensus/implied-EPS consistency gate converts only when unit evidence is strong and fails closed for unresolved severe generic-EPS mismatches. Lenovo/0992.HK receives a verified investor.lenovo.com IR route plus current Q1 FY2026/27 primary-event evidence for the warrant fair-value loss; the evidence explains the GAAP/adjusted divergence but does not release a Fair Value. No specialist valuation mathematics changed.
 # V2.20.129: Oilfield Services & Energy Technology Specialist V1. Routes SLB, Halliburton and TechnipFMC out of the generic oil-producer cycle model into issuer-primary same-basis Adjusted-EPS bridges and profile-specific quality/P-E corridors. Activity/orders/backlog, adjusted margin and earnings quality, issuer cash conversion, balance/leverage, technology/portfolio mix, capital allocation and execution/cycle resilience form the specialist score. SLB/HAL/FTI/BKR peers are reference-only and never set the target multiple. Baker Hughes remains on its separate post-Chart fail-closed structural-break gate. No Integrated-Oil specialist mathematics changed.
 # V2.20.101: FY-Guidance-First Same-Basis Earnings Growth Guard V3. When an active high-confidence accounting-basis bridge has fresh issuer Current-FY Adjusted/Core/Operating EPS guidance and a same-basis prior-FY EPS, the growth score now uses FY guidance midpoint vs. prior FY as the primary annual growth anchor. Multi-quarter YTD same-basis growth remains a momentum/plausibility control and is shown separately; it no longer displaces the annual guidance anchor. Without a verified same-basis FY bridge, the V2.20.100 YTD -> latest-quarter fail-closed fallback remains intact.
 # V2.20.102: Medical-Devices Peer Calibration & Safety Overlay V1. Standard-company issuers with Yahoo industry “Medical Devices” receive a dedicated structural peer set (SYK/MDT/BSX/ZBH/EW plus broad/high-growth reference peers BDX/ISRG). Provider Forward-P/E is used only as a market-multiple calibration layer; at least three structurally comparable core peers are required, the eligible-peer median is used, and any automatic adjustment to the score-derived fundamental P/E is capped at ±5 %. The issuer EPS basis, 100-point score and FY-guidance-first Same-Basis Growth Guard remain unchanged. Broad-scope or high-growth outlier peers are reference-only.
@@ -563,6 +564,169 @@ def validate_valuation_currency_context(currency_context):
             f"Handelswährung {quote_currency} mit Faktor {factor:.6f}."
         ),
     }
+
+
+
+def _relative_gap_to_refs(value, refs):
+    numeric = safe_float(value)
+    if numeric is None or numeric <= 0:
+        return None
+    gaps = []
+    for ref in refs or []:
+        ref_value = safe_float(ref)
+        if ref_value is not None and ref_value > 0:
+            gaps.append(abs(numeric / ref_value - 1.0))
+    return min(gaps) if gaps else None
+
+
+def build_cross_currency_eps_unit_guard(
+    provider_per_share_currency,
+    financial_currency,
+    raw_trailing_eps,
+    raw_forward_eps,
+    analyst_context=None,
+    symbol=None,
+    net_income=None,
+    shares_outstanding=None,
+    share_unit_context=None,
+    cache_version=None,
+):
+    """V2.20.130 – normalize Yahoo per-share units without guessing.
+
+    Yahoo can mix listing-level per-share fields (for example HKD on 0992.HK)
+    with financial statements / analyst estimates reported in another currency
+    (for example USD).  The guard compares the raw provider Forward-EPS with
+    0Y/+1Y consensus before and after an explicit FX/unit conversion.  A
+    conversion is applied only when it materially improves same-horizon unit
+    consistency.  The same verified factor is then applied to provider TTM EPS.
+
+    A second diagnostic compares currency-normalized provider TTM EPS with the
+    transparent TTM identity net income / current shares.  That identity is not
+    used as replacement EPS; a very large mismatch is a fail-closed freshness /
+    unit warning for generic EPS valuation.
+    """
+    source = _normalize_currency_code(provider_per_share_currency)
+    financial = _normalize_currency_code(financial_currency)
+    raw_ttm = safe_float(raw_trailing_eps)
+    raw_fwd = safe_float(raw_forward_eps)
+    ctx = analyst_context if isinstance(analyst_context, dict) else {}
+    refs = [safe_float(ctx.get("current_fy_eps")), safe_float(ctx.get("next_fy_eps"))]
+    refs = [v for v in refs if v is not None and v > 0]
+    share_ctx = share_unit_context if isinstance(share_unit_context, dict) else {}
+
+    result = {
+        "active": False,
+        "provider_per_share_currency": source,
+        "financial_currency": financial,
+        "conversion_available": False,
+        "conversion_applied": False,
+        "conversion_factor": None,
+        "fx_symbol": None,
+        "raw_trailing_eps": raw_ttm,
+        "raw_forward_eps": raw_fwd,
+        "normalized_trailing_eps": raw_ttm,
+        "normalized_forward_eps": raw_fwd,
+        "raw_forward_reference_gap": None,
+        "converted_forward_reference_gap": None,
+        "unit_ambiguous": False,
+        "implied_ttm_eps": None,
+        "ttm_implied_gap": None,
+        "severe_ttm_mismatch": False,
+        "official_ttm_reference": None,
+        "official_ttm_reference_source": None,
+        "official_ttm_reference_gap": None,
+        "note": None,
+    }
+
+    if not source or not financial or source == financial:
+        return result
+
+    result["active"] = True
+    fx = load_fx_conversion(source, financial, cache_version or APP_BUILD_VERSION)
+    factor = safe_float((fx or {}).get("factor"))
+    result["conversion_available"] = bool((fx or {}).get("available") and factor is not None and factor > 0)
+    result["conversion_factor"] = factor
+    result["fx_symbol"] = (fx or {}).get("symbol")
+
+    raw_gap = _relative_gap_to_refs(raw_fwd, refs)
+    converted_gap = _relative_gap_to_refs(raw_fwd * factor, refs) if (raw_fwd is not None and factor is not None) else None
+    result["raw_forward_reference_gap"] = raw_gap
+    result["converted_forward_reference_gap"] = converted_gap
+
+    apply_conversion = False
+    if result["conversion_available"] and raw_fwd is not None and refs:
+        # Strong unit evidence: converted provider Forward-EPS lands close to a
+        # real consensus horizon while the unconverted value is materially off,
+        # or the conversion reduces the gap by at least ~65%.
+        if converted_gap is not None:
+            apply_conversion = bool(
+                (converted_gap <= 0.15 and (raw_gap is None or raw_gap >= 0.35))
+                or (raw_gap is not None and raw_gap >= 0.30 and converted_gap <= raw_gap * 0.35)
+            )
+    elif result["conversion_available"] and source == "GBp" and financial == "GBP":
+        # Pence/Pound is an exact unit identity, not an inferred market FX view.
+        apply_conversion = True
+
+    if apply_conversion and factor is not None:
+        result["conversion_applied"] = True
+        result["normalized_trailing_eps"] = raw_ttm * factor if raw_ttm is not None else None
+        result["normalized_forward_eps"] = raw_fwd * factor if raw_fwd is not None else None
+        result["note"] = (
+            f"Provider-per-share-Einheit erkannt: Yahoo Listing-EPS in {source} wurde mit "
+            f"1 {source} = {factor:.6f} {financial} auf die Berichtswährung normalisiert. "
+            "Analysten-0Y/+1Y-Werte werden nicht nochmals umgerechnet."
+        )
+    else:
+        # Different provider/reporting currencies with no strong evidence must
+        # never be silently treated as 1:1 for a generic EPS valuation.
+        result["unit_ambiguous"] = bool(raw_ttm is not None or raw_fwd is not None)
+        result["note"] = (
+            f"Provider-per-share-Währung {source} und Berichtswährung {financial} weichen ab. "
+            "Die verfügbare Forward-/Konsens-Evidenz reicht nicht für eine sichere automatische "
+            "EPS-Einheitenumrechnung; generische EPS-Bewertung bleibt bei Bedarf fail-closed."
+        )
+
+    normalized_ttm = safe_float(result.get("normalized_trailing_eps"))
+    ni = safe_float(net_income)
+    shares = safe_float(shares_outstanding)
+    if (
+        normalized_ttm is not None
+        and ni is not None
+        and shares is not None
+        and shares > 0
+        and not share_ctx.get("conversion_required")
+    ):
+        implied = ni / shares
+        if implied > 0:
+            gap = abs(normalized_ttm / implied - 1.0)
+            result["implied_ttm_eps"] = implied
+            result["ttm_implied_gap"] = gap
+            result["severe_ttm_mismatch"] = gap >= 0.75
+            if result["severe_ttm_mismatch"]:
+                result["note"] = (result.get("note") or "") + (
+                    f" Zusätzlich weicht der normalisierte Provider-TTM-EPS um {gap * 100:.1f} % "
+                    "von Net Income / Shares ab; Provider-TTM bleibt Diagnosekontext, bis Aktualität/"
+                    "Accounting-Basis geklärt ist."
+                )
+
+    # Time-bounded issuer-primary TTM reference, diagnosis only. Lenovo's latest
+    # four official basic-EPS quarters through Q1 FY2026/27 sum to 6.49 US cents.
+    sym = str(symbol or "").upper()
+    if sym == "0992.HK" and datetime.now().date().isoformat() <= "2026-11-30":
+        official_ref = 0.0649
+        if financial == "USD" and normalized_ttm is not None and normalized_ttm > 0:
+            official_gap = abs(normalized_ttm / official_ref - 1.0)
+            result["official_ttm_reference"] = official_ref
+            result["official_ttm_reference_source"] = "Lenovo Key Financial Data: Q2/Q3/Q4 FY25/26 + Q1 FY26/27 Basic EPS"
+            result["official_ttm_reference_gap"] = official_gap
+            if official_gap >= 0.50:
+                result["severe_ttm_mismatch"] = True
+                result["note"] = (result.get("note") or "") + (
+                    f" Offizielle Lenovo-TTM-Referenz aus den letzten vier Basic-EPS-Quartalen: {official_ref:.4f} USD; "
+                    f"Provider-TTM-Abweichung {official_gap * 100:.1f} %. Provider-TTM bleibt Diagnosekontext."
+                )
+
+    return result
 
 
 # =========================================================
@@ -1309,6 +1473,7 @@ SPECIAL_EVENT_KEYWORDS = {
         "one-time", "one time", "non-recurring", "nonrecurring", "special charge",
         "exceptional item", "adjusted eps", "adjusted earnings", "adjusted net income",
         "reported eps", "gaap eps", "non-comparable", "noncomparable",
+        "fair value loss", "fair-value loss", "fair value gain", "warrant fair value",
         "sonderposten", "einmaleffekt",
     ],
     "Steuer-/Rechtseffekt": [
@@ -1337,6 +1502,27 @@ PRIMARY_LINK_KEYWORDS = [
 ]
 
 SEC_FORMS = {"10-K", "10-Q", "8-K"}
+
+
+# V2.20.130 – current issuer-primary event snapshots used only to explain a
+# triggered red comparability gate. They never create replacement EPS or unlock
+# a Fair Value by themselves.
+VERIFIED_CURRENT_SPECIAL_EVENT_EVIDENCE = {
+    "0992.HK": {
+        "as_of": "2026-08-13",
+        "valid_until": "2027-03-31",
+        "title": "Lenovo Q1 FY2026/27 – Net Income Non-HKFRS Adjustments",
+        "url": "https://investor.lenovo.com/en/financial/results/presentation_2627_q1.pdf",
+        "text": (
+            "Lenovo Group Q1 FY2026/27 reported net loss attributable to equity holders of US$609 million, "
+            "basic EPS loss 5.04 US cents and adjusted net income of US$1,075 million. "
+            "The issuer reconciliation shows a US$1,690 million Fair Value Loss on Warrants, "
+            "US$30 million notional interest on convertible bonds and US$36 million of other non-cash items. "
+            "This is issuer-primary evidence of a current-period fair value / warrant special item; "
+            "it explains the GAAP-versus-adjusted divergence but does not provide a same-period adjusted EPS."
+        ),
+    },
+}
 
 
 def _clean_text(value):
@@ -1424,7 +1610,8 @@ def _context_looks_like_actual_event(context, label):
         "acquired", "acquisition of", "sold", "sale of", "divested", "divestiture of",
         "spun off", "spin-off of", "separated", "separation of", "restructuring expense",
         "restructuring charge", "impairment charge", "impairment charges", "write-down",
-        "write off", "write-off", "tax charge", "tax benefit", "settlement", "non-comparable items",
+        "write off", "write-off", "tax charge", "tax benefit", "settlement", "fair value loss",
+        "fair-value loss", "fair value gain", "non-comparable items",
         "noncomparable items", "net losses per diluted share", "net gains per diluted share",
     ]
     has_action = any(x in c for x in action_cues)
@@ -1439,7 +1626,8 @@ def _context_looks_like_actual_event(context, label):
     if label == "Einmal-/Sonderposten":
         concrete_special = any(x in c for x in [
             "non-comparable items", "noncomparable items", "one-time charge", "one time charge",
-            "special charge", "exceptional item", "excluded net non-comparable", "excluded net noncomparable",
+            "special charge", "exceptional item", "fair value loss", "fair-value loss", "warrant fair value",
+            "excluded net non-comparable", "excluded net noncomparable",
         ])
         if not concrete_special and not (has_action and has_money):
             return False
@@ -2718,7 +2906,7 @@ IR_ROUTER_HUB_TERMS = [
 
 IR_ROUTER_ARCHIVE_TERMS = [
     "financial releases", "press releases", "newsroom", "earnings releases",
-    "financial results", "quarterly results", "results archive", "news releases",
+    "financial results", "results & presentations", "quarterly results", "results archive", "news releases",
 ]
 
 
@@ -2732,6 +2920,8 @@ def _router_root(company_domain):
     # paths that return 404.
     if domain in {"corteva.com", "www.corteva.com", "investors.corteva.com"} or domain.endswith(".corteva.com"):
         return "https://investors.corteva.com"
+    if domain in {"lenovo.com", "www.lenovo.com", "investor.lenovo.com"} or domain.endswith(".lenovo.com"):
+        return "https://investor.lenovo.com"
     if domain.startswith("www."):
         return f"https://{domain}"
     if domain.startswith(("investor.", "investors.", "ir.", "about.")):
@@ -3072,10 +3262,10 @@ def _router_archive_type(row=None, url=None, title=None):
         return "release_detail"
 
     release_markers = [
-        "financial releases", "financial results", "earnings releases",
+        "financial releases", "financial results", "results & presentations", "earnings releases",
         "earnings results", "press releases", "news releases",
         "results archive", "quarterly results", "quarterly earnings reports", "annual results",
-        "/press-releases", "/news-releases", "/financial-results",
+        "/press-releases", "/news-releases", "/financial-results", "/financial/results.php",
         "/financial-releases", "/quarterly-results", "/quarterly-earnings-reports", "/earnings",
     ]
     if any(marker in hay for marker in release_markers):
@@ -3098,7 +3288,7 @@ def _router_release_archive_score(row):
     score = float(row.get("link_score") or 0)
     if "financial releases" in hay or "financial-releases" in hay:
         score += 180
-    if "financial results" in hay or "financial-results" in hay:
+    if "financial results" in hay or "financial-results" in hay or "results & presentations" in hay or "/financial/results.php" in hay:
         score += 160
     if "earnings releases" in hay or "/earnings" in hay:
         score += 140
@@ -3390,6 +3580,11 @@ def _discover_company_ir_router(
                 urljoin(root + "/", "news-events/news-releases"),
                 urljoin(root + "/", "events-and-presentations"),
                 urljoin(root + "/", "financial-information/sec-filings"),
+            ]
+        elif "investor.lenovo.com" in root.lower():
+            fallback_urls = [
+                urljoin(root + "/", "en/financial/results.php"),
+                urljoin(root + "/", "en/publications/announcements.php"),
             ]
         else:
             fallback_urls = [
@@ -4681,6 +4876,21 @@ def research_special_event_online(
     )
 
     raw_results = []
+
+    # V2.20.130: if a current issuer-primary special-event snapshot is already
+    # verified, seed it as evidence before historical-cycle discovery. This
+    # explains a current-period GAAP/adjusted break without inventing adjusted EPS.
+    verified_current = VERIFIED_CURRENT_SPECIAL_EVENT_EVIDENCE.get(symbol)
+    if isinstance(verified_current, dict):
+        today = datetime.now().date().isoformat()
+        if not verified_current.get("valid_until") or today <= str(verified_current.get("valid_until")):
+            raw_results.append({
+                "title": verified_current.get("title"),
+                "url": verified_current.get("url"),
+                "snippet": verified_current.get("text"),
+                "preloaded_text": verified_current.get("text"),
+                "search_source": "Verified current issuer event snapshot",
+            })
 
     # 1) Company / IR router. Prefer official full-year result candidates.
     for item in ((ir_router.get("documents_by_year") or {}).get(target_year, []) if isinstance(ir_router, dict) else [])[:4]:
@@ -34402,16 +34612,36 @@ def load_stock(selected_symbol, cache_version):
         fundamental_ticker
     )
 
-    trailing_eps = safe_float(
-        fundamental_info.get("trailingEps")
-    )
-    # Raw provider Forward-EPS remains visible. V2.20.76 derives one explicit
-    # current-FY valuation basis separately so +1Y is never silently blended
-    # with TTM earnings in the generic EPS normalizer.
-    forward_eps = safe_float(
-        fundamental_info.get("forwardEps")
-    )
+    raw_trailing_eps = safe_float(fundamental_info.get("trailingEps"))
+    raw_forward_eps = safe_float(fundamental_info.get("forwardEps"))
     eps_horizon_analyst_context = _analyst_eps_horizon_context(fundamental_ticker)
+
+    # V2.20.130: Yahoo listing-level per-share fields can be in the listing
+    # currency even when statements/analyst tables are in financialCurrency.
+    # Never assume those units are identical.
+    provider_per_share_currency = (
+        fundamental_info.get("currency")
+        or quote_currency
+        or financial_currency
+    )
+    eps_unit_context = build_cross_currency_eps_unit_guard(
+        provider_per_share_currency,
+        financial_currency,
+        raw_trailing_eps,
+        raw_forward_eps,
+        analyst_context=eps_horizon_analyst_context,
+        symbol=fundamental_symbol,
+        net_income=fundamental_info.get("netIncomeToCommon"),
+        shares_outstanding=fundamental_info.get("sharesOutstanding"),
+        share_unit_context=share_unit_context,
+        cache_version=cache_version,
+    )
+    trailing_eps = safe_float(eps_unit_context.get("normalized_trailing_eps"))
+    forward_eps = safe_float(eps_unit_context.get("normalized_forward_eps"))
+
+    # Raw provider Forward-EPS remains visible after unit normalization. V2.20.76
+    # derives one explicit current-FY valuation basis separately so +1Y is never
+    # silently blended with TTM earnings in the generic EPS normalizer.
     eps_horizon_alignment = build_eps_horizon_alignment(
         fundamental_symbol,
         forward_eps,
@@ -34446,6 +34676,29 @@ def load_stock(selected_symbol, cache_version):
         eps_horizon_alignment,
         generic_snapshot=generic_adjusted_ttm_snapshot,
     )
+
+    eps_unit_hard_block = bool(
+        normalized_company_type_name(company_type) == "standard-unternehmen"
+        and not eps_basis_alignment.get("active")
+        and (
+            eps_unit_context.get("unit_ambiguous")
+            or eps_unit_context.get("severe_ttm_mismatch")
+        )
+    )
+    if eps_unit_hard_block:
+        eps_basis_alignment.update({
+            "active": False,
+            "valuation_trailing_eps": None,
+            "blocked_by_basis_mismatch": True,
+            "eps_unit_hard_block": True,
+            "confidence": "Niedrig",
+            "note": (
+                "Cross-Currency EPS Unit/TTM Consistency Hard Gate: Provider-per-share-Einheit bzw. "
+                "Provider-TTM-Aktualität ist trotz Währungsnormalisierung nicht ausreichend bestätigt. "
+                "Provider-TTM bleibt Diagnosekontext; Fair Value bleibt bis zu einer belastbaren "
+                "same-basis Primärquelle gesperrt."
+            ),
+        })
 
     generic_diag_for_basis = (generic_adjusted_ttm_snapshot or {}).get("diagnostics") if isinstance(generic_adjusted_ttm_snapshot, dict) else {}
     latest_period_basis_hard_block = bool(
@@ -34517,14 +34770,17 @@ def load_stock(selected_symbol, cache_version):
         company_type
     )
 
-    if latest_period_basis_hard_block:
+    if latest_period_basis_hard_block or eps_unit_hard_block:
+        hard_gate_method = (
+            "Latest-Period Accounting Basis Hard Gate: Adjusted/Core-TTM der jüngsten erwarteten "
+            "Berichtsperiode unvollständig; keine Mischung aus Provider-GAAP-TTM und Current-FY "
+            "normalisiertem/Adjusted EPS zulässig"
+            if latest_period_basis_hard_block
+            else "Cross-Currency EPS Unit/TTM Consistency Hard Gate: Provider-TTM nicht als belastbare Bewertungsbasis freigegeben"
+        )
         eps_normalization = build_eps_result(
             None,
-            (
-                "Latest-Period Accounting Basis Hard Gate: Adjusted/Core-TTM der jüngsten "
-                "erwarteten Berichtsperiode unvollständig; keine Mischung aus Provider-GAAP-TTM "
-                "und Current-FY normalisiertem/Adjusted EPS zulässig"
-            ),
+            hard_gate_method,
             "Niedrig",
             None,
             trailing_eps,
@@ -34534,10 +34790,12 @@ def load_stock(selected_symbol, cache_version):
                 "eps_basis_comparability_gate_active": True,
                 "eps_basis_comparability_status": "latest_period_incomplete",
                 "eps_basis_comparability_reason": (
-                    "jüngste Adjusted/Core-TTM-Berichtsperiode ist unvollständig; "
-                    "GAAP-/Adjusted-Mischung ist gesperrt"
+                    "jüngste Adjusted/Core-TTM-Berichtsperiode ist unvollständig; GAAP-/Adjusted-Mischung ist gesperrt"
+                    if latest_period_basis_hard_block
+                    else "Provider-per-share-Einheit bzw. TTM-Aktualität ist nicht ausreichend konsistent; same-basis Primärquelle erforderlich"
                 ),
-                "latest_period_basis_hard_block": True,
+                "latest_period_basis_hard_block": bool(latest_period_basis_hard_block),
+                "eps_unit_hard_block": bool(eps_unit_hard_block),
             },
         )
     else:
@@ -34584,6 +34842,10 @@ def load_stock(selected_symbol, cache_version):
         "eps_consensus_basis_inferred": bool(eps_basis_alignment.get("consensus_basis_inferred")),
         "eps_generic_adjusted_ttm_discovery": eps_basis_alignment.get("generic_discovery"),
         "eps_latest_period_basis_hard_block": bool(eps_basis_alignment.get("latest_period_basis_hard_block")),
+        "eps_unit_guard_active": bool(eps_unit_context.get("active")),
+        "eps_unit_conversion_applied": bool(eps_unit_context.get("conversion_applied")),
+        "eps_unit_hard_block": bool(eps_basis_alignment.get("eps_unit_hard_block")),
+        "eps_unit_guard_note": eps_unit_context.get("note"),
     })
 
     same_basis_earnings_growth = derive_same_basis_earnings_growth(
@@ -36510,6 +36772,7 @@ def load_stock(selected_symbol, cache_version):
         "valuation_forward_eps": valuation_forward_eps,
         "eps_horizon_alignment": eps_horizon_alignment,
         "eps_basis_alignment": eps_basis_alignment,
+        "eps_unit_context": eps_unit_context,
 
         "revenue": revenue,
         "net_income": net_income,
@@ -37194,6 +37457,43 @@ if selected_symbol:
                         st.caption("EPS-Horizonte: " + " · ".join(horizon_bits))
                     if eps_horizon_ui.get("note"):
                         st.info(f"🧭 **Earnings Horizon Alignment {APP_BUILD_VERSION}:** " + text_or_dash(eps_horizon_ui.get("note")))
+
+                eps_unit_ui = data.get("eps_unit_context") or {}
+                if eps_unit_ui.get("active"):
+                    if eps_unit_ui.get("conversion_applied"):
+                        st.success(
+                            f"💱 **EPS Currency/Unit Guard {APP_BUILD_VERSION}:** "
+                            + text_or_dash(eps_unit_ui.get("note"))
+                        )
+                    else:
+                        st.warning(
+                            f"⚠️ **EPS Currency/Unit Guard {APP_BUILD_VERSION}:** "
+                            + text_or_dash(eps_unit_ui.get("note"))
+                        )
+                    raw_ttm_unit = safe_float(eps_unit_ui.get("raw_trailing_eps"))
+                    norm_ttm_unit = safe_float(eps_unit_ui.get("normalized_trailing_eps"))
+                    implied_ttm_unit = safe_float(eps_unit_ui.get("implied_ttm_eps"))
+                    if raw_ttm_unit is not None and norm_ttm_unit is not None and eps_unit_ui.get("conversion_applied"):
+                        st.caption(
+                            "Provider-TTM-EPS Rohwert: "
+                            + f"{raw_ttm_unit:.4f} {text_or_dash(eps_unit_ui.get('provider_per_share_currency'))} · "
+                            + "normalisiert: "
+                            + f"{norm_ttm_unit:.4f} {text_or_dash(eps_unit_ui.get('financial_currency'))}"
+                        )
+                    if implied_ttm_unit is not None and eps_unit_ui.get("severe_ttm_mismatch"):
+                        st.caption(
+                            "TTM-Plausibilitätsreferenz Net Income / Shares: "
+                            + f"{implied_ttm_unit:.4f} {text_or_dash(eps_unit_ui.get('financial_currency'))} · "
+                            "nur Diagnose, kein Ersatz-EPS."
+                        )
+                    official_ttm_unit = safe_float(eps_unit_ui.get("official_ttm_reference"))
+                    if official_ttm_unit is not None:
+                        st.caption(
+                            "Issuer-primary TTM-EPS-Referenz: "
+                            + f"{official_ttm_unit:.4f} {text_or_dash(eps_unit_ui.get('financial_currency'))} · "
+                            + text_or_dash(eps_unit_ui.get("official_ttm_reference_source"))
+                            + " · nur Diagnose, kein Ersatz-EPS."
+                        )
 
                 eps_basis_ui = data.get("eps_basis_alignment") or {}
                 if eps_basis_ui.get("active"):
