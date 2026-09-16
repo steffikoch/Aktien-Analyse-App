@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.130"
+APP_BUILD_VERSION = "V2.20.131"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Cross-Currency EPS Unit Guard & Lenovo IR Recovery"
+    f"Build {APP_BUILD_VERSION} · Midstream Multi-Issuer Specialist V2"
 )
 
 
+# V2.20.131: Midstream Multi-Issuer Specialist V2. Generalizes the released KMI Midstream path to issuer-primary KMI/EPD/MPLX profiles while preserving KMI mathematics. EPD and MPLX use issuer-defined DCF/Operational DCF, distribution coverage, LTM Adjusted EBITDA, leverage/net-debt and profile-specific C-Corp/MLP valuation corridors. WMB and OKE expose validated Q2 operating context but remain fail-closed because post-Q2 Momentum/Apollo/Brazos transactions make the current capital structure non-comparable. Midstream peers are reference-only.
 # V2.20.130: Cross-Currency EPS Unit Guard & Lenovo IR Recovery. Separates provider per-share currency from reporting currency when Yahoo listing-level trailing/forward EPS uses the listing currency while analyst/financial statement data uses the reporting currency. A consensus/implied-EPS consistency gate converts only when unit evidence is strong and fails closed for unresolved severe generic-EPS mismatches. Lenovo/0992.HK receives a verified investor.lenovo.com IR route plus current Q1 FY2026/27 primary-event evidence for the warrant fair-value loss; the evidence explains the GAAP/adjusted divergence but does not release a Fair Value. No specialist valuation mathematics changed.
 # V2.20.129: Oilfield Services & Energy Technology Specialist V1. Routes SLB, Halliburton and TechnipFMC out of the generic oil-producer cycle model into issuer-primary same-basis Adjusted-EPS bridges and profile-specific quality/P-E corridors. Activity/orders/backlog, adjusted margin and earnings quality, issuer cash conversion, balance/leverage, technology/portfolio mix, capital allocation and execution/cycle resilience form the specialist score. SLB/HAL/FTI/BKR peers are reference-only and never set the target multiple. Baker Hughes remains on its separate post-Chart fail-closed structural-break gate. No Integrated-Oil specialist mathematics changed.
 # V2.20.101: FY-Guidance-First Same-Basis Earnings Growth Guard V3. When an active high-confidence accounting-basis bridge has fresh issuer Current-FY Adjusted/Core/Operating EPS guidance and a same-basis prior-FY EPS, the growth score now uses FY guidance midpoint vs. prior FY as the primary annual growth anchor. Multi-quarter YTD same-basis growth remains a momentum/plausibility control and is shown separately; it no longer displaces the annual guidance anchor. Without a verified same-basis FY bridge, the V2.20.100 YTD -> latest-quarter fail-closed fallback remains intact.
@@ -10587,78 +10588,278 @@ def build_bank_special_control(base_control, bank_model):
 
 
 # =========================================================
-# Midstream-Sondermodell V2.20.52 – Quality Score + EV/Adjusted EBITDA + Peer Overlay
+# =========================================================
+# Midstream Multi-Issuer Specialist V2 – V2.20.131
 # =========================================================
 
-MIDSTREAM_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22052_midstream_peer_safety_comparability"
+MIDSTREAM_PRIMARY_SOURCE_INTEGRATION_VERSION = "v220131_midstream_multi_issuer_specialist_v2"
 
 
 def get_verified_midstream_snapshot(symbol):
-    """Time-bounded official Midstream snapshot for supported companies.
+    """Time-bounded issuer-primary Midstream snapshots.
 
-    V2.20.52 continues with Kinder Morgan (NYSE: KMI). Kinder Morgan currently
-    reports issuer-defined FCF rather than a metric labelled DCF. We preserve
-    that nomenclature and never relabel Yahoo FCF/OCF as issuer-defined DCF.
+    V2.20.131 generalizes the prior KMI-only model. KMI keeps its released
+    mathematics unchanged. EPD and MPLX receive MLP-specific issuer-defined
+    cash-flow / distribution / leverage profiles. WMB and OKE expose current
+    verified operating context but remain fail-closed because material post-Q2
+    transactions make the June capital structure non-comparable with today's
+    equity price.
     """
     symbol_text = str(symbol or "").upper().strip()
-    if symbol_text != "KMI":
-        return None
 
-    return {
-        "company": "Kinder Morgan, Inc.",
-        "as_of_date": "30.06.2026",
-        "published_date": "22.07.2026",
-        # Conservative expiry ahead of the normal Q3 reporting window.
-        "valid_until": "20.10.2026",
-        "source_name": "Kinder Morgan Q2 2026 Financial Results",
-        "source_url": "https://ir.kindermorgan.com/news/news-details/2026/Kinder-Morgan-Reports-Second-Quarter-2026-Financial-Results/default.aspx",
-        "period_label": "Q2 / 6M 2026",
-        "cashflow_metric_name": "KMI FCF",
+    if symbol_text == "KMI":
+        return {
+            "symbol": "KMI",
+            "company": "Kinder Morgan, Inc.",
+            "entity_structure": "C-Corp",
+            "profile_key": "c_corp_kmi_legacy",
+            "score_method": "legacy_kmi",
+            "valuation_profile": "c_corp_legacy",
+            "valuation_ready": True,
+            "structural_break_active": False,
+            "as_of_date": "30.06.2026",
+            "published_date": "22.07.2026",
+            "valid_until": "20.10.2026",
+            "source_name": "Kinder Morgan Q2 2026 Financial Results",
+            "source_url": "https://ir.kindermorgan.com/news/news-details/2026/Kinder-Morgan-Reports-Second-Quarter-2026-Financial-Results/default.aspx",
+            "period_label": "Q2 / 6M 2026",
+            "cashflow_metric_name": "KMI FCF",
+            "payout_label": "Dividenden",
+            "fcf_q2_total": 978e6,
+            "fcf_q2_prior_total": 1002e6,
+            "fcf_h1_total": 1665e6,
+            "fcf_h1_prior_total": 1398e6,
+            "dividends_paid_q2_total": 665e6,
+            "dividends_paid_h1_total": 1319e6,
+            "fcf_after_dividends_q2_total": 313e6,
+            "fcf_after_dividends_h1_total": 346e6,
+            "weighted_avg_shares_m": 2225.0,
+            "declared_dividend_q2_per_share": 0.2975,
+            "annualized_dividend_per_share": 1.19,
+            "adjusted_eps_q2": 0.37,
+            "adjusted_eps_h1": 0.84,
+            "adjusted_ebitda_q2_total": 2199e6,
+            "adjusted_ebitda_h1_total": 4738e6,
+            "adjusted_ebitda_ltm_total": 9000e6,
+            "net_debt_total": 32027e6,
+            "net_debt_to_adjusted_ebitda": 3.6,
+            "adjusted_ebitda_budget_2026": 8.6e9,
+            "adjusted_ebitda_expected_vs_budget_min_pct": 5.0,
+            "adjusted_eps_budget_2026": 1.36,
+            "adjusted_eps_expected_vs_budget_min_pct": 12.0,
+            "year_end_leverage_expected": 3.6,
+            "project_backlog_total": 9.6e9,
+            "project_backlog_natural_gas_share_pct": 92.0,
+            "project_backlog_power_ldc_share_min_pct": 60.0,
+            "project_backlog_multiple_scope_total": 8.5e9,
+            "project_backlog_first_year_ebitda_multiple": 5.6,
+            "source_note": (
+                "Offizielle Kinder-Morgan-Q2/6M-2026-Daten. Der freigegebene KMI-"
+                "Bewertungspfad bleibt in V2.20.131 mathematisch unverändert; Yahoo-FCF, "
+                "Standard-EPS und generische EV/EBITDA-Proxies bleiben außerhalb des Fair Values."
+            ),
+        }
 
-        # Official Table 6, USD millions.
-        "fcf_q2_total": 978e6,
-        "fcf_q2_prior_total": 1002e6,
-        "fcf_h1_total": 1665e6,
-        "fcf_h1_prior_total": 1398e6,
-        "dividends_paid_q2_total": 665e6,
-        "dividends_paid_h1_total": 1319e6,
-        "fcf_after_dividends_q2_total": 313e6,
-        "fcf_after_dividends_h1_total": 346e6,
+    if symbol_text == "EPD":
+        return {
+            "symbol": "EPD",
+            "company": "Enterprise Products Partners L.P.",
+            "entity_structure": "MLP",
+            "profile_key": "mlp_diversified_integrated",
+            "score_method": "multi_issuer",
+            "valuation_profile": "mlp",
+            "valuation_ready": True,
+            "structural_break_active": False,
+            "as_of_date": "30.06.2026",
+            "published_date": "30.07.2026",
+            "valid_until": "27.10.2026",
+            "source_name": "Enterprise Products Partners Q2 2026 Earnings",
+            "source_url": "https://ir.enterpriseproducts.com/node/45311",
+            "source_url_secondary": "https://www.sec.gov/Archives/edgar/data/1061219/000106121926000021/epd-20260630.htm",
+            "period_label": "Q2 / 6M / LTM 2026",
+            "cashflow_metric_name": "Operational DCF",
+            "payout_label": "Ausschüttungen",
+            "fcf_q2_total": 2312e6,
+            "fcf_q2_prior_total": 1914e6,
+            "fcf_h1_total": 4423e6,
+            "fcf_h1_prior_total": 3923e6,
+            "coverage_q2_direct": 1.90,
+            "coverage_score_basis": "q2",
+            "dividends_paid_q2_total": 1.2e9,
+            "fcf_after_dividends_q2_total": 1.1e9,
+            "weighted_avg_shares_m": 2185.0,
+            "annualized_dividend_per_share": 2.24,
+            "adjusted_ebitda_q2_total": 2829e6,
+            "adjusted_ebitda_h1_total": 5521e6,
+            "adjusted_ebitda_h1_prior_total": 4852e6,
+            "adjusted_ebitda_ltm_total": 10633e6,
+            "gross_debt_total": 33532e6,
+            "cash_total": 246e6,
+            "net_debt_total": 33286e6,
+            "net_debt_to_adjusted_ebitda": 3.13,
+            "net_debt_ratio_basis": "derived_from_official_debt_cash_ltm_ebitda",
+            "adjusted_ebitda_trend_pct": ((5521.0 / 4852.0) - 1.0) * 100.0,
+            "project_backlog_total": 6.5e9,
+            "visibility_points": 10,
+            "capital_allocation_points": 9,
+            "visibility_note": (
+                "$6.5B organische Wachstumsprojekte im Bau; Rekord-Pipeline- und Marine-"
+                "Terminalvolumen sowie breite NGL/Gas/Petrochemie-Infrastruktur stützen hohe Visibilität."
+            ),
+            "capital_allocation_note": (
+                "Q2 Operational DCF deckte die Ausschüttung 1.9x; rund $1.1B wurden einbehalten. "
+                "LTM-Payout inklusive Buybacks lag bei 56% des Adjusted CFFO."
+            ),
+            "source_note": (
+                "EPD wird als MLP mit issuer-definiertem Operational DCF, offizieller Distribution "
+                "Coverage, LTM Adjusted EBITDA und offizieller Schulden-/Cash-Basis bewertet. "
+                "Die Net-Debt/EBITDA-Kennzahl wird transparent aus offiziellen Q2-Werten abgeleitet; "
+                "Yahoo-FCF und Standard-EPS steuern weder Score noch Fair Value."
+            ),
+        }
 
-        # Official per-share / earnings data.
-        "weighted_avg_shares_m": 2225.0,
-        "declared_dividend_q2_per_share": 0.2975,
-        "annualized_dividend_per_share": 1.19,
-        "adjusted_eps_q2": 0.37,
-        "adjusted_eps_h1": 0.84,
+    if symbol_text == "MPLX":
+        return {
+            "symbol": "MPLX",
+            "company": "MPLX LP",
+            "entity_structure": "MLP",
+            "profile_key": "mlp_logistics_natural_gas_ngl",
+            "score_method": "multi_issuer",
+            "valuation_profile": "mlp",
+            "valuation_ready": True,
+            "structural_break_active": False,
+            "as_of_date": "30.06.2026",
+            "published_date": "04.08.2026",
+            "valid_until": "30.10.2026",
+            "source_name": "MPLX Q2 2026 Financial Results",
+            "source_url": "https://ir.mplx.com/CorporateProfile/press-releases/news-release/2026/MPLX-LP-Reports-Second-Quarter-2026-Financial-Results/default.aspx",
+            "period_label": "Q2 / 6M / LTM 2026",
+            "cashflow_metric_name": "MPLX DCF",
+            "payout_label": "Ausschüttungen",
+            "fcf_q2_total": 1450e6,
+            "fcf_q2_prior_total": 1420e6,
+            "fcf_h1_total": 2858e6,
+            "fcf_h1_prior_total": 2906e6,
+            "coverage_q2_direct": 1.30,
+            "coverage_h1_direct": 1.30,
+            "coverage_score_basis": "h1",
+            "dividends_paid_q2_total": 1092e6,
+            "dividends_paid_h1_total": 2184e6,
+            "fcf_after_dividends_q2_total": 358e6,
+            "fcf_after_dividends_h1_total": 674e6,
+            "weighted_avg_shares_m": 1015.0,
+            "annualized_dividend_per_share": 4.306,
+            "adjusted_ebitda_q2_total": 1775e6,
+            "adjusted_ebitda_h1_total": 3504e6,
+            "adjusted_ebitda_h1_prior_total": 3447e6,
+            "adjusted_ebitda_ltm_total": 7074e6,
+            "gross_debt_total": 25640e6,
+            "cash_total": 1031e6,
+            "net_debt_total": 24609e6,
+            "net_debt_to_adjusted_ebitda": 3.7,
+            "net_debt_ratio_basis": "issuer_reported_face_debt_to_ltm_ebitda_for_leverage",
+            "adjusted_ebitda_expected_vs_budget_min_pct": 5.0,
+            "adjusted_ebitda_trend_pct": ((3504.0 / 3447.0) - 1.0) * 100.0,
+            "project_backlog_total": None,
+            "visibility_points": 9,
+            "capital_allocation_points": 8,
+            "visibility_note": (
+                "Harmon Creek III, Permian sour-gas treating, fractionation/export and other "
+                "Natural-Gas/NGL projects support mid-single-digit Adjusted-EBITDA growth."
+            ),
+            "capital_allocation_note": (
+                "DCF coverage was 1.3x in Q2/H1; management expects 12.5% distribution increases "
+                "in 2026 and 2027 while leverage ended Q2 at 3.7x."
+            ),
+            "source_note": (
+                "MPLX wird als MLP mit issuer-definiertem DCF, offizieller Distribution Coverage, "
+                "LTM Adjusted EBITDA und Q2 debt/cash basis bewertet. Der Equity-Value-Bridge zieht "
+                "book debt minus cash ab; der Quality Score uses the issuer-reported 3.7x leverage ratio."
+            ),
+        }
 
-        # Official adjusted EBITDA / balance-sheet anchors.
-        "adjusted_ebitda_q2_total": 2199e6,
-        "adjusted_ebitda_h1_total": 4738e6,
-        "adjusted_ebitda_ltm_total": 9000e6,
-        "net_debt_total": 32027e6,
-        "net_debt_to_adjusted_ebitda": 3.6,
+    if symbol_text == "WMB":
+        return {
+            "symbol": "WMB",
+            "company": "The Williams Companies, Inc.",
+            "entity_structure": "C-Corp",
+            "profile_key": "c_corp_natural_gas_infrastructure",
+            "score_method": "multi_issuer",
+            "valuation_profile": "c_corp",
+            "valuation_ready": False,
+            "structural_break_active": True,
+            "structural_break_label": "Post-Momentum Structural-Break Gate",
+            "structural_break_date": "03.09.2026",
+            "structural_break_reason": (
+                "Williams schloss die rund $5.5B Momentum-Midstream-Übernahme am 03.09.2026. "
+                "Q2 2026 ist operativ pre-Momentum, während der aktuelle Kurs die neue Konzernstruktur "
+                "reflektiert; zusätzlich wurden am 08.09.2026 $2.75B Senior Notes bepreist."
+            ),
+            "as_of_date": "30.06.2026",
+            "published_date": "03.08.2026",
+            "valid_until": "31.10.2026",
+            "source_name": "Williams Q2 2026 Results + Momentum Closing",
+            "source_url": "https://investor.williams.com/news-releases/news-release-details/williams-delivers-strong-second-quarter-2026-results-announces",
+            "structural_break_source_url": "https://investor.williams.com/news-releases/news-release-details/williams-completes-acquisition-momentum-midstream",
+            "period_label": "Q2 / 6M 2026 pre-Momentum",
+            "cashflow_metric_name": "AFFO",
+            "payout_label": "Dividenden",
+            "fcf_q2_total": 1450e6,
+            "fcf_h1_total": 3220e6,
+            "fcf_h1_prior_total": 2762e6,
+            "coverage_q2_direct": 2.26,
+            "coverage_h1_direct": 2.51,
+            "adjusted_ebitda_q2_total": 1921e6,
+            "adjusted_ebitda_h1_total": 4175e6,
+            "net_debt_to_adjusted_ebitda": 3.67,
+            "weighted_avg_shares_m": 1226.0,
+            "adjusted_ebitda_guidance_midpoint_2026": 8.4e9,
+            "source_note": (
+                "WMB Q2/AFFO/coverage/leverage are validated pre-Momentum context only. "
+                "V2.20.131 deliberately does not combine Q2 capital structure with a post-closing share price."
+            ),
+        }
 
-        # 2026 outlook / project visibility.
-        "adjusted_ebitda_budget_2026": 8.6e9,
-        "adjusted_ebitda_expected_vs_budget_min_pct": 5.0,
-        "adjusted_eps_budget_2026": 1.36,
-        "adjusted_eps_expected_vs_budget_min_pct": 12.0,
-        "year_end_leverage_expected": 3.6,
-        "project_backlog_total": 9.6e9,
-        "project_backlog_natural_gas_share_pct": 92.0,
-        "project_backlog_power_ldc_share_min_pct": 60.0,
-        "project_backlog_multiple_scope_total": 8.5e9,
-        "project_backlog_first_year_ebitda_multiple": 5.6,
+    if symbol_text == "OKE":
+        return {
+            "symbol": "OKE",
+            "company": "ONEOK, Inc.",
+            "entity_structure": "C-Corp",
+            "profile_key": "c_corp_integrated_midstream",
+            "score_method": "multi_issuer",
+            "valuation_profile": "c_corp",
+            "valuation_ready": False,
+            "structural_break_active": True,
+            "structural_break_label": "Apollo/Brazos Capital-Structure Transition Gate",
+            "structural_break_date": "10.09.2026",
+            "structural_break_reason": (
+                "ONEOK schloss am 10.09.2026 die $9B Apollo minority-equity investment. "
+                "Rund $5B Schulden sollen getilgt werden; parallel ist die $4.425B Brazos-Midstream-"
+                "Akquisition für Q4 2026 vereinbart. Die aktuelle Kapitalstruktur ist deshalb nicht "
+                "mehr mit dem 30.06.-Snapshot identisch."
+            ),
+            "as_of_date": "30.06.2026",
+            "published_date": "03.08.2026",
+            "valid_until": "31.10.2026",
+            "source_name": "ONEOK Q2 2026 Results + Apollo/Brazos Transactions",
+            "source_url": "https://ir.oneok.com/news-and-events/press-releases/2026/08-03-2026-211637100",
+            "structural_break_source_url": "https://ir.oneok.com/news-and-events/press-releases/2026/09-10-2026-211556751",
+            "period_label": "Q2 / 6M 2026 pre-Apollo/Brazos",
+            "cashflow_metric_name": "Issuer cashflow context",
+            "payout_label": "Dividenden",
+            "adjusted_ebitda_q2_total": 2121e6,
+            "adjusted_ebitda_h1_total": 4118e6,
+            "adjusted_ebitda_h1_prior_total": 3756e6,
+            "adjusted_ebitda_guidance_midpoint_2026": 8.35e9,
+            "annualized_dividend_per_share": 4.28,
+            "source_note": (
+                "OKE Q2 Adjusted EBITDA and guidance are validated operating context only. "
+                "The Apollo close, active debt-repayment program and pending Brazos acquisition "
+                "prevent a reliable current EV/Adjusted-EBITDA equity bridge in V2.20.131."
+            ),
+        }
 
-        "source_note": (
-            "Offizielle Kinder-Morgan-Q2/6M-2026-Daten. KMI FCF, Dividenden, "
-            "Adjusted EBITDA, Net Debt / Adjusted EBITDA und Projekt-Backlog werden "
-            "nicht aus Yahoo-Free-Cashflow, Operating Cashflow oder generischen "
-            "EV/EBITDA-Proxies rekonstruiert. Kinder Morgan bezeichnet die aktuelle "
-            "Cashflow-Kennzahl als FCF; die App erfindet daraus keinen DCF-Wert."
-        ),
-    }
+    return None
 
 
 def _midstream_snapshot_is_fresh(snapshot):
@@ -10672,11 +10873,17 @@ def _midstream_snapshot_is_fresh(snapshot):
 
 
 def build_midstream_primary_source_gate(snapshot):
-    """Validate issuer-defined cashflow, dividend coverage, leverage and backlog."""
+    """Validate the issuer-defined Midstream data while preserving fail-closed breaks."""
     result = {
         "available": False,
+        "context_available": False,
+        "structural_break_active": False,
+        "structural_break_label": None,
+        "structural_break_reason": None,
         "integration_version": MIDSTREAM_PRIMARY_SOURCE_INTEGRATION_VERSION,
+        "entity_structure": None,
         "cashflow_metric_name": None,
+        "payout_label": "Dividenden/Ausschüttungen",
         "fcf_q2_total": None,
         "fcf_h1_total": None,
         "fcf_h1_growth_pct": None,
@@ -10686,6 +10893,7 @@ def build_midstream_primary_source_gate(snapshot):
         "fcf_after_dividends_h1_total": None,
         "coverage_q2": None,
         "coverage_h1": None,
+        "coverage_score_basis": None,
         "adjusted_ebitda_q2_total": None,
         "adjusted_ebitda_h1_total": None,
         "adjusted_ebitda_ltm_total": None,
@@ -10696,21 +10904,20 @@ def build_midstream_primary_source_gate(snapshot):
         "project_backlog_first_year_ebitda_multiple": None,
         "project_backlog_power_ldc_share_min_pct": None,
         "adjusted_ebitda_expected_vs_budget_min_pct": None,
+        "adjusted_ebitda_trend_pct": None,
         "weighted_avg_shares_m": None,
         "annualized_dividend_per_share": None,
+        "visibility_points": None,
+        "capital_allocation_points": None,
+        "visibility_note": None,
+        "capital_allocation_note": None,
         "note": None,
     }
     if not isinstance(snapshot, dict):
-        result["note"] = (
-            "Midstream-Primärquellen-Gate nicht verfügbar: kein verifizierter "
-            "aktueller Midstream-Snapshot."
-        )
+        result["note"] = "Midstream-Primärquellen-Gate nicht verfügbar: kein verifizierter aktueller Midstream-Snapshot."
         return result
     if not _midstream_snapshot_is_fresh(snapshot):
-        result["note"] = (
-            "Midstream-Primärquellen-Gate gesperrt: der offizielle Snapshot ist "
-            "abgelaufen und muss vor einer Bewertung aktualisiert werden."
-        )
+        result["note"] = "Midstream-Primärquellen-Gate gesperrt: der offizielle Snapshot ist abgelaufen und muss aktualisiert werden."
         return result
 
     fcf_q2 = safe_float(snapshot.get("fcf_q2_total"))
@@ -10728,23 +10935,20 @@ def build_midstream_primary_source_gate(snapshot):
     backlog = safe_float(snapshot.get("project_backlog_total"))
     gas_share = safe_float(snapshot.get("project_backlog_natural_gas_share_pct"))
     backlog_multiple = safe_float(snapshot.get("project_backlog_first_year_ebitda_multiple"))
-
-    required = [fcf_q2, fcf_h1, div_q2, div_h1, ebitda_ltm, net_debt, leverage, backlog]
-    if any(v is None or v <= 0 for v in required):
-        result["note"] = (
-            "Midstream-Primärquellen-Gate gesperrt: mindestens eine Pflichtkomponente "
-            "aus issuer-definiertem FCF, Dividenden, Adjusted EBITDA, Net Debt oder "
-            "Projekt-Backlog fehlt."
-        )
-        return result
-
-    coverage_q2 = fcf_q2 / div_q2 if div_q2 > 0 else None
-    coverage_h1 = fcf_h1 / div_h1 if div_h1 > 0 else None
-    growth_h1 = ((fcf_h1 / fcf_h1_prior) - 1.0) * 100.0 if fcf_h1_prior and fcf_h1_prior > 0 else None
+    cov_q2_direct = safe_float(snapshot.get("coverage_q2_direct"))
+    cov_h1_direct = safe_float(snapshot.get("coverage_h1_direct"))
+    coverage_q2 = cov_q2_direct if cov_q2_direct is not None else (fcf_q2 / div_q2 if fcf_q2 and div_q2 and div_q2 > 0 else None)
+    coverage_h1 = cov_h1_direct if cov_h1_direct is not None else (fcf_h1 / div_h1 if fcf_h1 and div_h1 and div_h1 > 0 else None)
+    growth_h1 = ((fcf_h1 / fcf_h1_prior) - 1.0) * 100.0 if fcf_h1 and fcf_h1_prior and fcf_h1_prior > 0 else None
 
     result.update({
-        "available": True,
+        "context_available": True,
+        "structural_break_active": bool(snapshot.get("structural_break_active")),
+        "structural_break_label": snapshot.get("structural_break_label"),
+        "structural_break_reason": snapshot.get("structural_break_reason"),
+        "entity_structure": snapshot.get("entity_structure"),
         "cashflow_metric_name": snapshot.get("cashflow_metric_name") or "Issuer FCF/DCF",
+        "payout_label": snapshot.get("payout_label") or "Dividenden/Ausschüttungen",
         "fcf_q2_total": fcf_q2,
         "fcf_h1_total": fcf_h1,
         "fcf_h1_growth_pct": growth_h1,
@@ -10754,6 +10958,7 @@ def build_midstream_primary_source_gate(snapshot):
         "fcf_after_dividends_h1_total": after_h1,
         "coverage_q2": coverage_q2,
         "coverage_h1": coverage_h1,
+        "coverage_score_basis": snapshot.get("coverage_score_basis") or ("h1" if coverage_h1 is not None else "q2"),
         "adjusted_ebitda_q2_total": ebitda_q2,
         "adjusted_ebitda_h1_total": ebitda_h1,
         "adjusted_ebitda_ltm_total": ebitda_ltm,
@@ -10764,103 +10969,141 @@ def build_midstream_primary_source_gate(snapshot):
         "project_backlog_first_year_ebitda_multiple": backlog_multiple,
         "project_backlog_power_ldc_share_min_pct": safe_float(snapshot.get("project_backlog_power_ldc_share_min_pct")),
         "adjusted_ebitda_expected_vs_budget_min_pct": safe_float(snapshot.get("adjusted_ebitda_expected_vs_budget_min_pct")),
+        "adjusted_ebitda_trend_pct": safe_float(snapshot.get("adjusted_ebitda_trend_pct")),
         "weighted_avg_shares_m": safe_float(snapshot.get("weighted_avg_shares_m")),
         "annualized_dividend_per_share": safe_float(snapshot.get("annualized_dividend_per_share")),
-        "note": (
-            "Midstream-Primärquellen-Gate bestanden: issuer-definierter Cashflow, "
-            "Dividendendeckung, Adjusted EBITDA, Net Debt / Adjusted EBITDA und "
-            "Projekt-Backlog stammen aus den offiziellen Kinder-Morgan-Q2/6M-2026-Unterlagen."
-        ),
+        "visibility_points": safe_float(snapshot.get("visibility_points")),
+        "capital_allocation_points": safe_float(snapshot.get("capital_allocation_points")),
+        "visibility_note": snapshot.get("visibility_note"),
+        "capital_allocation_note": snapshot.get("capital_allocation_note"),
     })
+
+    if snapshot.get("structural_break_active") or not snapshot.get("valuation_ready", False):
+        result["note"] = (
+            "Midstream Structural-Break Gate aktiv: verifizierte operative Primärdaten werden als Kontext gezeigt, "
+            "aber eine heutige EV/Adjusted-EBITDA-Equity-Bridge bleibt gesperrt. "
+            + str(snapshot.get("structural_break_reason") or "Aktuelle Kapitalstruktur nicht ausreichend vergleichbar.")
+        )
+        return result
+
+    score_method = snapshot.get("score_method")
+    if score_method == "legacy_kmi":
+        required = [fcf_q2, fcf_h1, div_q2, div_h1, ebitda_ltm, net_debt, leverage, backlog]
+        if any(v is None or v <= 0 for v in required):
+            result["note"] = "Midstream-Primärquellen-Gate gesperrt: mindestens eine KMI-Pflichtkomponente fehlt."
+            return result
+    else:
+        required = [fcf_q2, fcf_h1, ebitda_ltm, net_debt, leverage, safe_float(snapshot.get("weighted_avg_shares_m"))]
+        coverage_basis = coverage_h1 if result.get("coverage_score_basis") == "h1" else coverage_q2
+        if any(v is None or v <= 0 for v in required) or coverage_basis is None or coverage_basis <= 0:
+            result["note"] = (
+                "Midstream-Primärquellen-Gate gesperrt: issuer-definierter Cashflow, Coverage, LTM Adjusted EBITDA, "
+                "Net Debt, Leverage oder Aktien-/Units-Basis ist nicht vollständig verifiziert."
+            )
+            return result
+
+    result["available"] = True
+    result["note"] = (
+        f"Midstream-Primärquellen-Gate bestanden: {snapshot.get('company')} wird mit issuer-definiertem "
+        "Cashflow, Ausschüttungs-/Dividendendeckung, Adjusted EBITDA, Leverage und profilbezogener "
+        "Projekt-/Asset-Visibilität bewertet. Yahoo-FCF und Standard-EPS bleiben Kontext."
+    )
     return result
 
 
 def build_midstream_quality_score(primary_gate, snapshot=None):
-    """V2.20.52 dedicated 100-point Midstream score from verified issuer data only.
-
-    The standard revenue/EPS/ROE/Yahoo-FCF score is deliberately excluded. The
-    score focuses on cash generation after capex, dividend coverage, leverage,
-    management's current Adjusted-EBITDA outlook and backlog economics/visibility.
-    """
+    """100-point Midstream score; KMI legacy math is preserved exactly."""
     gate = primary_gate if isinstance(primary_gate, dict) else {}
     snap = snapshot if isinstance(snapshot, dict) else {}
-    result = {
-        "available": False, "score": None, "quality_level": None,
-        "components": {}, "note": None,
-    }
+    result = {"available": False, "score": None, "quality_level": None, "components": {}, "note": None}
     if not gate.get("available"):
         result["note"] = "Midstream-Score gesperrt: Primärquellen-Gate nicht bestanden."
         return result
 
     fcf_growth = safe_float(gate.get("fcf_h1_growth_pct"))
-    coverage = safe_float(gate.get("coverage_h1"))
     leverage = safe_float(gate.get("net_debt_to_adjusted_ebitda"))
-    outlook = safe_float(gate.get("adjusted_ebitda_expected_vs_budget_min_pct"))
-    gas_share = safe_float(gate.get("project_backlog_natural_gas_share_pct"))
-    power_ldc = safe_float(gate.get("project_backlog_power_ldc_share_min_pct"))
-    project_multiple = safe_float(gate.get("project_backlog_first_year_ebitda_multiple"))
+    coverage_basis = gate.get("coverage_score_basis") or "h1"
+    coverage = safe_float(gate.get("coverage_h1" if coverage_basis == "h1" else "coverage_q2"))
 
-    required = [fcf_growth, coverage, leverage, outlook, gas_share, power_ldc, project_multiple]
-    if any(v is None for v in required):
-        result["note"] = "Midstream-Score gesperrt: mindestens eine verifizierte Qualitätskomponente fehlt."
-        return result
-
-    # 20 pts: issuer-defined FCF growth.
-    gp = 20 if fcf_growth >= 15 else 18 if fcf_growth >= 10 else 15 if fcf_growth >= 5 else 10 if fcf_growth >= 0 else 0
-    # 20 pts: dividend coverage from the same issuer-defined cashflow measure.
-    cp = 20 if coverage >= 1.50 else 18 if coverage >= 1.30 else 16 if coverage >= 1.20 else 12 if coverage >= 1.10 else 8 if coverage >= 1.00 else 0
-    # 25 pts: official Net Debt / Adjusted EBITDA.
-    lp = 25 if leverage <= 3.0 else 23 if leverage <= 3.5 else 20 if leverage <= 4.0 else 15 if leverage <= 4.5 else 8 if leverage <= 5.0 else 0
-    # 15 pts: current official Adjusted-EBITDA outlook versus budget.
-    op = 15 if outlook >= 10 else 13 if outlook >= 5 else 9 if outlook >= 0 else 3
-    # 10 pts: backlog visibility / demand mix. Both official mix fields must support the score.
-    if gas_share >= 85 and power_ldc >= 50:
-        bp = 10
-    elif gas_share >= 75 and power_ldc >= 40:
-        bp = 8
-    elif gas_share >= 60:
-        bp = 6
-    elif gas_share >= 40:
-        bp = 3
+    if snap.get("score_method") == "legacy_kmi":
+        outlook = safe_float(gate.get("adjusted_ebitda_expected_vs_budget_min_pct"))
+        gas_share = safe_float(gate.get("project_backlog_natural_gas_share_pct"))
+        power_ldc = safe_float(gate.get("project_backlog_power_ldc_share_min_pct"))
+        project_multiple = safe_float(gate.get("project_backlog_first_year_ebitda_multiple"))
+        required = [fcf_growth, coverage, leverage, outlook, gas_share, power_ldc, project_multiple]
+        if any(v is None for v in required):
+            result["note"] = "Midstream-Score gesperrt: mindestens eine verifizierte KMI-Qualitätskomponente fehlt."
+            return result
+        gp = 20 if fcf_growth >= 15 else 18 if fcf_growth >= 10 else 15 if fcf_growth >= 5 else 10 if fcf_growth >= 0 else 0
+        cp = 20 if coverage >= 1.50 else 18 if coverage >= 1.30 else 16 if coverage >= 1.20 else 12 if coverage >= 1.10 else 8 if coverage >= 1.00 else 0
+        lp = 25 if leverage <= 3.0 else 23 if leverage <= 3.5 else 20 if leverage <= 4.0 else 15 if leverage <= 4.5 else 8 if leverage <= 5.0 else 0
+        op = 15 if outlook >= 10 else 13 if outlook >= 5 else 9 if outlook >= 0 else 3
+        if gas_share >= 85 and power_ldc >= 50:
+            bp = 10
+        elif gas_share >= 75 and power_ldc >= 40:
+            bp = 8
+        elif gas_share >= 60:
+            bp = 6
+        elif gas_share >= 40:
+            bp = 3
+        else:
+            bp = 0
+        pp = 10 if project_multiple <= 5.0 else 9 if project_multiple <= 6.0 else 7 if project_multiple <= 7.0 else 5 if project_multiple <= 8.0 else 2 if project_multiple <= 10.0 else 0
+        score = gp + cp + lp + op + bp + pp
+        components = {
+            "cashflow_growth": {"value": fcf_growth, "points": gp, "max": 20},
+            "payout_coverage": {"value": coverage, "points": cp, "max": 20},
+            "leverage": {"value": leverage, "points": lp, "max": 25},
+            "ebitda_trend_outlook": {"value": outlook, "points": op, "max": 15},
+            "asset_visibility": {"points": bp, "max": 10},
+            "capital_project_economics": {"value": project_multiple, "points": pp, "max": 10},
+        }
     else:
-        bp = 0
-    # 10 pts: first-full-year Project EBITDA multiple. Lower is better.
-    pp = 10 if project_multiple <= 5.0 else 9 if project_multiple <= 6.0 else 7 if project_multiple <= 7.0 else 5 if project_multiple <= 8.0 else 2 if project_multiple <= 10.0 else 0
+        ebitda_trend = safe_float(gate.get("adjusted_ebitda_trend_pct"))
+        outlook = safe_float(gate.get("adjusted_ebitda_expected_vs_budget_min_pct"))
+        trend_basis = outlook if outlook is not None else ebitda_trend
+        visibility_points = safe_float(gate.get("visibility_points"))
+        capital_points = safe_float(gate.get("capital_allocation_points"))
+        required = [fcf_growth, coverage, leverage, trend_basis, visibility_points, capital_points]
+        if any(v is None for v in required):
+            result["note"] = "Midstream-Score gesperrt: mindestens eine Multi-Issuer-Qualitätskomponente fehlt."
+            return result
+        gp = 20 if fcf_growth >= 15 else 18 if fcf_growth >= 10 else 15 if fcf_growth >= 5 else 10 if fcf_growth >= 0 else 8 if fcf_growth >= -5 else 3 if fcf_growth >= -10 else 0
+        cp = 20 if coverage >= 1.50 else 18 if coverage >= 1.30 else 16 if coverage >= 1.20 else 12 if coverage >= 1.10 else 8 if coverage >= 1.00 else 0
+        lp = 25 if leverage <= 3.0 else 23 if leverage <= 3.5 else 20 if leverage <= 4.0 else 15 if leverage <= 4.5 else 8 if leverage <= 5.0 else 0
+        op = 15 if trend_basis >= 10 else 13 if trend_basis >= 5 else 11 if trend_basis >= 2 else 9 if trend_basis >= 0 else 4
+        bp = int(max(0, min(10, round(visibility_points))))
+        pp = int(max(0, min(10, round(capital_points))))
+        score = gp + cp + lp + op + bp + pp
+        components = {
+            "cashflow_growth": {"value": fcf_growth, "points": gp, "max": 20},
+            "payout_coverage": {"value": coverage, "basis": coverage_basis, "points": cp, "max": 20},
+            "leverage": {"value": leverage, "points": lp, "max": 25},
+            "ebitda_trend_outlook": {"value": trend_basis, "points": op, "max": 15},
+            "asset_project_visibility": {"points": bp, "max": 10, "note": gate.get("visibility_note")},
+            "capital_allocation_distribution_durability": {"points": pp, "max": 10, "note": gate.get("capital_allocation_note")},
+        }
 
-    score = gp + cp + lp + op + bp + pp
     level = "Sehr hoch" if score >= 85 else "Hoch" if score >= 75 else "Solide" if score >= 65 else "Mittel" if score >= 55 else "Schwach"
     result.update({
         "available": True,
         "score": float(score),
         "quality_level": level,
-        "components": {
-            "fcf_growth": {"value": fcf_growth, "points": gp, "max": 20},
-            "dividend_coverage": {"value": coverage, "points": cp, "max": 20},
-            "leverage": {"value": leverage, "points": lp, "max": 25},
-            "ebitda_outlook": {"value": outlook, "points": op, "max": 15},
-            "backlog_visibility": {"gas_share": gas_share, "power_ldc_share_min": power_ldc, "points": bp, "max": 10},
-            "project_economics": {"value": project_multiple, "points": pp, "max": 10},
-        },
+        "components": components,
         "note": (
-            "Midstream-Score verwendet ausschließlich verifizierte issuer-definierte FCF-/"
-            "Dividendendeckungs-, Adjusted-EBITDA-, Verschuldungs- und Backlog-Kennzahlen. "
+            "Midstream Multi-Issuer Score verwendet ausschließlich verifizierte issuer-definierte Cashflow-/"
+            "Coverage-, Adjusted-EBITDA-, Leverage-, Projekt-/Asset-Visibilitäts- und Kapitalallokationsdaten. "
             "Standard-EPS, Yahoo-FCF, Nettomarge und generischer ROE fließen nicht ein."
         ),
     })
     return result
 
 
-def build_midstream_ev_ebitda_valuation(primary_gate, midstream_score, price_financial=None):
-    """Score-controlled EV/Adjusted-EBITDA bridge to equity value per share.
-
-    Fair enterprise value = official LTM Adjusted EBITDA × target multiple.
-    Fair equity value = fair enterprise value − official Net Debt.
-    Fair value/share = fair equity value ÷ official weighted-average shares.
-    The current EV/Adjusted-EBITDA reference is built on the same official
-    denominator and debt definition, avoiding Yahoo EBITDA as a valuation input.
-    """
+def build_midstream_ev_ebitda_valuation(primary_gate, midstream_score, price_financial=None, snapshot=None):
+    """Score-controlled EV/Adjusted-EBITDA bridge to equity value per share."""
     gate = primary_gate if isinstance(primary_gate, dict) else {}
     score_block = midstream_score if isinstance(midstream_score, dict) else {}
+    snap = snapshot if isinstance(snapshot, dict) else {}
     result = {
         "available": False, "target_ev_adjusted_ebitda": None,
         "corridor_low": None, "corridor_high": None,
@@ -10869,34 +11112,67 @@ def build_midstream_ev_ebitda_valuation(primary_gate, midstream_score, price_fin
         "fair_equity_value": None, "fair_value_financial": None,
         "current_ev_adjusted_ebitda": None, "note": None,
     }
+    if gate.get("structural_break_active") or not snap.get("valuation_ready", False):
+        result["note"] = "Midstream-EV/Adjusted-EBITDA-Anker gesperrt: aktueller Structural-Break/Capital-Structure-Gate aktiv."
+        return result
     score = safe_float(score_block.get("score"))
     ebitda = safe_float(gate.get("adjusted_ebitda_ltm_total"))
     net_debt = safe_float(gate.get("net_debt_total"))
     shares_m = safe_float(gate.get("weighted_avg_shares_m"))
     price = safe_float(price_financial)
-    if (
-        not gate.get("available") or not score_block.get("available")
-        or score is None or ebitda is None or ebitda <= 0
-        or net_debt is None or net_debt < 0
-        or shares_m is None or shares_m <= 0
-    ):
-        result["note"] = "Midstream-EV/Adjusted-EBITDA-Anker gesperrt: Primärdaten, Score, EBITDA, Net Debt oder Aktienbasis fehlen."
+    if not gate.get("available") or not score_block.get("available") or score is None or ebitda is None or ebitda <= 0 or net_debt is None or net_debt < 0 or shares_m is None or shares_m <= 0:
+        result["note"] = "Midstream-EV/Adjusted-EBITDA-Anker gesperrt: Primärdaten, Score, EBITDA, Net Debt oder Aktien-/Units-Basis fehlen."
         return result
 
-    if score >= 90:
-        target = 11.50
-    elif score >= 85:
-        target = 11.25
-    elif score >= 80:
-        target = 11.00
-    elif score >= 70:
-        target = 10.50
-    elif score >= 60:
-        target = 10.00
+    profile = snap.get("valuation_profile") or "c_corp"
+    if snap.get("score_method") == "legacy_kmi":
+        if score >= 90:
+            target = 11.50
+        elif score >= 85:
+            target = 11.25
+        elif score >= 80:
+            target = 11.00
+        elif score >= 70:
+            target = 10.50
+        elif score >= 60:
+            target = 10.00
+        else:
+            target = 9.00
+        low = max(7.5, target - 0.75)
+        high = target + 0.75
+    elif profile == "mlp":
+        if score >= 90:
+            target = 11.75
+        elif score >= 85:
+            target = 11.50
+        elif score >= 80:
+            target = 11.25
+        elif score >= 75:
+            target = 11.00
+        elif score >= 70:
+            target = 10.75
+        elif score >= 60:
+            target = 10.25
+        else:
+            target = 9.50
+        low = max(8.5, target - 0.75)
+        high = target + 0.75
     else:
-        target = 9.00
-    low = max(7.5, target - 0.75)
-    high = target + 0.75
+        if score >= 90:
+            target = 11.50
+        elif score >= 85:
+            target = 11.25
+        elif score >= 80:
+            target = 11.00
+        elif score >= 70:
+            target = 10.50
+        elif score >= 60:
+            target = 10.00
+        else:
+            target = 9.00
+        low = max(7.5, target - 0.75)
+        high = target + 0.75
+
     shares = shares_m * 1e6
     fair_ev = ebitda * target
     fair_equity = fair_ev - net_debt
@@ -10908,7 +11184,6 @@ def build_midstream_ev_ebitda_valuation(primary_gate, midstream_score, price_fin
     if price is not None and price > 0:
         current_equity = price * shares
         current_ev_multiple = (current_equity + net_debt) / ebitda
-
     result.update({
         "available": True,
         "target_ev_adjusted_ebitda": target,
@@ -10922,119 +11197,47 @@ def build_midstream_ev_ebitda_valuation(primary_gate, midstream_score, price_fin
         "fair_value_financial": fair_value,
         "current_ev_adjusted_ebitda": current_ev_multiple,
         "note": (
-            "V2.20.52 bildet zunächst den scoregesteuerten EV/Adjusted-EBITDA-Fundamentalaner. "
-            "Der Enterprise Value wird mit dem offiziellen LTM Adjusted EBITDA ermittelt, danach "
-            "wird die offizielle Nettoverschuldung abgezogen und durch die offizielle Aktienbasis geteilt. "
-            "Ein regelkonformer Peer-Median kann diesen Fundamentalanker anschließend um höchstens ±5 % bewegen."
+            f"V2.20.131 nutzt den {snap.get('entity_structure') or 'Midstream'}-Profilkorridor als scoregesteuerten "
+            "Fundamentalaner. Fair EV = offizielles LTM Adjusted EBITDA × Zielmultiple; danach wird die "
+            "verifizierte Nettoverschuldung abgezogen und durch die offizielle Aktien-/Units-Basis geteilt. "
+            "Peer-Multiples bleiben reference-only."
         ),
     })
     return result
 
 
 def apply_midstream_peer_overlay(midstream_valuation, peer_check):
-    """Apply a peer overlay only after the Midstream comparability gate passes.
-
-    Two independent protections are used:
-    1) the peer proposal may move the score-derived EV/Adjusted-EBITDA multiple
-       by at most ±5 %;
-    2) even then, the resulting fair value per share may move by at most ±5 %
-       versus the pure fundamental fair value. Because leverage magnifies EV
-       changes at equity level, the second cap is essential.
-    """
+    """V2.20.131: Midstream peers are reference-only; never move own fair value."""
     mv = dict(midstream_valuation or {})
     if not mv.get("available"):
         return mv
-
     base = safe_float(mv.get("target_ev_adjusted_ebitda"))
-    ebitda = safe_float(mv.get("adjusted_ebitda_basis"))
-    net_debt = safe_float(mv.get("official_net_debt"))
-    shares = safe_float(mv.get("shares_basis"))
     base_fair_value = safe_float(mv.get("fair_value_financial"))
-
     mv["fundamental_target_ev_adjusted_ebitda"] = base
     mv["fundamental_fair_value_financial"] = base_fair_value
     mv["peer_overlay_applied"] = False
-    mv["peer_comparability_gate_passed"] = bool((peer_check or {}).get("comparability_gate_passed"))
+    mv["peer_comparability_gate_passed"] = False
     mv["peer_reference_median_ev_ebitda"] = safe_float((peer_check or {}).get("peer_median"))
-    mv["peer_median_ev_ebitda"] = safe_float((peer_check or {}).get("eligible_peer_median"))
+    mv["peer_median_ev_ebitda"] = None
     mv["peer_reference_count"] = int((peer_check or {}).get("usable_count") or 0)
-    mv["peer_eligible_count"] = int((peer_check or {}).get("adjustment_eligible_count") or 0)
-    mv["peer_proposed_multiple_adjustment_pct"] = safe_float((peer_check or {}).get("adjustment_pct")) or 0.0
+    mv["peer_eligible_count"] = 0
+    mv["peer_proposed_multiple_adjustment_pct"] = 0.0
     mv["peer_adjustment_pct"] = 0.0
     mv["peer_fair_value_effect_raw_pct"] = 0.0
     mv["peer_fair_value_effect_used_pct"] = 0.0
-    mv["peer_fair_value_cap_pct"] = 0.05
+    mv["peer_fair_value_cap_pct"] = 0.0
     mv["peer_fair_value_cap_applied"] = False
-
-    if not (peer_check or {}).get("applied"):
-        mv["note"] = (
-            "V2.20.52 hält den scoregesteuerten EV/Adjusted-EBITDA-Anker unverändert, "
-            "wenn das Midstream-Comparability-Gate nicht mindestens drei voll vergleichbare "
-            "Peers freigibt. Geladene generische Yahoo-EV/EBITDA-Werte bleiben dann reine "
-            "Plausibilitätsreferenz und verändern den Fair Value nicht."
-        )
-        return mv
-
-    proposed_multiple = safe_float((peer_check or {}).get("adjusted_multiple"))
-    if (
-        proposed_multiple is None or proposed_multiple <= 0
-        or base is None or base <= 0
-        or ebitda is None or ebitda <= 0
-        or net_debt is None or shares is None or shares <= 0
-        or base_fair_value is None or base_fair_value <= 0
-    ):
-        return mv
-
-    candidate_ev = ebitda * proposed_multiple
-    candidate_equity = candidate_ev - net_debt
-    if candidate_equity <= 0:
-        return mv
-    candidate_fv = candidate_equity / shares
-    raw_fv_effect = candidate_fv / base_fair_value - 1.0
-    used_fv_effect = max(-0.05, min(0.05, raw_fv_effect))
-    capped_fv = base_fair_value * (1.0 + used_fv_effect)
-    capped_equity = capped_fv * shares
-    capped_ev = capped_equity + net_debt
-    final_multiple = capped_ev / ebitda
-    if final_multiple <= 0 or capped_equity <= 0:
-        return mv
-
-    mv.update({
-        "peer_overlay_applied": True,
-        "peer_proposed_adjusted_multiple": proposed_multiple,
-        "peer_proposed_fair_value_financial": candidate_fv,
-        "peer_fair_value_effect_raw_pct": raw_fv_effect,
-        "peer_fair_value_effect_used_pct": used_fv_effect,
-        "peer_fair_value_cap_applied": abs(raw_fv_effect - used_fv_effect) > 1e-9,
-        "target_ev_adjusted_ebitda": final_multiple,
-        "peer_adjustment_pct": final_multiple / base - 1.0,
-        "fair_enterprise_value": capped_ev,
-        "fair_equity_value": capped_equity,
-        "fair_value_financial": capped_fv,
-        "note": (
-            "V2.20.52 verwendet nur voll vergleichbare Midstream-Peers für eine automatische "
-            "Anpassung. Der Peer-Vorschlag ist zunächst auf ±5 % beim Multiple begrenzt. Zusätzlich "
-            "ist der resultierende Fair-Value-Effekt gegenüber dem reinen Fundamentalfairvalue auf "
-            "±5 % begrenzt, damit Verschuldungshebel den Peer-Einfluss nicht überproportional verstärkt."
-        ),
-    })
+    mv["note"] = (
+        "V2.20.131 Midstream Peer Lock: WMB/OKE/KMI/EPD/MPLX können als Markt-Referenzen gezeigt werden, "
+        "aber unterschiedliche C-Corp/MLP-Strukturen, issuer-definierte Cashflow-Metriken und EBITDA-/"
+        "Kapitalstrukturbasen verhindern eine automatische Peer-Anpassung. Eigener Score, Zielmultiple und "
+        "Fair Value bleiben issuer-spezifisch."
+    )
     return mv
 
 
-
-def build_midstream_special_model(
-    company_type,
-    info,
-    price,
-    currency_context,
-    symbol=None
-):
-    """Midstream-specific primary-source model plus released V2.20.52 valuation.
-
-    Yahoo EV/EBITDA and standard FCF remain contextual. The released valuation
-    uses only the dedicated Midstream score and the official Adjusted EBITDA /
-    Net Debt / share-count bridge.
-    """
+def build_midstream_special_model(company_type, info, price, currency_context, symbol=None):
+    """V2.20.131 Midstream multi-issuer primary-source model."""
     type_name = str(company_type.get("type", "")).lower()
     if "midstream" not in type_name:
         return {"applicable": False}
@@ -11043,11 +11246,11 @@ def build_midstream_special_model(
     snapshot_fresh = _midstream_snapshot_is_fresh(snapshot)
     primary_gate = build_midstream_primary_source_gate(snapshot)
     primary_source_complete = bool(snapshot_fresh and primary_gate.get("available"))
-
-    midstream_score = build_midstream_quality_score(primary_gate, snapshot) if primary_source_complete else {"available": False}
+    structural_break_active = bool(primary_gate.get("structural_break_active"))
+    midstream_score = build_midstream_quality_score(primary_gate, snapshot) if primary_source_complete else {"available": False, "note": "Midstream-Score gesperrt."}
     quote_price = safe_float(price)
     price_financial = convert_quote_price_to_financial_share_unit(quote_price, currency_context)
-    midstream_valuation = build_midstream_ev_ebitda_valuation(primary_gate, midstream_score, price_financial)
+    midstream_valuation = build_midstream_ev_ebitda_valuation(primary_gate, midstream_score, price_financial, snapshot)
 
     enterprise_value = safe_float(info.get("enterpriseValue"))
     ebitda = safe_float(info.get("ebitda"))
@@ -11056,55 +11259,42 @@ def build_midstream_special_model(
     total_debt = safe_float(info.get("totalDebt"))
     operating_cashflow = safe_float(info.get("operatingCashflow"))
     free_cashflow_reference = safe_float(info.get("freeCashflow"))
-
     calculated_ev_to_ebitda = None
     if enterprise_value is not None and enterprise_value > 0 and ebitda is not None and ebitda > 0:
         calculated_ev_to_ebitda = enterprise_value / ebitda
 
     ev_to_ebitda_display = None
     ev_to_ebitda_status = "unverified"
-    ev_to_ebitda_note = None
     if calculated_ev_to_ebitda is None:
-        ev_to_ebitda_note = (
-            "Yahoo-EV/EBITDA konnte aus Enterprise Value und EBITDA nicht belastbar "
-            "berechnet werden. Es wird kein Wert geschätzt."
-        )
+        ev_to_ebitda_note = "Yahoo-EV/EBITDA konnte aus Enterprise Value und EBITDA nicht belastbar berechnet werden."
     elif yahoo_ev_to_ebitda is not None and yahoo_ev_to_ebitda > 0:
         ev_deviation = abs(calculated_ev_to_ebitda / yahoo_ev_to_ebitda - 1.0)
         if ev_deviation <= 0.20:
             ev_to_ebitda_display = calculated_ev_to_ebitda
             ev_to_ebitda_status = "plausible"
-            ev_to_ebitda_note = (
-                "Yahoo-EV/EBITDA-Plausibilitätscheck bestanden. Der Wert bleibt nur "
-                "Kontext; für die Midstream-Kernprüfung gilt das offizielle Adjusted EBITDA."
-            )
+            ev_to_ebitda_note = "Yahoo-EV/EBITDA-Plausibilitätscheck bestanden; Wert bleibt ausschließlich Kontext."
         else:
             ev_to_ebitda_status = "conflict"
-            ev_to_ebitda_note = (
-                "⚠️ Yahoo-EV/EBITDA nicht belastbar: selbst berechnete Kennzahl und "
-                "Yahoo-enterpriseToEbitda weichen um mehr als 20 % voneinander ab."
-            )
+            ev_to_ebitda_note = "⚠️ Yahoo-EV/EBITDA-Kontextwerte weichen um mehr als 20 % voneinander ab."
     else:
-        ev_to_ebitda_note = (
-            "Yahoo-EV/EBITDA konnte berechnet werden, aber ein separater Yahoo-Anker fehlt. "
-            "Der Wert wird nicht als belastbare Kernkennzahl verwendet."
-        )
+        ev_to_ebitda_note = "Yahoo-EV/EBITDA-Kontext ist unvollständig und wird nicht als Kernkennzahl verwendet."
 
     net_debt = total_debt - total_cash if total_debt is not None and total_cash is not None else None
-    net_debt_to_ebitda = (
-        net_debt / ebitda
-        if net_debt is not None and net_debt > 0 and ebitda is not None and ebitda > 0
-        else None
-    )
-
+    net_debt_to_ebitda = net_debt / ebitda if net_debt is not None and net_debt > 0 and ebitda is not None and ebitda > 0 else None
     available_anchors = sum(v is not None for v in [ev_to_ebitda_display, net_debt_to_ebitda, operating_cashflow])
-    readiness = "Primärdaten vollständig" if primary_source_complete else ("Teilweise" if available_anchors >= 2 else "Unvollständig")
+    if structural_break_active:
+        readiness = "Primärdaten validiert · Structural Break · Bewertung gesperrt"
+    elif primary_source_complete:
+        readiness = "Primärdaten vollständig"
+    else:
+        readiness = "Teilweise" if available_anchors >= 2 else "Unvollständig"
 
     return {
         "applicable": True,
         "snapshot": snapshot,
         "snapshot_fresh": snapshot_fresh,
         "primary_source_complete": primary_source_complete,
+        "structural_break_active": structural_break_active,
         "primary_gate": primary_gate,
         "integration_version": MIDSTREAM_PRIMARY_SOURCE_INTEGRATION_VERSION,
         "midstream_score": midstream_score,
@@ -11123,29 +11313,44 @@ def build_midstream_special_model(
         "net_debt_to_ebitda": net_debt_to_ebitda,
         "operating_cashflow": operating_cashflow,
         "free_cashflow_reference": free_cashflow_reference,
-        "distributable_cashflow_available": False,
+        "distributable_cashflow_available": bool(snapshot and "DCF" in str(snapshot.get("cashflow_metric_name") or "")),
         "readiness": readiness,
         "note": (
-            "Midstream-Sondermodell V2.20.52 trennt offizielle issuer-definierte "
-            "Cashflow-/Dividendendeckungs-, Adjusted-EBITDA-, Verschuldungs- und "
-            "Backlog-Kennzahlen von Yahoo-Kontextdaten. Für KMI wird die offiziell "
-            "gemeldete Kennzahl KMI FCF verwendet; ein DCF-Wert wird nicht erfunden. "
-            "Bei vollständigem Gate steuert der eigene Midstream-Score einen EV/Adjusted-EBITDA-Anker."
+            "Midstream Multi-Issuer Specialist V2 trennt issuer-definierte FCF/DCF/AFFO-, Coverage-, "
+            "Adjusted-EBITDA-, Leverage-, Projekt-/Asset- und Kapitalallokationskennzahlen von Yahoo-Kontextdaten. "
+            "KMI bleibt auf seiner freigegebenen Legacy-Mathematik; EPD/MPLX use MLP profiles; WMB/OKE stay fail-closed "
+            "while current structural/capital-structure transitions are unresolved."
         ),
     }
 
 
 def build_midstream_special_control(base_control, midstream_model):
-    """Attach the fail-closed Midstream primary-source gate to step 3B."""
+    """Attach the fail-closed V2.20.131 Midstream gate to step 3B."""
     control = dict(base_control or {})
     control.setdefault("router_status", control.get("status"))
     control.setdefault("router_note", control.get("note"))
     if control.get("control_key") != "midstream_cashflow_leverage":
         return control
-
     model = midstream_model if isinstance(midstream_model, dict) else {}
     snapshot = model.get("snapshot")
     gate = model.get("primary_gate") or {}
+
+    if model.get("structural_break_active"):
+        control.update({
+            "implemented": True,
+            "released": False,
+            "confidence_cap": "Niedrig",
+            "step3b_status": gate.get("structural_break_label") or "Midstream Structural-Break Gate aktiv",
+            "overall_status": "Nicht freigegeben – Structural Break",
+            "snapshot": snapshot,
+            "checks": {"primary_gate": gate},
+            "note": (
+                "Aktuelle issuer-primary Betriebsdaten sind vorhanden, aber die heutige Kapitalstruktur ist durch "
+                "eine wesentliche Post-Q2-Transaktion nicht same-basis mit dem Q2-Snapshot. Deshalb bleiben Score, "
+                "Zielmultiple, Fair Value und Handlungssignale fail-closed. " + str(gate.get("structural_break_reason") or "")
+            ),
+        })
+        return control
 
     if not model.get("primary_source_complete"):
         control.update({
@@ -11157,10 +11362,9 @@ def build_midstream_special_control(base_control, midstream_model):
             "snapshot": snapshot,
             "checks": {"primary_gate": gate},
             "note": (
-                "Die Midstream-Spezialkontrolle benötigt aktuelle offizielle "
-                "issuer-definierte FCF/DCF-, Dividendendeckungs-, Adjusted-EBITDA-, "
-                "Net-Debt- und Backlog-Daten. Fehlende Werte werden nicht aus Yahoo-FCF, "
-                "Operating Cashflow oder generischen Bilanz-Proxies geschätzt."
+                "Die Midstream-Spezialkontrolle benötigt aktuelle offizielle issuer-definierte Cashflow-/Coverage-, "
+                "Adjusted-EBITDA-, Net-Debt-/Leverage- und Aktien-/Units-Daten. Fehlende Werte werden nicht aus "
+                "Yahoo-FCF, Operating Cashflow oder generischen Bilanz-Proxies geschätzt."
             ),
         })
         return control
@@ -11172,10 +11376,7 @@ def build_midstream_special_control(base_control, midstream_model):
         "implemented": True,
         "released": valuation_released,
         "confidence_cap": "Mittel",
-        "step3b_status": (
-            "Midstream-Bewertung freigegeben – Quality Score + EV/Adjusted EBITDA"
-            if valuation_released else "Primärdaten vollständig – Midstream-Bewertung noch gesperrt"
-        ),
+        "step3b_status": "Midstream-Bewertung freigegeben – Multi-Issuer Quality Score + EV/Adjusted EBITDA" if valuation_released else "Primärdaten vollständig – Midstream-Bewertung noch gesperrt",
         "overall_status": "Freigegeben" if valuation_released else "Primärdaten vollständig",
         "snapshot": snapshot,
         "checks": {
@@ -11183,25 +11384,23 @@ def build_midstream_special_control(base_control, midstream_model):
             "midstream_score": midstream_score,
             "midstream_valuation": midstream_valuation,
             **{k: gate.get(k) for k in [
-                "cashflow_metric_name", "fcf_q2_total", "fcf_h1_total", "fcf_h1_growth_pct",
-                "dividends_paid_q2_total", "dividends_paid_h1_total",
-                "fcf_after_dividends_q2_total", "fcf_after_dividends_h1_total",
-                "coverage_q2", "coverage_h1", "adjusted_ebitda_q2_total",
-                "adjusted_ebitda_h1_total", "adjusted_ebitda_ltm_total", "net_debt_total",
-                "net_debt_to_adjusted_ebitda", "project_backlog_total",
-                "project_backlog_natural_gas_share_pct", "project_backlog_first_year_ebitda_multiple",
-                "project_backlog_power_ldc_share_min_pct", "adjusted_ebitda_expected_vs_budget_min_pct",
-                "weighted_avg_shares_m", "annualized_dividend_per_share"
+                "cashflow_metric_name", "payout_label", "fcf_q2_total", "fcf_h1_total", "fcf_h1_growth_pct",
+                "dividends_paid_q2_total", "dividends_paid_h1_total", "fcf_after_dividends_q2_total", "fcf_after_dividends_h1_total",
+                "coverage_q2", "coverage_h1", "adjusted_ebitda_q2_total", "adjusted_ebitda_h1_total", "adjusted_ebitda_ltm_total",
+                "net_debt_total", "net_debt_to_adjusted_ebitda", "project_backlog_total", "project_backlog_natural_gas_share_pct",
+                "project_backlog_first_year_ebitda_multiple", "project_backlog_power_ldc_share_min_pct",
+                "adjusted_ebitda_expected_vs_budget_min_pct", "adjusted_ebitda_trend_pct", "weighted_avg_shares_m",
+                "annualized_dividend_per_share", "visibility_points", "capital_allocation_points"
             ]},
         },
         "note": (
-            "Midstream-Schritt 3B V2.20.52 validiert die offizielle Cashflow-/Dividendendeckungsbasis, "
-            "Adjusted EBITDA, Net Debt / Adjusted EBITDA und Projekt-Backlog und gibt danach den "
-            "eigenen Midstream-Quality-Score sowie den EV/Adjusted-EBITDA-Equity-Value-Bridge frei. "
-            "Yahoo-EV/EBITDA bleibt Kontext; fehlende Primärdaten sperren die Bewertung fail-closed."
+            "Midstream-Schritt 3B V2.20.131 validiert issuer-definierten Cashflow/Coverage, LTM Adjusted EBITDA, "
+            "Leverage/Net Debt, Projekt-/Asset-Visibilität und die Aktien-/Units-Basis. Peer-EV/EBITDA bleibt "
+            "reference-only; fehlende oder strukturell nicht vergleichbare Primärdaten sperren die Bewertung fail-closed."
         ),
     })
     return control
+
 
 
 # =========================================================
@@ -19282,10 +19481,9 @@ def get_peer_group(company_type, symbol, industry=None):
                     )
                     if key == "autozulieferer / zyklisch"
                     else (
-                        "Midstream-Peer-Gruppe automatisch ausgewählt. Verwendet werden große "
-                        "nordamerikanische Infrastrukturunternehmen. V2.20.52 trennt Referenz-Peers "
-                        "von voll vergleichbaren Anpassungs-Peers. Generische Yahoo-EV/EBITDA-Werte "
-                        "dürfen ohne bestandenes Comparability Gate nur als Plausibilitätsreferenz dienen."
+                        "Midstream-Peer-Gruppe automatisch ausgewählt. WMB, OKE, KMI, EPD und MPLX "
+                        "dienen in V2.20.131 ausschließlich als Markt-/Plausibilitätsreferenzen. "
+                        "Generische Yahoo-EV/EBITDA-Werte verändern weder Zielmultiple noch Fair Value."
                     )
                     if key == "öl & gas / midstream"
                     else (
@@ -19930,33 +20128,31 @@ MIDSTREAM_PEER_COMPARABILITY = {
     "WMB": {
         "structure": "C-Corp",
         "structure_comparable": True,
-        "structure_note": "Unternehmensstruktur mit KMI grundsätzlich vergleichbar.",
+        "structure_note": "C-Corp-Struktur; Markt-Referenz innerhalb des Midstream-Clusters.",
     },
     "OKE": {
         "structure": "C-Corp",
         "structure_comparable": True,
-        "structure_note": "Unternehmensstruktur mit KMI grundsätzlich vergleichbar.",
+        "structure_note": "C-Corp-Struktur; Markt-Referenz innerhalb des Midstream-Clusters.",
     },
     "EPD": {
         "structure": "MLP",
         "structure_comparable": False,
-        "structure_note": "MLP-Struktur; Equity-/Steuerprofil weicht von KMI als C-Corp ab.",
+        "structure_note": "MLP-Struktur; Markt-Referenz mit eigenem Units-/Ausschüttungsprofil.",
     },
     "MPLX": {
         "structure": "MLP",
         "structure_comparable": False,
-        "structure_note": "MLP-Struktur; Equity-/Steuerprofil weicht von KMI als C-Corp ab.",
+        "structure_note": "MLP-Struktur; Markt-Referenz mit eigenem Units-/Ausschüttungsprofil.",
     },
 }
 
 
 def _midstream_peer_comparability(symbol, peer_data):
-    """Classify whether one peer is eligible to *change* the KMI valuation.
+    """Classify one Midstream peer for reference-only market comparison.
 
     Current Yahoo enterpriseToEbitda is a useful market reference, but it is a
-    generic trailing EBITDA definition. KMI's core anchor uses issuer-defined
-    Adjusted EBITDA. Therefore Yahoo-only peers are not fully metric-comparable
-    and may not automatically move the fair value in V2.20.52.
+    generic trailing EBITDA definition. V2.20.131 requires issuer-specific cashflow, EBITDA and capital-structure normalization, so Yahoo-only peers never move fair value.
     """
     sym = str(symbol or "").upper()
     meta = dict(MIDSTREAM_PEER_COMPARABILITY.get(sym, {}))
@@ -19973,7 +20169,7 @@ def _midstream_peer_comparability(symbol, peer_data):
         "metric_note": (
             "Issuer-definiertes Adjusted EBITDA auf vergleichbarer Basis."
             if metric_ok else
-            "Generisches Yahoo-EV/EBITDA; EBITDA-Definition nicht identisch mit KMI Adjusted EBITDA."
+            "Generisches Yahoo-EV/EBITDA; nicht auf issuer-definierte Adjusted-EBITDA-/Kapitalstrukturbasis normalisiert."
         ),
         "adjustment_eligible": bool(structure_ok and metric_ok and (peer_data or {}).get("usable")),
     }
@@ -19983,9 +20179,7 @@ def _calculate_midstream_peer_overlay(peer_group, fundamental_multiple, cache_ve
     """Midstream peer reference with comparability gate and strict safety caps.
 
     All usable EV/EBITDA values may be shown as market references. An automatic
-    valuation adjustment requires at least three peers that are BOTH structurally
-    comparable to KMI and based on a sufficiently comparable issuer-adjusted EBITDA
-    definition. Generic Yahoo EBITDA therefore remains reference-only in V2.20.52.
+    valuation adjustment is disabled in V2.20.131; generic Yahoo EBITDA remains reference-only.
     """
     result = {
         "method_supported": True,
@@ -20035,11 +20229,10 @@ def _calculate_midstream_peer_overlay(peer_group, fundamental_multiple, cache_ve
 
     if len(eligible_values) < 3:
         result["note"] = (
-            "Comparability Gate nicht bestanden: Es liegen weniger als 3 voll vergleichbare "
-            "Midstream-Peers vor. Die geladenen Yahoo-EV/EBITDA-Werte dürfen als Markt- und "
-            "Plausibilitätsreferenz angezeigt werden, verändern aber weder Zielmultiple noch Fair Value. "
-            "Für eine automatische Anpassung müssen Unternehmensstruktur und EBITDA-Definition ausreichend "
-            "konsistent mit KMI sein."
+            "V2.20.131 Midstream Peer Lock: Die geladenen Yahoo-EV/EBITDA-Werte sind Markt-/"
+            "Plausibilitätsreferenzen. Unterschiedliche C-Corp/MLP-Strukturen sowie nicht normalisierte "
+            "issuer-spezifische EBITDA-/Kapitalstrukturbasen verhindern jede automatische Anpassung; "
+            "Zielmultiple und Fair Value bleiben unverändert."
         )
         return result
 
@@ -21771,16 +21964,15 @@ def get_special_control(company_type, symbol):
                 "Offizielles Adjusted EBITDA / EV-Referenz",
                 "Issuer-definierter DCF/FCF nach CapEx",
                 "Net Debt / Adjusted EBITDA",
-                "Dividendendeckung",
-                "Projekt-Backlog / Projekt-EBITDA-Multiple"
+                "Dividend-/Distribution-Coverage",
+                "Projekt-/Asset-Visibilität und Kapitalallokation"
             ],
-            "status": "Router aktiv – V2.20.52 Midstream-Comparability-/Safety-Cap-Gate",
+            "status": "Router aktiv – V2.20.131 Midstream Multi-Issuer Primary-Source Gate",
             "note": (
-                "V2.20.52 trennt issuer-definierte FCF/DCF-, Dividendendeckungs-, "
-                "Adjusted-EBITDA-, Verschuldungs- und Backlog-Kennzahlen von Yahoo-"
-                "Kontextdaten. Für Kinder Morgan wird die offiziell gemeldete KMI-FCF-"
-                "Kennzahl verwendet; ein DCF-Wert wird nicht aus Standard-FCF oder OCF "
-                "erfunden. Bei bestandenem Gate werden Midstream-Score und EV/Adjusted-EBITDA-Anker freigegeben."
+                "V2.20.131 trennt issuer-definierte FCF/DCF/AFFO-, Coverage-, Adjusted-EBITDA-, "
+                "Leverage-, Projekt-/Asset- und Kapitalallokationskennzahlen von Yahoo-Kontextdaten. "
+                "KMI, EPD und MPLX erhalten issuer-spezifische Profile; WMB und OKE bleiben bei aktuellen "
+                "Structural Breaks fail-closed."
             )
         }
 
@@ -30224,7 +30416,7 @@ def calculate_fair_value_v1(
         })
         return result
 
-    # Midstream V2.20.52 – EV/Adjusted-EBITDA equity-value bridge with capped peer overlay.
+    # Midstream V2.20.131 – issuer-specific EV/Adjusted-EBITDA equity-value bridge; peers reference-only.
     if (
         isinstance(special_control, dict)
         and special_control.get("control_key") == "midstream_cashflow_leverage"
@@ -30265,7 +30457,7 @@ def calculate_fair_value_v1(
             "valuation_method": "midstream_ev_adjusted_ebitda",
             "normalized_eps": None,
             "used_multiple": safe_float(mv.get("target_ev_adjusted_ebitda")),
-            "multiple_source": "Midstream Quality Score → Comparability Gate → EV/Adjusted EBITDA → Fair-Value Safety Cap (je max. ±5 %)",
+            "multiple_source": "Midstream Multi-Issuer Quality Score → issuer-profile EV/Adjusted EBITDA; Peers reference-only",
             "fair_value_financial": fv,
             "fair_value_quote": fvq,
             "potential_pct": potential,
@@ -30298,11 +30490,9 @@ def calculate_fair_value_v1(
             "unit_conversion_applied": bool(unit_notes),
             "unit_note": " ".join(unit_notes) if unit_notes else None,
             "note": (
-                "Midstream-Fair-Value V1 = offizielles LTM Adjusted EBITDA × verwendetes EV/Adjusted-EBITDA-"
-                "Zielmultiple − offizielle Nettoverschuldung; anschließend Division durch die offizielle Aktienbasis. "
-                "Eine automatische Peer-Anpassung ist nur nach bestandenem Comparability Gate zulässig. Der Peer-"
-                "Multiple-Vorschlag ist auf ±5 % begrenzt; zusätzlich darf der resultierende Fair Value gegenüber dem "
-                "reinen Fundamentalfairvalue höchstens ±5 % abweichen. Yahoo-FCF bleibt vollständig außerhalb des Fair Values."
+                "Midstream-Fair-Value V1 = offizielles LTM Adjusted EBITDA × issuer-profilbezogenes scoregesteuertes "
+                "EV/Adjusted-EBITDA-Zielmultiple − verifizierte Nettoverschuldung; anschließend Division durch die "
+                "offizielle Aktien-/Units-Basis. Midstream-Peers und Yahoo-FCF bleiben vollständig außerhalb des Fair Values."
             ),
         })
         return result
@@ -35439,10 +35629,9 @@ def load_stock(selected_symbol, cache_version):
             "multiple": safe_float(mv.get("target_ev_adjusted_ebitda")),
             "available": bool(ms.get("available") and mv.get("available")),
             "note": (
-                "Midstream verwendet kein Standard-EPS-/FCF-Multiple. V2.20.52 nutzt den eigenen "
-                "100-Punkte-Midstream-Score als Fundamentalaner; Schritt 2B prüft Peers zuerst auf "
-                "Struktur- und EBITDA-Vergleichbarkeit. Der Equity Value entsteht erst nach Abzug "
-                "der offiziellen Nettoverschuldung."
+                "Midstream verwendet kein Standard-EPS-/FCF-Multiple. V2.20.131 nutzt issuer-primary "
+                "Cashflow/Coverage, Adjusted EBITDA und Leverage im eigenen 100-Punkte-Score. "
+                "Peers bleiben reference-only; der Equity Value entsteht erst nach Abzug der verifizierten Nettoverschuldung."
             ),
         }
 
@@ -35883,9 +36072,8 @@ def load_stock(selected_symbol, cache_version):
             **fundamental_multiple,
             "multiple": safe_float(mv_peer.get("target_ev_adjusted_ebitda")),
             "note": (
-                "Midstream verwendet den 100-Punkte-Quality-Score als Fundamentalaner. V2.20.52 "
-                "erlaubt eine automatische Peer-Anpassung nur nach bestandenem Comparability Gate; "
-                "zusätzlich begrenzt ein Equity-Fair-Value-Safety-Cap den Peer-Effekt auf ±5 %."
+                "Midstream verwendet den issuer-spezifischen 100-Punkte-Quality-Score als Fundamentalaner. "
+                "V2.20.131 hält Midstream-Peers reference-only; es gibt keine automatische Peer-Anpassung."
             ),
         }
 
@@ -40898,18 +41086,26 @@ if selected_symbol:
                 if midstream_model.get("applicable"):
 
                     st.divider()
-                    st.subheader("🛢️ Midstream-Sondermodell V2.20.52 – Qualität & EV/Adjusted EBITDA + Peer Overlay")
+                    st.subheader("🛢️ Midstream Multi-Issuer Specialist V2.20.131 – Cashflow, Coverage, Leverage & EV/Adjusted EBITDA")
 
-                    if midstream_model.get("primary_source_complete"):
+                    if midstream_model.get("structural_break_active"):
+                        gate_status_ui = midstream_model.get("primary_gate") or {}
+                        st.warning(
+                            "Midstream Structural-Break Gate aktiv: operative Primärdaten sind validiert, "
+                            "aber die aktuelle Kapitalstruktur ist nicht same-basis mit dem Q2-Snapshot. "
+                            "Fair Value bleibt fail-closed."
+                        )
+                        if gate_status_ui.get("structural_break_reason"):
+                            st.caption(gate_status_ui.get("structural_break_reason"))
+                    elif midstream_model.get("primary_source_complete"):
                         st.success(
-                            "Midstream-Primärquellen-Gate bestanden: issuer-definierter "
-                            "Cashflow, Dividendendeckung, Adjusted EBITDA, Verschuldung und "
-                            "Projekt-Backlog sind vollständig validiert."
+                            "Midstream-Primärquellen-Gate bestanden: issuer-definierter Cashflow/Coverage, "
+                            "Adjusted EBITDA, Leverage, Projekt-/Asset-Visibilität und Aktien-/Units-Basis sind validiert."
                         )
                     else:
                         st.warning(
-                            "Midstream-Primärquellen-Gate noch nicht bestanden. Für diese "
-                            "Aktie liegt kein aktueller vollständig verifizierter Snapshot vor."
+                            "Midstream-Primärquellen-Gate noch nicht bestanden. Für diese Aktie liegt kein "
+                            "ausreichend aktueller und vollständiger issuer-primary Snapshot vor."
                         )
 
                     snapshot = midstream_model.get("snapshot") or {}
@@ -40932,15 +41128,18 @@ if selected_symbol:
                             format_money(gate.get("fcf_h1_total"), financial_currency)
                         )
                         growth = safe_float(gate.get("fcf_h1_growth_pct"))
-                        st.metric("FCF-Wachstum 6M YoY", f"{growth:+.1f} %" if growth is not None else "–")
+                        st.metric("Issuer-Cashflow 6M YoY", f"{growth:+.1f} %" if growth is not None else "–")
+                        payout_label_ui = text_or_dash(gate.get("payout_label"))
                         st.metric(
-                            "Dividenden bezahlt 6M",
+                            f"{payout_label_ui} 6M",
                             format_money(gate.get("dividends_paid_h1_total"), financial_currency)
                         )
                         cov = safe_float(gate.get("coverage_h1"))
-                        st.metric("FCF / Dividenden 6M", f"{cov:.2f}×" if cov is not None else "–")
+                        if cov is None:
+                            cov = safe_float(gate.get("coverage_q2"))
+                        st.metric("Cashflow / Ausschüttung Coverage", f"{cov:.2f}×" if cov is not None else "–")
                         st.metric(
-                            "FCF nach Dividenden 6M",
+                            "Cashflow nach Ausschüttungen 6M",
                             format_money(gate.get("fcf_after_dividends_h1_total"), financial_currency)
                         )
                     with c2:
@@ -40966,13 +41165,17 @@ if selected_symbol:
                     if gate.get("annualized_dividend_per_share") is not None:
                         st.write(
                             "**Annualisierte Dividende:** "
-                            f"{format_eps(gate.get('annualized_dividend_per_share'), financial_currency)} je Aktie"
+                            f"{format_eps(gate.get('annualized_dividend_per_share'), financial_currency)} je Aktie/Unit"
                         )
                     if snapshot.get("project_backlog_power_ldc_share_min_pct") is not None:
                         st.write(
                             "**Backlog für Stromerzeugung / Local Distribution:** > "
                             f"{snapshot.get('project_backlog_power_ldc_share_min_pct'):.0f} %"
                         )
+                    if gate.get("visibility_note"):
+                        st.caption("Asset-/Projekt-Visibilität: " + str(gate.get("visibility_note")))
+                    if gate.get("capital_allocation_note"):
+                        st.caption("Kapitalallokation/Ausschüttung: " + str(gate.get("capital_allocation_note")))
                     if snapshot.get("source_note"):
                         st.caption(snapshot.get("source_note"))
                     if gate.get("note"):
@@ -41872,15 +42075,21 @@ if selected_symbol:
                     midstream_score_m6 = midstream_model_m6.get("midstream_score") or {}
                     midstream_val_m6 = midstream_model_m6.get("midstream_valuation") or {}
 
-                    if midstream_model_m6.get("primary_source_complete") and midstream_gate_m6.get("available"):
+                    if midstream_model_m6.get("structural_break_active"):
+                        st.warning(
+                            "Midstream Structural-Break Gate aktiv: operative Primärdaten sind validiert, aber die aktuelle "
+                            "Kapitalstruktur ist nicht same-basis mit dem Q2-Snapshot. Bewertung bleibt fail-closed."
+                        )
+                        if midstream_gate_m6.get("structural_break_reason"):
+                            st.caption(midstream_gate_m6.get("structural_break_reason"))
+                    elif midstream_model_m6.get("primary_source_complete") and midstream_gate_m6.get("available"):
                         st.success(
-                            "Midstream-Primärdaten vollständig: issuer-definierter Cashflow, Dividendendeckung, "
-                            "Adjusted EBITDA, Nettoverschuldung und Projekt-Backlog sind belastbar vorhanden."
+                            "Midstream-Primärdaten vollständig: issuer-definierter Cashflow/Coverage, Adjusted EBITDA, "
+                            "Leverage und Aktien-/Units-Basis sind belastbar vorhanden."
                         )
                     else:
                         st.warning(
-                            "Midstream-Primärdaten noch nicht vollständig oder nicht mehr aktuell. "
-                            "Die Bewertung bleibt fail-closed."
+                            "Midstream-Primärdaten noch nicht vollständig oder nicht mehr aktuell. Die Bewertung bleibt fail-closed."
                         )
 
                     if midstream_score_m6.get("available") and midstream_val_m6.get("available"):
@@ -41914,10 +42123,8 @@ if selected_symbol:
                                 f"{midstream_val_m6.get('current_ev_adjusted_ebitda'):.2f}×"
                             )
                         st.success(
-                            "Midstream-Bewertungsanker freigegeben. Der eigene Midstream-Score setzt den "
-                            "Fundamentalaner. Eine automatische Peer-Anpassung ist nur nach bestandenem "
-                            "Comparability Gate zulässig; zusätzlich begrenzt der Equity-Fair-Value-Safety-Cap "
-                            "den Peer-Effekt auf ±5 %."
+                            "Midstream-Bewertungsanker freigegeben. Der issuer-spezifische Midstream-Score setzt den "
+                            "Fundamentalaner; Peer-EV/EBITDA-Werte bleiben in V2.20.131 reference-only."
                         )
                     else:
                         st.warning(
@@ -42346,10 +42553,13 @@ if selected_symbol:
                                 "**Davon zusätzlich Accounting-Basis vergleichbar:** "
                                 f"{peer_check.get('basis_comparable_count', 0)}"
                             )
-                        st.write(
-                            "**Für automatische Anpassung voll vergleichbar:** "
-                            f"{peer_check.get('adjustment_eligible_count', 0)}"
-                        )
+                        if is_midstream_peer_metric:
+                            st.write("**Automatische Peer-Anpassung:** deaktiviert · reference-only")
+                        else:
+                            st.write(
+                                "**Für automatische Anpassung voll vergleichbar:** "
+                                f"{peer_check.get('adjustment_eligible_count', 0)}"
+                            )
                         if peer_check.get("comparability_gate_passed"):
                             st.success(
                                 "Comparability Gate bestanden: mindestens 3 voll vergleichbare Midstream-Peers."
@@ -42448,7 +42658,7 @@ if selected_symbol:
                     )
 
                 if is_midstream_peer_metric:
-                    peer_explain = "Mindestens 3 voll vergleichbare Peers sind für eine automatische Midstream-Anpassung Pflicht; der Median wird statt des Durchschnitts verwendet."
+                    peer_explain = "Midstream-Peers sind in V2.20.131 ausschließlich reference-only; ihr Median verändert weder Zielmultiple noch Fair Value."
                 elif is_automotive_peer_metric:
                     peer_explain = "Mindestens 3 cycle-normalisierte und zyklusvergleichbare Peers sind für eine automatische Automotive-Anpassung Pflicht; der Median wird statt des Durchschnitts verwendet."
                 elif is_semicap_peer_metric:
@@ -44128,11 +44338,16 @@ if selected_symbol:
                             pm = safe_float(checks.get("project_backlog_first_year_ebitda_multiple"))
                             st.metric("Backlog Project EBITDA Multiple", f"{pm:.1f}×" if pm is not None else "–")
 
-                        st.success(
-                            "Midstream-Primärdaten vollständig validiert. Issuer-definierter "
-                            "Cashflow, Dividendendeckung, Adjusted EBITDA, Verschuldung und "
-                            "Projekt-Backlog sind belastbar vorhanden."
-                        )
+                        if gate.get("structural_break_active"):
+                            st.warning(
+                                "Operative Midstream-Primärdaten validiert, aber Structural-Break/Capital-Structure-Gate aktiv. "
+                                "Score, Zielmultiple und Fair Value bleiben gesperrt."
+                            )
+                        else:
+                            st.success(
+                                "Midstream-Primärdaten vollständig validiert. Issuer-definierter Cashflow/Coverage, "
+                                "Adjusted EBITDA, Leverage und Aktien-/Units-Basis sind belastbar vorhanden."
+                            )
                         if gate.get("note"):
                             st.caption(gate.get("note"))
                         ms3 = checks.get("midstream_score") or {}
