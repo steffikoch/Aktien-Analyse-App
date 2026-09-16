@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.142"
+APP_BUILD_VERSION = "V2.20.143"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,11 +26,12 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · American Express Closed-Loop Card & Credit Specialist V1"
+    f"Build {APP_BUILD_VERSION} · Capital One Card-Issuer Bank & Payment-Network Specialist V1"
 )
 
 
 # V2.20.142: American Express Closed-Loop Card & Credit Specialist V1. Routes AXP out of Standard-Unternehmen into an issuer-primary hybrid payments-and-lending model. Uses Q2/H1 2026 Billed Business/Network Volume, revenue mix (discount revenue, card fees and net interest income), FY2026 EPS guidance, Card balances, delinquency/write-off/reserve metrics, ROE/ROCE, CET1/SLR, official book value, deposit funding and capital returns. Generic Yahoo FCF margin and Net-Debt/FCF are diagnosis-only. Valuation uses a 70% FY2026-guidance P/E anchor plus 30% official book-value/P-B anchor, with score-driven 14–22x P/E and 3.5–6.5x P/B corridors and a fail-closed anchor-consistency gate. Visa/Mastercard and all prior specialist mathematics remain unchanged.
+# V2.20.143: Capital One Card-Issuer Bank & Payment-Network Specialist V1. Routes COF out of Standard-Unternehmen into an issuer-primary hybrid lender/payments model, blocks acquisition-distorted Yahoo growth plus generic FCF/Net-Debt scoring, uses official Adjusted-TTM EPS, NIM/efficiency, card credit quality, CET1/ROTCE/TBV, funding and Global Payment Network volume, and applies a downside-only Post-Discover/Brex integration overlay to separate P/E and P/TBV anchors. Also fixes the Capital One IR quarterly-results/news-release routes. AXP, Visa/Mastercard, JPM and all prior specialist mathematics remain unchanged.
 # V2.20.141: Mastercard Payment Network Specialist V1. Extends the V2.20.140 Payment-Network family from Visa to Mastercard without changing Visa mathematics. Mastercard receives an issuer-primary Q2/H1 2026 snapshot using GDV, cross-border volume, switched transactions, net-revenue/Adjusted-EPS growth, non-GAAP operating margin, official operating cash flow/capex, capital returns and current litigation/regulatory disclosures. Its earnings anchor is a fully covered issuer-primary Adjusted-TTM EPS bridge from Q3 2025 through Q2 2026 (4.38 + 4.76 + 4.60 + 5.04 = 18.78 USD), avoiding an invented FY2026 EPS point estimate. The Mastercard Quality Score is 91/100 in the same 22–32x family corridor; a yellow Regulatory & Litigation Overlay caps the used P/E downside-only at 30.5x and confidence at Medium. Payment-Network UI is issuer-neutralized; Visa retains its V2.20.140 score, EPS bridge, 30.0x risk cap and Fair-Value mathematics unchanged. Existing utility, bank, insurance, REIT, midstream and branded-consumer mathematics remain unchanged.
 # V2.20.139: NextEra Energy Utility Specialist V1. Adds an issuer-primary NEE snapshot using the current FY2026 adjusted-EPS guidance, 8%+ standalone long-term adjusted-EPS growth, FPL regulatory-capital growth and reported regulatory ROE, the 2026-2029 FPL authorized ROE framework, NEE agency-adjusted credit targets/ratings, FPL 2026 capital-investment plan, dividend policy and current Dominion-combination status. NEE receives a premium-growth Regulated-Utility score and a 16-24x Adjusted-EPS P/E corridor. The pending Dominion transaction is not credited with merger EPS accretion or the combined-company 9%+/11% growth targets; instead a downside-only transaction/regulatory overlay caps the used P/E at 22.0x and valuation confidence at Medium until required regulatory approvals and closing. EIX/POR score, corridor, risk-cap and Fair-Value mathematics remain unchanged.
 # V2.20.138: Regulated Utility Unsupported-Issuer Fail-Closed Hotfix. No released EIX/POR valuation mathematics changed. Extends the Regulated-Utility family route to unsupported regulated-electric issuers such as NextEra Energy (NEE) so Yahoo/statement FCF and generic EPS normalization remain context-only, while the utility score, Core/Adjusted-EPS guidance anchor, target P/E and Fair Value stay fail-closed until an issuer-specific verified snapshot exists. Also prevents Step 3B from formatting missing utility snapshot fields and crashing the entire stock load, and aligns the green-event next-step wording with the utility specialist gate.
@@ -3645,6 +3646,13 @@ def _discover_company_ir_router(
                 urljoin(root + "/", "en/financial/results.php"),
                 urljoin(root + "/", "en/publications/announcements.php"),
             ]
+        elif "capitalone.com" in root.lower():
+            # V2.20.143 – Capital One IR lives on investor.capitalone.com, not
+            # the generic www.capitalone.com/investors/... paths.
+            fallback_urls = [
+                "https://investor.capitalone.com/financial-information/quarterly-results",
+                "https://investor.capitalone.com/news-events/news-releases",
+            ]
         else:
             fallback_urls = [
                 urljoin(root + "/", "newsroom/press-releases"),
@@ -5679,6 +5687,7 @@ def calculate_profitability_score(
         or "reit" in type_name
         or "immobilien" in type_name
         or "biotechnologie" in type_name
+        or "closed-loop payments & consumer credit" in type_name
     )
 
     if special_model:
@@ -5687,8 +5696,13 @@ def calculate_profitability_score(
             "Die Ertragskraft wird im Bank-Score über normalisierten ROTCE und Ertragsqualität bewertet."
             if "bank" in type_name
             else (
-                "Für diesen Unternehmenstyp wird später "
-                "eine eigene Profitabilitätslogik verwendet."
+                "Bei American Express wird die generische Margen-/ROE-Profitabilitätslogik nicht verwendet. "
+                "ROE/ROCE, CET1 und Kreditqualität werden im Closed-Loop-Spezialscore bewertet."
+                if "closed-loop payments & consumer credit" in type_name
+                else (
+                    "Für diesen Unternehmenstyp wird später "
+                    "eine eigene Profitabilitätslogik verwendet."
+                )
             )
         )
         return {
@@ -6354,6 +6368,24 @@ def classify_company(name, symbol, sector, industry):
                 "kein Standard-KGV"
             ),
             "confidence_cap": "Niedrig"
+        }
+
+    # V2.20.143 – Capital One is a card issuer / diversified lender and, after
+    # Discover, also operates a global payment network. Acquisition-distorted
+    # provider growth and industrial FCF/net-debt logic are not valid here.
+    if (
+        symbol_text == "COF"
+        or "capital one financial" in name_text
+    ):
+        return {
+            "type": "Card Issuer / Diversified Lending & Payment Network",
+            "method": (
+                "Issuer-primary Adjusted TTM EPS + Tangible Book Value/P-TBV + Credit Quality/CET1 + "
+                "Post-Discover Comparability Overlay; generischer FCF-/Net-Debt-Score gesperrt"
+            ),
+            "confidence_cap": "Mittel",
+            "business_model": "Diversifiziertes Kreditkarten-/Bankgeschäft mit Einlagenfunding und eigenem Global Payment Network nach Discover",
+            "focus_areas": "Adjusted EPS · NIM/Efficiency · Card Loans · Delinquencies/Charge-offs/Provisions · CET1/ROTCE/TBV · Deposits/Funding · Global Payment Network · Discover/Brex Integration",
         }
 
     # V2.20.142 – American Express is a closed-loop payment/card issuer with
@@ -15630,6 +15662,264 @@ def build_regulated_utility_special_control(control, utility_model):
 
 
 # =========================================================
+# V2.20.143 – Capital One Card-Issuer Bank & Payment-Network Specialist V1
+# =========================================================
+
+COF_CARD_BANK_SPECIALIST_VERSION = "v220143_capital_one_card_bank_payment_network_v1"
+
+
+def is_capital_one_card_bank_specialist_type(company_type, symbol=None):
+    type_name = str((company_type or {}).get("type") or "").lower()
+    sym = str(symbol or "").upper().strip()
+    return sym == "COF" or "card issuer / diversified lending & payment network" in type_name
+
+
+def get_verified_cof_card_bank_snapshot(symbol):
+    sym = str(symbol or "").upper().strip()
+    if sym != "COF":
+        return None
+    adjusted_ttm_eps = 5.95 + 3.86 + 4.42 + 5.81
+    tbvps = 105.21
+    tbvps_prior_yoy = 99.35
+    return {
+        "symbol": "COF",
+        "company": "Capital One Financial Corporation",
+        "specialist_display_name": "Capital One Card-Issuer Bank & Payment-Network Spezialmodell V1",
+        "reporting_currency": "USD",
+        "as_of_date": "30.06.2026",
+        "published_date": "21.07.2026",
+        "valid_until": "20.10.2026",
+        "integration_version": COF_CARD_BANK_SPECIALIST_VERSION,
+        "source_name": "Capital One Q2 2026 Earnings Release + Financial Supplement + Form 10-Q",
+        "source_url": "https://investor.capitalone.com/news-releases/news-release-details/capital-one-reports-second-quarter-2026-net-income-30-billion-or",
+        "supplement_url": "https://investor.capitalone.com/financial-information/quarterly-results",
+        "sec_10q_url": "https://www.sec.gov/Archives/edgar/data/927628/000092762826000089/cof-20260630.htm",
+        "discover_close_date": "18.05.2025",
+        "brex_close_date": "07.04.2026",
+        "business_model_note": (
+            "Capital One kombiniert Kreditkartenemission, Einlagen-/Bankfunding und sonstige Kreditvergabe mit dem nach Discover integrierten Global Payment Network. "
+            "Das Unternehmen darf deshalb weder wie ein industrielles Standard-Unternehmen noch wie Visa/Mastercard als reines kapitalarmes Netzwerk bewertet werden."
+        ),
+        "comparability_note": (
+            "Post-Discover Comparability Guard: Discover schloss am 18.05.2025; Q2/H1 2025 enthalten nur einen Teilzeitraum des erworbenen Geschäfts sowie den initialen Discover-CECL/Allowance-Effekt. "
+            "Brex schloss am 07.04.2026. Akquisitionsverzerrte Yahoo-Umsatz-/Gewinnwachstumsraten und Global-Payment-Network-YoY-Raten werden deshalb nicht gescort."
+        ),
+        "q2_reported_eps": 4.73,
+        "q2_adjusted_eps": 5.81,
+        "q1_2026_adjusted_eps": 4.42,
+        "q4_2025_adjusted_eps": 3.86,
+        "q3_2025_adjusted_eps": 5.95,
+        "adjusted_ttm_eps": adjusted_ttm_eps,
+        "adjusted_ttm_period": "Q3'25–Q2'26",
+        "q2_total_net_revenue": 15.850e9,
+        "q2_total_net_revenue_qoq_pct": 4.0,
+        "h1_total_net_revenue": 31.081e9,
+        "q2_pre_provision_earnings": 6.8e9,
+        "q2_nim_pct": 8.01,
+        "q2_adjusted_efficiency_ratio_pct": 51.38,
+        "period_end_loans": 457.2e9,
+        "credit_card_loans": 275.4e9,
+        "domestic_card_loans": 259.0e9,
+        "q2_provision_credit_losses": 3.0e9,
+        "q2_net_chargeoffs": 3.6e9,
+        "loan_reserve_release": 0.662e9,
+        "credit_card_net_chargeoff_rate_pct": 4.71,
+        "credit_card_30d_delinquency_pct": 3.37,
+        "consolidated_net_chargeoff_rate_pct": 3.23,
+        "consolidated_30d_delinquency_pct": 3.13,
+        "cet1_pct": 13.7,
+        "tier1_pct": 14.8,
+        "tce_ratio_pct": 10.2,
+        "rotce_pct": 18.04,
+        "tangible_book_value_per_share": tbvps,
+        "tangible_book_value_prior_yoy": tbvps_prior_yoy,
+        "tangible_book_value_growth_yoy_pct": (tbvps / tbvps_prior_yoy - 1.0) * 100.0,
+        "total_deposits": 486.791e9,
+        "borrowings": 49.092e9,
+        "global_payment_network_volume": 189.612e9,
+        "global_payment_network_qoq_pct": 9.0,
+        "global_payment_network_h1_volume": 363.944e9,
+        "discover_integration_expense_q2": 0.298e9,
+        "discover_integration_expense_cumulative_through_q2_2026": 2.1e9,
+        "brex_integration_expense_q2": 0.096e9,
+        "acquisition_amortization_q2": 0.518e9,
+        "score_components": {
+            "Adjusted Earnings / Pre-Provision Efficiency": 19.0,
+            "Credit Quality / Loss Trends": 18.0,
+            "Capital / ROTCE / TBV": 19.0,
+            "NIM / Funding": 15.0,
+            "Global Payment Network": 9.0,
+            "Integration / Comparability": 8.0,
+        },
+        "pe_corridor_low": 9.0,
+        "pe_corridor_high": 14.0,
+        "ptbv_corridor_low": 1.2,
+        "ptbv_corridor_high": 2.4,
+        "integration_pe_cap": 13.0,
+        "integration_ptbv_cap": 2.20,
+        "earnings_anchor_weight": 0.55,
+        "tbv_anchor_weight": 0.45,
+        "anchor_gap_limit_pct": 25.0,
+        "valuation_confidence_cap": "Mittel",
+    }
+
+
+def build_cof_card_bank_score(snapshot):
+    snap = snapshot or {}
+    comps = snap.get("score_components") or {}
+    required = [
+        snap.get("adjusted_ttm_eps"), snap.get("q2_nim_pct"), snap.get("q2_adjusted_efficiency_ratio_pct"),
+        snap.get("credit_card_net_chargeoff_rate_pct"), snap.get("credit_card_30d_delinquency_pct"),
+        snap.get("cet1_pct"), snap.get("rotce_pct"), snap.get("tangible_book_value_per_share"),
+        snap.get("total_deposits"), snap.get("global_payment_network_volume"),
+    ]
+    if any(safe_float(v) is None for v in required) or not comps:
+        return {"available": False, "note": "COF Spezialscore gesperrt: issuer-primary Earnings-/Credit-/Capital-/Network-Daten unvollständig."}
+    score = sum(float(v) for v in comps.values())
+    if not (0 <= score <= 100):
+        return {"available": False, "note": "COF Spezialscore gesperrt: Score außerhalb 0–100."}
+    quality = "Sehr stark" if score >= 85 else ("Stark" if score >= 75 else "Solide")
+    return {
+        "available": True,
+        "score": score,
+        "quality_level": quality,
+        "components": comps,
+        "note": (
+            "Der COF-Score bewertet Adjusted Earnings/Pre-Provision-Effizienz, Kreditqualität, Kapital/TBV/ROTCE, NIM/Funding und das Global Payment Network getrennt. "
+            "Akquisitionsverzerrtes Yahoo-Wachstum, Yahoo-FCF-Marge und Net-Debt/FCF erhalten keine Standardpunkte."
+        ),
+    }
+
+
+def build_cof_card_bank_valuation(snapshot, score_data):
+    snap = snapshot or {}
+    score_data = score_data or {}
+    result = {"available": False}
+    if not score_data.get("available"):
+        result["note"] = "COF Spezialbewertung gesperrt: Quality Score nicht vollständig."
+        return result
+    score = safe_float(score_data.get("score"))
+    eps = safe_float(snap.get("adjusted_ttm_eps"))
+    tbvps = safe_float(snap.get("tangible_book_value_per_share"))
+    pe_low, pe_high = safe_float(snap.get("pe_corridor_low")), safe_float(snap.get("pe_corridor_high"))
+    ptbv_low, ptbv_high = safe_float(snap.get("ptbv_corridor_low")), safe_float(snap.get("ptbv_corridor_high"))
+    if None in (score, eps, tbvps, pe_low, pe_high, ptbv_low, ptbv_high) or eps <= 0 or tbvps <= 0:
+        result["note"] = "COF Spezialbewertung gesperrt: Adjusted-EPS-/TBV-/Multiple-Basis unvollständig."
+        return result
+    quality_pe = pe_low + (pe_high - pe_low) * (score / 100.0)
+    quality_ptbv = ptbv_low + (ptbv_high - ptbv_low) * (score / 100.0)
+    pe_cap = safe_float(snap.get("integration_pe_cap"))
+    ptbv_cap = safe_float(snap.get("integration_ptbv_cap"))
+    target_pe = min(quality_pe, pe_cap) if pe_cap and pe_cap > 0 else quality_pe
+    target_ptbv = min(quality_ptbv, ptbv_cap) if ptbv_cap and ptbv_cap > 0 else quality_ptbv
+    earnings_anchor = eps * target_pe
+    tbv_anchor = tbvps * target_ptbv
+    avg_anchor = (earnings_anchor + tbv_anchor) / 2.0
+    gap_pct = abs(earnings_anchor - tbv_anchor) / avg_anchor * 100.0 if avg_anchor > 0 else None
+    gap_limit = safe_float(snap.get("anchor_gap_limit_pct")) or 25.0
+    if gap_pct is None or gap_pct > gap_limit:
+        result.update({
+            "quality_target_pe": quality_pe, "target_pe": target_pe,
+            "quality_target_ptbv": quality_ptbv, "target_ptbv": target_ptbv,
+            "earnings_anchor": earnings_anchor, "tbv_anchor": tbv_anchor,
+            "anchor_gap_pct": gap_pct,
+            "note": f"COF Dual-Anchor fail-closed: Abstand der Adjusted-EPS/P-E- und TBV/P-TBV-Anker überschreitet {gap_limit:.0f} %.",
+        })
+        return result
+    ew = safe_float(snap.get("earnings_anchor_weight")) or 0.55
+    bw = safe_float(snap.get("tbv_anchor_weight")) or 0.45
+    fair = earnings_anchor * ew + tbv_anchor * bw
+    result.update({
+        "available": True,
+        "valuation_method_name": "Capital One Adjusted-TTM-EPS/P-E + Tangible-Book-Value/P-TBV Dual-Anchor",
+        "earnings_basis": eps,
+        "earnings_basis_name": f"Issuer-primary Adjusted TTM EPS ({snap.get('adjusted_ttm_period')})",
+        "tbv_basis": tbvps,
+        "quality_target_pe": quality_pe,
+        "target_pe": target_pe,
+        "quality_target_ptbv": quality_ptbv,
+        "target_ptbv": target_ptbv,
+        "pe_corridor_low": pe_low,
+        "pe_corridor_high": pe_high,
+        "ptbv_corridor_low": ptbv_low,
+        "ptbv_corridor_high": ptbv_high,
+        "integration_pe_cap": pe_cap,
+        "integration_ptbv_cap": ptbv_cap,
+        "integration_overlay_applied": bool(target_pe < quality_pe - 1e-9 or target_ptbv < quality_ptbv - 1e-9),
+        "earnings_anchor": earnings_anchor,
+        "tbv_anchor": tbv_anchor,
+        "earnings_anchor_weight": ew,
+        "tbv_anchor_weight": bw,
+        "anchor_gap_pct": gap_pct,
+        "anchor_gap_limit_pct": gap_limit,
+        "fair_value_financial": fair,
+        "confidence_cap": snap.get("valuation_confidence_cap") or "Mittel",
+        "note": (
+            "Fair Value = 55 % issuer-primary Adjusted-TTM-EPS/P-E-Anker + 45 % offizieller Tangible-Book-Value/P-TBV-Anker. "
+            "Post-Discover/Brex-Integrationsrisiken dürfen beide Multiples ausschließlich downside-only deckeln."
+        ),
+    })
+    return result
+
+
+def build_cof_card_bank_specialist_model(company_type, fundamental_info, symbol):
+    applicable = is_capital_one_card_bank_specialist_type(company_type, symbol)
+    if not applicable:
+        return {"applicable": False}
+    sym = str(symbol or "").upper().strip()
+    snap = get_verified_cof_card_bank_snapshot(sym)
+    if not snap:
+        note = "Capital-One-Hybridroute erkannt, aber issuer-spezifischer Primärquellen-Snapshot fehlt; Fair Value bleibt fail-closed."
+        return {"applicable": True, "issuer_supported": False, "snapshot": None, "specialist_score": {"available": False, "note": note}, "specialist_valuation": {"available": False, "note": note}, "valuation_anchor_complete": False, "note": note}
+    try:
+        fresh = datetime.strptime(snap["published_date"], "%d.%m.%Y").date() <= datetime.now().date() <= datetime.strptime(snap["valid_until"], "%d.%m.%Y").date()
+    except Exception:
+        fresh = False
+    stale = "COF Primärquellen-Snapshot ist veraltet oder zeitlich ungültig."
+    score = build_cof_card_bank_score(snap) if fresh else {"available": False, "note": stale}
+    valuation = build_cof_card_bank_valuation(snap, score) if fresh else {"available": False, "note": stale}
+    complete = bool(fresh and score.get("available") and valuation.get("available"))
+    return {
+        "applicable": True,
+        "symbol": sym,
+        "issuer_supported": True,
+        "primary_source_complete": bool(fresh),
+        "snapshot_fresh": bool(fresh),
+        "snapshot": snap,
+        "specialist_score": score,
+        "specialist_valuation": valuation,
+        "valuation_anchor_complete": complete,
+        "readiness": "COF Card-Issuer/Bank/Payment-Network-Spezialbewertung freigegeben" if complete else "COF Spezialbewertung gesperrt",
+    }
+
+
+def build_cof_card_bank_special_control(control, model):
+    if not isinstance(control, dict) or control.get("control_key") != "card_issuer_lender_payment_network":
+        return control
+    model = model if isinstance(model, dict) else {}
+    snap = model.get("snapshot") or {}
+    score = model.get("specialist_score") or {}
+    val = model.get("specialist_valuation") or {}
+    released = bool(model.get("issuer_supported") and model.get("primary_source_complete") and model.get("valuation_anchor_complete") and score.get("available") and val.get("available"))
+    out = dict(control)
+    out.update({
+        "implemented": bool(model.get("issuer_supported")),
+        "released": released,
+        "issuer_supported": bool(model.get("issuer_supported")),
+        "confidence_cap": (val.get("confidence_cap") or snap.get("valuation_confidence_cap") or "Mittel"),
+        "router_status": "Schritt 3B freigegeben" if released else "Schritt 3B nicht freigegeben",
+        "step3b_status": "COF Adjusted-Earnings/TBV Dual-Anchor freigegeben" if released else "COF Fair Value gesperrt",
+        "snapshot": snap,
+        "checks": {"specialist_score": score, "specialist_valuation": val},
+        "note": (
+            f"{APP_BUILD_VERSION} trennt Capital One vom industriellen Standardpfad sowie von Visa/Mastercard. Adjusted Earnings, Kreditqualität, NIM/Efficiency, CET1/ROTCE/TBV, Funding und Global Payment Network werden issuer-primary geprüft; Discover/Brex-Integration wirkt downside-only."
+            if released else (model.get("note") or val.get("note") or score.get("note"))
+        ),
+    })
+    return out
+
+
+# =========================================================
 # V2.20.142 – American Express Closed-Loop Card & Credit Specialist V1
 # =========================================================
 
@@ -23183,6 +23473,28 @@ def get_special_control(company_type, symbol):
             "note": (
                 "UA/UAA und OMC werden nicht in das generische EPS-/FCF-Modell gedrückt. "
                 "Der Bewertungsanker wird erst in Schritt 3B aus aktuellem Primärquellen-Kontext freigegeben."
+            ),
+        }
+
+    if symbol_text == "COF" or "card issuer / diversified lending & payment network" in type_name:
+        return {
+            "required": True,
+            "control_key": "card_issuer_lender_payment_network",
+            "control_name": "Capital One / Adjusted-Earnings-, Credit-, Capital-, TBV- & Payment-Network-Kontrolle",
+            "planned_checks": [
+                "Vier offizielle Adjusted-EPS-Quartale als TTM-Earnings-Basis",
+                "NIM / Adjusted Efficiency / Pre-Provision Earnings",
+                "Card Loans / Delinquencies / Net Charge-offs / Provision",
+                "CET1 / ROTCE / TCE / Tangible Book Value",
+                "Deposits / Borrowings / Funding",
+                "Global Payment Network Volume ohne Teilperioden-YoY-Verzerrung",
+                "Post-Discover/Brex Comparability Guard",
+                "Downside-only Integration P/E- und P/TBV-Caps",
+                "Analysten-Kursziel nur Reality Check, nie Fair-Value-Anker",
+            ],
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Capital One Card-Issuer Bank & Payment-Network Specialist",
+            "note": (
+                "COF wird als Kreditkarten-/Lending-/Bank-Hybrid mit eigenem Payment Network bewertet. Generische FCF-/Net-Debt-Logik, akquisitionsverzerrtes Yahoo-Wachstum und reine Visa/Mastercard-Multiples bleiben gesperrt."
             ),
         }
 
@@ -31830,6 +32142,80 @@ def calculate_fair_value_v1(
         return result
 
 
+    # V2.20.143 – Capital One Adjusted-Earnings / Tangible-Book dual-anchor valuation.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "card_issuer_lender_payment_network"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        cv = checks.get("specialist_valuation") or {}
+        cs = checks.get("specialist_score") or {}
+        snap = special_control.get("snapshot") or {}
+        fv = safe_float(cv.get("fair_value_financial"))
+        if not cv.get("available") or fv is None or fv <= 0:
+            result["note"] = "Fair Value V1 gesperrt: COF Adjusted-Earnings/TBV Dual-Anchor nicht vollständig verfügbar."
+            return result
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der COF-Bewertung sind nicht eindeutig."
+            return result
+        fvq = fv
+        unit_notes = []
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Währungsumrechnung der COF-Bewertung nicht belastbar verfügbar."
+                return result
+            fvq *= factor
+            unit_notes.append(f"Währungsangleichung: {financial_currency} → {quote_currency} mit Faktor {factor:.6f}.")
+        elif quote_currency != financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+        cp = safe_float(current_price)
+        potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+        result.update({
+            "available": True,
+            "valuation_method": "cof_card_bank_payment_network_dual_anchor",
+            "normalized_eps": safe_float(cv.get("earnings_basis")),
+            "used_multiple": safe_float(cv.get("target_pe")),
+            "multiple_source": f"{APP_BUILD_VERSION} COF Hybrid Quality Score → Adjusted-TTM EPS/P-E + TBV/P-TBV → downside-only Integration Overlay",
+            "fair_value_financial": fv,
+            "fair_value_quote": fvq,
+            "potential_pct": potential,
+            "specialist_score": safe_float(cs.get("score")),
+            "specialist_quality_level": cs.get("quality_level"),
+            "specialist_components": cs.get("components") or {},
+            "issuer_name": snap.get("company"),
+            "earnings_basis_name": cv.get("earnings_basis_name"),
+            "tbv_basis": safe_float(cv.get("tbv_basis")),
+            "quality_target_pe": safe_float(cv.get("quality_target_pe")),
+            "target_pe": safe_float(cv.get("target_pe")),
+            "quality_target_ptbv": safe_float(cv.get("quality_target_ptbv")),
+            "target_ptbv": safe_float(cv.get("target_ptbv")),
+            "pe_corridor_low": safe_float(cv.get("pe_corridor_low")),
+            "pe_corridor_high": safe_float(cv.get("pe_corridor_high")),
+            "ptbv_corridor_low": safe_float(cv.get("ptbv_corridor_low")),
+            "ptbv_corridor_high": safe_float(cv.get("ptbv_corridor_high")),
+            "integration_pe_cap": safe_float(cv.get("integration_pe_cap")),
+            "integration_ptbv_cap": safe_float(cv.get("integration_ptbv_cap")),
+            "integration_overlay_applied": bool(cv.get("integration_overlay_applied")),
+            "earnings_anchor": safe_float(cv.get("earnings_anchor")),
+            "tbv_anchor": safe_float(cv.get("tbv_anchor")),
+            "earnings_anchor_weight": safe_float(cv.get("earnings_anchor_weight")),
+            "tbv_anchor_weight": safe_float(cv.get("tbv_anchor_weight")),
+            "anchor_gap_pct": safe_float(cv.get("anchor_gap_pct")),
+            "anchor_gap_limit_pct": safe_float(cv.get("anchor_gap_limit_pct")),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "Capital-One-Fair-Value V1 = 55 % issuer-primary Adjusted-TTM-EPS/P-E-Anker + 45 % Tangible-Book-Value/P-TBV-Anker; Post-Discover/Brex-Integration wirkt ausschließlich downside-only. "
+                "Yahoo-FCF, Net-Debt/FCF, akquisitionsverzerrtes Provider-Wachstum und Analysten-Kursziele bleiben außerhalb des Fair Values."
+            ),
+        })
+        return result
+
     # V2.20.142 – American Express Closed-Loop Card & Credit Dual-Anchor valuation.
     if (
         isinstance(special_control, dict)
@@ -37200,6 +37586,12 @@ def load_stock(selected_symbol, cache_version):
         fundamental_symbol
     )
 
+    cof_card_bank_specialist_model = build_cof_card_bank_specialist_model(
+        company_type,
+        fundamental_info,
+        fundamental_symbol
+    )
+
     axp_closed_loop_specialist_model = build_axp_closed_loop_specialist_model(
         company_type,
         fundamental_info,
@@ -37282,6 +37674,12 @@ def load_stock(selected_symbol, cache_version):
         fundamental_info,
         fundamental_symbol
     )
+
+    if cof_card_bank_specialist_model.get("applicable"):
+        growth_score = {**growth_score, "context_score": growth_score.get("score"), "score": None, "note": "COF Spezialmodell: Yahoo-Umsatz-/Gewinnwachstum ist durch Discover/Brex und Teilperioden strukturell verzerrt und bleibt Diagnosekontext."}
+        profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None, "brake_text": "COF Spezialmodell: Generische Nettomarge/ROE-Punkte sind gesperrt; NIM/Efficiency, Credit Quality, ROTCE und CET1 werden separat bewertet."}
+        fcf_score = {**fcf_score, "context_score": fcf_score.get("score"), "score": None, "note": "COF Spezialmodell: Yahoo-/Statement-FCF ist für ein Kreditinstitut kein industrieller Multiple-Baustein; NIM, Provision, Kapital und Funding sind maßgeblich."}
+        balance_score = {**balance_score, "context_score": balance_score.get("score"), "score": None, "note": "COF Spezialmodell: Net-Debt/FCF und 'Netto-Cash' sind für Bank-/Lending-Funding gesperrt; CET1/TCE/TBV, Deposits und Borrowings werden separat bewertet."}
 
     if axp_closed_loop_specialist_model.get("applicable"):
         growth_score = {**growth_score, "context_score": growth_score.get("score"), "score": None, "note": "AXP Closed-Loop-Spezialmodell: Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext; maßgeblich sind Billed Business, Revenue-Mix und issuer-primary EPS-Guidance."}
@@ -37442,6 +37840,28 @@ def load_stock(selected_symbol, cache_version):
                 "REITs verwenden kein Standard-EPS-/FCF-Multiple. V2.20.48 verwendet den "
                 "eigenen 100-Punkte-REIT-Score und einen scoregesteuerten P/AFFO-Anker. "
                 "NAV bleibt ohne belastbare Primärquelle gesperrt."
+            ),
+        }
+
+    if cof_card_bank_specialist_model.get("applicable"):
+        cof_score_fm = cof_card_bank_specialist_model.get("specialist_score") or {}
+        cof_val_fm = cof_card_bank_specialist_model.get("specialist_valuation") or {}
+        cof_corridor = {
+            "available": bool(cof_val_fm.get("available")),
+            "lower": safe_float(cof_val_fm.get("pe_corridor_low")),
+            "upper": safe_float(cof_val_fm.get("pe_corridor_high")),
+            "method": cof_val_fm.get("valuation_method_name") or "COF Adjusted-EPS/P-E + TBV/P-TBV Dual-Anchor",
+            "note": f"{APP_BUILD_VERSION}: Sichtbarer Korridor ist der Earnings-P/E-Korridor; P/TBV wird als zweiter unabhängiger Kapitalanker separat geführt.",
+        }
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": safe_float(cof_score_fm.get("score")),
+            "corridor": cof_corridor,
+            "multiple": safe_float(cof_val_fm.get("target_pe")),
+            "available": bool(cof_score_fm.get("available") and cof_val_fm.get("available")),
+            "earnings_basis_usable": bool(cof_val_fm.get("available")),
+            "note": (
+                f"{APP_BUILD_VERSION} verwendet für Capital One keinen generischen Standard-Score. Adjusted Earnings, NIM/Efficiency, Credit Quality, CET1/ROTCE/TBV, Funding und Global Payment Network bestimmen den Spezialscore; Fair Value folgt aus einem 55/45 Dual-Anchor mit downside-only Integration Caps."
             ),
         }
 
@@ -37948,6 +38368,11 @@ def load_stock(selected_symbol, cache_version):
         symbol
     )
 
+    special_control = build_cof_card_bank_special_control(
+        special_control,
+        cof_card_bank_specialist_model
+    )
+
     special_control = build_axp_closed_loop_special_control(
         special_control,
         axp_closed_loop_specialist_model
@@ -38405,6 +38830,25 @@ def load_stock(selected_symbol, cache_version):
                     "Analystenziele bleiben nur externer Reality Check."
                 ),
             }
+
+    if cof_card_bank_specialist_model.get("applicable") and cof_card_bank_specialist_model.get("valuation_anchor_complete"):
+        cof_snap_event = cof_card_bank_specialist_model.get("snapshot") or {}
+        special_event_warning = {
+            "level": "Gelb",
+            "icon": "🟡",
+            "title": "COF Post-Discover/Brex Comparability & Integration Overlay aktiv",
+            "requires_research": False,
+            "valuation_usable": True,
+            "reason": (
+                f"Discover schloss am {text_or_dash(cof_snap_event.get('discover_close_date'))}, Brex am {text_or_dash(cof_snap_event.get('brex_close_date'))}. "
+                f"Q2 2026 NIM {safe_float(cof_snap_event.get('q2_nim_pct')):.2f} %, Card NCO {safe_float(cof_snap_event.get('credit_card_net_chargeoff_rate_pct')):.2f} %, "
+                f"30+ Delinquency {safe_float(cof_snap_event.get('credit_card_30d_delinquency_pct')):.2f} %, CET1 {safe_float(cof_snap_event.get('cet1_pct')):.1f} % und ROTCE {safe_float(cof_snap_event.get('rotce_pct')):.2f} % sind issuer-primary abgedeckt. "
+                "Extreme Provider-Wachstumsraten und Teilperioden-YoY-Netzwerkvergleiche bleiben wegen der Akquisitionen außerhalb des Scores."
+            ),
+            "action": (
+                f"{APP_BUILD_VERSION} verwendet vier offizielle Adjusted-EPS-Quartale plus Tangible Book Value. Discover/Brex-Integrationsrisiken deckeln P/E und P/TBV ausschließlich downside-only; Yahoo-FCF/Net-Debt und Analystenziele bleiben außerhalb des Fair Values."
+            ),
+        }
 
     if axp_closed_loop_specialist_model.get("applicable") and axp_closed_loop_specialist_model.get("valuation_anchor_complete"):
         axp_snap_event = axp_closed_loop_specialist_model.get("snapshot") or {}
@@ -38903,7 +39347,12 @@ def load_stock(selected_symbol, cache_version):
                             ". Bei Versicherungen wird ein wiederhergestellter Free Cashflow nur als Kontext geführt; "
                             "Core Earnings/Core EPS, Core RoE und Solvency II werden separat aus Primärquellen geprüft."
                             if is_insurance_company_type(company_type)
-                            else ". Die für die Kernbewertung benötigten Fundamentaldaten sind wieder verfügbar."
+                            else (
+                                ". Bei American Express bleibt ein wiederhergestellter Yahoo-Free-Cashflow ausschließlich Diagnosekontext; "
+                                "Spending/Membership, Credit Quality, Kapitalquoten, EPS-Guidance und offizieller Book Value werden separat aus Primärquellen geprüft."
+                                if is_closed_loop_card_credit_specialist_type(company_type, fundamental_symbol)
+                                else ". Die für die Kernbewertung benötigten Fundamentaldaten sind wieder verfügbar."
+                            )
                         )
                     )
                 )
@@ -38938,6 +39387,7 @@ def load_stock(selected_symbol, cache_version):
         "reit_special_model": reit_special_model,
         "regulated_utility_specialist_model": regulated_utility_specialist_model,
         "payment_network_specialist_model": payment_network_specialist_model,
+        "cof_card_bank_specialist_model": cof_card_bank_specialist_model,
         "axp_closed_loop_specialist_model": axp_closed_loop_specialist_model,
         "adjusted_earnings_specialist_model": adjusted_earnings_specialist_model,
         "turnaround_postmerger_specialist_model": turnaround_postmerger_specialist_model,
@@ -39681,6 +40131,7 @@ if selected_symbol:
                 is_bkr_fcf_context = is_baker_hughes_energy_tech_company_type(company_type)
                 is_utility_fcf_context = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 is_payment_network_fcf_context = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
+                is_cof_card_bank_fcf_context = bool((data.get("cof_card_bank_specialist_model") or {}).get("applicable"))
                 is_axp_closed_loop_fcf_context = bool((data.get("axp_closed_loop_specialist_model") or {}).get("applicable"))
                 is_turnaround_postmerger_fcf_context = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 is_gold_precious_metals_fcf_context = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
@@ -39744,6 +40195,8 @@ if selected_symbol:
                             "Bei Baker Hughes bleibt dieser Yahoo-TTM-FCF reine Kontextinformation. V2.20.129 verwendet im Post-Chart Primary-Source Gate den offiziell ausgewiesenen Q2-Free-Cashflow; "
                             "Yahoo-FCF steuert weder Score, Leverage noch Fair Value."
                         )
+                    elif is_cof_card_bank_fcf_context:
+                        st.caption("Bei Capital One bleibt wiedergewonnener Yahoo-Free-Cashflow ausschließlich Diagnosekontext; Credit-/Capital-/NIM-/TBV- und Payment-Network-Daten steuern das Spezialmodell.")
                     elif is_axp_closed_loop_fcf_context:
                         st.caption(
                             "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
@@ -40152,6 +40605,7 @@ if selected_symbol:
 
                 utility_eps_context_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 payment_network_eps_context_ui = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
+                cof_card_bank_eps_context_ui = bool((data.get("cof_card_bank_specialist_model") or {}).get("applicable"))
                 axp_closed_loop_eps_context_ui = bool((data.get("axp_closed_loop_specialist_model") or {}).get("applicable"))
                 turnaround_postmerger_eps_context_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 gold_precious_metals_eps_context_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
@@ -40179,7 +40633,7 @@ if selected_symbol:
                     )
                 else:
                     normalized_eps = eps_result["normalized_eps"]
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -40254,6 +40708,20 @@ if selected_symbol:
                             "NVIDIA/Fabless-AI: Diese Standard-Normalisierung bleibt in V2.20.67 ausschließlich Kontext. "
                             "Das Earnings-Horizon-Alignment verwendet eine separate operative FY27-Proxy-Basis; das Standard-EPS bleibt für NVIDIA nicht freigegeben."
                         )
+                    elif cof_card_bank_eps_context_ui:
+                        cof_eps_model_ui = data.get("cof_card_bank_specialist_model") or {}
+                        cof_eps_snap_ui = cof_eps_model_ui.get("snapshot") or {}
+                        cof_eps_val_ui = cof_eps_model_ui.get("specialist_valuation") or {}
+                        st.info(
+                            "Capital One Hybridmodell: Die Standard-TTM/Forward-EPS-Normalisierung bleibt Diagnosekontext. "
+                            f"{APP_BUILD_VERSION} verwendet vier offizielle Adjusted-EPS-Quartale als TTM-Earnings-Basis und offiziellen Tangible Book Value als zweiten Anker."
+                        )
+                        if cof_eps_val_ui.get("available"):
+                            st.write(
+                                "**Issuer-primary Adjusted TTM EPS (Q3'25–Q2'26):** "
+                                f"5.95 + 3.86 + 4.42 + 5.81 = {safe_float(cof_eps_snap_ui.get('adjusted_ttm_eps')):.2f} USD"
+                            )
+                            st.caption("Analysten-EPS, Yahoo-FCF, Net-Debt/FCF und akquisitionsverzerrtes Yahoo-Wachstum werden nicht in den Fair Value gemischt.")
                     elif axp_closed_loop_eps_context_ui:
                         axp_eps_model_ui = data.get("axp_closed_loop_specialist_model") or {}
                         axp_eps_snap_ui = axp_eps_model_ui.get("snapshot") or {}
@@ -40471,6 +40939,12 @@ if selected_symbol:
                         "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
                         "die CTVA-Separation-/SOTP-Sicherheit wird ausschließlich aus Segmenttrennung, Standalone-Zielgrößen, finaler Kapitalstruktur und Separation-Gates bestimmt."
                     )
+                elif axp_closed_loop_eps_context_ui:
+                    st.info(
+                        "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
+                        "die AXP-Closed-Loop-Bewertungssicherheit wird ausschließlich aus issuer-primary EPS-Guidance, Spending/Revenue-Mix, "
+                        "Credit Quality, Kapitalquoten, Book Value und dem Dual-Anchor-Gate bestimmt."
+                    )
                 elif payment_network_eps_context_ui:
                     st.info(
                         "Standard-EPS-Normalisierung: **nur Diagnosekontext** · "
@@ -40587,6 +41061,17 @@ if selected_symbol:
                         st.caption("Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) + " Diese Divergenz steuert das Kratos-Sondermodell nicht; GAAP/Adjusted-EPS werden separat geprüft.")
                     elif is_nvidia_ai_growth_company_type(company_type):
                         st.caption("Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) + " Diese Divergenz steuert das NVIDIA-Sondermodell nicht.")
+                    elif cof_card_bank_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
+                            " Diese TTM-/Forward-Divergenz steuert weder den COF-Fair-Value noch dessen Bewertungssicherheit; maßgeblich sind issuer-primary Adjusted TTM EPS, Kreditqualität, NIM/Efficiency, CET1/ROTCE, TBV und Post-Discover-Comparability."
+                        )
+                    elif axp_closed_loop_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
+                            " Diese TTM-/Forward-Divergenz steuert weder den AXP-Closed-Loop-Fair-Value noch dessen Bewertungssicherheit; "
+                            "maßgeblich sind die issuer-primary FY2026-EPS-Guidance, Credit-/Capital-Qualität und der unabhängige Book-Value/P-B-Anker."
+                        )
                     elif payment_network_eps_context_ui:
                         st.caption(
                             "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
@@ -40650,6 +41135,16 @@ if selected_symbol:
                         st.caption("Standardpfad-Sicherheit nur Kontext; das Kratos-Sondermodell verwendet Primärquellen für Growth/Visibility und Earnings-Credibility.")
                     elif is_nvidia_ai_growth_company_type(company_type):
                         st.caption("Standardpfad-Sicherheit nur Kontext; das NVIDIA-Sondermodell verwendet eigene Demand-/Horizon-Gates.")
+                    elif cof_card_bank_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die COF-Spezialbewertungssicherheit nicht. "
+                            "Die COF-Sicherheit stammt aus Adjusted Earnings, Kreditqualität, NIM/Efficiency, CET1/ROTCE/TBV, Funding, Payment-Network- und Comparability-Gates."
+                        )
+                    elif axp_closed_loop_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die AXP-Closed-Loop-Bewertungssicherheit nicht. "
+                            "Die AXP-Sicherheit stammt ausschließlich aus issuer-primary EPS-Guidance, Spending/Revenue, Credit Quality, Kapitalquoten, Book Value und Dual-Anchor-Konsistenz."
+                        )
                     elif utility_eps_context_ui:
                         st.caption(
                             "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die Utility-Bewertungssicherheit nicht. "
@@ -41434,6 +41929,7 @@ if selected_symbol:
                 is_adjusted_specialist_score_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                 is_utility_specialist_score_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 is_payment_network_score_ui = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
+                is_cof_card_bank_score_ui = bool((data.get("cof_card_bank_specialist_model") or {}).get("applicable"))
                 is_axp_closed_loop_score_ui = bool((data.get("axp_closed_loop_specialist_model") or {}).get("applicable"))
                 is_turnaround_postmerger_score_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 is_gold_precious_metals_score_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
@@ -41462,6 +41958,9 @@ if selected_symbol:
                 if is_bkr_score_ui:
                     st.info("Baker Hughes/Post-Chart-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.129 bewertet Q2 Orders/RPO und OFSE/IET Segmententwicklung aus Primärquellen.")
                     st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf einen späteren Post-Chart Bewertungsanker.")
+                elif is_cof_card_bank_score_ui:
+                    st.info("ℹ️ Im COF Card-Issuer/Bank/Payment-Network-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
+                    st.caption("Discover-/Brex-Integration und Teilperioden verzerren Provider-YoY-Wachstum. Maßgeblich sind Adjusted Earnings, Pre-Provision Economics, Kreditqualität und das Payment Network aus Primärquellen.")
                 elif is_axp_closed_loop_score_ui:
                     st.info("ℹ️ Im AXP Closed-Loop-Card-&-Credit-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
                     st.caption("Wachstum wird über Billed Business/Network Volumes, Revenue-Mix und FY2026-EPS-Guidance aus Primärquellen bewertet; Yahoo-Wachstum bleibt Diagnosekontext.")
@@ -41685,6 +42184,7 @@ if selected_symbol:
                 is_adjusted_specialist_profitability_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                 is_utility_specialist_profitability_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                 is_payment_network_profitability_ui = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
+                is_cof_card_bank_profitability_ui = bool((data.get("cof_card_bank_specialist_model") or {}).get("applicable"))
                 is_axp_closed_loop_profitability_ui = bool((data.get("axp_closed_loop_specialist_model") or {}).get("applicable"))
                 is_turnaround_postmerger_profitability_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                 is_gold_precious_metals_profitability_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
@@ -41699,6 +42199,11 @@ if selected_symbol:
 
                 if is_bkr_profitability_ui:
                     st.info("Baker Hughes/Post-Chart-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. Q2 OFSE-/IET-Adjusted-EBITDA-Margen werden separat aus der Primärquelle gezeigt; eine konsolidierte Post-Chart Profitabilitätsbasis folgt später.")
+                elif is_cof_card_bank_profitability_ui:
+                    cof_prof_snap_ui = (data.get("cof_card_bank_specialist_model") or {}).get("snapshot") or {}
+                    st.info("ℹ️ COF Hybridmodell: Generische Nettomarge/ROE-Punktelogik wird nicht verwendet.")
+                    if cof_prof_snap_ui:
+                        st.caption(f"NIM {safe_float(cof_prof_snap_ui.get('q2_nim_pct')):.2f} % · Adjusted Efficiency {safe_float(cof_prof_snap_ui.get('q2_adjusted_efficiency_ratio_pct')):.2f} % · ROTCE {safe_float(cof_prof_snap_ui.get('rotce_pct')):.2f} % · CET1 {safe_float(cof_prof_snap_ui.get('cet1_pct')):.1f} %.")
                 elif is_axp_closed_loop_profitability_ui:
                     st.info("ℹ️ Im AXP Closed-Loop-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption("AXP bewertet ROE/ROCE zusammen mit CET1, Kreditqualität, Reserve Coverage und Membership-/Revenue-Economics; Yahoo-ROE bleibt Kontext.")
@@ -42056,6 +42561,7 @@ if selected_symbol:
                     is_adjusted_specialist_fcf_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     is_utility_specialist_fcf_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     is_payment_network_specialist_fcf_ui = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
+                    is_cof_card_bank_specialist_fcf_ui = bool((data.get("cof_card_bank_specialist_model") or {}).get("applicable"))
                     is_axp_closed_loop_specialist_fcf_ui = bool((data.get("axp_closed_loop_specialist_model") or {}).get("applicable"))
                     is_turnaround_postmerger_fcf_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                     is_gold_precious_metals_fcf_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
@@ -42071,6 +42577,9 @@ if selected_symbol:
                     if is_bkr_model_ui:
                         st.info("ℹ️ Baker Hughes/Post-Chart-Modell: Yahoo-Free-Cashflow ist kein freigegebener Bewertungsbaustein")
                         st.caption("V2.20.129 verwendet den offiziell ausgewiesenen Q2-Free-Cashflow im Primärdaten-Gate. Yahoo-TTM-FCF bleibt Kontext; Q2-FCF wird nicht auf das post-Chart Gesamtunternehmen hochgerechnet.")
+                    elif is_cof_card_bank_specialist_fcf_ui:
+                        st.info("ℹ️ COF Hybridmodell: Der generische Yahoo-/Cashflow-Statement-FCF-Margen-Score wird nicht verwendet.")
+                        st.caption("Für ein Kreditinstitut sind NIM, Provision/Charge-offs, Kapitalquoten, TBV und Funding aussagekräftiger; Yahoo-FCF bleibt ausschließlich Diagnosekontext.")
                     elif is_axp_closed_loop_specialist_fcf_ui:
                         st.info("ℹ️ AXP Closed-Loop-Modell: Der generische Yahoo-/Statement-FCF-Margen-Score wird nicht verwendet.")
                         st.caption("Einlagen, Card Balances, Kreditreserven, CET1/SLR und Funding sind für AXP aussagekräftiger als industrieller Free Cash Flow.")
@@ -42358,6 +42867,7 @@ if selected_symbol:
                     is_adjusted_specialist_balance_ui = bool((data.get("adjusted_earnings_specialist_model") or {}).get("applicable"))
                     is_utility_specialist_balance_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     is_payment_network_balance_ui = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
+                    is_cof_card_bank_balance_ui = bool((data.get("cof_card_bank_specialist_model") or {}).get("applicable"))
                     is_axp_closed_loop_balance_ui = bool((data.get("axp_closed_loop_specialist_model") or {}).get("applicable"))
                     is_turnaround_postmerger_balance_ui = bool((data.get("turnaround_postmerger_specialist_model") or {}).get("applicable"))
                     is_gold_precious_metals_balance_ui = bool((data.get("gold_precious_metals_specialist_model") or {}).get("applicable"))
@@ -42373,6 +42883,14 @@ if selected_symbol:
                     if is_bkr_balance_ui:
                         st.info("ℹ️ Baker Hughes/Post-Chart-Modell: Standard-Netto-Schulden/FCF-Score ist gesperrt")
                         st.caption("Die 30.06.2026 Cash-/Debt-Werte enthalten wesentliche Chart-Transaktionsfinanzierung. Sie dürfen nicht als aktuelle operative Netto-Cash-/Leverage-Basis interpretiert werden; Post-Chart Leverage wird separat geprüft.")
+                    elif is_cof_card_bank_balance_ui:
+                        cof_bal_snap_ui = (data.get("cof_card_bank_specialist_model") or {}).get("snapshot") or {}
+                        st.info("ℹ️ COF Hybridmodell: Die generische Netto-Schulden/FCF- und 'Netto-Cash'-Logik wird nicht verwendet.")
+                        if cof_bal_snap_ui:
+                            st.caption(
+                                f"CET1 {safe_float(cof_bal_snap_ui.get('cet1_pct')):.1f} % · TCE {safe_float(cof_bal_snap_ui.get('tce_ratio_pct')):.1f} % · "
+                                f"Deposits {format_money(cof_bal_snap_ui.get('total_deposits'), 'USD')} · Borrowings {format_money(cof_bal_snap_ui.get('borrowings'), 'USD')} · TBVPS {safe_float(cof_bal_snap_ui.get('tangible_book_value_per_share')):.2f} USD."
+                            )
                     elif is_axp_closed_loop_balance_ui:
                         axp_bal_snap_ui = (data.get("axp_closed_loop_specialist_model") or {}).get("snapshot") or {}
                         st.info("ℹ️ AXP Closed-Loop-Modell: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
@@ -44066,9 +44584,26 @@ if selected_symbol:
                 is_semicap_valuation_ui = is_semicap_lithography_company_type(company_type)
                 is_nvidia_valuation_ui = is_nvidia_ai_growth_company_type(company_type)
                 is_bkr_valuation_ui = is_baker_hughes_energy_tech_company_type(company_type)
+                is_cof_card_bank_valuation_ui = bool((data.get("cof_card_bank_specialist_model") or {}).get("applicable"))
                 is_axp_closed_loop_valuation_ui = bool((data.get("axp_closed_loop_specialist_model") or {}).get("applicable"))
 
-                if is_axp_closed_loop_valuation_ui:
+                if is_cof_card_bank_valuation_ui:
+                    cof_model_m6 = data.get("cof_card_bank_specialist_model") or {}
+                    cof_score_m6 = cof_model_m6.get("specialist_score") or {}
+                    cof_val_m6 = cof_model_m6.get("specialist_valuation") or {}
+                    if cof_score_m6.get("available"):
+                        st.write(f"**Verwendeter COF Hybrid Quality Score:** {safe_float(cof_score_m6.get('score')):.0f}/100")
+                    st.write(f"**Adjusted-EPS/P-E-Korridor:** {safe_float(cof_val_m6.get('pe_corridor_low')):.1f}× bis {safe_float(cof_val_m6.get('pe_corridor_high')):.1f}×")
+                    st.write(f"**TBV/P-TBV-Korridor:** {safe_float(cof_val_m6.get('ptbv_corridor_low')):.1f}× bis {safe_float(cof_val_m6.get('ptbv_corridor_high')):.1f}×")
+                    if cof_val_m6.get("available"):
+                        st.metric("Verwendetes Ziel-KGV", f"{safe_float(cof_val_m6.get('target_pe')):.2f}×")
+                        st.metric("Verwendetes Ziel-P/TBV", f"{safe_float(cof_val_m6.get('target_ptbv')):.2f}×")
+                        st.success("COF Dual-Anchor freigegeben: Adjusted-TTM-EPS/P-E und Tangible Book Value/P-TBV werden getrennt berechnet und 55/45 kombiniert; Integration Caps wirken nur downside-only.")
+                    else:
+                        st.warning("COF Dual-Anchor noch nicht freigegeben.")
+                    st.caption(multiple_result.get("note"))
+                    st.caption("Yahoo-FCF, Net-Debt/FCF, akquisitionsverzerrtes Provider-Wachstum und Visa/Mastercard-Netzwerk-Multiples sind kein Bestandteil des COF-Fair-Values.")
+                elif is_axp_closed_loop_valuation_ui:
                     axp_model_m6 = data.get("axp_closed_loop_specialist_model") or {}
                     axp_score_m6 = axp_model_m6.get("closed_loop_score") or {}
                     axp_val_m6 = axp_model_m6.get("closed_loop_valuation") or {}
@@ -45775,7 +46310,43 @@ if selected_symbol:
                     else:
                         st.warning(special_control.get("note"))
 
-                if special_control.get("control_key") == "closed_loop_card_credit":
+                if special_control.get("control_key") == "card_issuer_lender_payment_network":
+                    cof_model_ui = data.get("cof_card_bank_specialist_model") or {}
+                    cof_snap_ui = cof_model_ui.get("snapshot") or {}
+                    cof_score_ui = cof_model_ui.get("specialist_score") or {}
+                    cof_val_ui = cof_model_ui.get("specialist_valuation") or {}
+                    st.subheader("💳🏦 Modul 6 – Schritt 3B: Capital One Card-Issuer Bank & Payment-Network Spezialmodell V1")
+                    if cof_snap_ui:
+                        st.write(f"**Operativer Datenstand:** {text_or_dash(cof_snap_ui.get('as_of_date'))} (veröffentlicht {text_or_dash(cof_snap_ui.get('published_date'))})")
+                        st.caption(text_or_dash(cof_snap_ui.get("source_name")))
+                        st.caption(text_or_dash(cof_snap_ui.get("business_model_note")))
+                    if cof_score_ui.get("available"):
+                        st.metric("COF Hybrid Quality Score", f"{safe_float(cof_score_ui.get('score')):.0f}/100 · {text_or_dash(cof_score_ui.get('quality_level'))}")
+                        st.markdown("**Score-Komponenten:**")
+                        for label, value in (cof_score_ui.get("components") or {}).items():
+                            st.write(f"• {label}: {safe_float(value):.1f} Punkte")
+                    if cof_snap_ui:
+                        st.write(f"**Adjusted-TTM-EPS-Brücke:** Q3'25 5.95 + Q4'25 3.86 + Q1'26 4.42 + Q2'26 5.81 = {safe_float(cof_snap_ui.get('adjusted_ttm_eps')):.2f} USD")
+                        st.write(f"**Q2 NIM / Adjusted Efficiency / Pre-Provision Earnings:** {safe_float(cof_snap_ui.get('q2_nim_pct')):.2f} % / {safe_float(cof_snap_ui.get('q2_adjusted_efficiency_ratio_pct')):.2f} % / {format_money(cof_snap_ui.get('q2_pre_provision_earnings'), 'USD')}")
+                        st.write(f"**Credit Card Loans / NCO / 30+ Delinquency:** {format_money(cof_snap_ui.get('credit_card_loans'), 'USD')} / {safe_float(cof_snap_ui.get('credit_card_net_chargeoff_rate_pct')):.2f} % / {safe_float(cof_snap_ui.get('credit_card_30d_delinquency_pct')):.2f} %")
+                        st.write(f"**Provision / Net Charge-offs / Reserve Release:** {format_money(cof_snap_ui.get('q2_provision_credit_losses'), 'USD')} / {format_money(cof_snap_ui.get('q2_net_chargeoffs'), 'USD')} / {format_money(cof_snap_ui.get('loan_reserve_release'), 'USD')}")
+                        st.write(f"**CET1 / ROTCE / TCE:** {safe_float(cof_snap_ui.get('cet1_pct')):.1f} % / {safe_float(cof_snap_ui.get('rotce_pct')):.2f} % / {safe_float(cof_snap_ui.get('tce_ratio_pct')):.1f} %")
+                        st.write(f"**Tangible Book Value je Aktie:** {safe_float(cof_snap_ui.get('tangible_book_value_per_share')):.2f} USD · YoY {safe_float(cof_snap_ui.get('tangible_book_value_growth_yoy_pct')):+.1f} %")
+                        st.write(f"**Deposits / Borrowings:** {format_money(cof_snap_ui.get('total_deposits'), 'USD')} / {format_money(cof_snap_ui.get('borrowings'), 'USD')}")
+                        st.write(f"**Global Payment Network Volume:** {format_money(cof_snap_ui.get('global_payment_network_volume'), 'USD')} · QoQ {safe_float(cof_snap_ui.get('global_payment_network_qoq_pct')):+.1f} % · H1 {format_money(cof_snap_ui.get('global_payment_network_h1_volume'), 'USD')}")
+                        st.warning(text_or_dash(cof_snap_ui.get("comparability_note")))
+                    if cof_val_ui.get("available"):
+                        st.write(f"**P/E-Basiskorridor:** {safe_float(cof_val_ui.get('pe_corridor_low')):.2f}× – {safe_float(cof_val_ui.get('pe_corridor_high')):.2f}× · Quality-P/E {safe_float(cof_val_ui.get('quality_target_pe')):.2f}× → verwendet {safe_float(cof_val_ui.get('target_pe')):.2f}×")
+                        st.write(f"**P/TBV-Basiskorridor:** {safe_float(cof_val_ui.get('ptbv_corridor_low')):.2f}× – {safe_float(cof_val_ui.get('ptbv_corridor_high')):.2f}× · Quality-P/TBV {safe_float(cof_val_ui.get('quality_target_ptbv')):.3f}× → verwendet {safe_float(cof_val_ui.get('target_ptbv')):.2f}×")
+                        st.caption(f"Post-Discover/Brex downside-only Caps: P/E {safe_float(cof_val_ui.get('integration_pe_cap')):.2f}× · P/TBV {safe_float(cof_val_ui.get('integration_ptbv_cap')):.2f}×")
+                        st.write(f"**Adjusted-Earnings-Anker / TBV-Anker:** {format_eps(cof_val_ui.get('earnings_anchor'), 'USD')} / {format_eps(cof_val_ui.get('tbv_anchor'), 'USD')} · Gap {safe_float(cof_val_ui.get('anchor_gap_pct')):.1f} %")
+                        st.write("**Fundamentaler Capital-One-Fair-Value:** " + format_eps(cof_val_ui.get("fair_value_financial"), "USD"))
+                    if special_control.get("released"):
+                        st.success("Bewertungsfreigabe JA: COF Primary-Source-, Credit-, Capital-, Comparability- und Dual-Anchor-Gates sind vollständig; Analystenziele bleiben Modul 8.")
+                    else:
+                        st.warning("COF Spezialbewertung bleibt fail-closed.")
+                    st.caption(text_or_dash(special_control.get("note")))
+                elif special_control.get("control_key") == "closed_loop_card_credit":
                     st.divider()
                     snap_axp = special_control.get("snapshot") or {}
                     st.subheader("💳 Modul 6 – Schritt 3B: American Express Closed-Loop Card & Credit Spezialmodell V1")
@@ -49266,6 +49837,18 @@ if selected_symbol:
                         st.write(f"**Ziel-KGV:** {fair_value.get('target_multiple'):.2f}× · **Korridor:** {fair_value.get('multiple_corridor_low'):.2f}× – {fair_value.get('multiple_corridor_high'):.2f}×")
                         st.write("**Reconstructed Adjusted TTM (nur Kontext):** " + format_eps(fair_value.get("reconstructed_adjusted_ttm_context"), fair_value["financial_currency"]))
                         st.caption("Die H1-Annualisierung ist keine FY-Guidance. GAAP-TTM, FY2025 pre-merger Mix und Analysten-Kursziele sind kein Bestandteil des Fair Values.")
+                    elif fair_value.get("valuation_method") == "cof_card_bank_payment_network_dual_anchor":
+                        st.write("**Bewertungsformel:** 55 % Issuer-primary Adjusted TTM EPS × P/E + 45 % Tangible Book Value × P/TBV; Post-Discover/Brex Overlay ausschließlich downside-only")
+                        st.write(f"**COF Hybrid Quality Score:** {safe_float(fair_value.get('specialist_score')):.0f}/100 · {text_or_dash(fair_value.get('specialist_quality_level'))}")
+                        st.write("**Earnings-Basis:** " + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"]) + f" · {text_or_dash(fair_value.get('earnings_basis_name'))}")
+                        st.write(f"**Quality-P/E vor Overlay:** {safe_float(fair_value.get('quality_target_pe')):.2f}× · **verwendet:** {safe_float(fair_value.get('target_pe')):.2f}× · Korridor {safe_float(fair_value.get('pe_corridor_low')):.2f}×–{safe_float(fair_value.get('pe_corridor_high')):.2f}×")
+                        st.write(f"**TBV-Basis:** {safe_float(fair_value.get('tbv_basis')):.2f} {fair_value['financial_currency']} · **Quality-P/TBV:** {safe_float(fair_value.get('quality_target_ptbv')):.3f}× · **verwendet:** {safe_float(fair_value.get('target_ptbv')):.2f}× · Korridor {safe_float(fair_value.get('ptbv_corridor_low')):.2f}×–{safe_float(fair_value.get('ptbv_corridor_high')):.2f}×")
+                        if fair_value.get("integration_overlay_applied"):
+                            st.warning(f"Post-Discover/Brex Integration Overlay aktiv: P/E-Cap {safe_float(fair_value.get('integration_pe_cap')):.2f}× · P/TBV-Cap {safe_float(fair_value.get('integration_ptbv_cap')):.2f}×")
+                        st.write("**Adjusted-Earnings-Anker:** " + format_eps(fair_value.get("earnings_anchor"), fair_value["financial_currency"]))
+                        st.write("**TBV-Anker:** " + format_eps(fair_value.get("tbv_anchor"), fair_value["financial_currency"]))
+                        st.write(f"**Dual-Anchor-Gap:** {safe_float(fair_value.get('anchor_gap_pct')):.1f} % · Fail-closed Limit {safe_float(fair_value.get('anchor_gap_limit_pct')):.0f} %")
+                        st.caption("Yahoo-FCF/Net-Debt-to-FCF, akquisitionsverzerrtes Yahoo-Wachstum, reine Visa/Mastercard-Multiples und Analysten-Kursziele sind kein Bestandteil des Capital-One-Fair-Values.")
                     elif fair_value.get("valuation_method") == "closed_loop_card_credit_dual_anchor":
                         st.write("**Bewertungsformel:** 70 % FY2026 EPS-Guidance × Closed-Loop-KGV + 30 % offizieller Book Value × P/B")
                         st.write(f"**Closed-Loop Card & Credit Quality Score:** {safe_float(fair_value.get('specialist_score')):.0f}/100 · {text_or_dash(fair_value.get('specialist_quality_level'))}")
