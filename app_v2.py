@@ -5,7 +5,7 @@ import math
 import re
 import time
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import urlparse, parse_qs, unquote, urljoin
 from xml.etree import ElementTree as ET
 
@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.4"
+APP_BUILD_VERSION = "V2.21.5"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Bank Earnings Horizon Alignment Guard"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Primary-Source Adapter V1"
 )
 
 
+# V2.21.5: Universal Bank Primary-Source Adapter V1. Replaces the JPM-only bank primary-source gate with one reusable adapter contract for Bank / Deposits & Lending. The released bank valuation mathematics (Bank Score, 60/40 P/TBV + Current-FY/Core-P-E Dual Anchor, 25% anchor-spread fail-closed limit and V2.21.4 Earnings-Horizon rule) remain unchanged. The adapter accepts validated issuer/SEC source packs in one schema, includes a verified JPM compatibility seed and a Bank of America Q2-2026 seed, and adds a bounded SEC 8-K earnings-exhibit discovery fallback for other U.S. banks. Unknown banks still fail closed if ROTCE, TBVPS, CET1 or four consecutive official quarterly EPS observations cannot all be source-validated; Yahoo ROE/book value/FCF never substitutes for missing bank primary data.
 # V2.21.4: Bank Earnings Horizon Alignment Guard. The bank Core-EPS anchor now consumes the same explicit valuation-forward basis selected by the global Earnings Horizon Alignment layer (official current-FY guidance, otherwise 0Y/current-FY analyst consensus) instead of reading raw provider forwardEps directly. Raw provider Forward-EPS remains reference-only for bank forward-P/E plausibility/context and can no longer leak the +1Y horizon into the bank Core-EPS/Fair-Value anchor. JPM therefore keeps its released Bank specialist, 4-quarter Core-TTM bridge, score, P/TBV logic and target corridors unchanged while the Core-EPS blend is aligned to current-FY.
 # V2.21.3: Universal Family Priority over Legacy Specialist Routers V1. Makes an active universal family readiness gate authoritative not only over the generic Standard-Unternehmen path but also over every legacy specialist-model builder and Step-3A router. When family_model_status is defined_unreleased/classification_unresolved and universal_family_fail_closed is true, legacy Bank/Insurance/REIT/Midstream/Utility/Auto/Semicap/issuer-specialist builders are suppressed centrally and cannot take over merely because the new family label contains a legacy keyword (for example Investment Bank triggering the old Bank model). Existing released specialist routes remain untouched because their family_model_ready flag is true and universal_family_fail_closed is false. GS therefore stays Investment Bank / Broker-Dealer fail-closed; CME stays Exchange / Market Infrastructure fail-closed; JPM and all previously released specialists continue on their frozen valuation paths.
 # V2.21.2: Capital Markets Family Split V1. Splits the overly broad Capital Markets / Brokerage / Exchange family into two reusable valuation families: Exchange / Market Infrastructure and Investment Bank / Broker-Dealer. CME/ICE/NDAQ/CBOE and comparable venue/clearing operators route to Exchange / Market Infrastructure; GS/MS/SCHW/IBKR and comparable brokerage/investment-banking issuers route to Investment Bank / Broker-Dealer. Financial Data & Stock Exchanges metadata is disambiguated with business-summary terms and can route data/ratings-heavy issuers to Credit Bureau / Data & Analytics or fail closed rather than forcing exchange economics. Both new families remain defined_unreleased and therefore inherit the V2.21.1 family-priority/readiness fail-closed guard. No released specialist valuation mathematics changed.
@@ -10519,127 +10520,471 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-def get_verified_bank_snapshot(symbol):
-    """
-    Return a time-bounded primary-source snapshot for banks that have been
-    manually verified from official investor-relations materials.
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v2215_universal_bank_primary_source_v1"
 
-    Unknown banks deliberately return None. No ROTCE, TBV or CET1 value is
-    inferred from Yahoo fields or from ordinary book value.
-    """
-    symbol_text = str(symbol or "").upper()
 
-    if symbol_text != "JPM":
+def _bank_source_url_is_allowed(snapshot, url):
+    """Accept only SEC or issuer-declared official hosts for bank TTM coverage."""
+    host = _normalize_host(url)
+    if not host:
+        return False
+    if host == "sec.gov" or host.endswith(".sec.gov"):
+        return True
+    allowed = [str(x or "").lower().strip() for x in (snapshot or {}).get("allowed_source_hosts", [])]
+    for domain in allowed:
+        if domain.startswith("www."):
+            domain = domain[4:]
+        if host == domain or host.endswith("." + domain):
+            return True
+    return False
+
+
+def _bank_period_sort_key(period):
+    m = re.fullmatch(r"([1-4])Q(\d{2})", str(period or "").upper().strip())
+    if not m:
+        return (-1, -1)
+    q = int(m.group(1))
+    y = 2000 + int(m.group(2))
+    return (y, q)
+
+
+def _bank_period_from_text(text):
+    t = _clean_text(text)
+    m = re.search(r"\b([1-4])Q\s*'?([0-9]{2,4})\b", t, flags=re.I)
+    if m:
+        y = int(m.group(2))
+        if y < 100:
+            y += 2000
+        return f"{int(m.group(1))}Q{str(y)[-2:]}"
+    names = {"first": 1, "second": 2, "third": 3, "fourth": 4}
+    m = re.search(r"\b(first|second|third|fourth)\s+quarter\s+(20\d{2})\b", t, flags=re.I)
+    if m:
+        return f"{names[m.group(1).lower()]}Q{m.group(2)[-2:]}"
+    return None
+
+
+def _bank_period_end_date(period):
+    key = _bank_period_sort_key(period)
+    if key[0] < 0:
+        return None
+    y, q = key
+    month_day = {1: (3, 31), 2: (6, 30), 3: (9, 30), 4: (12, 31)}[q]
+    return datetime(y, month_day[0], month_day[1]).date()
+
+
+def _bank_extract_first_float(text, patterns):
+    t = _clean_text(text)
+    for pat in patterns:
+        m = re.search(pat, t, flags=re.I | re.S)
+        if m:
+            try:
+                return float(str(m.group(1)).replace(",", ""))
+            except Exception:
+                pass
+    return None
+
+
+def _bank_extract_eps_from_text(text):
+    return _bank_extract_first_float(text, [
+        r"Diluted\s+earnings\s+per\s+share[^$0-9]{0,24}\$?\s*([0-9]+(?:\.[0-9]+)?)",
+        r"\bEPS\b[^$0-9]{0,12}\$\s*([0-9]+(?:\.[0-9]+)?)",
+    ])
+
+
+def _bank_extract_tbv_values(text):
+    t = _clean_text(text)
+    m = re.search(r"tangible\s+book\s+value\s+per\s+(?:common\s+)?share(.{0,260})", t, flags=re.I | re.S)
+    if not m:
+        return []
+    vals = []
+    for raw in re.findall(r"\$?\s*([0-9]+\.[0-9]+)", m.group(1)):
+        try:
+            v = float(raw)
+        except Exception:
+            continue
+        if 1.0 <= v <= 1000.0:
+            vals.append(v)
+    return vals[:4]
+
+
+def _bank_extract_book_value(text):
+    return _bank_extract_first_float(text, [
+        r"book\s+value\s+per\s+(?:common\s+)?share[^$0-9]{0,40}\$\s*([0-9]+(?:\.[0-9]+)?)",
+    ])
+
+
+def _bank_extract_rotce(text):
+    return _bank_extract_first_float(text, [
+        r"\bROTCE\b[^0-9]{0,18}([0-9]+(?:\.[0-9]+)?)\s*%",
+        r"return\s+on\s+average\s+tangible\s+common\s+shareholders[’']?\s+equity(?:\s+ratio)?[^0-9]{0,32}([0-9]+(?:\.[0-9]+)?)\s*%",
+    ])
+
+
+def _bank_extract_cet1_values(text):
+    t = _clean_text(text)
+    standardized = _bank_extract_first_float(t, [
+        r"CET1\s+ratio[^0-9]{0,25}([0-9]+(?:\.[0-9]+)?)\s*%",
+        r"common\s+equity\s+tier\s+1[^%]{0,80}([0-9]+(?:\.[0-9]+)?)\s*%",
+    ])
+    advanced = _bank_extract_first_float(t, [
+        r"Advanced\s+approaches?.{0,160}?CET1\s+ratio[^0-9]{0,20}([0-9]+(?:\.[0-9]+)?)\s*%",
+    ])
+    return standardized, advanced
+
+
+def _bank_detect_special_item_bridge(text, reported_eps):
+    """Return (core_eps, signed_effect, status). Fail closed on material unbridged special-item wording."""
+    t = _clean_text(text)
+    reported = safe_float(reported_eps)
+    if reported is None:
+        return None, None, None
+    core = _bank_extract_first_float(t, [
+        r"(?:EPS|earnings\s+per\s+share)[^\n]{0,80}?(?:ex|excluding)\s+(?:significant|notable|special)\s+items?[^$0-9]{0,30}\$?\s*([0-9]+(?:\.[0-9]+)?)",
+        r"(?:ex|excluding)\s+(?:significant|notable|special)\s+items?[^\n]{0,80}?(?:EPS|earnings\s+per\s+share)[^$0-9]{0,20}\$?\s*([0-9]+(?:\.[0-9]+)?)",
+    ])
+    if core is not None:
+        return core, reported - core, "Offizielle Ex-Significant-/Notable-Items-EPS-Brücke"
+    low = t.lower()
+    sensitive_terms = ["significant item", "significant items", "notable item", "notable items", "special item", "special items"]
+    if any(term in low for term in sensitive_terms):
+        return None, None, "Sonderposten-Hinweis ohne quantitative EPS-Brücke – fail-closed"
+    return reported, 0.0, "Keine company-designierte quantitative EPS-Sonderposten-Brücke erkannt; reported EPS bleibt Core-Basis"
+
+
+def _bank_discover_sec_earnings_exhibits(symbol, max_filings=10, deadline=None):
+    """Bounded generic SEC 8-K exhibit discovery for U.S. bank earnings releases/presentations."""
+    cik = _sec_lookup_cik(symbol, deadline=deadline)
+    if not cik or not _research_budget_ok(deadline):
+        return []
+    cik10 = f"{cik:010d}"
+    effective_timeout = _bounded_timeout(deadline, 3.0)
+    if effective_timeout is None:
+        return []
+    try:
+        r = requests.get(
+            f"https://data.sec.gov/submissions/CIK{cik10}.json",
+            headers={"User-Agent": "AktienAnalyseV2/2.21.5 bank-adapter", "Accept-Encoding": "gzip, deflate"},
+            timeout=(min(1.8, effective_timeout), effective_timeout),
+        )
+        r.raise_for_status()
+        recent = (r.json().get("filings") or {}).get("recent") or {}
+    except Exception:
+        return []
+
+    forms = recent.get("form") or []
+    accessions = recent.get("accessionNumber") or []
+    filing_dates = recent.get("filingDate") or []
+    output = []
+    seen_periods = set()
+    checked = 0
+    for i, form in enumerate(forms):
+        if str(form).upper() != "8-K" or checked >= max_filings:
+            continue
+        if i >= len(accessions):
+            continue
+        accession = _clean_text(accessions[i])
+        if not accession:
+            continue
+        checked += 1
+        acc_nodash = accession.replace("-", "")
+        index_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_nodash}/{accession}-index.html"
+        html, final_url = _fetch_html(index_url, timeout=2.8, sec=True, deadline=deadline)
+        if not html:
+            continue
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+            links = []
+            for tr in soup.find_all("tr"):
+                row_text = _clean_text(tr.get_text(" ", strip=True)).lower()
+                if not any(k in row_text for k in ["99.1", "99.2", "earnings", "press release", "presentation", "financial results"]):
+                    continue
+                a = tr.find("a", href=True)
+                if not a:
+                    continue
+                href = a.get("href")
+                if not href:
+                    continue
+                links.append(urljoin(final_url or index_url, href))
+            if not links:
+                continue
+        except Exception:
+            continue
+
+        for url in links[:3]:
+            if not _research_budget_ok(deadline, reserve=0.5):
+                break
+            text = _fetch_source_text(url, deadline=deadline, timeout=2.8)
+            if not text:
+                continue
+            bank_signal_count = sum(
+                1 for term in ["CET1", "tangible book value", "earnings per share", "ROTCE", "return on average tangible"]
+                if term.lower() in text.lower()
+            )
+            if bank_signal_count < 2:
+                continue
+            period = _bank_period_from_text(text)
+            if not period or period in seen_periods:
+                continue
+            seen_periods.add(period)
+            output.append({
+                "period": period,
+                "url": url,
+                "filing_date": filing_dates[i] if i < len(filing_dates) else None,
+                "text": text,
+            })
+            break
+        if len(output) >= 4:
+            break
+    return sorted(output, key=lambda r: _bank_period_sort_key(r.get("period")))
+
+
+@st.cache_data(ttl=21600, show_spinner=False)
+def _discover_universal_bank_snapshot_v1(symbol, company_name=None):
+    """Try to build the common bank snapshot schema from recent official SEC earnings exhibits."""
+    deadline = time.monotonic() + 7.0
+    rows = _bank_discover_sec_earnings_exhibits(symbol, max_filings=12, deadline=deadline)
+    if len(rows) < 4:
+        return None
+    rows = rows[-4:]
+    periods = [r.get("period") for r in rows]
+    keys = [_bank_period_sort_key(x) for x in periods]
+    if any(y < 0 for y, q in keys):
+        return None
+    for a, b in zip(keys, keys[1:]):
+        ay, aq = a; by, bq = b
+        next_key = (ay + 1, 1) if aq == 4 else (ay, aq + 1)
+        if b != next_key:
+            return None
+
+    coverage = []
+    for row in rows:
+        eps = _bank_extract_eps_from_text(row.get("text"))
+        core, effect, status = _bank_detect_special_item_bridge(row.get("text"), eps)
+        if eps is None or core is None or effect is None or not status:
+            return None
+        coverage.append({
+            "period": row.get("period"),
+            "published_date": row.get("filing_date"),
+            "source_url": row.get("url"),
+            "reported_eps": eps,
+            "core_eps": core,
+            "special_items_eps_effect": effect,
+            "special_item_status": status,
+        })
+
+    latest = rows[-1]
+    latest_text = latest.get("text") or ""
+    rotce = _bank_extract_rotce(latest_text)
+    cet1_std, cet1_adv = _bank_extract_cet1_values(latest_text)
+    tbv_vals = _bank_extract_tbv_values(latest_text)
+    tbv = tbv_vals[0] if tbv_vals else None
+    tbv_prior_yoy = tbv_vals[2] if len(tbv_vals) >= 3 else (tbv_vals[1] if len(tbv_vals) >= 2 else None)
+    tbv_growth = ((tbv / tbv_prior_yoy - 1.0) * 100.0) if tbv and tbv_prior_yoy and tbv_prior_yoy > 0 else None
+    book_value = _bank_extract_book_value(latest_text)
+    latest_eps = coverage[-1]["reported_eps"]
+    latest_core = coverage[-1]["core_eps"]
+    latest_effect = coverage[-1]["special_items_eps_effect"]
+    if None in [rotce, cet1_std, tbv, tbv_growth, book_value]:
         return None
 
+    latest_end = _bank_period_end_date(latest.get("period"))
+    published_raw = latest.get("filing_date")
+    try:
+        published_dt = datetime.strptime(published_raw, "%Y-%m-%d").date() if published_raw else None
+    except Exception:
+        published_dt = None
+    valid_until = published_dt + timedelta(days=100) if published_dt else None
+
     return {
-        "company": "JPMorgan Chase & Co.",
-        "as_of_date": "30.06.2026",
-        "published_date": "14.07.2026",
-        "valid_until": "13.10.2026",
-        "source_name": "JPMorganChase 2Q26 Earnings Press Release & Earnings Supplement",
-        "source_url": (
-            "https://www.jpmorganchase.com/content/dam/jpmc/"
-            "jpmorgan-chase-and-co/investor-relations/documents/"
-            "quarterly-earnings/2026/2nd-quarter/"
-            "6cded9fd-a164-4e6c-8cff-377357cf105c.pdf"
-        ),
-        "supplement_url": (
-            "https://www.jpmorganchase.com/content/dam/jpmc/"
-            "jpmorgan-chase-and-co/investor-relations/documents/"
-            "quarterly-earnings/2026/2nd-quarter/"
-            "c9c097af-34e9-4aae-92d2-909a2ab7c083.pdf"
-        ),
-        "book_value_per_share": 133.01,
-        "tangible_book_value_per_share": 113.35,
-        "book_value_growth_yoy_pct": 9.0,
-        "tangible_book_value_growth_yoy_pct": 10.0,
-        "roe_reported_pct": 24.0,
-        "rotce_reported_pct": 29.0,
-        "rotce_ex_significant_items_pct": 23.0,
-        "cet1_standardized_pct": 14.1,
-        "cet1_advanced_pct": 14.2,
-        "cet1_capital": 303e9,
-        "standardized_rwa": 2.1e12,
-        "quarter_eps_reported": 7.70,
-        "quarter_eps_ex_significant_items": 6.14,
-        "visa_eps_effect": 1.27,
-        "equity_investment_eps_effect": 0.29,
-        "significant_items_eps_effect": 1.56,
-        # V2.20.39: full four-quarter TTM special-item coverage from official
-        # JPMorganChase quarterly earnings releases.  Positive effects are gains
-        # that increased reported EPS; negative effects are charges that reduced
-        # reported EPS.  A quarter with no company-designated significant item
-        # is explicitly marked as such rather than inferred from Yahoo.
-        "ttm_eps_coverage": [
-            {
-                "period": "3Q25",
-                "published_date": "14.10.2025",
-                "source_url": (
-                    "https://www.jpmorganchase.com/content/dam/jpmc/"
-                    "jpmorgan-chase-and-co/investor-relations/documents/"
-                    "quarterly-earnings/2025/3rd-quarter/"
-                    "f24f154c-2653-4da3-b1b0-185586086d50.pdf"
-                ),
-                "reported_eps": 5.07,
-                "core_eps": 5.07,
-                "special_items_eps_effect": 0.00,
-                "special_item_status": "Keine von JPMorgan als significant item ausgewiesene Bereinigung",
-            },
-            {
-                "period": "4Q25",
-                "published_date": "13.01.2026",
-                "source_url": (
-                    "https://www.jpmorganchase.com/content/dam/jpmc/"
-                    "jpmorgan-chase-and-co/investor-relations/documents/"
-                    "quarterly-earnings/2025/4th-quarter/"
-                    "d868c7ef-1670-465d-ba75-c2b36ddbcc6b.pdf"
-                ),
-                "reported_eps": 4.63,
-                "core_eps": 5.23,
-                "special_items_eps_effect": -0.60,
-                "special_item_status": "Apple-Card-Kreditreserve; offizielles EPS ex significant item",
-            },
-            {
-                "period": "1Q26",
-                "published_date": "14.04.2026",
-                "source_url": (
-                    "https://www.jpmorganchase.com/content/dam/jpmc/"
-                    "jpmorgan-chase-and-co/investor-relations/documents/"
-                    "quarterly-earnings/2026/1st-quarter/"
-                    "a5fd2d13-877b-43b2-8b58-81bad4399c87.pdf"
-                ),
-                "reported_eps": 5.94,
-                "core_eps": 5.94,
-                "special_items_eps_effect": 0.00,
-                "special_item_status": "Keine von JPMorgan als significant item ausgewiesene Bereinigung",
-            },
-            {
-                "period": "2Q26",
-                "published_date": "14.07.2026",
-                "source_url": (
-                    "https://www.jpmorganchase.com/content/dam/jpmc/"
-                    "jpmorgan-chase-and-co/investor-relations/documents/"
-                    "quarterly-earnings/2026/2nd-quarter/"
-                    "6cded9fd-a164-4e6c-8cff-377357cf105c.pdf"
-                ),
-                "reported_eps": 7.70,
-                "core_eps": 6.14,
-                "special_items_eps_effect": 1.56,
-                "special_item_status": "Visa- und Equity-Investment-Gewinne; offizielles EPS ex significant items",
-            },
-        ],
-        "ttm_coverage_expected_periods": ["3Q25", "4Q25", "1Q26", "2Q26"],
+        "symbol": str(symbol or "").upper(),
+        "company": company_name or str(symbol or "").upper(),
+        "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
+        "published_date": published_dt.strftime("%d.%m.%Y") if published_dt else published_raw,
+        "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
+        "source_name": "SEC 8-K Earnings Exhibits · Universal Bank Primary-Source Adapter",
+        "source_url": latest.get("url"),
+        "allowed_source_hosts": ["sec.gov"],
+        "adapter_version": BANK_PRIMARY_SOURCE_ADAPTER_VERSION,
+        "adapter_mode": "sec_8k_auto_discovery",
+        "book_value_per_share": book_value,
+        "tangible_book_value_per_share": tbv,
+        "book_value_growth_yoy_pct": None,
+        "tangible_book_value_growth_yoy_pct": tbv_growth,
+        "roe_reported_pct": None,
+        "rotce_reported_pct": rotce,
+        "rotce_ex_significant_items_pct": rotce if abs(latest_effect or 0.0) <= 1e-12 else None,
+        "rotce_normalized_label": "ROTCE Bewertungsbasis",
+        "cet1_standardized_pct": cet1_std,
+        "cet1_advanced_pct": cet1_adv,
+        "quarter_eps_reported": latest_eps,
+        "quarter_eps_ex_significant_items": latest_core,
+        "significant_items_eps_effect": latest_effect,
+        "ttm_eps_coverage": coverage,
+        "ttm_coverage_expected_periods": periods,
         "source_note": (
-            "Offizielle JPMorganChase-2Q26-Daten. Der gemeldete ROTCE von "
-            "29 % enthält wesentliche Sondergewinne. Für die normalisierte "
-            "Ertragskraft wird deshalb der von JPMorgan selbst ausgewiesene "
-            "ROTCE ex significant items von 23 % separat geführt. TBVPS und "
-            "CET1 werden nicht aus Yahoo-Feldern geschätzt. Die Core-TTM-EPS-Basis wird "
-            "über vier offizielle Quartale vollständig abgedeckt."
+            "V2.21.5 hat vier aufeinanderfolgende offizielle SEC-8-K-Earnings-Exhibits automatisch "
+            "in das einheitliche Bank-Snapshot-Schema überführt. Eine Bewertung bleibt fail-closed, "
+            "wenn ROTCE, TBVPS, CET1, TTM-EPS-Coverage oder eine erforderliche Sonderposten-Brücke fehlt."
         ),
     }
 
+
+def _get_verified_bank_seed_snapshot(symbol):
+    """Verified source-data cache only; valuation logic is shared for every bank family member."""
+    symbol_text = str(symbol or "").upper().strip()
+
+    if symbol_text == "JPM":
+        return {
+            "symbol": "JPM",
+            "company": "JPMorgan Chase & Co.",
+            "as_of_date": "30.06.2026",
+            "published_date": "14.07.2026",
+            "valid_until": "13.10.2026",
+            "source_name": "JPMorganChase 2Q26 Earnings Press Release & Earnings Supplement",
+            "source_url": (
+                "https://www.jpmorganchase.com/content/dam/jpmc/"
+                "jpmorgan-chase-and-co/investor-relations/documents/"
+                "quarterly-earnings/2026/2nd-quarter/"
+                "6cded9fd-a164-4e6c-8cff-377357cf105c.pdf"
+            ),
+            "supplement_url": (
+                "https://www.jpmorganchase.com/content/dam/jpmc/"
+                "jpmorgan-chase-and-co/investor-relations/documents/"
+                "quarterly-earnings/2026/2nd-quarter/"
+                "c9c097af-34e9-4aae-92d2-909a2ab7c083.pdf"
+            ),
+            "allowed_source_hosts": ["jpmorganchase.com"],
+            "adapter_version": BANK_PRIMARY_SOURCE_ADAPTER_VERSION,
+            "adapter_mode": "verified_source_cache",
+            "book_value_per_share": 133.01,
+            "tangible_book_value_per_share": 113.35,
+            "book_value_growth_yoy_pct": 9.0,
+            "tangible_book_value_growth_yoy_pct": 10.0,
+            "roe_reported_pct": 24.0,
+            "rotce_reported_pct": 29.0,
+            "rotce_ex_significant_items_pct": 23.0,
+            "rotce_normalized_label": "ROTCE ex significant items",
+            "cet1_standardized_pct": 14.1,
+            "cet1_advanced_pct": 14.2,
+            "cet1_capital": 303e9,
+            "standardized_rwa": 2.1e12,
+            "quarter_eps_reported": 7.70,
+            "quarter_eps_ex_significant_items": 6.14,
+            "visa_eps_effect": 1.27,
+            "equity_investment_eps_effect": 0.29,
+            "significant_items_eps_effect": 1.56,
+            "ttm_eps_coverage": [
+                {
+                    "period": "3Q25",
+                    "published_date": "14.10.2025",
+                    "source_url": "https://www.jpmorganchase.com/content/dam/jpmc/jpmorgan-chase-and-co/investor-relations/documents/quarterly-earnings/2025/3rd-quarter/f24f154c-2653-4da3-b1b0-185586086d50.pdf",
+                    "reported_eps": 5.07, "core_eps": 5.07, "special_items_eps_effect": 0.00,
+                    "special_item_status": "Keine von JPMorgan als significant item ausgewiesene Bereinigung",
+                },
+                {
+                    "period": "4Q25",
+                    "published_date": "13.01.2026",
+                    "source_url": "https://www.jpmorganchase.com/content/dam/jpmc/jpmorgan-chase-and-co/investor-relations/documents/quarterly-earnings/2025/4th-quarter/d868c7ef-1670-465d-ba75-c2b36ddbcc6b.pdf",
+                    "reported_eps": 4.63, "core_eps": 5.23, "special_items_eps_effect": -0.60,
+                    "special_item_status": "Apple-Card-Kreditreserve; offizielles EPS ex significant item",
+                },
+                {
+                    "period": "1Q26",
+                    "published_date": "14.04.2026",
+                    "source_url": "https://www.jpmorganchase.com/content/dam/jpmc/jpmorgan-chase-and-co/investor-relations/documents/quarterly-earnings/2026/1st-quarter/a5fd2d13-877b-43b2-8b58-81bad4399c87.pdf",
+                    "reported_eps": 5.94, "core_eps": 5.94, "special_items_eps_effect": 0.00,
+                    "special_item_status": "Keine von JPMorgan als significant item ausgewiesene Bereinigung",
+                },
+                {
+                    "period": "2Q26",
+                    "published_date": "14.07.2026",
+                    "source_url": "https://www.jpmorganchase.com/content/dam/jpmc/jpmorgan-chase-and-co/investor-relations/documents/quarterly-earnings/2026/2nd-quarter/6cded9fd-a164-4e6c-8cff-377357cf105c.pdf",
+                    "reported_eps": 7.70, "core_eps": 6.14, "special_items_eps_effect": 1.56,
+                    "special_item_status": "Visa- und Equity-Investment-Gewinne; offizielles EPS ex significant items",
+                },
+            ],
+            "ttm_coverage_expected_periods": ["3Q25", "4Q25", "1Q26", "2Q26"],
+            "source_note": (
+                "Offizielle JPMorganChase-2Q26-Daten. Der gemeldete ROTCE von 29 % enthält wesentliche "
+                "Sondergewinne; die normalisierte Ertragskraft verwendet den von JPMorgan ausgewiesenen "
+                "ROTCE ex significant items von 23 %. Der Universal Bank Adapter speist dieselbe gemeinsame "
+                "Bank-Familienlogik wie bei anderen unterstützten Banken."
+            ),
+        }
+
+    if symbol_text == "BAC":
+        return {
+            "symbol": "BAC",
+            "company": "Bank of America Corporation",
+            "as_of_date": "30.06.2026",
+            "published_date": "14.07.2026",
+            "valid_until": "14.10.2026",
+            "source_name": "Bank of America 2Q26 Financial Results · Press Release & Presentation",
+            "source_url": "https://investor.bankofamerica.com/regulatory-and-other-filings/select-sec-filings/content/0000070858-26-000353/bac06302026ex992.htm",
+            "supplement_url": "https://investor.bankofamerica.com/regulatory-and-other-filings/select-sec-filings/content/0000070858-26-000353/bac06302026ex991.htm",
+            "allowed_source_hosts": ["bankofamerica.com", "investor.bankofamerica.com"],
+            "adapter_version": BANK_PRIMARY_SOURCE_ADAPTER_VERSION,
+            "adapter_mode": "verified_source_cache",
+            "book_value_per_share": 39.34,
+            "tangible_book_value_per_share": 29.37,
+            "book_value_growth_yoy_pct": 6.55,
+            "tangible_book_value_growth_yoy_pct": 6.84,
+            "roe_reported_pct": 12.71,
+            "rotce_reported_pct": 17.03,
+            "rotce_ex_significant_items_pct": 17.03,
+            "rotce_normalized_label": "ROTCE Bewertungsbasis (reported; keine offizielle Ex-Significant-Items-Brücke erforderlich)",
+            "cet1_standardized_pct": 11.2,
+            "cet1_advanced_pct": 12.5,
+            "cet1_capital": 201.6e9,
+            "standardized_rwa": 1.793e12,
+            "quarter_eps_reported": 1.21,
+            "quarter_eps_ex_significant_items": 1.21,
+            "significant_items_eps_effect": 0.0,
+            "ttm_eps_coverage": [
+                {
+                    "period": "3Q25", "published_date": "15.10.2025",
+                    "source_url": "https://investor.bankofamerica.com/regulatory-and-other-filings/select-sec-filings/content/0000070858-25-000390/bac093025ex992.htm",
+                    "reported_eps": 1.06, "core_eps": 1.06, "special_items_eps_effect": 0.0,
+                    "special_item_status": "Keine company-designierte quantitative EPS-Sonderposten-Brücke; reported EPS als Core-Basis",
+                },
+                {
+                    "period": "4Q25", "published_date": "14.01.2026",
+                    "source_url": "https://investor.bankofamerica.com/regulatory-and-other-filings/select-sec-filings/content/0000070858-26-000020/bac12312025ex991.htm",
+                    "reported_eps": 0.98, "core_eps": 0.98, "special_items_eps_effect": 0.0,
+                    "special_item_status": "Keine company-designierte quantitative EPS-Sonderposten-Brücke; reported EPS als Core-Basis",
+                },
+                {
+                    "period": "1Q26", "published_date": "15.04.2026",
+                    "source_url": "https://investor.bankofamerica.com/regulatory-and-other-filings/select-sec-filings/content/0000070858-26-000222/bac03312026ex992.htm",
+                    "reported_eps": 1.11, "core_eps": 1.11, "special_items_eps_effect": 0.0,
+                    "special_item_status": "Keine company-designierte quantitative EPS-Sonderposten-Brücke; reported EPS als Core-Basis",
+                },
+                {
+                    "period": "2Q26", "published_date": "14.07.2026",
+                    "source_url": "https://investor.bankofamerica.com/regulatory-and-other-filings/select-sec-filings/content/0000070858-26-000353/bac06302026ex991.htm",
+                    "reported_eps": 1.21, "core_eps": 1.21, "special_items_eps_effect": 0.0,
+                    "special_item_status": "Keine company-designierte quantitative EPS-Sonderposten-Brücke; reported EPS als Core-Basis",
+                },
+            ],
+            "ttm_coverage_expected_periods": ["3Q25", "4Q25", "1Q26", "2Q26"],
+            "source_note": (
+                "Offizielle Bank-of-America-Q2-2026-Daten: ROTCE 17,03 %, CET1 11,2 % Standardized / 12,5 % Advanced, "
+                "TBVPS 29,37 USD (+6,8 % YoY) und vier offizielle diluted-EPS-Quartale. Es wird keine künstliche "
+                "Core-EPS-Bereinigung erfunden; ohne quantitative company-designierte Sonderposten-Brücke bleibt reported EPS die Core-Basis."
+            ),
+        }
+    return None
+
+
+def get_verified_bank_snapshot(symbol, info=None):
+    """Universal bank-family primary-source adapter with fail-closed discovery fallback."""
+    seed = _get_verified_bank_seed_snapshot(symbol)
+    if seed is not None:
+        return seed
+    company_name = None
+    if isinstance(info, dict):
+        company_name = info.get("longName") or info.get("shortName")
+    return _discover_universal_bank_snapshot_v1(str(symbol or "").upper(), company_name=company_name)
 
 def _bank_snapshot_is_fresh(snapshot):
     if not isinstance(snapshot, dict):
@@ -10888,9 +11233,10 @@ def calculate_bank_core_eps_v1(
                 f"Bank-Core-EPS gesperrt: Primärquellen-Abdeckung für {period or 'ein Quartal'} ist unvollständig."
             )
             return result
-        if "jpmorganchase.com" not in source_url.lower():
+        if not _bank_source_url_is_allowed(snapshot, source_url):
             result["note"] = (
-                f"Bank-Core-EPS gesperrt: Quelle für {period} ist keine verifizierte JPMorgan-Primärquelle."
+                f"Bank-Core-EPS gesperrt: Quelle für {period} liegt weder auf SEC.gov noch auf einem "
+                "für diesen Emittenten freigegebenen offiziellen Primärquellen-Host."
             )
             return result
         bridge_diff = reported - core
@@ -11256,7 +11602,7 @@ def build_bank_special_model(
     ):
         calculated_trailing_pe = price_financial / trailing_eps
 
-    snapshot = get_verified_bank_snapshot(symbol)
+    snapshot = get_verified_bank_snapshot(symbol, info=info)
     snapshot_fresh = _bank_snapshot_is_fresh(snapshot)
 
     primary_book_value = None
@@ -11290,7 +11636,7 @@ def build_bank_special_model(
             if source_deviation <= 0.05:
                 source_consistency_note = (
                     "Primärquellen-Abgleich bestanden: Yahoo-Buchwert je Aktie "
-                    "und offizieller JPMorgan-Buchwert liegen innerhalb von 5 %."
+                    f"und offizieller {snapshot.get('company') or 'Bank'}-Buchwert liegen innerhalb von 5 %."
                 )
             else:
                 source_consistency_note = (
@@ -11367,8 +11713,8 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Banken-Sondermodell V2.20.39 lädt verifizierte Primärquellen-"
-            "Kennzahlen und verwendet ausschließlich bankspezifische Faktoren "
+            "Universal Bank Primary-Source Adapter V2.21.5 lädt verifizierte Primärquellen-"
+            "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % bank-normalisiertem Core-KGV "
             "berechnet. Der Core-KGV-Anker wird nur bei vollständiger Vier-Quartals-TTM-"
@@ -11444,13 +11790,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B V2.20.39 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Primary-Source Adapter V2.21.5 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B V2.20.39 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Primary-Source Adapter V2.21.5 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -44265,7 +44611,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Banken-Sondermodell V2.20.39 – Datenbasis"
+                        "🏦 Bank-Familienmodell · Universal Primary-Source Adapter V2.21.5"
                     )
 
                     if bank_model.get("primary_source_complete"):
@@ -44281,8 +44627,8 @@ if selected_symbol:
                         )
                     else:
                         st.info(
-                            "Bankmodell erkannt. Für diese Bank liegt noch kein "
-                            "vollständiger verifizierter Primärquellen-Snapshot vor."
+                            "Bankmodell erkannt. Der Universal Bank Primary-Source Adapter konnte noch keinen "
+                            "vollständigen verifizierten Primärquellen-Snapshot aufbauen; die Bewertung bleibt fail-closed."
                         )
 
                     col1, col2 = st.columns(2)
@@ -44343,8 +44689,9 @@ if selected_symbol:
                         )
 
                         rote_normalized = bank_model.get("rote_normalized_pct")
+                        rotce_basis_label = (bank_model.get("snapshot") or {}).get("rotce_normalized_label") or "ROTCE ex significant items"
                         st.metric(
-                            "ROTCE ex significant items",
+                            rotce_basis_label,
                             f"{rote_normalized:.1f} %" if rote_normalized is not None else "–"
                         )
 
@@ -44371,25 +44718,32 @@ if selected_symbol:
                         significant = safe_float(snapshot.get("significant_items_eps_effect"))
                         reported_q_eps = safe_float(snapshot.get("quarter_eps_reported"))
                         ex_q_eps = safe_float(snapshot.get("quarter_eps_ex_significant_items"))
-                        if significant is not None:
+                        if significant is not None and abs(significant) > 1e-12:
                             st.warning(
-                                "2Q26 enthält wesentliche Sondergewinne: "
+                                "Aktuelles Quartal enthält eine verifizierte quantitative EPS-Sonderposten-Brücke: "
                                 + format_currency_value(significant, financial_currency, 2, signed=True)
-                                + " EPS insgesamt. "
+                                + " EPS. "
                                 + (
                                     "Gemeldetes Quartals-EPS "
                                     + format_currency_value(reported_q_eps, financial_currency, 2)
-                                    + ", ex significant items "
+                                    + ", Core/ex significant items "
                                     + format_currency_value(ex_q_eps, financial_currency, 2)
                                     + ". "
                                     if reported_q_eps is not None and ex_q_eps is not None
                                     else ""
                                 )
-                                + "Für die Ertragsqualitätsprüfung wird der gemeldete "
-                                "ROTCE von 29 % deshalb nicht blind als normalisiert behandelt."
+                                + "Die normalisierte ROTCE-/Ertragsqualitätsbasis folgt ausschließlich der verifizierten Primärquellen-Brücke."
+                            )
+                        elif significant is not None:
+                            st.caption(
+                                "Keine quantitative company-designierte EPS-Sonderposten-Brücke im aktuellen Adapter-Snapshot; "
+                                "reported EPS bleibt ohne erfundene Bereinigung die Core-Basis."
                             )
 
                         st.info(snapshot.get("source_note"))
+                        st.caption(
+                            f"Adapter: {text_or_dash(snapshot.get('adapter_version'))} · Modus {text_or_dash(snapshot.get('adapter_mode'))}"
+                        )
                         st.caption(
                             f"Quelle: {snapshot.get('source_name')} · gültig bis "
                             f"{text_or_dash(snapshot.get('valid_until'))}"
