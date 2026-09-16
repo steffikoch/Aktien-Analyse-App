@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.3"
+APP_BUILD_VERSION = "V2.21.4"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Family Priority over Legacy Specialist Routers V1"
+    f"Build {APP_BUILD_VERSION} · Bank Earnings Horizon Alignment Guard"
 )
 
 
+# V2.21.4: Bank Earnings Horizon Alignment Guard. The bank Core-EPS anchor now consumes the same explicit valuation-forward basis selected by the global Earnings Horizon Alignment layer (official current-FY guidance, otherwise 0Y/current-FY analyst consensus) instead of reading raw provider forwardEps directly. Raw provider Forward-EPS remains reference-only for bank forward-P/E plausibility/context and can no longer leak the +1Y horizon into the bank Core-EPS/Fair-Value anchor. JPM therefore keeps its released Bank specialist, 4-quarter Core-TTM bridge, score, P/TBV logic and target corridors unchanged while the Core-EPS blend is aligned to current-FY.
 # V2.21.3: Universal Family Priority over Legacy Specialist Routers V1. Makes an active universal family readiness gate authoritative not only over the generic Standard-Unternehmen path but also over every legacy specialist-model builder and Step-3A router. When family_model_status is defined_unreleased/classification_unresolved and universal_family_fail_closed is true, legacy Bank/Insurance/REIT/Midstream/Utility/Auto/Semicap/issuer-specialist builders are suppressed centrally and cannot take over merely because the new family label contains a legacy keyword (for example Investment Bank triggering the old Bank model). Existing released specialist routes remain untouched because their family_model_ready flag is true and universal_family_fail_closed is false. GS therefore stays Investment Bank / Broker-Dealer fail-closed; CME stays Exchange / Market Infrastructure fail-closed; JPM and all previously released specialists continue on their frozen valuation paths.
 # V2.21.2: Capital Markets Family Split V1. Splits the overly broad Capital Markets / Brokerage / Exchange family into two reusable valuation families: Exchange / Market Infrastructure and Investment Bank / Broker-Dealer. CME/ICE/NDAQ/CBOE and comparable venue/clearing operators route to Exchange / Market Infrastructure; GS/MS/SCHW/IBKR and comparable brokerage/investment-banking issuers route to Investment Bank / Broker-Dealer. Financial Data & Stock Exchanges metadata is disambiguated with business-summary terms and can route data/ratings-heavy issuers to Credit Bureau / Data & Analytics or fail closed rather than forcing exchange economics. Both new families remain defined_unreleased and therefore inherit the V2.21.1 family-priority/readiness fail-closed guard. No released specialist valuation mathematics changed.
 # V2.21.1: Family-Priority & Valuation-Model Readiness Guard. Makes the universal valuation family authoritative whenever the legacy company-type classifier is only a generic/ambiguous placeholder (for example Software / Untertyp noch nicht eindeutig). A recognized specialist family with no released family model is always fail-closed regardless of the legacy route: generic growth, margin/ROE, Yahoo-FCF, Net-Debt/FCF, standard P/E, Fair Value, zones and signals stay blocked. Standard EPS divergence remains diagnosis-only while an unreleased family gate is active and no longer launches ad-hoc special-event research. Adds explicit family-model readiness metadata, issuer-family FCF context wording, and the official Block investor-relations quarterly-results fallback. Existing released specialist mathematics remain frozen.
@@ -10819,6 +10820,8 @@ def calculate_bank_core_eps_v1(
         "ttm_special_items_eps_effect": None,
         "core_trailing_eps": None,
         "forward_eps": None,
+        "raw_forward_eps": None,
+        "forward_source": None,
         "trailing_weight": None,
         "forward_weight": None,
         "bank_normalized_core_eps": None,
@@ -10839,10 +10842,22 @@ def calculate_bank_core_eps_v1(
         return result
 
     trailing = safe_float((info or {}).get("trailingEps"))
-    forward = safe_float((info or {}).get("forwardEps"))
+    raw_forward = safe_float((info or {}).get("forwardEps"))
+    forward = safe_float((eps_normalization or {}).get("eps_forward_valuation_basis"))
+    forward_source = (eps_normalization or {}).get("eps_forward_valuation_source")
+    current_fy_eps = safe_float((eps_normalization or {}).get("eps_forward_current_fy"))
+    guidance_override = bool((eps_normalization or {}).get("primary_guidance_override_active"))
     if trailing is None or trailing <= 0 or forward is None or forward <= 0:
         result["note"] = (
-            "Bank-Core-EPS gesperrt: positive TTM- und Forward-EPS müssen gleichzeitig vorliegen."
+            "Bank-Core-EPS gesperrt: positives TTM-EPS und eine durch das Earnings-Horizon-Alignment "
+            "freigegebene Current-FY-EPS-Basis müssen gleichzeitig vorliegen."
+        )
+        return result
+    if not guidance_override and (current_fy_eps is None or current_fy_eps <= 0):
+        result["note"] = (
+            "Bank-Core-EPS gesperrt: Der rohe Provider-Forward-EPS hat keinen verifizierten "
+            "0Y/current-FY-Horizont. Für den Bank-KGV-Anker ist ein expliziter Current-FY-"
+            "Konsens oder eine frische offizielle Current-FY-Guidance erforderlich."
         )
         return result
 
@@ -10928,14 +10943,14 @@ def calculate_bank_core_eps_v1(
     forward_weight = safe_float((eps_normalization or {}).get("eps_used_forward_weight"))
     if trailing_weight is None or forward_weight is None:
         result["note"] = (
-            "Bank-Core-EPS gesperrt: die konservativen TTM-/Forward-Gewichte der "
+            "Bank-Core-EPS gesperrt: die konservativen TTM-/Current-FY-Gewichte der "
             "EPS-Normalisierung sind nicht eindeutig verfügbar."
         )
         return result
 
     weight_sum = trailing_weight + forward_weight
     if abs(weight_sum - 1.0) > 1e-6 or trailing_weight < 0 or forward_weight < 0:
-        result["note"] = "Bank-Core-EPS gesperrt: TTM-/Forward-Gewichte sind nicht konsistent."
+        result["note"] = "Bank-Core-EPS gesperrt: TTM-/Current-FY-Gewichte sind nicht konsistent."
         return result
 
     if official_core_ttm <= 0:
@@ -10954,6 +10969,8 @@ def calculate_bank_core_eps_v1(
         "ttm_special_items_eps_effect": total_effect,
         "core_trailing_eps": official_core_ttm,
         "forward_eps": forward,
+        "raw_forward_eps": raw_forward,
+        "forward_source": forward_source,
         "trailing_weight": trailing_weight,
         "forward_weight": forward_weight,
         "bank_normalized_core_eps": bank_normalized,
@@ -10969,8 +10986,9 @@ def calculate_bank_core_eps_v1(
             f"vollständig bereinigtes Core-TTM-EPS {official_core_ttm:.2f}, saldierter "
             f"Sondereffekt {total_effect:+.2f}. Yahoo-TTM-Abweichung nur {reconciliation_diff:+.2f}. "
             f"Danach werden {trailing_weight * 100:.0f} % Core-TTM / "
-            f"{forward_weight * 100:.0f} % Forward verwendet; Forward-EPS wird nicht um "
-            "unbekannte zukünftige Sonderposten bereinigt."
+            f"{forward_weight * 100:.0f} % Current-FY-EPS verwendet. "
+            f"Horizon-Quelle: {forward_source or 'Earnings Horizon Alignment'}. "
+            "Der rohe Provider-Forward-EPS bleibt ausschließlich Horizont-/Plausibilitätskontext."
         ),
     })
     return result
@@ -41296,8 +41314,9 @@ if selected_symbol:
                     st.write(
                         "**Verwendete Methode:** "
                         f"{bank_core_eps_ui.get('trailing_weight', 0) * 100:.0f} % Core-TTM-EPS + "
-                        f"{bank_core_eps_ui.get('forward_weight', 0) * 100:.0f} % Forward-EPS; "
-                        "TTM-Sonderposten ausschließlich über verifizierte Bank-Primärquellen-Brücke bereinigt"
+                        f"{bank_core_eps_ui.get('forward_weight', 0) * 100:.0f} % Current-FY-EPS; "
+                        "TTM-Sonderposten ausschließlich über verifizierte Bank-Primärquellen-Brücke bereinigt; "
+                        "roher Provider-Forward-EPS bleibt Horizont-Kontext"
                     )
                     st.info(bank_core_eps_ui.get("note"))
                 elif insurance_core_eps_active:
