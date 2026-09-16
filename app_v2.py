@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.2"
+APP_BUILD_VERSION = "V2.21.3"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Capital Markets Family Split V1"
+    f"Build {APP_BUILD_VERSION} · Universal Family Priority over Legacy Specialist Routers V1"
 )
 
 
+# V2.21.3: Universal Family Priority over Legacy Specialist Routers V1. Makes an active universal family readiness gate authoritative not only over the generic Standard-Unternehmen path but also over every legacy specialist-model builder and Step-3A router. When family_model_status is defined_unreleased/classification_unresolved and universal_family_fail_closed is true, legacy Bank/Insurance/REIT/Midstream/Utility/Auto/Semicap/issuer-specialist builders are suppressed centrally and cannot take over merely because the new family label contains a legacy keyword (for example Investment Bank triggering the old Bank model). Existing released specialist routes remain untouched because their family_model_ready flag is true and universal_family_fail_closed is false. GS therefore stays Investment Bank / Broker-Dealer fail-closed; CME stays Exchange / Market Infrastructure fail-closed; JPM and all previously released specialists continue on their frozen valuation paths.
 # V2.21.2: Capital Markets Family Split V1. Splits the overly broad Capital Markets / Brokerage / Exchange family into two reusable valuation families: Exchange / Market Infrastructure and Investment Bank / Broker-Dealer. CME/ICE/NDAQ/CBOE and comparable venue/clearing operators route to Exchange / Market Infrastructure; GS/MS/SCHW/IBKR and comparable brokerage/investment-banking issuers route to Investment Bank / Broker-Dealer. Financial Data & Stock Exchanges metadata is disambiguated with business-summary terms and can route data/ratings-heavy issuers to Credit Bureau / Data & Analytics or fail closed rather than forcing exchange economics. Both new families remain defined_unreleased and therefore inherit the V2.21.1 family-priority/readiness fail-closed guard. No released specialist valuation mathematics changed.
 # V2.21.1: Family-Priority & Valuation-Model Readiness Guard. Makes the universal valuation family authoritative whenever the legacy company-type classifier is only a generic/ambiguous placeholder (for example Software / Untertyp noch nicht eindeutig). A recognized specialist family with no released family model is always fail-closed regardless of the legacy route: generic growth, margin/ROE, Yahoo-FCF, Net-Debt/FCF, standard P/E, Fair Value, zones and signals stay blocked. Standard EPS divergence remains diagnosis-only while an unreleased family gate is active and no longer launches ad-hoc special-event research. Adds explicit family-model readiness metadata, issuer-family FCF context wording, and the official Block investor-relations quarterly-results fallback. Existing released specialist mathematics remain frozen.
 # V2.21.0: Universal Company Classification & Valuation Family Router V1. Adds a reusable family layer above issuer-specific valuation logic. Existing released specialist mathematics remain frozen. The router enriches every classification with a valuation family, routes ambiguous Financial-Services issuers (especially Credit Services / Consumer Finance / Payments / Capital Markets) away from the industrial Standard-Unternehmen path, and fail-closes unreleased family models. A scalable Security Family Master supplies high-confidence overrides for ambiguous issuers such as Synchrony, while sector/industry/business-summary rules cover thousands of additional securities without requiring one code branch per stock. Generic growth, margin/ROE, Yahoo-FCF and Net-Debt/FCF scoring are blocked whenever the universal family gate marks the model as specialist-required. The Standard-Unternehmen path is retained only where the family is explicitly generic-compatible.
@@ -6733,6 +6734,60 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
 
 def is_universal_family_fail_closed(company_type):
     return bool((company_type or {}).get("universal_family_fail_closed"))
+
+
+def build_legacy_specialist_if_allowed(company_type, builder, *args, **kwargs):
+    """Run a released legacy specialist only when the universal family gate permits it.
+
+    V2.21.3 central priority rule: an unreleased/unresolved universal family is
+    authoritative across the complete valuation pipeline. Legacy specialist
+    builders must not react to substrings in the new family label (for example
+    ``Investment Bank`` accidentally activating the old generic ``Bank`` model).
+    Existing released specialist routes keep ``universal_family_fail_closed=False``
+    and therefore execute exactly as before.
+    """
+    if is_universal_family_fail_closed(company_type):
+        return {
+            "applicable": False,
+            "suppressed_by_universal_family_gate": True,
+            "suppressed_family": (company_type or {}).get("valuation_family") or (company_type or {}).get("type"),
+            "suppressed_builder": getattr(builder, "__name__", str(builder)),
+        }
+    return builder(*args, **kwargs)
+
+
+def _universal_family_special_control(company_type):
+    """Return the authoritative fail-closed Step-3A control for an unreleased family."""
+    family_label = company_type.get("valuation_family") or company_type.get("type") or "Bewertungsfamilie"
+    return {
+        "required": True,
+        "implemented": False,
+        "released": False,
+        "control_key": "universal_family_model_gate",
+        "control_name": f"Universal Family / {family_label} Modell-Gate",
+        "planned_checks": [
+            "Familiengerechte Earnings-/Cashflow-/Kapital-Kennzahlen statt industrieller Standardmetriken",
+            "Primärquellen-/Comparability-Basis für die aktuelle Periode",
+            "familiengerechter Bewertungsanker und Korridor",
+            "issuer-spezifische Overrides nur bei echten Struktur-/Sonderfällen",
+            "Analystenziele ausschließlich Reality Check, nie Fair-Value-Anker",
+        ],
+        "status": "Bewertungsfamilie erkannt · Familienmodell noch nicht freigegeben",
+        "router_status": "Bewertungsfamilie erkannt · Familienmodell noch nicht freigegeben",
+        "confidence_cap": "Niedrig bis Mittel",
+        "note": (
+            f"{family_label} wurde durch den Universal Company Classification & Valuation Family Router erkannt. "
+            "Bis das wiederverwendbare Familienmodell freigegeben ist, bleiben alle generischen und Legacy-Spezialpfade, "
+            "Standard-Score, Standard-KGV, Fair Value, Bewertungszone und Handlungssignale gesperrt. "
+            "Das ist ein Modellbereitschafts-Gate und kein Sonderereignis des Unternehmens."
+        ),
+        "router_note": (
+            f"{family_label} wurde durch den Universal Company Classification & Valuation Family Router erkannt. "
+            "Bis das wiederverwendbare Familienmodell freigegeben ist, bleiben alle generischen und Legacy-Spezialpfade, "
+            "Standard-Score, Standard-KGV, Fair Value, Bewertungszone und Handlungssignale gesperrt. "
+            "Das ist ein Modellbereitschafts-Gate und kein Sonderereignis des Unternehmens."
+        ),
+    }
 
 
 def classify_company(name, symbol, sector, industry):
@@ -23569,6 +23624,12 @@ def get_special_control(company_type, symbol):
         symbol or ""
     ).upper()
 
+    # V2.21.3: Universal family readiness has absolute priority over all legacy
+    # specialist routers. No legacy substring/type match may take over while
+    # the reusable family model is still unreleased or unresolved.
+    if is_universal_family_fail_closed(company_type):
+        return _universal_family_special_control(company_type)
+
     # Dieser Router erkennt ausschließlich bereits
     # fachlich vereinbarte Spezialkontrollen.
     # Er lädt noch keine Spezialdaten und verändert
@@ -24329,35 +24390,7 @@ def get_special_control(company_type, symbol):
             )
         }
 
-    if is_universal_family_fail_closed(company_type):
-        family_label = company_type.get("valuation_family") or company_type.get("type") or "Bewertungsfamilie"
-        return {
-            "required": True,
-            "implemented": False,
-            "released": False,
-            "control_key": "universal_family_model_gate",
-            "control_name": f"Universal Family / {family_label} Modell-Gate",
-            "planned_checks": [
-                "Familiengerechte Earnings-/Cashflow-/Kapital-Kennzahlen statt industrieller Standardmetriken",
-                "Primärquellen-/Comparability-Basis für die aktuelle Periode",
-                "familiengerechter Bewertungsanker und Korridor",
-                "issuer-spezifische Overrides nur bei echten Struktur-/Sonderfällen",
-                "Analystenziele ausschließlich Reality Check, nie Fair-Value-Anker",
-            ],
-            "status": "Bewertungsfamilie erkannt · Familienmodell noch nicht freigegeben",
-            "router_status": "Bewertungsfamilie erkannt · Familienmodell noch nicht freigegeben",
-            "confidence_cap": "Niedrig bis Mittel",
-            "note": (
-                f"{family_label} wurde durch den Universal Company Classification & Valuation Family Router erkannt. "
-                "Bis das wiederverwendbare Familienmodell freigegeben ist, bleiben Standard-Score, Standard-KGV, Fair Value, Bewertungszone und Handlungssignale gesperrt. "
-                "Das ist ein Modellbereitschafts-Gate und kein Sonderereignis des Unternehmens."
-            ),
-            "router_note": (
-                f"{family_label} wurde durch den Universal Company Classification & Valuation Family Router erkannt. "
-                "Bis das wiederverwendbare Familienmodell freigegeben ist, bleiben Standard-Score, Standard-KGV, Fair Value, Bewertungszone und Handlungssignale gesperrt. "
-                "Das ist ein Modellbereitschafts-Gate und kein Sonderereignis des Unternehmens."
-            ),
-        }
+    # Universal family fail-closed handling occurs at router entry (V2.21.3).
 
     return {
         "required": False,
@@ -38009,7 +38042,9 @@ def load_stock(selected_symbol, cache_version):
     # Special models receive the fundamental data package, while price is
     # still the selected market quote. Currency context converts explicitly
     # when a model needs price in the financial currency.
-    insurance_special_model = build_insurance_special_model(
+    insurance_special_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_insurance_special_model,
         company_type,
         fundamental_info,
         price,
@@ -38017,7 +38052,9 @@ def load_stock(selected_symbol, cache_version):
         symbol=fundamental_symbol
     )
 
-    bank_special_model = build_bank_special_model(
+    bank_special_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_bank_special_model,
         company_type,
         fundamental_info,
         price,
@@ -38026,7 +38063,9 @@ def load_stock(selected_symbol, cache_version):
         eps_normalization=eps_normalization
     )
 
-    midstream_special_model = build_midstream_special_model(
+    midstream_special_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_midstream_special_model,
         company_type,
         fundamental_info,
         price,
@@ -38034,7 +38073,9 @@ def load_stock(selected_symbol, cache_version):
         symbol=fundamental_symbol
     )
 
-    auto_special_model = build_auto_special_model(
+    auto_special_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_auto_special_model,
         company_type,
         fundamental_info,
         eps_normalization,
@@ -38042,15 +38083,21 @@ def load_stock(selected_symbol, cache_version):
         symbol=fundamental_symbol
     )
 
-    semicap_special_model = build_semicap_special_model(
+    semicap_special_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_semicap_special_model,
         company_type, fundamental_info, currency_context, symbol=fundamental_symbol
     )
 
-    nvidia_special_model = build_nvidia_special_model(
+    nvidia_special_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_nvidia_special_model,
         company_type, fundamental_info, currency_context, symbol=fundamental_symbol
     )
 
-    reit_special_model = build_reit_special_model(
+    reit_special_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_reit_special_model,
         company_type,
         fundamental_info,
         price,
@@ -38058,80 +38105,106 @@ def load_stock(selected_symbol, cache_version):
         symbol=fundamental_symbol
     )
 
-    regulated_utility_specialist_model = build_regulated_utility_specialist_model(
+    regulated_utility_specialist_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_regulated_utility_specialist_model,
         company_type,
         fundamental_info,
         fundamental_symbol
     )
 
-    cof_card_bank_specialist_model = build_cof_card_bank_specialist_model(
+    cof_card_bank_specialist_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_cof_card_bank_specialist_model,
         company_type,
         fundamental_info,
         fundamental_symbol
     )
 
-    axp_closed_loop_specialist_model = build_axp_closed_loop_specialist_model(
+    axp_closed_loop_specialist_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_axp_closed_loop_specialist_model,
         company_type,
         fundamental_info,
         fundamental_symbol
     )
 
-    payment_network_specialist_model = build_payment_network_specialist_model(
+    payment_network_specialist_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_payment_network_specialist_model,
         company_type,
         fundamental_info,
         fundamental_symbol
     )
 
-    adjusted_earnings_specialist_model = build_adjusted_earnings_specialist_model(
+    adjusted_earnings_specialist_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_adjusted_earnings_specialist_model,
         company_type,
         fundamental_info,
         eps_normalization,
         fundamental_symbol
     )
 
-    turnaround_postmerger_specialist_model = build_turnaround_postmerger_specialist_model(
+    turnaround_postmerger_specialist_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_turnaround_postmerger_specialist_model,
         company_type,
         fundamental_info,
         fundamental_symbol
     )
 
-    gold_precious_metals_specialist_model = build_gold_precious_metals_specialist_model(
+    gold_precious_metals_specialist_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_gold_precious_metals_specialist_model,
         company_type,
         fundamental_info,
         fundamental_symbol
     )
 
-    toyo_solar_specialist_model = build_toyo_solar_specialist_model(
+    toyo_solar_specialist_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_toyo_solar_specialist_model,
         company_type,
         fundamental_info,
         fundamental_symbol
     )
 
-    luxury_premium_specialist_model = build_luxury_premium_specialist_model(
+    luxury_premium_specialist_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_luxury_premium_specialist_model,
         company_type,
         fundamental_info,
         fundamental_symbol
     )
 
-    branded_consumer_staples_specialist_model = build_branded_consumer_staples_specialist_model(
+    branded_consumer_staples_specialist_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_branded_consumer_staples_specialist_model,
         company_type,
         fundamental_info,
         fundamental_symbol
     )
 
-    oilfield_services_energy_tech_specialist_model = build_oilfield_services_energy_tech_specialist_model(
+    oilfield_services_energy_tech_specialist_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_oilfield_services_energy_tech_specialist_model,
         company_type,
         fundamental_info,
         fundamental_symbol
     )
 
-    integrated_oil_gas_specialist_model = build_integrated_oil_gas_specialist_model(
+    integrated_oil_gas_specialist_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_integrated_oil_gas_specialist_model,
         company_type,
         fundamental_info,
         fundamental_symbol
     )
 
-    asset_management_specialist_model = build_asset_management_specialist_model(
+    asset_management_specialist_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_asset_management_specialist_model,
         company_type,
         fundamental_info,
         fundamental_symbol,
@@ -38140,14 +38213,18 @@ def load_stock(selected_symbol, cache_version):
         historical.get("eps", [])
     )
 
-    defense_high_growth_specialist_model = build_defense_high_growth_specialist_model(
+    defense_high_growth_specialist_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_defense_high_growth_specialist_model,
         company_type,
         fundamental_info,
         fundamental_symbol,
         valuation_forward_eps,
     )
 
-    ctva_separation_pre_gate_model = build_ctva_separation_pre_gate_model(
+    ctva_separation_pre_gate_model = build_legacy_specialist_if_allowed(
+        company_type,
+        build_ctva_separation_pre_gate_model,
         company_type,
         fundamental_info,
         fundamental_symbol
@@ -38980,6 +39057,13 @@ def load_stock(selected_symbol, cache_version):
         fundamental_multiple,
         industry=fundamental_info.get("industry"),
     )
+
+    # V2.21.3 final priority lock: even a future legacy control-builder that
+    # forgets to respect the readiness gate cannot replace the universal family
+    # decision later in the chain. Released family/specialist routes never enter
+    # this branch, so their frozen controls and mathematics are unchanged.
+    if is_universal_family_fail_closed(company_type):
+        special_control = _universal_family_special_control(company_type)
 
     special_event_warning = build_special_event_warning(
         eps_normalization,
