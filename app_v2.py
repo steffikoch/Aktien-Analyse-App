@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.20.133"
+APP_BUILD_VERSION = "V2.20.134"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Midstream Multi-Issuer Specialist V2 · Final UI Consistency Cleanup"
+    f"Build {APP_BUILD_VERSION} · Coca-Cola Branded Consumer Staples Specialist V1"
 )
 
 
+# V2.20.134: Coca-Cola Branded Consumer Staples Specialist V1. Adds an issuer-primary KO profile using Q2/H1 2026 organic revenue, unit-case volume, comparable operating margin/EPS, raised FY2026 comparable-EPS and FCF guidance, current balance-sheet/funding data, dividend durability and global brand/franchise-system resilience. Valuation uses a primary-source Current-FY Comparable-EPS anchor and a KO-specific score-driven 20–28x P/E corridor. MDLZ/PEP mathematics stay frozen, Nestlé remains family-routed fail-closed, and Branded-Staples peers remain reference-only. Also isolates generic EPS-normalization confidence as diagnosis-only for the whole Branded-Staples family.
 # V2.20.133: Midstream Final UI Consistency Cleanup. No valuation mathematics changed. Removes the duplicated Structural-Break next-step copy for WMB/OKE, replaces stale generic Midstream peer-adjustment promises with explicit reference-only wording in Module 6, and keeps the V2.20.131/132 Midstream score, target-multiple, Fair-Value, peer-lock and fail-closed mechanics unchanged.
 # V2.20.132: Midstream UI & Structural-Break Consistency Cleanup. No valuation mathematics changed. Aligns the Special-Event warning with active WMB/OKE Structural-Break gates, keeps validated pre-transaction operating context visible in Step 3B, uses MLP-specific distribution wording, normalizes transaction amounts to readable USD-billion text, and translates remaining Midstream UI notes. EPD/MPLX/KMI scores, target multiples, Fair Values, peer-lock behavior and WMB/OKE fail-closed rules are unchanged.
 # V2.20.131: Midstream Multi-Issuer Specialist V2. Generalizes the released KMI Midstream path to issuer-primary KMI/EPD/MPLX profiles while preserving KMI mathematics. EPD and MPLX use issuer-defined DCF/Operational DCF, distribution coverage, LTM Adjusted EBITDA, leverage/net-debt and profile-specific C-Corp/MLP valuation corridors. WMB and OKE expose validated Q2 operating context but remain fail-closed because post-Q2 Momentum/Apollo/Brazos transactions make the current capital structure non-comparable. Midstream peers are reference-only.
@@ -6498,8 +6499,8 @@ def classify_company(name, symbol, sector, industry):
         }
 
     # V2.20.118 – Branded Consumer Staples family routing.
-    # MDLZ and PEP are calibrated specialist profiles. KO and Nestlé are deliberately
-    # family-routed fail-closed until issuer-specific primary-source snapshots exist.
+    # MDLZ, PEP and KO are calibrated specialist profiles. Nestlé remains deliberately
+    # family-routed fail-closed until an issuer-specific primary-source snapshot exists.
     if symbol_text == "MDLZ" or "mondelez" in name_text:
         return {
             "type": "Defensiver Konsum / Global Snacks & Confectionery",
@@ -6546,10 +6547,17 @@ def classify_company(name, symbol, sector, industry):
     if symbol_text == "KO" or coca_cola_parent_name:
         return {
             "type": "Defensiver Konsum / Global Beverages / Branded Consumer Staples",
-            "method": "Issuer-spezifischer Branded-Consumer-Staples-Pfad erforderlich; bis Kalibrierung fail-closed",
-            "confidence_cap": "Niedrig bis Mittel",
-            "business_model": "Globales Marken- und Franchise-Getränkesystem",
-            "focus_areas": "Organic Revenue · Unit Case Volume · Comparable Margin/EPS · FCF · Net Debt/Funding · Marken-/Geografieresilienz · Kapitalallokation",
+            "method": (
+                "Primärquellen Branded-Consumer-Staples Quality Score + Current-FY Comparable EPS + "
+                "Coca-Cola-spezifisches scoregesteuertes 20–28× KGV; generischer Defensive-Consumer-Score gesperrt"
+            ),
+            "confidence_cap": "Mittel",
+            "business_model": "Globales Marken- und Franchise-Getränkesystem mit überwiegend asset-light Bottling-Netzwerk",
+            "core_segments": "Sparkling Soft Drinks · Water/Sports/Coffee/Tea · Juice/Value-Added Dairy/Plant-Based · Bottling Investments",
+            "focus_areas": (
+                "Organic Revenue & Unit Case Volume · Comparable Operating Margin · Comparable EPS/Guidance · "
+                "FCF/Cash Conversion · Net Debt/Funding · Marken-/Kategorie-/Geografieresilienz · Kapitalallokation · System-/Pricing-Resilienz"
+            ),
         }
 
     if (
@@ -17246,8 +17254,8 @@ def build_luxury_premium_special_control(control, specialist_model):
 
 # =========================================================
 # V2.20.118 – Branded Consumer Staples Family Expansion
-# Calibrated issuers: Mondelez International (MDLZ), PepsiCo (PEP)
-# Reserved fail-closed family routes: Coca-Cola (KO), Nestlé (NESN.SW/NSRGY/NSRGF)
+# Calibrated issuers: Mondelez International (MDLZ), PepsiCo (PEP), The Coca-Cola Company (KO)
+# Reserved fail-closed family routes: Nestlé (NESN.SW/NSRGY/NSRGF)
 # =========================================================
 
 BRANDED_CONSUMER_STAPLES_FAMILY_SYMBOLS = {
@@ -17269,9 +17277,9 @@ def is_branded_consumer_staples_specialist_type(company_type, symbol=None):
 def get_verified_branded_consumer_staples_snapshot(symbol):
     """Return issuer-specific primary-source snapshots for the calibrated family.
 
-    V2.20.118 supports MDLZ and PEP only. KO/Nestlé are intentionally routed into
-    this family but return None so valuation fails closed rather than falling back
-    to generic Consumer-Defensive ROE/FCF/Net-Debt scoring.
+    MDLZ and PEP retain their released issuer-specific profiles. V2.20.134 adds KO.
+    Nestlé remains intentionally routed into this family but returns None so valuation
+    fails closed rather than falling back to generic Consumer-Defensive ROE/FCF/Net-Debt scoring.
     """
     sym = str(symbol or "").upper().strip()
 
@@ -17481,8 +17489,147 @@ def get_verified_branded_consumer_staples_snapshot(symbol):
             ),
         }
 
-    # KO and Nestlé are intentionally fail-closed until their issuer-specific
-    # primary-source snapshots and thresholds are calibrated.
+    if sym == "KO":
+        fy2025_comparable_eps = 3.00
+        fy2026_comparable_eps_growth_low_pct = 9.0
+        fy2026_comparable_eps_growth_high_pct = 10.0
+        fy2026_comparable_eps_growth_mid_pct = 9.5
+        raw_current_fy_adjusted_eps_reference = fy2025_comparable_eps * (
+            1.0 + fy2026_comparable_eps_growth_mid_pct / 100.0
+        )
+        # Coca-Cola guides comparable EPS growth rather than a cent EPS range. Use
+        # the midpoint of the explicit 9–10% FY2026 comparable-EPS outlook and
+        # round to $0.05 to avoid false cent-level precision.
+        current_fy_adjusted_eps_reference = round(raw_current_fy_adjusted_eps_reference / 0.05) * 0.05
+
+        fy2025_diluted_shares_m = 4313.0
+        fy2025_comparable_net_income_proxy = fy2025_comparable_eps * fy2025_diluted_shares_m * 1_000_000.0
+        fy2025_fcf_ex_fairlife = 11_400_000_000.0
+        fy2025_fcf_conversion_pct = fy2025_fcf_ex_fairlife / fy2025_comparable_net_income_proxy * 100.0
+
+        fy2026_fcf_guidance = 12_400_000_000.0
+        fy2026_comparable_net_income_proxy = current_fy_adjusted_eps_reference * fy2025_diluted_shares_m * 1_000_000.0
+        fy2026_fcf_conversion_proxy_pct = fy2026_fcf_guidance / fy2026_comparable_net_income_proxy * 100.0
+
+        cash = 12_907_000_000.0
+        short_term_investments = 622_000_000.0
+        cash_and_short_term_investments = cash + short_term_investments
+        loans_notes_payable = 48_000_000.0
+        current_maturities_long_term_debt = 6_494_000_000.0
+        long_term_debt = 37_001_000_000.0
+        total_debt = loans_notes_payable + current_maturities_long_term_debt + long_term_debt
+        net_debt = total_debt - cash_and_short_term_investments
+        net_debt_to_fcf_guidance = net_debt / fy2026_fcf_guidance
+        annualized_dividend_per_share = 2.12
+        annualized_dividend_cash_proxy = annualized_dividend_per_share * fy2025_diluted_shares_m * 1_000_000.0
+        annualized_dividend_coverage = fy2026_fcf_guidance / annualized_dividend_cash_proxy
+
+        return {
+            "symbol": "KO",
+            "company": "The Coca-Cola Company",
+            "specialist_profile": "global_beverage_franchise_system",
+            "as_of_date": "03.07.2026",
+            "published_date": "28.07.2026",
+            "source_name": "Coca-Cola Q2 2026 Results + Q2 2026 Form 10-Q + FY2025 Results/10-K + 2026 Dividend/Company Profile",
+            "q2_results_url": "https://investors.coca-colacompany.com/news-events/press-releases/detail/1168/coca-cola-reports-second-quarter-2026-results-and-raises-full-year-guidance",
+            "sec_10q_url": "https://investors.coca-colacompany.com/filings-reports/all-sec-filings/content/0001628280-26-050503/ko-20260703.htm",
+            "fy2025_results_url": "https://investors.coca-colacompany.com/filings-reports/all-sec-filings/content/0001628280-26-006642/a2025q4earningsreleaseex-9.htm",
+            "fy2025_annual_report_url": "https://investors.coca-colacompany.com/filings-reports/all-sec-filings/content/0001628280-26-010047/ko-20251231.htm",
+            "dividend_url": "https://investors.coca-colacompany.com/news-events/press-releases/detail/1152/board-of-directors-of-the-coca-cola-company-elects-new-officer-and-approves-64th-consecutive-annual-dividend-increase",
+            "company_profile_url": "https://investors.coca-colacompany.com/about",
+            "valuation_basis_name": "Primary-source Current-FY Comparable EPS / Coca-Cola Branded Consumer Staples P/E",
+            "q2_net_revenue_growth_pct": 7.0,
+            "q2_organic_net_revenue_growth_pct": 6.0,
+            "q2_unit_case_volume_growth_pct": 5.0,
+            "q2_concentrate_sales_growth_pct": 4.0,
+            "q2_price_mix_pct": 2.0,
+            "h1_net_revenue_growth_pct": 9.0,
+            "h1_organic_net_revenue_growth_pct": 8.0,
+            "h1_unit_case_volume_growth_pct": 4.0,
+            "q2_operating_margin_pct": 34.9,
+            "q2_comparable_operating_margin_pct": 35.6,
+            "q2_comparable_operating_margin_prior_pct": 34.7,
+            "q2_comparable_operating_margin_change_pp": 0.9,
+            "q2_comparable_currency_neutral_operating_income_growth_pct": 6.0,
+            "h1_comparable_currency_neutral_operating_income_growth_pct": 9.0,
+            "q2_gaap_diluted_eps": 1.03,
+            "q2_adjusted_eps": 0.97,
+            "q2_adjusted_eps_growth_pct": 11.0,
+            "q2_adjusted_eps_growth_constant_fx_pct": 9.0,
+            "h1_adjusted_eps_growth_constant_fx_pct": 12.0,
+            "h1_cash_from_operations": 7_500_000_000.0,
+            "h1_free_cash_flow": 6_900_000_000.0,
+            "fy2025_adjusted_eps": fy2025_comparable_eps,
+            "fy2025_diluted_shares_m": fy2025_diluted_shares_m,
+            "fy2025_adjusted_net_earnings": fy2025_comparable_net_income_proxy,
+            "fy2025_free_cash_flow_ex_fairlife": fy2025_fcf_ex_fairlife,
+            "fy2025_fcf_conversion_pct": fy2025_fcf_conversion_pct,
+            "fy2026_organic_net_revenue_growth_pct": 5.0,
+            "fy2026_adjusted_eps_growth_low_pct": 7.0,
+            "fy2026_adjusted_eps_growth_high_pct": 8.0,
+            "fy2026_adjusted_eps_growth_mid_pct": 7.5,
+            "fy2026_reported_adjusted_eps_growth_low_pct": fy2026_comparable_eps_growth_low_pct,
+            "fy2026_reported_adjusted_eps_growth_high_pct": fy2026_comparable_eps_growth_high_pct,
+            "fy2026_reported_adjusted_eps_growth_mid_pct": fy2026_comparable_eps_growth_mid_pct,
+            "fy2026_fx_eps_tailwind_pct": 3.0,
+            "fy2026_acq_divest_eps_headwind_pct": 1.0,
+            "raw_current_fy_adjusted_eps_reference": raw_current_fy_adjusted_eps_reference,
+            "current_fy_adjusted_eps_reference": current_fy_adjusted_eps_reference,
+            "fy2026_free_cash_flow_guidance": fy2026_fcf_guidance,
+            "fy2026_cash_from_operations_guidance": 14_600_000_000.0,
+            "fy2026_capex_guidance": 2_200_000_000.0,
+            "fy2026_fcf_conversion_proxy_pct": fy2026_fcf_conversion_proxy_pct,
+            "cash_and_equivalents": cash,
+            "short_term_investments": short_term_investments,
+            "cash_and_short_term_investments": cash_and_short_term_investments,
+            "loans_notes_payable": loans_notes_payable,
+            "current_maturities_long_term_debt": current_maturities_long_term_debt,
+            "long_term_debt": long_term_debt,
+            "total_debt": total_debt,
+            "net_debt": net_debt,
+            "net_debt_to_fcf_guidance": net_debt_to_fcf_guidance,
+            "unused_backup_credit_lines": 6_600_000_000.0,
+            "long_term_credit_rating_sp": "A+",
+            "long_term_credit_rating_moodys": "A1",
+            "commercial_paper_rating_sp": "A-1",
+            "commercial_paper_rating_moodys": "P-1",
+            "commercial_paper_outstanding": 0.0,
+            "investment_grade_high_quality": True,
+            "tier1_commercial_paper_access": True,
+            "countries_served_min": 200,
+            "billion_dollar_brand_count_min": 32,
+            "multi_category_portfolio": True,
+            "multi_region_portfolio": True,
+            "franchise_bottling_system": True,
+            "commodity_hedging_program": True,
+            "input_cost_pressure_active": True,
+            "value_share_gain_nartd": True,
+            "asset_light_refranchising_active": True,
+            "quarterly_dividend_increase_pct": 3.9,
+            "consecutive_annual_dividend_increases": 64,
+            "annualized_dividend_per_share": annualized_dividend_per_share,
+            "annualized_dividend_cash_proxy": annualized_dividend_cash_proxy,
+            "annualized_dividend_coverage": annualized_dividend_coverage,
+            "fy2025_dividends_paid": 8_779_000_000.0,
+            "h1_2026_dividends_paid_payable": 4_562_000_000.0,
+            "h1_2026_treasury_stock_purchases": 549_000_000.0,
+            "remaining_share_repurchase_authorization": 5_200_000_000.0,
+            "ccba_sale_pending": True,
+            "ccba_sale_guidance_assumption": "Closing towards end-Q3 or in Q4 2026, subject to regulatory approvals",
+            "tax_litigation_active": True,
+            "corridor_low": 20.0,
+            "corridor_high": 28.0,
+            "valuation_confidence_cap": "Mittel",
+            "note": (
+                "Coca-Cola wird als globales asset-light Marken-/Franchise-Getränkesystem bewertet. Maßgeblich sind Organic Revenue und Unit Case Volume, "
+                "Comparable Operating Margin/EPS und FY2026 Guidance, issuer-definierter FCF/Cash Conversion, aktuelle Net-Debt/Funding-Qualität, globale Marken-/Geografieresilienz und Kapitalallokation. "
+                "Der Current-FY Comparable-EPS-Anker verwendet die Mitte der expliziten 9–10%-FY2026-Comparable-EPS-Wachstumsindikation auf FY2025 Comparable EPS von $3,00 und wird auf $0,05 gerundet. "
+                "Die pending CCBA-Veräußerung ist in der Guidance berücksichtigt; Peer-KGVs und Yahoo-Standardmetriken bleiben außerhalb des Fair Values."
+            ),
+        }
+
+    # Nestlé remains intentionally fail-closed until its issuer-specific
+    # primary-source snapshot and thresholds are calibrated.
     return None
 
 
@@ -17710,6 +17857,127 @@ def _build_pepsico_branded_consumer_staples_score(snap):
     return result
 
 
+def _build_coca_cola_branded_consumer_staples_score(snap):
+    result = {"available": False, "score": None, "quality_level": None, "components": {}, "note": None}
+
+    organic = safe_float(snap.get("q2_organic_net_revenue_growth_pct"))
+    volume = safe_float(snap.get("q2_unit_case_volume_growth_pct"))
+    price_mix = safe_float(snap.get("q2_price_mix_pct"))
+    growth_outlook = safe_float(snap.get("fy2026_organic_net_revenue_growth_pct"))
+    comp_margin = safe_float(snap.get("q2_comparable_operating_margin_pct"))
+    comp_margin_delta = safe_float(snap.get("q2_comparable_operating_margin_change_pp"))
+    comp_oi_cc = safe_float(snap.get("q2_comparable_currency_neutral_operating_income_growth_pct"))
+    q2_eps_cc = safe_float(snap.get("q2_adjusted_eps_growth_constant_fx_pct"))
+    h1_eps_cc = safe_float(snap.get("h1_adjusted_eps_growth_constant_fx_pct"))
+    fy_eps_cc_mid = safe_float(snap.get("fy2026_adjusted_eps_growth_mid_pct"))
+    fcf_conv_2025 = safe_float(snap.get("fy2025_fcf_conversion_pct"))
+    fcf_conv_2026 = safe_float(snap.get("fy2026_fcf_conversion_proxy_pct"))
+    net_debt_fcf = safe_float(snap.get("net_debt_to_fcf_guidance"))
+    commercial_paper = safe_float(snap.get("commercial_paper_outstanding"))
+    countries = safe_float(snap.get("countries_served_min"))
+    brand_count = safe_float(snap.get("billion_dollar_brand_count_min"))
+    dividend_raise = safe_float(snap.get("quarterly_dividend_increase_pct"))
+    dividend_streak = safe_float(snap.get("consecutive_annual_dividend_increases"))
+    h1_dividends = safe_float(snap.get("h1_2026_dividends_paid_payable"))
+    h1_buybacks = safe_float(snap.get("h1_2026_treasury_stock_purchases"))
+    dividend_coverage = safe_float(snap.get("annualized_dividend_coverage"))
+
+    required = [
+        organic, volume, price_mix, growth_outlook, comp_margin, comp_margin_delta, comp_oi_cc,
+        q2_eps_cc, h1_eps_cc, fy_eps_cc_mid, fcf_conv_2025, fcf_conv_2026,
+        net_debt_fcf, commercial_paper, countries, brand_count, dividend_raise,
+        dividend_streak, h1_dividends, h1_buybacks, dividend_coverage,
+    ]
+    if any(v is None for v in required):
+        result["note"] = "Coca-Cola-Spezialscore gesperrt: mindestens eine Primärkennzahl fehlt."
+        return result
+
+    # 20 points – top-line quality: organic growth, real beverage volume, FY organic
+    # outlook and verified value-share gains. Nominal revenue alone never drives points.
+    growth_pts = 12.0 if organic >= 5.0 else 10.0 if organic >= 3.0 else 7.0 if organic >= 1.0 else 3.0
+    growth_pts += 4.0 if volume >= 4.0 else 3.0 if volume >= 2.0 else 1.0 if volume >= 0.0 else 0.0
+    growth_pts += 3.0 if growth_outlook >= 5.0 else 2.0 if growth_outlook >= 4.0 else 1.0 if growth_outlook >= 2.0 else 0.0
+    growth_pts += 1.0 if bool(snap.get("value_share_gain_nartd")) else 0.0
+    growth_pts = min(20.0, growth_pts)
+
+    # 15 points – comparable margin level and operating leverage for the asset-light
+    # concentrate/franchise system.
+    margin_pts = 12.0 if comp_margin >= 35.0 else 11.0 if comp_margin >= 33.0 else 9.0 if comp_margin >= 30.0 else 6.0
+    margin_pts += 2.0 if comp_margin_delta >= 0.75 else 1.0 if comp_margin_delta >= 0.25 else 0.0
+    margin_pts += 1.0 if comp_oi_cc >= 5.0 else 0.0
+    margin_pts = min(15.0, margin_pts)
+
+    # 15 points – constant-currency full-year Comparable-EPS guidance is the quality
+    # anchor; Q2/H1 constant-FX growth provides same-basis momentum confirmation.
+    earnings_pts = 12.0 if fy_eps_cc_mid >= 7.0 else 10.0 if fy_eps_cc_mid >= 5.0 else 8.0 if fy_eps_cc_mid >= 3.0 else 5.0
+    earnings_pts += 1.0 if q2_eps_cc >= 8.0 else 0.0
+    earnings_pts += 2.0 if h1_eps_cc >= 10.0 else 1.0 if h1_eps_cc >= 7.0 else 0.0
+    earnings_pts = min(15.0, earnings_pts)
+
+    # 15 points – normalize FY2025 FCF for the fairlife contingent payment and
+    # cross-check FY2026 company FCF guidance against the Comparable-EPS proxy.
+    fcf_pts = 11.0 if fcf_conv_2025 >= 85.0 else 9.0 if fcf_conv_2025 >= 80.0 else 7.0 if fcf_conv_2025 >= 70.0 else 4.0
+    fcf_pts += 3.0 if fcf_conv_2026 >= 85.0 else 2.0 if fcf_conv_2026 >= 80.0 else 1.0 if fcf_conv_2026 >= 70.0 else 0.0
+    fcf_pts = min(15.0, fcf_pts)
+
+    # 10 points – conservative debt-to-guided-FCF proxy plus verified high-grade
+    # ratings and zero commercial paper at Q2. This proxy is not issuer-reported net debt.
+    leverage_pts = 6.0 if net_debt_fcf <= 2.5 else 5.0 if net_debt_fcf <= 3.0 else 3.0 if net_debt_fcf <= 4.0 else 1.0
+    rating_sp = str(snap.get("long_term_credit_rating_sp") or "").upper().strip()
+    rating_moodys = str(snap.get("long_term_credit_rating_moodys") or "").upper().strip()
+    leverage_pts += 2.0 if rating_sp in {"A+", "AA-", "AA", "AA+", "AAA"} and rating_moodys in {"A1", "AA3", "AA2", "AA1", "AAA"} else 1.0 if bool(snap.get("investment_grade_high_quality")) else 0.0
+    leverage_pts += 1.0 if commercial_paper <= 0.0 else 0.0
+    leverage_pts = min(10.0, leverage_pts)
+
+    # 10 points – global brand/category/geography reach and franchise-bottling system.
+    brand_pts = 4.0 if countries >= 200.0 else 3.0 if countries >= 150.0 else 1.0
+    brand_pts += 3.0 if brand_count >= 30.0 else 2.0 if brand_count >= 20.0 else 1.0
+    brand_pts += 1.0 if bool(snap.get("multi_category_portfolio")) else 0.0
+    brand_pts += 1.0 if bool(snap.get("multi_region_portfolio")) else 0.0
+    brand_pts += 1.0 if bool(snap.get("franchise_bottling_system")) else 0.0
+    brand_pts = min(10.0, brand_pts)
+
+    # 10 points – dividend durability first; buybacks and FCF coverage are supporting signals.
+    capital_pts = 3.0 if dividend_raise > 0.0 else 1.0
+    capital_pts += 2.0 if dividend_streak >= 50.0 else 1.0 if dividend_streak >= 25.0 else 0.0
+    capital_pts += 2.0 if h1_dividends > 0.0 else 0.0
+    capital_pts += 1.0 if h1_buybacks > 0.0 else 0.0
+    capital_pts += 1.0 if dividend_coverage >= 1.20 else 0.0
+    capital_pts = min(10.0, capital_pts)
+
+    # 5 points – positive organic growth + volume, pricing/mix and value-share gain
+    # demonstrate resilience. Active input-cost pressure prevents the optional fifth point.
+    resilience_pts = 2.0 if organic > 0.0 and volume > 0.0 else 1.0 if organic > 0.0 else 0.0
+    resilience_pts += 1.0 if price_mix > 0.0 else 0.0
+    resilience_pts += 1.0 if bool(snap.get("value_share_gain_nartd")) else 0.0
+    resilience_pts += 1.0 if not bool(snap.get("input_cost_pressure_active")) else 0.0
+    resilience_pts = min(5.0, resilience_pts)
+
+    components = {
+        "Organic Growth / Unit Case Volume": growth_pts,
+        "Comparable Operating Margin / Operating Leverage": margin_pts,
+        "Comparable Earnings Quality / Guidance": earnings_pts,
+        "FCF / Cash Conversion": fcf_pts,
+        "Leverage / Funding": leverage_pts,
+        "Brand / Franchise / Geography": brand_pts,
+        "Capital Allocation": capital_pts,
+        "Pricing / Volume / Input-Cost Resilience": resilience_pts,
+    }
+    score = max(0.0, min(100.0, round(sum(components.values()), 2)))
+    result.update({
+        "available": True,
+        "score": score,
+        "quality_level": _specialist_quality_level(score),
+        "components": components,
+        "note": (
+            "Der Coca-Cola Branded Consumer Staples Quality Score ersetzt den generischen Defensive-Consumer-Score. "
+            "GAAP-EPS, ROE, Yahoo-FCF und generische Net-Debt/TTM-FCF-Punkte sind keine Score-Eingaben. "
+            "Die pending CCBA-Veräußerung wird nur über die offizielle FY2026 Guidance berücksichtigt und erzeugt keinen separaten Peer-/M&A-Aufschlag."
+        ),
+    })
+    return result
+
+
 def build_branded_consumer_staples_specialist_score(snapshot):
     snap = snapshot if isinstance(snapshot, dict) else {}
     profile = str(snap.get("specialist_profile") or "")
@@ -17717,6 +17985,8 @@ def build_branded_consumer_staples_specialist_score(snapshot):
         return _build_mondelez_branded_consumer_staples_score(snap)
     if profile == "global_snacks_beverages_integrated":
         return _build_pepsico_branded_consumer_staples_score(snap)
+    if profile == "global_beverage_franchise_system":
+        return _build_coca_cola_branded_consumer_staples_score(snap)
     return {
         "available": False,
         "score": None,
@@ -17733,7 +18003,7 @@ def build_branded_consumer_staples_specialist_valuation(snapshot, specialist_sco
     high = safe_float(snap.get("corridor_high"))
     result = {
         "available": False,
-        "valuation_method_name": "Branded Consumer Staples Current-FY Adjusted/Core EPS P/E",
+        "valuation_method_name": "Branded Consumer Staples Current-FY Adjusted/Core/Comparable EPS P/E",
         "earnings_basis": None,
         "target_multiple": None,
         "corridor_low": low,
@@ -17747,7 +18017,7 @@ def build_branded_consumer_staples_specialist_valuation(snapshot, specialist_sco
     earnings = safe_float(snap.get("current_fy_adjusted_eps_reference"))
     score = safe_float(score_data.get("score"))
     if earnings is None or earnings <= 0 or score is None or low is None or high is None or high <= low:
-        result["note"] = "Branded-Consumer-Staples-Spezialbewertung gesperrt: Current-FY Adjusted/Core EPS oder issuer-spezifischer Korridor unvollständig."
+        result["note"] = "Branded-Consumer-Staples-Spezialbewertung gesperrt: Current-FY Adjusted/Core/Comparable EPS oder issuer-spezifischer Korridor unvollständig."
         return result
     target = low + (high - low) * (score / 100.0)
     fair = earnings * target
@@ -17758,7 +18028,7 @@ def build_branded_consumer_staples_specialist_valuation(snapshot, specialist_sco
         "target_multiple": target,
         "fair_value_financial": fair,
         "note": (
-            f"Fair Value = Current-FY Adjusted/Core EPS × scoregesteuertes {low:.0f}–{high:.0f}× issuer-spezifisches Branded-Consumer-Staples-KGV. "
+            f"Fair Value = Current-FY Adjusted/Core/Comparable EPS × scoregesteuertes {low:.0f}–{high:.0f}× issuer-spezifisches Branded-Consumer-Staples-KGV. "
             "Peer-KGVs, Analystenziele und Morningstar-Werte bleiben reference-only/Reality Check und verändern den fundamentalen Fair Value nicht."
         ),
     })
@@ -17821,6 +18091,8 @@ def build_branded_consumer_staples_special_control(control, specialist_model):
             + (
                 "PepsiCo verwendet ein eigenes Snacks+Getränke-Profil mit Organic Revenue, Food-/Beverage-Volume, Core Margin/EPS, FCF Conversion, Finanzierung, Portfolioresilienz und Kapitalallokation."
                 if profile == "global_snacks_beverages_integrated"
+                else "Coca-Cola verwendet ein eigenes globales Getränke-/Franchise-Profil mit Organic Revenue, Unit Case Volume, Comparable Margin/EPS, FCF/Cash Conversion, konservativem Funding-Proxy, Marken-/Geografieresilienz und Kapitalallokation."
+                if profile == "global_beverage_franchise_system"
                 else "Der Spezialpfad verwendet issuer-/SEC-basierte Adjusted Earnings, organisches Wachstum/Volume-Mix, Margen, Cash Conversion, Finanzierung, Marken-/Portfolioresilienz, Kapitalallokation und Rohstoff-/Pricing-Resilienz."
                 if released
                 else "Ohne vollständigen issuer-spezifischen Primärquellen-Snapshot bleibt Fair Value fail-closed."
@@ -21556,6 +21828,19 @@ def get_special_control(company_type, symbol):
                 "16–22× scoregesteuerter PepsiCo Branded-Consumer-Staples-KGV-Korridor",
                 "Peers reference-only; Analysten-/Morningstar-Ziele ausschließlich Reality Check",
             ]
+        elif symbol_text == "KO":
+            planned_checks = [
+                "Q2 Organic Revenue und Unit Case Volume statt nominalem Umsatz allein",
+                "Comparable Operating Margin und Currency-Neutral Operating Leverage",
+                "Comparable EPS / Current-FY Guidance statt GAAP-EPS",
+                "FY2025 FCF ex fairlife-Sonderzahlung + FY2026 FCF/Cash-Conversion-Guidance",
+                "Net Debt/FY2026 FCF + Investment-Grade-/Commercial-Paper-/Backup-Liquidity statt ROE",
+                "Marken-/Kategorie-/Geografiediversifikation und Franchise-Bottling-System",
+                "64-jährige Dividendenhistorie + Buybacks/Kapitalallokation",
+                "Pricing-/Input-Cost-/Market-Share-Resilienz",
+                "20–28× scoregesteuerter Coca-Cola Branded-Consumer-Staples-KGV-Korridor",
+                "Peers reference-only; Analysten-/Morningstar-Ziele ausschließlich Reality Check",
+            ]
         elif symbol_text == "MDLZ":
             planned_checks = [
                 "Q2 Organic Net Revenue Growth und Volume/Mix statt nominalem Umsatz allein",
@@ -21589,7 +21874,7 @@ def get_special_control(company_type, symbol):
             "status": f"Router aktiv – {APP_BUILD_VERSION} Branded Consumer Staples Family Expansion",
             "note": (
                 f"{family_label} wird nicht über den generischen Defensive-Consumer-Pfad bewertet. "
-                "MDLZ und PEP besitzen freigegebene issuer-spezifische Primärquellenprofile; KO/Nestlé bleiben fail-closed, bis ihre eigenen Snapshots und Schwellen kalibriert sind."
+                "MDLZ, PEP und KO besitzen freigegebene issuer-spezifische Primärquellenprofile; Nestlé bleibt fail-closed, bis ein eigener Snapshot und eigene Schwellen kalibriert sind."
             ),
         }
 
@@ -29902,7 +30187,7 @@ def calculate_fair_value_v1(
             "unit_conversion_applied": bool(unit_notes),
             "unit_note": " ".join(unit_notes) if unit_notes else None,
             "note": (
-                "Branded Consumer Staples Fair Value V1 = Current-FY Adjusted/Core EPS × scoregesteuertes issuer-spezifisches Spezial-KGV. "
+                "Branded Consumer Staples Fair Value V1 = Current-FY Adjusted/Core/Comparable EPS × scoregesteuertes issuer-spezifisches Spezial-KGV. "
                 "GAAP-EPS-Sprünge, generisches Yahoo-FCF/Net-Debt-to-FCF, Peer-KGVs, Analystenziele und Morningstar-Werte fließen nicht direkt in den fundamentalen Fair Value ein."
             ),
         })
@@ -32740,8 +33025,8 @@ def _should_try_generic_adjusted_ttm(company_type, raw_ttm, current_fy_eps, webs
     if _verified_adjusted_ttm_snapshot(symbol) is not None:
         return False
     # V2.20.122 – Branded Consumer Staples has an explicit issuer-specific owner
-    # path. Running the generic IR Adjusted-TTM reconstructor for KO/Nestlé (or
-    # calibrated MDLZ/PEP) is both unnecessary and unsafe: the generic bridge is
+    # path. Running the generic IR Adjusted-TTM reconstructor for Nestlé (or
+    # calibrated MDLZ/PEP/KO) is both unnecessary and unsafe: the generic bridge is
     # diagnosis for ordinary companies, while this family must either use its
     # own primary-source snapshot or fail closed without substitution.
     if is_branded_consumer_staples_specialist_type(company_type, symbol):
@@ -36279,7 +36564,7 @@ def load_stock(selected_symbol, cache_version):
     )
 
     # V2.20.123 – Family calibration is not a special event.  Keep a
-    # dedicated gate so an uncalibrated KO/Nestlé profile can fail closed
+    # dedicated gate so an uncalibrated Nestlé profile can fail closed
     # without launching the ad-hoc Special-Event research engine or using
     # Special-Event language for a normal model-readiness condition.
     branded_consumer_family_gate = {
@@ -36477,6 +36762,14 @@ def load_stock(selected_symbol, cache_version):
                 "Input-Cost-/North-America-Execution-Risiken bleiben relevant, deshalb bleibt die Bewertungssicherheit Mittel."
             )
             bcs_basis_label = "Current-FY Core EPS"
+        elif bcs_profile_event == "global_beverage_franchise_system":
+            bcs_reason = (
+                f"Q2 Organic Revenue wächst {safe_float(bcs_snap_event.get('q2_organic_net_revenue_growth_pct')):.1f} %, Unit Case Volume {safe_float(bcs_snap_event.get('q2_unit_case_volume_growth_pct')):+.1f} %. "
+                f"Comparable Operating Margin liegt bei {safe_float(bcs_snap_event.get('q2_comparable_operating_margin_pct')):.1f} % und stieg um {safe_float(bcs_snap_event.get('q2_comparable_operating_margin_change_pp')):+.1f} Prozentpunkte; "
+                f"Comparable EPS konstant FX wächst {safe_float(bcs_snap_event.get('q2_adjusted_eps_growth_constant_fx_pct')):+.1f} %. "
+                "Die CCBA-Veräußerung ist in der FY2026 Guidance berücksichtigt; Input-Cost- und Steuerlitigation-Risiken begrenzen die Bewertungssicherheit auf Mittel."
+            )
+            bcs_basis_label = "Current-FY Comparable EPS"
         else:
             bcs_reason = (
                 f"Q2 Organic Net Revenue wächst {safe_float(bcs_snap_event.get('q2_organic_net_revenue_growth_pct')):.1f} %, Volume/Mix liegt bei "
@@ -38438,7 +38731,13 @@ if selected_symbol:
                         bcs_eps_snap_ui = bcs_eps_model_ui.get("snapshot") or {}
                         bcs_eps_company_ui = bcs_eps_snap_ui.get("company") or data.get("fundamental_symbol") or data.get("symbol") or "Branded Consumer Staples"
                         if bcs_eps_snap_ui:
-                            bcs_eps_basis_label_ui = "Core EPS" if bcs_eps_snap_ui.get("specialist_profile") == "global_snacks_beverages_integrated" else "Adjusted EPS"
+                            bcs_eps_profile_ui = bcs_eps_snap_ui.get("specialist_profile")
+                            if bcs_eps_profile_ui == "global_snacks_beverages_integrated":
+                                bcs_eps_basis_label_ui = "Core EPS"
+                            elif bcs_eps_profile_ui == "global_beverage_franchise_system":
+                                bcs_eps_basis_label_ui = "Comparable EPS"
+                            else:
+                                bcs_eps_basis_label_ui = "Adjusted EPS"
                             st.info(
                                 f"{bcs_eps_company_ui} / Branded Consumer Staples: Die Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
                                 f"{APP_BUILD_VERSION} verwendet für den Fair Value die primärquellenbasierte Current-FY {bcs_eps_basis_label_ui}-Basis "
@@ -38576,6 +38875,24 @@ if selected_symbol:
                         st.caption(
                             f"Spezialpfad-Konsistenz: TTM und Current-FY derselben Asset-Manager-Earnings-Familie weichen um {am_eps_div_ui:.1f} % ab. "
                             "Die 3Y-Through-Cycle-Komponente ist ein Glättungsanker."
+                        )
+                elif branded_consumer_staples_eps_context_ui:
+                    bcs_diag_label_ui = {
+                        "Hoch": "hohe",
+                        "Mittel": "mittlere",
+                        "Niedrig": "niedrige",
+                    }.get(str(confidence or ""), "nicht bestimmte")
+                    bcs_conf_snap_ui = ((data.get("branded_consumer_staples_specialist_model") or {}).get("snapshot") or {})
+                    if bcs_conf_snap_ui:
+                        st.info(
+                            f"Standard-EPS-Kontext: **{bcs_diag_label_ui} Datenkonsistenz** · nur Diagnose. "
+                            f"Branded-Staples Specialist-Basis: **{text_or_dash(bcs_conf_snap_ui.get('valuation_confidence_cap') or 'Mittel')}**; "
+                            "die Standard-EPS-Normalisierung gibt keine Bewertungsfreigabe und begrenzt den Specialist-Fair-Value nicht."
+                        )
+                    else:
+                        st.info(
+                            f"Standard-EPS-Kontext: **{bcs_diag_label_ui} Datenkonsistenz** · nur Diagnose, keine Bewertungsfreigabe. "
+                            "Das issuer-spezifische Branded-Staples-Profil bleibt bis zur Primärquellen-Kalibrierung fail-closed."
                         )
                 elif oilfield_services_eps_context_ui:
                     of_diag_label_ui = {
@@ -43193,6 +43510,8 @@ if selected_symbol:
                             if snap_bcs.get("fy2025_results_url"): links_bcs.append(f"[FY2025 Results]({snap_bcs.get('fy2025_results_url')})")
                             if snap_bcs.get("fy2025_annual_report_url"): links_bcs.append(f"[FY2025 Annual Report]({snap_bcs.get('fy2025_annual_report_url')})")
                             if snap_bcs.get("cagny_url"): links_bcs.append(f"[2026 CAGNY]({snap_bcs.get('cagny_url')})")
+                            if snap_bcs.get("dividend_url"): links_bcs.append(f"[Dividenden-Primärquelle]({snap_bcs.get('dividend_url')})")
+                            if snap_bcs.get("company_profile_url"): links_bcs.append(f"[Unternehmensprofil]({snap_bcs.get('company_profile_url')})")
                             if links_bcs: st.markdown(" · ".join(links_bcs))
 
                             if bcs_profile_ui == "global_snacks_beverages_integrated":
@@ -43226,6 +43545,41 @@ if selected_symbol:
                                 st.caption(
                                     "Die EPS-Basis leitet sich aus FY2025 Core EPS und dem Mittelpunkt der expliziten FY2026 reported Core-EPS-Wachstumsindikation von 5–7 % ab; "
                                     "sie wird wegen der Guidance-Bandbreite auf $0,05 gerundet."
+                                )
+                            elif bcs_profile_ui == "global_beverage_franchise_system":
+                                b1, b2 = st.columns(2)
+                                with b1:
+                                    st.metric("Q2 Organic Revenue", f"{safe_float(snap_bcs.get('q2_organic_net_revenue_growth_pct')):+.1f} %")
+                                    st.metric("Q2 Unit Case Volume", f"{safe_float(snap_bcs.get('q2_unit_case_volume_growth_pct')):+.1f} %")
+                                    st.metric("Q2 Comparable Operating Margin", f"{safe_float(snap_bcs.get('q2_comparable_operating_margin_pct')):.1f} %")
+                                    st.metric("Q2 Comparable Margin Δ", f"{safe_float(snap_bcs.get('q2_comparable_operating_margin_change_pp')):+.1f} pp")
+                                with b2:
+                                    st.metric("Q2 Comparable EPS", format_eps(snap_bcs.get("q2_adjusted_eps"), financial_currency))
+                                    st.metric("Q2 Comparable EPS Wachstum cFX", f"{safe_float(snap_bcs.get('q2_adjusted_eps_growth_constant_fx_pct')):+.1f} %")
+                                    st.metric("FY2025 FCF Conversion ex fairlife", f"{safe_float(snap_bcs.get('fy2025_fcf_conversion_pct')):.1f} %")
+                                    st.metric("Net Debt / FY2026 FCF", f"{safe_float(snap_bcs.get('net_debt_to_fcf_guidance')):.2f}×")
+
+                                st.write(
+                                    f"**FY2026 Outlook:** Organic Revenue ~{safe_float(snap_bcs.get('fy2026_organic_net_revenue_growth_pct')):.0f} % · "
+                                    f"Comparable EPS Wachstum cFX ex M&A {safe_float(snap_bcs.get('fy2026_adjusted_eps_growth_low_pct')):.0f}–{safe_float(snap_bcs.get('fy2026_adjusted_eps_growth_high_pct')):.0f} % · "
+                                    f"reported Comparable EPS Wachstum {safe_float(snap_bcs.get('fy2026_reported_adjusted_eps_growth_low_pct')):.0f}–{safe_float(snap_bcs.get('fy2026_reported_adjusted_eps_growth_high_pct')):.0f} % · "
+                                    f"FCF ~ {format_money(snap_bcs.get('fy2026_free_cash_flow_guidance'), financial_currency)}"
+                                )
+                                st.write(
+                                    f"**Finanzierungsprofil:** Total Debt {format_money(snap_bcs.get('total_debt'), financial_currency)} · "
+                                    f"Cash + Short-Term Investments {format_money(snap_bcs.get('cash_and_short_term_investments'), financial_currency)} · "
+                                    f"Net Debt {format_money(snap_bcs.get('net_debt'), financial_currency)} · Ratings {text_or_dash(snap_bcs.get('long_term_credit_rating_sp'))}/{text_or_dash(snap_bcs.get('long_term_credit_rating_moodys'))}"
+                                )
+                                st.write(
+                                    f"**Franchise/Kapitalallokation:** {safe_float(snap_bcs.get('countries_served_min')):.0f}+ Länder/Territorien · "
+                                    f"{safe_float(snap_bcs.get('billion_dollar_brand_count_min')):.0f} Milliarden-Dollar-Marken · "
+                                    f"Dividende +{safe_float(snap_bcs.get('quarterly_dividend_increase_pct')):.1f} % · "
+                                    f"{safe_float(snap_bcs.get('consecutive_annual_dividend_increases')):.0f}. jährliche Erhöhung"
+                                )
+                                st.metric("Current-FY Comparable-EPS-Basis", format_eps(snap_bcs.get("current_fy_adjusted_eps_reference"), financial_currency))
+                                st.caption(
+                                    "Die EPS-Basis leitet sich aus FY2025 Comparable EPS von $3,00 und dem Mittelpunkt der expliziten FY2026 Comparable-EPS-Wachstumsindikation von 9–10 % ab; "
+                                    "sie wird wegen der Guidance-Bandbreite auf $0,05 gerundet. Die pending CCBA-Veräußerung ist bereits in der Guidance berücksichtigt."
                                 )
                             else:
                                 b1, b2 = st.columns(2)
