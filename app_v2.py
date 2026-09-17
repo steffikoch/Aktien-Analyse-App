@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.19"
+APP_BUILD_VERSION = "V2.21.20"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank ROTCE-Justified P/TBV Anchor & Quality Cap V15"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Regulatory CET1 Buffer & Reality Sign Guard V16"
 )
 
 
+# V2.21.20: Universal Bank Regulatory CET1 Buffer & Reality Sign Guard V16. Replaces the bank score's absolute-only CET1 thresholds with a regulatory-buffer framework for U.S. large banks: the app resolves the current Federal Reserve Large Bank Capital Requirements table, compares verified Standardized CET1 with the issuer-specific Fed CET1 capital requirement, and scores the surplus buffer while retaining a conservative absolute fallback when no official requirement can be resolved. The current June-2026 Fed table is embedded only as a dated network-failure fallback, not as issuer-specific valuation logic. Also prevents the external Reality Check from labeling raw-sign-opposite own/external valuation gaps as HIGH agreement merely because both values fall inside the broad neutral bucket. ROTCE-justified P/TBV, Core-TTM, target P/E, 60/40 Dual Anchor, 25% fail-closed spread gate and signal thresholds otherwise remain unchanged.
 # V2.21.19: Universal Bank ROTCE-Justified P/TBV Anchor & Quality Cap V15. Replaces the prior total-score-to-P/TBV linear mapping with an issuer-neutral justified tangible-book multiple driven directly by normalized ROTCE: (ROTCE - 3% sustainable long-run growth) / (10% normalized cost-of-equity hurdle - 3% growth), clamped to the released 0.8x-3.2x corridor. The legacy score-implied P/TBV is retained only as a downside-only quality/capital cap, so strong ROTCE cannot override weak CET1/TBV-growth/earnings-quality evidence. The normalized P/E target remains score-driven at 8x-15x, preserving two genuinely distinct valuation anchors and the 25% fail-closed spread gate. No issuer-specific branch, primary-source parsing, 4Q-TTM reconciliation, or signal thresholds changed.
 # V2.21.18: Universal Bank Comprehensive EPS Reconciliation Selection V14. When multiple official adjusted-EPS reconciliation rows exist, selects the most comprehensive periodized bridge by explicit quarter coverage and then total quantified bridge magnitude. This keeps issuer-designated notable/significant/special-item adjustments fully source-backed without issuer-specific code. Primary-source table parsing, Bank Score, target corridors, 60/40 Dual-Anchor, horizon alignment and fail-closed gates otherwise remain unchanged.
 # V2.21.17: Universal Bank TOC-Safe Table Context Parser V13. Hardens the issuer-neutral bank parser against table-of-contents and narrative false positives. Bank metrics with a known quarter require aligned quarterly table context; loose numeric fallbacks are disabled for TBVPS, book value and ROTCE. CET1 Standardized/Advanced rows are classified only from local capital-table context, fixing page-number capture and cross-section CET1 leakage while preserving WFC compatibility.
@@ -10694,8 +10695,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22119_universal_bank_rotce_justified_ptbv_v15"
-BANK_DISCOVERY_CACHE_EPOCH = "v22119_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22120_universal_bank_regulatory_cet1_buffer_v16"
+BANK_DISCOVERY_CACHE_EPOCH = "v22120_bank_discovery_epoch_1"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -15956,13 +15957,208 @@ def _bank_snapshot_is_fresh(snapshot):
         return False
 
 
-def calculate_bank_score_v1(snapshot, primary_source_complete):
+
+# V2.21.20: issuer-neutral U.S. large-bank CET1 regulatory-buffer reference.
+# The live Federal Reserve table is preferred.  The dated June-2026 table is
+# embedded only as a network-failure fallback so a blocked external request does
+# not silently revert a supported U.S. large bank to the old absolute-only CET1
+# scale.  These are regulatory data, not issuer-specific valuation overrides.
+_FED_LARGE_BANK_CET1_FALLBACK_2026 = {
+    "Ally Financial Inc.": 7.1,
+    "American Express Company": 7.0,
+    "Bank of America Corporation": 10.0,
+    "Barclays US LLC": 8.9,
+    "BMO Financial Corp.": 8.8,
+    "Capital One Financial Corporation": 9.0,
+    "Citigroup Inc.": 11.6,
+    "Citizens Financial Group, Inc.": 9.0,
+    "DB USA Corporation": 16.0,
+    "DWS USA Corporation": 9.8,
+    "Fifth Third Bancorp": 7.7,
+    "First Citizens Bancshares, Inc.": 7.0,
+    "HSBC North America Holdings Inc.": 9.6,
+    "Huntington Bancshares Incorporated": 7.0,
+    "JPMorgan Chase & Co.": 11.5,
+    "KeyCorp": 7.7,
+    "M&T Bank Corporation": 7.2,
+    "Morgan Stanley": 11.8,
+    "Northern Trust Corporation": 7.0,
+    "RBC US Group Holdings LLC": 9.1,
+    "Regions Financial Corporation": 7.0,
+    "Santander Holdings USA, Inc.": 7.9,
+    "State Street Corporation": 8.0,
+    "Synchrony Financial": 7.0,
+    "TD Group US Holdings LLC": 7.3,
+    "The Bank of New York Mellon Corporation": 8.5,
+    "The Charles Schwab Corporation": 7.0,
+    "The Goldman Sachs Group, Inc.": 11.4,
+    "The PNC Financial Services Group, Inc.": 7.0,
+    "Truist Financial Corporation": 7.0,
+    "U.S. Bancorp": 7.1,
+    "UBS Americas Holding LLC": 9.7,
+    "Wells Fargo & Company": 8.5,
+}
+
+_FED_LARGE_BANK_CAPITAL_INDEX = "https://www.federalreserve.gov/supervisionreg/large-bank-capital-requirements.htm"
+_FED_LARGE_BANK_CAPITAL_FALLBACK_PDF = "https://www.federalreserve.gov/publications/files/large-bank-capital-requirements-20260624.pdf"
+
+
+def _normalize_regulatory_bank_name(value):
+    value = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii")
+    value = value.lower().replace("&", " and ")
+    value = re.sub(r"[^a-z0-9]+", " ", value)
+    stop = {
+        "the", "inc", "incorporated", "corp", "corporation", "company", "co",
+        "holdings", "holding", "group", "financial", "bancshares", "llc", "plc",
+    }
+    tokens = [t for t in value.split() if t and t not in stop]
+    return " ".join(tokens)
+
+
+def _match_fed_large_bank_official_name(company_name):
+    target = _normalize_regulatory_bank_name(company_name)
+    if not target:
+        return None
+    target_tokens = set(target.split())
+    best = None
+    best_score = 0.0
+    for official_name in _FED_LARGE_BANK_CET1_FALLBACK_2026:
+        norm = _normalize_regulatory_bank_name(official_name)
+        if norm == target:
+            return official_name
+        tokens = set(norm.split())
+        if not tokens or not target_tokens:
+            continue
+        overlap = len(tokens & target_tokens) / max(len(tokens | target_tokens), 1)
+        containment = 1.0 if (norm in target or target in norm) else 0.0
+        score = max(overlap, containment)
+        if score > best_score:
+            best_score = score
+            best = official_name
+    return best if best_score >= 0.60 else None
+
+
+@st.cache_data(ttl=21600, show_spinner=False)
+def _fetch_live_fed_large_bank_capital_text():
+    """Return current Fed large-bank capital table text and source PDF URL."""
+    pdf_url = None
+    try:
+        r = requests.get(
+            _FED_LARGE_BANK_CAPITAL_INDEX,
+            headers=_request_headers(sec=False),
+            timeout=(2.0, 4.5),
+            allow_redirects=True,
+        )
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "html.parser")
+        candidates = []
+        for a in soup.find_all("a", href=True):
+            href = urljoin(r.url or _FED_LARGE_BANK_CAPITAL_INDEX, a.get("href"))
+            label = _clean_text(a.get_text(" ", strip=True)).lower()
+            href_l = href.lower()
+            if "large-bank-capital-requirements" in href_l and href_l.split("?", 1)[0].endswith(".pdf"):
+                score = 2 + (2 if "2026" in label or "2026" in href_l else 0)
+                candidates.append((score, href))
+        if candidates:
+            candidates.sort(key=lambda x: x[0], reverse=True)
+            pdf_url = candidates[0][1]
+    except Exception:
+        pdf_url = None
+
+    if not pdf_url:
+        pdf_url = _FED_LARGE_BANK_CAPITAL_FALLBACK_PDF
+
+    try:
+        r = requests.get(
+            pdf_url,
+            headers=_request_headers(sec=False),
+            timeout=(2.0, 5.5),
+            allow_redirects=True,
+        )
+        r.raise_for_status()
+        text = _bank_pdf_bytes_to_text(r.content, diagnostics=None)
+        if text and "CET1" in text and "JPMorgan" in text:
+            return {"text": text, "url": r.url or pdf_url, "mode": "live_fed"}
+    except Exception:
+        pass
+    return {"text": "", "url": pdf_url, "mode": "unavailable"}
+
+
+def _extract_fed_cet1_requirement_from_text(text, official_name):
+    if not text or not official_name:
+        return None
+    cleaned = _clean_text(text)
+    # Match the official row: Bank | 4.5 | SCB | GSIB/n.a. | total CET1 requirement.
+    name_pattern = re.escape(official_name).replace(r"\ ", r"\s+")
+    pattern = re.compile(
+        name_pattern
+        + r"\s*[†\^]*\s+4\.5\s+([0-9]+(?:\.[0-9]+)?)\s+"
+          r"(?:n/?a|([0-9]+(?:\.[0-9]+)?))\s+([0-9]+(?:\.[0-9]+)?)",
+        re.IGNORECASE,
+    )
+    m = pattern.search(cleaned)
+    if not m:
+        return None
+    try:
+        value = float(m.group(3))
+        return value if 4.5 <= value <= 25.0 else None
+    except Exception:
+        return None
+
+
+def get_bank_regulatory_cet1_reference(company_name):
+    """Resolve issuer-specific Fed CET1 requirement when the bank is in the U.S. large-bank table."""
+    official_name = _match_fed_large_bank_official_name(company_name)
+    if not official_name:
+        return {
+            "available": False,
+            "requirement_pct": None,
+            "source_mode": "not_covered",
+            "source_label": "Keine passende Fed-Large-Bank-Zeile erkannt",
+            "source_url": _FED_LARGE_BANK_CAPITAL_INDEX,
+            "official_name": None,
+        }
+
+    live = _fetch_live_fed_large_bank_capital_text()
+    live_requirement = _extract_fed_cet1_requirement_from_text(live.get("text"), official_name)
+    if live_requirement is not None:
+        return {
+            "available": True,
+            "requirement_pct": live_requirement,
+            "source_mode": "live_fed",
+            "source_label": "Federal Reserve · aktuelle Large Bank Capital Requirements",
+            "source_url": live.get("url") or _FED_LARGE_BANK_CAPITAL_INDEX,
+            "official_name": official_name,
+        }
+
+    fallback_requirement = safe_float(_FED_LARGE_BANK_CET1_FALLBACK_2026.get(official_name))
+    if fallback_requirement is not None:
+        return {
+            "available": True,
+            "requirement_pct": fallback_requirement,
+            "source_mode": "fed_2026_embedded_fallback",
+            "source_label": "Federal Reserve · Large Bank Capital Requirements Juni 2026 (eingebetteter Fallback)",
+            "source_url": _FED_LARGE_BANK_CAPITAL_FALLBACK_PDF,
+            "official_name": official_name,
+        }
+
+    return {
+        "available": False,
+        "requirement_pct": None,
+        "source_mode": "unavailable",
+        "source_label": "Fed-CET1-Anforderung nicht verfügbar",
+        "source_url": _FED_LARGE_BANK_CAPITAL_INDEX,
+        "official_name": official_name,
+    }
+
+
+def calculate_bank_score_v1(snapshot, primary_source_complete, symbol=None, company_name=None):
     """
     Conservative 100-point bank score based only on bank-specific anchors.
 
     Components:
     - normalized ROTCE: 40 points
-    - CET1 capital quality: 25 points
+    - CET1 capital quality / regulatory surplus buffer: 25 points
     - tangible book value growth: 20 points
     - earnings quality / verified special-item bridge: 15 points
 
@@ -15978,6 +16174,14 @@ def calculate_bank_score_v1(snapshot, primary_source_complete):
         "earnings_quality_points": None,
         "rotce_normalized_pct": None,
         "cet1_reference_pct": None,
+        "cet1_standardized_pct": None,
+        "cet1_advanced_pct": None,
+        "cet1_requirement_pct": None,
+        "cet1_buffer_pct": None,
+        "cet1_score_basis": None,
+        "cet1_requirement_source": None,
+        "cet1_requirement_source_mode": None,
+        "cet1_requirement_source_url": None,
         "tbv_growth_yoy_pct": None,
         "significant_items_share_of_reported_eps": None,
         "note": None,
@@ -16020,16 +16224,58 @@ def calculate_bank_score_v1(snapshot, primary_source_complete):
     else:
         rotce_points = 0
 
-    if cet1_ref >= 13.5:
-        cet1_points = 25
-    elif cet1_ref >= 12.5:
-        cet1_points = 20
-    elif cet1_ref >= 11.5:
-        cet1_points = 15
-    elif cet1_ref >= 10.5:
-        cet1_points = 8
+    regulatory_ref = get_bank_regulatory_cet1_reference(
+        company_name or snapshot.get("company") or symbol
+    )
+    cet1_requirement = safe_float(regulatory_ref.get("requirement_pct"))
+    cet1_buffer = None
+    cet1_score_basis = "absolute_fallback"
+    cet1_for_score = cet1_ref
+
+    # The Fed total CET1 capital requirement is a standardized-approach reference.
+    # When available, compare the verified Standardized CET1 ratio with that
+    # issuer-specific requirement. Advanced CET1 remains visible as a separate
+    # prudential cross-check but is not mixed into the standardized buffer.
+    if cet1_requirement is not None and cet1_std is not None:
+        cet1_for_score = cet1_std
+        cet1_buffer = cet1_std - cet1_requirement
+        cet1_score_basis = "regulatory_buffer"
+        if cet1_buffer >= 2.0:
+            cet1_points = 25
+        elif cet1_buffer >= 1.5:
+            cet1_points = 20
+        elif cet1_buffer >= 1.0:
+            cet1_points = 15
+        elif cet1_buffer >= 0.5:
+            cet1_points = 10
+        elif cet1_buffer >= 0.0:
+            cet1_points = 5
+        else:
+            cet1_points = 0
+
+        # Fail conservatively if the separately reported Advanced ratio is
+        # exceptionally weak, without imposing the standardized SCB requirement
+        # on a different regulatory denominator.
+        if cet1_adv is not None:
+            if cet1_adv < 7.0:
+                cet1_points = min(cet1_points, 0)
+            elif cet1_adv < 8.0:
+                cet1_points = min(cet1_points, 5)
+            elif cet1_adv < 9.0:
+                cet1_points = min(cet1_points, 10)
     else:
-        cet1_points = 0
+        # Non-U.S. banks / unavailable official requirement: retain a transparent
+        # conservative absolute fallback rather than inventing a regulatory buffer.
+        if cet1_ref >= 13.5:
+            cet1_points = 25
+        elif cet1_ref >= 12.5:
+            cet1_points = 20
+        elif cet1_ref >= 11.5:
+            cet1_points = 15
+        elif cet1_ref >= 10.5:
+            cet1_points = 8
+        else:
+            cet1_points = 0
 
     if tbv_growth >= 8.0:
         tbv_growth_points = 20
@@ -16090,13 +16336,23 @@ def calculate_bank_score_v1(snapshot, primary_source_complete):
         "tbv_growth_points": tbv_growth_points,
         "earnings_quality_points": earnings_quality_points,
         "rotce_normalized_pct": rotce,
-        "cet1_reference_pct": cet1_ref,
+        "cet1_reference_pct": cet1_for_score,
+        "cet1_standardized_pct": cet1_std,
+        "cet1_advanced_pct": cet1_adv,
+        "cet1_requirement_pct": cet1_requirement,
+        "cet1_buffer_pct": cet1_buffer,
+        "cet1_score_basis": cet1_score_basis,
+        "cet1_requirement_source": regulatory_ref.get("source_label"),
+        "cet1_requirement_source_mode": regulatory_ref.get("source_mode"),
+        "cet1_requirement_source_url": regulatory_ref.get("source_url"),
         "tbv_growth_yoy_pct": tbv_growth,
         "significant_items_share_of_reported_eps": special_item_ratio,
         "note": (
             "Der Bank-Score verwendet ausschließlich bankspezifische Qualitäts- und "
-            "Kapitalanker. Umsatzwachstum, Standard-FCF und Netto-Schulden/FCF "
-            "fließen nicht ein."
+            "Kapitalanker. Bei U.S.-Großbanken wird CET1 primär als Puffer über der "
+            "offiziellen bankspezifischen Fed-CET1-Anforderung bewertet; ohne auflösbare "
+            "offizielle Anforderung bleibt die konservative absolute CET1-Fallback-Skala aktiv. "
+            "Umsatzwachstum, Standard-FCF und Netto-Schulden/FCF fließen nicht ein."
         ),
     })
     return result
@@ -16701,7 +16957,12 @@ def build_bank_special_model(
         available_anchors = sum(value is not None for value in anchor_values)
         readiness = "Teilweise" if available_anchors >= 2 else "Unvollständig"
 
-    bank_score = calculate_bank_score_v1(snapshot, primary_source_complete)
+    bank_score = calculate_bank_score_v1(
+        snapshot,
+        primary_source_complete,
+        symbol=symbol,
+        company_name=(info.get("longName") or info.get("shortName")) if isinstance(info, dict) else None,
+    )
     bank_core_eps = calculate_bank_core_eps_v1(
         info,
         snapshot,
@@ -16753,7 +17014,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank ROTCE-Justified P/TBV Anchor & Quality Cap V2.21.19 lädt verifizierte Primärquellen-"
+            "Universal Bank Regulatory CET1 Buffer & Reality Sign Guard V2.21.20 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -16830,13 +17091,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank ROTCE-Justified P/TBV Anchor & Quality Cap V2.21.19 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Regulatory CET1 Buffer & Reality Sign Guard V2.21.20 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank ROTCE-Justified P/TBV Anchor & Quality Cap V2.21.19 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Regulatory CET1 Buffer & Reality Sign Guard V2.21.20 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -41687,6 +41948,7 @@ def build_external_reality_check(current_price, fair_value, analyst_consensus, t
         return result
 
     opposite_direction = own_side is not None and ext_side is not None and own_side * ext_side == -1
+    raw_sign_opposite = (own_upside < 0.0 < external_upside) or (external_upside < 0.0 < own_upside)
     large_strong_gap = (
         gap_abs >= 40.0
         and (
@@ -41702,6 +41964,12 @@ def build_external_reality_check(current_price, fair_value, analyst_consensus, t
         reason = (
             "Eigene Bewertung und belastbarer Analystenkonsens zeigen eine materiell "
             "abweichende Bewertungsrichtung bzw. einen sehr großen Bewertungsabstand."
+        )
+    elif raw_sign_opposite and gap_abs <= 25.0:
+        agreement = "MITTEL"
+        reason = (
+            "Eigene Bewertung und Analystenkonsens liegen auf unterschiedlichen Seiten des aktuellen Kurses. "
+            "Da beide Abstände noch moderat sind, ist dies kein harter Konflikt, aber auch keine hohe Übereinstimmung."
         )
     elif own_side == ext_side and gap_abs <= 15.0:
         agreement = "HOCH"
@@ -49673,7 +49941,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank ROTCE-Justified P/TBV Anchor & Quality Cap V2.21.19"
+                        "🏦 Bank-Familienmodell · Universal Bank Regulatory CET1 Buffer & Reality Sign Guard V2.21.20"
                     )
 
                     if bank_model.get("primary_source_complete"):
@@ -49922,6 +50190,19 @@ if selected_symbol:
                                 f"{int(bank_score_ui.get('cet1_points'))}/25 Punkte "
                                 f"bei {bank_score_ui.get('cet1_reference_pct'):.1f} %"
                             )
+                            cet1_req_ui = safe_float(bank_score_ui.get("cet1_requirement_pct"))
+                            cet1_buf_ui = safe_float(bank_score_ui.get("cet1_buffer_pct"))
+                            if bank_score_ui.get("cet1_score_basis") == "regulatory_buffer" and cet1_req_ui is not None and cet1_buf_ui is not None:
+                                st.caption(
+                                    f"CET1-Regulatory-Buffer: {cet1_buf_ui:+.1f} %-Pkt. über "
+                                    f"{cet1_req_ui:.1f} % bankspezifischer Fed-Anforderung · "
+                                    f"{bank_score_ui.get('cet1_requirement_source') or 'Federal Reserve'}"
+                                )
+                            else:
+                                st.caption(
+                                    "CET1-Score: konservative absolute Fallback-Skala, da keine "
+                                    "bankspezifische offizielle CET1-Anforderung aufgelöst wurde."
+                                )
                         with col_bs2:
                             st.write(
                                 "**Tangible-Book-Wachstum:** "
