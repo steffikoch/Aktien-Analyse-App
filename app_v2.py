@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.17"
+APP_BUILD_VERSION = "V2.21.18"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,11 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank TOC-Safe Table Context Parser V13"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Comprehensive EPS Reconciliation Selection V14"
 )
 
 
-# V2.21.17: Universal Bank TOC-Safe Table Context Parser V13. Hardens the issuer-neutral bank parser against table-of-contents and narrative false positives. Bank metrics with a known quarter now require an aligned quarterly table context; loose numeric fallbacks are disabled for TBVPS, book value and ROTCE. CET1 Standardized/Advanced rows are classified only from local capital-table context, with summary rows retained only as a Standardized fallback. This fixes page-number capture and cross-section CET1 leakage while preserving WFC compatibility. Bank Score thresholds, target corridors, 60/40 Dual-Anchor, official-4Q TTM authority, horizon alignment and all fail-closed valuation mathematics remain unchanged.
+# V2.21.17: Universal Bank Comprehensive EPS Reconciliation Selection V14. Hardens the issuer-neutral bank parser against table-of-contents and narrative false positives. Bank metrics with a known quarter now require an aligned quarterly table context; loose numeric fallbacks are disabled for TBVPS, book value and ROTCE. CET1 Standardized/Advanced rows are classified only from local capital-table context, with summary rows retained only as a Standardized fallback. This fixes page-number capture and cross-section CET1 leakage while preserving WFC compatibility. Bank Score thresholds, target corridors, 60/40 Dual-Anchor, official-4Q TTM authority, horizon alignment and all fail-closed valuation mathematics remain unchanged.
 # V2.21.15: Universal Bank Official 4Q TTM Authority & Provider Reconciliation V11. Keeps the self-contained issuer-PDF runtime from V2.21.14, but fixes an overly strict bank TTM gate: four consecutive source-verified official quarterly diluted-EPS observations are now the primary TTM authority, while Yahoo/provider trailing EPS is a plausibility cross-check rather than a 1%-identity requirement. A mismatch fails closed only when both the absolute gap exceeds $0.10/share and the relative gap exceeds 5%, which still catches likely period/unit conflicts while allowing small provider aggregation-basis differences such as WFC 6.88 official vs 6.68 provider. Bank Score, CET1/ROTCE/TBV mathematics, target corridors, 60/40 Dual-Anchor, horizon alignment and signal logic remain unchanged.
 # V2.21.14: Universal Bank Single-File Embedded PDF Runtime V10. Embeds a compressed pypdf runtime directly inside app_v2.py and activates it through Python zipimport on demand, so PDF extraction no longer depends on sidecar package folders being present on the host import path. This fixes deployments that update/run only the single Streamlit app file. Issuer-IR discovery, SEC fallback, Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and all fail-closed valuation mathematics remain unchanged.
 # V2.21.13: Universal Bank Self-Contained PDF Recovery V9. Bundles a local pypdf runtime with the release so issuer-primary quarterly supplements can be parsed even when the hosting Streamlit image has no PDF extraction package installed and SEC endpoints return HTTP 403. Issuer-IR discovery, strict same-domain validation, four-quarter EPS coverage, ROTCE/TBVPS/CET1 parsing and all fail-closed bank valuation gates remain generic and unchanged. No issuer-specific WFC valuation branch is introduced; Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and signal mathematics remain frozen.
@@ -10692,8 +10692,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22117_universal_bank_toc_safe_table_context_v13"
-BANK_DISCOVERY_CACHE_EPOCH = "v22117_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22118_universal_bank_comprehensive_eps_reconciliation_v14"
+BANK_DISCOVERY_CACHE_EPOCH = "v22118_bank_discovery_epoch_1"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -11013,28 +11013,86 @@ def _bank_extract_quarterly_eps_series(text, latest_period, count=4):
     return [{"period": period, "reported_eps": eps} for period, eps in zip(descending, values[:int(count)])]
 
 
-def _bank_extract_adjusted_quarterly_eps_series(text, latest_period, count=4):
-    """Extract a company-designated ex-notable/significant/special-items EPS row.
+def _bank_extract_adjusted_quarterly_eps_series(text, latest_period, count=4, reported_series=None):
+    """Extract the most comprehensive company-designated adjusted EPS row.
 
-    This is intentionally quantitative-only.  General mentions of notable or
-    significant items never create an adjustment; a period-aligned official EPS
-    row explicitly labelled as excluding those items is required.
+    Some bank supplements publish more than one valid reconciliation for the
+    same quarter set (for example an all-notable-items row and a narrower row
+    excluding only one named item).  Selecting the first/best-positioned row can
+    therefore under-adjust earlier quarters.  Evaluate every period-aligned
+    official EPS row and prefer the bridge that explicitly adjusts the largest
+    number of quarters versus the reported series; then prefer the larger total
+    reconciled effect and finally the strongest table-context score.
+
+    This remains quantitative-only: narrative mentions never create an
+    adjustment and every accepted candidate must cover the complete expected
+    period set.
     """
     patterns = [
         r"(?:total\s+[A-Za-z0-9&.'’\- ]{0,45}\s+)?diluted\s+EPS[^\n]{0,90}?(?:excluding|ex)\s+(?:significant|notable|special)\s+item",
         r"(?:diluted\s+)?earnings\s+per\s+(?:common\s+)?share[^\n]{0,90}?(?:excluding|ex)\s+(?:significant|notable|special)\s+item",
         r"(?:excluding|ex)\s+(?:significant|notable|special)\s+items?[^\n]{0,90}?(?:diluted\s+)?(?:EPS|earnings\s+per\s+share)",
     ]
-    aligned = _bank_extract_aligned_row_values(
-        text, latest_period, patterns, max_chars=320, min_value=-100.0, max_value=100.0
-    )
     expected = _bank_consecutive_periods_ending(latest_period, count)
-    if not aligned or not expected:
+    if not expected:
         return []
-    amap = {r["period"]: r["value"] for r in aligned}
-    if not all(p in amap for p in expected):
+
+    t = _clean_text(text)
+    reported_map = {}
+    for row in (reported_series or []):
+        if isinstance(row, dict) and row.get("period"):
+            v = safe_float(row.get("reported_eps"))
+            if v is not None:
+                reported_map[str(row.get("period"))] = v
+
+    candidates = []
+    for pattern_index, pat in enumerate(patterns):
+        for m in re.finditer(pat, t, flags=re.I | re.S):
+            if _bank_is_toc_context(t, m.start()):
+                continue
+            periods = _bank_header_quarter_run(t, m.start(), latest_period)
+            if len(periods) < 4:
+                continue
+            tail = t[m.end():m.end() + 360]
+            values, first_pos = _bank_numeric_values_from_tail(
+                tail, min_value=-100.0, max_value=100.0, limit=max(10, len(periods) + 3)
+            )
+            if len(values) < len(periods) or first_pos is None:
+                continue
+            amap = {p: v for p, v in zip(periods, values[:len(periods)])}
+            if not all(p in amap for p in expected):
+                continue
+
+            adjusted_count = 0
+            total_abs_effect = 0.0
+            if reported_map and all(p in reported_map for p in expected):
+                for p in expected:
+                    diff = safe_float(amap[p]) - safe_float(reported_map[p])
+                    if diff is None:
+                        continue
+                    total_abs_effect += abs(diff)
+                    if abs(diff) >= 0.005:
+                        adjusted_count += 1
+
+            immediacy_bonus = 190 if first_pos <= 45 else (85 if first_pos <= 90 else 0)
+            pattern_bonus = max(0, 25 - pattern_index * 5)
+            table_score = len(periods) * 30 + immediacy_bonus + pattern_bonus - min(first_pos, 260)
+            # Primary ranking: breadth of explicit reconciliation, then economic
+            # magnitude, then ordinary table-context quality.  If the reported
+            # row is unavailable, table quality remains the deciding fallback.
+            rank = (
+                adjusted_count if reported_map else -1,
+                round(total_abs_effect, 8) if reported_map else 0.0,
+                table_score,
+                -first_pos,
+                -m.start(),
+            )
+            candidates.append((rank, amap))
+
+    if not candidates:
         return []
-    return [{"period": p, "core_eps": amap[p]} for p in reversed(expected)]
+    _, best_map = max(candidates, key=lambda x: x[0])
+    return [{"period": p, "core_eps": best_map[p]} for p in reversed(expected)]
 
 
 def _bank_extract_tbv_values(text, latest_period=None):
@@ -15109,7 +15167,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
     latest_text = latest_payload["text"]
     coverage = []
     multi = _bank_extract_quarterly_eps_series(latest_text, latest_period, count=4)
-    adjusted_multi = _bank_extract_adjusted_quarterly_eps_series(latest_text, latest_period, count=4)
+    adjusted_multi = _bank_extract_adjusted_quarterly_eps_series(latest_text, latest_period, count=4, reported_series=multi)
     sensitive_terms = ["significant item", "significant items", "notable item", "notable items", "special item", "special items"]
     latest_has_special_item_language = any(term in latest_text.lower() for term in sensitive_terms)
 
@@ -16640,7 +16698,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank TOC-Safe Table Context Parser V2.21.17 lädt verifizierte Primärquellen-"
+            "Universal Bank Comprehensive EPS Reconciliation Selection V2.21.18 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -16717,13 +16775,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank TOC-Safe Table Context Parser V2.21.17 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Comprehensive EPS Reconciliation Selection V2.21.18 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank TOC-Safe Table Context Parser V2.21.17 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Comprehensive EPS Reconciliation Selection V2.21.18 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -49555,7 +49613,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank TOC-Safe Table Context Parser V2.21.17"
+                        "🏦 Bank-Familienmodell · Universal Bank Comprehensive EPS Reconciliation Selection V2.21.18"
                     )
 
                     if bank_model.get("primary_source_complete"):
