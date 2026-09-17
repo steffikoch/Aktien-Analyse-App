@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.9"
+APP_BUILD_VERSION = "V2.21.10"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank SEC Primary-Document Recovery & Stage Diagnostics V5"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Discovery Cache-Bust & Retry Diagnostics V6"
 )
 
 
+# V2.21.10: Universal Bank Discovery Cache-Bust & Retry Diagnostics V6. Fixes a cross-build Streamlit cache hazard in the universal Bank / Deposits & Lending primary-source discovery. V2.21.6-V2.21.9 could keep reusing a previously cached None/failed WFC discovery because the outer and SEC discovery wrappers were both st.cache_data-cached while only their downstream implementation changed. V2.21.10 introduces a versioned cache epoch and a success-only cache wrapper: successful primary-source snapshots remain cached, but None/diagnostic-only failures are re-run live instead of being frozen for six hours. The bank model now also emits an explicit wrapper diagnostic if discovery unexpectedly returns None. SEC/issuer parsing, Bank Score, four-quarter Core-TTM gate, P/TBV/Core-P-E Dual Anchor, horizon alignment and fail-closed valuation mathematics are unchanged.
 # V2.21.9: Universal Bank SEC Primary-Document Recovery & Stage Diagnostics V5. Adds a generic SEC earnings-recovery path that reads exhibit links directly from the Item-2.02 8-K primary document before falling back to EDGAR filing-index pages. This avoids depending on a single filing-index representation and remains issuer-neutral. The bank adapter now propagates stage diagnostics into the UI (CIK, submissions, Item-2.02 candidate count, primary-document/index exhibit discovery, selected exhibit and parser completeness). The released Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and fail-closed mathematics are unchanged.
 # V2.21.8: Universal Bank SEC Filing Index Hotfix & Diagnostics V4. Fixes the generic EDGAR filing-index URL from the non-canonical -index.html path to the actual -index.htm path used by EDGAR, with .html retained only as a compatibility fallback. Adds fail-closed adapter diagnostics so a missing SEC earnings exhibit can be distinguished from a table-parser failure without issuer-specific logic. No Bank Score, P/TBV/Core-P-E, horizon alignment, 60/40 Dual-Anchor or signal mathematics changed.
 # V2.21.7: Universal Bank SEC Supplement Recovery & Parser V3. Keeps issuer-IR discovery first but hardens the generic fallback around SEC earnings 8-Ks: recent 8-K metadata is prefiltered for Item 2.02, exhibit rows are ranked so quarterly/financial supplements (commonly EX-99.2) outrank releases/presentations, and SEC HTML exhibit text is reused without a second download. A single current supplement may satisfy the four-quarter EPS gate when it exposes a consecutive multi-quarter diluted-EPS row; older earnings 8-Ks are fetched only when the latest table is insufficient. This removes the runtime dependency on issuer-PDF extraction for banks such as Wells Fargo while remaining issuer-neutral. No Bank Score, P/TBV/Core-P-E corridor, 60/40 Dual-Anchor, horizon alignment, or fail-closed mathematics changed.
@@ -10525,7 +10526,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v2219_universal_bank_sec_primary_document_recovery_v5"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22110_universal_bank_cache_bust_retry_v6"
+BANK_DISCOVERY_CACHE_EPOCH = "v22110_bank_discovery_epoch_1"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -11187,7 +11189,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "ttm_eps_coverage": coverage,
         "ttm_coverage_expected_periods": periods,
         "source_note": (
-            "V2.21.9 hat die offizielle Investor-Relations-Quartalsstruktur des Emittenten automatisch entdeckt, "
+            "V2.21.10 hat die offizielle Investor-Relations-Quartalsstruktur des Emittenten automatisch entdeckt, "
             "die bankspezifischen Tabellenfelder ROTCE, TBVPS und CET1 gelesen und vier aufeinanderfolgende "
             "offizielle Quartals-EPS in das gemeinsame Bank-Snapshot-Schema überführt. SEC bleibt Fallback; "
             "fehlende oder nicht eindeutig zuordenbare Primärdaten sperren die Bewertung weiterhin fail-closed."
@@ -11195,9 +11197,8 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
     }
 
 
-@st.cache_data(ttl=21600, show_spinner=False)
-def _discover_universal_bank_snapshot_v2(symbol, company_name=None, website=None):
-    """Issuer-IR first, SEC second; one common schema for the Bank family."""
+def _discover_universal_bank_snapshot_uncached(symbol, company_name=None, website=None):
+    """Live issuer-IR first / SEC second discovery. Failures are deliberately not cached."""
     company_domain = _extract_company_domain(website)
     deadline = time.monotonic() + 16.0
     if company_domain:
@@ -11215,7 +11216,33 @@ def _discover_universal_bank_snapshot_v2(symbol, company_name=None, website=None
         )
         if snapshot is not None:
             return snapshot
-    return _discover_universal_bank_snapshot_v1(symbol, company_name=company_name)
+    return _discover_universal_bank_snapshot_v1_uncached(symbol, company_name=company_name)
+
+
+@st.cache_data(ttl=21600, show_spinner=False)
+def _discover_universal_bank_snapshot_success_cache(symbol, company_name=None, website=None, cache_epoch=None):
+    """Cache successful bank snapshots under an explicit build epoch.
+
+    Diagnostic-only failures are returned to the wrapper, which immediately retries
+    the live path so a transient network/SEC failure cannot be frozen for six hours.
+    """
+    return _discover_universal_bank_snapshot_uncached(
+        symbol, company_name=company_name, website=website
+    )
+
+
+def _discover_universal_bank_snapshot_v2(symbol, company_name=None, website=None):
+    cached = _discover_universal_bank_snapshot_success_cache(
+        symbol, company_name=company_name, website=website,
+        cache_epoch=BANK_DISCOVERY_CACHE_EPOCH,
+    )
+    if isinstance(cached, dict) and not cached.get("_diagnostic_only"):
+        return cached
+    # Failures/diagnostics must be live-retryable; do not let a transient result
+    # from this or a prior runtime become the authoritative six-hour answer.
+    return _discover_universal_bank_snapshot_uncached(
+        symbol, company_name=company_name, website=website
+    )
 
 
 def _bank_period_from_filing_date(filing_date):
@@ -11256,7 +11283,7 @@ def _bank_sec_exhibit_score(row_text, url):
 def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None, diagnostics=None):
     """Generic SEC Item-2.02 earnings discovery with primary-document recovery.
 
-    V2.21.9 first reads the Item-2.02 8-K primary document and follows its
+    V2.21.10 reads the Item-2.02 8-K primary document and follows its
     exhibit table links.  Filing-index .htm/.html pages remain secondary
     discovery surfaces.  This is intentionally issuer-neutral: the only
     ranking signals are generic earnings/supplement/exhibit semantics.
@@ -11539,9 +11566,8 @@ def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None, d
     return sorted(output, key=lambda r: _bank_period_sort_key(r.get("period")), reverse=True)
 
 
-@st.cache_data(ttl=21600, show_spinner=False)
-def _discover_universal_bank_snapshot_v1(symbol, company_name=None):
-    """SEC fallback: latest Item-2.02 supplement first, older earnings filings only if needed."""
+def _discover_universal_bank_snapshot_v1_uncached(symbol, company_name=None):
+    """Live SEC fallback: latest Item-2.02 supplement first; failures are not cached."""
     deadline = time.monotonic() + 13.0
     sec_diagnostics = []
     rows = _bank_discover_sec_earnings_exhibits(
@@ -11604,14 +11630,14 @@ def _discover_universal_bank_snapshot_v1(symbol, company_name=None):
     if published_dt:
         snapshot["published_date"] = published_dt.strftime("%d.%m.%Y")
         snapshot["valid_until"] = (published_dt + timedelta(days=110)).strftime("%d.%m.%Y")
-    snapshot["source_name"] = "SEC Item 2.02 Earnings Supplement · Universal Bank Adapter V5"
+    snapshot["source_name"] = "SEC Item 2.02 Earnings Supplement · Universal Bank Adapter V6"
     snapshot["source_url"] = latest_row.get("url") or snapshot.get("source_url")
     snapshot["supplement_url"] = latest_row.get("url") or snapshot.get("supplement_url")
     snapshot["allowed_source_hosts"] = ["sec.gov"]
     snapshot["adapter_version"] = BANK_PRIMARY_SOURCE_ADAPTER_VERSION
     snapshot["adapter_mode"] = "sec_item_202_primary_document_recovery"
     snapshot["source_note"] = (
-        "V2.21.9 hat den offiziellen SEC-Earnings-8-K-Pfad über Item 2.02 erkannt, zunächst "
+        "V2.21.10 hat den offiziellen SEC-Earnings-8-K-Pfad über Item 2.02 erkannt, zunächst "
         "Exhibit-Links direkt aus dem Primary-8-K gelesen und danach bei Bedarf den Filing-Index verwendet. "
         "Das höchstrangige Earnings-/Quarterly-Supplement-Exhibit wird als HTML geparst. Eine aktuelle "
         "Mehrquartalstabelle darf die vier aufeinanderfolgenden diluted-EPS-Quartale direkt "
@@ -12405,6 +12431,13 @@ def build_bank_special_model(
     if isinstance(snapshot_raw, dict) and snapshot_raw.get("_diagnostic_only"):
         adapter_diagnostic = snapshot_raw.get("adapter_diagnostic")
         snapshot = None
+    elif snapshot_raw is None:
+        adapter_diagnostic = (
+            "Adapter-Stufe Wrapper: Discovery lieferte unerwartet weder Snapshot noch "
+            "Diagnoseobjekt. V2.21.10 erzwingt deshalb bei der nächsten Ausführung einen "
+            "Live-Retry statt eines gecachten Fehlers."
+        )
+        snapshot = None
     else:
         snapshot = snapshot_raw
     snapshot_fresh = _bank_snapshot_is_fresh(snapshot)
@@ -12518,7 +12551,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank SEC Primary-Document Recovery & Stage Diagnostics V2.21.9 lädt verifizierte Primärquellen-"
+            "Universal Bank Discovery Cache-Bust & Retry Diagnostics V2.21.10 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -12595,13 +12628,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank SEC Primary-Document Recovery & Stage Diagnostics V2.21.9 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Discovery Cache-Bust & Retry Diagnostics V2.21.10 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank SEC Primary-Document Recovery & Stage Diagnostics V2.21.9 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Discovery Cache-Bust & Retry Diagnostics V2.21.10 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -45433,7 +45466,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank SEC Primary-Document Recovery & Stage Diagnostics V2.21.9"
+                        "🏦 Bank-Familienmodell · Universal Bank Discovery Cache-Bust & Retry Diagnostics V2.21.10"
                     )
 
                     if bank_model.get("primary_source_complete"):
