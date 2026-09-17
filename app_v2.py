@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.8"
+APP_BUILD_VERSION = "V2.21.9"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank SEC Filing Index Hotfix & Diagnostics V4"
+    f"Build {APP_BUILD_VERSION} · Universal Bank SEC Primary-Document Recovery & Stage Diagnostics V5"
 )
 
 
+# V2.21.9: Universal Bank SEC Primary-Document Recovery & Stage Diagnostics V5. Adds a generic SEC earnings-recovery path that reads exhibit links directly from the Item-2.02 8-K primary document before falling back to EDGAR filing-index pages. This avoids depending on a single filing-index representation and remains issuer-neutral. The bank adapter now propagates stage diagnostics into the UI (CIK, submissions, Item-2.02 candidate count, primary-document/index exhibit discovery, selected exhibit and parser completeness). The released Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and fail-closed mathematics are unchanged.
 # V2.21.8: Universal Bank SEC Filing Index Hotfix & Diagnostics V4. Fixes the generic EDGAR filing-index URL from the non-canonical -index.html path to the actual -index.htm path used by EDGAR, with .html retained only as a compatibility fallback. Adds fail-closed adapter diagnostics so a missing SEC earnings exhibit can be distinguished from a table-parser failure without issuer-specific logic. No Bank Score, P/TBV/Core-P-E, horizon alignment, 60/40 Dual-Anchor or signal mathematics changed.
 # V2.21.7: Universal Bank SEC Supplement Recovery & Parser V3. Keeps issuer-IR discovery first but hardens the generic fallback around SEC earnings 8-Ks: recent 8-K metadata is prefiltered for Item 2.02, exhibit rows are ranked so quarterly/financial supplements (commonly EX-99.2) outrank releases/presentations, and SEC HTML exhibit text is reused without a second download. A single current supplement may satisfy the four-quarter EPS gate when it exposes a consecutive multi-quarter diluted-EPS row; older earnings 8-Ks are fetched only when the latest table is insufficient. This removes the runtime dependency on issuer-PDF extraction for banks such as Wells Fargo while remaining issuer-neutral. No Bank Score, P/TBV/Core-P-E corridor, 60/40 Dual-Anchor, horizon alignment, or fail-closed mathematics changed.
 # V2.21.6: Universal Bank IR Discovery & Table Parser V2. Extends the shared Bank / Deposits & Lending adapter with bounded issuer-IR discovery before SEC fallback, strict same-domain official-source validation, optional PDF text extraction, quarterly supplement/release ranking, multi-quarter table parsing for four consecutive diluted-EPS observations, and more robust ROTCE/TBVPS/CET1 row parsing. No WFC-specific valuation path is introduced: Wells Fargo, Citi, U.S. Bancorp, PNC and comparable U.S. banks use the same discovery contract. The released Bank Score and 60/40 P/TBV + Current-FY/Core-P-E valuation mathematics remain unchanged and fail closed whenever the required primary-source fields cannot be validated. Bank EPS UI wording is aligned to Current-FY/diagnosis context while the primary-source gate is not released.
@@ -10524,7 +10525,7 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v2218_universal_bank_sec_filing_index_hotfix_v4"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v2219_universal_bank_sec_primary_document_recovery_v5"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -11186,7 +11187,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "ttm_eps_coverage": coverage,
         "ttm_coverage_expected_periods": periods,
         "source_note": (
-            "V2.21.8 hat die offizielle Investor-Relations-Quartalsstruktur des Emittenten automatisch entdeckt, "
+            "V2.21.9 hat die offizielle Investor-Relations-Quartalsstruktur des Emittenten automatisch entdeckt, "
             "die bankspezifischen Tabellenfelder ROTCE, TBVPS und CET1 gelesen und vier aufeinanderfolgende "
             "offizielle Quartals-EPS in das gemeinsame Bank-Snapshot-Schema überführt. SEC bleibt Fallback; "
             "fehlende oder nicht eindeutig zuordenbare Primärdaten sperren die Bewertung weiterhin fail-closed."
@@ -11252,43 +11253,67 @@ def _bank_sec_exhibit_score(row_text, url):
     return score
 
 
-def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None):
-    """Generic SEC Item-2.02 earnings discovery with supplement-first exhibit ranking.
+def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None, diagnostics=None):
+    """Generic SEC Item-2.02 earnings discovery with primary-document recovery.
 
-    V2.21.8 retains the V2.21.7 earnings-only 8-K filtering and fixes the filing-index suffix. This
-    matters for large banks that file many unrelated 8-Ks between quarters.
-    SEC HTML supplements are preferred because they avoid optional PDF parser
-    dependencies while preserving an official primary-source chain.
+    V2.21.9 first reads the Item-2.02 8-K primary document and follows its
+    exhibit table links.  Filing-index .htm/.html pages remain secondary
+    discovery surfaces.  This is intentionally issuer-neutral: the only
+    ranking signals are generic earnings/supplement/exhibit semantics.
+
+    ``diagnostics`` may be a mutable list.  When supplied, concise stage
+    messages are appended so the UI can distinguish CIK/submissions/network,
+    exhibit-discovery and table-parser failures without exposing stack traces.
     """
+    diag = diagnostics if isinstance(diagnostics, list) else []
+
     cik = _sec_lookup_cik(symbol, deadline=deadline)
-    if not cik or not _research_budget_ok(deadline):
+    if not cik:
+        diag.append("SEC-Stufe CIK: keine CIK-Auflösung für den Ticker erhalten.")
         return []
+    diag.append(f"SEC-Stufe CIK: CIK {int(cik)} erkannt.")
+    if not _research_budget_ok(deadline):
+        diag.append("SEC-Stufe Budget: Recherchebudget nach CIK-Auflösung erschöpft.")
+        return []
+
     cik10 = f"{cik:010d}"
-    effective_timeout = _bounded_timeout(deadline, 3.2)
+    effective_timeout = _bounded_timeout(deadline, 3.6)
     if effective_timeout is None:
+        diag.append("SEC-Stufe Submissions: kein Zeitbudget für den Abruf verfügbar.")
         return []
+
+    submissions_url = f"https://data.sec.gov/submissions/CIK{cik10}.json"
     try:
         r = requests.get(
-            f"https://data.sec.gov/submissions/CIK{cik10}.json",
-            headers={"User-Agent": "AktienAnalyseV2/2.21.8 bank-adapter", "Accept-Encoding": "gzip, deflate"},
+            submissions_url,
+            headers={
+                "User-Agent": "AktienAnalyseV2/2.21.9 bank-primary-source-research-client",
+                "Accept-Encoding": "gzip, deflate",
+            },
             timeout=(min(1.8, effective_timeout), effective_timeout),
         )
         r.raise_for_status()
         recent = (r.json().get("filings") or {}).get("recent") or {}
-    except Exception:
+        diag.append("SEC-Stufe Submissions: recent filings geladen.")
+    except Exception as exc:
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        suffix = f" HTTP {status}" if status else f" {type(exc).__name__}"
+        diag.append("SEC-Stufe Submissions: Abruf fehlgeschlagen." + suffix)
         return []
 
     forms = recent.get("form") or []
     accessions = recent.get("accessionNumber") or []
     filing_dates = recent.get("filingDate") or []
     items = recent.get("items") or []
+    primary_docs = recent.get("primaryDocument") or []
+
     candidates = []
     for i, form in enumerate(forms):
         if str(form).upper() != "8-K" or i >= len(accessions):
             continue
         item_text = _clean_text(items[i] if i < len(items) else "")
-        # Item 2.02 is the standard earnings-results item. If SEC metadata is
-        # present, skip unrelated 8-Ks before spending a network request.
+        # Item 2.02 is the standard U.S. earnings-results 8-K item.  If SEC
+        # metadata is available, exclude unrelated 8-Ks before network work.
         if item_text and "2.02" not in item_text:
             continue
         accession = _clean_text(accessions[i])
@@ -11297,87 +11322,154 @@ def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None):
         candidates.append({
             "accession": accession,
             "filing_date": filing_dates[i] if i < len(filing_dates) else None,
+            "primary_document": _clean_text(primary_docs[i] if i < len(primary_docs) else ""),
         })
-        if len(candidates) >= max(4, int(max_filings) * 2):
+        if len(candidates) >= max(6, int(max_filings) * 3):
             break
+
+    diag.append(f"SEC-Stufe Item 2.02: {len(candidates)} Earnings-8-K-Kandidat(en) gefunden.")
+    if not candidates:
+        return []
+
+    def _extract_exhibit_rows(html, source_url, primary_document=None):
+        if not html:
+            return []
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+        except Exception:
+            return []
+
+        found = {}
+
+        # First use table rows because EDGAR filing pages and most 8-K exhibit
+        # indexes expose description/type/document together in one row.
+        for tr in soup.find_all("tr"):
+            row_text = _clean_text(tr.get_text(" ", strip=True))
+            row_low = row_text.lower()
+            if not any(k in row_low for k in [
+                "99.1", "99.2", "99.3", "exhibit", "earnings", "news release",
+                "financial results", "quarterly supplement", "financial supplement",
+            ]):
+                continue
+            for a in tr.find_all("a", href=True):
+                raw = a.get("href") or ""
+                if not raw:
+                    continue
+                href_low = raw.lower().split("?")[0]
+                if not href_low.endswith((".htm", ".html", ".txt")):
+                    continue
+                url = urljoin(source_url, raw)
+                if primary_document and url.rstrip("/") == urljoin(source_url, primary_document).rstrip("/"):
+                    continue
+                score = _bank_sec_exhibit_score(row_text, url)
+                if score <= 0:
+                    continue
+                current = found.get(url)
+                if current is None or score > current.get("score", 0):
+                    found[url] = {"url": url, "row_text": row_text, "score": score}
+
+        # Some issuer 8-Ks use simple paragraphs/lists rather than a table.
+        # Scan anchors as a second generic surface and score the surrounding
+        # parent text, still without any issuer-specific filename rule.
+        for a in soup.find_all("a", href=True):
+            raw = a.get("href") or ""
+            href_low = raw.lower().split("?")[0]
+            if not href_low.endswith((".htm", ".html", ".txt")):
+                continue
+            parent = a.find_parent(["tr", "p", "div", "li", "td"]) or a
+            context = _clean_text(parent.get_text(" ", strip=True))
+            anchor_text = _clean_text(a.get_text(" ", strip=True))
+            row_text = _clean_text(f"{context} {anchor_text}")
+            if not any(k in row_text.lower() for k in [
+                "99.1", "99.2", "99.3", "exhibit", "earnings", "news release",
+                "financial results", "quarterly supplement", "financial supplement",
+            ]):
+                continue
+            url = urljoin(source_url, raw)
+            if primary_document and url.rstrip("/") == urljoin(source_url, primary_document).rstrip("/"):
+                continue
+            score = _bank_sec_exhibit_score(row_text, url)
+            if score <= 0:
+                continue
+            current = found.get(url)
+            if current is None or score > current.get("score", 0):
+                found[url] = {"url": url, "row_text": row_text, "score": score}
+
+        return sorted(found.values(), key=lambda x: x.get("score", 0), reverse=True)
 
     output = []
     seen_periods = set()
     earnings_checked = 0
+    primary_docs_loaded = 0
+    index_pages_loaded = 0
+    exhibit_candidates_seen = 0
+    exhibit_documents_loaded = 0
+
     for filing in candidates:
         if earnings_checked >= int(max_filings) or not _research_budget_ok(deadline, reserve=0.8):
             break
+
         accession = filing["accession"]
         acc_nodash = accession.replace("-", "")
-        # EDGAR filing-detail pages use the canonical ``-index.htm`` suffix.
-        # V2.21.7 incorrectly requested ``-index.html``, which can return no
-        # filing page and therefore prevents exhibit discovery entirely. Keep
-        # .html only as a compatibility fallback for non-standard mirrors.
-        index_urls = [
-            f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_nodash}/{accession}-index.htm",
-            f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_nodash}/{accession}-index.html",
-        ]
-        html = None
-        final_url = None
-        index_url = index_urls[0]
-        for candidate_index_url in index_urls:
-            html, final_url = _fetch_html(candidate_index_url, timeout=2.8, sec=True, deadline=deadline)
-            if html:
-                index_url = candidate_index_url
-                break
-        if not html:
-            continue
-        try:
-            soup = BeautifulSoup(html, "html.parser")
-            exhibit_rows = []
-            for tr in soup.find_all("tr"):
-                row_text = _clean_text(tr.get_text(" ", strip=True))
-                row_low = row_text.lower()
-                if not any(k in row_low for k in [
-                    "99.1", "99.2", "99.3", "earnings", "news release",
-                    "financial results", "quarterly supplement", "financial supplement",
-                ]):
+        base_dir = f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_nodash}/"
+        exhibit_rows = []
+
+        # Primary recovery path: SEC submissions already tells us the 8-K
+        # primary document filename.  The 8-K itself commonly links directly
+        # to EX-99.1/99.2/99.3 in Item 9.01, so no filing-index dependency is
+        # required when this surface is accessible.
+        primary_doc = filing.get("primary_document")
+        if primary_doc and _research_budget_ok(deadline, reserve=1.0):
+            primary_url = urljoin(base_dir, primary_doc)
+            primary_html, primary_final = _fetch_html(
+                primary_url, timeout=3.0, sec=True, deadline=deadline
+            )
+            if primary_html:
+                primary_docs_loaded += 1
+                exhibit_rows = _extract_exhibit_rows(
+                    primary_html, primary_final or primary_url, primary_document=primary_doc
+                )
+
+        # Secondary recovery path: normal EDGAR filing-detail page.  Support
+        # both suffixes because EDGAR/mirrors expose both forms in practice.
+        if not exhibit_rows and _research_budget_ok(deadline, reserve=0.9):
+            index_urls = [
+                f"{base_dir}{accession}-index.htm",
+                f"{base_dir}{accession}-index.html",
+            ]
+            for candidate_index_url in index_urls:
+                html, final_url = _fetch_html(
+                    candidate_index_url, timeout=2.8, sec=True, deadline=deadline
+                )
+                if not html:
                     continue
-                links = tr.find_all("a", href=True)
-                if not links:
-                    continue
-                # Prefer the document link rather than an ixviewer/control link.
-                href = None
-                for a in links:
-                    raw = a.get("href") or ""
-                    if raw.lower().endswith((".htm", ".html", ".txt")):
-                        href = raw
-                        break
-                if href is None:
-                    href = links[0].get("href")
-                if not href:
-                    continue
-                url = urljoin(final_url or index_url, href)
-                exhibit_rows.append({
-                    "url": url,
-                    "row_text": row_text,
-                    "score": _bank_sec_exhibit_score(row_text, url),
-                })
-            exhibit_rows.sort(key=lambda x: x.get("score", 0), reverse=True)
-        except Exception:
-            continue
+                index_pages_loaded += 1
+                exhibit_rows = _extract_exhibit_rows(
+                    html, final_url or candidate_index_url, primary_document=primary_doc
+                )
+                if exhibit_rows:
+                    break
+
         if not exhibit_rows:
             continue
-        earnings_checked += 1
 
+        earnings_checked += 1
+        exhibit_candidates_seen += len(exhibit_rows)
         best_for_filing = None
-        for exhibit in exhibit_rows[:3]:
-            if not _research_budget_ok(deadline, reserve=0.5):
+        for exhibit in exhibit_rows[:4]:
+            if not _research_budget_ok(deadline, reserve=0.45):
                 break
-            text = _fetch_source_text(exhibit["url"], deadline=deadline, timeout=3.2)
+            text = _fetch_source_text(exhibit["url"], deadline=deadline, timeout=3.4)
             if not text:
                 continue
+            exhibit_documents_loaded += 1
+            low = text.lower()
             signal_count = sum(
                 1 for term in [
-                    "earnings per", "tangible book value", "ROTCE",
-                    "return on average tangible", "CET1", "common equity tier 1",
+                    "earnings per", "tangible book value", "rotce",
+                    "return on average tangible", "cet1", "common equity tier 1",
                 ]
-                if term.lower() in text.lower()
+                if term in low
             )
             if signal_count < 2:
                 continue
@@ -11389,11 +11481,12 @@ def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None):
             if not period:
                 continue
             multi_count = len(_bank_extract_quarterly_eps_series(text, period, count=4))
+            cet1_pair = _bank_extract_cet1_values(text)
             metric_count = sum(
                 x is not None for x in [
                     _bank_extract_rotce(text),
                     (_bank_extract_tbv_values(text) or [None])[0],
-                    _bank_extract_cet1_values(text)[0],
+                    cet1_pair[0],
                 ]
             )
             quality_score = (
@@ -11411,10 +11504,9 @@ def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None):
             }
             if best_for_filing is None or row["score"] > best_for_filing["score"]:
                 best_for_filing = row
-            # A complete current supplement is enough for the filing and usually
-            # already carries the four-quarter diluted-EPS row.
             if multi_count == 4 and metric_count == 3:
                 break
+
         if best_for_filing is None:
             continue
         period = best_for_filing["period"]
@@ -11422,12 +11514,27 @@ def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None):
             continue
         seen_periods.add(period)
         output.append(best_for_filing)
-        # The latest detailed supplement often carries 5 quarterly columns.
-        # One such document is enough for the 4Q EPS gate and all latest metrics.
+
+        # A detailed current supplement with a 4-quarter EPS row is enough for
+        # the TTM gate and latest bank metrics; older filings are only needed if
+        # the current document lacks that row.
         if len(_bank_extract_quarterly_eps_series(best_for_filing["text"], period, count=4)) == 4:
             break
         if len(output) >= 4:
             break
+
+    diag.append(
+        "SEC-Stufe Discovery: "
+        f"Primary-8-K geladen={primary_docs_loaded}, Filing-Index geladen={index_pages_loaded}, "
+        f"Exhibit-Kandidaten={exhibit_candidates_seen}, Exhibit-Dokumente geladen={exhibit_documents_loaded}."
+    )
+    if output:
+        diag.append(
+            "SEC-Stufe Auswahl: "
+            + ", ".join(f"{row.get('period')} → {urlparse(row.get('url') or '').path.rsplit('/', 1)[-1]}" for row in output)
+        )
+    else:
+        diag.append("SEC-Stufe Auswahl: kein qualifiziertes Earnings-/Supplement-Exhibit verwertbar.")
 
     return sorted(output, key=lambda r: _bank_period_sort_key(r.get("period")), reverse=True)
 
@@ -11435,16 +11542,18 @@ def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None):
 @st.cache_data(ttl=21600, show_spinner=False)
 def _discover_universal_bank_snapshot_v1(symbol, company_name=None):
     """SEC fallback: latest Item-2.02 supplement first, older earnings filings only if needed."""
-    deadline = time.monotonic() + 11.0
-    rows = _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=deadline)
+    deadline = time.monotonic() + 13.0
+    sec_diagnostics = []
+    rows = _bank_discover_sec_earnings_exhibits(
+        symbol, max_filings=6, deadline=deadline, diagnostics=sec_diagnostics
+    )
     if not rows:
         return {
             "_diagnostic_only": True,
             "adapter_version": BANK_PRIMARY_SOURCE_ADAPTER_VERSION,
-            "adapter_mode": "sec_item_202_supplement_auto_discovery",
-            "adapter_diagnostic": (
-                "SEC-Fallback: kein qualifiziertes Item-2.02-Earnings-Exhibit gefunden. "
-                "Prüfpunkte: CIK/SEC-Submissions, Filing-Index-Abruf und Exhibit-Erkennung."
+            "adapter_mode": "sec_item_202_primary_document_recovery",
+            "adapter_diagnostic": " | ".join(sec_diagnostics) or (
+                "SEC-Fallback: kein qualifiziertes Item-2.02-Earnings-Exhibit gefunden."
             ),
         }
 
@@ -11470,10 +11579,19 @@ def _discover_universal_bank_snapshot_v1(symbol, company_name=None):
         return {
             "_diagnostic_only": True,
             "adapter_version": BANK_PRIMARY_SOURCE_ADAPTER_VERSION,
-            "adapter_mode": "sec_item_202_supplement_auto_discovery",
+            "adapter_mode": "sec_item_202_primary_document_recovery",
             "adapter_diagnostic": (
-                f"SEC-Fallback: {len(rows)} Earnings-Exhibit(s) gefunden, aber der Tabellenparser "
-                "konnte keinen vollständigen Snapshot aus ROTCE, TBVPS, CET1 und 4Q-EPS aufbauen."
+                " | ".join(sec_diagnostics) +
+                f" | Parser-Gate: {len(rows)} Earnings-Exhibit(s) gefunden, aber kein vollständiger Snapshot. "
+                + (
+                    "Extraktion jüngstes Dokument: "
+                    f"4Q-EPS={len(_bank_extract_quarterly_eps_series(rows[0].get('text') or '', rows[0].get('period'), count=4))}/4, "
+                    f"ROTCE={'ja' if _bank_extract_rotce(rows[0].get('text') or '') is not None else 'nein'}, "
+                    f"TBVPS={'ja' if (_bank_extract_tbv_values(rows[0].get('text') or '') or [None])[0] is not None else 'nein'}, "
+                    f"CET1-Std={'ja' if _bank_extract_cet1_values(rows[0].get('text') or '')[0] is not None else 'nein'}, "
+                    f"CET1-Adv={'ja' if _bank_extract_cet1_values(rows[0].get('text') or '')[1] is not None else 'nein'}, "
+                    f"BookValue={'ja' if _bank_extract_book_value(rows[0].get('text') or '') is not None else 'nein'}."
+                )
             ),
         }
 
@@ -11486,15 +11604,16 @@ def _discover_universal_bank_snapshot_v1(symbol, company_name=None):
     if published_dt:
         snapshot["published_date"] = published_dt.strftime("%d.%m.%Y")
         snapshot["valid_until"] = (published_dt + timedelta(days=110)).strftime("%d.%m.%Y")
-    snapshot["source_name"] = "SEC Item 2.02 Earnings Supplement · Universal Bank Adapter V3"
+    snapshot["source_name"] = "SEC Item 2.02 Earnings Supplement · Universal Bank Adapter V5"
     snapshot["source_url"] = latest_row.get("url") or snapshot.get("source_url")
     snapshot["supplement_url"] = latest_row.get("url") or snapshot.get("supplement_url")
     snapshot["allowed_source_hosts"] = ["sec.gov"]
     snapshot["adapter_version"] = BANK_PRIMARY_SOURCE_ADAPTER_VERSION
-    snapshot["adapter_mode"] = "sec_item_202_supplement_auto_discovery"
+    snapshot["adapter_mode"] = "sec_item_202_primary_document_recovery"
     snapshot["source_note"] = (
-        "V2.21.8 hat den offiziellen SEC-Earnings-8-K-Pfad über Item 2.02 erkannt und das "
-        "höchstrangige Earnings-/Quarterly-Supplement-Exhibit als HTML geparst. Eine aktuelle "
+        "V2.21.9 hat den offiziellen SEC-Earnings-8-K-Pfad über Item 2.02 erkannt, zunächst "
+        "Exhibit-Links direkt aus dem Primary-8-K gelesen und danach bei Bedarf den Filing-Index verwendet. "
+        "Das höchstrangige Earnings-/Quarterly-Supplement-Exhibit wird als HTML geparst. Eine aktuelle "
         "Mehrquartalstabelle darf die vier aufeinanderfolgenden diluted-EPS-Quartale direkt "
         "abdecken; ältere Earnings-8-Ks werden nur benötigt, wenn diese Tabelle nicht ausreicht. "
         "ROTCE, TBVPS und CET1 bleiben Primärquellenpflicht; unvollständige Daten sperren weiter fail-closed."
@@ -12381,6 +12500,7 @@ def build_bank_special_model(
         "calculated_trailing_pe": calculated_trailing_pe,
         "snapshot": snapshot,
         "snapshot_fresh": snapshot_fresh,
+        "adapter_diagnostic": adapter_diagnostic,
         "primary_source_complete": primary_source_complete,
         "primary_book_value_per_share": primary_book_value,
         "tangible_book_value_per_share": tangible_book_value,
@@ -12398,7 +12518,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank SEC Filing Index Hotfix & Diagnostics V2.21.8 lädt verifizierte Primärquellen-"
+            "Universal Bank SEC Primary-Document Recovery & Stage Diagnostics V2.21.9 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -12475,13 +12595,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank SEC Filing Index Hotfix & Diagnostics V2.21.8 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank SEC Primary-Document Recovery & Stage Diagnostics V2.21.9 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank SEC Filing Index Hotfix & Diagnostics V2.21.8 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank SEC Primary-Document Recovery & Stage Diagnostics V2.21.9 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -45313,7 +45433,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank SEC Filing Index Hotfix & Diagnostics V2.21.8"
+                        "🏦 Bank-Familienmodell · Universal Bank SEC Primary-Document Recovery & Stage Diagnostics V2.21.9"
                     )
 
                     if bank_model.get("primary_source_complete"):
