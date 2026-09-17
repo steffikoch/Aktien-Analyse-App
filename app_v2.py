@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.21"
+APP_BUILD_VERSION = "V2.21.22"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Dynamic IR Hub & Q4 Financial Feed Discovery V17"
+    f"Build {APP_BUILD_VERSION} · Universal Bank IR Subdomain & Q4 Event Bridge V18"
 )
 
 
+# V2.21.22: Universal Bank IR Subdomain & Q4 Event Bridge V18. Fixes the issuer-neutral IR discovery gap exposed by U.S. Bancorp without adding a USB-specific snapshot or valuation branch. The bank adapter now probes common issuer-owned IR subdomains (ir., investor., investors.) before exhausting deep corporate-root paths, keeps strict same-domain-family validation, and adds a bounded Q4 event-detail bridge for JavaScript-rendered Q4 sites. Q4 CDN documents are trusted only when linked directly from an issuer-owned Q4 page or returned by the issuer-hosted Q4 feed; the parent event period is inherited when the CDN URL itself is opaque. Bank Score, regulatory CET1 buffer, ROTCE-justified P/TBV, Core-TTM, target P/E, 60/40 Dual Anchor, 25% fail-closed spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.21: Universal Bank Dynamic IR Hub & Q4 Financial Feed Discovery V17. Extends issuer-neutral bank primary-source discovery for corporate sites whose public website differs from the investor-relations subdomain and for JavaScript-rendered quarterly-results hubs. Adds early same-domain IR-hub search, generic /financials/quarterly-results conventions, and a bounded Q4 FinancialReport feed bridge that is activated only when an issuer page itself identifies Q4 and exposes a public API key. Q4-hosted document URLs are accepted only when they are returned by that issuer-domain feed, preserving chain-of-trust. No Bank Score, regulatory CET1 buffer, ROTCE-justified P/TBV, Core-TTM, 60/40 Dual Anchor, 25% fail-closed spread gate, Reality Check, or signal mathematics changed.
 # V2.21.20: Universal Bank Regulatory CET1 Buffer & Reality Sign Guard V16. Replaces the bank score's absolute-only CET1 thresholds with a regulatory-buffer framework for U.S. large banks: the app resolves the current Federal Reserve Large Bank Capital Requirements table, compares verified Standardized CET1 with the issuer-specific Fed CET1 capital requirement, and scores the surplus buffer while retaining a conservative absolute fallback when no official requirement can be resolved. The current June-2026 Fed table is embedded only as a dated network-failure fallback, not as issuer-specific valuation logic. Also prevents the external Reality Check from labeling raw-sign-opposite own/external valuation gaps as HIGH agreement merely because both values fall inside the broad neutral bucket. ROTCE-justified P/TBV, Core-TTM, target P/E, 60/40 Dual Anchor, 25% fail-closed spread gate and signal thresholds otherwise remain unchanged.
 # V2.21.19: Universal Bank ROTCE-Justified P/TBV Anchor & Quality Cap V15. Replaces the prior total-score-to-P/TBV linear mapping with an issuer-neutral justified tangible-book multiple driven directly by normalized ROTCE: (ROTCE - 3% sustainable long-run growth) / (10% normalized cost-of-equity hurdle - 3% growth), clamped to the released 0.8x-3.2x corridor. The legacy score-implied P/TBV is retained only as a downside-only quality/capital cap, so strong ROTCE cannot override weak CET1/TBV-growth/earnings-quality evidence. The normalized P/E target remains score-driven at 8x-15x, preserving two genuinely distinct valuation anchors and the 25% fail-closed spread gate. No issuer-specific branch, primary-source parsing, 4Q-TTM reconciliation, or signal thresholds changed.
@@ -10696,8 +10697,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22121_universal_bank_dynamic_ir_q4_feed_v17"
-BANK_DISCOVERY_CACHE_EPOCH = "v22121_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22122_universal_bank_ir_subdomain_q4_event_v18"
+BANK_DISCOVERY_CACHE_EPOCH = "v22122_bank_discovery_epoch_1"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -11247,6 +11248,85 @@ BANK_IR_HUB_TERMS = [
     "financial information", "financials", "quarterly reports", "earnings releases", "earnings materials",
     "events and presentations", "results and presentations",
 ]
+
+
+def _bank_candidate_ir_roots(company_domain):
+    """Issuer-owned roots to probe before guessed deep corporate paths.
+
+    V2.21.22: Many public-company websites keep IR on ir./investor./investors.
+    subdomains that are not linked from the corporate landing page.  These hosts
+    still pass the strict issuer-domain-family check and therefore preserve the
+    existing chain of trust without issuer-specific constants.
+    """
+    domain = _clean_text(company_domain).lower().split(":")[0]
+    if domain.startswith("www."):
+        domain = domain[4:]
+    if not domain:
+        return []
+    roots = []
+    base = _router_root(domain) or f"https://{domain}"
+    for value in [
+        base,
+        f"https://ir.{domain}",
+        f"https://investor.{domain}",
+        f"https://investors.{domain}",
+    ]:
+        value = str(value or "").rstrip("/")
+        if value and value not in roots:
+            roots.append(value)
+    return roots
+
+
+def _bank_latest_released_calendar_periods(reference_date=None, count=4):
+    """Return recent completed calendar quarters with a conservative reporting lag."""
+    ref = reference_date or datetime.now().date()
+    candidates = []
+    for year in range(ref.year - 2, ref.year + 1):
+        for q, (month, day) in {1: (3, 31), 2: (6, 30), 3: (9, 30), 4: (12, 31)}.items():
+            try:
+                qend = datetime(year, month, day).date()
+            except Exception:
+                continue
+            # Avoid probing a just-ended quarter before normal earnings season.
+            if qend + timedelta(days=14) <= ref:
+                candidates.append((year, q, qend))
+    candidates.sort(key=lambda x: x[2], reverse=True)
+    return [f"{q}Q{str(year)[-2:]}" for year, q, _ in candidates[:max(1, int(count))]]
+
+
+def _bank_q4_company_slug(company_name):
+    text = unicodedata.normalize("NFKD", _clean_text(company_name))
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = text.replace("&", " and ").replace(".", "").replace("'", "")
+    tokens = re.findall(r"[A-Za-z0-9]+", text)
+    return "-".join(tokens[:8])
+
+
+def _bank_q4_event_detail_candidates(ir_root, company_name, reference_date=None):
+    """Bounded Q4 event-detail candidates for recent earnings calls.
+
+    Q4-hosted IR sites commonly expose server-rendered event-detail pages even
+    when their quarterly-results table is populated by JavaScript.  The route is
+    a platform convention, not an issuer exception.  Both the URL host and any
+    later document links remain subject to strict trust checks.
+    """
+    host = _normalize_host(ir_root)
+    slug = _bank_q4_company_slug(company_name)
+    if not host or not slug:
+        return []
+    rows = []
+    for period in _bank_latest_released_calendar_periods(reference_date=reference_date, count=4):
+        m = re.fullmatch(r"([1-4])Q(\d{2})", period)
+        if not m:
+            continue
+        q = int(m.group(1)); fy = 2000 + int(m.group(2))
+        event_year = fy + 1 if q == 4 else fy
+        url = (
+            f"https://{host}/news-events/webcasts-presentations/event-details/{event_year}/"
+            f"Q{q}-{fy}-{slug}-Earnings-Conference-Call/default.aspx"
+        )
+        rows.append({"period": period, "url": url})
+    return rows
 
 
 def _bank_ir_link_score(url, title=""):
@@ -15073,17 +15153,26 @@ def _bank_q4_financial_feed_documents(html, page_url, company_domain, deadline=N
         "trusted_platform_hosts": sorted(trusted_hosts),
     }
 
-def _bank_extract_ir_links(html, base_url, company_domain):
+def _bank_extract_ir_links(html, base_url, company_domain, allow_trusted_q4_cdn=False, inherited_period=None):
     rows = []
     if not html:
         return rows
     try:
         soup = BeautifulSoup(html, "html.parser")
+        issuer_page_trusted = bool(
+            base_url and _host_belongs_to_company_family(base_url, company_domain)
+        )
         for a in soup.find_all("a", href=True):
             href = urljoin(base_url, a.get("href"))
             if not href.startswith(("http://", "https://")):
                 continue
-            if not _host_belongs_to_company_family(href, company_domain):
+            host = _normalize_host(href)
+            issuer_hosted = _host_belongs_to_company_family(href, company_domain)
+            q4_hosted = bool(host == "q4cdn.com" or host.endswith(".q4cdn.com"))
+            trusted_q4_direct = bool(
+                allow_trusted_q4_cdn and issuer_page_trusted and q4_hosted
+            )
+            if not (issuer_hosted or trusted_q4_direct):
                 continue
             title = _clean_text(a.get_text(" ", strip=True))
             score = _bank_ir_link_score(href, title)
@@ -15092,8 +15181,10 @@ def _bank_extract_ir_links(html, base_url, company_domain):
             rows.append({
                 "url": href,
                 "title": title or _historical_title_hint_from_url(href),
-                "period": _bank_period_from_text(f"{title} {href}"),
+                "period": _bank_period_from_text(f"{title} {href}") or inherited_period,
                 "score": score,
+                "trusted_q4_direct": trusted_q4_direct,
+                "discovery_channel": "issuer_q4_direct_link" if trusted_q4_direct else "issuer_ir_link",
             })
     except Exception:
         return []
@@ -15108,10 +15199,9 @@ def _bank_extract_ir_links(html, base_url, company_domain):
 def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadline=None, diagnostics=None):
     """Bounded issuer-first discovery of quarterly earnings documents.
 
-    V2.21.21 keeps hub-first navigation and adds two issuer-neutral recovery layers:
-    an early same-domain IR-hub search for companies whose public website differs from
-    the IR subdomain, plus a bounded Q4 FinancialReport-feed bridge for JavaScript-rendered
-    quarterly-results pages. Deeper conventional paths and issuer-domain search remain fallbacks.
+    V2.21.22 keeps hub-first navigation and adds issuer-owned IR-subdomain probing
+    plus a bounded Q4 event-detail bridge for JavaScript-rendered quarterly-results pages.
+    Deeper conventional paths and issuer-domain search remain fallbacks.
     """
     diag = diagnostics if isinstance(diagnostics, list) else None
     if not company_domain or not _research_budget_ok(deadline, reserve=1.0):
@@ -15121,16 +15211,22 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
     if diag is not None:
         diag.append(f"Issuer-IR Discovery: Domain {company_domain} erkannt.")
 
-    root = _router_root(company_domain) or f"https://{company_domain}"
+    candidate_roots = _bank_candidate_ir_roots(company_domain)
+    root = candidate_roots[0] if candidate_roots else (_router_root(company_domain) or f"https://{company_domain}")
     candidate_pages = []
     documents = {}
     entrypoints = []
     fetched = set()
     trusted_platform_hosts = set()
+    q4_ir_roots = []
 
-    def add_links(html, final_url):
+    def add_links(html, final_url, inherited_period=None):
         """Index direct documents and retain plausible same-domain hub/archive pages."""
-        for row in _bank_extract_ir_links(html, final_url, company_domain):
+        q4_page = _bank_q4_page_signature(html)
+        for row in _bank_extract_ir_links(
+            html, final_url, company_domain,
+            allow_trusted_q4_cdn=q4_page, inherited_period=inherited_period,
+        ):
             url_low = row["url"].lower().split("?", 1)[0]
             title_low = (row.get("title") or "").lower()
             hay = f"{title_low} {url_low}"
@@ -15153,6 +15249,95 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
             ]):
                 candidate_pages.append(row)
 
+    # V2.21.22 Phase 0: probe issuer-owned IR subdomains early. Corporate homepages
+    # often do not expose their IR host in static HTML, so waiting for search/deep
+    # paths can exhaust the bounded discovery budget before ir./investor. is tried.
+    alt_probe_paths = [
+        "",
+        "/financials/quarterly-results/default.aspx",
+        "/financials/quarterly-results",
+        "/news-events/webcasts-presentations/default.aspx",
+    ]
+    for alt_root in candidate_roots[1:]:
+        if documents or not _research_budget_ok(deadline, reserve=3.0):
+            break
+        for path in alt_probe_paths:
+            if documents or len(fetched) >= 8 or not _research_budget_ok(deadline, reserve=2.2):
+                break
+            seed = urljoin(alt_root.rstrip("/") + "/", path.lstrip("/"))
+            if seed in fetched:
+                continue
+            fetched.add(seed)
+            html, final_url = _fetch_html(seed, timeout=2.2, deadline=deadline)
+            if not html:
+                continue
+            final_url = final_url or seed
+            if not _host_belongs_to_company_family(final_url, company_domain):
+                continue
+            entrypoints.append(final_url)
+            if _bank_q4_page_signature(html):
+                q4_root = f"https://{_normalize_host(final_url)}"
+                if q4_root not in q4_ir_roots:
+                    q4_ir_roots.append(q4_root)
+            add_links(html, final_url)
+            if not documents and _bank_q4_page_signature(html):
+                q4 = _bank_q4_financial_feed_documents(
+                    html, final_url, company_domain, deadline=deadline, diagnostics=diag
+                )
+                for qrow in q4.get("documents") or []:
+                    old = documents.get(qrow.get("url"))
+                    if old is None or qrow.get("score", 0) > old.get("score", 0):
+                        documents[qrow["url"]] = qrow
+                trusted_platform_hosts.update(q4.get("trusted_platform_hosts") or [])
+            if q4_ir_roots and not documents:
+                break
+        if q4_ir_roots and not documents:
+            break
+
+    # V2.21.22 Phase 0B: Q4 event-detail bridge. Some Q4 pages render the
+    # quarterly-results table client-side and expose no usable FinancialReport key
+    # in the initial HTML, while the earnings event-detail pages are server-rendered
+    # and link the official supplement/release directly. Probe only recent quarters,
+    # only on issuer-owned Q4 roots, and trust q4cdn links only when they are direct
+    # anchors on those issuer pages.
+    if not documents and q4_ir_roots and _research_budget_ok(deadline, reserve=2.0):
+        event_hits = 0
+        for q4_root in q4_ir_roots[:2]:
+            for candidate in _bank_q4_event_detail_candidates(q4_root, company_name):
+                if documents and len({r.get("period") for r in documents.values() if r.get("period")}) >= 4:
+                    break
+                if not _research_budget_ok(deadline, reserve=1.0):
+                    break
+                url = candidate.get("url")
+                period = candidate.get("period")
+                if not url or url in fetched:
+                    continue
+                fetched.add(url)
+                html, final_url = _fetch_html(url, timeout=2.4, deadline=deadline)
+                if not html:
+                    continue
+                final_url = final_url or url
+                if not _host_belongs_to_company_family(final_url, company_domain):
+                    continue
+                # Require the resolved page itself to look like the intended period/earnings event.
+                page_text = _html_to_text(html[:250000])
+                resolved_period = _bank_period_from_text(f"{page_text[:4000]} {final_url}") or period
+                if resolved_period != period:
+                    continue
+                event_hits += 1
+                entrypoints.append(final_url)
+                add_links(html, final_url, inherited_period=period)
+        if diag is not None:
+            periods = sorted(
+                {r.get("period") for r in documents.values() if r.get("period")},
+                key=_bank_period_sort_key, reverse=True,
+            )
+            diag.append(
+                "Issuer-IR Q4 Event Bridge: "
+                f"Event-Seiten={event_hits}, Dokumente={len(documents)}, "
+                f"Perioden={','.join(periods[:6]) or 'keine'}."
+            )
+
     # Phase 1: hub-first.  Do not burn the complete request budget on guessed deep
     # paths before the issuer homepage or investor hub has had a chance to reveal
     # its real information architecture.
@@ -15173,6 +15358,9 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         entrypoints.append(final_url)
         add_links(html, final_url)
         if not documents and _bank_q4_page_signature(html):
+            q4_root = f"https://{_normalize_host(final_url)}"
+            if q4_root not in q4_ir_roots:
+                q4_ir_roots.append(q4_root)
             q4 = _bank_q4_financial_feed_documents(html, final_url, company_domain, deadline=deadline, diagnostics=diag)
             for qrow in q4.get("documents") or []:
                 old = documents.get(qrow.get("url"))
@@ -15189,7 +15377,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
             break
 
 
-    # V2.21.21 Phase 1B: if the corporate root did not expose the IR subdomain,
+    # V2.21.22 Phase 1B: if the corporate root did not expose the IR subdomain,
     # resolve a same-domain investor hub before spending budget on guessed deep paths.
     # This remains issuer-neutral and accepts only the company's own domain family.
     if not documents and not candidate_pages and _research_budget_ok(deadline, reserve=3.0):
@@ -15264,6 +15452,9 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         entrypoints.append(final_url)
         add_links(html, final_url)
         if not documents and _bank_q4_page_signature(html):
+            q4_root = f"https://{_normalize_host(final_url)}"
+            if q4_root not in q4_ir_roots:
+                q4_ir_roots.append(q4_root)
             q4 = _bank_q4_financial_feed_documents(html, final_url, company_domain, deadline=deadline, diagnostics=diag)
             for qrow in q4.get("documents") or []:
                 old = documents.get(qrow.get("url"))
@@ -15354,7 +15545,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
             reverse=True,
         )
         diag.append(
-            "Issuer-IR Discovery V17: Dynamic-Hub/Q4-Feed aktiv · "
+            "Issuer-IR Discovery V18: IR-Subdomain/Q4-Event aktiv · "
             f"Entry-Points={len(set(entrypoints))}, Dokumente={len(rows)}, "
             f"Perioden={','.join(periods[:6]) or 'keine'}."
         )
@@ -15380,7 +15571,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
             }
         return _bank_fetch_official_document(
             (row or {}).get("url"), company_domain, deadline=deadline, timeout=timeout, diagnostics=diag,
-            allow_q4_cdn=bool((row or {}).get("trusted_q4_feed")),
+            allow_q4_cdn=bool((row or {}).get("trusted_q4_feed") or (row or {}).get("trusted_q4_direct")),
         )
 
     by_period = {}
@@ -15569,7 +15760,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "ttm_eps_coverage": coverage,
         "ttm_coverage_expected_periods": periods,
         "source_note": (
-            f"{APP_BUILD_VERSION} hat die offizielle Investor-Relations-Quartalsstruktur über die generische Dynamic-Hub/Q4-Feed-Discovery automatisch entdeckt, "
+            f"{APP_BUILD_VERSION} hat die offizielle Investor-Relations-Quartalsstruktur über die generische IR-Subdomain/Q4-Event-Discovery automatisch entdeckt, "
             "TOC-sicher nur quartalsausgerichtete ROTCE-, TBVPS-, Buchwert- und CET1-Tabellenfelder akzeptiert und vier aufeinanderfolgende "
             "offizielle Quartals-EPS einschließlich vorhandener quantitativer company-designierter EPS-Reconciliations in das gemeinsame Bank-Snapshot-Schema überführt. SEC bleibt Fallback; "
             "fehlende oder nicht eindeutig zuordenbare Primärdaten sperren die Bewertung weiterhin fail-closed."
@@ -17269,7 +17460,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Dynamic IR Hub & Q4 Financial Feed Discovery V2.21.21 lädt verifizierte Primärquellen-"
+            "Universal Bank IR Subdomain & Q4 Event Bridge V2.21.22 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -17346,13 +17537,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Dynamic IR Hub & Q4 Financial Feed Discovery V2.21.21 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank IR Subdomain & Q4 Event Bridge V2.21.22 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Dynamic IR Hub & Q4 Financial Feed Discovery V2.21.21 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank IR Subdomain & Q4 Event Bridge V2.21.22 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -50196,7 +50387,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Dynamic IR Hub & Q4 Financial Feed Discovery V2.21.21"
+                        "🏦 Bank-Familienmodell · Universal Bank IR Subdomain & Q4 Event Bridge V2.21.22"
                     )
 
                     if bank_model.get("primary_source_complete"):
