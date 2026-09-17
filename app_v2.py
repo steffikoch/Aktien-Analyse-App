@@ -2,6 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import math
+import os
 import re
 import time
 import unicodedata
@@ -18,7 +19,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.11"
+APP_BUILD_VERSION = "V2.21.12"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +27,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank SEC CIK Resolver & Fallback Diagnostics V7"
+    f"Build {APP_BUILD_VERSION} · Universal Bank SEC Fair-Access & Issuer-IR Recovery V8"
 )
 
 
+# V2.21.12: Universal Bank SEC Fair-Access & Issuer-IR Recovery V8. The generic bank adapter now uses one centrally declared SEC User-Agent without forcing an incorrect Host header, supports an optional AKTIENANALYSE_SEC_CONTACT environment value, and adds bounded Fair-Access pacing before bank-specific SEC requests. In parallel, the issuer-IR path now exposes stage diagnostics and broadens PDF text extraction across pypdf, PyPDF2 and PyMuPDF/fitz so an issuer supplement can still satisfy the bank gate when a hosting environment receives SEC HTTP 403. No issuer-specific WFC valuation branch is introduced. Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and fail-closed mathematics remain unchanged.
 # V2.21.11: Universal Bank SEC CIK Resolver & Fallback Diagnostics V7. Hardens the generic SEC ticker-to-CIK stage that blocked WFC before submissions discovery. The resolver now prefers the SEC's lightweight official ticker.txt mapping, normalizes common ticker punctuation, falls back to company_tickers.json and company_tickers_exchange.json, and records per-source HTTP/timeout/parse diagnostics instead of collapsing every failure into a generic no-CIK result. Successful CIK resolution then feeds the unchanged Item-2.02/Primary-8-K/Supplement parser path. A new cache epoch prevents prior failed CIK lookups from being reused. No Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment, or fail-closed valuation mathematics changed.
 # V2.21.10: Universal Bank Discovery Cache-Bust & Retry Diagnostics V6. Fixes a cross-build Streamlit cache hazard in the universal Bank / Deposits & Lending primary-source discovery. V2.21.6-V2.21.9 could keep reusing a previously cached None/failed WFC discovery because the outer and SEC discovery wrappers were both st.cache_data-cached while only their downstream implementation changed. V2.21.10 introduces a versioned cache epoch and a success-only cache wrapper: successful primary-source snapshots remain cached, but None/diagnostic-only failures are re-run live instead of being frozen for six hours. The bank model now also emits an explicit wrapper diagnostic if discovery unexpectedly returns None. SEC/issuer parsing, Bank Score, four-quarter Core-TTM gate, P/TBV/Core-P-E Dual Anchor, horizon alignment and fail-closed valuation mathematics are unchanged.
 # V2.21.9: Universal Bank SEC Primary-Document Recovery & Stage Diagnostics V5. Adds a generic SEC earnings-recovery path that reads exhibit links directly from the Item-2.02 8-K primary document before falling back to EDGAR filing-index pages. This avoids depending on a single filing-index representation and remains issuer-neutral. The bank adapter now propagates stage diagnostics into the UI (CIK, submissions, Item-2.02 candidate count, primary-document/index exhibit discovery, selected exhibit and parser completeness). The released Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and fail-closed mathematics are unchanged.
@@ -4451,14 +4453,24 @@ def _unwrap_duckduckgo_url(href):
     return href if href.startswith(("http://", "https://")) else None
 
 
+SEC_CONTACT = str(os.environ.get("AKTIENANALYSE_SEC_CONTACT") or "").strip()
+SEC_USER_AGENT = (
+    f"AktienAnalyseV2/2.21.12 research-client ({SEC_CONTACT})"
+    if SEC_CONTACT
+    else "AktienAnalyseV2/2.21.12 research-client (local application owner)"
+)
+
+
 def _request_headers(sec=False):
     if sec:
-        # SEC asks automated clients to identify themselves. No personal user
-        # information is sent; this is a generic application identifier.
+        # SEC requires automated clients to declare a descriptive User-Agent.
+        # Never force a Host header here: requests must generate the correct
+        # host automatically for both www.sec.gov and data.sec.gov.
         return {
-            "User-Agent": "AktienAnalyseV2/2.20.27 research-client",
+            "User-Agent": SEC_USER_AGENT,
             "Accept-Encoding": "gzip, deflate",
-            "Host": "www.sec.gov",
+            "Accept": "application/json,text/html,text/plain,*/*",
+            "Accept-Language": "en-US,en;q=0.9",
         }
     return {
         "User-Agent": (
@@ -4466,6 +4478,18 @@ def _request_headers(sec=False):
             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
         )
     }
+
+
+_SEC_LAST_REQUEST_AT = 0.0
+
+def _sec_fair_access_pause(min_interval=0.12):
+    """Keep this process below the SEC fair-access ceiling with a small margin."""
+    global _SEC_LAST_REQUEST_AT
+    now = time.monotonic()
+    wait = float(min_interval) - (now - _SEC_LAST_REQUEST_AT)
+    if wait > 0:
+        time.sleep(wait)
+    _SEC_LAST_REQUEST_AT = time.monotonic()
 
 
 RESEARCH_TIME_LIMIT_SECONDS = 28.0
@@ -4500,6 +4524,8 @@ def _fetch_html(url, timeout=3.0, sec=False, deadline=None):
     if effective_timeout is None:
         return "", ""
     try:
+        if sec:
+            _sec_fair_access_pause()
         response = requests.get(
             url,
             headers=_request_headers(sec=sec),
@@ -4843,7 +4869,7 @@ def _discover_company_primary_pages(company_domain, company_name, max_pages=5, d
 def _sec_lookup_cik(symbol, deadline=None, diagnostics=None):
     """Resolve a ticker to CIK using only official SEC association files.
 
-    V2.21.11 prefers the lightweight ``ticker.txt`` mapping because it is much
+    V2.21.11 introduced the lightweight ``ticker.txt`` mapping because it is much
     smaller and simpler than the JSON association files.  JSON sources remain
     independent fallbacks.  All failures are fail-closed but can be surfaced
     through ``diagnostics`` so a timeout/HTTP/parse problem is distinguishable
@@ -4880,7 +4906,7 @@ def _sec_lookup_cik(symbol, deadline=None, diagnostics=None):
         if status is None and exc is not None:
             status = getattr(getattr(exc, "response", None), "status_code", None)
         if status:
-            diag.append(f"SEC-Stufe CIK/{label}: HTTP {status}; Fallback wird versucht.")
+            diag.append(f"SEC-Stufe CIK/{label}: HTTP {status}; deklarierter SEC-User-Agent aktiv; Fallback wird versucht.")
         elif exc is not None:
             diag.append(f"SEC-Stufe CIK/{label}: {type(exc).__name__}; Fallback wird versucht.")
         else:
@@ -4890,6 +4916,7 @@ def _sec_lookup_cik(symbol, deadline=None, diagnostics=None):
     effective_timeout = _bounded_timeout(deadline, 4.2)
     if effective_timeout is not None:
         try:
+            _sec_fair_access_pause()
             r = requests.get(
                 "https://www.sec.gov/include/ticker.txt",
                 headers=_request_headers(sec=True),
@@ -4922,6 +4949,7 @@ def _sec_lookup_cik(symbol, deadline=None, diagnostics=None):
     effective_timeout = _bounded_timeout(deadline, 4.8)
     if effective_timeout is not None:
         try:
+            _sec_fair_access_pause()
             r = requests.get(
                 "https://www.sec.gov/files/company_tickers.json",
                 headers=_request_headers(sec=True),
@@ -4954,6 +4982,7 @@ def _sec_lookup_cik(symbol, deadline=None, diagnostics=None):
     effective_timeout = _bounded_timeout(deadline, 4.8)
     if effective_timeout is not None:
         try:
+            _sec_fair_access_pause()
             r = requests.get(
                 "https://www.sec.gov/files/company_tickers_exchange.json",
                 headers=_request_headers(sec=True),
@@ -5002,12 +5031,10 @@ def _discover_sec_primary_pages(symbol, max_filings=3, deadline=None):
     if effective_timeout is None:
         return []
     try:
+        _sec_fair_access_pause()
         r = requests.get(
             f"https://data.sec.gov/submissions/CIK{cik10}.json",
-            headers={
-                "User-Agent": "AktienAnalyseV2/2.20.27 research-client",
-                "Accept-Encoding": "gzip, deflate",
-            },
+            headers=_request_headers(sec=True),
             timeout=(min(1.8, effective_timeout), effective_timeout),
         )
         r.raise_for_status()
@@ -10656,8 +10683,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22111_universal_bank_sec_cik_resolver_v7"
-BANK_DISCOVERY_CACHE_EPOCH = "v22111_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22112_universal_bank_sec_fair_access_ir_recovery_v8"
+BANK_DISCOVERY_CACHE_EPOCH = "v22112_bank_discovery_epoch_1"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -10936,10 +10963,15 @@ def _bank_ir_link_score(url, title=""):
     return score
 
 
-def _bank_pdf_bytes_to_text(payload):
-    """Best-effort PDF text extraction with optional dependencies; failure is fail-closed."""
+def _bank_pdf_bytes_to_text(payload, diagnostics=None):
+    """Best-effort PDF text extraction across common pure-Python/runtime backends."""
+    diag = diagnostics if isinstance(diagnostics, list) else None
     if not payload:
+        if diag is not None:
+            diag.append("Issuer-IR PDF: leere PDF-Antwort.")
         return ""
+
+    # 1) Modern pypdf
     try:
         from io import BytesIO
         from pypdf import PdfReader
@@ -10952,9 +10984,87 @@ def _bank_pdf_bytes_to_text(payload):
                 continue
         text = _clean_text(" ".join(parts))
         if text:
+            if diag is not None:
+                diag.append(f"Issuer-IR PDF: pypdf erfolgreich ({len(text)} Zeichen).")
             return text[:240_000]
-    except Exception:
-        pass
+    except Exception as exc:
+        if diag is not None:
+            diag.append(f"Issuer-IR PDF: pypdf nicht verfügbar/fehlgeschlagen ({type(exc).__name__}).")
+
+    # 2) Legacy PyPDF2 is still present in many Streamlit environments.
+    try:
+        from io import BytesIO
+        from PyPDF2 import PdfReader
+        reader = PdfReader(BytesIO(payload))
+        parts = []
+        for page in reader.pages[:45]:
+            try:
+                parts.append(page.extract_text() or "")
+            except Exception:
+                continue
+        text = _clean_text(" ".join(parts))
+        if text:
+            if diag is not None:
+                diag.append(f"Issuer-IR PDF: PyPDF2 erfolgreich ({len(text)} Zeichen).")
+            return text[:240_000]
+    except Exception as exc:
+        if diag is not None:
+            diag.append(f"Issuer-IR PDF: PyPDF2 nicht verfügbar/fehlgeschlagen ({type(exc).__name__}).")
+
+    # 3) PyMuPDF/fitz, often installed even when pypdf is not.
+    try:
+        import fitz
+        doc = fitz.open(stream=payload, filetype="pdf")
+        parts = []
+        for page in list(doc)[:45]:
+            try:
+                parts.append(page.get_text("text") or "")
+            except Exception:
+                continue
+        text = _clean_text(" ".join(parts))
+        if text:
+            if diag is not None:
+                diag.append(f"Issuer-IR PDF: PyMuPDF erfolgreich ({len(text)} Zeichen).")
+            return text[:240_000]
+    except Exception as exc:
+        if diag is not None:
+            diag.append(f"Issuer-IR PDF: PyMuPDF nicht verfügbar/fehlgeschlagen ({type(exc).__name__}).")
+
+    # 4) pdfminer.six is another common Streamlit dependency.
+    try:
+        from io import BytesIO
+        from pdfminer.high_level import extract_text as pdfminer_extract_text
+        text = _clean_text(pdfminer_extract_text(BytesIO(payload)) or "")[:240_000]
+        if text:
+            if diag is not None:
+                diag.append(f"Issuer-IR PDF: pdfminer erfolgreich ({len(text)} Zeichen).")
+            return text
+    except Exception as exc:
+        if diag is not None:
+            diag.append(f"Issuer-IR PDF: pdfminer nicht verfügbar/fehlgeschlagen ({type(exc).__name__}).")
+
+    # 5) System pdftotext binary, when supplied by the hosting image.
+    try:
+        import subprocess, tempfile
+        with tempfile.NamedTemporaryFile(suffix=".pdf") as src, tempfile.NamedTemporaryFile(suffix=".txt") as dst:
+            src.write(payload)
+            src.flush()
+            proc = subprocess.run(
+                ["pdftotext", "-layout", src.name, dst.name],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5.0, check=False,
+            )
+            if proc.returncode == 0:
+                dst.seek(0)
+                text = _clean_text(dst.read().decode("utf-8", errors="ignore"))[:240_000]
+                if text:
+                    if diag is not None:
+                        diag.append(f"Issuer-IR PDF: pdftotext erfolgreich ({len(text)} Zeichen).")
+                    return text
+    except Exception as exc:
+        if diag is not None:
+            diag.append(f"Issuer-IR PDF: pdftotext nicht verfügbar/fehlgeschlagen ({type(exc).__name__}).")
+
+    # 6) pdfplumber remains a final optional backend.
     try:
         from io import BytesIO
         import pdfplumber
@@ -10965,14 +11075,22 @@ def _bank_pdf_bytes_to_text(payload):
                     parts.append(page.extract_text() or "")
                 except Exception:
                     continue
-        return _clean_text(" ".join(parts))[:240_000]
-    except Exception:
+        text = _clean_text(" ".join(parts))[:240_000]
+        if text and diag is not None:
+            diag.append(f"Issuer-IR PDF: pdfplumber erfolgreich ({len(text)} Zeichen).")
+        return text
+    except Exception as exc:
+        if diag is not None:
+            diag.append(f"Issuer-IR PDF: pdfplumber nicht verfügbar/fehlgeschlagen ({type(exc).__name__}).")
         return ""
 
 
-def _bank_fetch_official_document(url, company_domain, deadline=None, timeout=4.0):
+def _bank_fetch_official_document(url, company_domain, deadline=None, timeout=4.0, diagnostics=None):
     """Fetch HTML/text/PDF only from the issuer domain family or SEC.gov."""
+    diag = diagnostics if isinstance(diagnostics, list) else None
     if not url or not _research_budget_ok(deadline, reserve=0.4):
+        if diag is not None and url:
+            diag.append("Issuer-IR Dokument: kein Zeitbudget für den Abruf.")
         return None
     host = _normalize_host(url)
     allowed = bool(
@@ -10986,9 +11104,12 @@ def _bank_fetch_official_document(url, company_domain, deadline=None, timeout=4.
     if effective_timeout is None:
         return None
     try:
+        is_sec_host = (host == "sec.gov" or host.endswith(".sec.gov"))
+        if is_sec_host:
+            _sec_fair_access_pause()
         response = requests.get(
             url,
-            headers=_request_headers(sec=(host == "sec.gov" or host.endswith(".sec.gov"))),
+            headers=_request_headers(sec=is_sec_host),
             timeout=(min(2.0, effective_timeout), effective_timeout),
             allow_redirects=True,
         )
@@ -11003,7 +11124,7 @@ def _bank_fetch_official_document(url, company_domain, deadline=None, timeout=4.
             return None
         ctype = (response.headers.get("Content-Type") or "").lower()
         if "pdf" in ctype or final_url.lower().split("?", 1)[0].endswith(".pdf"):
-            text = _bank_pdf_bytes_to_text(response.content)
+            text = _bank_pdf_bytes_to_text(response.content, diagnostics=diag)
             doc_type = "pdf"
         elif any(x in ctype for x in ["html", "text", "xml"]) or not ctype:
             text = _html_to_text(response.text[:1_800_000])
@@ -11011,14 +11132,22 @@ def _bank_fetch_official_document(url, company_domain, deadline=None, timeout=4.
         else:
             return None
         if not text:
+            if diag is not None:
+                diag.append(f"Issuer-IR Dokument: geladen, aber ohne extrahierbaren Text ({final_url}).")
             return None
+        if diag is not None:
+            diag.append(f"Issuer-IR Dokument: erfolgreich geladen ({doc_type}; {final_url}).")
         return {
             "text": text,
             "url": final_url,
             "document_type": doc_type,
             "last_modified": response.headers.get("Last-Modified"),
         }
-    except Exception:
+    except Exception as exc:
+        if diag is not None:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            suffix = f"HTTP {status}" if status else type(exc).__name__
+            diag.append(f"Issuer-IR Dokument: Abruf fehlgeschlagen ({suffix}; {url}).")
         return None
 
 
@@ -11054,10 +11183,15 @@ def _bank_extract_ir_links(html, base_url, company_domain):
     return sorted(unique.values(), key=lambda x: x.get("score", 0), reverse=True)
 
 
-def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadline=None):
+def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadline=None, diagnostics=None):
     """Bounded issuer-first discovery of quarterly earnings documents."""
+    diag = diagnostics if isinstance(diagnostics, list) else None
     if not company_domain or not _research_budget_ok(deadline, reserve=1.0):
+        if diag is not None:
+            diag.append("Issuer-IR Discovery: keine Domain oder kein Recherchebudget.")
         return {"documents": [], "entrypoints": []}
+    if diag is not None:
+        diag.append(f"Issuer-IR Discovery: Domain {company_domain} erkannt.")
     root = _router_root(company_domain) or f"https://{company_domain}"
     candidate_pages = []
     documents = {}
@@ -11145,12 +11279,21 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         key=lambda r: (_bank_period_sort_key(r.get("period")), r.get("score", 0)),
         reverse=True,
     )
+    if diag is not None:
+        periods = sorted({r.get("period") for r in rows if r.get("period")}, key=_bank_period_sort_key, reverse=True)
+        diag.append(
+            "Issuer-IR Discovery: "
+            f"Entry-Points={len(set(entrypoints))}, Dokumente={len(rows)}, Perioden={','.join(periods[:6]) or 'keine'}."
+        )
     return {"documents": rows, "entrypoints": list(dict.fromkeys(entrypoints))}
 
 
-def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, discovery, deadline=None):
+def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, discovery, deadline=None, diagnostics=None):
+    diag = diagnostics if isinstance(diagnostics, list) else None
     documents = list((discovery or {}).get("documents") or [])
     if not documents:
+        if diag is not None:
+            diag.append("Issuer-IR Parser: keine periodisierten Earnings-Dokumente entdeckt.")
         return None
 
     def payload_for(row, timeout):
@@ -11163,7 +11306,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
                 "last_modified": None,
             }
         return _bank_fetch_official_document(
-            (row or {}).get("url"), company_domain, deadline=deadline, timeout=timeout
+            (row or {}).get("url"), company_domain, deadline=deadline, timeout=timeout, diagnostics=diag
         )
 
     by_period = {}
@@ -11176,7 +11319,11 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         by_period[period].sort(key=lambda x: x.get("score", 0), reverse=True)
     latest_period = max(by_period, key=_bank_period_sort_key) if by_period else None
     if not latest_period:
+        if diag is not None:
+            diag.append("Issuer-IR Parser: keine jüngste Quartalsperiode bestimmbar.")
         return None
+    if diag is not None:
+        diag.append(f"Issuer-IR Parser: jüngste Periode {latest_period}; {len(by_period.get(latest_period) or [])} Dokumentkandidat(en).")
 
     latest_docs = by_period.get(latest_period) or []
     latest_payload = None
@@ -11197,6 +11344,8 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
             latest_row = row
             break
     if not latest_payload:
+        if diag is not None:
+            diag.append("Issuer-IR Parser: kein jüngstes Dokument mit mindestens zwei Bank-Kernsignalen extrahierbar.")
         return None
 
     latest_text = latest_payload["text"]
@@ -11281,6 +11430,14 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
     latest_eps = safe_float(latest_cov.get("reported_eps"))
     latest_core = safe_float(latest_cov.get("core_eps"))
     latest_effect = safe_float(latest_cov.get("special_items_eps_effect"))
+    if diag is not None:
+        diag.append(
+            "Issuer-IR Parser-Gate: "
+            f"4Q-EPS={len(coverage)}/4, ROTCE={'ja' if rotce is not None else 'nein'}, "
+            f"TBVPS={'ja' if tbv is not None else 'nein'}, TBV-YoY={'ja' if tbv_growth is not None else 'nein'}, "
+            f"BookValue={'ja' if book_value is not None else 'nein'}, CET1-Std={'ja' if cet1_std is not None else 'nein'}, "
+            f"CET1-Adv={'ja' if cet1_adv is not None else 'nein'}."
+        )
     if None in [rotce, cet1_std, tbv, tbv_growth, book_value, latest_eps, latest_core, latest_effect]:
         return None
 
@@ -11319,7 +11476,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "ttm_eps_coverage": coverage,
         "ttm_coverage_expected_periods": periods,
         "source_note": (
-            "V2.21.11 hat die offizielle Investor-Relations-Quartalsstruktur des Emittenten automatisch entdeckt, "
+            "V2.21.12 hat die offizielle Investor-Relations-Quartalsstruktur des Emittenten automatisch entdeckt, "
             "die bankspezifischen Tabellenfelder ROTCE, TBVPS und CET1 gelesen und vier aufeinanderfolgende "
             "offizielle Quartals-EPS in das gemeinsame Bank-Snapshot-Schema überführt. SEC bleibt Fallback; "
             "fehlende oder nicht eindeutig zuordenbare Primärdaten sperren die Bewertung weiterhin fail-closed."
@@ -11328,14 +11485,16 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
 
 
 def _discover_universal_bank_snapshot_uncached(symbol, company_name=None, website=None):
-    """Live issuer-IR first / SEC second discovery. Failures are deliberately not cached."""
+    """Live issuer-IR first / SEC second discovery with combined stage diagnostics."""
     company_domain = _extract_company_domain(website)
-    deadline = time.monotonic() + 16.0
+    deadline = time.monotonic() + 18.0
+    ir_diagnostics = []
     if company_domain:
         discovery = _bank_discover_issuer_ir_documents(
             company_domain,
             company_name=company_name,
             deadline=deadline,
+            diagnostics=ir_diagnostics,
         )
         snapshot = _bank_ir_snapshot_from_documents(
             symbol,
@@ -11343,10 +11502,20 @@ def _discover_universal_bank_snapshot_uncached(symbol, company_name=None, websit
             company_domain,
             discovery,
             deadline=deadline,
+            diagnostics=ir_diagnostics,
         )
         if snapshot is not None:
+            snapshot["adapter_diagnostic"] = " | ".join(ir_diagnostics)
             return snapshot
-    return _discover_universal_bank_snapshot_v1_uncached(symbol, company_name=company_name)
+    else:
+        ir_diagnostics.append("Issuer-IR Discovery: keine verifizierbare Unternehmenswebsite im Datenobjekt verfügbar.")
+
+    sec_result = _discover_universal_bank_snapshot_v1_uncached(symbol, company_name=company_name)
+    if isinstance(sec_result, dict) and sec_result.get("_diagnostic_only"):
+        sec_diag = str(sec_result.get("adapter_diagnostic") or "").strip()
+        combined = " | ".join([x for x in [" | ".join(ir_diagnostics), sec_diag] if x])
+        sec_result["adapter_diagnostic"] = combined
+    return sec_result
 
 
 @st.cache_data(ttl=21600, show_spinner=False)
@@ -11413,7 +11582,7 @@ def _bank_sec_exhibit_score(row_text, url):
 def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None, diagnostics=None):
     """Generic SEC Item-2.02 earnings discovery with primary-document recovery.
 
-    V2.21.11 reads the Item-2.02 8-K primary document and follows its
+    V2.21.9 introduced the Item-2.02 8-K primary-document recovery and follows its
     exhibit table links.  Filing-index .htm/.html pages remain secondary
     discovery surfaces.  This is intentionally issuer-neutral: the only
     ranking signals are generic earnings/supplement/exhibit semantics.
@@ -11441,12 +11610,10 @@ def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None, d
 
     submissions_url = f"https://data.sec.gov/submissions/CIK{cik10}.json"
     try:
+        _sec_fair_access_pause()
         r = requests.get(
             submissions_url,
-            headers={
-                "User-Agent": "AktienAnalyseV2/2.21.11 bank-primary-source-research-client",
-                "Accept-Encoding": "gzip, deflate",
-            },
+            headers=_request_headers(sec=True),
             timeout=(min(1.8, effective_timeout), effective_timeout),
         )
         r.raise_for_status()
@@ -11760,14 +11927,14 @@ def _discover_universal_bank_snapshot_v1_uncached(symbol, company_name=None):
     if published_dt:
         snapshot["published_date"] = published_dt.strftime("%d.%m.%Y")
         snapshot["valid_until"] = (published_dt + timedelta(days=110)).strftime("%d.%m.%Y")
-    snapshot["source_name"] = "SEC Item 2.02 Earnings Supplement · Universal Bank Adapter V7"
+    snapshot["source_name"] = "SEC Item 2.02 Earnings Supplement · Universal Bank Adapter V8"
     snapshot["source_url"] = latest_row.get("url") or snapshot.get("source_url")
     snapshot["supplement_url"] = latest_row.get("url") or snapshot.get("supplement_url")
     snapshot["allowed_source_hosts"] = ["sec.gov"]
     snapshot["adapter_version"] = BANK_PRIMARY_SOURCE_ADAPTER_VERSION
     snapshot["adapter_mode"] = "sec_item_202_primary_document_recovery"
     snapshot["source_note"] = (
-        "V2.21.11 hat den offiziellen SEC-Earnings-8-K-Pfad über Item 2.02 erkannt, zunächst "
+        "V2.21.12 hat den offiziellen SEC-Earnings-8-K-Pfad über Item 2.02 erkannt, zunächst "
         "Exhibit-Links direkt aus dem Primary-8-K gelesen und danach bei Bedarf den Filing-Index verwendet. "
         "Das höchstrangige Earnings-/Quarterly-Supplement-Exhibit wird als HTML geparst. Eine aktuelle "
         "Mehrquartalstabelle darf die vier aufeinanderfolgenden diluted-EPS-Quartale direkt "
@@ -12564,7 +12731,7 @@ def build_bank_special_model(
     elif snapshot_raw is None:
         adapter_diagnostic = (
             "Adapter-Stufe Wrapper: Discovery lieferte unerwartet weder Snapshot noch "
-            "Diagnoseobjekt. V2.21.11 erzwingt deshalb bei der nächsten Ausführung einen "
+            "Diagnoseobjekt. V2.21.12 erzwingt deshalb bei der nächsten Ausführung einen "
             "Live-Retry statt eines gecachten Fehlers."
         )
         snapshot = None
@@ -12681,7 +12848,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank SEC CIK Resolver & Fallback Diagnostics V2.21.11 lädt verifizierte Primärquellen-"
+            "Universal Bank SEC Fair-Access & Issuer-IR Recovery V2.21.12 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -12758,13 +12925,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank SEC CIK Resolver & Fallback Diagnostics V2.21.11 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank SEC Fair-Access & Issuer-IR Recovery V2.21.12 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank SEC CIK Resolver & Fallback Diagnostics V2.21.11 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank SEC Fair-Access & Issuer-IR Recovery V2.21.12 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -45596,7 +45763,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank SEC CIK Resolver & Fallback Diagnostics V2.21.11"
+                        "🏦 Bank-Familienmodell · Universal Bank SEC Fair-Access & Issuer-IR Recovery V2.21.12"
                     )
 
                     if bank_model.get("primary_source_complete"):
