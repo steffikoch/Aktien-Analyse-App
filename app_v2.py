@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.18"
+APP_BUILD_VERSION = "V2.21.19"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,11 +31,13 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Comprehensive EPS Reconciliation Selection V14"
+    f"Build {APP_BUILD_VERSION} · Universal Bank ROTCE-Justified P/TBV Anchor & Quality Cap V15"
 )
 
 
-# V2.21.17: Universal Bank Comprehensive EPS Reconciliation Selection V14. Hardens the issuer-neutral bank parser against table-of-contents and narrative false positives. Bank metrics with a known quarter now require an aligned quarterly table context; loose numeric fallbacks are disabled for TBVPS, book value and ROTCE. CET1 Standardized/Advanced rows are classified only from local capital-table context, with summary rows retained only as a Standardized fallback. This fixes page-number capture and cross-section CET1 leakage while preserving WFC compatibility. Bank Score thresholds, target corridors, 60/40 Dual-Anchor, official-4Q TTM authority, horizon alignment and all fail-closed valuation mathematics remain unchanged.
+# V2.21.19: Universal Bank ROTCE-Justified P/TBV Anchor & Quality Cap V15. Replaces the prior total-score-to-P/TBV linear mapping with an issuer-neutral justified tangible-book multiple driven directly by normalized ROTCE: (ROTCE - 3% sustainable long-run growth) / (10% normalized cost-of-equity hurdle - 3% growth), clamped to the released 0.8x-3.2x corridor. The legacy score-implied P/TBV is retained only as a downside-only quality/capital cap, so strong ROTCE cannot override weak CET1/TBV-growth/earnings-quality evidence. The normalized P/E target remains score-driven at 8x-15x, preserving two genuinely distinct valuation anchors and the 25% fail-closed spread gate. No issuer-specific branch, primary-source parsing, 4Q-TTM reconciliation, or signal thresholds changed.
+# V2.21.18: Universal Bank Comprehensive EPS Reconciliation Selection V14. When multiple official adjusted-EPS reconciliation rows exist, selects the most comprehensive periodized bridge by explicit quarter coverage and then total quantified bridge magnitude. This keeps issuer-designated notable/significant/special-item adjustments fully source-backed without issuer-specific code. Primary-source table parsing, Bank Score, target corridors, 60/40 Dual-Anchor, horizon alignment and fail-closed gates otherwise remain unchanged.
+# V2.21.17: Universal Bank TOC-Safe Table Context Parser V13. Hardens the issuer-neutral bank parser against table-of-contents and narrative false positives. Bank metrics with a known quarter require aligned quarterly table context; loose numeric fallbacks are disabled for TBVPS, book value and ROTCE. CET1 Standardized/Advanced rows are classified only from local capital-table context, fixing page-number capture and cross-section CET1 leakage while preserving WFC compatibility.
 # V2.21.15: Universal Bank Official 4Q TTM Authority & Provider Reconciliation V11. Keeps the self-contained issuer-PDF runtime from V2.21.14, but fixes an overly strict bank TTM gate: four consecutive source-verified official quarterly diluted-EPS observations are now the primary TTM authority, while Yahoo/provider trailing EPS is a plausibility cross-check rather than a 1%-identity requirement. A mismatch fails closed only when both the absolute gap exceeds $0.10/share and the relative gap exceeds 5%, which still catches likely period/unit conflicts while allowing small provider aggregation-basis differences such as WFC 6.88 official vs 6.68 provider. Bank Score, CET1/ROTCE/TBV mathematics, target corridors, 60/40 Dual-Anchor, horizon alignment and signal logic remain unchanged.
 # V2.21.14: Universal Bank Single-File Embedded PDF Runtime V10. Embeds a compressed pypdf runtime directly inside app_v2.py and activates it through Python zipimport on demand, so PDF extraction no longer depends on sidecar package folders being present on the host import path. This fixes deployments that update/run only the single Streamlit app file. Issuer-IR discovery, SEC fallback, Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and all fail-closed valuation mathematics remain unchanged.
 # V2.21.13: Universal Bank Self-Contained PDF Recovery V9. Bundles a local pypdf runtime with the release so issuer-primary quarterly supplements can be parsed even when the hosting Streamlit image has no PDF extraction package installed and SEC endpoints return HTTP 403. Issuer-IR discovery, strict same-domain validation, four-quarter EPS coverage, ROTCE/TBVPS/CET1 parsing and all fail-closed bank valuation gates remain generic and unchanged. No issuer-specific WFC valuation branch is introduced; Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and signal mathematics remain frozen.
@@ -10692,8 +10694,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22118_universal_bank_comprehensive_eps_reconciliation_v14"
-BANK_DISCOVERY_CACHE_EPOCH = "v22118_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22119_universal_bank_rotce_justified_ptbv_v15"
+BANK_DISCOVERY_CACHE_EPOCH = "v22119_bank_discovery_epoch_1"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -15311,7 +15313,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "ttm_eps_coverage": coverage,
         "ttm_coverage_expected_periods": periods,
         "source_note": (
-            "V2.21.17 hat die offizielle Investor-Relations-Quartalsstruktur über die generische Hub-first-Discovery automatisch entdeckt, "
+            f"{APP_BUILD_VERSION} hat die offizielle Investor-Relations-Quartalsstruktur über die generische Hub-first-Discovery automatisch entdeckt, "
             "TOC-sicher nur quartalsausgerichtete ROTCE-, TBVPS-, Buchwert- und CET1-Tabellenfelder akzeptiert und vier aufeinanderfolgende "
             "offizielle Quartals-EPS einschließlich vorhandener quantitativer company-designierter EPS-Reconciliations in das gemeinsame Bank-Snapshot-Schema überführt. SEC bleibt Fallback; "
             "fehlende oder nicht eindeutig zuordenbare Primärdaten sperren die Bewertung weiterhin fail-closed."
@@ -16327,6 +16329,11 @@ def calculate_bank_valuation_v1(
         "pe_corridor_lower": 8.0,
         "pe_corridor_upper": 15.0,
         "target_ptbv": None,
+        "justified_ptbv": None,
+        "score_quality_ptbv_cap": None,
+        "ptbv_rotce_pct": None,
+        "ptbv_long_term_growth_pct": 3.0,
+        "ptbv_cost_of_equity_pct": 10.0,
         "target_pe": None,
         "tbv_per_share": None,
         "normalized_eps": None,
@@ -16398,7 +16405,43 @@ def calculate_bank_valuation_v1(
         return result
 
     score_fraction = max(0.0, min(1.0, score / 100.0))
-    target_ptbv = 0.8 + (3.2 - 0.8) * score_fraction
+
+    # V2.21.19: P/TBV must be driven by the return earned on tangible common
+    # equity, not by the aggregate bank score alone.  We therefore use a
+    # normalized residual-income / justified-book relationship:
+    #
+    #   justified P/TBV = (normalized ROTCE - sustainable growth)
+    #                     / (normalized cost of equity - sustainable growth)
+    #
+    # The assumptions are deliberately stable rather than market-timed: 3%
+    # long-run nominal growth and a 10% equity-return hurdle.  The result is
+    # clamped to the already released 0.8x-3.2x corridor.  The former
+    # score-implied P/TBV survives only as a downside-only quality/capital cap,
+    # so weak CET1/TBV-growth/earnings-quality evidence can still reduce the
+    # book-value anchor but can never inflate a low-ROTCE bank.
+    rotce_for_ptbv = safe_float(bank_score.get("rotce_normalized_pct"))
+    if rotce_for_ptbv is None:
+        rotce_for_ptbv = safe_float(snapshot.get("rotce_ex_significant_items_pct"))
+    if rotce_for_ptbv is None:
+        result["note"] = (
+            "Bankbewertung gesperrt: Für den P/TBV-Anker fehlt ein verifizierter "
+            "normalisierter ROTCE."
+        )
+        return result
+
+    ptbv_long_term_growth = 0.03
+    ptbv_cost_of_equity = 0.10
+    denominator = ptbv_cost_of_equity - ptbv_long_term_growth
+    if denominator <= 0:
+        result["note"] = "Bankbewertung gesperrt: P/TBV-Normalannahmen sind mathematisch inkonsistent."
+        return result
+
+    justified_ptbv_raw = ((rotce_for_ptbv / 100.0) - ptbv_long_term_growth) / denominator
+    justified_ptbv = max(0.8, min(3.2, justified_ptbv_raw))
+    score_quality_ptbv_cap = 0.8 + (3.2 - 0.8) * score_fraction
+    target_ptbv = min(justified_ptbv, score_quality_ptbv_cap)
+
+    # The earnings multiple remains independently score-driven.
     target_pe = 8.0 + (15.0 - 8.0) * score_fraction
 
     fair_tbv = tbv * target_ptbv
@@ -16413,6 +16456,11 @@ def calculate_bank_valuation_v1(
         result.update({
             "bank_score": score,
             "target_ptbv": target_ptbv,
+            "justified_ptbv": justified_ptbv,
+            "score_quality_ptbv_cap": score_quality_ptbv_cap,
+            "ptbv_rotce_pct": rotce_for_ptbv,
+            "ptbv_long_term_growth_pct": ptbv_long_term_growth * 100.0,
+            "ptbv_cost_of_equity_pct": ptbv_cost_of_equity * 100.0,
             "target_pe": target_pe,
             "tbv_per_share": tbv,
             "normalized_eps": normalized_eps,
@@ -16431,6 +16479,11 @@ def calculate_bank_valuation_v1(
         "available": True,
         "bank_score": score,
         "target_ptbv": target_ptbv,
+        "justified_ptbv": justified_ptbv,
+        "score_quality_ptbv_cap": score_quality_ptbv_cap,
+        "ptbv_rotce_pct": rotce_for_ptbv,
+        "ptbv_long_term_growth_pct": ptbv_long_term_growth * 100.0,
+        "ptbv_cost_of_equity_pct": ptbv_cost_of_equity * 100.0,
         "target_pe": target_pe,
         "tbv_per_share": tbv,
         "normalized_eps": normalized_eps,
@@ -16440,9 +16493,11 @@ def calculate_bank_valuation_v1(
         "anchor_spread_pct": anchor_spread * 100.0,
         "note": (
             "Bank-Fair-Value V1 kombiniert 60 % Tangible-Book-Value-Anker "
-            "(P/TBV) und 40 % bank-normalisierte Core-Gewinnbasis (KGV). Der Bank-Score "
-            "bestimmt beide Zielkorridore linear. Bei mehr als 25 % Abstand "
-            "zwischen den beiden Fair-Value-Ankern bleibt die Bewertung gesperrt."
+            "(P/TBV) und 40 % bank-normalisierte Core-Gewinnbasis (KGV). P/TBV wird "
+            "aus normalisiertem ROTCE über einen justified-book Ansatz abgeleitet und "
+            "durch den scorebasierten Qualitäts-/Kapitaldeckel nur downside begrenzt; "
+            "das KGV bleibt scorebasiert. Bei mehr als 25 % Abstand zwischen den beiden "
+            "Fair-Value-Ankern bleibt die Bewertung gesperrt."
         ),
     })
     return result
@@ -16698,11 +16753,11 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Comprehensive EPS Reconciliation Selection V2.21.18 lädt verifizierte Primärquellen-"
+            "Universal Bank ROTCE-Justified P/TBV Anchor & Quality Cap V2.21.19 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
-            "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % bank-normalisiertem Core-KGV "
-            "berechnet. Der Core-KGV-Anker wird nur bei vollständiger Vier-Quartals-TTM-"
+            "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
+            "berechnet. Der P/TBV-Anker wird durch den Bank-Score nur downside gedeckelt; der Core-KGV-Anker wird nur bei vollständiger Vier-Quartals-TTM-"
             "Abdeckung freigegeben. Standard-FCF und Netto-Schulden/FCF bleiben ausgeschlossen."
         )
     }
@@ -16775,13 +16830,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Comprehensive EPS Reconciliation Selection V2.21.18 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank ROTCE-Justified P/TBV Anchor & Quality Cap V2.21.19 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Comprehensive EPS Reconciliation Selection V2.21.18 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank ROTCE-Justified P/TBV Anchor & Quality Cap V2.21.19 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -37042,6 +37097,11 @@ def calculate_fair_value_v1(
             "potential_pct": potential_pct,
             "bank_score": safe_float(bank_valuation.get("bank_score")),
             "target_ptbv": safe_float(bank_valuation.get("target_ptbv")),
+            "justified_ptbv": safe_float(bank_valuation.get("justified_ptbv")),
+            "score_quality_ptbv_cap": safe_float(bank_valuation.get("score_quality_ptbv_cap")),
+            "ptbv_rotce_pct": safe_float(bank_valuation.get("ptbv_rotce_pct")),
+            "ptbv_long_term_growth_pct": safe_float(bank_valuation.get("ptbv_long_term_growth_pct")),
+            "ptbv_cost_of_equity_pct": safe_float(bank_valuation.get("ptbv_cost_of_equity_pct")),
             "target_pe": safe_float(bank_valuation.get("target_pe")),
             "fair_value_tbv_financial": safe_float(bank_valuation.get("fair_value_tbv_financial")),
             "fair_value_earnings_financial": safe_float(bank_valuation.get("fair_value_earnings_financial")),
@@ -37051,8 +37111,8 @@ def calculate_fair_value_v1(
             "unit_conversion_applied": bool(unit_notes),
             "unit_note": " ".join(unit_notes) if unit_notes else None,
             "note": (
-                "Bank-Fair-Value V1 = 60 % P/TBV-Anker + 40 % bank-normalisierter Core-KGV-Anker. "
-                "Standard-FCF und klassische Netto-Schulden/FCF-Logik werden nicht verwendet."
+                "Bank-Fair-Value V1 = 60 % ROTCE-justified P/TBV-Anker + 40 % bank-normalisierter Core-KGV-Anker. "
+                "Der P/TBV-Anker wird durch die Gesamtqualität nur downside gedeckelt; Standard-FCF und klassische Netto-Schulden/FCF-Logik werden nicht verwendet."
             ),
         })
         return result
@@ -43650,7 +43710,7 @@ def load_stock(selected_symbol, cache_version):
             "score": bank_score_total,
             "note": (
                 "Banken verwenden kein einzelnes Standard-Fundamental-Multiple. "
-                "Der bankspezifische Score steuert getrennte P/TBV- und KGV-Zielkorridore; "
+                "Der Bank-Score steuert den KGV-Korridor; P/TBV wird separat aus normalisiertem ROTCE abgeleitet und durch die Gesamtqualität downside-only gedeckelt. "
                 "die eigentliche Dual-Anchor-Bewertung erfolgt in Schritt 3B."
             ),
         }
@@ -49613,7 +49673,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Comprehensive EPS Reconciliation Selection V2.21.18"
+                        "🏦 Bank-Familienmodell · Universal Bank ROTCE-Justified P/TBV Anchor & Quality Cap V2.21.19"
                     )
 
                     if bank_model.get("primary_source_complete"):
@@ -50731,9 +50791,18 @@ if selected_symbol:
                         st.metric("Ziel-P/TBV", f"{target_ptbv:.2f}×")
                         st.metric("Ziel-KGV", f"{target_pe:.2f}×")
                         st.success(
-                            "Bankspezifische Ziel-Multiples aus dem Bank-Score berechnet. "
-                            "Es wird bewusst kein einzelnes Standard-Fundamental-Multiple verwendet."
+                            "Ziel-P/TBV aus normalisiertem ROTCE abgeleitet und durch Bank-Qualität downside-only gedeckelt; "
+                            "Ziel-KGV weiterhin aus dem Bank-Score berechnet."
                         )
+                        if bank_val_m6.get("justified_ptbv") is not None:
+                            st.caption(
+                                "Justified P/TBV: "
+                                f"{bank_val_m6.get('justified_ptbv'):.2f}× aus ROTCE "
+                                f"{bank_val_m6.get('ptbv_rotce_pct'):.1f} % bei "
+                                f"{bank_val_m6.get('ptbv_cost_of_equity_pct'):.1f} % normalisierter Eigenkapitalhürde und "
+                                f"{bank_val_m6.get('ptbv_long_term_growth_pct'):.1f} % nachhaltigem Langfristwachstum; "
+                                f"Qualitäts-/Kapitaldeckel {bank_val_m6.get('score_quality_ptbv_cap'):.2f}×."
+                            )
                     else:
                         st.info(
                             "Bank-Zielmultiples noch nicht freigegeben. Die Bewertung bleibt fail-closed."
@@ -53824,6 +53893,13 @@ if selected_symbol:
                                 f"{bank_val_3b.get('target_ptbv'):.2f}× "
                                 f"innerhalb {bank_val_3b.get('ptbv_corridor_lower'):.1f}–{bank_val_3b.get('ptbv_corridor_upper'):.1f}×"
                             )
+                            if bank_val_3b.get("justified_ptbv") is not None:
+                                st.caption(
+                                    "ROTCE-Justified P/TBV "
+                                    f"{bank_val_3b.get('justified_ptbv'):.2f}× · "
+                                    f"ROTCE {bank_val_3b.get('ptbv_rotce_pct'):.1f} % · "
+                                    f"Qualitäts-/Kapitaldeckel {bank_val_3b.get('score_quality_ptbv_cap'):.2f}×"
+                                )
                             st.write(
                                 "**Ziel-KGV:** "
                                 f"{bank_val_3b.get('target_pe'):.2f}× "
@@ -55684,6 +55760,13 @@ if selected_symbol:
                             "**Ziel-P/TBV:** "
                             f"{fair_value.get('target_ptbv'):.2f}×"
                         )
+                        if fair_value.get("justified_ptbv") is not None:
+                            st.caption(
+                                "P/TBV-Ableitung: justified "
+                                f"{fair_value.get('justified_ptbv'):.2f}× aus ROTCE "
+                                f"{fair_value.get('ptbv_rotce_pct'):.1f} %; "
+                                f"Qualitäts-/Kapitaldeckel {fair_value.get('score_quality_ptbv_cap'):.2f}×."
+                            )
                         st.write(
                             "**Ziel-KGV:** "
                             f"{fair_value.get('target_pe'):.2f}×"
