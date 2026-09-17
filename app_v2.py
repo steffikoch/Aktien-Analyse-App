@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.15"
+APP_BUILD_VERSION = "V2.21.16"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Official 4Q TTM Authority & Provider Reconciliation V11"
+    f"Build {APP_BUILD_VERSION} · Universal Bank IR Entry-Point Discovery Expansion V12"
 )
 
 
@@ -40,6 +40,7 @@ st.caption(
 # V2.21.13: Universal Bank Self-Contained PDF Recovery V9. Bundles a local pypdf runtime with the release so issuer-primary quarterly supplements can be parsed even when the hosting Streamlit image has no PDF extraction package installed and SEC endpoints return HTTP 403. Issuer-IR discovery, strict same-domain validation, four-quarter EPS coverage, ROTCE/TBVPS/CET1 parsing and all fail-closed bank valuation gates remain generic and unchanged. No issuer-specific WFC valuation branch is introduced; Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and signal mathematics remain frozen.
 # V2.21.12: Universal Bank SEC Fair-Access & Issuer-IR Recovery V8. The generic bank adapter now uses one centrally declared SEC User-Agent without forcing an incorrect Host header, supports an optional AKTIENANALYSE_SEC_CONTACT environment value, and adds bounded Fair-Access pacing before bank-specific SEC requests. In parallel, the issuer-IR path now exposes stage diagnostics and broadens PDF text extraction across pypdf, PyPDF2 and PyMuPDF/fitz so an issuer supplement can still satisfy the bank gate when a hosting environment receives SEC HTTP 403. No issuer-specific WFC valuation branch is introduced. Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and fail-closed mathematics remain unchanged.
 # V2.21.11: Universal Bank SEC CIK Resolver & Fallback Diagnostics V7. Hardens the generic SEC ticker-to-CIK stage that blocked WFC before submissions discovery. The resolver now prefers the SEC's lightweight official ticker.txt mapping, normalizes common ticker punctuation, falls back to company_tickers.json and company_tickers_exchange.json, and records per-source HTTP/timeout/parse diagnostics instead of collapsing every failure into a generic no-CIK result. Successful CIK resolution then feeds the unchanged Item-2.02/Primary-8-K/Supplement parser path. A new cache epoch prevents prior failed CIK lookups from being reused. No Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment, or fail-closed valuation mathematics changed.
+# V2.21.16: Universal Bank IR Entry-Point Discovery Expansion V12. Reorders bank IR discovery to issuer-root / investor-hub first, follows same-domain investor/quarterly-material links before deep-path guesses, adds common nested corporate prefixes such as /global/investors as generic conventions, and keeps search only as bounded issuer-domain fallback. No ticker/domain special case and no Bank Score, 4Q-TTM reconciliation, P/TBV/Core-P-E or fail-closed valuation mathematics changed.
 # V2.21.10: Universal Bank Discovery Cache-Bust & Retry Diagnostics V6. Fixes a cross-build Streamlit cache hazard in the universal Bank / Deposits & Lending primary-source discovery. V2.21.6-V2.21.9 could keep reusing a previously cached None/failed WFC discovery because the outer and SEC discovery wrappers were both st.cache_data-cached while only their downstream implementation changed. V2.21.10 introduces a versioned cache epoch and a success-only cache wrapper: successful primary-source snapshots remain cached, but None/diagnostic-only failures are re-run live instead of being frozen for six hours. The bank model now also emits an explicit wrapper diagnostic if discovery unexpectedly returns None. SEC/issuer parsing, Bank Score, four-quarter Core-TTM gate, P/TBV/Core-P-E Dual Anchor, horizon alignment and fail-closed valuation mathematics are unchanged.
 # V2.21.9: Universal Bank SEC Primary-Document Recovery & Stage Diagnostics V5. Adds a generic SEC earnings-recovery path that reads exhibit links directly from the Item-2.02 8-K primary document before falling back to EDGAR filing-index pages. This avoids depending on a single filing-index representation and remains issuer-neutral. The bank adapter now propagates stage diagnostics into the UI (CIK, submissions, Item-2.02 candidate count, primary-document/index exhibit discovery, selected exhibit and parser completeness). The released Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and fail-closed mathematics are unchanged.
 # V2.21.8: Universal Bank SEC Filing Index Hotfix & Diagnostics V4. Fixes the generic EDGAR filing-index URL from the non-canonical -index.html path to the actual -index.htm path used by EDGAR, with .html retained only as a compatibility fallback. Adds fail-closed adapter diagnostics so a missing SEC earnings exhibit can be distinguished from a table-parser failure without issuer-specific logic. No Bank Score, P/TBV/Core-P-E, horizon alignment, 60/40 Dual-Anchor or signal mathematics changed.
@@ -10690,8 +10691,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22115_universal_bank_official_4q_ttm_authority_v11"
-BANK_DISCOVERY_CACHE_EPOCH = "v22115_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22116_universal_bank_ir_entrypoint_discovery_v12"
+BANK_DISCOVERY_CACHE_EPOCH = "v22116_bank_discovery_epoch_1"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -10832,6 +10833,123 @@ def _bank_row_numeric_values(text, label_patterns, max_chars=320, min_value=None
     return []
 
 
+def _bank_header_quarter_run(text, label_start, latest_period, lookback=2600):
+    """Infer the period order of a nearby quarterly table header.
+
+    Supports explicit Q labels and month-end headers.  The routine searches for
+    the longest *perfectly consecutive* quarter subsequence anchored to the known
+    latest document period, which prevents comparison columns such as ``1Q26`` /
+    ``2Q25`` from being mistaken for additional data columns.
+    """
+    t = _clean_text(text)
+    start = max(0, int(label_start) - int(lookback))
+    prefix = t[start:int(label_start)]
+    latest_key = _bank_period_sort_key(latest_period)
+    if latest_key[0] < 0:
+        return []
+    _, latest_q = latest_key
+
+    def directional_candidates(qs, base_bonus=0):
+        out = []
+        n = len(qs)
+        for width in range(min(7, n), 3, -1):
+            for i in range(0, n - width + 1):
+                sub = qs[i:i + width]
+                asc_ok = all(b == (1 if a == 4 else a + 1) for a, b in zip(sub, sub[1:]))
+                desc_ok = all(b == (4 if a == 1 else a - 1) for a, b in zip(sub, sub[1:]))
+                if asc_ok and sub[-1] == latest_q:
+                    out.append((1000 + width * 20 + base_bonus, "asc", sub))
+                if desc_ok and sub[0] == latest_q:
+                    out.append((1000 + width * 20 + base_bonus, "desc", sub))
+        return out
+
+    candidates = []
+    qtokens = list(re.finditer(r"\b([1-4])Q(?:\s*'?([0-9]{2,4}))?\b", prefix, flags=re.I))
+    runs, cur = [], []
+    for m in qtokens:
+        if cur and m.start() - cur[-1].end() > 70:
+            if len(cur) >= 4:
+                runs.append(cur)
+            cur = []
+        cur.append(m)
+    if len(cur) >= 4:
+        runs.append(cur)
+    for run in runs:
+        candidates.extend(directional_candidates([int(m.group(1)) for m in run], base_bonus=5))
+
+    month_q = {
+        "mar": 1, "march": 1, "jun": 2, "june": 2,
+        "sep": 3, "sept": 3, "september": 3, "dec": 4, "december": 4,
+    }
+    mtokens = list(re.finditer(
+        r"\b(march|mar\.?|june|jun\.?|september|sept\.?|sep\.?|december|dec\.?)\s+\d{1,2}\b",
+        prefix, flags=re.I,
+    ))
+    mruns, cur = [], []
+    for m in mtokens:
+        if cur and m.start() - cur[-1].end() > 45:
+            if len(cur) >= 4:
+                mruns.append(cur)
+            cur = []
+        cur.append(m)
+    if len(cur) >= 4:
+        mruns.append(cur)
+    for run in mruns:
+        qs = []
+        for m in run:
+            key = re.sub(r"[^a-z]", "", m.group(1).lower())
+            q = month_q.get(key)
+            if q:
+                qs.append(q)
+        candidates.extend(directional_candidates(qs, base_bonus=0))
+
+    if not candidates:
+        return []
+    _, direction, qs = max(candidates, key=lambda x: x[0])
+    if direction == "asc":
+        return _bank_consecutive_periods_ending(latest_period, len(qs))
+    return [_bank_previous_period(latest_period, i) for i in range(len(qs))]
+
+
+def _bank_extract_aligned_row_values(text, latest_period, label_patterns, max_chars=360,
+                                     min_value=None, max_value=None, search_start=0, search_end=None):
+    """Return ``[{period, value}, ...]`` aligned to the nearby table header."""
+    t = _clean_text(text)
+    end = len(t) if search_end is None else min(len(t), int(search_end))
+    for pat in label_patterns:
+        m = re.search(pat, t[int(search_start):end], flags=re.I | re.S)
+        if not m:
+            continue
+        abs_start = int(search_start) + m.start()
+        abs_end = int(search_start) + m.end()
+        periods = _bank_header_quarter_run(t, abs_start, latest_period)
+        if len(periods) < 4:
+            continue
+        tail = t[abs_end:min(len(t), abs_end + int(max_chars))]
+        tail = re.sub(r"^(?:\s*\(\d{1,2}\)\s*)+", " ", tail)
+        values = []
+        for token in re.findall(r"(?<![A-Za-z0-9])\(?-?\$?\s*\d+(?:,\d{3})*(?:\.\d+)?\)?%?", tail):
+            raw = token.replace("$", "").replace("%", "").replace(",", "").strip()
+            negative = raw.startswith("(") and raw.endswith(")")
+            raw = raw.strip("() ")
+            try:
+                value = float(raw)
+            except Exception:
+                continue
+            if negative:
+                value = -value
+            if min_value is not None and value < min_value:
+                continue
+            if max_value is not None and value > max_value:
+                continue
+            values.append(value)
+            if len(values) >= len(periods):
+                break
+        if len(values) >= len(periods):
+            return [{"period": p, "value": v} for p, v in zip(periods, values[:len(periods)])]
+    return []
+
+
 def _bank_extract_eps_from_text(text):
     values = _bank_row_numeric_values(text, [
         r"diluted\s+earnings\s+per\s+(?:common\s+)?share",
@@ -10846,75 +10964,138 @@ def _bank_extract_eps_from_text(text):
 
 
 def _bank_extract_quarterly_eps_series(text, latest_period, count=4):
-    """Parse a descending quarterly EPS row from a standard bank supplement table."""
-    values = _bank_row_numeric_values(text, [
+    """Parse quarterly diluted EPS independent of left-to-right table direction."""
+    patterns = [
         r"diluted\s+earnings\s+per\s+(?:common\s+)?share",
         r"earnings\s+per\s+(?:common\s+)?share\s*[-–—]?\s*diluted",
         r"diluted\s+EPS",
-    ], max_chars=260, min_value=-100.0, max_value=100.0)
+    ]
+    aligned = _bank_extract_aligned_row_values(
+        text, latest_period, patterns, max_chars=300, min_value=-100.0, max_value=100.0
+    )
+    expected = _bank_consecutive_periods_ending(latest_period, count)
+    if aligned and expected:
+        amap = {r["period"]: r["value"] for r in aligned}
+        if all(p in amap for p in expected):
+            return [{"period": p, "reported_eps": amap[p]} for p in reversed(expected)]
+
+    # Compatibility fallback for supplements whose extracted header is not
+    # recoverable but whose row is already newest-to-oldest (the legacy path).
+    values = _bank_row_numeric_values(text, patterns, max_chars=260, min_value=-100.0, max_value=100.0)
     if not latest_period or len(values) < int(count):
         return []
     descending = [_bank_previous_period(latest_period, i) for i in range(int(count))]
     if any(p is None for p in descending):
         return []
-    rows = []
-    for period, eps in zip(descending, values[:int(count)]):
-        rows.append({"period": period, "reported_eps": eps})
-    return rows
+    return [{"period": period, "reported_eps": eps} for period, eps in zip(descending, values[:int(count)])]
 
 
-def _bank_extract_tbv_values(text):
-    return _bank_row_numeric_values(text, [
+def _bank_extract_adjusted_quarterly_eps_series(text, latest_period, count=4):
+    """Extract a company-designated ex-notable/significant/special-items EPS row.
+
+    This is intentionally quantitative-only.  General mentions of notable or
+    significant items never create an adjustment; a period-aligned official EPS
+    row explicitly labelled as excluding those items is required.
+    """
+    patterns = [
+        r"(?:total\s+[A-Za-z0-9&.'’\- ]{0,45}\s+)?diluted\s+EPS[^\n]{0,90}?(?:excluding|ex)\s+(?:significant|notable|special)\s+item",
+        r"(?:diluted\s+)?earnings\s+per\s+(?:common\s+)?share[^\n]{0,90}?(?:excluding|ex)\s+(?:significant|notable|special)\s+item",
+        r"(?:excluding|ex)\s+(?:significant|notable|special)\s+items?[^\n]{0,90}?(?:diluted\s+)?(?:EPS|earnings\s+per\s+share)",
+    ]
+    aligned = _bank_extract_aligned_row_values(
+        text, latest_period, patterns, max_chars=320, min_value=-100.0, max_value=100.0
+    )
+    expected = _bank_consecutive_periods_ending(latest_period, count)
+    if not aligned or not expected:
+        return []
+    amap = {r["period"]: r["value"] for r in aligned}
+    if not all(p in amap for p in expected):
+        return []
+    return [{"period": p, "core_eps": amap[p]} for p in reversed(expected)]
+
+
+def _bank_extract_tbv_values(text, latest_period=None):
+    patterns = [
         r"tangible\s+book\s+value\s+per\s+(?:common\s+)?share",
         r"tangible\s+common\s+book\s+value\s+per\s+share",
-    ], max_chars=300, min_value=1.0, max_value=1000.0)[:6]
+    ]
+    if latest_period:
+        aligned = _bank_extract_aligned_row_values(text, latest_period, patterns, max_chars=330, min_value=1.0, max_value=1000.0)
+        if aligned:
+            amap = {r["period"]: r["value"] for r in aligned}
+            ordered = [amap[p] for p in [_bank_previous_period(latest_period, i) for i in range(len(aligned))] if p in amap]
+            if ordered:
+                return ordered
+    return _bank_row_numeric_values(text, patterns, max_chars=300, min_value=1.0, max_value=1000.0)[:6]
 
 
-def _bank_extract_book_value(text):
-    vals = _bank_row_numeric_values(text, [
-        r"(?<!tangible\s)book\s+value\s+per\s+(?:common\s+)?share",
-    ], max_chars=220, min_value=1.0, max_value=10000.0)
+def _bank_extract_book_value(text, latest_period=None):
+    patterns = [r"(?<!tangible\s)book\s+value\s+per\s+(?:common\s+)?share"]
+    if latest_period:
+        aligned = _bank_extract_aligned_row_values(text, latest_period, patterns, max_chars=260, min_value=1.0, max_value=10000.0)
+        for row in aligned:
+            if row.get("period") == latest_period:
+                return row.get("value")
+    vals = _bank_row_numeric_values(text, patterns, max_chars=220, min_value=1.0, max_value=10000.0)
     return vals[0] if vals else None
 
 
-def _bank_extract_rotce(text):
-    vals = _bank_row_numeric_values(text, [
+def _bank_extract_rotce(text, latest_period=None):
+    patterns = [
         r"return\s+on\s+average\s+tangible\s+common\s+(?:shareholders[’']?\s+)?equity(?:\s+ratio)?\s*(?:\(ROTCE\))?",
         r"\bROTCE\b",
-    ], max_chars=180, min_value=-100.0, max_value=100.0)
+    ]
+    if latest_period:
+        aligned = _bank_extract_aligned_row_values(text, latest_period, patterns, max_chars=220, min_value=-100.0, max_value=100.0)
+        for row in aligned:
+            if row.get("period") == latest_period:
+                return row.get("value")
+    vals = _bank_row_numeric_values(text, patterns, max_chars=180, min_value=-100.0, max_value=100.0)
     return vals[0] if vals else None
 
 
-def _bank_extract_cet1_values(text):
+def _bank_extract_cet1_values(text, latest_period=None):
     t = _clean_text(text)
 
     def section_value(section_start, section_end=None):
         m = re.search(section_start, t, flags=re.I)
         if not m:
             return None
-        block = t[m.end():m.end() + 900]
+        end_pos = len(t)
         if section_end:
-            cut = re.search(section_end, block, flags=re.I)
+            cut = re.search(section_end, t[m.end():], flags=re.I)
             if cut:
-                block = block[:cut.start()]
-        vals = _bank_row_numeric_values(block, [
-            r"common\s+equity\s+tier\s+1\s*(?:\(CET1\))?",
-            r"CET1\s+ratio",
-        ], max_chars=140, min_value=1.0, max_value=40.0)
+                end_pos = m.end() + cut.start()
+        patterns = [r"common\s+equity\s+tier\s+1\s*(?:\(CET1\))?(?:\s+capital)?\s+ratio", r"CET1\s+(?:Capital\s+)?Ratio"]
+        if latest_period:
+            aligned = _bank_extract_aligned_row_values(
+                t, latest_period, patterns, max_chars=210, min_value=1.0, max_value=40.0,
+                search_start=m.end(), search_end=end_pos,
+            )
+            for row in aligned:
+                if row.get("period") == latest_period:
+                    return row.get("value")
+        block = t[m.end():end_pos]
+        vals = _bank_row_numeric_values(block, patterns, max_chars=160, min_value=1.0, max_value=40.0)
         return vals[0] if vals else None
 
     standardized = section_value(
-        r"standardized\s+(?:approach|approaches)",
+        r"standardi[sz]ed\s+(?:approach|approaches)|standarized\s+(?:approach|approaches)",
         r"advanced\s+(?:approach|approaches)",
     )
     advanced = section_value(r"advanced\s+(?:approach|approaches)")
 
     if standardized is None:
-        vals = _bank_row_numeric_values(t, [
-            r"CET1\s+ratio",
-            r"common\s+equity\s+tier\s+1\s*(?:\(CET1\))?",
-        ], max_chars=160, min_value=1.0, max_value=40.0)
-        standardized = vals[0] if vals else None
+        patterns = [r"CET1\s+(?:Capital\s+)?Ratio", r"common\s+equity\s+tier\s+1\s*(?:\(CET1\))?(?:\s+capital)?\s+ratio"]
+        if latest_period:
+            aligned = _bank_extract_aligned_row_values(t, latest_period, patterns, max_chars=190, min_value=1.0, max_value=40.0)
+            for row in aligned:
+                if row.get("period") == latest_period:
+                    standardized = row.get("value")
+                    break
+        if standardized is None:
+            vals = _bank_row_numeric_values(t, patterns, max_chars=160, min_value=1.0, max_value=40.0)
+            standardized = vals[0] if vals else None
     return standardized, advanced
 
 
@@ -10937,16 +11118,32 @@ def _bank_detect_special_item_bridge(text, reported_eps):
     return reported, 0.0, "Keine company-designierte quantitative EPS-Sonderposten-Brücke erkannt; reported EPS bleibt Core-Basis"
 
 
+# V2.21.16: Hub-first universal bank IR discovery.  The previous ordering
+# spent the bounded request budget on guessed deep paths before ever loading the
+# issuer homepage / real investor hub.  Large global issuers often mount IR
+# below an additional corporate prefix (for example /global/investors), while
+# other issuers use /investors or /investor-relations.  Keep these paths
+# issuer-neutral: no ticker/domain special cases belong here.
 BANK_IR_SEED_PATHS = [
-    "/investor-relations/quarterly-earnings",
-    "/about/investor-relations/quarterly-earnings",
-    "/investors/quarterly-results",
-    "/investors/quarterly-earnings",
-    "/investor-relations/financial-results",
-    "/about/investor-relations",
-    "/investor-relations",
-    "/investors",
     "",
+    "/investors",
+    "/investor-relations",
+    "/global/investors",
+    "/about/investor-relations",
+    "/investors/quarterly-earnings",
+    "/investors/quarterly-results",
+    "/investor-relations/quarterly-earnings",
+    "/investor-relations/financial-results",
+    "/global/investors/quarterly-earnings",
+    "/global/investors/financial-information",
+    "/global/investors/events-and-presentations",
+]
+
+BANK_IR_HUB_TERMS = [
+    "investor relations", "investors", "investor overview",
+    "quarterly earnings", "quarterly results", "financial results",
+    "financial information", "earnings releases", "earnings materials",
+    "events and presentations", "results and presentations",
 ]
 
 
@@ -10959,7 +11156,11 @@ def _bank_ir_link_score(url, title=""):
         score += 220
     if "presentation" in hay:
         score += 120
-    if any(x in hay for x in ["quarterly earnings", "quarterly results", "earnings results"]):
+    if any(x in hay for x in [
+        "quarterly earnings", "quarterly results", "earnings results",
+        "earnings materials", "financial information", "results and presentations",
+        "events and presentations",
+    ]):
         score += 110
     if _bank_period_from_text(hay):
         score += 100
@@ -14646,7 +14847,13 @@ def _bank_extract_ir_links(html, base_url, company_domain):
 
 
 def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadline=None, diagnostics=None):
-    """Bounded issuer-first discovery of quarterly earnings documents."""
+    """Bounded issuer-first discovery of quarterly earnings documents.
+
+    V2.21.16 changes the navigation strategy from deep-path guessing to hub-first
+    discovery.  It first loads the issuer root and common investor hubs, follows
+    high-confidence same-domain Investor/Quarterly-Earnings links, and only then
+    spends remaining budget on deeper conventional paths/search fallback.
+    """
     diag = diagnostics if isinstance(diagnostics, list) else None
     if not company_domain or not _research_budget_ok(deadline, reserve=1.0):
         if diag is not None:
@@ -14654,87 +14861,137 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         return {"documents": [], "entrypoints": []}
     if diag is not None:
         diag.append(f"Issuer-IR Discovery: Domain {company_domain} erkannt.")
+
     root = _router_root(company_domain) or f"https://{company_domain}"
     candidate_pages = []
     documents = {}
     entrypoints = []
     fetched = set()
 
-    seed_urls = [urljoin(root.rstrip("/") + "/", path.lstrip("/")) for path in BANK_IR_SEED_PATHS]
-    for seed in seed_urls:
+    def add_links(html, final_url):
+        """Index direct documents and retain plausible same-domain hub/archive pages."""
+        for row in _bank_extract_ir_links(html, final_url, company_domain):
+            url_low = row["url"].lower().split("?", 1)[0]
+            title_low = (row.get("title") or "").lower()
+            hay = f"{title_low} {url_low}"
+            if row.get("period") and (
+                url_low.endswith(".pdf")
+                or any(k in title_low for k in [
+                    "supplement", "earnings release", "news release", "presentation",
+                    "financial results", "results and key metrics",
+                ])
+            ):
+                old = documents.get(row["url"])
+                if old is None or row["score"] > old["score"]:
+                    documents[row["url"]] = row
+            elif any(k in hay for k in [
+                "quarterly-earnings", "quarterly earnings", "quarterly-results",
+                "quarterly results", "financial-results", "financial results",
+                "earnings materials", "financial information", "events-and-presentations",
+                "events and presentations", "/investors", "/investor-relations",
+            ]):
+                candidate_pages.append(row)
+
+    # Phase 1: hub-first.  Do not burn the complete request budget on guessed deep
+    # paths before the issuer homepage or investor hub has had a chance to reveal
+    # its real information architecture.
+    hub_seed_paths = BANK_IR_SEED_PATHS[:5]
+    for path in hub_seed_paths:
         if len(fetched) >= 5 or not _research_budget_ok(deadline, reserve=2.2):
             break
+        seed = urljoin(root.rstrip("/") + "/", path.lstrip("/"))
         if seed in fetched:
             continue
         fetched.add(seed)
-        html, final_url = _fetch_html(seed, timeout=1.9, deadline=deadline)
+        html, final_url = _fetch_html(seed, timeout=2.2, deadline=deadline)
         if not html:
             continue
         final_url = final_url or seed
         if not _host_belongs_to_company_family(final_url, company_domain):
             continue
         entrypoints.append(final_url)
-        for row in _bank_extract_ir_links(html, final_url, company_domain):
-            url_low = row["url"].lower().split("?", 1)[0]
-            title_low = (row.get("title") or "").lower()
-            if row.get("period") and (
-                url_low.endswith(".pdf")
-                or any(k in title_low for k in ["supplement", "earnings release", "news release", "presentation", "financial results"])
-            ):
-                old = documents.get(row["url"])
-                if old is None or row["score"] > old["score"]:
-                    documents[row["url"]] = row
-            elif any(k in f"{title_low} {url_low}" for k in ["quarterly-earnings", "quarterly earnings", "quarterly-results", "quarterly results", "financial-results", "earnings"]):
-                candidate_pages.append(row)
-
-        periods = {r.get("period") for r in documents.values() if r.get("period")}
-        if len(periods) >= 4:
+        add_links(html, final_url)
+        # A single current multi-quarter supplement is sufficient for the bank
+        # parser, so don't require four distinct document periods here.
+        if documents and any(
+            any(k in ((r.get("title") or "") + " " + (r.get("url") or "")).lower()
+                for k in ["supplement", "financial supplement"])
+            for r in documents.values()
+        ):
             break
 
-    # One additional official page hop catches IR sites whose hub links to the
-    # actual quarterly archive under a non-standard path.
-    if len({r.get("period") for r in documents.values() if r.get("period")}) < 4:
-        for row in sorted(candidate_pages, key=lambda x: x.get("score", 0), reverse=True)[:2]:
-            if not _research_budget_ok(deadline, reserve=1.4):
+    # Phase 2: follow the best same-domain hubs discovered on the loaded pages.
+    # This is the generic bridge for nested structures such as /global/investors.
+    for row in sorted(candidate_pages, key=lambda x: x.get("score", 0), reverse=True)[:4]:
+        if not _research_budget_ok(deadline, reserve=1.5):
+            break
+        url = row.get("url")
+        if not url or url in fetched:
+            continue
+        fetched.add(url)
+        html, final_url = _fetch_html(url, timeout=2.3, deadline=deadline)
+        if not html:
+            continue
+        final_url = final_url or url
+        if not _host_belongs_to_company_family(final_url, company_domain):
+            continue
+        entrypoints.append(final_url)
+        add_links(html, final_url)
+        if documents and any(
+            "supplement" in (((r.get("title") or "") + " " + (r.get("url") or "")).lower())
+            for r in documents.values()
+        ):
+            break
+
+    # Phase 3: conventional deeper paths only when hub discovery did not produce
+    # a usable periodized document.  These are generic path conventions, not issuer
+    # or ticker exceptions.
+    if not documents:
+        for path in BANK_IR_SEED_PATHS[5:]:
+            if len(fetched) >= 9 or not _research_budget_ok(deadline, reserve=1.7):
                 break
-            url = row.get("url")
-            if not url or url in fetched:
+            seed = urljoin(root.rstrip("/") + "/", path.lstrip("/"))
+            if seed in fetched:
                 continue
-            fetched.add(url)
-            html, final_url = _fetch_html(url, timeout=2.1, deadline=deadline)
+            fetched.add(seed)
+            html, final_url = _fetch_html(seed, timeout=2.0, deadline=deadline)
             if not html:
                 continue
-            final_url = final_url or url
+            final_url = final_url or seed
+            if not _host_belongs_to_company_family(final_url, company_domain):
+                continue
             entrypoints.append(final_url)
-            for link in _bank_extract_ir_links(html, final_url, company_domain):
-                if link.get("period"):
-                    old = documents.get(link["url"])
-                    if old is None or link["score"] > old["score"]:
-                        documents[link["url"]] = link
+            add_links(html, final_url)
+            if documents:
+                break
 
     # Search is discovery-only and remains restricted to the issuer's own host.
-    if len({r.get("period") for r in documents.values() if r.get("period")}) < 4 and _research_budget_ok(deadline, reserve=2.2):
-        query = f'site:{company_domain} "quarterly earnings" "supplement" "{company_name or ""}"'
-        for item in _duckduckgo_html_search(query, max_results=4, deadline=deadline):
-            url = item.get("url")
-            if not url or not _host_belongs_to_company_family(url, company_domain):
-                continue
-            period = _bank_period_from_text(f"{item.get('title')} {url}")
-            score = _bank_ir_link_score(url, item.get("title"))
-            if period:
-                documents[url] = {
-                    "url": url,
-                    "title": item.get("title") or url,
-                    "period": period,
-                    "score": score,
-                }
-            elif _research_budget_ok(deadline, reserve=1.4):
-                html, final_url = _fetch_html(url, timeout=2.0, deadline=deadline)
-                if html:
-                    entrypoints.append(final_url or url)
-                    for link in _bank_extract_ir_links(html, final_url or url, company_domain):
-                        if link.get("period"):
-                            documents[link["url"]] = link
+    if not documents and _research_budget_ok(deadline, reserve=2.2):
+        queries = [
+            f'site:{company_domain} "quarterly earnings" "financial supplement" "{company_name or ""}"',
+            f'site:{company_domain} "quarterly earnings" "financial results" "{company_name or ""}"',
+        ]
+        for query in queries:
+            if documents or not _research_budget_ok(deadline, reserve=1.5):
+                break
+            for item in _duckduckgo_html_search(query, max_results=4, deadline=deadline):
+                url = item.get("url")
+                if not url or not _host_belongs_to_company_family(url, company_domain):
+                    continue
+                period = _bank_period_from_text(f"{item.get('title')} {url}")
+                score = _bank_ir_link_score(url, item.get("title"))
+                if period:
+                    documents[url] = {
+                        "url": url,
+                        "title": item.get("title") or url,
+                        "period": period,
+                        "score": score,
+                    }
+                elif _research_budget_ok(deadline, reserve=1.0):
+                    html, final_url = _fetch_html(url, timeout=2.0, deadline=deadline)
+                    if html:
+                        entrypoints.append(final_url or url)
+                        add_links(html, final_url or url)
 
     rows = sorted(
         documents.values(),
@@ -14742,10 +14999,15 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         reverse=True,
     )
     if diag is not None:
-        periods = sorted({r.get("period") for r in rows if r.get("period")}, key=_bank_period_sort_key, reverse=True)
+        periods = sorted(
+            {r.get("period") for r in rows if r.get("period")},
+            key=_bank_period_sort_key,
+            reverse=True,
+        )
         diag.append(
-            "Issuer-IR Discovery: "
-            f"Entry-Points={len(set(entrypoints))}, Dokumente={len(rows)}, Perioden={','.join(periods[:6]) or 'keine'}."
+            "Issuer-IR Discovery V12: Hub-first aktiv · "
+            f"Entry-Points={len(set(entrypoints))}, Dokumente={len(rows)}, "
+            f"Perioden={','.join(periods[:6]) or 'keine'}."
         )
     return {"documents": rows, "entrypoints": list(dict.fromkeys(entrypoints))}
 
@@ -14813,20 +15075,39 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
     latest_text = latest_payload["text"]
     coverage = []
     multi = _bank_extract_quarterly_eps_series(latest_text, latest_period, count=4)
+    adjusted_multi = _bank_extract_adjusted_quarterly_eps_series(latest_text, latest_period, count=4)
     sensitive_terms = ["significant item", "significant items", "notable item", "notable items", "special item", "special items"]
-    latest_has_unmapped_special_items = any(term in latest_text.lower() for term in sensitive_terms)
+    latest_has_special_item_language = any(term in latest_text.lower() for term in sensitive_terms)
 
-    if len(multi) == 4 and not latest_has_unmapped_special_items:
+    # A current supplement may provide all four quarters in one table.  If it
+    # also discusses special/notable items, only a quantitative company-labelled
+    # adjusted EPS row may bridge them; otherwise we fall back to separate
+    # period documents and remain fail-closed.
+    multi_bridge_ok = (
+        len(multi) == 4 and (not latest_has_special_item_language or len(adjusted_multi) == 4)
+    )
+    if multi_bridge_ok:
         source_url = latest_payload.get("url") or latest_row.get("url")
+        core_map = {r["period"]: r["core_eps"] for r in adjusted_multi} if adjusted_multi else {}
         for row in reversed(multi):
+            reported = safe_float(row.get("reported_eps"))
+            core = safe_float(core_map.get(row.get("period"), reported))
+            if reported is None or core is None:
+                coverage = []
+                break
+            effect = reported - core
+            if adjusted_multi:
+                status = "Offizielle Multi-Quarter-EPS-Reconciliation ex company-designated notable/significant/special items"
+            else:
+                status = "Offizielle Multi-Quarter-Tabelle; keine company-designierte quantitative EPS-Sonderposten-Brücke erkannt"
             coverage.append({
                 "period": row["period"],
                 "published_date": None,
                 "source_url": source_url,
-                "reported_eps": row["reported_eps"],
-                "core_eps": row["reported_eps"],
-                "special_items_eps_effect": 0.0,
-                "special_item_status": "Offizielle Multi-Quarter-Tabelle; keine company-designierte quantitative EPS-Sonderposten-Brücke erkannt",
+                "reported_eps": reported,
+                "core_eps": core,
+                "special_items_eps_effect": effect,
+                "special_item_status": status,
             })
         coverage.sort(key=lambda r: _bank_period_sort_key(r.get("period")))
     else:
@@ -14871,9 +15152,9 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         if b != next_key:
             return None
 
-    rotce = _bank_extract_rotce(latest_text)
-    cet1_std, cet1_adv = _bank_extract_cet1_values(latest_text)
-    tbv_vals = _bank_extract_tbv_values(latest_text)
+    rotce = _bank_extract_rotce(latest_text, latest_period)
+    cet1_std, cet1_adv = _bank_extract_cet1_values(latest_text, latest_period)
+    tbv_vals = _bank_extract_tbv_values(latest_text, latest_period)
     tbv = tbv_vals[0] if tbv_vals else None
     # Most bank supplements show latest quarter, prior quarter, year-end/prior
     # quarters and the year-ago quarter in the fifth comparable column.
@@ -14887,7 +15168,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
                 tbv_prior_yoy = candidate
                 break
     tbv_growth = ((tbv / tbv_prior_yoy - 1.0) * 100.0) if tbv and tbv_prior_yoy and tbv_prior_yoy > 0 else None
-    book_value = _bank_extract_book_value(latest_text)
+    book_value = _bank_extract_book_value(latest_text, latest_period)
     latest_cov = coverage[-1]
     latest_eps = safe_float(latest_cov.get("reported_eps"))
     latest_core = safe_float(latest_cov.get("core_eps"))
@@ -14895,7 +15176,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
     if diag is not None:
         diag.append(
             "Issuer-IR Parser-Gate: "
-            f"4Q-EPS={len(coverage)}/4, ROTCE={'ja' if rotce is not None else 'nein'}, "
+            f"4Q-EPS={len(coverage)}/4, 4Q-Core-Bridge={'ja' if adjusted_multi else ('nicht nötig' if not latest_has_special_item_language else 'nein')}, ROTCE={'ja' if rotce is not None else 'nein'}, "
             f"TBVPS={'ja' if tbv is not None else 'nein'}, TBV-YoY={'ja' if tbv_growth is not None else 'nein'}, "
             f"BookValue={'ja' if book_value is not None else 'nein'}, CET1-Std={'ja' if cet1_std is not None else 'nein'}, "
             f"CET1-Adv={'ja' if cet1_adv is not None else 'nein'}."
@@ -14938,9 +15219,9 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "ttm_eps_coverage": coverage,
         "ttm_coverage_expected_periods": periods,
         "source_note": (
-            "V2.21.15 hat die offizielle Investor-Relations-Quartalsstruktur des Emittenten automatisch entdeckt, "
-            "die bankspezifischen Tabellenfelder ROTCE, TBVPS und CET1 gelesen und vier aufeinanderfolgende "
-            "offizielle Quartals-EPS in das gemeinsame Bank-Snapshot-Schema überführt. SEC bleibt Fallback; "
+            "V2.21.16 hat die offizielle Investor-Relations-Quartalsstruktur über eine generische Hub-first-Discovery automatisch entdeckt, "
+            "die Tabellenorientierung generisch erkannt, ROTCE, TBVPS und CET1 gelesen und vier aufeinanderfolgende "
+            "offizielle Quartals-EPS einschließlich vorhandener quantitativer company-designierter EPS-Reconciliations in das gemeinsame Bank-Snapshot-Schema überführt. SEC bleibt Fallback; "
             "fehlende oder nicht eindeutig zuordenbare Primärdaten sperren die Bewertung weiterhin fail-closed."
         ),
     }
@@ -15267,11 +15548,11 @@ def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None, d
             if not period:
                 continue
             multi_count = len(_bank_extract_quarterly_eps_series(text, period, count=4))
-            cet1_pair = _bank_extract_cet1_values(text)
+            cet1_pair = _bank_extract_cet1_values(text, period)
             metric_count = sum(
                 x is not None for x in [
-                    _bank_extract_rotce(text),
-                    (_bank_extract_tbv_values(text) or [None])[0],
+                    _bank_extract_rotce(text, period),
+                    (_bank_extract_tbv_values(text, period) or [None])[0],
                     cet1_pair[0],
                 ]
             )
@@ -15371,11 +15652,11 @@ def _discover_universal_bank_snapshot_v1_uncached(symbol, company_name=None):
                 + (
                     "Extraktion jüngstes Dokument: "
                     f"4Q-EPS={len(_bank_extract_quarterly_eps_series(rows[0].get('text') or '', rows[0].get('period'), count=4))}/4, "
-                    f"ROTCE={'ja' if _bank_extract_rotce(rows[0].get('text') or '') is not None else 'nein'}, "
-                    f"TBVPS={'ja' if (_bank_extract_tbv_values(rows[0].get('text') or '') or [None])[0] is not None else 'nein'}, "
-                    f"CET1-Std={'ja' if _bank_extract_cet1_values(rows[0].get('text') or '')[0] is not None else 'nein'}, "
-                    f"CET1-Adv={'ja' if _bank_extract_cet1_values(rows[0].get('text') or '')[1] is not None else 'nein'}, "
-                    f"BookValue={'ja' if _bank_extract_book_value(rows[0].get('text') or '') is not None else 'nein'}."
+                    f"ROTCE={'ja' if _bank_extract_rotce(rows[0].get('text') or '', rows[0].get('period')) is not None else 'nein'}, "
+                    f"TBVPS={'ja' if (_bank_extract_tbv_values(rows[0].get('text') or '', rows[0].get('period')) or [None])[0] is not None else 'nein'}, "
+                    f"CET1-Std={'ja' if _bank_extract_cet1_values(rows[0].get('text') or '', rows[0].get('period'))[0] is not None else 'nein'}, "
+                    f"CET1-Adv={'ja' if _bank_extract_cet1_values(rows[0].get('text') or '', rows[0].get('period'))[1] is not None else 'nein'}, "
+                    f"BookValue={'ja' if _bank_extract_book_value(rows[0].get('text') or '', rows[0].get('period')) is not None else 'nein'}."
                 )
             ),
         }
@@ -16325,7 +16606,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Official 4Q TTM Authority & Provider Reconciliation V2.21.15 lädt verifizierte Primärquellen-"
+            "Universal Bank IR Entry-Point Discovery Expansion V2.21.16 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -16402,13 +16683,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Official 4Q TTM Authority & Provider Reconciliation V2.21.15 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank IR Entry-Point Discovery Expansion V2.21.16 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Official 4Q TTM Authority & Provider Reconciliation V2.21.15 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank IR Entry-Point Discovery Expansion V2.21.16 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -49240,7 +49521,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Official 4Q TTM Authority & Provider Reconciliation V2.21.15"
+                        "🏦 Bank-Familienmodell · Universal Bank IR Entry-Point Discovery Expansion V2.21.16"
                     )
 
                     if bank_model.get("primary_source_complete"):
