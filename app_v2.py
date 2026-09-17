@@ -19,7 +19,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.12"
+APP_BUILD_VERSION = "V2.21.13"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -27,11 +27,12 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank SEC Fair-Access & Issuer-IR Recovery V8"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Self-Contained PDF Recovery V9"
 )
 
 
-# V2.21.12: Universal Bank SEC Fair-Access & Issuer-IR Recovery V8. The generic bank adapter now uses one centrally declared SEC User-Agent without forcing an incorrect Host header, supports an optional AKTIENANALYSE_SEC_CONTACT environment value, and adds bounded Fair-Access pacing before bank-specific SEC requests. In parallel, the issuer-IR path now exposes stage diagnostics and broadens PDF text extraction across pypdf, PyPDF2 and PyMuPDF/fitz so an issuer supplement can still satisfy the bank gate when a hosting environment receives SEC HTTP 403. No issuer-specific WFC valuation branch is introduced. Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and fail-closed mathematics remain unchanged.
+# V2.21.13: Universal Bank Self-Contained PDF Recovery V9. Bundles a local pypdf runtime with the release so issuer-primary quarterly supplements can be parsed even when the hosting Streamlit image has no PDF extraction package installed and SEC endpoints return HTTP 403. Issuer-IR discovery, strict same-domain validation, four-quarter EPS coverage, ROTCE/TBVPS/CET1 parsing and all fail-closed bank valuation gates remain generic and unchanged. No issuer-specific WFC valuation branch is introduced; Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and signal mathematics remain frozen.
+# V2.21.12: Universal Bank Self-Contained PDF Recovery V9. The generic bank adapter now uses one centrally declared SEC User-Agent without forcing an incorrect Host header, supports an optional AKTIENANALYSE_SEC_CONTACT environment value, and adds bounded Fair-Access pacing before bank-specific SEC requests. In parallel, the issuer-IR path now exposes stage diagnostics and broadens PDF text extraction across pypdf, PyPDF2 and PyMuPDF/fitz so an issuer supplement can still satisfy the bank gate when a hosting environment receives SEC HTTP 403. No issuer-specific WFC valuation branch is introduced. Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and fail-closed mathematics remain unchanged.
 # V2.21.11: Universal Bank SEC CIK Resolver & Fallback Diagnostics V7. Hardens the generic SEC ticker-to-CIK stage that blocked WFC before submissions discovery. The resolver now prefers the SEC's lightweight official ticker.txt mapping, normalizes common ticker punctuation, falls back to company_tickers.json and company_tickers_exchange.json, and records per-source HTTP/timeout/parse diagnostics instead of collapsing every failure into a generic no-CIK result. Successful CIK resolution then feeds the unchanged Item-2.02/Primary-8-K/Supplement parser path. A new cache epoch prevents prior failed CIK lookups from being reused. No Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment, or fail-closed valuation mathematics changed.
 # V2.21.10: Universal Bank Discovery Cache-Bust & Retry Diagnostics V6. Fixes a cross-build Streamlit cache hazard in the universal Bank / Deposits & Lending primary-source discovery. V2.21.6-V2.21.9 could keep reusing a previously cached None/failed WFC discovery because the outer and SEC discovery wrappers were both st.cache_data-cached while only their downstream implementation changed. V2.21.10 introduces a versioned cache epoch and a success-only cache wrapper: successful primary-source snapshots remain cached, but None/diagnostic-only failures are re-run live instead of being frozen for six hours. The bank model now also emits an explicit wrapper diagnostic if discovery unexpectedly returns None. SEC/issuer parsing, Bank Score, four-quarter Core-TTM gate, P/TBV/Core-P-E Dual Anchor, horizon alignment and fail-closed valuation mathematics are unchanged.
 # V2.21.9: Universal Bank SEC Primary-Document Recovery & Stage Diagnostics V5. Adds a generic SEC earnings-recovery path that reads exhibit links directly from the Item-2.02 8-K primary document before falling back to EDGAR filing-index pages. This avoids depending on a single filing-index representation and remains issuer-neutral. The bank adapter now propagates stage diagnostics into the UI (CIK, submissions, Item-2.02 candidate count, primary-document/index exhibit discovery, selected exhibit and parser completeness). The released Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and fail-closed mathematics are unchanged.
@@ -10683,8 +10684,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22112_universal_bank_sec_fair_access_ir_recovery_v8"
-BANK_DISCOVERY_CACHE_EPOCH = "v22112_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22113_universal_bank_self_contained_pdf_v9"
+BANK_DISCOVERY_CACHE_EPOCH = "v22113_bank_discovery_epoch_1"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -10985,7 +10986,7 @@ def _bank_pdf_bytes_to_text(payload, diagnostics=None):
         text = _clean_text(" ".join(parts))
         if text:
             if diag is not None:
-                diag.append(f"Issuer-IR PDF: pypdf erfolgreich ({len(text)} Zeichen).")
+                diag.append(f"Issuer-IR PDF: pypdf erfolgreich ({len(text)} Zeichen; lokal gebündelt oder Laufzeitpaket).")
             return text[:240_000]
     except Exception as exc:
         if diag is not None:
@@ -11476,7 +11477,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "ttm_eps_coverage": coverage,
         "ttm_coverage_expected_periods": periods,
         "source_note": (
-            "V2.21.12 hat die offizielle Investor-Relations-Quartalsstruktur des Emittenten automatisch entdeckt, "
+            "V2.21.13 hat die offizielle Investor-Relations-Quartalsstruktur des Emittenten automatisch entdeckt, "
             "die bankspezifischen Tabellenfelder ROTCE, TBVPS und CET1 gelesen und vier aufeinanderfolgende "
             "offizielle Quartals-EPS in das gemeinsame Bank-Snapshot-Schema überführt. SEC bleibt Fallback; "
             "fehlende oder nicht eindeutig zuordenbare Primärdaten sperren die Bewertung weiterhin fail-closed."
@@ -12848,7 +12849,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank SEC Fair-Access & Issuer-IR Recovery V2.21.12 lädt verifizierte Primärquellen-"
+            "Universal Bank Self-Contained PDF Recovery V2.21.13 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -12925,13 +12926,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank SEC Fair-Access & Issuer-IR Recovery V2.21.12 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Self-Contained PDF Recovery V2.21.13 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank SEC Fair-Access & Issuer-IR Recovery V2.21.12 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Self-Contained PDF Recovery V2.21.13 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -45763,7 +45764,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank SEC Fair-Access & Issuer-IR Recovery V2.21.12"
+                        "🏦 Bank-Familienmodell · Universal Bank Self-Contained PDF Recovery V2.21.13"
                     )
 
                     if bank_model.get("primary_source_complete"):
