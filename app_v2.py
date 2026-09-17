@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.5"
+APP_BUILD_VERSION = "V2.21.6"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Primary-Source Adapter V1"
+    f"Build {APP_BUILD_VERSION} · Universal Bank IR Discovery & Table Parser V2"
 )
 
 
+# V2.21.6: Universal Bank IR Discovery & Table Parser V2. Extends the shared Bank / Deposits & Lending adapter with bounded issuer-IR discovery before SEC fallback, strict same-domain official-source validation, optional PDF text extraction, quarterly supplement/release ranking, multi-quarter table parsing for four consecutive diluted-EPS observations, and more robust ROTCE/TBVPS/CET1 row parsing. No WFC-specific valuation path is introduced: Wells Fargo, Citi, U.S. Bancorp, PNC and comparable U.S. banks use the same discovery contract. The released Bank Score and 60/40 P/TBV + Current-FY/Core-P-E valuation mathematics remain unchanged and fail closed whenever the required primary-source fields cannot be validated. Bank EPS UI wording is aligned to Current-FY/diagnosis context while the primary-source gate is not released.
 # V2.21.5: Universal Bank Primary-Source Adapter V1. Replaces the JPM-only bank primary-source gate with one reusable adapter contract for Bank / Deposits & Lending. The released bank valuation mathematics (Bank Score, 60/40 P/TBV + Current-FY/Core-P-E Dual Anchor, 25% anchor-spread fail-closed limit and V2.21.4 Earnings-Horizon rule) remain unchanged. The adapter accepts validated issuer/SEC source packs in one schema, includes a verified JPM compatibility seed and a Bank of America Q2-2026 seed, and adds a bounded SEC 8-K earnings-exhibit discovery fallback for other U.S. banks. Unknown banks still fail closed if ROTCE, TBVPS, CET1 or four consecutive official quarterly EPS observations cannot all be source-validated; Yahoo ROE/book value/FCF never substitutes for missing bank primary data.
 # V2.21.4: Bank Earnings Horizon Alignment Guard. The bank Core-EPS anchor now consumes the same explicit valuation-forward basis selected by the global Earnings Horizon Alignment layer (official current-FY guidance, otherwise 0Y/current-FY analyst consensus) instead of reading raw provider forwardEps directly. Raw provider Forward-EPS remains reference-only for bank forward-P/E plausibility/context and can no longer leak the +1Y horizon into the bank Core-EPS/Fair-Value anchor. JPM therefore keeps its released Bank specialist, 4-quarter Core-TTM bridge, score, P/TBV logic and target corridors unchanged while the Core-EPS blend is aligned to current-FY.
 # V2.21.3: Universal Family Priority over Legacy Specialist Routers V1. Makes an active universal family readiness gate authoritative not only over the generic Standard-Unternehmen path but also over every legacy specialist-model builder and Step-3A router. When family_model_status is defined_unreleased/classification_unresolved and universal_family_fail_closed is true, legacy Bank/Insurance/REIT/Midstream/Utility/Auto/Semicap/issuer-specialist builders are suppressed centrally and cannot take over merely because the new family label contains a legacy keyword (for example Investment Bank triggering the old Bank model). Existing released specialist routes remain untouched because their family_model_ready flag is true and universal_family_fail_closed is false. GS therefore stays Investment Bank / Broker-Dealer fail-closed; CME stays Exchange / Market Infrastructure fail-closed; JPM and all previously released specialists continue on their frozen valuation paths.
@@ -10520,7 +10521,7 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v2215_universal_bank_primary_source_v1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v2216_universal_bank_ir_discovery_table_parser_v2"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -10549,18 +10550,47 @@ def _bank_period_sort_key(period):
 
 
 def _bank_period_from_text(text):
-    t = _clean_text(text)
-    m = re.search(r"\b([1-4])Q\s*'?([0-9]{2,4})\b", t, flags=re.I)
-    if m:
-        y = int(m.group(2))
-        if y < 100:
-            y += 2000
-        return f"{int(m.group(1))}Q{str(y)[-2:]}"
+    """Normalize common quarter labels found in issuer IR anchors, URLs and documents."""
+    t = _clean_text(text).replace("_", " ").replace("-", " ")
+    patterns = [
+        r"\b([1-4])Q\s*'?([0-9]{2,4})\b",
+        r"\bQ([1-4])\s*'?([0-9]{2,4})\b",
+    ]
+    for pat in patterns:
+        m = re.search(pat, t, flags=re.I)
+        if m:
+            y = int(m.group(2))
+            if y < 100:
+                y += 2000
+            return f"{int(m.group(1))}Q{str(y)[-2:]}"
     names = {"first": 1, "second": 2, "third": 3, "fourth": 4}
-    m = re.search(r"\b(first|second|third|fourth)\s+quarter\s+(20\d{2})\b", t, flags=re.I)
+    m = re.search(r"\b(first|second|third|fourth)\s+quarter(?:\s+ended)?\s+(20\d{2})\b", t, flags=re.I)
     if m:
         return f"{names[m.group(1).lower()]}Q{m.group(2)[-2:]}"
     return None
+
+
+def _bank_previous_period(period, steps=1):
+    key = _bank_period_sort_key(period)
+    if key[0] < 0:
+        return None
+    y, q = key
+    for _ in range(max(0, int(steps))):
+        if q == 1:
+            y -= 1
+            q = 4
+        else:
+            q -= 1
+    return f"{q}Q{str(y)[-2:]}"
+
+
+def _bank_consecutive_periods_ending(latest_period, count=4):
+    rows = []
+    for offset in range(max(0, int(count)) - 1, -1, -1):
+        p = _bank_previous_period(latest_period, offset)
+        if p:
+            rows.append(p)
+    return rows
 
 
 def _bank_period_end_date(period):
@@ -10584,51 +10614,125 @@ def _bank_extract_first_float(text, patterns):
     return None
 
 
+def _bank_row_numeric_values(text, label_patterns, max_chars=320, min_value=None, max_value=None):
+    """Read numeric cells immediately following a bank-table row label.
+
+    Parenthesized numeric footnote markers directly after the label are removed
+    before cell parsing so labels such as ``ROTCE (4) 17.7`` do not become 4.0.
+    """
+    t = _clean_text(text)
+    for pat in label_patterns:
+        m = re.search(pat, t, flags=re.I | re.S)
+        if not m:
+            continue
+        tail = t[m.end():m.end() + int(max_chars)]
+        tail = re.sub(r"^(?:\s*\(\d{1,2}\)\s*)+", " ", tail)
+        values = []
+        for token in re.findall(r"(?<![A-Za-z0-9])\(?-?\$?\s*\d+(?:,\d{3})*(?:\.\d+)?\)?", tail):
+            raw = token.replace("$", "").replace(",", "").strip()
+            negative = raw.startswith("(") and raw.endswith(")")
+            raw = raw.strip("() ")
+            try:
+                value = float(raw)
+            except Exception:
+                continue
+            if negative:
+                value = -value
+            if min_value is not None and value < min_value:
+                continue
+            if max_value is not None and value > max_value:
+                continue
+            values.append(value)
+            if len(values) >= 10:
+                break
+        if values:
+            return values
+    return []
+
+
 def _bank_extract_eps_from_text(text):
+    values = _bank_row_numeric_values(text, [
+        r"diluted\s+earnings\s+per\s+(?:common\s+)?share",
+        r"earnings\s+per\s+(?:common\s+)?share\s*[-–—]?\s*diluted",
+        r"diluted\s+EPS",
+    ], max_chars=180, min_value=-100.0, max_value=100.0)
+    if values:
+        return values[0]
     return _bank_extract_first_float(text, [
-        r"Diluted\s+earnings\s+per\s+share[^$0-9]{0,24}\$?\s*([0-9]+(?:\.[0-9]+)?)",
-        r"\bEPS\b[^$0-9]{0,12}\$\s*([0-9]+(?:\.[0-9]+)?)",
+        r"\bEPS\b(?:\s*\(\d+\))?[^$0-9]{0,18}\$?\s*([0-9]+(?:\.[0-9]+)?)",
     ])
+
+
+def _bank_extract_quarterly_eps_series(text, latest_period, count=4):
+    """Parse a descending quarterly EPS row from a standard bank supplement table."""
+    values = _bank_row_numeric_values(text, [
+        r"diluted\s+earnings\s+per\s+(?:common\s+)?share",
+        r"earnings\s+per\s+(?:common\s+)?share\s*[-–—]?\s*diluted",
+        r"diluted\s+EPS",
+    ], max_chars=260, min_value=-100.0, max_value=100.0)
+    if not latest_period or len(values) < int(count):
+        return []
+    descending = [_bank_previous_period(latest_period, i) for i in range(int(count))]
+    if any(p is None for p in descending):
+        return []
+    rows = []
+    for period, eps in zip(descending, values[:int(count)]):
+        rows.append({"period": period, "reported_eps": eps})
+    return rows
 
 
 def _bank_extract_tbv_values(text):
-    t = _clean_text(text)
-    m = re.search(r"tangible\s+book\s+value\s+per\s+(?:common\s+)?share(.{0,260})", t, flags=re.I | re.S)
-    if not m:
-        return []
-    vals = []
-    for raw in re.findall(r"\$?\s*([0-9]+\.[0-9]+)", m.group(1)):
-        try:
-            v = float(raw)
-        except Exception:
-            continue
-        if 1.0 <= v <= 1000.0:
-            vals.append(v)
-    return vals[:4]
+    return _bank_row_numeric_values(text, [
+        r"tangible\s+book\s+value\s+per\s+(?:common\s+)?share",
+        r"tangible\s+common\s+book\s+value\s+per\s+share",
+    ], max_chars=300, min_value=1.0, max_value=1000.0)[:6]
 
 
 def _bank_extract_book_value(text):
-    return _bank_extract_first_float(text, [
-        r"book\s+value\s+per\s+(?:common\s+)?share[^$0-9]{0,40}\$\s*([0-9]+(?:\.[0-9]+)?)",
-    ])
+    vals = _bank_row_numeric_values(text, [
+        r"(?<!tangible\s)book\s+value\s+per\s+(?:common\s+)?share",
+    ], max_chars=220, min_value=1.0, max_value=10000.0)
+    return vals[0] if vals else None
 
 
 def _bank_extract_rotce(text):
-    return _bank_extract_first_float(text, [
-        r"\bROTCE\b[^0-9]{0,18}([0-9]+(?:\.[0-9]+)?)\s*%",
-        r"return\s+on\s+average\s+tangible\s+common\s+shareholders[’']?\s+equity(?:\s+ratio)?[^0-9]{0,32}([0-9]+(?:\.[0-9]+)?)\s*%",
-    ])
+    vals = _bank_row_numeric_values(text, [
+        r"return\s+on\s+average\s+tangible\s+common\s+(?:shareholders[’']?\s+)?equity(?:\s+ratio)?\s*(?:\(ROTCE\))?",
+        r"\bROTCE\b",
+    ], max_chars=180, min_value=-100.0, max_value=100.0)
+    return vals[0] if vals else None
 
 
 def _bank_extract_cet1_values(text):
     t = _clean_text(text)
-    standardized = _bank_extract_first_float(t, [
-        r"CET1\s+ratio[^0-9]{0,25}([0-9]+(?:\.[0-9]+)?)\s*%",
-        r"common\s+equity\s+tier\s+1[^%]{0,80}([0-9]+(?:\.[0-9]+)?)\s*%",
-    ])
-    advanced = _bank_extract_first_float(t, [
-        r"Advanced\s+approaches?.{0,160}?CET1\s+ratio[^0-9]{0,20}([0-9]+(?:\.[0-9]+)?)\s*%",
-    ])
+
+    def section_value(section_start, section_end=None):
+        m = re.search(section_start, t, flags=re.I)
+        if not m:
+            return None
+        block = t[m.end():m.end() + 900]
+        if section_end:
+            cut = re.search(section_end, block, flags=re.I)
+            if cut:
+                block = block[:cut.start()]
+        vals = _bank_row_numeric_values(block, [
+            r"common\s+equity\s+tier\s+1\s*(?:\(CET1\))?",
+            r"CET1\s+ratio",
+        ], max_chars=140, min_value=1.0, max_value=40.0)
+        return vals[0] if vals else None
+
+    standardized = section_value(
+        r"standardized\s+(?:approach|approaches)",
+        r"advanced\s+(?:approach|approaches)",
+    )
+    advanced = section_value(r"advanced\s+(?:approach|approaches)")
+
+    if standardized is None:
+        vals = _bank_row_numeric_values(t, [
+            r"CET1\s+ratio",
+            r"common\s+equity\s+tier\s+1\s*(?:\(CET1\))?",
+        ], max_chars=160, min_value=1.0, max_value=40.0)
+        standardized = vals[0] if vals else None
     return standardized, advanced
 
 
@@ -10649,6 +10753,440 @@ def _bank_detect_special_item_bridge(text, reported_eps):
     if any(term in low for term in sensitive_terms):
         return None, None, "Sonderposten-Hinweis ohne quantitative EPS-Brücke – fail-closed"
     return reported, 0.0, "Keine company-designierte quantitative EPS-Sonderposten-Brücke erkannt; reported EPS bleibt Core-Basis"
+
+
+BANK_IR_SEED_PATHS = [
+    "/investor-relations/quarterly-earnings",
+    "/about/investor-relations/quarterly-earnings",
+    "/investors/quarterly-results",
+    "/investors/quarterly-earnings",
+    "/investor-relations/financial-results",
+    "/about/investor-relations",
+    "/investor-relations",
+    "/investors",
+    "",
+]
+
+
+def _bank_ir_link_score(url, title=""):
+    hay = _clean_text(f"{title} {unquote(url or '')}").lower()
+    score = 0
+    if any(x in hay for x in ["quarterly supplement", "earnings supplement", "financial supplement"]):
+        score += 320
+    if any(x in hay for x in ["earnings release", "news release", "financial results"]):
+        score += 220
+    if "presentation" in hay:
+        score += 120
+    if any(x in hay for x in ["quarterly earnings", "quarterly results", "earnings results"]):
+        score += 110
+    if _bank_period_from_text(hay):
+        score += 100
+    if ".pdf" in hay:
+        score += 35
+    if any(x in hay for x in ["annual report", "proxy", "dividend", "fixed income", "careers", "privacy"]):
+        score -= 180
+    return score
+
+
+def _bank_pdf_bytes_to_text(payload):
+    """Best-effort PDF text extraction with optional dependencies; failure is fail-closed."""
+    if not payload:
+        return ""
+    try:
+        from io import BytesIO
+        from pypdf import PdfReader
+        reader = PdfReader(BytesIO(payload))
+        parts = []
+        for page in reader.pages[:45]:
+            try:
+                parts.append(page.extract_text() or "")
+            except Exception:
+                continue
+        text = _clean_text(" ".join(parts))
+        if text:
+            return text[:240_000]
+    except Exception:
+        pass
+    try:
+        from io import BytesIO
+        import pdfplumber
+        parts = []
+        with pdfplumber.open(BytesIO(payload)) as pdf:
+            for page in pdf.pages[:45]:
+                try:
+                    parts.append(page.extract_text() or "")
+                except Exception:
+                    continue
+        return _clean_text(" ".join(parts))[:240_000]
+    except Exception:
+        return ""
+
+
+def _bank_fetch_official_document(url, company_domain, deadline=None, timeout=4.0):
+    """Fetch HTML/text/PDF only from the issuer domain family or SEC.gov."""
+    if not url or not _research_budget_ok(deadline, reserve=0.4):
+        return None
+    host = _normalize_host(url)
+    allowed = bool(
+        host == "sec.gov"
+        or host.endswith(".sec.gov")
+        or (company_domain and _host_belongs_to_company_family(url, company_domain))
+    )
+    if not allowed:
+        return None
+    effective_timeout = _bounded_timeout(deadline, timeout)
+    if effective_timeout is None:
+        return None
+    try:
+        response = requests.get(
+            url,
+            headers=_request_headers(sec=(host == "sec.gov" or host.endswith(".sec.gov"))),
+            timeout=(min(2.0, effective_timeout), effective_timeout),
+            allow_redirects=True,
+        )
+        response.raise_for_status()
+        final_url = response.url or url
+        final_host = _normalize_host(final_url)
+        if not (
+            final_host == "sec.gov"
+            or final_host.endswith(".sec.gov")
+            or (company_domain and _host_belongs_to_company_family(final_url, company_domain))
+        ):
+            return None
+        ctype = (response.headers.get("Content-Type") or "").lower()
+        if "pdf" in ctype or final_url.lower().split("?", 1)[0].endswith(".pdf"):
+            text = _bank_pdf_bytes_to_text(response.content)
+            doc_type = "pdf"
+        elif any(x in ctype for x in ["html", "text", "xml"]) or not ctype:
+            text = _html_to_text(response.text[:1_800_000])
+            doc_type = "html"
+        else:
+            return None
+        if not text:
+            return None
+        return {
+            "text": text,
+            "url": final_url,
+            "document_type": doc_type,
+            "last_modified": response.headers.get("Last-Modified"),
+        }
+    except Exception:
+        return None
+
+
+def _bank_extract_ir_links(html, base_url, company_domain):
+    rows = []
+    if not html:
+        return rows
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+        for a in soup.find_all("a", href=True):
+            href = urljoin(base_url, a.get("href"))
+            if not href.startswith(("http://", "https://")):
+                continue
+            if not _host_belongs_to_company_family(href, company_domain):
+                continue
+            title = _clean_text(a.get_text(" ", strip=True))
+            score = _bank_ir_link_score(href, title)
+            if score <= 0:
+                continue
+            rows.append({
+                "url": href,
+                "title": title or _historical_title_hint_from_url(href),
+                "period": _bank_period_from_text(f"{title} {href}"),
+                "score": score,
+            })
+    except Exception:
+        return []
+    unique = {}
+    for row in rows:
+        old = unique.get(row["url"])
+        if old is None or row["score"] > old["score"]:
+            unique[row["url"]] = row
+    return sorted(unique.values(), key=lambda x: x.get("score", 0), reverse=True)
+
+
+def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadline=None):
+    """Bounded issuer-first discovery of quarterly earnings documents."""
+    if not company_domain or not _research_budget_ok(deadline, reserve=1.0):
+        return {"documents": [], "entrypoints": []}
+    root = _router_root(company_domain) or f"https://{company_domain}"
+    candidate_pages = []
+    documents = {}
+    entrypoints = []
+    fetched = set()
+
+    seed_urls = [urljoin(root.rstrip("/") + "/", path.lstrip("/")) for path in BANK_IR_SEED_PATHS]
+    for seed in seed_urls:
+        if len(fetched) >= 5 or not _research_budget_ok(deadline, reserve=2.2):
+            break
+        if seed in fetched:
+            continue
+        fetched.add(seed)
+        html, final_url = _fetch_html(seed, timeout=1.9, deadline=deadline)
+        if not html:
+            continue
+        final_url = final_url or seed
+        if not _host_belongs_to_company_family(final_url, company_domain):
+            continue
+        entrypoints.append(final_url)
+        for row in _bank_extract_ir_links(html, final_url, company_domain):
+            url_low = row["url"].lower().split("?", 1)[0]
+            title_low = (row.get("title") or "").lower()
+            if row.get("period") and (
+                url_low.endswith(".pdf")
+                or any(k in title_low for k in ["supplement", "earnings release", "news release", "presentation", "financial results"])
+            ):
+                old = documents.get(row["url"])
+                if old is None or row["score"] > old["score"]:
+                    documents[row["url"]] = row
+            elif any(k in f"{title_low} {url_low}" for k in ["quarterly-earnings", "quarterly earnings", "quarterly-results", "quarterly results", "financial-results", "earnings"]):
+                candidate_pages.append(row)
+
+        periods = {r.get("period") for r in documents.values() if r.get("period")}
+        if len(periods) >= 4:
+            break
+
+    # One additional official page hop catches IR sites whose hub links to the
+    # actual quarterly archive under a non-standard path.
+    if len({r.get("period") for r in documents.values() if r.get("period")}) < 4:
+        for row in sorted(candidate_pages, key=lambda x: x.get("score", 0), reverse=True)[:2]:
+            if not _research_budget_ok(deadline, reserve=1.4):
+                break
+            url = row.get("url")
+            if not url or url in fetched:
+                continue
+            fetched.add(url)
+            html, final_url = _fetch_html(url, timeout=2.1, deadline=deadline)
+            if not html:
+                continue
+            final_url = final_url or url
+            entrypoints.append(final_url)
+            for link in _bank_extract_ir_links(html, final_url, company_domain):
+                if link.get("period"):
+                    old = documents.get(link["url"])
+                    if old is None or link["score"] > old["score"]:
+                        documents[link["url"]] = link
+
+    # Search is discovery-only and remains restricted to the issuer's own host.
+    if len({r.get("period") for r in documents.values() if r.get("period")}) < 4 and _research_budget_ok(deadline, reserve=2.2):
+        query = f'site:{company_domain} "quarterly earnings" "supplement" "{company_name or ""}"'
+        for item in _duckduckgo_html_search(query, max_results=4, deadline=deadline):
+            url = item.get("url")
+            if not url or not _host_belongs_to_company_family(url, company_domain):
+                continue
+            period = _bank_period_from_text(f"{item.get('title')} {url}")
+            score = _bank_ir_link_score(url, item.get("title"))
+            if period:
+                documents[url] = {
+                    "url": url,
+                    "title": item.get("title") or url,
+                    "period": period,
+                    "score": score,
+                }
+            elif _research_budget_ok(deadline, reserve=1.4):
+                html, final_url = _fetch_html(url, timeout=2.0, deadline=deadline)
+                if html:
+                    entrypoints.append(final_url or url)
+                    for link in _bank_extract_ir_links(html, final_url or url, company_domain):
+                        if link.get("period"):
+                            documents[link["url"]] = link
+
+    rows = sorted(
+        documents.values(),
+        key=lambda r: (_bank_period_sort_key(r.get("period")), r.get("score", 0)),
+        reverse=True,
+    )
+    return {"documents": rows, "entrypoints": list(dict.fromkeys(entrypoints))}
+
+
+def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, discovery, deadline=None):
+    documents = list((discovery or {}).get("documents") or [])
+    if not documents:
+        return None
+
+    by_period = {}
+    for row in documents:
+        period = row.get("period")
+        if not period:
+            continue
+        by_period.setdefault(period, []).append(row)
+    for period in by_period:
+        by_period[period].sort(key=lambda x: x.get("score", 0), reverse=True)
+    latest_period = max(by_period, key=_bank_period_sort_key) if by_period else None
+    if not latest_period:
+        return None
+
+    latest_docs = by_period.get(latest_period) or []
+    latest_payload = None
+    latest_row = None
+    # Supplements first, then releases/presentations. Fetch only as many as needed.
+    for row in latest_docs[:3]:
+        if not _research_budget_ok(deadline, reserve=1.0):
+            break
+        payload = _bank_fetch_official_document(row.get("url"), company_domain, deadline=deadline, timeout=4.3)
+        if not payload:
+            continue
+        signal_count = sum(
+            1 for term in ["earnings per", "tangible book value", "ROTCE", "return on average tangible", "CET1", "common equity tier 1"]
+            if term.lower() in payload["text"].lower()
+        )
+        if signal_count >= 2:
+            latest_payload = payload
+            latest_row = row
+            break
+    if not latest_payload:
+        return None
+
+    latest_text = latest_payload["text"]
+    coverage = []
+    multi = _bank_extract_quarterly_eps_series(latest_text, latest_period, count=4)
+    sensitive_terms = ["significant item", "significant items", "notable item", "notable items", "special item", "special items"]
+    latest_has_unmapped_special_items = any(term in latest_text.lower() for term in sensitive_terms)
+
+    if len(multi) == 4 and not latest_has_unmapped_special_items:
+        source_url = latest_payload.get("url") or latest_row.get("url")
+        for row in reversed(multi):
+            coverage.append({
+                "period": row["period"],
+                "published_date": None,
+                "source_url": source_url,
+                "reported_eps": row["reported_eps"],
+                "core_eps": row["reported_eps"],
+                "special_items_eps_effect": 0.0,
+                "special_item_status": "Offizielle Multi-Quarter-Tabelle; keine company-designierte quantitative EPS-Sonderposten-Brücke erkannt",
+            })
+        coverage.sort(key=lambda r: _bank_period_sort_key(r.get("period")))
+    else:
+        expected = _bank_consecutive_periods_ending(latest_period, 4)
+        for period in expected:
+            candidates = by_period.get(period) or []
+            found = None
+            for candidate in candidates[:3]:
+                if period == latest_period and latest_payload and candidate.get("url") == latest_row.get("url"):
+                    payload = latest_payload
+                else:
+                    if not _research_budget_ok(deadline, reserve=0.8):
+                        break
+                    payload = _bank_fetch_official_document(candidate.get("url"), company_domain, deadline=deadline, timeout=3.8)
+                if not payload:
+                    continue
+                eps = _bank_extract_eps_from_text(payload.get("text"))
+                core, effect, status = _bank_detect_special_item_bridge(payload.get("text"), eps)
+                if eps is None or core is None or effect is None or not status:
+                    continue
+                found = {
+                    "period": period,
+                    "published_date": None,
+                    "source_url": payload.get("url") or candidate.get("url"),
+                    "reported_eps": eps,
+                    "core_eps": core,
+                    "special_items_eps_effect": effect,
+                    "special_item_status": status,
+                }
+                break
+            if not found:
+                return None
+            coverage.append(found)
+
+    periods = [r.get("period") for r in coverage]
+    if len(periods) != 4:
+        return None
+    keys = [_bank_period_sort_key(x) for x in periods]
+    for a, b in zip(keys, keys[1:]):
+        ay, aq = a; by, bq = b
+        next_key = (ay + 1, 1) if aq == 4 else (ay, aq + 1)
+        if b != next_key:
+            return None
+
+    rotce = _bank_extract_rotce(latest_text)
+    cet1_std, cet1_adv = _bank_extract_cet1_values(latest_text)
+    tbv_vals = _bank_extract_tbv_values(latest_text)
+    tbv = tbv_vals[0] if tbv_vals else None
+    # Most bank supplements show latest quarter, prior quarter, year-end/prior
+    # quarters and the year-ago quarter in the fifth comparable column.
+    tbv_prior_yoy = None
+    if tbv is not None and tbv > 0:
+        for idx in [4, 2, 1]:
+            if len(tbv_vals) <= idx:
+                continue
+            candidate = safe_float(tbv_vals[idx])
+            if candidate is not None and candidate > 0 and 0.50 <= candidate / tbv <= 1.50:
+                tbv_prior_yoy = candidate
+                break
+    tbv_growth = ((tbv / tbv_prior_yoy - 1.0) * 100.0) if tbv and tbv_prior_yoy and tbv_prior_yoy > 0 else None
+    book_value = _bank_extract_book_value(latest_text)
+    latest_cov = coverage[-1]
+    latest_eps = safe_float(latest_cov.get("reported_eps"))
+    latest_core = safe_float(latest_cov.get("core_eps"))
+    latest_effect = safe_float(latest_cov.get("special_items_eps_effect"))
+    if None in [rotce, cet1_std, tbv, tbv_growth, book_value, latest_eps, latest_core, latest_effect]:
+        return None
+
+    latest_end = _bank_period_end_date(latest_period)
+    # Freshness is anchored to the reported quarter end when an exact release
+    # timestamp is not reliably exposed by the issuer archive.
+    valid_until = latest_end + timedelta(days=110) if latest_end else None
+    entrypoints = (discovery or {}).get("entrypoints") or []
+    source_url = latest_payload.get("url") or latest_row.get("url")
+    return {
+        "symbol": str(symbol or "").upper(),
+        "company": company_name or str(symbol or "").upper(),
+        "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
+        "published_date": None,
+        "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank IR Discovery & Table Parser V2",
+        "source_url": source_url,
+        "supplement_url": source_url,
+        "source_discovery_url": entrypoints[0] if entrypoints else None,
+        "allowed_source_hosts": [company_domain],
+        "adapter_version": BANK_PRIMARY_SOURCE_ADAPTER_VERSION,
+        "adapter_mode": "issuer_ir_auto_discovery",
+        "book_value_per_share": book_value,
+        "tangible_book_value_per_share": tbv,
+        "book_value_growth_yoy_pct": None,
+        "tangible_book_value_growth_yoy_pct": tbv_growth,
+        "roe_reported_pct": None,
+        "rotce_reported_pct": rotce,
+        "rotce_ex_significant_items_pct": rotce if abs(latest_effect or 0.0) <= 1e-12 else None,
+        "rotce_normalized_label": "ROTCE Bewertungsbasis",
+        "cet1_standardized_pct": cet1_std,
+        "cet1_advanced_pct": cet1_adv,
+        "quarter_eps_reported": latest_eps,
+        "quarter_eps_ex_significant_items": latest_core,
+        "significant_items_eps_effect": latest_effect,
+        "ttm_eps_coverage": coverage,
+        "ttm_coverage_expected_periods": periods,
+        "source_note": (
+            "V2.21.6 hat die offizielle Investor-Relations-Quartalsstruktur des Emittenten automatisch entdeckt, "
+            "die bankspezifischen Tabellenfelder ROTCE, TBVPS und CET1 gelesen und vier aufeinanderfolgende "
+            "offizielle Quartals-EPS in das gemeinsame Bank-Snapshot-Schema überführt. SEC bleibt Fallback; "
+            "fehlende oder nicht eindeutig zuordenbare Primärdaten sperren die Bewertung weiterhin fail-closed."
+        ),
+    }
+
+
+@st.cache_data(ttl=21600, show_spinner=False)
+def _discover_universal_bank_snapshot_v2(symbol, company_name=None, website=None):
+    """Issuer-IR first, SEC second; one common schema for the Bank family."""
+    company_domain = _extract_company_domain(website)
+    deadline = time.monotonic() + 16.0
+    if company_domain:
+        discovery = _bank_discover_issuer_ir_documents(
+            company_domain,
+            company_name=company_name,
+            deadline=deadline,
+        )
+        snapshot = _bank_ir_snapshot_from_documents(
+            symbol,
+            company_name,
+            company_domain,
+            discovery,
+            deadline=deadline,
+        )
+        if snapshot is not None:
+            return snapshot
+    return _discover_universal_bank_snapshot_v1(symbol, company_name=company_name)
 
 
 def _bank_discover_sec_earnings_exhibits(symbol, max_filings=10, deadline=None):
@@ -10801,7 +11339,7 @@ def _discover_universal_bank_snapshot_v1(symbol, company_name=None):
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": published_dt.strftime("%d.%m.%Y") if published_dt else published_raw,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "SEC 8-K Earnings Exhibits · Universal Bank Primary-Source Adapter",
+        "source_name": "SEC 8-K Earnings Exhibits · Universal Bank Adapter Fallback",
         "source_url": latest.get("url"),
         "allowed_source_hosts": ["sec.gov"],
         "adapter_version": BANK_PRIMARY_SOURCE_ADAPTER_VERSION,
@@ -10822,7 +11360,7 @@ def _discover_universal_bank_snapshot_v1(symbol, company_name=None):
         "ttm_eps_coverage": coverage,
         "ttm_coverage_expected_periods": periods,
         "source_note": (
-            "V2.21.5 hat vier aufeinanderfolgende offizielle SEC-8-K-Earnings-Exhibits automatisch "
+            "V2.21.6 hat als SEC-Fallback vier aufeinanderfolgende offizielle 8-K-Earnings-Exhibits automatisch "
             "in das einheitliche Bank-Snapshot-Schema überführt. Eine Bewertung bleibt fail-closed, "
             "wenn ROTCE, TBVPS, CET1, TTM-EPS-Coverage oder eine erforderliche Sonderposten-Brücke fehlt."
         ),
@@ -10977,14 +11515,20 @@ def _get_verified_bank_seed_snapshot(symbol):
 
 
 def get_verified_bank_snapshot(symbol, info=None):
-    """Universal bank-family primary-source adapter with fail-closed discovery fallback."""
+    """Universal bank-family adapter: verified seed, issuer IR discovery, then SEC fallback."""
     seed = _get_verified_bank_seed_snapshot(symbol)
     if seed is not None:
         return seed
     company_name = None
+    website = None
     if isinstance(info, dict):
         company_name = info.get("longName") or info.get("shortName")
-    return _discover_universal_bank_snapshot_v1(str(symbol or "").upper(), company_name=company_name)
+        website = info.get("website")
+    return _discover_universal_bank_snapshot_v2(
+        str(symbol or "").upper(),
+        company_name=company_name,
+        website=website,
+    )
 
 def _bank_snapshot_is_fresh(snapshot):
     if not isinstance(snapshot, dict):
@@ -11713,7 +12257,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Primary-Source Adapter V2.21.5 lädt verifizierte Primärquellen-"
+            "Universal Bank IR Discovery & Table Parser V2.21.6 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -11790,13 +12334,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Primary-Source Adapter V2.21.5 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank IR Discovery & Table Parser V2.21.6 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Primary-Source Adapter V2.21.5 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank IR Discovery & Table Parser V2.21.6 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -41596,6 +42140,9 @@ if selected_symbol:
                 bank_core_eps_active = bool(
                     bank_model_eps_ui.get("applicable") and bank_core_eps_ui.get("available")
                 )
+                bank_eps_context_ui = bool(
+                    bank_model_eps_ui.get("applicable") and not bank_core_eps_active
+                )
 
                 insurance_model_eps_ui = data.get("insurance_special_model") or {}
                 insurance_core_coverage_ui = insurance_model_eps_ui.get("core_coverage") or {}
@@ -41637,7 +42184,7 @@ if selected_symbol:
                     )
                 else:
                     normalized_eps = eps_result["normalized_eps"]
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (universal_family_eps_context_ui or is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (bank_eps_context_ui or universal_family_eps_context_ui or is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -41682,17 +42229,31 @@ if selected_symbol:
                 else:
                     eps_method_display = eps_result['method']
                     eps_basis_display = data.get("eps_basis_alignment") or {}
-                    if eps_basis_display.get("active"):
+                    if bank_eps_context_ui:
                         eps_method_display = (
                             str(eps_method_display)
-                            .replace("TTM-EPS", "Adjusted/Core TTM-EPS")
-                            .replace("Forward-EPS", "Current-FY Adjusted/Core EPS")
-                            .replace("Current-FY-EPS", "Current-FY Adjusted/Core EPS")
+                            .replace("Forward-EPS", "Current-FY-EPS (Diagnosekontext)")
                         )
-                    st.write(
-                        f"**Verwendete Methode:** "
-                        f"{eps_method_display}"
-                    )
+                        st.write(
+                            f"**Verwendete Methode (Diagnosekontext):** {eps_method_display}"
+                        )
+                        st.info(
+                            "Bank / Deposits & Lending: Diese Standard-EPS-Normalisierung ist solange nur Diagnosekontext, "
+                            "bis ROTCE, TBVPS, CET1 und die offizielle Vier-Quartals-EPS-Abdeckung durch den Universal Bank "
+                            "Primary-Source-Adapter freigegeben sind. Der rohe Provider-Forward-EPS ist keine Bank-Bewertungsbasis."
+                        )
+                    else:
+                        if eps_basis_display.get("active"):
+                            eps_method_display = (
+                                str(eps_method_display)
+                                .replace("TTM-EPS", "Adjusted/Core TTM-EPS")
+                                .replace("Forward-EPS", "Current-FY Adjusted/Core EPS")
+                                .replace("Current-FY-EPS", "Current-FY Adjusted/Core EPS")
+                            )
+                        st.write(
+                            f"**Verwendete Methode:** "
+                            f"{eps_method_display}"
+                        )
                     if str(data.get("symbol") or "").upper() == "BKR":
                         st.info(
                             "Baker Hughes/Energy Technology: Diese Standard-Normalisierung bleibt in V2.20.129 ausschließlich Kontext. "
@@ -44611,7 +45172,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Primary-Source Adapter V2.21.5"
+                        "🏦 Bank-Familienmodell · Universal Bank IR Discovery & Table Parser V2.21.6"
                     )
 
                     if bank_model.get("primary_source_complete"):
@@ -44627,7 +45188,7 @@ if selected_symbol:
                         )
                     else:
                         st.info(
-                            "Bankmodell erkannt. Der Universal Bank Primary-Source Adapter konnte noch keinen "
+                            "Bankmodell erkannt. Der Universal Bank IR Discovery & Table Parser konnte noch keinen "
                             "vollständigen verifizierten Primärquellen-Snapshot aufbauen; die Bewertung bleibt fail-closed."
                         )
 
