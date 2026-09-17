@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.14"
+APP_BUILD_VERSION = "V2.21.15"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Single-File Embedded PDF Runtime V10"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Official 4Q TTM Authority & Provider Reconciliation V11"
 )
 
 
+# V2.21.15: Universal Bank Official 4Q TTM Authority & Provider Reconciliation V11. Keeps the self-contained issuer-PDF runtime from V2.21.14, but fixes an overly strict bank TTM gate: four consecutive source-verified official quarterly diluted-EPS observations are now the primary TTM authority, while Yahoo/provider trailing EPS is a plausibility cross-check rather than a 1%-identity requirement. A mismatch fails closed only when both the absolute gap exceeds $0.10/share and the relative gap exceeds 5%, which still catches likely period/unit conflicts while allowing small provider aggregation-basis differences such as WFC 6.88 official vs 6.68 provider. Bank Score, CET1/ROTCE/TBV mathematics, target corridors, 60/40 Dual-Anchor, horizon alignment and signal logic remain unchanged.
 # V2.21.14: Universal Bank Single-File Embedded PDF Runtime V10. Embeds a compressed pypdf runtime directly inside app_v2.py and activates it through Python zipimport on demand, so PDF extraction no longer depends on sidecar package folders being present on the host import path. This fixes deployments that update/run only the single Streamlit app file. Issuer-IR discovery, SEC fallback, Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and all fail-closed valuation mathematics remain unchanged.
 # V2.21.13: Universal Bank Self-Contained PDF Recovery V9. Bundles a local pypdf runtime with the release so issuer-primary quarterly supplements can be parsed even when the hosting Streamlit image has no PDF extraction package installed and SEC endpoints return HTTP 403. Issuer-IR discovery, strict same-domain validation, four-quarter EPS coverage, ROTCE/TBVPS/CET1 parsing and all fail-closed bank valuation gates remain generic and unchanged. No issuer-specific WFC valuation branch is introduced; Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and signal mathematics remain frozen.
 # V2.21.12: Universal Bank SEC Fair-Access & Issuer-IR Recovery V8. The generic bank adapter now uses one centrally declared SEC User-Agent without forcing an incorrect Host header, supports an optional AKTIENANALYSE_SEC_CONTACT environment value, and adds bounded Fair-Access pacing before bank-specific SEC requests. In parallel, the issuer-IR path now exposes stage diagnostics and broadens PDF text extraction across pypdf, PyPDF2 and PyMuPDF/fitz so an issuer supplement can still satisfy the bank gate when a hosting environment receives SEC HTTP 403. No issuer-specific WFC valuation branch is introduced. Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and fail-closed mathematics remain unchanged.
@@ -10689,8 +10690,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22114_universal_bank_single_file_embedded_pdf_v10"
-BANK_DISCOVERY_CACHE_EPOCH = "v22114_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22115_universal_bank_official_4q_ttm_authority_v11"
+BANK_DISCOVERY_CACHE_EPOCH = "v22115_bank_discovery_epoch_1"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -14937,7 +14938,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "ttm_eps_coverage": coverage,
         "ttm_coverage_expected_periods": periods,
         "source_note": (
-            "V2.21.14 hat die offizielle Investor-Relations-Quartalsstruktur des Emittenten automatisch entdeckt, "
+            "V2.21.15 hat die offizielle Investor-Relations-Quartalsstruktur des Emittenten automatisch entdeckt, "
             "die bankspezifischen Tabellenfelder ROTCE, TBVPS und CET1 gelesen und vier aufeinanderfolgende "
             "offizielle Quartals-EPS in das gemeinsame Bank-Snapshot-Schema überführt. SEC bleibt Fallback; "
             "fehlende oder nicht eindeutig zuordenbare Primärdaten sperren die Bewertung weiterhin fail-closed."
@@ -15755,6 +15756,8 @@ def calculate_bank_core_eps_v1(
         "coverage_periods": [],
         "coverage_complete": False,
         "coverage_reconciliation_diff": None,
+        "coverage_reconciliation_pct": None,
+        "provider_ttm_reconciliation_status": None,
         "coverage_count": 0,
         "integration_version": BANK_TTM_COVERAGE_INTEGRATION_VERSION,
         "confidence": None,
@@ -15850,20 +15853,30 @@ def calculate_bank_core_eps_v1(
     official_core_ttm = sum(r["core_eps"] for r in validated_rows)
     total_effect = sum(r["special_items_eps_effect"] for r in validated_rows)
 
-    # Yahoo and official quarterly EPS can differ by a cent or two because the
-    # four source quarters are published rounded to cents.  Larger differences
-    # indicate a period/unit mismatch and fail closed.
+    # The four consecutive official diluted-EPS quarters are the primary TTM
+    # authority once their periods and source URLs are individually verified.
+    # Provider/Yahoo trailing EPS is only a plausibility cross-check because a
+    # data provider may aggregate TTM diluted EPS on a different weighted-share
+    # basis than the simple sum of four separately reported quarterly EPS values.
+    # Fail closed only for a material mismatch that is BOTH > $0.10/share and
+    # > 5% of the official four-quarter sum; this still catches likely period/
+    # unit mismatches without rejecting a fully source-verified official bridge.
     reconciliation_diff = trailing - official_reported_ttm
-    reconciliation_tol = max(0.10, abs(trailing) * 0.01)
-    if abs(reconciliation_diff) > reconciliation_tol:
+    reconciliation_pct = abs(reconciliation_diff) / max(abs(official_reported_ttm), 1e-9)
+    reconciliation_conflict = abs(reconciliation_diff) > 0.10 and reconciliation_pct > 0.05
+    if reconciliation_conflict:
         result.update({
             "official_ttm_reported_eps": official_reported_ttm,
             "coverage_periods": validated_rows,
             "coverage_reconciliation_diff": reconciliation_diff,
+            "coverage_reconciliation_pct": reconciliation_pct,
+            "provider_ttm_reconciliation_status": "conflict",
         })
         result["note"] = (
-            "Bank-Core-EPS gesperrt: Summe der vier offiziellen Quartals-EPS stimmt nicht "
-            "ausreichend mit dem aktuellen Yahoo-TTM-EPS überein."
+            "Bank-Core-EPS gesperrt: Die vier offiziellen Quartals-EPS sind vollständig "
+            "abgedeckt, aber der Provider-TTM-Plausibilitätscheck zeigt eine materielle "
+            f"Abweichung von {reconciliation_diff:+.2f} je Aktie bzw. {reconciliation_pct * 100:.1f} %. "
+            "Damit bleibt ein möglicher Perioden-/Einheitenkonflikt fail-closed."
         )
         return result
 
@@ -15905,6 +15918,8 @@ def calculate_bank_core_eps_v1(
         "coverage_periods": validated_rows,
         "coverage_complete": True,
         "coverage_reconciliation_diff": reconciliation_diff,
+        "coverage_reconciliation_pct": reconciliation_pct,
+        "provider_ttm_reconciliation_status": "plausible",
         "coverage_count": len(validated_rows),
         "integration_version": BANK_TTM_COVERAGE_INTEGRATION_VERSION,
         "confidence": "Hoch",
@@ -15912,7 +15927,8 @@ def calculate_bank_core_eps_v1(
             f"TTM-Coverage Gate bestanden: {', '.join(expected)} sind einzeln aus offiziellen "
             f"Bankquellen abgedeckt. Offizielle Reported-EPS-Summe {official_reported_ttm:.2f}, "
             f"vollständig bereinigtes Core-TTM-EPS {official_core_ttm:.2f}, saldierter "
-            f"Sondereffekt {total_effect:+.2f}. Yahoo-TTM-Abweichung nur {reconciliation_diff:+.2f}. "
+            f"Sondereffekt {total_effect:+.2f}. Provider-TTM-Plausibilitätsabweichung "
+            f"{reconciliation_diff:+.2f} ({reconciliation_pct * 100:.1f} %); die offizielle 4Q-Reihe bleibt Primäranker. "
             f"Danach werden {trailing_weight * 100:.0f} % Core-TTM / "
             f"{forward_weight * 100:.0f} % Current-FY-EPS verwendet. "
             f"Horizon-Quelle: {forward_source or 'Earnings Horizon Alignment'}. "
@@ -16309,7 +16325,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Single-File Embedded PDF Runtime V2.21.14 lädt verifizierte Primärquellen-"
+            "Universal Bank Official 4Q TTM Authority & Provider Reconciliation V2.21.15 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -16386,13 +16402,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Single-File Embedded PDF Runtime V2.21.14 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Official 4Q TTM Authority & Provider Reconciliation V2.21.15 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Single-File Embedded PDF Runtime V2.21.14 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Official 4Q TTM Authority & Provider Reconciliation V2.21.15 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -49224,7 +49240,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Single-File Embedded PDF Runtime V2.21.14"
+                        "🏦 Bank-Familienmodell · Universal Bank Official 4Q TTM Authority & Provider Reconciliation V2.21.15"
                     )
 
                     if bank_model.get("primary_source_complete"):
@@ -49371,22 +49387,26 @@ if selected_symbol:
                         col_bce1, col_bce2 = st.columns(2)
                         with col_bce1:
                             st.metric(
-                                "TTM-EPS gemeldet",
+                                "Provider-TTM-EPS (Plausibilität)",
                                 format_eps(bank_core_eps_ui.get("trailing_eps_reported"), financial_currency)
                             )
                             st.metric(
-                                "Saldierter TTM-Sondereffekt",
-                                format_currency_value(bank_core_eps_ui.get('ttm_special_items_eps_effect'), financial_currency, 2, signed=True)
+                                "Offizielle 4Q Reported-EPS-Summe",
+                                format_eps(bank_core_eps_ui.get("official_ttm_reported_eps"), financial_currency)
                             )
                         with col_bce2:
                             st.metric(
-                                "Core-TTM-EPS",
+                                "Core-TTM-EPS (offizielle 4Q-Basis)",
                                 format_eps(bank_core_eps_ui.get("core_trailing_eps"), financial_currency)
                             )
                             st.metric(
                                 "Bank-normalisiertes Core EPS",
                                 format_eps(bank_core_eps_ui.get("bank_normalized_core_eps"), financial_currency)
                             )
+                        st.caption(
+                            "Saldierter TTM-Sondereffekt: "
+                            + format_currency_value(bank_core_eps_ui.get('ttm_special_items_eps_effect'), financial_currency, 2, signed=True)
+                        )
                         st.caption(bank_core_eps_ui.get("note"))
                         coverage_rows = bank_core_eps_ui.get("coverage_periods") or []
                         if coverage_rows:
