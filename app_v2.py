@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.6"
+APP_BUILD_VERSION = "V2.21.7"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank IR Discovery & Table Parser V2"
+    f"Build {APP_BUILD_VERSION} · Universal Bank SEC Supplement Recovery & Parser V3"
 )
 
 
+# V2.21.7: Universal Bank SEC Supplement Recovery & Parser V3. Keeps issuer-IR discovery first but hardens the generic fallback around SEC earnings 8-Ks: recent 8-K metadata is prefiltered for Item 2.02, exhibit rows are ranked so quarterly/financial supplements (commonly EX-99.2) outrank releases/presentations, and SEC HTML exhibit text is reused without a second download. A single current supplement may satisfy the four-quarter EPS gate when it exposes a consecutive multi-quarter diluted-EPS row; older earnings 8-Ks are fetched only when the latest table is insufficient. This removes the runtime dependency on issuer-PDF extraction for banks such as Wells Fargo while remaining issuer-neutral. No Bank Score, P/TBV/Core-P-E corridor, 60/40 Dual-Anchor, horizon alignment, or fail-closed mathematics changed.
 # V2.21.6: Universal Bank IR Discovery & Table Parser V2. Extends the shared Bank / Deposits & Lending adapter with bounded issuer-IR discovery before SEC fallback, strict same-domain official-source validation, optional PDF text extraction, quarterly supplement/release ranking, multi-quarter table parsing for four consecutive diluted-EPS observations, and more robust ROTCE/TBVPS/CET1 row parsing. No WFC-specific valuation path is introduced: Wells Fargo, Citi, U.S. Bancorp, PNC and comparable U.S. banks use the same discovery contract. The released Bank Score and 60/40 P/TBV + Current-FY/Core-P-E valuation mathematics remain unchanged and fail closed whenever the required primary-source fields cannot be validated. Bank EPS UI wording is aligned to Current-FY/diagnosis context while the primary-source gate is not released.
 # V2.21.5: Universal Bank Primary-Source Adapter V1. Replaces the JPM-only bank primary-source gate with one reusable adapter contract for Bank / Deposits & Lending. The released bank valuation mathematics (Bank Score, 60/40 P/TBV + Current-FY/Core-P-E Dual Anchor, 25% anchor-spread fail-closed limit and V2.21.4 Earnings-Horizon rule) remain unchanged. The adapter accepts validated issuer/SEC source packs in one schema, includes a verified JPM compatibility seed and a Bank of America Q2-2026 seed, and adds a bounded SEC 8-K earnings-exhibit discovery fallback for other U.S. banks. Unknown banks still fail closed if ROTCE, TBVPS, CET1 or four consecutive official quarterly EPS observations cannot all be source-validated; Yahoo ROE/book value/FCF never substitutes for missing bank primary data.
 # V2.21.4: Bank Earnings Horizon Alignment Guard. The bank Core-EPS anchor now consumes the same explicit valuation-forward basis selected by the global Earnings Horizon Alignment layer (official current-FY guidance, otherwise 0Y/current-FY analyst consensus) instead of reading raw provider forwardEps directly. Raw provider Forward-EPS remains reference-only for bank forward-P/E plausibility/context and can no longer leak the +1Y horizon into the bank Core-EPS/Fair-Value anchor. JPM therefore keeps its released Bank specialist, 4-quarter Core-TTM bridge, score, P/TBV logic and target corridors unchanged while the Core-EPS blend is aligned to current-FY.
@@ -10521,7 +10522,7 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v2216_universal_bank_ir_discovery_table_parser_v2"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v2217_universal_bank_sec_supplement_recovery_v3"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -10567,6 +10568,18 @@ def _bank_period_from_text(text):
     m = re.search(r"\b(first|second|third|fourth)\s+quarter(?:\s+ended)?\s+(20\d{2})\b", t, flags=re.I)
     if m:
         return f"{names[m.group(1).lower()]}Q{m.group(2)[-2:]}"
+    # Generic table/release wording such as “quarter ended June 30, 2026”.
+    month_to_quarter = {
+        "march": 1, "mar": 1, "june": 2, "jun": 2,
+        "september": 3, "sep": 3, "sept": 3,
+        "december": 4, "dec": 4,
+    }
+    m = re.search(
+        r"\bquarter\s+ended\s+(march|mar|june|jun|september|sep|sept|december|dec)\s+\d{1,2},?\s+(20\d{2})\b",
+        t, flags=re.I,
+    )
+    if m:
+        return f"{month_to_quarter[m.group(1).lower()]}Q{m.group(2)[-2:]}"
     return None
 
 
@@ -11005,6 +11018,19 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
     if not documents:
         return None
 
+    def payload_for(row, timeout):
+        preloaded = _clean_text((row or {}).get("preloaded_text"))
+        if preloaded:
+            return {
+                "text": preloaded,
+                "url": (row or {}).get("url"),
+                "document_type": (row or {}).get("document_type") or "html",
+                "last_modified": None,
+            }
+        return _bank_fetch_official_document(
+            (row or {}).get("url"), company_domain, deadline=deadline, timeout=timeout
+        )
+
     by_period = {}
     for row in documents:
         period = row.get("period")
@@ -11024,7 +11050,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
     for row in latest_docs[:3]:
         if not _research_budget_ok(deadline, reserve=1.0):
             break
-        payload = _bank_fetch_official_document(row.get("url"), company_domain, deadline=deadline, timeout=4.3)
+        payload = payload_for(row, 4.3)
         if not payload:
             continue
         signal_count = sum(
@@ -11068,7 +11094,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
                 else:
                     if not _research_budget_ok(deadline, reserve=0.8):
                         break
-                    payload = _bank_fetch_official_document(candidate.get("url"), company_domain, deadline=deadline, timeout=3.8)
+                    payload = payload_for(candidate, 3.8)
                 if not payload:
                     continue
                 eps = _bank_extract_eps_from_text(payload.get("text"))
@@ -11135,7 +11161,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": None,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank IR Discovery & Table Parser V2",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank IR Discovery & Table Parser V3",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -11158,7 +11184,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "ttm_eps_coverage": coverage,
         "ttm_coverage_expected_periods": periods,
         "source_note": (
-            "V2.21.6 hat die offizielle Investor-Relations-Quartalsstruktur des Emittenten automatisch entdeckt, "
+            "V2.21.7 hat die offizielle Investor-Relations-Quartalsstruktur des Emittenten automatisch entdeckt, "
             "die bankspezifischen Tabellenfelder ROTCE, TBVPS und CET1 gelesen und vier aufeinanderfolgende "
             "offizielle Quartals-EPS in das gemeinsame Bank-Snapshot-Schema überführt. SEC bleibt Fallback; "
             "fehlende oder nicht eindeutig zuordenbare Primärdaten sperren die Bewertung weiterhin fail-closed."
@@ -11189,19 +11215,60 @@ def _discover_universal_bank_snapshot_v2(symbol, company_name=None, website=None
     return _discover_universal_bank_snapshot_v1(symbol, company_name=company_name)
 
 
-def _bank_discover_sec_earnings_exhibits(symbol, max_filings=10, deadline=None):
-    """Bounded generic SEC 8-K exhibit discovery for U.S. bank earnings releases/presentations."""
+def _bank_period_from_filing_date(filing_date):
+    """Infer the earnings quarter from a normal U.S. bank earnings filing date."""
+    try:
+        dt = datetime.strptime(str(filing_date or ""), "%Y-%m-%d").date()
+    except Exception:
+        return None
+    if dt.month in (1, 2):
+        return f"4Q{str(dt.year - 1)[-2:]}"
+    if dt.month in (4, 5):
+        return f"1Q{str(dt.year)[-2:]}"
+    if dt.month in (7, 8):
+        return f"2Q{str(dt.year)[-2:]}"
+    if dt.month in (10, 11):
+        return f"3Q{str(dt.year)[-2:]}"
+    return None
+
+
+def _bank_sec_exhibit_score(row_text, url):
+    hay = _clean_text(f"{row_text} {unquote(url or '')}").lower()
+    score = 0
+    if any(x in hay for x in ["quarterly supplement", "earnings supplement", "financial supplement", "suppl.htm", "supplement.htm", "xsuppl"]):
+        score += 500
+    if any(x in hay for x in ["exhibit 99.2", "ex-99.2", "99.2"]):
+        score += 120
+    if any(x in hay for x in ["earnings release", "news release", "financial results", "release.htm", "xrelea"]):
+        score += 260
+    if any(x in hay for x in ["exhibit 99.1", "ex-99.1", "99.1"]):
+        score += 70
+    if any(x in hay for x in ["presentation", "pres.htm", "xpres"]):
+        score += 80
+    if any(x in hay for x in [".htm", ".html"]):
+        score += 35
+    return score
+
+
+def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None):
+    """Generic SEC Item-2.02 earnings discovery with supplement-first exhibit ranking.
+
+    V2.21.7 intentionally counts *earnings* 8-Ks rather than every 8-K. This
+    matters for large banks that file many unrelated 8-Ks between quarters.
+    SEC HTML supplements are preferred because they avoid optional PDF parser
+    dependencies while preserving an official primary-source chain.
+    """
     cik = _sec_lookup_cik(symbol, deadline=deadline)
     if not cik or not _research_budget_ok(deadline):
         return []
     cik10 = f"{cik:010d}"
-    effective_timeout = _bounded_timeout(deadline, 3.0)
+    effective_timeout = _bounded_timeout(deadline, 3.2)
     if effective_timeout is None:
         return []
     try:
         r = requests.get(
             f"https://data.sec.gov/submissions/CIK{cik10}.json",
-            headers={"User-Agent": "AktienAnalyseV2/2.21.5 bank-adapter", "Accept-Encoding": "gzip, deflate"},
+            headers={"User-Agent": "AktienAnalyseV2/2.21.7 bank-adapter", "Accept-Encoding": "gzip, deflate"},
             timeout=(min(1.8, effective_timeout), effective_timeout),
         )
         r.raise_for_status()
@@ -11212,18 +11279,33 @@ def _bank_discover_sec_earnings_exhibits(symbol, max_filings=10, deadline=None):
     forms = recent.get("form") or []
     accessions = recent.get("accessionNumber") or []
     filing_dates = recent.get("filingDate") or []
-    output = []
-    seen_periods = set()
-    checked = 0
+    items = recent.get("items") or []
+    candidates = []
     for i, form in enumerate(forms):
-        if str(form).upper() != "8-K" or checked >= max_filings:
+        if str(form).upper() != "8-K" or i >= len(accessions):
             continue
-        if i >= len(accessions):
+        item_text = _clean_text(items[i] if i < len(items) else "")
+        # Item 2.02 is the standard earnings-results item. If SEC metadata is
+        # present, skip unrelated 8-Ks before spending a network request.
+        if item_text and "2.02" not in item_text:
             continue
         accession = _clean_text(accessions[i])
         if not accession:
             continue
-        checked += 1
+        candidates.append({
+            "accession": accession,
+            "filing_date": filing_dates[i] if i < len(filing_dates) else None,
+        })
+        if len(candidates) >= max(4, int(max_filings) * 2):
+            break
+
+    output = []
+    seen_periods = set()
+    earnings_checked = 0
+    for filing in candidates:
+        if earnings_checked >= int(max_filings) or not _research_budget_ok(deadline, reserve=0.8):
+            break
+        accession = filing["accession"]
         acc_nodash = accession.replace("-", "")
         index_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_nodash}/{accession}-index.html"
         html, final_url = _fetch_html(index_url, timeout=2.8, sec=True, deadline=deadline)
@@ -11231,140 +11313,161 @@ def _bank_discover_sec_earnings_exhibits(symbol, max_filings=10, deadline=None):
             continue
         try:
             soup = BeautifulSoup(html, "html.parser")
-            links = []
+            exhibit_rows = []
             for tr in soup.find_all("tr"):
-                row_text = _clean_text(tr.get_text(" ", strip=True)).lower()
-                if not any(k in row_text for k in ["99.1", "99.2", "earnings", "press release", "presentation", "financial results"]):
+                row_text = _clean_text(tr.get_text(" ", strip=True))
+                row_low = row_text.lower()
+                if not any(k in row_low for k in [
+                    "99.1", "99.2", "99.3", "earnings", "news release",
+                    "financial results", "quarterly supplement", "financial supplement",
+                ]):
                     continue
-                a = tr.find("a", href=True)
-                if not a:
+                links = tr.find_all("a", href=True)
+                if not links:
                     continue
-                href = a.get("href")
+                # Prefer the document link rather than an ixviewer/control link.
+                href = None
+                for a in links:
+                    raw = a.get("href") or ""
+                    if raw.lower().endswith((".htm", ".html", ".txt")):
+                        href = raw
+                        break
+                if href is None:
+                    href = links[0].get("href")
                 if not href:
                     continue
-                links.append(urljoin(final_url or index_url, href))
-            if not links:
-                continue
+                url = urljoin(final_url or index_url, href)
+                exhibit_rows.append({
+                    "url": url,
+                    "row_text": row_text,
+                    "score": _bank_sec_exhibit_score(row_text, url),
+                })
+            exhibit_rows.sort(key=lambda x: x.get("score", 0), reverse=True)
         except Exception:
             continue
+        if not exhibit_rows:
+            continue
+        earnings_checked += 1
 
-        for url in links[:3]:
+        best_for_filing = None
+        for exhibit in exhibit_rows[:3]:
             if not _research_budget_ok(deadline, reserve=0.5):
                 break
-            text = _fetch_source_text(url, deadline=deadline, timeout=2.8)
+            text = _fetch_source_text(exhibit["url"], deadline=deadline, timeout=3.2)
             if not text:
                 continue
-            bank_signal_count = sum(
-                1 for term in ["CET1", "tangible book value", "earnings per share", "ROTCE", "return on average tangible"]
+            signal_count = sum(
+                1 for term in [
+                    "earnings per", "tangible book value", "ROTCE",
+                    "return on average tangible", "CET1", "common equity tier 1",
+                ]
                 if term.lower() in text.lower()
             )
-            if bank_signal_count < 2:
+            if signal_count < 2:
                 continue
-            period = _bank_period_from_text(text)
-            if not period or period in seen_periods:
+            period = (
+                _bank_period_from_text(f"{exhibit.get('row_text')} {exhibit.get('url')}")
+                or _bank_period_from_text(text[:12000])
+                or _bank_period_from_filing_date(filing.get("filing_date"))
+            )
+            if not period:
                 continue
-            seen_periods.add(period)
-            output.append({
+            multi_count = len(_bank_extract_quarterly_eps_series(text, period, count=4))
+            metric_count = sum(
+                x is not None for x in [
+                    _bank_extract_rotce(text),
+                    (_bank_extract_tbv_values(text) or [None])[0],
+                    _bank_extract_cet1_values(text)[0],
+                ]
+            )
+            quality_score = (
+                safe_float(exhibit.get("score")) or 0.0
+            ) + signal_count * 45.0 + multi_count * 75.0 + metric_count * 80.0
+            row = {
                 "period": period,
-                "url": url,
-                "filing_date": filing_dates[i] if i < len(filing_dates) else None,
+                "url": exhibit["url"],
+                "filing_date": filing.get("filing_date"),
                 "text": text,
-            })
+                "preloaded_text": text,
+                "document_type": "html",
+                "score": quality_score,
+                "title": exhibit.get("row_text") or f"SEC earnings exhibit {period}",
+            }
+            if best_for_filing is None or row["score"] > best_for_filing["score"]:
+                best_for_filing = row
+            # A complete current supplement is enough for the filing and usually
+            # already carries the four-quarter diluted-EPS row.
+            if multi_count == 4 and metric_count == 3:
+                break
+        if best_for_filing is None:
+            continue
+        period = best_for_filing["period"]
+        if period in seen_periods:
+            continue
+        seen_periods.add(period)
+        output.append(best_for_filing)
+        # The latest detailed supplement often carries 5 quarterly columns.
+        # One such document is enough for the 4Q EPS gate and all latest metrics.
+        if len(_bank_extract_quarterly_eps_series(best_for_filing["text"], period, count=4)) == 4:
             break
         if len(output) >= 4:
             break
-    return sorted(output, key=lambda r: _bank_period_sort_key(r.get("period")))
+
+    return sorted(output, key=lambda r: _bank_period_sort_key(r.get("period")), reverse=True)
 
 
 @st.cache_data(ttl=21600, show_spinner=False)
 def _discover_universal_bank_snapshot_v1(symbol, company_name=None):
-    """Try to build the common bank snapshot schema from recent official SEC earnings exhibits."""
-    deadline = time.monotonic() + 7.0
-    rows = _bank_discover_sec_earnings_exhibits(symbol, max_filings=12, deadline=deadline)
-    if len(rows) < 4:
+    """SEC fallback: latest Item-2.02 supplement first, older earnings filings only if needed."""
+    deadline = time.monotonic() + 11.0
+    rows = _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=deadline)
+    if not rows:
         return None
-    rows = rows[-4:]
-    periods = [r.get("period") for r in rows]
-    keys = [_bank_period_sort_key(x) for x in periods]
-    if any(y < 0 for y, q in keys):
-        return None
-    for a, b in zip(keys, keys[1:]):
-        ay, aq = a; by, bq = b
-        next_key = (ay + 1, 1) if aq == 4 else (ay, aq + 1)
-        if b != next_key:
-            return None
 
-    coverage = []
+    documents = []
     for row in rows:
-        eps = _bank_extract_eps_from_text(row.get("text"))
-        core, effect, status = _bank_detect_special_item_bridge(row.get("text"), eps)
-        if eps is None or core is None or effect is None or not status:
-            return None
-        coverage.append({
+        documents.append({
+            "url": row.get("url"),
+            "title": row.get("title") or f"SEC earnings exhibit {row.get('period')}",
             "period": row.get("period"),
-            "published_date": row.get("filing_date"),
-            "source_url": row.get("url"),
-            "reported_eps": eps,
-            "core_eps": core,
-            "special_items_eps_effect": effect,
-            "special_item_status": status,
+            "score": 1000 + safe_float(row.get("score") or 0),
+            "preloaded_text": row.get("preloaded_text") or row.get("text"),
+            "document_type": row.get("document_type") or "html",
         })
 
-    latest = rows[-1]
-    latest_text = latest.get("text") or ""
-    rotce = _bank_extract_rotce(latest_text)
-    cet1_std, cet1_adv = _bank_extract_cet1_values(latest_text)
-    tbv_vals = _bank_extract_tbv_values(latest_text)
-    tbv = tbv_vals[0] if tbv_vals else None
-    tbv_prior_yoy = tbv_vals[2] if len(tbv_vals) >= 3 else (tbv_vals[1] if len(tbv_vals) >= 2 else None)
-    tbv_growth = ((tbv / tbv_prior_yoy - 1.0) * 100.0) if tbv and tbv_prior_yoy and tbv_prior_yoy > 0 else None
-    book_value = _bank_extract_book_value(latest_text)
-    latest_eps = coverage[-1]["reported_eps"]
-    latest_core = coverage[-1]["core_eps"]
-    latest_effect = coverage[-1]["special_items_eps_effect"]
-    if None in [rotce, cet1_std, tbv, tbv_growth, book_value]:
+    snapshot = _bank_ir_snapshot_from_documents(
+        symbol,
+        company_name,
+        None,
+        {"documents": documents, "entrypoints": []},
+        deadline=deadline,
+    )
+    if snapshot is None:
         return None
 
-    latest_end = _bank_period_end_date(latest.get("period"))
-    published_raw = latest.get("filing_date")
+    latest_row = max(rows, key=lambda r: _bank_period_sort_key(r.get("period")))
+    published_raw = latest_row.get("filing_date")
     try:
         published_dt = datetime.strptime(published_raw, "%Y-%m-%d").date() if published_raw else None
     except Exception:
         published_dt = None
-    valid_until = published_dt + timedelta(days=100) if published_dt else None
-
-    return {
-        "symbol": str(symbol or "").upper(),
-        "company": company_name or str(symbol or "").upper(),
-        "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
-        "published_date": published_dt.strftime("%d.%m.%Y") if published_dt else published_raw,
-        "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "SEC 8-K Earnings Exhibits · Universal Bank Adapter Fallback",
-        "source_url": latest.get("url"),
-        "allowed_source_hosts": ["sec.gov"],
-        "adapter_version": BANK_PRIMARY_SOURCE_ADAPTER_VERSION,
-        "adapter_mode": "sec_8k_auto_discovery",
-        "book_value_per_share": book_value,
-        "tangible_book_value_per_share": tbv,
-        "book_value_growth_yoy_pct": None,
-        "tangible_book_value_growth_yoy_pct": tbv_growth,
-        "roe_reported_pct": None,
-        "rotce_reported_pct": rotce,
-        "rotce_ex_significant_items_pct": rotce if abs(latest_effect or 0.0) <= 1e-12 else None,
-        "rotce_normalized_label": "ROTCE Bewertungsbasis",
-        "cet1_standardized_pct": cet1_std,
-        "cet1_advanced_pct": cet1_adv,
-        "quarter_eps_reported": latest_eps,
-        "quarter_eps_ex_significant_items": latest_core,
-        "significant_items_eps_effect": latest_effect,
-        "ttm_eps_coverage": coverage,
-        "ttm_coverage_expected_periods": periods,
-        "source_note": (
-            "V2.21.6 hat als SEC-Fallback vier aufeinanderfolgende offizielle 8-K-Earnings-Exhibits automatisch "
-            "in das einheitliche Bank-Snapshot-Schema überführt. Eine Bewertung bleibt fail-closed, "
-            "wenn ROTCE, TBVPS, CET1, TTM-EPS-Coverage oder eine erforderliche Sonderposten-Brücke fehlt."
-        ),
-    }
+    if published_dt:
+        snapshot["published_date"] = published_dt.strftime("%d.%m.%Y")
+        snapshot["valid_until"] = (published_dt + timedelta(days=110)).strftime("%d.%m.%Y")
+    snapshot["source_name"] = "SEC Item 2.02 Earnings Supplement · Universal Bank Adapter V3"
+    snapshot["source_url"] = latest_row.get("url") or snapshot.get("source_url")
+    snapshot["supplement_url"] = latest_row.get("url") or snapshot.get("supplement_url")
+    snapshot["allowed_source_hosts"] = ["sec.gov"]
+    snapshot["adapter_version"] = BANK_PRIMARY_SOURCE_ADAPTER_VERSION
+    snapshot["adapter_mode"] = "sec_item_202_supplement_auto_discovery"
+    snapshot["source_note"] = (
+        "V2.21.7 hat den offiziellen SEC-Earnings-8-K-Pfad über Item 2.02 erkannt und das "
+        "höchstrangige Earnings-/Quarterly-Supplement-Exhibit als HTML geparst. Eine aktuelle "
+        "Mehrquartalstabelle darf die vier aufeinanderfolgenden diluted-EPS-Quartale direkt "
+        "abdecken; ältere Earnings-8-Ks werden nur benötigt, wenn diese Tabelle nicht ausreicht. "
+        "ROTCE, TBVPS und CET1 bleiben Primärquellenpflicht; unvollständige Daten sperren weiter fail-closed."
+    )
+    return snapshot
 
 
 def _get_verified_bank_seed_snapshot(symbol):
@@ -12257,7 +12360,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank IR Discovery & Table Parser V2.21.6 lädt verifizierte Primärquellen-"
+            "Universal Bank SEC Supplement Recovery & Parser V2.21.7 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -12334,13 +12437,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank IR Discovery & Table Parser V2.21.6 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank SEC Supplement Recovery & Parser V2.21.7 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank IR Discovery & Table Parser V2.21.6 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank SEC Supplement Recovery & Parser V2.21.7 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -45172,7 +45275,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank IR Discovery & Table Parser V2.21.6"
+                        "🏦 Bank-Familienmodell · Universal Bank SEC Supplement Recovery & Parser V2.21.7"
                     )
 
                     if bank_model.get("primary_source_complete"):
