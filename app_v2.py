@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.16"
+APP_BUILD_VERSION = "V2.21.17"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank IR Entry-Point Discovery Expansion V12"
+    f"Build {APP_BUILD_VERSION} · Universal Bank TOC-Safe Table Context Parser V13"
 )
 
 
+# V2.21.17: Universal Bank TOC-Safe Table Context Parser V13. Hardens the issuer-neutral bank parser against table-of-contents and narrative false positives. Bank metrics with a known quarter now require an aligned quarterly table context; loose numeric fallbacks are disabled for TBVPS, book value and ROTCE. CET1 Standardized/Advanced rows are classified only from local capital-table context, with summary rows retained only as a Standardized fallback. This fixes page-number capture and cross-section CET1 leakage while preserving WFC compatibility. Bank Score thresholds, target corridors, 60/40 Dual-Anchor, official-4Q TTM authority, horizon alignment and all fail-closed valuation mathematics remain unchanged.
 # V2.21.15: Universal Bank Official 4Q TTM Authority & Provider Reconciliation V11. Keeps the self-contained issuer-PDF runtime from V2.21.14, but fixes an overly strict bank TTM gate: four consecutive source-verified official quarterly diluted-EPS observations are now the primary TTM authority, while Yahoo/provider trailing EPS is a plausibility cross-check rather than a 1%-identity requirement. A mismatch fails closed only when both the absolute gap exceeds $0.10/share and the relative gap exceeds 5%, which still catches likely period/unit conflicts while allowing small provider aggregation-basis differences such as WFC 6.88 official vs 6.68 provider. Bank Score, CET1/ROTCE/TBV mathematics, target corridors, 60/40 Dual-Anchor, horizon alignment and signal logic remain unchanged.
 # V2.21.14: Universal Bank Single-File Embedded PDF Runtime V10. Embeds a compressed pypdf runtime directly inside app_v2.py and activates it through Python zipimport on demand, so PDF extraction no longer depends on sidecar package folders being present on the host import path. This fixes deployments that update/run only the single Streamlit app file. Issuer-IR discovery, SEC fallback, Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and all fail-closed valuation mathematics remain unchanged.
 # V2.21.13: Universal Bank Self-Contained PDF Recovery V9. Bundles a local pypdf runtime with the release so issuer-primary quarterly supplements can be parsed even when the hosting Streamlit image has no PDF extraction package installed and SEC endpoints return HTTP 403. Issuer-IR discovery, strict same-domain validation, four-quarter EPS coverage, ROTCE/TBVPS/CET1 parsing and all fail-closed bank valuation gates remain generic and unchanged. No issuer-specific WFC valuation branch is introduced; Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and signal mathematics remain frozen.
@@ -10691,8 +10692,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22116_universal_bank_ir_entrypoint_discovery_v12"
-BANK_DISCOVERY_CACHE_EPOCH = "v22116_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22117_universal_bank_toc_safe_table_context_v13"
+BANK_DISCOVERY_CACHE_EPOCH = "v22117_bank_discovery_epoch_1"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -10797,50 +10798,79 @@ def _bank_extract_first_float(text, patterns):
     return None
 
 
-def _bank_row_numeric_values(text, label_patterns, max_chars=320, min_value=None, max_value=None):
-    """Read numeric cells immediately following a bank-table row label.
-
-    Parenthesized numeric footnote markers directly after the label are removed
-    before cell parsing so labels such as ``ROTCE (4) 17.7`` do not become 4.0.
-    """
-    t = _clean_text(text)
-    for pat in label_patterns:
-        m = re.search(pat, t, flags=re.I | re.S)
-        if not m:
+def _bank_numeric_values_from_tail(tail, min_value=None, max_value=None, limit=10):
+    """Parse flattened PDF table cells without treating quarter-label digits as values."""
+    raw_tail = str(tail or "")
+    raw_tail = re.sub(r"^(?:\s*\(\d{1,2}\)\s*)+", " ", raw_tail)
+    values = []
+    first_pos = None
+    token_re = re.compile(
+        r"(?<![A-Za-z0-9])\(?-?\$?\s*\d+(?:,\d{3})*(?:\.\d+)?\)?%?(?![A-Za-z0-9])"
+    )
+    for m in token_re.finditer(raw_tail):
+        token = m.group(0)
+        raw = token.replace("$", "").replace("%", "").replace(",", "").strip()
+        negative = raw.startswith("(") and raw.endswith(")")
+        raw = raw.strip("() ")
+        try:
+            value = float(raw)
+        except Exception:
             continue
-        tail = t[m.end():m.end() + int(max_chars)]
-        tail = re.sub(r"^(?:\s*\(\d{1,2}\)\s*)+", " ", tail)
-        values = []
-        for token in re.findall(r"(?<![A-Za-z0-9])\(?-?\$?\s*\d+(?:,\d{3})*(?:\.\d+)?\)?", tail):
-            raw = token.replace("$", "").replace(",", "").strip()
-            negative = raw.startswith("(") and raw.endswith(")")
-            raw = raw.strip("() ")
-            try:
-                value = float(raw)
-            except Exception:
-                continue
-            if negative:
-                value = -value
-            if min_value is not None and value < min_value:
-                continue
-            if max_value is not None and value > max_value:
-                continue
-            values.append(value)
-            if len(values) >= 10:
-                break
-        if values:
-            return values
-    return []
+        if negative:
+            value = -value
+        if min_value is not None and value < min_value:
+            continue
+        if max_value is not None and value > max_value:
+            continue
+        if first_pos is None:
+            first_pos = m.start()
+        values.append(value)
+        if len(values) >= int(limit):
+            break
+    return values, first_pos
 
 
-def _bank_header_quarter_run(text, label_start, latest_period, lookback=2600):
-    """Infer the period order of a nearby quarterly table header.
+def _bank_is_toc_context(text, label_start):
+    """Reject metric labels that sit in a local table-of-contents context."""
+    raw = str(text or "")
+    start = max(0, int(label_start) - 900)
+    prefix = raw[start:int(label_start)].lower()
+    toc_pos = max(prefix.rfind("table of contents"), prefix.rfind("contents page"))
+    if toc_pos < 0:
+        return False
+    trailing = prefix[toc_pos:]
+    section_markers = [
+        "financial summary", "summary financial data", "consolidated statement",
+        "regulatory capital", "capital and other metrics", "quarter ended",
+    ]
+    return not any(marker in trailing for marker in section_markers)
 
-    Supports explicit Q labels and month-end headers.  The routine searches for
-    the longest *perfectly consecutive* quarter subsequence anchored to the known
-    latest document period, which prevents comparison columns such as ``1Q26`` /
-    ``2Q25`` from being mistaken for additional data columns.
-    """
+
+def _bank_row_numeric_values(text, label_patterns, max_chars=320, min_value=None, max_value=None):
+    """Read numeric cells from the best non-TOC row-label occurrence."""
+    t = _clean_text(text)
+    best = None
+    for pattern_index, pat in enumerate(label_patterns):
+        for m in re.finditer(pat, t, flags=re.I | re.S):
+            if _bank_is_toc_context(t, m.start()):
+                continue
+            tail = t[m.end():m.end() + int(max_chars)]
+            values, first_pos = _bank_numeric_values_from_tail(
+                tail, min_value=min_value, max_value=max_value, limit=10
+            )
+            if not values or first_pos is None:
+                continue
+            immediacy_bonus = 140 if first_pos <= 45 else (60 if first_pos <= 90 else 0)
+            pattern_bonus = max(0, 20 - pattern_index * 5)
+            score = len(values) * 25 + immediacy_bonus + pattern_bonus - min(first_pos, 240)
+            candidate = (score, -first_pos, values)
+            if best is None or candidate[:2] > best[:2]:
+                best = candidate
+    return list(best[2]) if best else []
+
+
+def _bank_header_quarter_run(text, label_start, latest_period, lookback=9000):
+    """Infer the closest plausible quarterly-header direction before a metric row."""
     t = _clean_text(text)
     start = max(0, int(label_start) - int(lookback))
     prefix = t[start:int(label_start)]
@@ -10849,7 +10879,7 @@ def _bank_header_quarter_run(text, label_start, latest_period, lookback=2600):
         return []
     _, latest_q = latest_key
 
-    def directional_candidates(qs, base_bonus=0):
+    def directional_candidates(qs, run_end, base_bonus=0):
         out = []
         n = len(qs)
         for width in range(min(7, n), 3, -1):
@@ -10858,9 +10888,9 @@ def _bank_header_quarter_run(text, label_start, latest_period, lookback=2600):
                 asc_ok = all(b == (1 if a == 4 else a + 1) for a, b in zip(sub, sub[1:]))
                 desc_ok = all(b == (4 if a == 1 else a - 1) for a, b in zip(sub, sub[1:]))
                 if asc_ok and sub[-1] == latest_q:
-                    out.append((1000 + width * 20 + base_bonus, "asc", sub))
+                    out.append((1000 + width * 20 + base_bonus, run_end, "asc", sub))
                 if desc_ok and sub[0] == latest_q:
-                    out.append((1000 + width * 20 + base_bonus, "desc", sub))
+                    out.append((1000 + width * 20 + base_bonus, run_end, "desc", sub))
         return out
 
     candidates = []
@@ -10875,19 +10905,17 @@ def _bank_header_quarter_run(text, label_start, latest_period, lookback=2600):
     if len(cur) >= 4:
         runs.append(cur)
     for run in runs:
-        candidates.extend(directional_candidates([int(m.group(1)) for m in run], base_bonus=5))
+        candidates.extend(directional_candidates([int(m.group(1)) for m in run], run[-1].end(), base_bonus=5))
 
-    month_q = {
-        "mar": 1, "march": 1, "jun": 2, "june": 2,
-        "sep": 3, "sept": 3, "september": 3, "dec": 4, "december": 4,
-    }
+    month_q = {"mar": 1, "march": 1, "jun": 2, "june": 2,
+               "sep": 3, "sept": 3, "september": 3, "dec": 4, "december": 4}
     mtokens = list(re.finditer(
         r"\b(march|mar\.?|june|jun\.?|september|sept\.?|sep\.?|december|dec\.?)\s+\d{1,2}\b",
         prefix, flags=re.I,
     ))
     mruns, cur = [], []
     for m in mtokens:
-        if cur and m.start() - cur[-1].end() > 45:
+        if cur and m.start() - cur[-1].end() > 55:
             if len(cur) >= 4:
                 mruns.append(cur)
             cur = []
@@ -10901,11 +10929,11 @@ def _bank_header_quarter_run(text, label_start, latest_period, lookback=2600):
             q = month_q.get(key)
             if q:
                 qs.append(q)
-        candidates.extend(directional_candidates(qs, base_bonus=0))
+        candidates.extend(directional_candidates(qs, run[-1].end(), base_bonus=0))
 
     if not candidates:
         return []
-    _, direction, qs = max(candidates, key=lambda x: x[0])
+    _, _, direction, qs = max(candidates, key=lambda x: (x[0], x[1]))
     if direction == "asc":
         return _bank_consecutive_periods_ending(latest_period, len(qs))
     return [_bank_previous_period(latest_period, i) for i in range(len(qs))]
@@ -10913,41 +10941,36 @@ def _bank_header_quarter_run(text, label_start, latest_period, lookback=2600):
 
 def _bank_extract_aligned_row_values(text, latest_period, label_patterns, max_chars=360,
                                      min_value=None, max_value=None, search_start=0, search_end=None):
-    """Return ``[{period, value}, ...]`` aligned to the nearby table header."""
+    """Return period-aligned values from the best genuine table-row occurrence."""
     t = _clean_text(text)
+    base_start = int(search_start)
     end = len(t) if search_end is None else min(len(t), int(search_end))
-    for pat in label_patterns:
-        m = re.search(pat, t[int(search_start):end], flags=re.I | re.S)
-        if not m:
-            continue
-        abs_start = int(search_start) + m.start()
-        abs_end = int(search_start) + m.end()
-        periods = _bank_header_quarter_run(t, abs_start, latest_period)
-        if len(periods) < 4:
-            continue
-        tail = t[abs_end:min(len(t), abs_end + int(max_chars))]
-        tail = re.sub(r"^(?:\s*\(\d{1,2}\)\s*)+", " ", tail)
-        values = []
-        for token in re.findall(r"(?<![A-Za-z0-9])\(?-?\$?\s*\d+(?:,\d{3})*(?:\.\d+)?\)?%?", tail):
-            raw = token.replace("$", "").replace("%", "").replace(",", "").strip()
-            negative = raw.startswith("(") and raw.endswith(")")
-            raw = raw.strip("() ")
-            try:
-                value = float(raw)
-            except Exception:
+    best = None
+    for pattern_index, pat in enumerate(label_patterns):
+        for m in re.finditer(pat, t[base_start:end], flags=re.I | re.S):
+            abs_start = base_start + m.start()
+            abs_end = base_start + m.end()
+            if _bank_is_toc_context(t, abs_start):
                 continue
-            if negative:
-                value = -value
-            if min_value is not None and value < min_value:
+            periods = _bank_header_quarter_run(t, abs_start, latest_period)
+            if len(periods) < 4:
                 continue
-            if max_value is not None and value > max_value:
+            tail = t[abs_end:min(end, abs_end + int(max_chars))]
+            values, first_pos = _bank_numeric_values_from_tail(
+                tail, min_value=min_value, max_value=max_value, limit=max(10, len(periods) + 3)
+            )
+            if len(values) < len(periods) or first_pos is None:
                 continue
-            values.append(value)
-            if len(values) >= len(periods):
-                break
-        if len(values) >= len(periods):
-            return [{"period": p, "value": v} for p, v in zip(periods, values[:len(periods)])]
-    return []
+            mapped = [{"period": p, "value": v} for p, v in zip(periods, values[:len(periods)])]
+            if not any(row.get("period") == latest_period for row in mapped):
+                continue
+            immediacy_bonus = 190 if first_pos <= 45 else (85 if first_pos <= 90 else 0)
+            pattern_bonus = max(0, 25 - pattern_index * 5)
+            score = len(periods) * 30 + immediacy_bonus + pattern_bonus - min(first_pos, 260)
+            candidate = (score, -first_pos, abs_start, mapped)
+            if best is None or candidate[:2] > best[:2]:
+                best = candidate
+    return list(best[3]) if best else []
 
 
 def _bank_extract_eps_from_text(text):
@@ -11015,27 +11038,27 @@ def _bank_extract_adjusted_quarterly_eps_series(text, latest_period, count=4):
 
 
 def _bank_extract_tbv_values(text, latest_period=None):
-    patterns = [
-        r"tangible\s+book\s+value\s+per\s+(?:common\s+)?share",
-        r"tangible\s+common\s+book\s+value\s+per\s+share",
-    ]
+    patterns = [r"tangible\s+book\s+value\s+per\s+(?:common\s+)?share",
+                r"tangible\s+common\s+book\s+value\s+per\s+share"]
     if latest_period:
-        aligned = _bank_extract_aligned_row_values(text, latest_period, patterns, max_chars=330, min_value=1.0, max_value=1000.0)
+        aligned = _bank_extract_aligned_row_values(text, latest_period, patterns, max_chars=380, min_value=1.0, max_value=1000.0)
         if aligned:
             amap = {r["period"]: r["value"] for r in aligned}
             ordered = [amap[p] for p in [_bank_previous_period(latest_period, i) for i in range(len(aligned))] if p in amap]
             if ordered:
                 return ordered
+        return []
     return _bank_row_numeric_values(text, patterns, max_chars=300, min_value=1.0, max_value=1000.0)[:6]
 
 
 def _bank_extract_book_value(text, latest_period=None):
     patterns = [r"(?<!tangible\s)book\s+value\s+per\s+(?:common\s+)?share"]
     if latest_period:
-        aligned = _bank_extract_aligned_row_values(text, latest_period, patterns, max_chars=260, min_value=1.0, max_value=10000.0)
+        aligned = _bank_extract_aligned_row_values(text, latest_period, patterns, max_chars=320, min_value=1.0, max_value=10000.0)
         for row in aligned:
             if row.get("period") == latest_period:
                 return row.get("value")
+        return None
     vals = _bank_row_numeric_values(text, patterns, max_chars=220, min_value=1.0, max_value=10000.0)
     return vals[0] if vals else None
 
@@ -11043,60 +11066,71 @@ def _bank_extract_book_value(text, latest_period=None):
 def _bank_extract_rotce(text, latest_period=None):
     patterns = [
         r"return\s+on\s+average\s+tangible\s+common\s+(?:shareholders[’']?\s+)?equity(?:\s+ratio)?\s*(?:\(ROTCE\))?",
+        r"return\s+on\s+tangible\s+common\s+equity\s*(?:\(ROTCE\))?",
         r"\bROTCE\b",
     ]
     if latest_period:
-        aligned = _bank_extract_aligned_row_values(text, latest_period, patterns, max_chars=220, min_value=-100.0, max_value=100.0)
+        aligned = _bank_extract_aligned_row_values(text, latest_period, patterns, max_chars=300, min_value=-100.0, max_value=100.0)
         for row in aligned:
             if row.get("period") == latest_period:
                 return row.get("value")
+        return None
     vals = _bank_row_numeric_values(text, patterns, max_chars=180, min_value=-100.0, max_value=100.0)
     return vals[0] if vals else None
 
 
 def _bank_extract_cet1_values(text, latest_period=None):
+    """Extract Standardized and Advanced CET1 from local capital-table context."""
     t = _clean_text(text)
+    ratio_patterns = [
+        r"common\s+equity\s+tier\s+1\s*(?:\(CET1\))?(?:\s+capital)?\s+ratio",
+        r"CET1\s+(?:Capital\s+)?Ratio",
+        r"common\s+equity\s+tier\s+1\s*\(CET1\)(?!\s+capital\b)",
+        r"common\s+equity\s+tier\s+1\s*\([A-Z]\)\s*/\s*\([A-Z]\)",
+    ]
+    matches=[]
+    for pat in ratio_patterns:
+        for m in re.finditer(pat,t,flags=re.I|re.S):
+            if not _bank_is_toc_context(t,m.start()):
+                matches.append(m)
+    dedup=[]
+    for m in sorted(matches,key=lambda x:x.start()):
+        if dedup and abs(m.start()-dedup[-1].start())<8:
+            continue
+        dedup.append(m)
 
-    def section_value(section_start, section_end=None):
-        m = re.search(section_start, t, flags=re.I)
-        if not m:
-            return None
-        end_pos = len(t)
-        if section_end:
-            cut = re.search(section_end, t[m.end():], flags=re.I)
-            if cut:
-                end_pos = m.end() + cut.start()
-        patterns = [r"common\s+equity\s+tier\s+1\s*(?:\(CET1\))?(?:\s+capital)?\s+ratio", r"CET1\s+(?:Capital\s+)?Ratio"]
+    std_re=re.compile(r"standardi[sz]ed\s+(?:approach|approaches)|standarized\s+(?:approach|approaches)",re.I)
+    adv_re=re.compile(r"advanced\s+(?:approach|approaches)",re.I)
+    std_candidates=[]; adv_candidates=[]; generic_candidates=[]
+    for m in dedup:
+        periods=_bank_header_quarter_run(t,m.start(),latest_period) if latest_period else []
+        tail=t[m.end():m.end()+360]
+        values,first_pos=_bank_numeric_values_from_tail(tail,min_value=1.0,max_value=40.0,limit=max(10,len(periods)+3))
+        value=None
         if latest_period:
-            aligned = _bank_extract_aligned_row_values(
-                t, latest_period, patterns, max_chars=210, min_value=1.0, max_value=40.0,
-                search_start=m.end(), search_end=end_pos,
-            )
-            for row in aligned:
-                if row.get("period") == latest_period:
-                    return row.get("value")
-        block = t[m.end():end_pos]
-        vals = _bank_row_numeric_values(block, patterns, max_chars=160, min_value=1.0, max_value=40.0)
-        return vals[0] if vals else None
-
-    standardized = section_value(
-        r"standardi[sz]ed\s+(?:approach|approaches)|standarized\s+(?:approach|approaches)",
-        r"advanced\s+(?:approach|approaches)",
-    )
-    advanced = section_value(r"advanced\s+(?:approach|approaches)")
-
-    if standardized is None:
-        patterns = [r"CET1\s+(?:Capital\s+)?Ratio", r"common\s+equity\s+tier\s+1\s*(?:\(CET1\))?(?:\s+capital)?\s+ratio"]
-        if latest_period:
-            aligned = _bank_extract_aligned_row_values(t, latest_period, patterns, max_chars=190, min_value=1.0, max_value=40.0)
-            for row in aligned:
-                if row.get("period") == latest_period:
-                    standardized = row.get("value")
-                    break
-        if standardized is None:
-            vals = _bank_row_numeric_values(t, patterns, max_chars=160, min_value=1.0, max_value=40.0)
-            standardized = vals[0] if vals else None
-    return standardized, advanced
+            if periods and len(values)>=len(periods):
+                amap={p:v for p,v in zip(periods,values[:len(periods)])}
+                value=amap.get(latest_period)
+        elif values and first_pos is not None and first_pos<=80:
+            value=values[0]
+        if value is None:
+            continue
+        prefix=t[max(0,m.start()-700):m.start()]
+        sh=list(std_re.finditer(prefix)); ah=list(adv_re.finditer(prefix))
+        sp=sh[-1].start() if sh else -1; ap=ah[-1].start() if ah else -1
+        nearest=max(sp,ap); dist=len(prefix)-nearest if nearest>=0 else 9999
+        score=1000-min(dist,1000)
+        if nearest>=0 and dist<=500 and ap>sp:
+            adv_candidates.append((score,value))
+        elif nearest>=0 and dist<=500 and sp>ap:
+            std_candidates.append((score,value))
+        else:
+            generic_candidates.append((1000-min(first_pos or 999,999),value))
+    standardized=max(std_candidates,default=(None,None),key=lambda x:x[0])[1]
+    advanced=max(adv_candidates,default=(None,None),key=lambda x:x[0])[1]
+    if standardized is None and generic_candidates:
+        standardized=max(generic_candidates,key=lambda x:x[0])[1]
+    return standardized,advanced
 
 
 def _bank_detect_special_item_bridge(text, reported_eps):
@@ -15196,7 +15230,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": None,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank IR Discovery & Table Parser V3",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank IR Discovery & Table Parser V4",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -15219,8 +15253,8 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "ttm_eps_coverage": coverage,
         "ttm_coverage_expected_periods": periods,
         "source_note": (
-            "V2.21.16 hat die offizielle Investor-Relations-Quartalsstruktur über eine generische Hub-first-Discovery automatisch entdeckt, "
-            "die Tabellenorientierung generisch erkannt, ROTCE, TBVPS und CET1 gelesen und vier aufeinanderfolgende "
+            "V2.21.17 hat die offizielle Investor-Relations-Quartalsstruktur über die generische Hub-first-Discovery automatisch entdeckt, "
+            "TOC-sicher nur quartalsausgerichtete ROTCE-, TBVPS-, Buchwert- und CET1-Tabellenfelder akzeptiert und vier aufeinanderfolgende "
             "offizielle Quartals-EPS einschließlich vorhandener quantitativer company-designierter EPS-Reconciliations in das gemeinsame Bank-Snapshot-Schema überführt. SEC bleibt Fallback; "
             "fehlende oder nicht eindeutig zuordenbare Primärdaten sperren die Bewertung weiterhin fail-closed."
         ),
@@ -16606,7 +16640,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank IR Entry-Point Discovery Expansion V2.21.16 lädt verifizierte Primärquellen-"
+            "Universal Bank TOC-Safe Table Context Parser V2.21.17 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -16683,13 +16717,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank IR Entry-Point Discovery Expansion V2.21.16 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank TOC-Safe Table Context Parser V2.21.17 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank IR Entry-Point Discovery Expansion V2.21.16 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank TOC-Safe Table Context Parser V2.21.17 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -49521,7 +49555,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank IR Entry-Point Discovery Expansion V2.21.16"
+                        "🏦 Bank-Familienmodell · Universal Bank TOC-Safe Table Context Parser V2.21.17"
                     )
 
                     if bank_model.get("primary_source_complete"):
@@ -49647,10 +49681,24 @@ if selected_symbol:
                                 + "Die normalisierte ROTCE-/Ertragsqualitätsbasis folgt ausschließlich der verifizierten Primärquellen-Brücke."
                             )
                         elif significant is not None:
-                            st.caption(
-                                "Keine quantitative company-designierte EPS-Sonderposten-Brücke im aktuellen Adapter-Snapshot; "
-                                "reported EPS bleibt ohne erfundene Bereinigung die Core-Basis."
-                            )
+                            ttm_cov_ui = snapshot.get("ttm_eps_coverage") or []
+                            prior_verified_effects = [
+                                safe_float(row.get("special_items_eps_effect"))
+                                for row in ttm_cov_ui
+                                if safe_float(row.get("special_items_eps_effect")) is not None
+                                and abs(safe_float(row.get("special_items_eps_effect"))) > 1e-12
+                            ]
+                            if prior_verified_effects:
+                                st.caption(
+                                    "Aktuelles Quartal ohne EPS-Sonderposten-Bereinigung; innerhalb der offiziellen "
+                                    "Vier-Quartals-Abdeckung sind jedoch verifizierte company-designierte EPS-Reconciliations "
+                                    "in früheren Quartalen enthalten."
+                                )
+                            else:
+                                st.caption(
+                                    "Keine quantitative company-designierte EPS-Sonderposten-Brücke im aktuellen Adapter-Snapshot; "
+                                    "reported EPS bleibt ohne erfundene Bereinigung die Core-Basis."
+                                )
 
                         st.info(snapshot.get("source_note"))
                         st.caption(
