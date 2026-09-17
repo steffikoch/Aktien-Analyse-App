@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.22"
+APP_BUILD_VERSION = "V2.21.23"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank IR Subdomain & Q4 Event Bridge V18"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Earnings Document Classifier & Q4 Material Ranking V19"
 )
 
 
+# V2.21.23: Universal Bank Earnings Document Classifier & Q4 Material Ranking V19. Adds issuer-neutral earnings-document classification before bank snapshot parsing: quarterly/earnings supplements and results releases outrank earnings presentations; corporate/company profiles, fact sheets and generic investor presentations are excluded from the earnings pool even when their filenames contain a current quarter. This prevents a profile PDF from prematurely stopping Q4 event discovery. The parser also sorts by document class before link score and rejects explicitly non-earnings material as the primary current-quarter payload. Bank Score, CET1 regulatory buffer, ROTCE-justified P/TBV, Core-TTM, target P/E, 60/40 Dual Anchor, 25% fail-closed spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.22: Universal Bank IR Subdomain & Q4 Event Bridge V18. Fixes the issuer-neutral IR discovery gap exposed by U.S. Bancorp without adding a USB-specific snapshot or valuation branch. The bank adapter now probes common issuer-owned IR subdomains (ir., investor., investors.) before exhausting deep corporate-root paths, keeps strict same-domain-family validation, and adds a bounded Q4 event-detail bridge for JavaScript-rendered Q4 sites. Q4 CDN documents are trusted only when linked directly from an issuer-owned Q4 page or returned by the issuer-hosted Q4 feed; the parent event period is inherited when the CDN URL itself is opaque. Bank Score, regulatory CET1 buffer, ROTCE-justified P/TBV, Core-TTM, target P/E, 60/40 Dual Anchor, 25% fail-closed spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.21: Universal Bank Dynamic IR Hub & Q4 Financial Feed Discovery V17. Extends issuer-neutral bank primary-source discovery for corporate sites whose public website differs from the investor-relations subdomain and for JavaScript-rendered quarterly-results hubs. Adds early same-domain IR-hub search, generic /financials/quarterly-results conventions, and a bounded Q4 FinancialReport feed bridge that is activated only when an issuer page itself identifies Q4 and exposes a public API key. Q4-hosted document URLs are accepted only when they are returned by that issuer-domain feed, preserving chain-of-trust. No Bank Score, regulatory CET1 buffer, ROTCE-justified P/TBV, Core-TTM, 60/40 Dual Anchor, 25% fail-closed spread gate, Reality Check, or signal mathematics changed.
 # V2.21.20: Universal Bank Regulatory CET1 Buffer & Reality Sign Guard V16. Replaces the bank score's absolute-only CET1 thresholds with a regulatory-buffer framework for U.S. large banks: the app resolves the current Federal Reserve Large Bank Capital Requirements table, compares verified Standardized CET1 with the issuer-specific Fed CET1 capital requirement, and scores the surplus buffer while retaining a conservative absolute fallback when no official requirement can be resolved. The current June-2026 Fed table is embedded only as a dated network-failure fallback, not as issuer-specific valuation logic. Also prevents the external Reality Check from labeling raw-sign-opposite own/external valuation gaps as HIGH agreement merely because both values fall inside the broad neutral bucket. ROTCE-justified P/TBV, Core-TTM, target P/E, 60/40 Dual Anchor, 25% fail-closed spread gate and signal thresholds otherwise remain unchanged.
@@ -10697,8 +10698,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22122_universal_bank_ir_subdomain_q4_event_v18"
-BANK_DISCOVERY_CACHE_EPOCH = "v22122_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22123_universal_bank_earnings_document_classifier_v19"
+BANK_DISCOVERY_CACHE_EPOCH = "v22123_bank_discovery_epoch_1"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -11329,15 +11330,82 @@ def _bank_q4_event_detail_candidates(ir_root, company_name, reference_date=None)
     return rows
 
 
+def _bank_ir_document_class(url, title=""):
+    """Classify issuer IR links before they can become bank earnings evidence.
+
+    This is deliberately issuer-neutral.  It uses the link text/URL only and is
+    meant to distinguish true quarterly earnings material from profile/marketing
+    PDFs that happen to carry a quarter in the filename.
+    """
+    hay = _clean_text(f"{title} {unquote(url or '')}").lower()
+
+    # Strong positive classes first.  An explicit earnings presentation is still
+    # valid supporting evidence, but supplements/releases rank above it.
+    if any(x in hay for x in [
+        "quarterly supplement", "earnings supplement", "financial supplement",
+        "supplemental analyst schedules", "supplemental analyst schedule",
+        "earnings tables", "financial tables",
+    ]):
+        return "earnings_supplement", 5
+    if any(x in hay for x in [
+        "earnings release", "quarterly earnings release", "financial results",
+        "quarterly results release", "results and key metrics", "news release",
+    ]):
+        return "earnings_release", 4
+    if "presentation" in hay and any(x in hay for x in [
+        "earnings", "quarterly", "quarter results", "financial results",
+    ]):
+        return "earnings_presentation", 3
+
+    # Explicitly non-earnings material.  These documents may contain historical
+    # EPS/CET1 context, but they are not allowed to become the primary quarterly
+    # bank snapshot merely because a current quarter appears in the filename.
+    if any(x in hay for x in [
+        "corporate profile", "company profile", "investor profile",
+        "fact sheet", "factsheet", "corporate presentation",
+        "investor day", "sustainability", "esg report", "esg presentation",
+    ]):
+        return "non_earnings_profile", -2
+    if "presentation" in hay:
+        return "generic_presentation", -1
+
+    # Opaque quarter-labelled PDFs remain available only as a low-priority
+    # fallback.  They do not stop deeper discovery and must still pass the
+    # content-level bank parser gate.
+    if _bank_period_from_text(hay) and ".pdf" in hay:
+        return "period_pdf_fallback", 1
+    return "other", 0
+
+
+def _bank_ir_is_primary_earnings_row(row):
+    if not isinstance(row, dict):
+        return False
+    priority = row.get("document_priority")
+    if priority is None:
+        _, priority = _bank_ir_document_class(row.get("url"), row.get("title"))
+    try:
+        return int(priority) >= 4
+    except Exception:
+        return False
+
+
 def _bank_ir_link_score(url, title=""):
     hay = _clean_text(f"{title} {unquote(url or '')}").lower()
+    doc_class, doc_priority = _bank_ir_document_class(url, title)
+    if doc_priority < 0:
+        return -600
+
     score = 0
-    if any(x in hay for x in ["quarterly supplement", "earnings supplement", "financial supplement"]):
-        score += 320
-    if any(x in hay for x in ["earnings release", "news release", "financial results"]):
-        score += 220
-    if "presentation" in hay:
-        score += 120
+    if doc_class == "earnings_supplement":
+        score += 420
+    elif doc_class == "earnings_release":
+        score += 300
+    elif doc_class == "earnings_presentation":
+        score += 180
+    elif doc_class == "period_pdf_fallback":
+        score += 30
+
+    # Hub/archive discovery remains separate from document classification.
     if any(x in hay for x in [
         "quarterly earnings", "quarterly results", "quarterly reports", "earnings results",
         "earnings materials", "financial information", "financials/quarterly-results",
@@ -15118,11 +15186,16 @@ def _bank_q4_financial_feed_documents(html, page_url, company_domain, deadline=N
                             score += 220
                         if score <= 0:
                             continue
+                        doc_class, doc_priority = _bank_ir_document_class(doc_url, f"{doc_title} {doc_category}")
+                        if doc_priority < 0:
+                            continue
                         row = {
                             "url": doc_url,
                             "title": doc_title or report_title or doc_url,
                             "period": period,
                             "score": score,
+                            "document_class": doc_class,
+                            "document_priority": doc_priority,
                             "trusted_q4_feed": q4_hosted,
                             "discovery_channel": "issuer_q4_financial_feed",
                         }
@@ -15178,11 +15251,14 @@ def _bank_extract_ir_links(html, base_url, company_domain, allow_trusted_q4_cdn=
             score = _bank_ir_link_score(href, title)
             if score <= 0:
                 continue
+            doc_class, doc_priority = _bank_ir_document_class(href, title)
             rows.append({
                 "url": href,
                 "title": title or _historical_title_hint_from_url(href),
                 "period": _bank_period_from_text(f"{title} {href}") or inherited_period,
                 "score": score,
+                "document_class": doc_class,
+                "document_priority": doc_priority,
                 "trusted_q4_direct": trusted_q4_direct,
                 "discovery_channel": "issuer_q4_direct_link" if trusted_q4_direct else "issuer_ir_link",
             })
@@ -15220,6 +15296,9 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
     trusted_platform_hosts = set()
     q4_ir_roots = []
 
+    def has_primary_documents():
+        return any(_bank_ir_is_primary_earnings_row(r) for r in documents.values())
+
     def add_links(html, final_url, inherited_period=None):
         """Index direct documents and retain plausible same-domain hub/archive pages."""
         q4_page = _bank_q4_page_signature(html)
@@ -15230,15 +15309,16 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
             url_low = row["url"].lower().split("?", 1)[0]
             title_low = (row.get("title") or "").lower()
             hay = f"{title_low} {url_low}"
-            if row.get("period") and (
+            doc_priority = int(row.get("document_priority") or 0)
+            if row.get("period") and doc_priority > 0 and (
                 url_low.endswith(".pdf")
                 or any(k in title_low for k in [
-                    "supplement", "earnings release", "news release", "presentation",
+                    "supplement", "earnings release", "news release",
                     "financial results", "results and key metrics",
                 ])
             ):
                 old = documents.get(row["url"])
-                if old is None or row["score"] > old["score"]:
+                if old is None or (doc_priority, row["score"]) > (int(old.get("document_priority") or 0), old["score"]):
                     documents[row["url"]] = row
             elif any(k in hay for k in [
                 "quarterly-earnings", "quarterly earnings", "quarterly-results",
@@ -15259,10 +15339,10 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         "/news-events/webcasts-presentations/default.aspx",
     ]
     for alt_root in candidate_roots[1:]:
-        if documents or not _research_budget_ok(deadline, reserve=3.0):
+        if has_primary_documents() or not _research_budget_ok(deadline, reserve=3.0):
             break
         for path in alt_probe_paths:
-            if documents or len(fetched) >= 8 or not _research_budget_ok(deadline, reserve=2.2):
+            if has_primary_documents() or len(fetched) >= 8 or not _research_budget_ok(deadline, reserve=2.2):
                 break
             seed = urljoin(alt_root.rstrip("/") + "/", path.lstrip("/"))
             if seed in fetched:
@@ -15280,7 +15360,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
                 if q4_root not in q4_ir_roots:
                     q4_ir_roots.append(q4_root)
             add_links(html, final_url)
-            if not documents and _bank_q4_page_signature(html):
+            if not has_primary_documents() and _bank_q4_page_signature(html):
                 q4 = _bank_q4_financial_feed_documents(
                     html, final_url, company_domain, deadline=deadline, diagnostics=diag
                 )
@@ -15289,9 +15369,9 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
                     if old is None or qrow.get("score", 0) > old.get("score", 0):
                         documents[qrow["url"]] = qrow
                 trusted_platform_hosts.update(q4.get("trusted_platform_hosts") or [])
-            if q4_ir_roots and not documents:
+            if q4_ir_roots and not has_primary_documents():
                 break
-        if q4_ir_roots and not documents:
+        if q4_ir_roots and not has_primary_documents():
             break
 
     # V2.21.22 Phase 0B: Q4 event-detail bridge. Some Q4 pages render the
@@ -15300,11 +15380,11 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
     # and link the official supplement/release directly. Probe only recent quarters,
     # only on issuer-owned Q4 roots, and trust q4cdn links only when they are direct
     # anchors on those issuer pages.
-    if not documents and q4_ir_roots and _research_budget_ok(deadline, reserve=2.0):
+    if not has_primary_documents() and q4_ir_roots and _research_budget_ok(deadline, reserve=2.0):
         event_hits = 0
         for q4_root in q4_ir_roots[:2]:
             for candidate in _bank_q4_event_detail_candidates(q4_root, company_name):
-                if documents and len({r.get("period") for r in documents.values() if r.get("period")}) >= 4:
+                if len({r.get("period") for r in documents.values() if r.get("period") and _bank_ir_is_primary_earnings_row(r)}) >= 4:
                     break
                 if not _research_budget_ok(deadline, reserve=1.0):
                     break
@@ -15357,7 +15437,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
             continue
         entrypoints.append(final_url)
         add_links(html, final_url)
-        if not documents and _bank_q4_page_signature(html):
+        if not has_primary_documents() and _bank_q4_page_signature(html):
             q4_root = f"https://{_normalize_host(final_url)}"
             if q4_root not in q4_ir_roots:
                 q4_ir_roots.append(q4_root)
@@ -15380,13 +15460,13 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
     # V2.21.22 Phase 1B: if the corporate root did not expose the IR subdomain,
     # resolve a same-domain investor hub before spending budget on guessed deep paths.
     # This remains issuer-neutral and accepts only the company's own domain family.
-    if not documents and not candidate_pages and _research_budget_ok(deadline, reserve=3.0):
+    if not has_primary_documents() and not candidate_pages and _research_budget_ok(deadline, reserve=3.0):
         hub_queries = [
             f'site:{company_domain} "{company_name or ""}" "quarterly results"',
             f'site:{company_domain} "{company_name or ""}" "investor relations" financials',
         ]
         for query in hub_queries:
-            if documents or candidate_pages or not _research_budget_ok(deadline, reserve=2.0):
+            if has_primary_documents() or candidate_pages or not _research_budget_ok(deadline, reserve=2.0):
                 break
             for item in _duckduckgo_html_search(query, max_results=4, deadline=deadline):
                 url = item.get("url")
@@ -15405,12 +15485,15 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
                         "reports third quarter", "reports fourth quarter",
                     ])
                 ))
-                if looks_like_period_document and score > 0:
+                doc_class, doc_priority = _bank_ir_document_class(url, direct_hay)
+                if looks_like_period_document and score > 0 and doc_priority > 0:
                     documents[url] = {
                         "url": url,
                         "title": item.get("title") or url,
                         "period": period,
                         "score": score,
+                        "document_class": doc_class,
+                        "document_priority": doc_priority,
                     }
                     continue
                 if score <= 0 or not _research_budget_ok(deadline, reserve=1.5):
@@ -15424,14 +15507,14 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
                 entrypoints.append(final_url)
                 fetched.add(final_url)
                 add_links(html, final_url)
-                if not documents and _bank_q4_page_signature(html):
+                if not has_primary_documents() and _bank_q4_page_signature(html):
                     q4 = _bank_q4_financial_feed_documents(html, final_url, company_domain, deadline=deadline, diagnostics=diag)
                     for qrow in q4.get("documents") or []:
                         old = documents.get(qrow.get("url"))
                         if old is None or qrow.get("score", 0) > old.get("score", 0):
                             documents[qrow["url"]] = qrow
                     trusted_platform_hosts.update(q4.get("trusted_platform_hosts") or [])
-                if documents or candidate_pages:
+                if has_primary_documents() or candidate_pages:
                     break
 
     # Phase 2: follow the best same-domain hubs discovered on the loaded pages.
@@ -15451,7 +15534,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
             continue
         entrypoints.append(final_url)
         add_links(html, final_url)
-        if not documents and _bank_q4_page_signature(html):
+        if not has_primary_documents() and _bank_q4_page_signature(html):
             q4_root = f"https://{_normalize_host(final_url)}"
             if q4_root not in q4_ir_roots:
                 q4_ir_roots.append(q4_root)
@@ -15470,7 +15553,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
     # Phase 3: conventional deeper paths only when hub discovery did not produce
     # a usable periodized document.  These are generic path conventions, not issuer
     # or ticker exceptions.
-    if not documents:
+    if not has_primary_documents():
         for path in BANK_IR_SEED_PATHS[5:]:
             if len(fetched) >= 9 or not _research_budget_ok(deadline, reserve=1.7):
                 break
@@ -15486,25 +15569,25 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
                 continue
             entrypoints.append(final_url)
             add_links(html, final_url)
-            if not documents and _bank_q4_page_signature(html):
+            if not has_primary_documents() and _bank_q4_page_signature(html):
                 q4 = _bank_q4_financial_feed_documents(html, final_url, company_domain, deadline=deadline, diagnostics=diag)
                 for qrow in q4.get("documents") or []:
                     old = documents.get(qrow.get("url"))
                     if old is None or qrow.get("score", 0) > old.get("score", 0):
                         documents[qrow["url"]] = qrow
                 trusted_platform_hosts.update(q4.get("trusted_platform_hosts") or [])
-            if documents:
+            if has_primary_documents():
                 break
 
     # Search is discovery-only and remains restricted to the issuer's own host.
-    if not documents and _research_budget_ok(deadline, reserve=2.2):
+    if not has_primary_documents() and _research_budget_ok(deadline, reserve=2.2):
         queries = [
             f'site:{company_domain} "earnings supplement" "{company_name or ""}"',
             f'site:{company_domain} "quarterly results" "{company_name or ""}"',
             f'site:{company_domain} "reports second quarter" "{company_name or ""}"',
         ]
         for query in queries:
-            if documents or not _research_budget_ok(deadline, reserve=1.5):
+            if has_primary_documents() or not _research_budget_ok(deadline, reserve=1.5):
                 break
             for item in _duckduckgo_html_search(query, max_results=4, deadline=deadline):
                 url = item.get("url")
@@ -15512,12 +15595,15 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
                     continue
                 period = _bank_period_from_text(f"{item.get('title')} {url}")
                 score = _bank_ir_link_score(url, f"{item.get('title')} {item.get('snippet')}")
-                if period:
+                doc_class, doc_priority = _bank_ir_document_class(url, f"{item.get('title')} {item.get('snippet')}")
+                if period and score > 0 and doc_priority > 0:
                     documents[url] = {
                         "url": url,
                         "title": item.get("title") or url,
                         "period": period,
                         "score": score,
+                        "document_class": doc_class,
+                        "document_priority": doc_priority,
                     }
                 elif _research_budget_ok(deadline, reserve=1.0):
                     html, final_url = _fetch_html(url, timeout=2.0, deadline=deadline)
@@ -15525,7 +15611,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
                         resolved = final_url or url
                         entrypoints.append(resolved)
                         add_links(html, resolved)
-                        if not documents and _bank_q4_page_signature(html):
+                        if not has_primary_documents() and _bank_q4_page_signature(html):
                             q4 = _bank_q4_financial_feed_documents(html, resolved, company_domain, deadline=deadline, diagnostics=diag)
                             for qrow in q4.get("documents") or []:
                                 old = documents.get(qrow.get("url"))
@@ -15535,7 +15621,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
 
     rows = sorted(
         documents.values(),
-        key=lambda r: (_bank_period_sort_key(r.get("period")), r.get("score", 0)),
+        key=lambda r: (_bank_period_sort_key(r.get("period")), int(r.get("document_priority") or 0), r.get("score", 0)),
         reverse=True,
     )
     if diag is not None:
@@ -15544,9 +15630,11 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
             key=_bank_period_sort_key,
             reverse=True,
         )
+        primary_count = sum(1 for r in rows if _bank_ir_is_primary_earnings_row(r))
+        fallback_count = sum(1 for r in rows if int(r.get("document_priority") or 0) in [1, 3])
         diag.append(
-            "Issuer-IR Discovery V18: IR-Subdomain/Q4-Event aktiv · "
-            f"Entry-Points={len(set(entrypoints))}, Dokumente={len(rows)}, "
+            "Issuer-IR Discovery V19: Earnings-Document-Classifier/Q4-Material-Ranking aktiv · "
+            f"Entry-Points={len(set(entrypoints))}, Dokumente={len(rows)}, Primär={primary_count}, Fallback={fallback_count}, "
             f"Perioden={','.join(periods[:6]) or 'keine'}."
         )
     return {"documents": rows, "entrypoints": list(dict.fromkeys(entrypoints)), "trusted_platform_hosts": sorted(trusted_platform_hosts)}
@@ -15581,7 +15669,10 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
             continue
         by_period.setdefault(period, []).append(row)
     for period in by_period:
-        by_period[period].sort(key=lambda x: x.get("score", 0), reverse=True)
+        by_period[period].sort(
+            key=lambda x: (int(x.get("document_priority") or 0), x.get("score", 0)),
+            reverse=True,
+        )
     latest_period = max(by_period, key=_bank_period_sort_key) if by_period else None
     if not latest_period:
         if diag is not None:
@@ -15593,20 +15684,38 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
     latest_docs = by_period.get(latest_period) or []
     latest_payload = None
     latest_row = None
-    # Supplements first, then releases/presentations. Fetch only as many as needed.
-    for row in latest_docs[:3]:
+    # Supplements first, then releases, then earnings presentations and opaque
+    # quarter PDFs.  Explicit profile/marketing material can never be the primary
+    # current-quarter bank snapshot.
+    for row in latest_docs[:5]:
         if not _research_budget_ok(deadline, reserve=1.0):
             break
+        doc_class = row.get("document_class")
+        doc_priority = row.get("document_priority")
+        if doc_priority is None:
+            doc_class, doc_priority = _bank_ir_document_class(row.get("url"), row.get("title"))
+        if int(doc_priority or 0) < 0:
+            continue
         payload = payload_for(row, 4.3)
         if not payload:
             continue
+        text_low = payload["text"].lower()
         signal_count = sum(
-            1 for term in ["earnings per", "tangible book value", "ROTCE", "return on average tangible", "CET1", "common equity tier 1"]
-            if term.lower() in payload["text"].lower()
+            1 for term in ["earnings per", "tangible book value", "rotce", "return on average tangible", "cet1", "common equity tier 1"]
+            if term in text_low
         )
-        if signal_count >= 2:
+        earnings_context = any(term in text_low for term in [
+            "earnings supplement", "supplemental analyst", "quarterly results",
+            "financial results", "earnings release", "quarter ended",
+        ])
+        minimum_signals = 2 if int(doc_priority or 0) >= 3 else 4
+        if signal_count >= minimum_signals and (int(doc_priority or 0) >= 3 or earnings_context):
             latest_payload = payload
             latest_row = row
+            if diag is not None:
+                diag.append(
+                    f"Issuer-IR Dokumentklasse: {doc_class or 'unbekannt'} · Priorität={int(doc_priority or 0)} · Bank-Kernsignale={signal_count}."
+                )
             break
     if not latest_payload:
         if diag is not None:
@@ -15737,7 +15846,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": None,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Dynamic IR/Q4 Discovery & Table Parser V5",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Earnings Document Classifier & Table Parser V6",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -15760,7 +15869,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "ttm_eps_coverage": coverage,
         "ttm_coverage_expected_periods": periods,
         "source_note": (
-            f"{APP_BUILD_VERSION} hat die offizielle Investor-Relations-Quartalsstruktur über die generische IR-Subdomain/Q4-Event-Discovery automatisch entdeckt, "
+            f"{APP_BUILD_VERSION} hat die offizielle Investor-Relations-Quartalsstruktur über die generische Earnings-Document-Classifier/Q4-Material-Discovery automatisch entdeckt, "
             "TOC-sicher nur quartalsausgerichtete ROTCE-, TBVPS-, Buchwert- und CET1-Tabellenfelder akzeptiert und vier aufeinanderfolgende "
             "offizielle Quartals-EPS einschließlich vorhandener quantitativer company-designierter EPS-Reconciliations in das gemeinsame Bank-Snapshot-Schema überführt. SEC bleibt Fallback; "
             "fehlende oder nicht eindeutig zuordenbare Primärdaten sperren die Bewertung weiterhin fail-closed."
@@ -17460,7 +17569,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank IR Subdomain & Q4 Event Bridge V2.21.22 lädt verifizierte Primärquellen-"
+            "Universal Bank Earnings Document Classifier & Q4 Material Ranking V2.21.23 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -17537,13 +17646,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank IR Subdomain & Q4 Event Bridge V2.21.22 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Earnings Document Classifier & Q4 Material Ranking V2.21.23 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank IR Subdomain & Q4 Event Bridge V2.21.22 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Earnings Document Classifier & Q4 Material Ranking V2.21.23 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -50387,7 +50496,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank IR Subdomain & Q4 Event Bridge V2.21.22"
+                        "🏦 Bank-Familienmodell · Universal Bank Earnings Document Classifier & Q4 Material Ranking V2.21.23"
                     )
 
                     if bank_model.get("primary_source_complete"):
