@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.10"
+APP_BUILD_VERSION = "V2.21.11"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Discovery Cache-Bust & Retry Diagnostics V6"
+    f"Build {APP_BUILD_VERSION} · Universal Bank SEC CIK Resolver & Fallback Diagnostics V7"
 )
 
 
+# V2.21.11: Universal Bank SEC CIK Resolver & Fallback Diagnostics V7. Hardens the generic SEC ticker-to-CIK stage that blocked WFC before submissions discovery. The resolver now prefers the SEC's lightweight official ticker.txt mapping, normalizes common ticker punctuation, falls back to company_tickers.json and company_tickers_exchange.json, and records per-source HTTP/timeout/parse diagnostics instead of collapsing every failure into a generic no-CIK result. Successful CIK resolution then feeds the unchanged Item-2.02/Primary-8-K/Supplement parser path. A new cache epoch prevents prior failed CIK lookups from being reused. No Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment, or fail-closed valuation mathematics changed.
 # V2.21.10: Universal Bank Discovery Cache-Bust & Retry Diagnostics V6. Fixes a cross-build Streamlit cache hazard in the universal Bank / Deposits & Lending primary-source discovery. V2.21.6-V2.21.9 could keep reusing a previously cached None/failed WFC discovery because the outer and SEC discovery wrappers were both st.cache_data-cached while only their downstream implementation changed. V2.21.10 introduces a versioned cache epoch and a success-only cache wrapper: successful primary-source snapshots remain cached, but None/diagnostic-only failures are re-run live instead of being frozen for six hours. The bank model now also emits an explicit wrapper diagnostic if discovery unexpectedly returns None. SEC/issuer parsing, Bank Score, four-quarter Core-TTM gate, P/TBV/Core-P-E Dual Anchor, horizon alignment and fail-closed valuation mathematics are unchanged.
 # V2.21.9: Universal Bank SEC Primary-Document Recovery & Stage Diagnostics V5. Adds a generic SEC earnings-recovery path that reads exhibit links directly from the Item-2.02 8-K primary document before falling back to EDGAR filing-index pages. This avoids depending on a single filing-index representation and remains issuer-neutral. The bank adapter now propagates stage diagnostics into the UI (CIK, submissions, Item-2.02 candidate count, primary-document/index exhibit discovery, selected exhibit and parser completeness). The released Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and fail-closed mathematics are unchanged.
 # V2.21.8: Universal Bank SEC Filing Index Hotfix & Diagnostics V4. Fixes the generic EDGAR filing-index URL from the non-canonical -index.html path to the actual -index.htm path used by EDGAR, with .html retained only as a compatibility fallback. Adds fail-closed adapter diagnostics so a missing SEC earnings exhibit can be distinguished from a table-parser failure without issuer-specific logic. No Bank Score, P/TBV/Core-P-E, horizon alignment, 60/40 Dual-Anchor or signal mathematics changed.
@@ -4839,26 +4840,155 @@ def _discover_company_primary_pages(company_domain, company_name, max_pages=5, d
     return output
 
 
-def _sec_lookup_cik(symbol, deadline=None):
-    symbol = _clean_text(symbol).upper()
-    if not symbol or not _research_budget_ok(deadline):
+def _sec_lookup_cik(symbol, deadline=None, diagnostics=None):
+    """Resolve a ticker to CIK using only official SEC association files.
+
+    V2.21.11 prefers the lightweight ``ticker.txt`` mapping because it is much
+    smaller and simpler than the JSON association files.  JSON sources remain
+    independent fallbacks.  All failures are fail-closed but can be surfaced
+    through ``diagnostics`` so a timeout/HTTP/parse problem is distinguishable
+    from a genuine missing ticker association.
+    """
+    diag = diagnostics if isinstance(diagnostics, list) else None
+    raw_symbol = _clean_text(symbol).upper()
+    if not raw_symbol:
+        if diag is not None:
+            diag.append("SEC-Stufe CIK: leerer Ticker; keine Auflösung möglich.")
         return None
-    effective_timeout = _bounded_timeout(deadline, 2.8)
-    if effective_timeout is None:
+    if not _research_budget_ok(deadline):
+        if diag is not None:
+            diag.append("SEC-Stufe CIK: kein Recherchebudget für die Ticker→CIK-Auflösung.")
         return None
-    try:
-        r = requests.get(
-            "https://www.sec.gov/files/company_tickers.json",
-            headers=_request_headers(sec=True),
-            timeout=(min(1.8, effective_timeout), effective_timeout),
+
+    # SEC association files commonly represent share-class punctuation with a
+    # hyphen (for example BRK-B).  Keep exact ticker first, then safe variants.
+    ticker_candidates = []
+    for candidate in (
+        raw_symbol,
+        raw_symbol.replace(".", "-"),
+        raw_symbol.replace("/", "-"),
+        raw_symbol.replace(" ", "-"),
+    ):
+        candidate = candidate.strip().upper()
+        if candidate and candidate not in ticker_candidates:
+            ticker_candidates.append(candidate)
+    candidate_set = set(ticker_candidates)
+
+    def _failure(label, exc=None, status=None):
+        if diag is None:
+            return
+        if status is None and exc is not None:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+        if status:
+            diag.append(f"SEC-Stufe CIK/{label}: HTTP {status}; Fallback wird versucht.")
+        elif exc is not None:
+            diag.append(f"SEC-Stufe CIK/{label}: {type(exc).__name__}; Fallback wird versucht.")
+        else:
+            diag.append(f"SEC-Stufe CIK/{label}: Ticker nicht enthalten; Fallback wird versucht.")
+
+    # 1) Small official tab-delimited association file.
+    effective_timeout = _bounded_timeout(deadline, 4.2)
+    if effective_timeout is not None:
+        try:
+            r = requests.get(
+                "https://www.sec.gov/include/ticker.txt",
+                headers=_request_headers(sec=True),
+                timeout=(min(1.8, effective_timeout), effective_timeout),
+            )
+            status = r.status_code
+            r.raise_for_status()
+            for line in (r.text or "").splitlines():
+                parts = line.strip().split("\t")
+                if len(parts) < 2:
+                    continue
+                ticker = _clean_text(parts[0]).upper()
+                if ticker in candidate_set:
+                    cik = int(str(parts[1]).strip())
+                    if diag is not None:
+                        diag.append(f"SEC-Stufe CIK/ticker.txt: {ticker} → CIK {cik}.")
+                    return cik
+            _failure("ticker.txt")
+        except Exception as exc:
+            _failure("ticker.txt", exc=exc)
+    elif diag is not None:
+        diag.append("SEC-Stufe CIK/ticker.txt: kein Zeitbudget; Fallback wird versucht.")
+
+    if not _research_budget_ok(deadline, reserve=0.8):
+        if diag is not None:
+            diag.append("SEC-Stufe CIK: Recherchebudget vor JSON-Fallback erschöpft.")
+        return None
+
+    # 2) Original association file retained as first JSON fallback.
+    effective_timeout = _bounded_timeout(deadline, 4.8)
+    if effective_timeout is not None:
+        try:
+            r = requests.get(
+                "https://www.sec.gov/files/company_tickers.json",
+                headers=_request_headers(sec=True),
+                timeout=(min(1.8, effective_timeout), effective_timeout),
+            )
+            r.raise_for_status()
+            payload = r.json()
+            rows = payload.values() if isinstance(payload, dict) else payload
+            for row in rows or []:
+                if not isinstance(row, dict):
+                    continue
+                ticker = _clean_text(row.get("ticker")).upper()
+                if ticker in candidate_set:
+                    cik = int(row.get("cik_str"))
+                    if diag is not None:
+                        diag.append(f"SEC-Stufe CIK/company_tickers.json: {ticker} → CIK {cik}.")
+                    return cik
+            _failure("company_tickers.json")
+        except Exception as exc:
+            _failure("company_tickers.json", exc=exc)
+    elif diag is not None:
+        diag.append("SEC-Stufe CIK/company_tickers.json: kein Zeitbudget; Fallback wird versucht.")
+
+    if not _research_budget_ok(deadline, reserve=0.8):
+        if diag is not None:
+            diag.append("SEC-Stufe CIK: Recherchebudget vor Exchange-Fallback erschöpft.")
+        return None
+
+    # 3) Independent official JSON representation with explicit fields/data.
+    effective_timeout = _bounded_timeout(deadline, 4.8)
+    if effective_timeout is not None:
+        try:
+            r = requests.get(
+                "https://www.sec.gov/files/company_tickers_exchange.json",
+                headers=_request_headers(sec=True),
+                timeout=(min(1.8, effective_timeout), effective_timeout),
+            )
+            r.raise_for_status()
+            payload = r.json() or {}
+            fields = payload.get("fields") or []
+            data = payload.get("data") or []
+            field_index = {str(name): i for i, name in enumerate(fields)}
+            ticker_idx = field_index.get("ticker")
+            cik_idx = field_index.get("cik")
+            if ticker_idx is not None and cik_idx is not None:
+                for row in data:
+                    if not isinstance(row, (list, tuple)):
+                        continue
+                    if ticker_idx >= len(row) or cik_idx >= len(row):
+                        continue
+                    ticker = _clean_text(row[ticker_idx]).upper()
+                    if ticker in candidate_set:
+                        cik = int(row[cik_idx])
+                        if diag is not None:
+                            diag.append(f"SEC-Stufe CIK/company_tickers_exchange.json: {ticker} → CIK {cik}.")
+                        return cik
+            _failure("company_tickers_exchange.json")
+        except Exception as exc:
+            _failure("company_tickers_exchange.json", exc=exc)
+    elif diag is not None:
+        diag.append("SEC-Stufe CIK/company_tickers_exchange.json: kein Zeitbudget.")
+
+    if diag is not None:
+        diag.append(
+            "SEC-Stufe CIK: keine offizielle SEC-Tickerzuordnung gefunden "
+            f"für {raw_symbol} ({', '.join(ticker_candidates)})."
         )
-        r.raise_for_status()
-        payload = r.json()
-        for row in payload.values():
-            if _clean_text(row.get("ticker")).upper() == symbol:
-                return int(row.get("cik_str"))
-    except Exception:
-        return None
     return None
 
 
@@ -10526,8 +10656,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22110_universal_bank_cache_bust_retry_v6"
-BANK_DISCOVERY_CACHE_EPOCH = "v22110_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22111_universal_bank_sec_cik_resolver_v7"
+BANK_DISCOVERY_CACHE_EPOCH = "v22111_bank_discovery_epoch_1"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -11189,7 +11319,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "ttm_eps_coverage": coverage,
         "ttm_coverage_expected_periods": periods,
         "source_note": (
-            "V2.21.10 hat die offizielle Investor-Relations-Quartalsstruktur des Emittenten automatisch entdeckt, "
+            "V2.21.11 hat die offizielle Investor-Relations-Quartalsstruktur des Emittenten automatisch entdeckt, "
             "die bankspezifischen Tabellenfelder ROTCE, TBVPS und CET1 gelesen und vier aufeinanderfolgende "
             "offizielle Quartals-EPS in das gemeinsame Bank-Snapshot-Schema überführt. SEC bleibt Fallback; "
             "fehlende oder nicht eindeutig zuordenbare Primärdaten sperren die Bewertung weiterhin fail-closed."
@@ -11283,7 +11413,7 @@ def _bank_sec_exhibit_score(row_text, url):
 def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None, diagnostics=None):
     """Generic SEC Item-2.02 earnings discovery with primary-document recovery.
 
-    V2.21.10 reads the Item-2.02 8-K primary document and follows its
+    V2.21.11 reads the Item-2.02 8-K primary document and follows its
     exhibit table links.  Filing-index .htm/.html pages remain secondary
     discovery surfaces.  This is intentionally issuer-neutral: the only
     ranking signals are generic earnings/supplement/exhibit semantics.
@@ -11294,9 +11424,9 @@ def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None, d
     """
     diag = diagnostics if isinstance(diagnostics, list) else []
 
-    cik = _sec_lookup_cik(symbol, deadline=deadline)
+    cik = _sec_lookup_cik(symbol, deadline=deadline, diagnostics=diag)
     if not cik:
-        diag.append("SEC-Stufe CIK: keine CIK-Auflösung für den Ticker erhalten.")
+        diag.append("SEC-Stufe CIK: Auflösung nach allen offiziellen SEC-Fallbacks fehlgeschlagen.")
         return []
     diag.append(f"SEC-Stufe CIK: CIK {int(cik)} erkannt.")
     if not _research_budget_ok(deadline):
@@ -11314,7 +11444,7 @@ def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None, d
         r = requests.get(
             submissions_url,
             headers={
-                "User-Agent": "AktienAnalyseV2/2.21.9 bank-primary-source-research-client",
+                "User-Agent": "AktienAnalyseV2/2.21.11 bank-primary-source-research-client",
                 "Accept-Encoding": "gzip, deflate",
             },
             timeout=(min(1.8, effective_timeout), effective_timeout),
@@ -11630,14 +11760,14 @@ def _discover_universal_bank_snapshot_v1_uncached(symbol, company_name=None):
     if published_dt:
         snapshot["published_date"] = published_dt.strftime("%d.%m.%Y")
         snapshot["valid_until"] = (published_dt + timedelta(days=110)).strftime("%d.%m.%Y")
-    snapshot["source_name"] = "SEC Item 2.02 Earnings Supplement · Universal Bank Adapter V6"
+    snapshot["source_name"] = "SEC Item 2.02 Earnings Supplement · Universal Bank Adapter V7"
     snapshot["source_url"] = latest_row.get("url") or snapshot.get("source_url")
     snapshot["supplement_url"] = latest_row.get("url") or snapshot.get("supplement_url")
     snapshot["allowed_source_hosts"] = ["sec.gov"]
     snapshot["adapter_version"] = BANK_PRIMARY_SOURCE_ADAPTER_VERSION
     snapshot["adapter_mode"] = "sec_item_202_primary_document_recovery"
     snapshot["source_note"] = (
-        "V2.21.10 hat den offiziellen SEC-Earnings-8-K-Pfad über Item 2.02 erkannt, zunächst "
+        "V2.21.11 hat den offiziellen SEC-Earnings-8-K-Pfad über Item 2.02 erkannt, zunächst "
         "Exhibit-Links direkt aus dem Primary-8-K gelesen und danach bei Bedarf den Filing-Index verwendet. "
         "Das höchstrangige Earnings-/Quarterly-Supplement-Exhibit wird als HTML geparst. Eine aktuelle "
         "Mehrquartalstabelle darf die vier aufeinanderfolgenden diluted-EPS-Quartale direkt "
@@ -12434,7 +12564,7 @@ def build_bank_special_model(
     elif snapshot_raw is None:
         adapter_diagnostic = (
             "Adapter-Stufe Wrapper: Discovery lieferte unerwartet weder Snapshot noch "
-            "Diagnoseobjekt. V2.21.10 erzwingt deshalb bei der nächsten Ausführung einen "
+            "Diagnoseobjekt. V2.21.11 erzwingt deshalb bei der nächsten Ausführung einen "
             "Live-Retry statt eines gecachten Fehlers."
         )
         snapshot = None
@@ -12551,7 +12681,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Discovery Cache-Bust & Retry Diagnostics V2.21.10 lädt verifizierte Primärquellen-"
+            "Universal Bank SEC CIK Resolver & Fallback Diagnostics V2.21.11 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -12628,13 +12758,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Discovery Cache-Bust & Retry Diagnostics V2.21.10 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank SEC CIK Resolver & Fallback Diagnostics V2.21.11 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Discovery Cache-Bust & Retry Diagnostics V2.21.10 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank SEC CIK Resolver & Fallback Diagnostics V2.21.11 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -45466,7 +45596,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Discovery Cache-Bust & Retry Diagnostics V2.21.10"
+                        "🏦 Bank-Familienmodell · Universal Bank SEC CIK Resolver & Fallback Diagnostics V2.21.11"
                     )
 
                     if bank_model.get("primary_source_complete"):
