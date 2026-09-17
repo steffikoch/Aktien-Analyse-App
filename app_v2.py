@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.7"
+APP_BUILD_VERSION = "V2.21.8"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -26,10 +26,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank SEC Supplement Recovery & Parser V3"
+    f"Build {APP_BUILD_VERSION} · Universal Bank SEC Filing Index Hotfix & Diagnostics V4"
 )
 
 
+# V2.21.8: Universal Bank SEC Filing Index Hotfix & Diagnostics V4. Fixes the generic EDGAR filing-index URL from the non-canonical -index.html path to the actual -index.htm path used by EDGAR, with .html retained only as a compatibility fallback. Adds fail-closed adapter diagnostics so a missing SEC earnings exhibit can be distinguished from a table-parser failure without issuer-specific logic. No Bank Score, P/TBV/Core-P-E, horizon alignment, 60/40 Dual-Anchor or signal mathematics changed.
 # V2.21.7: Universal Bank SEC Supplement Recovery & Parser V3. Keeps issuer-IR discovery first but hardens the generic fallback around SEC earnings 8-Ks: recent 8-K metadata is prefiltered for Item 2.02, exhibit rows are ranked so quarterly/financial supplements (commonly EX-99.2) outrank releases/presentations, and SEC HTML exhibit text is reused without a second download. A single current supplement may satisfy the four-quarter EPS gate when it exposes a consecutive multi-quarter diluted-EPS row; older earnings 8-Ks are fetched only when the latest table is insufficient. This removes the runtime dependency on issuer-PDF extraction for banks such as Wells Fargo while remaining issuer-neutral. No Bank Score, P/TBV/Core-P-E corridor, 60/40 Dual-Anchor, horizon alignment, or fail-closed mathematics changed.
 # V2.21.6: Universal Bank IR Discovery & Table Parser V2. Extends the shared Bank / Deposits & Lending adapter with bounded issuer-IR discovery before SEC fallback, strict same-domain official-source validation, optional PDF text extraction, quarterly supplement/release ranking, multi-quarter table parsing for four consecutive diluted-EPS observations, and more robust ROTCE/TBVPS/CET1 row parsing. No WFC-specific valuation path is introduced: Wells Fargo, Citi, U.S. Bancorp, PNC and comparable U.S. banks use the same discovery contract. The released Bank Score and 60/40 P/TBV + Current-FY/Core-P-E valuation mathematics remain unchanged and fail closed whenever the required primary-source fields cannot be validated. Bank EPS UI wording is aligned to Current-FY/diagnosis context while the primary-source gate is not released.
 # V2.21.5: Universal Bank Primary-Source Adapter V1. Replaces the JPM-only bank primary-source gate with one reusable adapter contract for Bank / Deposits & Lending. The released bank valuation mathematics (Bank Score, 60/40 P/TBV + Current-FY/Core-P-E Dual Anchor, 25% anchor-spread fail-closed limit and V2.21.4 Earnings-Horizon rule) remain unchanged. The adapter accepts validated issuer/SEC source packs in one schema, includes a verified JPM compatibility seed and a Bank of America Q2-2026 seed, and adds a bounded SEC 8-K earnings-exhibit discovery fallback for other U.S. banks. Unknown banks still fail closed if ROTCE, TBVPS, CET1 or four consecutive official quarterly EPS observations cannot all be source-validated; Yahoo ROE/book value/FCF never substitutes for missing bank primary data.
@@ -10321,6 +10322,7 @@ def build_insurance_special_model(
         "earnings_ttm_label": earnings_ttm_label,
         "snapshot": snapshot,
         "snapshot_fresh": snapshot_fresh,
+        "adapter_diagnostic": adapter_diagnostic,
         "primary_source_complete": primary_source_complete,
         "primary_gate": primary_gate,
         "price_financial": price_financial,
@@ -10522,7 +10524,7 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v2217_universal_bank_sec_supplement_recovery_v3"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v2218_universal_bank_sec_filing_index_hotfix_v4"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -11184,7 +11186,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "ttm_eps_coverage": coverage,
         "ttm_coverage_expected_periods": periods,
         "source_note": (
-            "V2.21.7 hat die offizielle Investor-Relations-Quartalsstruktur des Emittenten automatisch entdeckt, "
+            "V2.21.8 hat die offizielle Investor-Relations-Quartalsstruktur des Emittenten automatisch entdeckt, "
             "die bankspezifischen Tabellenfelder ROTCE, TBVPS und CET1 gelesen und vier aufeinanderfolgende "
             "offizielle Quartals-EPS in das gemeinsame Bank-Snapshot-Schema überführt. SEC bleibt Fallback; "
             "fehlende oder nicht eindeutig zuordenbare Primärdaten sperren die Bewertung weiterhin fail-closed."
@@ -11253,7 +11255,7 @@ def _bank_sec_exhibit_score(row_text, url):
 def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None):
     """Generic SEC Item-2.02 earnings discovery with supplement-first exhibit ranking.
 
-    V2.21.7 intentionally counts *earnings* 8-Ks rather than every 8-K. This
+    V2.21.8 retains the V2.21.7 earnings-only 8-K filtering and fixes the filing-index suffix. This
     matters for large banks that file many unrelated 8-Ks between quarters.
     SEC HTML supplements are preferred because they avoid optional PDF parser
     dependencies while preserving an official primary-source chain.
@@ -11268,7 +11270,7 @@ def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None):
     try:
         r = requests.get(
             f"https://data.sec.gov/submissions/CIK{cik10}.json",
-            headers={"User-Agent": "AktienAnalyseV2/2.21.7 bank-adapter", "Accept-Encoding": "gzip, deflate"},
+            headers={"User-Agent": "AktienAnalyseV2/2.21.8 bank-adapter", "Accept-Encoding": "gzip, deflate"},
             timeout=(min(1.8, effective_timeout), effective_timeout),
         )
         r.raise_for_status()
@@ -11307,8 +11309,22 @@ def _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=None):
             break
         accession = filing["accession"]
         acc_nodash = accession.replace("-", "")
-        index_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_nodash}/{accession}-index.html"
-        html, final_url = _fetch_html(index_url, timeout=2.8, sec=True, deadline=deadline)
+        # EDGAR filing-detail pages use the canonical ``-index.htm`` suffix.
+        # V2.21.7 incorrectly requested ``-index.html``, which can return no
+        # filing page and therefore prevents exhibit discovery entirely. Keep
+        # .html only as a compatibility fallback for non-standard mirrors.
+        index_urls = [
+            f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_nodash}/{accession}-index.htm",
+            f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_nodash}/{accession}-index.html",
+        ]
+        html = None
+        final_url = None
+        index_url = index_urls[0]
+        for candidate_index_url in index_urls:
+            html, final_url = _fetch_html(candidate_index_url, timeout=2.8, sec=True, deadline=deadline)
+            if html:
+                index_url = candidate_index_url
+                break
         if not html:
             continue
         try:
@@ -11422,7 +11438,15 @@ def _discover_universal_bank_snapshot_v1(symbol, company_name=None):
     deadline = time.monotonic() + 11.0
     rows = _bank_discover_sec_earnings_exhibits(symbol, max_filings=6, deadline=deadline)
     if not rows:
-        return None
+        return {
+            "_diagnostic_only": True,
+            "adapter_version": BANK_PRIMARY_SOURCE_ADAPTER_VERSION,
+            "adapter_mode": "sec_item_202_supplement_auto_discovery",
+            "adapter_diagnostic": (
+                "SEC-Fallback: kein qualifiziertes Item-2.02-Earnings-Exhibit gefunden. "
+                "Prüfpunkte: CIK/SEC-Submissions, Filing-Index-Abruf und Exhibit-Erkennung."
+            ),
+        }
 
     documents = []
     for row in rows:
@@ -11443,7 +11467,15 @@ def _discover_universal_bank_snapshot_v1(symbol, company_name=None):
         deadline=deadline,
     )
     if snapshot is None:
-        return None
+        return {
+            "_diagnostic_only": True,
+            "adapter_version": BANK_PRIMARY_SOURCE_ADAPTER_VERSION,
+            "adapter_mode": "sec_item_202_supplement_auto_discovery",
+            "adapter_diagnostic": (
+                f"SEC-Fallback: {len(rows)} Earnings-Exhibit(s) gefunden, aber der Tabellenparser "
+                "konnte keinen vollständigen Snapshot aus ROTCE, TBVPS, CET1 und 4Q-EPS aufbauen."
+            ),
+        }
 
     latest_row = max(rows, key=lambda r: _bank_period_sort_key(r.get("period")))
     published_raw = latest_row.get("filing_date")
@@ -11461,7 +11493,7 @@ def _discover_universal_bank_snapshot_v1(symbol, company_name=None):
     snapshot["adapter_version"] = BANK_PRIMARY_SOURCE_ADAPTER_VERSION
     snapshot["adapter_mode"] = "sec_item_202_supplement_auto_discovery"
     snapshot["source_note"] = (
-        "V2.21.7 hat den offiziellen SEC-Earnings-8-K-Pfad über Item 2.02 erkannt und das "
+        "V2.21.8 hat den offiziellen SEC-Earnings-8-K-Pfad über Item 2.02 erkannt und das "
         "höchstrangige Earnings-/Quarterly-Supplement-Exhibit als HTML geparst. Eine aktuelle "
         "Mehrquartalstabelle darf die vier aufeinanderfolgenden diluted-EPS-Quartale direkt "
         "abdecken; ältere Earnings-8-Ks werden nur benötigt, wenn diese Tabelle nicht ausreicht. "
@@ -12249,7 +12281,13 @@ def build_bank_special_model(
     ):
         calculated_trailing_pe = price_financial / trailing_eps
 
-    snapshot = get_verified_bank_snapshot(symbol, info=info)
+    snapshot_raw = get_verified_bank_snapshot(symbol, info=info)
+    adapter_diagnostic = None
+    if isinstance(snapshot_raw, dict) and snapshot_raw.get("_diagnostic_only"):
+        adapter_diagnostic = snapshot_raw.get("adapter_diagnostic")
+        snapshot = None
+    else:
+        snapshot = snapshot_raw
     snapshot_fresh = _bank_snapshot_is_fresh(snapshot)
 
     primary_book_value = None
@@ -12360,7 +12398,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank SEC Supplement Recovery & Parser V2.21.7 lädt verifizierte Primärquellen-"
+            "Universal Bank SEC Filing Index Hotfix & Diagnostics V2.21.8 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -12437,13 +12475,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank SEC Supplement Recovery & Parser V2.21.7 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank SEC Filing Index Hotfix & Diagnostics V2.21.8 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank SEC Supplement Recovery & Parser V2.21.7 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank SEC Filing Index Hotfix & Diagnostics V2.21.8 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -45275,7 +45313,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank SEC Supplement Recovery & Parser V2.21.7"
+                        "🏦 Bank-Familienmodell · Universal Bank SEC Filing Index Hotfix & Diagnostics V2.21.8"
                     )
 
                     if bank_model.get("primary_source_complete"):
@@ -45291,9 +45329,11 @@ if selected_symbol:
                         )
                     else:
                         st.info(
-                            "Bankmodell erkannt. Der Universal Bank IR Discovery & Table Parser konnte noch keinen "
+                            "Bankmodell erkannt. Der Universal Bank Primary-Source-Adapter konnte noch keinen "
                             "vollständigen verifizierten Primärquellen-Snapshot aufbauen; die Bewertung bleibt fail-closed."
                         )
+                        if bank_model.get("adapter_diagnostic"):
+                            st.caption("Adapter-Diagnose: " + str(bank_model.get("adapter_diagnostic")))
 
                     col1, col2 = st.columns(2)
 
