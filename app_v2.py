@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.20"
+APP_BUILD_VERSION = "V2.21.21"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Regulatory CET1 Buffer & Reality Sign Guard V16"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Dynamic IR Hub & Q4 Financial Feed Discovery V17"
 )
 
 
+# V2.21.21: Universal Bank Dynamic IR Hub & Q4 Financial Feed Discovery V17. Extends issuer-neutral bank primary-source discovery for corporate sites whose public website differs from the investor-relations subdomain and for JavaScript-rendered quarterly-results hubs. Adds early same-domain IR-hub search, generic /financials/quarterly-results conventions, and a bounded Q4 FinancialReport feed bridge that is activated only when an issuer page itself identifies Q4 and exposes a public API key. Q4-hosted document URLs are accepted only when they are returned by that issuer-domain feed, preserving chain-of-trust. No Bank Score, regulatory CET1 buffer, ROTCE-justified P/TBV, Core-TTM, 60/40 Dual Anchor, 25% fail-closed spread gate, Reality Check, or signal mathematics changed.
 # V2.21.20: Universal Bank Regulatory CET1 Buffer & Reality Sign Guard V16. Replaces the bank score's absolute-only CET1 thresholds with a regulatory-buffer framework for U.S. large banks: the app resolves the current Federal Reserve Large Bank Capital Requirements table, compares verified Standardized CET1 with the issuer-specific Fed CET1 capital requirement, and scores the surplus buffer while retaining a conservative absolute fallback when no official requirement can be resolved. The current June-2026 Fed table is embedded only as a dated network-failure fallback, not as issuer-specific valuation logic. Also prevents the external Reality Check from labeling raw-sign-opposite own/external valuation gaps as HIGH agreement merely because both values fall inside the broad neutral bucket. ROTCE-justified P/TBV, Core-TTM, target P/E, 60/40 Dual Anchor, 25% fail-closed spread gate and signal thresholds otherwise remain unchanged.
 # V2.21.19: Universal Bank ROTCE-Justified P/TBV Anchor & Quality Cap V15. Replaces the prior total-score-to-P/TBV linear mapping with an issuer-neutral justified tangible-book multiple driven directly by normalized ROTCE: (ROTCE - 3% sustainable long-run growth) / (10% normalized cost-of-equity hurdle - 3% growth), clamped to the released 0.8x-3.2x corridor. The legacy score-implied P/TBV is retained only as a downside-only quality/capital cap, so strong ROTCE cannot override weak CET1/TBV-growth/earnings-quality evidence. The normalized P/E target remains score-driven at 8x-15x, preserving two genuinely distinct valuation anchors and the 25% fail-closed spread gate. No issuer-specific branch, primary-source parsing, 4Q-TTM reconciliation, or signal thresholds changed.
 # V2.21.18: Universal Bank Comprehensive EPS Reconciliation Selection V14. When multiple official adjusted-EPS reconciliation rows exist, selects the most comprehensive periodized bridge by explicit quarter coverage and then total quantified bridge magnitude. This keeps issuer-designated notable/significant/special-item adjustments fully source-backed without issuer-specific code. Primary-source table parsing, Bank Score, target corridors, 60/40 Dual-Anchor, horizon alignment and fail-closed gates otherwise remain unchanged.
@@ -10695,8 +10696,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22120_universal_bank_regulatory_cet1_buffer_v16"
-BANK_DISCOVERY_CACHE_EPOCH = "v22120_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22121_universal_bank_dynamic_ir_q4_feed_v17"
+BANK_DISCOVERY_CACHE_EPOCH = "v22121_bank_discovery_epoch_1"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -11225,9 +11226,15 @@ BANK_IR_SEED_PATHS = [
     "/investor-relations",
     "/global/investors",
     "/about/investor-relations",
+    "/financials",
+    "/financials/quarterly-results",
+    "/financials/quarterly-results/default.aspx",
+    "/financial-information",
+    "/investor-relations/financial-information",
     "/investors/quarterly-earnings",
     "/investors/quarterly-results",
     "/investor-relations/quarterly-earnings",
+    "/investor-relations/quarterly-results",
     "/investor-relations/financial-results",
     "/global/investors/quarterly-earnings",
     "/global/investors/financial-information",
@@ -11237,7 +11244,7 @@ BANK_IR_SEED_PATHS = [
 BANK_IR_HUB_TERMS = [
     "investor relations", "investors", "investor overview",
     "quarterly earnings", "quarterly results", "financial results",
-    "financial information", "earnings releases", "earnings materials",
+    "financial information", "financials", "quarterly reports", "earnings releases", "earnings materials",
     "events and presentations", "results and presentations",
 ]
 
@@ -11252,9 +11259,9 @@ def _bank_ir_link_score(url, title=""):
     if "presentation" in hay:
         score += 120
     if any(x in hay for x in [
-        "quarterly earnings", "quarterly results", "earnings results",
-        "earnings materials", "financial information", "results and presentations",
-        "events and presentations",
+        "quarterly earnings", "quarterly results", "quarterly reports", "earnings results",
+        "earnings materials", "financial information", "financials/quarterly-results",
+        "results and presentations", "events and presentations",
     ]):
         score += 110
     if _bank_period_from_text(hay):
@@ -14843,7 +14850,7 @@ def _bank_pdf_bytes_to_text(payload, diagnostics=None):
         return ""
 
 
-def _bank_fetch_official_document(url, company_domain, deadline=None, timeout=4.0, diagnostics=None):
+def _bank_fetch_official_document(url, company_domain, deadline=None, timeout=4.0, diagnostics=None, allow_q4_cdn=False):
     """Fetch HTML/text/PDF only from the issuer domain family or SEC.gov."""
     diag = diagnostics if isinstance(diagnostics, list) else None
     if not url or not _research_budget_ok(deadline, reserve=0.4):
@@ -14851,9 +14858,11 @@ def _bank_fetch_official_document(url, company_domain, deadline=None, timeout=4.
             diag.append("Issuer-IR Dokument: kein Zeitbudget für den Abruf.")
         return None
     host = _normalize_host(url)
+    q4_trusted = bool(allow_q4_cdn and (host == "q4cdn.com" or host.endswith(".q4cdn.com")))
     allowed = bool(
         host == "sec.gov"
         or host.endswith(".sec.gov")
+        or q4_trusted
         or (company_domain and _host_belongs_to_company_family(url, company_domain))
     )
     if not allowed:
@@ -14874,9 +14883,11 @@ def _bank_fetch_official_document(url, company_domain, deadline=None, timeout=4.
         response.raise_for_status()
         final_url = response.url or url
         final_host = _normalize_host(final_url)
+        final_q4_trusted = bool(allow_q4_cdn and (final_host == "q4cdn.com" or final_host.endswith(".q4cdn.com")))
         if not (
             final_host == "sec.gov"
             or final_host.endswith(".sec.gov")
+            or final_q4_trusted
             or (company_domain and _host_belongs_to_company_family(final_url, company_domain))
         ):
             return None
@@ -14908,6 +14919,159 @@ def _bank_fetch_official_document(url, company_domain, deadline=None, timeout=4.
             diag.append(f"Issuer-IR Dokument: Abruf fehlgeschlagen ({suffix}; {url}).")
         return None
 
+
+
+def _bank_extract_q4_api_keys(html):
+    '''Extract public Q4 feed keys exposed by the issuer page itself.
+
+    The key is discovery metadata only. No third-party key guessing or issuer-
+    specific constant is used. If the issuer page does not expose a key, the
+    Q4 feed bridge simply stays inactive and the normal fail-closed path applies.
+    '''
+    source = str(html or "")
+    if not source:
+        return []
+    patterns = [
+        r"(?i)\bapiKey\b\s*[:=]\s*[\"']([A-Za-z0-9_-]{20,96})[\"']",
+        r"(?i)[\"']apiKey[\"']\s*:\s*[\"']([A-Za-z0-9_-]{20,96})[\"']",
+        r"(?i)\bapiKey=([A-Za-z0-9_-]{20,96})",
+    ]
+    keys = []
+    for pat in patterns:
+        for m in re.finditer(pat, source):
+            key = (m.group(1) or "").strip()
+            if key and key not in keys:
+                keys.append(key)
+    return keys[:4]
+
+
+def _bank_q4_page_signature(html):
+    low = str(html or "").lower()
+    return any(x in low for x in [
+        "powered by q4", "q4inc.com", "q4web.com", "q4cdn.com",
+        "/feed/financialreport.svc", "getfinancialreportlist",
+    ])
+
+
+def _bank_q4_financial_feed_documents(html, page_url, company_domain, deadline=None, diagnostics=None):
+    '''Resolve issuer-published quarterly documents from a Q4 financial-report feed.
+
+    Trust is anchored in the issuer page: the page must identify Q4 and expose
+    the public API key used by its own financial-report widget. The feed itself
+    is called on the issuer host. A q4cdn.com document is accepted only when it
+    is returned by that issuer-host feed.
+    '''
+    diag = diagnostics if isinstance(diagnostics, list) else None
+    if not html or not page_url or not _bank_q4_page_signature(html):
+        return {"documents": [], "trusted_platform_hosts": []}
+    keys = _bank_extract_q4_api_keys(html)
+    if not keys:
+        if diag is not None:
+            diag.append("Issuer-IR Q4 Feed: Q4-Seite erkannt, aber kein öffentlich exponierter Financial-Feed-Key gefunden.")
+        return {"documents": [], "trusted_platform_hosts": []}
+    page_host = _normalize_host(page_url)
+    if not page_host or not _host_belongs_to_company_family(page_host, company_domain):
+        return {"documents": [], "trusted_platform_hosts": []}
+    feed_url = f"https://{page_host}/feed/FinancialReport.svc/GetFinancialReportList"
+    current_year = datetime.now().year
+    rows = {}
+    trusted_hosts = set()
+    feed_success = False
+    for key in keys:
+        for year in [current_year, current_year - 1]:
+            if not _research_budget_ok(deadline, reserve=1.0):
+                break
+            effective_timeout = _bounded_timeout(deadline, 2.6)
+            if effective_timeout is None:
+                break
+            try:
+                response = requests.get(
+                    feed_url,
+                    params={
+                        "apiKey": key,
+                        "year": year,
+                        "tagList": "",
+                        "languageId": 1,
+                        "pageNumber": 0,
+                        "pageSize": 100,
+                        "includeTags": "true",
+                    },
+                    headers=_request_headers(),
+                    timeout=(min(1.7, effective_timeout), effective_timeout),
+                    allow_redirects=True,
+                )
+                response.raise_for_status()
+                final_host = _normalize_host(response.url or feed_url)
+                if not _host_belongs_to_company_family(final_host, company_domain):
+                    continue
+                payload = response.json() if response.content else {}
+                reports = payload.get("GetFinancialReportListResult") or []
+                if not isinstance(reports, list):
+                    continue
+                feed_success = True
+                for report in reports:
+                    if not isinstance(report, dict):
+                        continue
+                    report_title = _clean_text(report.get("ReportTitle"))
+                    report_subtype = _clean_text(report.get("ReportSubType"))
+                    report_year = safe_float(report.get("ReportYear"))
+                    period_text = f"{report_title} {report_subtype} {int(report_year) if report_year else ''}"
+                    period = _bank_period_from_text(period_text)
+                    if not period:
+                        continue
+                    for doc in report.get("Documents") or []:
+                        if not isinstance(doc, dict):
+                            continue
+                        doc_url = _clean_text(doc.get("DocumentPath"))
+                        doc_title = _clean_text(doc.get("DocumentTitle")) or report_title
+                        doc_category = _clean_text(doc.get("DocumentCategory"))
+                        if not doc_url.startswith(("http://", "https://")):
+                            doc_url = urljoin(f"https://{page_host}/", doc_url)
+                        host = _normalize_host(doc_url)
+                        issuer_hosted = _host_belongs_to_company_family(host, company_domain)
+                        q4_hosted = bool(host == "q4cdn.com" or host.endswith(".q4cdn.com"))
+                        if not (issuer_hosted or q4_hosted):
+                            continue
+                        hay = f"{doc_title} {doc_category} {doc_url}"
+                        score = _bank_ir_link_score(doc_url, f"{doc_title} {doc_category}")
+                        if any(x in hay.lower() for x in ["supplement", "earnings tables", "financial supplement"]):
+                            score += 220
+                        if score <= 0:
+                            continue
+                        row = {
+                            "url": doc_url,
+                            "title": doc_title or report_title or doc_url,
+                            "period": period,
+                            "score": score,
+                            "trusted_q4_feed": q4_hosted,
+                            "discovery_channel": "issuer_q4_financial_feed",
+                        }
+                        old = rows.get(doc_url)
+                        if old is None or row["score"] > old["score"]:
+                            rows[doc_url] = row
+                        if q4_hosted:
+                            trusted_hosts.add("q4cdn.com")
+            except Exception as exc:
+                if diag is not None:
+                    status = getattr(getattr(exc, "response", None), "status_code", None)
+                    suffix = f"HTTP {status}" if status else type(exc).__name__
+                    diag.append(f"Issuer-IR Q4 Feed: FinancialReport-Abruf fehlgeschlagen ({suffix}).")
+                continue
+        if rows:
+            break
+    if diag is not None:
+        if rows:
+            periods = sorted({r.get("period") for r in rows.values() if r.get("period")}, key=_bank_period_sort_key, reverse=True)
+            diag.append(
+                "Issuer-IR Q4 Feed: issuer-hosted FinancialReport-Feed erfolgreich · "
+                f"Dokumente={len(rows)}, Perioden={','.join(periods[:6]) or 'keine'}."
+            )
+        elif feed_success:
+            diag.append("Issuer-IR Q4 Feed: Feed erreichbar, aber keine periodisierten Bank-Earnings-Dokumente extrahiert.")
+    return {
+        "documents": sorted(rows.values(), key=lambda r: (_bank_period_sort_key(r.get("period")), r.get("score", 0)), reverse=True),
+        "trusted_platform_hosts": sorted(trusted_hosts),
+    }
 
 def _bank_extract_ir_links(html, base_url, company_domain):
     rows = []
@@ -14944,10 +15108,10 @@ def _bank_extract_ir_links(html, base_url, company_domain):
 def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadline=None, diagnostics=None):
     """Bounded issuer-first discovery of quarterly earnings documents.
 
-    V2.21.16 changes the navigation strategy from deep-path guessing to hub-first
-    discovery.  It first loads the issuer root and common investor hubs, follows
-    high-confidence same-domain Investor/Quarterly-Earnings links, and only then
-    spends remaining budget on deeper conventional paths/search fallback.
+    V2.21.21 keeps hub-first navigation and adds two issuer-neutral recovery layers:
+    an early same-domain IR-hub search for companies whose public website differs from
+    the IR subdomain, plus a bounded Q4 FinancialReport-feed bridge for JavaScript-rendered
+    quarterly-results pages. Deeper conventional paths and issuer-domain search remain fallbacks.
     """
     diag = diagnostics if isinstance(diagnostics, list) else None
     if not company_domain or not _research_budget_ok(deadline, reserve=1.0):
@@ -14962,6 +15126,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
     documents = {}
     entrypoints = []
     fetched = set()
+    trusted_platform_hosts = set()
 
     def add_links(html, final_url):
         """Index direct documents and retain plausible same-domain hub/archive pages."""
@@ -14981,9 +15146,10 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
                     documents[row["url"]] = row
             elif any(k in hay for k in [
                 "quarterly-earnings", "quarterly earnings", "quarterly-results",
-                "quarterly results", "financial-results", "financial results",
-                "earnings materials", "financial information", "events-and-presentations",
-                "events and presentations", "/investors", "/investor-relations",
+                "quarterly results", "quarterly reports", "financial-results", "financial results",
+                "earnings materials", "financial information", "financials/quarterly-results",
+                "events-and-presentations", "events and presentations", "/financials",
+                "/investors", "/investor-relations",
             ]):
                 candidate_pages.append(row)
 
@@ -15006,6 +15172,13 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
             continue
         entrypoints.append(final_url)
         add_links(html, final_url)
+        if not documents and _bank_q4_page_signature(html):
+            q4 = _bank_q4_financial_feed_documents(html, final_url, company_domain, deadline=deadline, diagnostics=diag)
+            for qrow in q4.get("documents") or []:
+                old = documents.get(qrow.get("url"))
+                if old is None or qrow.get("score", 0) > old.get("score", 0):
+                    documents[qrow["url"]] = qrow
+            trusted_platform_hosts.update(q4.get("trusted_platform_hosts") or [])
         # A single current multi-quarter supplement is sufficient for the bank
         # parser, so don't require four distinct document periods here.
         if documents and any(
@@ -15014,6 +15187,64 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
             for r in documents.values()
         ):
             break
+
+
+    # V2.21.21 Phase 1B: if the corporate root did not expose the IR subdomain,
+    # resolve a same-domain investor hub before spending budget on guessed deep paths.
+    # This remains issuer-neutral and accepts only the company's own domain family.
+    if not documents and not candidate_pages and _research_budget_ok(deadline, reserve=3.0):
+        hub_queries = [
+            f'site:{company_domain} "{company_name or ""}" "quarterly results"',
+            f'site:{company_domain} "{company_name or ""}" "investor relations" financials',
+        ]
+        for query in hub_queries:
+            if documents or candidate_pages or not _research_budget_ok(deadline, reserve=2.0):
+                break
+            for item in _duckduckgo_html_search(query, max_results=4, deadline=deadline):
+                url = item.get("url")
+                if not url or not _host_belongs_to_company_family(url, company_domain):
+                    continue
+                direct_hay = f"{item.get('title')} {url}"
+                period = _bank_period_from_text(direct_hay)
+                score = _bank_ir_link_score(url, f"{item.get('title')} {item.get('snippet')}")
+                direct_low = direct_hay.lower()
+                looks_like_period_document = bool(period and (
+                    url.lower().split("?", 1)[0].endswith(".pdf")
+                    or any(k in direct_low for k in [
+                        "earnings supplement", "financial supplement", "earnings release",
+                        "press release", "news release", "earnings presentation",
+                        "reports first quarter", "reports second quarter",
+                        "reports third quarter", "reports fourth quarter",
+                    ])
+                ))
+                if looks_like_period_document and score > 0:
+                    documents[url] = {
+                        "url": url,
+                        "title": item.get("title") or url,
+                        "period": period,
+                        "score": score,
+                    }
+                    continue
+                if score <= 0 or not _research_budget_ok(deadline, reserve=1.5):
+                    continue
+                html, final_url = _fetch_html(url, timeout=2.4, deadline=deadline)
+                if not html:
+                    continue
+                final_url = final_url or url
+                if not _host_belongs_to_company_family(final_url, company_domain):
+                    continue
+                entrypoints.append(final_url)
+                fetched.add(final_url)
+                add_links(html, final_url)
+                if not documents and _bank_q4_page_signature(html):
+                    q4 = _bank_q4_financial_feed_documents(html, final_url, company_domain, deadline=deadline, diagnostics=diag)
+                    for qrow in q4.get("documents") or []:
+                        old = documents.get(qrow.get("url"))
+                        if old is None or qrow.get("score", 0) > old.get("score", 0):
+                            documents[qrow["url"]] = qrow
+                    trusted_platform_hosts.update(q4.get("trusted_platform_hosts") or [])
+                if documents or candidate_pages:
+                    break
 
     # Phase 2: follow the best same-domain hubs discovered on the loaded pages.
     # This is the generic bridge for nested structures such as /global/investors.
@@ -15032,6 +15263,13 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
             continue
         entrypoints.append(final_url)
         add_links(html, final_url)
+        if not documents and _bank_q4_page_signature(html):
+            q4 = _bank_q4_financial_feed_documents(html, final_url, company_domain, deadline=deadline, diagnostics=diag)
+            for qrow in q4.get("documents") or []:
+                old = documents.get(qrow.get("url"))
+                if old is None or qrow.get("score", 0) > old.get("score", 0):
+                    documents[qrow["url"]] = qrow
+            trusted_platform_hosts.update(q4.get("trusted_platform_hosts") or [])
         if documents and any(
             "supplement" in (((r.get("title") or "") + " " + (r.get("url") or "")).lower())
             for r in documents.values()
@@ -15057,14 +15295,22 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
                 continue
             entrypoints.append(final_url)
             add_links(html, final_url)
+            if not documents and _bank_q4_page_signature(html):
+                q4 = _bank_q4_financial_feed_documents(html, final_url, company_domain, deadline=deadline, diagnostics=diag)
+                for qrow in q4.get("documents") or []:
+                    old = documents.get(qrow.get("url"))
+                    if old is None or qrow.get("score", 0) > old.get("score", 0):
+                        documents[qrow["url"]] = qrow
+                trusted_platform_hosts.update(q4.get("trusted_platform_hosts") or [])
             if documents:
                 break
 
     # Search is discovery-only and remains restricted to the issuer's own host.
     if not documents and _research_budget_ok(deadline, reserve=2.2):
         queries = [
-            f'site:{company_domain} "quarterly earnings" "financial supplement" "{company_name or ""}"',
-            f'site:{company_domain} "quarterly earnings" "financial results" "{company_name or ""}"',
+            f'site:{company_domain} "earnings supplement" "{company_name or ""}"',
+            f'site:{company_domain} "quarterly results" "{company_name or ""}"',
+            f'site:{company_domain} "reports second quarter" "{company_name or ""}"',
         ]
         for query in queries:
             if documents or not _research_budget_ok(deadline, reserve=1.5):
@@ -15074,7 +15320,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
                 if not url or not _host_belongs_to_company_family(url, company_domain):
                     continue
                 period = _bank_period_from_text(f"{item.get('title')} {url}")
-                score = _bank_ir_link_score(url, item.get("title"))
+                score = _bank_ir_link_score(url, f"{item.get('title')} {item.get('snippet')}")
                 if period:
                     documents[url] = {
                         "url": url,
@@ -15085,8 +15331,16 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
                 elif _research_budget_ok(deadline, reserve=1.0):
                     html, final_url = _fetch_html(url, timeout=2.0, deadline=deadline)
                     if html:
-                        entrypoints.append(final_url or url)
-                        add_links(html, final_url or url)
+                        resolved = final_url or url
+                        entrypoints.append(resolved)
+                        add_links(html, resolved)
+                        if not documents and _bank_q4_page_signature(html):
+                            q4 = _bank_q4_financial_feed_documents(html, resolved, company_domain, deadline=deadline, diagnostics=diag)
+                            for qrow in q4.get("documents") or []:
+                                old = documents.get(qrow.get("url"))
+                                if old is None or qrow.get("score", 0) > old.get("score", 0):
+                                    documents[qrow["url"]] = qrow
+                            trusted_platform_hosts.update(q4.get("trusted_platform_hosts") or [])
 
     rows = sorted(
         documents.values(),
@@ -15100,11 +15354,11 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
             reverse=True,
         )
         diag.append(
-            "Issuer-IR Discovery V12: Hub-first aktiv · "
+            "Issuer-IR Discovery V17: Dynamic-Hub/Q4-Feed aktiv · "
             f"Entry-Points={len(set(entrypoints))}, Dokumente={len(rows)}, "
             f"Perioden={','.join(periods[:6]) or 'keine'}."
         )
-    return {"documents": rows, "entrypoints": list(dict.fromkeys(entrypoints))}
+    return {"documents": rows, "entrypoints": list(dict.fromkeys(entrypoints)), "trusted_platform_hosts": sorted(trusted_platform_hosts)}
 
 
 def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, discovery, deadline=None, diagnostics=None):
@@ -15125,7 +15379,8 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
                 "last_modified": None,
             }
         return _bank_fetch_official_document(
-            (row or {}).get("url"), company_domain, deadline=deadline, timeout=timeout, diagnostics=diag
+            (row or {}).get("url"), company_domain, deadline=deadline, timeout=timeout, diagnostics=diag,
+            allow_q4_cdn=bool((row or {}).get("trusted_q4_feed")),
         )
 
     by_period = {}
@@ -15291,11 +15546,11 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": None,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank IR Discovery & Table Parser V4",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Dynamic IR/Q4 Discovery & Table Parser V5",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
-        "allowed_source_hosts": [company_domain],
+        "allowed_source_hosts": list(dict.fromkeys([company_domain] + list((discovery or {}).get("trusted_platform_hosts") or []))),
         "adapter_version": BANK_PRIMARY_SOURCE_ADAPTER_VERSION,
         "adapter_mode": "issuer_ir_auto_discovery",
         "book_value_per_share": book_value,
@@ -15314,7 +15569,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "ttm_eps_coverage": coverage,
         "ttm_coverage_expected_periods": periods,
         "source_note": (
-            f"{APP_BUILD_VERSION} hat die offizielle Investor-Relations-Quartalsstruktur über die generische Hub-first-Discovery automatisch entdeckt, "
+            f"{APP_BUILD_VERSION} hat die offizielle Investor-Relations-Quartalsstruktur über die generische Dynamic-Hub/Q4-Feed-Discovery automatisch entdeckt, "
             "TOC-sicher nur quartalsausgerichtete ROTCE-, TBVPS-, Buchwert- und CET1-Tabellenfelder akzeptiert und vier aufeinanderfolgende "
             "offizielle Quartals-EPS einschließlich vorhandener quantitativer company-designierter EPS-Reconciliations in das gemeinsame Bank-Snapshot-Schema überführt. SEC bleibt Fallback; "
             "fehlende oder nicht eindeutig zuordenbare Primärdaten sperren die Bewertung weiterhin fail-closed."
@@ -17014,7 +17269,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Regulatory CET1 Buffer & Reality Sign Guard V2.21.20 lädt verifizierte Primärquellen-"
+            "Universal Bank Dynamic IR Hub & Q4 Financial Feed Discovery V2.21.21 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -17091,13 +17346,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Regulatory CET1 Buffer & Reality Sign Guard V2.21.20 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Dynamic IR Hub & Q4 Financial Feed Discovery V2.21.21 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Regulatory CET1 Buffer & Reality Sign Guard V2.21.20 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Dynamic IR Hub & Q4 Financial Feed Discovery V2.21.21 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -49941,7 +50196,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Regulatory CET1 Buffer & Reality Sign Guard V2.21.20"
+                        "🏦 Bank-Familienmodell · Universal Bank Dynamic IR Hub & Q4 Financial Feed Discovery V2.21.21"
                     )
 
                     if bank_model.get("primary_source_complete"):
