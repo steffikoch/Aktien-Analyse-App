@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.35"
+APP_BUILD_VERSION = "V2.21.36"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Issuer-Redirect Provenance Trust Guard V31"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Currency & Publication Metadata Consistency Cleanup V32"
 )
 
 
+# V2.21.36: Universal Bank Currency & Publication Metadata Consistency Cleanup V32. Renders the source-verified four-quarter Bank Core-EPS coverage note through the existing presentation-only FX layer so narrative amounts use the same selected display currency as the adjacent metrics, without changing any stored/model values. Also fills issuer-IR published_date only when the existing release-date parser finds a plausible date strictly after the reported quarter end and no more than 60 days later; otherwise the field remains unavailable rather than guessed. Bank discovery/provenance, PDF parsing, special-item scope, strict four-quarter alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.35: Universal Bank Issuer-Redirect Provenance Trust Guard V31. Preserves the original issuer-owned document URL as the trusted source provenance when an official IR PDF link resolves through an external HTTPS document cache. The final redirected URL remains available as technical resolution metadata, but four-quarter TTM source validation is anchored to the issuer-declared origin link rather than globally trusting the cache host. Arbitrary third-party cache URLs remain blocked. Discovery, PDF parsing, special-item scope, strict four-quarter alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.34: Universal Bank Current-Period EPS Special-Item Scope Guard V30. Scopes EPS special-item detection to the current reported period instead of treating generic document-wide non-GAAP boilerplate as a current-quarter adjustment. Explicit issuer-adjusted EPS remains first priority; period-specific Selected Items / Impact-to-Diluted-EPS tables are accepted as quantitative company-designated bridges, including an explicit 'None' row. Unbridged current-period EPS special-item evidence still fails closed. Discovery, PDF loader, strict four-quarter alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.33: Universal Bank Primary PDF Redirect & Signature Loader Guard V29. Adds explicit loader diagnostics for every prior silent rejection path, PDF-signature detection independent of response MIME metadata, issuer-owned direct-PDF redirect bridging only when the redirected HTTPS body proves to be a real PDF, and issuer-IR Referer/Accept headers for document downloads. Discovery, parser extraction rules, strict four-quarter EPS alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -10707,8 +10708,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22135_universal_bank_issuer_redirect_provenance_v31"
-BANK_DISCOVERY_CACHE_EPOCH = "v22135_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22136_universal_bank_currency_metadata_consistency_v32"
+BANK_DISCOVERY_CACHE_EPOCH = "v22136_bank_discovery_epoch_1"
 # Latest-quarter company-designated EPS adjustments at or below 2% are treated
 # as immaterial for the separate ROTCE anchor when the issuer publishes no
 # adjusted ROTCE. The reported issuer ROTCE is retained; no synthetic ROTCE is
@@ -16545,8 +16546,22 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         diag.append(f"Issuer-IR ROTCE Materiality Guard: {rotce_basis_note}")
 
     latest_end = _bank_period_end_date(latest_period)
-    # Freshness is anchored to the reported quarter end when an exact release
-    # timestamp is not reliably exposed by the issuer archive.
+    # V2.21.36 metadata-only release-date recovery.  Reuse the existing issuer
+    # release-date parser, but accept a date only when it is strictly after the
+    # quarter end and within 60 days.  This prevents an accounting/as-of date
+    # printed in the PDF from being mislabeled as the publication date.
+    detected_release_date = _bank_extract_release_date(
+        latest_text, expected_year=latest_end.year if latest_end else None
+    )
+    published_date = None
+    if (
+        latest_end
+        and detected_release_date
+        and latest_end < detected_release_date <= latest_end + timedelta(days=60)
+    ):
+        published_date = detected_release_date.strftime("%d.%m.%Y")
+    # Freshness remains anchored to the reported quarter end.  Publication-date
+    # recovery is display metadata only and must not alter validity mathematics.
     valid_until = latest_end + timedelta(days=110) if latest_end else None
     entrypoints = (discovery or {}).get("entrypoints") or []
     source_url = latest_payload.get("provenance_url") or latest_payload.get("url") or latest_row.get("url")
@@ -16554,9 +16569,9 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "symbol": str(symbol or "").upper(),
         "company": company_name or str(symbol or "").upper(),
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
-        "published_date": None,
+        "published_date": published_date,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Issuer-Redirect Provenance Trust Guard · Table Parser V18",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Currency & Publication Metadata Consistency Cleanup · Table Parser V18",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -17843,6 +17858,55 @@ def calculate_bank_core_eps_v1(
     })
     return result
 
+
+def format_bank_core_eps_note_for_display(bank_core_eps, source_currency):
+    """Render the released Bank Core-EPS coverage note in the selected display currency.
+
+    The underlying bank_core_eps dictionary remains in the bank's financial/source
+    currency for all calculations.  This helper is presentation-only and mirrors
+    the structured values already shown in the adjacent metrics.
+    """
+    data = bank_core_eps if isinstance(bank_core_eps, dict) else {}
+    if not data.get("available"):
+        return text_or_dash(data.get("note"))
+
+    periods = [
+        str(row.get("period"))
+        for row in (data.get("coverage_periods") or [])
+        if row.get("period")
+    ]
+    official_reported = data.get("official_ttm_reported_eps")
+    official_core = data.get("core_trailing_eps")
+    total_effect = data.get("ttm_special_items_eps_effect")
+    reconciliation_diff = data.get("coverage_reconciliation_diff")
+    reconciliation_pct = safe_float(data.get("coverage_reconciliation_pct"))
+    trailing_weight = safe_float(data.get("trailing_weight"))
+    forward_weight = safe_float(data.get("forward_weight"))
+    forward_source = data.get("forward_source") or "Earnings Horizon Alignment"
+
+    period_text = ", ".join(periods) if periods else "vier offizielle Quartale"
+    reported_text = format_currency_value(official_reported, source_currency, 2)
+    core_text = format_currency_value(official_core, source_currency, 2)
+    effect_text = format_currency_value(total_effect, source_currency, 2, signed=True)
+    reconciliation_text = format_currency_value(reconciliation_diff, source_currency, 2, signed=True)
+    reconciliation_pct_text = (
+        f"{reconciliation_pct * 100:.1f} %" if reconciliation_pct is not None else "–"
+    )
+    trailing_pct = f"{trailing_weight * 100:.0f}" if trailing_weight is not None else "–"
+    forward_pct = f"{forward_weight * 100:.0f}" if forward_weight is not None else "–"
+
+    return (
+        f"TTM-Coverage Gate bestanden: {period_text} sind einzeln aus offiziellen "
+        f"Bankquellen abgedeckt. Offizielle Reported-EPS-Summe {reported_text}, "
+        f"vollständig bereinigtes Core-TTM-EPS {core_text}, saldierter Sondereffekt {effect_text}. "
+        f"Provider-TTM-Plausibilitätsabweichung {reconciliation_text} ({reconciliation_pct_text}); "
+        "die offizielle 4Q-Reihe bleibt Primäranker. "
+        f"Danach werden {trailing_pct} % Core-TTM / {forward_pct} % Current-FY-EPS verwendet. "
+        f"Horizon-Quelle: {forward_source}. "
+        "Der rohe Provider-Forward-EPS bleibt ausschließlich Horizont-/Plausibilitätskontext."
+    )
+
+
 def calculate_bank_valuation_v1(
     bank_score,
     snapshot,
@@ -18289,7 +18353,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Issuer-Redirect Provenance Trust Guard V2.21.35 lädt verifizierte Primärquellen-"
+            "Universal Bank Currency & Publication Metadata Consistency Cleanup V2.21.36 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -18366,13 +18430,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Issuer-Redirect Provenance Trust Guard V2.21.35 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Currency & Publication Metadata Consistency Cleanup V2.21.36 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Issuer-Redirect Provenance Trust Guard V2.21.35 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Currency & Publication Metadata Consistency Cleanup V2.21.36 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -48255,7 +48319,7 @@ if selected_symbol:
                         "TTM-Sonderposten ausschließlich über verifizierte Bank-Primärquellen-Brücke bereinigt; "
                         "roher Provider-Forward-EPS bleibt Horizont-Kontext"
                     )
-                    st.info(bank_core_eps_ui.get("note"))
+                    st.info(format_bank_core_eps_note_for_display(bank_core_eps_ui, financial_currency))
                 elif insurance_core_eps_active:
                     if insurance_model_eps_ui.get("is_munich_re_profile"):
                         st.write(
@@ -51216,7 +51280,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Issuer-Redirect Provenance Trust Guard V2.21.35"
+                        "🏦 Bank-Familienmodell · Universal Bank Currency & Publication Metadata Consistency Cleanup V2.21.36"
                     )
 
                     if bank_model.get("primary_source_complete"):
@@ -51400,7 +51464,7 @@ if selected_symbol:
                             "Saldierter TTM-Sondereffekt: "
                             + format_currency_value(bank_core_eps_ui.get('ttm_special_items_eps_effect'), financial_currency, 2, signed=True)
                         )
-                        st.caption(bank_core_eps_ui.get("note"))
+                        st.caption(format_bank_core_eps_note_for_display(bank_core_eps_ui, financial_currency))
                         coverage_rows = bank_core_eps_ui.get("coverage_periods") or []
                         if coverage_rows:
                             st.success(
@@ -55444,7 +55508,7 @@ if selected_symbol:
                                 "**Bank-normalisiertes Core EPS für den KGV-Anker:** "
                                 f"{format_eps(bank_core_eps_3b.get('bank_normalized_core_eps'), financial_currency)}"
                             )
-                            st.caption(bank_core_eps_3b.get("note"))
+                            st.caption(format_bank_core_eps_note_for_display(bank_core_eps_3b, financial_currency))
 
                         if bank_val_3b.get("available"):
                             st.write(
