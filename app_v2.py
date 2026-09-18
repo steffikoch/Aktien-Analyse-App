@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.32"
+APP_BUILD_VERSION = "V2.21.33"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,11 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Phase-Isolated Parser Budget & Recent-Window Guard V28"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Primary PDF Redirect & Signature Loader Guard V29"
 )
 
 
-# V2.21.32: Universal Bank Phase-Isolated Parser Budget & Recent-Window Guard V28. Separates the issuer-IR discovery deadline from a freshly started document/parser deadline so a slow but successful static earnings archive cannot consume the entire budget before the latest earnings release is fetched and parsed. Discovery output is compacted to the six most recent periodized quarters before parser hand-off, keeping the latest quarter, the four-quarter TTM window and the prior-year comparable quarter while dropping irrelevant historical archive material. Discovery/parser orchestration only; document trust rules, TBVPS recognition, ROTCE materiality, strict four-quarter EPS alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
+# V2.21.33: Universal Bank Primary PDF Redirect & Signature Loader Guard V29. Adds explicit loader diagnostics for every prior silent rejection path, PDF-signature detection independent of response MIME metadata, issuer-owned direct-PDF redirect bridging only when the redirected HTTPS body proves to be a real PDF, and issuer-IR Referer/Accept headers for document downloads. Discovery, parser extraction rules, strict four-quarter EPS alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.31: Universal Bank Direct Earnings Fast-Lane & Coverage-First Discovery Guard V27. Prioritizes the issuer-owned /earnings archive on common IR subdomains before loading a generic Q4-powered IR root, preventing public Q4 feed probing from consuming the shared issuer-parser budget when a static earnings archive already exposes the required documents. Phase-0 discovery now stops on four-quarter primary coverage rather than the first primary document, so partial archives can continue through the existing issuer-neutral fallback chain. Discovery/parser only; TBVPS recognition, ROTCE materiality, strict four-quarter EPS alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.30: Universal Bank Earnings Hub Budget & TBVPS Abbreviation Guard V26. Stops issuer-IR crawling once the expected four latest primary earnings periods are already covered, preserving parser time for the actual source documents instead of following redundant hubs/fallback material. Also recognizes issuer-defined TBVPS as an explicit tangible-book-value-per-share row label and counts TBVPS in bank-core-signal gating. The change is issuer-neutral and affects discovery/parser recognition only; ROTCE materiality, strict four-quarter EPS alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.29: Universal Bank Direct Earnings Hub & URL Token Normalization V25. Adds the issuer-neutral /earnings route as a first-class IR hub across seed probing, nested-hub traversal and link scoring, and normalizes URL filename separators so periodized names such as 2Q26_Earnings_Release are classified like visible earnings-release wording. Some issuers expose a static quarterly archive directly under /earnings even when the corporate/IR landing page does not surface those materials to the bounded crawler. The change affects discovery/classification only; ROTCE materiality, Full-Year-Q4 recognition, three-column parsing, strict four-quarter EPS alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -10705,8 +10705,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22132_universal_bank_phase_isolated_parser_budget_v28"
-BANK_DISCOVERY_CACHE_EPOCH = "v22132_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22133_universal_bank_primary_pdf_redirect_signature_v29"
+BANK_DISCOVERY_CACHE_EPOCH = "v22133_bank_discovery_epoch_1"
 # Latest-quarter company-designated EPS adjustments at or below 2% are treated
 # as immaterial for the separate ROTCE anchor when the issuer publishes no
 # adjusted ROTCE. The reported issuer ROTCE is retained; no synthetic ROTCE is
@@ -15317,62 +15317,140 @@ def _bank_pdf_bytes_to_text(payload, diagnostics=None):
         return ""
 
 
-def _bank_fetch_official_document(url, company_domain, deadline=None, timeout=4.0, diagnostics=None, allow_q4_cdn=False):
-    """Fetch HTML/text/PDF only from the issuer domain family or SEC.gov."""
+def _bank_fetch_official_document(url, company_domain, deadline=None, timeout=4.0, diagnostics=None, allow_q4_cdn=False, referer=None):
+    """Fetch issuer/SEC documents with explicit PDF-signature and redirect trust guards.
+
+    V2.21.33 keeps issuer-family trust as the default. For a URL that itself is an
+    issuer-owned direct PDF link, a HTTPS redirect to a different host may be accepted
+    only when the response body carries a real PDF signature. This covers issuer IR
+    download endpoints backed by external document/CDN infrastructure without opening
+    generic third-party HTML as bank evidence.
+    """
     diag = diagnostics if isinstance(diagnostics, list) else None
-    if not url or not _research_budget_ok(deadline, reserve=0.4):
-        if diag is not None and url:
-            diag.append("Issuer-IR Dokument: kein Zeitbudget für den Abruf.")
+    if not url:
         return None
+    remaining = _research_budget_left(deadline)
+    if not _research_budget_ok(deadline, reserve=0.4):
+        if diag is not None:
+            diag.append(
+                f"Issuer-IR Dokument: kein Zeitbudget für den Abruf · Rest={remaining:.2f}s · {url}"
+                if remaining is not None else f"Issuer-IR Dokument: kein Zeitbudget für den Abruf · {url}"
+            )
+        return None
+
     host = _normalize_host(url)
     q4_trusted = bool(allow_q4_cdn and (host == "q4cdn.com" or host.endswith(".q4cdn.com")))
+    issuer_owned_initial = bool(company_domain and _host_belongs_to_company_family(url, company_domain))
     allowed = bool(
         host == "sec.gov"
         or host.endswith(".sec.gov")
         or q4_trusted
-        or (company_domain and _host_belongs_to_company_family(url, company_domain))
+        or issuer_owned_initial
     )
     if not allowed:
+        if diag is not None:
+            diag.append(f"Issuer-IR Dokument: Start-Host nicht freigegeben ({host or 'unbekannt'}; {url}).")
         return None
+
     effective_timeout = _bounded_timeout(deadline, timeout)
     if effective_timeout is None:
+        if diag is not None:
+            remaining = _research_budget_left(deadline)
+            diag.append(
+                f"Issuer-IR Dokument: kein nutzbares Request-Zeitfenster · Rest={remaining:.2f}s · {url}"
+                if remaining is not None else f"Issuer-IR Dokument: kein nutzbares Request-Zeitfenster · {url}"
+            )
         return None
+
     try:
         is_sec_host = (host == "sec.gov" or host.endswith(".sec.gov"))
         if is_sec_host:
             _sec_fair_access_pause()
+        headers = dict(_request_headers(sec=is_sec_host))
+        if not is_sec_host:
+            headers.setdefault("Accept", "application/pdf,text/html,text/plain,*/*;q=0.8")
+            headers.setdefault("Accept-Language", "en-US,en;q=0.9")
+            if referer:
+                headers.setdefault("Referer", referer)
         response = requests.get(
             url,
-            headers=_request_headers(sec=is_sec_host),
-            timeout=(min(2.0, effective_timeout), effective_timeout),
+            headers=headers,
+            timeout=(min(2.5, effective_timeout), effective_timeout),
             allow_redirects=True,
         )
         response.raise_for_status()
         final_url = response.url or url
         final_host = _normalize_host(final_url)
         final_q4_trusted = bool(allow_q4_cdn and (final_host == "q4cdn.com" or final_host.endswith(".q4cdn.com")))
-        if not (
+        issuer_owned_final = bool(company_domain and _host_belongs_to_company_family(final_url, company_domain))
+        ctype = (response.headers.get("Content-Type") or "").lower()
+        raw = response.content or b""
+        pdf_signature = raw.lstrip()[:5] == b"%PDF-"
+        initial_direct_pdf = bool(issuer_owned_initial and str(url).lower().split("?", 1)[0].endswith(".pdf"))
+        redirect_pdf_bridge = bool(
+            initial_direct_pdf
+            and final_url.startswith("https://")
+            and final_host
+            and pdf_signature
+        )
+        final_allowed = bool(
             final_host == "sec.gov"
             or final_host.endswith(".sec.gov")
             or final_q4_trusted
-            or (company_domain and _host_belongs_to_company_family(final_url, company_domain))
-        ):
+            or issuer_owned_final
+            or redirect_pdf_bridge
+        )
+        if not final_allowed:
+            if diag is not None:
+                diag.append(
+                    "Issuer-IR Dokument: Redirect-Ziel nicht freigegeben · "
+                    f"Start={host or 'unbekannt'} · Ziel={final_host or 'unbekannt'} · Content-Type={ctype or '–'} · {url}"
+                )
             return None
-        ctype = (response.headers.get("Content-Type") or "").lower()
-        if "pdf" in ctype or final_url.lower().split("?", 1)[0].endswith(".pdf"):
-            text = _bank_pdf_bytes_to_text(response.content, diagnostics=diag)
+        if redirect_pdf_bridge and not issuer_owned_final and diag is not None:
+            diag.append(
+                "Issuer-IR Dokument: issuer-eigener PDF-Link auf externes HTTPS-PDF weitergeleitet; "
+                f"PDF-Signatur bestätigt ({final_host})."
+            )
+
+        looks_pdf = bool(
+            "pdf" in ctype
+            or final_url.lower().split("?", 1)[0].endswith(".pdf")
+            or pdf_signature
+        )
+        if looks_pdf:
+            if not pdf_signature and raw:
+                # Some servers label HTML error/challenge pages as PDF. Do not feed
+                # those into PDF parsers merely because the URL ends in .pdf.
+                stripped = raw.lstrip()[:32].lower()
+                if stripped.startswith((b"<html", b"<!doctype", b"<head", b"<body")):
+                    if diag is not None:
+                        diag.append(
+                            f"Issuer-IR Dokument: PDF-URL lieferte HTML statt PDF · Content-Type={ctype or '–'} · {final_url}."
+                        )
+                    return None
+            text = _bank_pdf_bytes_to_text(raw, diagnostics=diag)
             doc_type = "pdf"
         elif any(x in ctype for x in ["html", "text", "xml"]) or not ctype:
             text = _html_to_text(response.text[:1_800_000])
             doc_type = "html"
         else:
+            if diag is not None:
+                diag.append(
+                    f"Issuer-IR Dokument: nicht unterstützter Content-Type {ctype or '–'} · {final_url}."
+                )
             return None
+
         if not text:
             if diag is not None:
-                diag.append(f"Issuer-IR Dokument: geladen, aber ohne extrahierbaren Text ({final_url}).")
+                diag.append(
+                    f"Issuer-IR Dokument: geladen, aber ohne extrahierbaren Text ({final_url}; Content-Type={ctype or '–'}; Bytes={len(raw)})."
+                )
             return None
         if diag is not None:
-            diag.append(f"Issuer-IR Dokument: erfolgreich geladen ({doc_type}; {final_url}).")
+            diag.append(
+                f"Issuer-IR Dokument: erfolgreich geladen ({doc_type}; {final_url}; Content-Type={ctype or '–'}; Bytes={len(raw)})."
+            )
         return {
             "text": text,
             "url": final_url,
@@ -15385,7 +15463,6 @@ def _bank_fetch_official_document(url, company_domain, deadline=None, timeout=4.
             suffix = f"HTTP {status}" if status else type(exc).__name__
             diag.append(f"Issuer-IR Dokument: Abruf fehlgeschlagen ({suffix}; {url}).")
         return None
-
 
 
 def _bank_extract_q4_api_keys(html):
@@ -16060,7 +16137,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         key=_bank_period_sort_key,
         reverse=True,
     )
-    # V2.21.32 recent-window guard: the bank parser needs the latest quarter,
+    # V2.21.33 recent-window guard: the bank parser needs the latest quarter,
     # four consecutive TTM quarters and the same-quarter prior-year comparator
     # for tangible-book growth. Six most recent periodized quarters cover that
     # requirement while avoiding large historical archive payloads.
@@ -16075,7 +16152,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         primary_count = sum(1 for r in rows if _bank_ir_is_primary_earnings_row(r))
         fallback_count = sum(1 for r in rows if int(r.get("document_priority") or 0) in [1, 3])
         diag.append(
-            "Issuer-IR Discovery V28: Phase-Isolated-Parser-Budget/Recent-Window/TBVPS/ROTCE-Materiality aktiv · "
+            "Issuer-IR Discovery V29: Primary-PDF-Redirect-Signature/Phase-Isolated-Budget/Recent-Window aktiv · "
             f"Entry-Points={len(set(entrypoints))}, Dokumente={len(rows)} (Archiv={len(rows_all)}), Primär={primary_count}, Fallback={fallback_count}, "
             f"Perioden={','.join(periods[:6]) or 'keine'}."
         )
@@ -16099,8 +16176,10 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
                 "document_type": (row or {}).get("document_type") or "html",
                 "last_modified": None,
             }
+        entrypoints = (discovery or {}).get("entrypoints") or []
         payload = _bank_fetch_official_document(
             (row or {}).get("url"), company_domain, deadline=deadline, timeout=timeout, diagnostics=diag,
+            referer=(entrypoints[0] if entrypoints else None),
             allow_q4_cdn=bool(
                 (row or {}).get("trusted_q4_feed")
                 or (row or {}).get("trusted_q4_direct")
@@ -16154,7 +16233,15 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
             doc_class, doc_priority = _bank_ir_document_class(row.get("url"), row.get("title"))
         if int(doc_priority or 0) < 0:
             continue
-        payload = payload_for(row, 4.3)
+        if diag is not None:
+            _left = _research_budget_left(deadline)
+            diag.append(
+                f"Issuer-IR Parser V29: Kandidat · Periode={row.get('period') or '–'} · Klasse={doc_class or 'unbekannt'} · "
+                f"Priorität={int(doc_priority or 0)} · Rest={_left:.2f}s · URL={row.get('url')}"
+                if _left is not None else
+                f"Issuer-IR Parser V29: Kandidat · Periode={row.get('period') or '–'} · Klasse={doc_class or 'unbekannt'} · Priorität={int(doc_priority or 0)} · URL={row.get('url')}"
+            )
+        payload = payload_for(row, 5.5)
         if not payload:
             continue
         text_low = payload["text"].lower()
@@ -16345,7 +16432,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": None,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Phase-Isolated Parser Budget & Recent-Window Guard · Table Parser V15",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Primary PDF Redirect & Signature Loader Guard · Table Parser V16",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -16391,12 +16478,12 @@ def _discover_universal_bank_snapshot_uncached(symbol, company_name=None, websit
             deadline=discovery_deadline,
             diagnostics=ir_diagnostics,
         )
-        # V2.21.32: start a fresh parser/document budget after discovery. A slow
+        # V2.21.33: keep the fresh parser/document budget after discovery. A slow
         # issuer archive may validly consume most of the crawl budget; that must
         # not prevent the already-discovered primary PDF from being fetched.
         parser_deadline = time.monotonic() + 16.0
         ir_diagnostics.append(
-            "Issuer-IR Phase Budget V28: Discovery abgeschlossen; separates 16-s-Dokument-/Parser-Budget gestartet."
+            "Issuer-IR Phase Budget V29: Discovery abgeschlossen; separates 16-s-Dokument-/Parser-Budget gestartet."
         )
         snapshot = _bank_ir_snapshot_from_documents(
             symbol,
@@ -18078,7 +18165,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Phase-Isolated Parser Budget & Recent-Window Guard V2.21.32 lädt verifizierte Primärquellen-"
+            "Universal Bank Primary PDF Redirect & Signature Loader Guard V2.21.33 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -18155,13 +18242,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Phase-Isolated Parser Budget & Recent-Window Guard V2.21.32 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Primary PDF Redirect & Signature Loader Guard V2.21.33 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Phase-Isolated Parser Budget & Recent-Window Guard V2.21.32 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Primary PDF Redirect & Signature Loader Guard V2.21.33 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -51005,7 +51092,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Phase-Isolated Parser Budget & Recent-Window Guard V2.21.32"
+                        "🏦 Bank-Familienmodell · Universal Bank Primary PDF Redirect & Signature Loader Guard V2.21.33"
                     )
 
                     if bank_model.get("primary_source_complete"):
