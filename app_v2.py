@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.44"
+APP_BUILD_VERSION = "V2.21.45"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Period-Context Event Archive Guard V40"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Proven IR-Host Latest-Period Search Guard V41"
 )
 
 
+# V2.21.45: Universal Bank Proven IR-Host Latest-Period Search Guard V41. Extends the issuer-neutral latest-quarter completion search to already verified issuer IR hosts/subdomains (for example ir.<issuer-domain>) instead of relying only on the corporate registrable domain in the search scope. This closes the U.S. Bancorp Q4-IR case where 1Q26/4Q25/3Q25 documents proved the Q4 tenant but the 2Q26 results page was indexed under the verified IR subdomain and therefore never reached the existing derived-sibling completion bridge. Search remains bounded to same issuer-domain-family hosts discovered by the adapter; no ticker/domain exception is added. Document trust, parser rules, EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.44: Universal Bank Period-Context Event Archive Guard V40. Adds an issuer-neutral publication-metadata fallback for banks whose static earnings archive exposes complete quarterly documents but no dated results/newsroom page. When the latest period still lacks a high-quality publication date, the adapter probes a bounded set of conventional issuer-owned event/presentation archive paths and accepts a date only when it sits in the immediate text context of the exact target quarter together with earnings/results semantics. This closes the TFC regression without ticker/domain exceptions and does not alter valuation evidence, document priority, EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check or signal mathematics.
 # V2.21.43: Universal Bank Final Snapshot Publication Authority Guard V39. Fixes the remaining PNC publication-date regression at the final snapshot layer: the discovery pipeline may correctly identify the earnings publication date, but the snapshot builder previously merged that qualified date with every plausible date in the full current-quarter document and then selected the earliest calendar date. This could resurrect an unrelated post-quarter corporate-action date such as a dividend reference. The final snapshot now treats the qualified discovery date as authoritative and uses current-period document provenance/text only as a bounded fallback, preserving source order instead of chronological order. TFC and PNC remain regression cases only; no issuer/ticker exception is added. EPS normalization, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.40: Universal Bank Period-Semantic Publication Guard V36. Hardens the metadata-only publication-date completion pass after PNC exposed a false-positive date from an unrelated issuer IR press release. A candidate page must now prove the exact target quarter in its own title/URL/H1 identity and simultaneously carry earnings/results semantics before any date is accepted. Search snippets may supply the date only after that identity gate passes; fetched pages use only title/H1/date-meta/lead paragraphs for release-date extraction, preventing archive/navigation dates from contaminating the candidate. The guard remains issuer-neutral and metadata-only. No issuer/ticker exception is added. EPS normalization, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -10713,7 +10714,7 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22144_universal_bank_period_context_event_archive_v40"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22145_universal_bank_proven_ir_host_latest_period_search_v41"
 BANK_DISCOVERY_CACHE_EPOCH = BANK_PRIMARY_SOURCE_ADAPTER_VERSION
 # Latest-quarter company-designated EPS adjustments at or below 2% are treated
 # as immaterial for the separate ROTCE anchor when the issuer publishes no
@@ -16220,11 +16221,41 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         news_hits = 0
         derived_count = 0
         if words:
-            queries = [
-                f'site:{company_domain} "{company_name or ""}" "reports {words["long"]} results"',
-                f'site:{company_domain} "{company_name or ""}" "{words["long"]}" earnings',
-                f'site:{company_domain} "{company_name or ""}" "{words["short"]}" "earnings supplement"',
-            ]
+            # V2.21.45: search the exact issuer IR hosts already proven during
+            # discovery before falling back to the registrable corporate domain.
+            # Q4-hosted IR sites are often indexed under ir.<issuer-domain> even
+            # when a broad site:<corporate-domain> query does not return them.
+            # Hosts are accepted only from same issuer-domain-family URLs that
+            # the adapter has already resolved, so this does not broaden trust.
+            proven_search_hosts = []
+            for source in list(entrypoints) + list(candidate_roots) + list(q4_ir_roots):
+                try:
+                    host = _normalize_host(source)
+                except Exception:
+                    host = None
+                if not host or not _host_belongs_to_company_family(host, company_domain):
+                    continue
+                if host not in proven_search_hosts:
+                    proven_search_hosts.append(host)
+            base_host = _normalize_host(company_domain) or company_domain
+            if base_host and base_host not in proven_search_hosts:
+                proven_search_hosts.append(base_host)
+            # Prefer specific IR subdomains over the broad corporate host.
+            proven_search_hosts.sort(key=lambda h: (h == base_host, len(h)))
+            proven_search_hosts = proven_search_hosts[:4]
+
+            queries = []
+            for search_host in proven_search_hosts:
+                queries.extend([
+                    f'site:{search_host} "{company_name or ""}" "reports {words["long"]} results"',
+                    f'site:{search_host} "{company_name or ""}" "{words["long"]}" earnings',
+                    f'site:{search_host} "{company_name or ""}" "{words["short"]}" "earnings supplement"',
+                ])
+            if diag is not None:
+                diag.append(
+                    "Issuer-IR Proven IR-Host Latest-Period Search Guard V41: "
+                    f"Periode={expected_latest}, Suchhosts={','.join(proven_search_hosts) or 'keine'}."
+                )
             for query in queries:
                 if derived_count or not _research_budget_ok(deadline, reserve=1.0):
                     break
@@ -16991,7 +17022,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
 
     if diag is not None:
         diag.append(
-            "Period-Context Event Archive Guard V40: "
+            "Proven IR-Host Latest-Period Search Guard V41: "
             f"Periode={latest_period}, Quelle={release_date_source or 'keine'}, "
             f"Datum={detected_release_date.strftime('%Y-%m-%d') if detected_release_date else 'keins'}."
         )
@@ -17007,7 +17038,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": published_date,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Period-Context Event Archive Guard · Table Parser V18",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Proven IR-Host Latest-Period Search Guard · Table Parser V18",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -18789,7 +18820,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Period-Context Event Archive Guard V2.21.44 lädt verifizierte Primärquellen-"
+            "Universal Bank Proven IR-Host Latest-Period Search Guard V2.21.45 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -18866,13 +18897,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Period-Context Event Archive Guard V2.21.44 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Proven IR-Host Latest-Period Search Guard V2.21.45 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Period-Context Event Archive Guard V2.21.44 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Proven IR-Host Latest-Period Search Guard V2.21.45 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -51716,7 +51747,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Period-Context Event Archive Guard V2.21.44"
+                        "🏦 Bank-Familienmodell · Universal Bank Proven IR-Host Latest-Period Search Guard V2.21.45"
                     )
 
                     if bank_model.get("primary_source_complete"):
