@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.30"
+APP_BUILD_VERSION = "V2.21.31"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Earnings Hub Budget & TBVPS Abbreviation Guard V26"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Direct Earnings Fast-Lane & Coverage-First Discovery Guard V27"
 )
 
 
+# V2.21.31: Universal Bank Direct Earnings Fast-Lane & Coverage-First Discovery Guard V27. Prioritizes the issuer-owned /earnings archive on common IR subdomains before loading a generic Q4-powered IR root, preventing public Q4 feed probing from consuming the shared issuer-parser budget when a static earnings archive already exposes the required documents. Phase-0 discovery now stops on four-quarter primary coverage rather than the first primary document, so partial archives can continue through the existing issuer-neutral fallback chain. Discovery/parser only; TBVPS recognition, ROTCE materiality, strict four-quarter EPS alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.30: Universal Bank Earnings Hub Budget & TBVPS Abbreviation Guard V26. Stops issuer-IR crawling once the expected four latest primary earnings periods are already covered, preserving parser time for the actual source documents instead of following redundant hubs/fallback material. Also recognizes issuer-defined TBVPS as an explicit tangible-book-value-per-share row label and counts TBVPS in bank-core-signal gating. The change is issuer-neutral and affects discovery/parser recognition only; ROTCE materiality, strict four-quarter EPS alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.29: Universal Bank Direct Earnings Hub & URL Token Normalization V25. Adds the issuer-neutral /earnings route as a first-class IR hub across seed probing, nested-hub traversal and link scoring, and normalizes URL filename separators so periodized names such as 2Q26_Earnings_Release are classified like visible earnings-release wording. Some issuers expose a static quarterly archive directly under /earnings even when the corporate/IR landing page does not surface those materials to the bounded crawler. The change affects discovery/classification only; ROTCE materiality, Full-Year-Q4 recognition, three-column parsing, strict four-quarter EPS alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.28: Universal Bank ROTCE Materiality Guard V24. Preserves issuer-reported ROTCE as the valuation basis only when a company-designated latest-quarter EPS adjustment is immaterial (<=2% of reported EPS) and the issuer does not publish a separate adjusted ROTCE. Material adjustments still fail closed exactly as before; no adjusted ROTCE is derived or reverse-engineered. Full-Year-Q4 recognition, three-column table parsing, strict four-quarter EPS alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -10703,8 +10704,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22130_universal_bank_earnings_hub_budget_tbvps_v26"
-BANK_DISCOVERY_CACHE_EPOCH = "v22130_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22131_universal_bank_direct_earnings_fastlane_v27"
+BANK_DISCOVERY_CACHE_EPOCH = "v22131_bank_discovery_epoch_1"
 # Latest-quarter company-designated EPS adjustments at or below 2% are treated
 # as immaterial for the separate ROTCE anchor when the issuer publishes no
 # adjusted ROTCE. The reported issuer ROTCE is retained; no synthetic ROTCE is
@@ -15665,18 +15666,22 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
     # V2.21.22 Phase 0: probe issuer-owned IR subdomains early. Corporate homepages
     # often do not expose their IR host in static HTML, so waiting for search/deep
     # paths can exhaust the bounded discovery budget before ir./investor. is tried.
+    # V2.21.31 fast lane: static /earnings archives are cheaper and often more
+    # complete than the generic IR landing page. Probe them first so a Q4-powered
+    # root cannot spend the shared parser budget on FinancialReport feed calls when
+    # the issuer already publishes four quarter-tagged primary materials directly.
     alt_probe_paths = [
-        "",
         "/earnings",
+        "",
         "/financials/quarterly-results/default.aspx",
         "/financials/quarterly-results",
         "/news-events/webcasts-presentations/default.aspx",
     ]
     for alt_root in candidate_roots[1:]:
-        if has_primary_documents() or not _research_budget_ok(deadline, reserve=3.0):
+        if has_expected_primary_coverage() or not _research_budget_ok(deadline, reserve=3.0):
             break
         for path in alt_probe_paths:
-            if has_primary_documents() or len(fetched) >= 8 or not _research_budget_ok(deadline, reserve=2.2):
+            if has_expected_primary_coverage() or len(fetched) >= 8 or not _research_budget_ok(deadline, reserve=2.2):
                 break
             seed = urljoin(alt_root.rstrip("/") + "/", path.lstrip("/"))
             if seed in fetched:
@@ -15694,7 +15699,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
                 if q4_root not in q4_ir_roots:
                     q4_ir_roots.append(q4_root)
             add_links(html, final_url)
-            if not has_primary_documents() and _bank_q4_page_signature(html):
+            if not has_expected_primary_coverage() and _bank_q4_page_signature(html):
                 q4 = _bank_q4_financial_feed_documents(
                     html, final_url, company_domain, deadline=deadline, diagnostics=diag
                 )
@@ -15703,8 +15708,12 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
                     if old is None or qrow.get("score", 0) > old.get("score", 0):
                         documents[qrow["url"]] = qrow
                 trusted_platform_hosts.update(q4.get("trusted_platform_hosts") or [])
+            if has_expected_primary_coverage():
+                break
             if q4_ir_roots and not has_primary_documents():
                 break
+        if has_expected_primary_coverage():
+            break
         if q4_ir_roots and not has_primary_documents():
             break
 
@@ -15714,7 +15723,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
     # and link the official supplement/release directly. Probe only recent quarters,
     # only on issuer-owned Q4 roots, and trust q4cdn links only when they are direct
     # anchors on those issuer pages.
-    if not has_primary_documents() and q4_ir_roots and _research_budget_ok(deadline, reserve=2.0):
+    if not has_expected_primary_coverage() and q4_ir_roots and _research_budget_ok(deadline, reserve=2.0):
         event_hits = 0
         for q4_root in q4_ir_roots[:2]:
             for candidate in _bank_q4_event_detail_candidates(q4_root, company_name):
@@ -16054,7 +16063,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         primary_count = sum(1 for r in rows if _bank_ir_is_primary_earnings_row(r))
         fallback_count = sum(1 for r in rows if int(r.get("document_priority") or 0) in [1, 3])
         diag.append(
-            "Issuer-IR Discovery V26: Earnings-Hub-Budget/TBVPS-Abbreviation/ROTCE-Materiality aktiv · "
+            "Issuer-IR Discovery V27: Direct-Earnings-Fast-Lane/Coverage-First/TBVPS/ROTCE-Materiality aktiv · "
             f"Entry-Points={len(set(entrypoints))}, Dokumente={len(rows)}, Primär={primary_count}, Fallback={fallback_count}, "
             f"Perioden={','.join(periods[:6]) or 'keine'}."
         )
@@ -16324,7 +16333,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": None,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Earnings Hub Budget & TBVPS Abbreviation Guard · Table Parser V13",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Direct Earnings Fast-Lane & Coverage-First Discovery Guard · Table Parser V14",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -18050,7 +18059,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Earnings Hub Budget & TBVPS Abbreviation Guard V2.21.30 lädt verifizierte Primärquellen-"
+            "Universal Bank Direct Earnings Fast-Lane & Coverage-First Discovery Guard V2.21.31 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -18127,13 +18136,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Earnings Hub Budget & TBVPS Abbreviation Guard V2.21.30 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Direct Earnings Fast-Lane & Coverage-First Discovery Guard V2.21.31 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Earnings Hub Budget & TBVPS Abbreviation Guard V2.21.30 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Direct Earnings Fast-Lane & Coverage-First Discovery Guard V2.21.31 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -50977,7 +50986,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Earnings Hub Budget & TBVPS Abbreviation Guard V2.21.30"
+                        "🏦 Bank-Familienmodell · Universal Bank Direct Earnings Fast-Lane & Coverage-First Discovery Guard V2.21.31"
                     )
 
                     if bank_model.get("primary_source_complete"):
