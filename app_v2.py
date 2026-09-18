@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.43"
+APP_BUILD_VERSION = "V2.21.44"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Final Snapshot Publication Authority Guard V39"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Period-Context Event Archive Guard V40"
 )
 
 
+# V2.21.44: Universal Bank Period-Context Event Archive Guard V40. Adds an issuer-neutral publication-metadata fallback for banks whose static earnings archive exposes complete quarterly documents but no dated results/newsroom page. When the latest period still lacks a high-quality publication date, the adapter probes a bounded set of conventional issuer-owned event/presentation archive paths and accepts a date only when it sits in the immediate text context of the exact target quarter together with earnings/results semantics. This closes the TFC regression without ticker/domain exceptions and does not alter valuation evidence, document priority, EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check or signal mathematics.
 # V2.21.43: Universal Bank Final Snapshot Publication Authority Guard V39. Fixes the remaining PNC publication-date regression at the final snapshot layer: the discovery pipeline may correctly identify the earnings publication date, but the snapshot builder previously merged that qualified date with every plausible date in the full current-quarter document and then selected the earliest calendar date. This could resurrect an unrelated post-quarter corporate-action date such as a dividend reference. The final snapshot now treats the qualified discovery date as authoritative and uses current-period document provenance/text only as a bounded fallback, preserving source order instead of chronological order. TFC and PNC remain regression cases only; no issuer/ticker exception is added. EPS normalization, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.40: Universal Bank Period-Semantic Publication Guard V36. Hardens the metadata-only publication-date completion pass after PNC exposed a false-positive date from an unrelated issuer IR press release. A candidate page must now prove the exact target quarter in its own title/URL/H1 identity and simultaneously carry earnings/results semantics before any date is accepted. Search snippets may supply the date only after that identity gate passes; fetched pages use only title/H1/date-meta/lead paragraphs for release-date extraction, preventing archive/navigation dates from contaminating the candidate. The guard remains issuer-neutral and metadata-only. No issuer/ticker exception is added. EPS normalization, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.39: Universal Bank Publication-Metadata Completion Pass V35. Adds a metadata-only completion pass after issuer-primary four-quarter coverage is already complete: when the latest bank period still lacks a publication date, a bounded issuer-domain search resolves one official results/event page for that exact quarter and accepts only date candidates strictly after quarter end and within 60 days. This closes the TFC case where the earnings-document feed is complete but its PDF rows carry no release date, so discovery previously stopped before the official dated results/event page was visited. The pass cannot add valuation evidence, cannot change document priority, and cannot alter score or Fair Value inputs. Cache epoch remains coupled to the adapter version. No issuer/ticker exception is added. EPS normalization, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -10712,7 +10713,7 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22143_universal_bank_final_snapshot_publication_authority_v39"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22144_universal_bank_period_context_event_archive_v40"
 BANK_DISCOVERY_CACHE_EPOCH = BANK_PRIMARY_SOURCE_ADAPTER_VERSION
 # Latest-quarter company-designated EPS adjustments at or below 2% are treated
 # as immaterial for the separate ROTCE anchor when the issuer publishes no
@@ -11779,6 +11780,90 @@ def _bank_extract_release_date(text, expected_year=None):
     """Backward-compatible first date candidate for existing discovery callers."""
     values = _bank_extract_release_dates(text, expected_year=expected_year)
     return values[0] if values else None
+
+
+def _bank_period_context_publication_date(html_or_text, period):
+    """Recover a publication date from an issuer-owned event/archive page.
+
+    Generic event and presentation archives contain many unrelated dates, so the
+    page itself cannot satisfy the single-page identity gate.  This fallback only
+    considers dates that are physically close to an exact target-quarter mention
+    carrying earnings/results semantics.  The closest plausible post-quarter date
+    wins.  It is metadata-only and cannot add valuation evidence.
+    """
+    words = _bank_period_words(period)
+    period_end = _bank_period_end_date(period)
+    raw = str(html_or_text or "")
+    if not words or not period_end or not raw:
+        return None
+    # Preserve visible source order while stripping markup/navigation structure.
+    text = _html_to_text(raw[:350000]) if "<" in raw and ">" in raw else _clean_text(raw)
+    if not text:
+        return None
+    low = re.sub(r"[\s_\-]+", " ", text.lower())
+    year = str(words["year"])
+    q = str(words["q"])
+    yy = year[-2:]
+    ordinal = words["ordinal"]
+    period_patterns = [
+        rf"\b{ordinal}\s+quarter\s+{year}\b",
+        rf"\bq\s*{q}\s+{year}\b",
+        rf"\b{q}\s*q\s*{yy}\b",
+        rf"\b{q}\s*q\s*{year}\b",
+    ]
+    period_hits = []
+    for pat in period_patterns:
+        period_hits.extend(list(re.finditer(pat, low, flags=re.I)))
+    if not period_hits:
+        return None
+
+    months = {
+        "january": 1, "february": 2, "march": 3, "april": 4,
+        "may": 5, "june": 6, "july": 7, "august": 8,
+        "september": 9, "october": 10, "november": 11, "december": 12,
+    }
+    date_hits = []
+    for m in re.finditer(
+        r"(?i)\b(" + "|".join(months) + r")\s+(\d{1,2}),\s+(20\d{2})\b",
+        text,
+    ):
+        try:
+            d = datetime(int(m.group(3)), months[m.group(1).lower()], int(m.group(2))).date()
+        except Exception:
+            continue
+        if period_end < d <= period_end + timedelta(days=60):
+            date_hits.append((m.start(), d))
+    for m in re.finditer(r"\b(20\d{2})-(\d{2})-(\d{2})\b", text):
+        try:
+            d = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3))).date()
+        except Exception:
+            continue
+        if period_end < d <= period_end + timedelta(days=60):
+            date_hits.append((m.start(), d))
+    if not date_hits:
+        return None
+
+    semantic_terms = [
+        "earnings", "financial results", "quarterly results", "quarter results",
+        "reports", "reported", "diluted eps", "net income", "results",
+    ]
+    ranked = []
+    for ph in period_hits:
+        left = max(0, ph.start() - 360)
+        right = min(len(text), ph.end() + 520)
+        context_low = text[left:right].lower()
+        if not any(term in context_low for term in semantic_terms):
+            continue
+        for pos, value in date_hits:
+            # Require the date to belong to the same local event/card context.
+            if pos < left or pos > right:
+                continue
+            distance = min(abs(pos - ph.start()), abs(pos - ph.end()))
+            ranked.append((distance, pos, value))
+    if not ranked:
+        return None
+    ranked.sort(key=lambda x: (x[0], x[1]))
+    return ranked[0][2]
 
 
 def _bank_q4_derived_supplement_candidates(tenant_roots, period, release_date, source_url, template_rows=None):
@@ -16419,6 +16504,63 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         period_end = _bank_period_end_date(latest_metadata_period)
         metadata_hits = 0
         if words and period_end:
+            # V2.21.44: cheap issuer-owned event/archive fallback before search.
+            # Static earnings hubs can expose all four primary documents while
+            # omitting the dated newsroom page.  Probe only conventional paths on
+            # already proven issuer hosts and accept only exact-period local context.
+            if int(publication_date_quality.get(latest_metadata_period) or 0) < 4:
+                archive_paths = [
+                    "/events-and-presentation",
+                    "/events-and-presentations",
+                    "/events-and-presentations/default.aspx",
+                    "/news-events",
+                    "/news-events/events-presentations",
+                ]
+                archive_roots = []
+                for ep in list(entrypoints) + list(candidate_roots):
+                    try:
+                        parsed = urlparse(str(ep or ""))
+                        if parsed.scheme and parsed.netloc:
+                            base = f"{parsed.scheme}://{parsed.netloc}"
+                            if _host_belongs_to_company_family(base, company_domain) and base not in archive_roots:
+                                archive_roots.append(base)
+                    except Exception:
+                        continue
+                archive_fetches = 0
+                for base in archive_roots[:3]:
+                    if int(publication_date_quality.get(latest_metadata_period) or 0) >= 4:
+                        break
+                    for path in archive_paths:
+                        if archive_fetches >= 4 or int(publication_date_quality.get(latest_metadata_period) or 0) >= 4:
+                            break
+                        if not _research_budget_ok(deadline, reserve=0.30):
+                            break
+                        probe_url = urljoin(base.rstrip("/") + "/", path.lstrip("/"))
+                        if probe_url in fetched:
+                            continue
+                        fetched.add(probe_url)
+                        archive_fetches += 1
+                        html, final_url = _fetch_html(probe_url, timeout=1.6, deadline=deadline)
+                        if not html:
+                            continue
+                        resolved = final_url or probe_url
+                        if not _host_belongs_to_company_family(resolved, company_domain):
+                            continue
+                        context_date = _bank_period_context_publication_date(html, latest_metadata_period)
+                        if context_date is None:
+                            continue
+                        publication_dates_by_period[latest_metadata_period] = context_date
+                        publication_date_quality[latest_metadata_period] = 4
+                        metadata_hits += 1
+                        entrypoints.append(resolved)
+                        if diag is not None:
+                            diag.append(
+                                "Issuer-IR Period-Context Event Archive Guard V40: "
+                                f"Periode={latest_metadata_period}, Datum={context_date.strftime('%Y-%m-%d')}, "
+                                f"Quelle={resolved}."
+                            )
+                        break
+
             metadata_queries = [
                 f'site:{company_domain} "{company_name or ""}" "reports {words["long"]} results"',
                 f'site:{company_domain} "{company_name or ""}" "{words["long"]}" earnings',
@@ -16849,7 +16991,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
 
     if diag is not None:
         diag.append(
-            "Final Snapshot Publication Authority Guard V39: "
+            "Period-Context Event Archive Guard V40: "
             f"Periode={latest_period}, Quelle={release_date_source or 'keine'}, "
             f"Datum={detected_release_date.strftime('%Y-%m-%d') if detected_release_date else 'keins'}."
         )
@@ -16865,7 +17007,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": published_date,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Final Snapshot Publication Authority Guard · Table Parser V18",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Period-Context Event Archive Guard · Table Parser V18",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -18647,7 +18789,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Final Snapshot Publication Authority Guard V2.21.43 lädt verifizierte Primärquellen-"
+            "Universal Bank Period-Context Event Archive Guard V2.21.44 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -18724,13 +18866,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Final Snapshot Publication Authority Guard V2.21.43 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Period-Context Event Archive Guard V2.21.44 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Final Snapshot Publication Authority Guard V2.21.43 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Period-Context Event Archive Guard V2.21.44 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -51574,7 +51716,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Final Snapshot Publication Authority Guard V2.21.43"
+                        "🏦 Bank-Familienmodell · Universal Bank Period-Context Event Archive Guard V2.21.44"
                     )
 
                     if bank_model.get("primary_source_complete"):
