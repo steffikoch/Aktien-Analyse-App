@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.26"
+APP_BUILD_VERSION = "V2.21.27"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Strict Quarter EPS Alignment Guard V22"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Full-Year Q4 & Three-Column Table Bridge V23"
 )
 
 
+# V2.21.27: Universal Bank Full-Year Q4 & Three-Column Table Bridge V23. Extends issuer-neutral bank IR parsing for common regional-bank release formats exposed by PNC: a Full Year YYYY earnings release is recognized as the fourth-quarter source only when earnings/results semantics are present; latest/prior/year-ago three-column quarter tables are accepted for current ROTCE/TBV/CET1 extraction while the strict four-quarter EPS TTM guard still requires four explicit consecutive quarters or four separate official period documents; and company-designated "Diluted EPS - as adjusted" rows are accepted only when the same release explicitly ties them to significant/notable/special items or integration costs. No Bank Score, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check or signal mathematics changed.
 # V2.21.26: Universal Bank Strict Quarter EPS Alignment Guard V22. Fixes the issuer-neutral four-quarter EPS bridge after USB exposed a false multi-quarter mapping: a row such as 2Q26/1Q26/2Q25 plus change/YTD columns must never have its first four numeric cells reinterpreted as four consecutive quarters. Multi-quarter TTM extraction is now accepted only when the source text provides an explicit period-aligned four-quarter header covering the complete expected sequence. Otherwise the adapter falls back to the separately discovered issuer-primary documents for each quarter. This changes only EPS period alignment/reconciliation; Bank Score, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.25: Universal Bank Q4 Sibling Material Recovery V21. Extends the issuer-neutral current-quarter completion pass from supplement-only guessing to source-anchored Q4 sibling-material recovery. When prior issuer-linked Q4 earnings documents establish the tenant and filename convention, the adapter derives the current-quarter Supplement/Release/Presentation filenames from those proven templates and the official issuer release date. This avoids wasting the bounded parser budget on speculative separator variants and allows an earnings release to supply ROTCE/TBV/CET1 when the supplemental schedules intentionally contain only accounting tables. All derived files still require issuer identity + expected-period validation before use. Bank Score, Fed CET1 buffer scoring, ROTCE-justified P/TBV, Core-TTM, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.23: Universal Bank Earnings Document Classifier & Q4 Material Ranking V19. Adds issuer-neutral earnings-document classification before bank snapshot parsing: quarterly/earnings supplements and results releases outrank earnings presentations; corporate/company profiles, fact sheets and generic investor presentations are excluded from the earnings pool even when their filenames contain a current quarter. This prevents a profile PDF from prematurely stopping Q4 event discovery. The parser also sorts by document class before link score and rejects explicitly non-earnings material as the primary current-quarter payload. Bank Score, CET1 regulatory buffer, ROTCE-justified P/TBV, Core-TTM, target P/E, 60/40 Dual Anchor, 25% fail-closed spread gate, Reality Check and signal mathematics are unchanged.
@@ -10700,8 +10701,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22126_universal_bank_strict_quarter_eps_alignment_v22"
-BANK_DISCOVERY_CACHE_EPOCH = "v22126_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22127_universal_bank_full_year_q4_three_column_v23"
+BANK_DISCOVERY_CACHE_EPOCH = "v22127_bank_discovery_epoch_1"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -10759,6 +10760,14 @@ def _bank_period_from_text(text):
     )
     if m:
         return f"{month_to_quarter[m.group(1).lower()]}Q{m.group(2)[-2:]}"
+    # V2.21.27: many banks title the January Q4 release as "Full Year YYYY"
+    # even though the payload contains the standalone fourth-quarter results.
+    # Treat that wording as Q4 only when the discovery text itself also carries
+    # earnings/results semantics; ordinary annual reports do not pass this gate.
+    low = t.lower()
+    m = re.search(r"\b(?:full\s*year|full-year|fiscal\s+year)\s+(20\d{2})\b", t, flags=re.I)
+    if m and any(term in low for term in ["earnings", "financial results", "net income", "reports", "results"]):
+        return f"4Q{m.group(1)[-2:]}"
     return None
 
 
@@ -10878,14 +10887,64 @@ def _bank_row_numeric_values(text, label_patterns, max_chars=320, min_value=None
 
 
 def _bank_header_quarter_run(text, label_start, latest_period, lookback=9000):
-    """Infer the closest plausible quarterly-header direction before a metric row."""
+    """Infer the closest plausible quarterly-header sequence before a metric row.
+
+    V2.21.27 additionally accepts exact three-column latest/prior/year-ago
+    headers (for example 2Q26 / 1Q26 / 2Q25). Those are common in bank
+    earnings releases and are sufficient for current ROTCE/TBV/CET1 extraction.
+    They are *not* sufficient for the four-quarter EPS TTM bridge, which still
+    requires four explicit consecutive quarters or separate official documents.
+    """
     t = _clean_text(text)
     start = max(0, int(label_start) - int(lookback))
     prefix = t[start:int(label_start)]
     latest_key = _bank_period_sort_key(latest_period)
     if latest_key[0] < 0:
         return []
-    _, latest_q = latest_key
+    latest_y, latest_q = latest_key
+
+    # First prefer explicit quarter+year runs. This preserves non-consecutive
+    # comparison layouts such as latest / linked-quarter / year-ago.
+    explicit_tokens = list(re.finditer(r"\b([1-4])Q\s*'?([0-9]{2,4})\b", prefix, flags=re.I))
+    explicit_runs, cur = [], []
+    for m in explicit_tokens:
+        if cur and m.start() - cur[-1].end() > 90:
+            if len(cur) >= 3:
+                explicit_runs.append(cur)
+            cur = []
+        cur.append(m)
+    if len(cur) >= 3:
+        explicit_runs.append(cur)
+    explicit_candidates = []
+    latest_full = str(latest_period).upper()
+    prev_full = _bank_previous_period(latest_period, 1)
+    yoy_full = f"{latest_q}Q{str(latest_y - 1)[-2:]}"
+    for run in explicit_runs:
+        periods=[]
+        for m in run[-7:]:
+            y=int(m.group(2)); y = y + 2000 if y < 100 else y
+            periods.append(f"{int(m.group(1))}Q{str(y)[-2:]}")
+        # De-duplicate only adjacent duplicate labels introduced by flattened HTML.
+        dedup=[]
+        for p in periods:
+            if not dedup or dedup[-1] != p:
+                dedup.append(p)
+        periods=dedup
+        if len(periods) < 3 or latest_full not in periods:
+            continue
+        # A genuine 3-column comparison header should contain the linked quarter
+        # and/or the year-ago quarter. Require both for a 3-cell run; wider runs
+        # may be ordinary consecutive-quarter tables.
+        if len(periods) == 3 and not (prev_full in periods and yoy_full in periods):
+            continue
+        proximity = run[-1].end()
+        latest_edge_bonus = 80 if periods[0] == latest_full or periods[-1] == latest_full else 0
+        semantic_bonus = 100 if prev_full in periods else 0
+        semantic_bonus += 100 if yoy_full in periods else 0
+        explicit_candidates.append((2000 + len(periods)*30 + latest_edge_bonus + semantic_bonus, proximity, periods))
+    if explicit_candidates:
+        _, _, periods = max(explicit_candidates, key=lambda x: (x[0], x[1]))
+        return periods
 
     def directional_candidates(qs, run_end, base_bonus=0):
         out = []
@@ -10961,7 +11020,7 @@ def _bank_extract_aligned_row_values(text, latest_period, label_patterns, max_ch
             if _bank_is_toc_context(t, abs_start):
                 continue
             periods = _bank_header_quarter_run(t, abs_start, latest_period)
-            if len(periods) < 4:
+            if len(periods) < 3:
                 continue
             tail = t[abs_end:min(end, abs_end + int(max_chars))]
             values, first_pos = _bank_numeric_values_from_tail(
@@ -11103,15 +11162,29 @@ def _bank_extract_adjusted_quarterly_eps_series(text, latest_period, count=4, re
 
 
 def _bank_extract_tbv_values(text, latest_period=None):
-    patterns = [r"tangible\s+book\s+value\s+per\s+(?:common\s+)?share",
-                r"tangible\s+common\s+book\s+value\s+per\s+share"]
+    patterns = [
+        r"tangible\s+book\s+value\s+per\s+(?:common\s+)?share",
+        r"tangible\s+common\s+book\s+value\s+per\s+share",
+        # Some earnings-summary tables sit under a "Per Common Share" section
+        # and abbreviate the row itself to "Tangible book value (TBV)".
+        # Period alignment plus the <= $1,000/share plausibility ceiling keep
+        # this distinct from total tangible common equity in dollar millions.
+        r"tangible\s+book\s+value\s*(?:\(\s*TBV\s*\))?(?:\s*\(non-GAAP\))?",
+    ]
     if latest_period:
         aligned = _bank_extract_aligned_row_values(text, latest_period, patterns, max_chars=380, min_value=1.0, max_value=1000.0)
         if aligned:
-            amap = {r["period"]: r["value"] for r in aligned}
-            ordered = [amap[p] for p in [_bank_previous_period(latest_period, i) for i in range(len(aligned))] if p in amap]
-            if ordered:
-                return ordered
+            # Preserve exact issuer header semantics. A latest/prior/year-ago
+            # table is intentionally non-consecutive, so reconstructing only
+            # consecutive quarters would discard the YoY comparison needed for
+            # tangible-book growth. Sort actual mapped periods newest-first.
+            ordered_rows = sorted(
+                [r for r in aligned if safe_float(r.get("value")) is not None],
+                key=lambda r: _bank_period_sort_key(r.get("period")),
+                reverse=True,
+            )
+            if ordered_rows:
+                return [safe_float(r.get("value")) for r in ordered_rows]
         return []
     return _bank_row_numeric_values(text, patterns, max_chars=300, min_value=1.0, max_value=1000.0)[:6]
 
@@ -11211,6 +11284,19 @@ def _bank_detect_special_item_bridge(text, reported_eps):
     if core is not None:
         return core, reported - core, "Offizielle Ex-Significant-/Notable-Items-EPS-Brücke"
     low = t.lower()
+    # V2.21.27: some banks label the company-designated bridge as
+    # "Diluted EPS - as adjusted" rather than "EPS excluding significant items".
+    # Accept it only when the same release explicitly identifies the adjustment
+    # as significant/notable/special items or integration costs.
+    if any(term in low for term in ["significant item", "significant items", "notable item", "notable items", "special item", "special items", "integration cost", "integration costs"]):
+        adjusted_vals = _bank_row_numeric_values(t, [
+            r"diluted\s+(?:earnings\s+per\s+(?:common\s+)?share|EPS)\s*[-–—]?\s*(?:as\s+)?adjusted(?:\s*\(non-GAAP\))?",
+            r"adjusted\s+diluted\s+(?:earnings\s+per\s+(?:common\s+)?share|EPS)(?:\s*\(non-GAAP\))?",
+        ], max_chars=140, min_value=-100.0, max_value=100.0)
+        if adjusted_vals:
+            core = safe_float(adjusted_vals[0])
+            if core is not None:
+                return core, reported - core, "Offizielle Diluted-EPS-as-adjusted-Brücke für company-designierte Sonder-/Integrationsposten"
     sensitive_terms = ["significant item", "significant items", "notable item", "notable items", "special item", "special items"]
     if any(term in low for term in sensitive_terms):
         return None, None, "Sonderposten-Hinweis ohne quantitative EPS-Brücke – fail-closed"
@@ -15928,7 +16014,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         primary_count = sum(1 for r in rows if _bank_ir_is_primary_earnings_row(r))
         fallback_count = sum(1 for r in rows if int(r.get("document_priority") or 0) in [1, 3])
         diag.append(
-            "Issuer-IR Discovery V22: Strict-Quarter-EPS-Alignment/Q4-Sibling-Material-Recovery aktiv · "
+            "Issuer-IR Discovery V23: Full-Year-Q4/Three-Column-Table-Bridge aktiv · "
             f"Entry-Points={len(set(entrypoints))}, Dokumente={len(rows)}, Primär={primary_count}, Fallback={fallback_count}, "
             f"Perioden={','.join(periods[:6]) or 'keine'}."
         )
@@ -16160,7 +16246,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": None,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Strict Quarter EPS Alignment & Table Parser V9",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Full-Year Q4 & Three-Column Table Parser V10",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -17883,7 +17969,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Strict Quarter EPS Alignment Guard V2.21.26 lädt verifizierte Primärquellen-"
+            "Universal Bank Full-Year Q4 & Three-Column Table Bridge V2.21.27 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -17960,13 +18046,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Strict Quarter EPS Alignment Guard V2.21.26 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Full-Year Q4 & Three-Column Table Bridge V2.21.27 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Strict Quarter EPS Alignment Guard V2.21.26 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Full-Year Q4 & Three-Column Table Bridge V2.21.27 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -50810,7 +50896,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Strict Quarter EPS Alignment Guard V2.21.26"
+                        "🏦 Bank-Familienmodell · Universal Bank Full-Year Q4 & Three-Column Table Bridge V2.21.27"
                     )
 
                     if bank_model.get("primary_source_complete"):
