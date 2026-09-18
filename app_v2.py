@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.37"
+APP_BUILD_VERSION = "V2.21.38"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Publication-Date Candidate Scan Guard V33"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Snapshot Cache-Epoch Coupling Guard V34"
 )
 
 
+# V2.21.38: Universal Bank Snapshot Cache-Epoch Coupling Guard V34. Fixes the remaining cross-build bank-snapshot cache leak exposed by the V2.21.37 TFC regression test: the explicit Streamlit bank discovery cache epoch is now coupled directly to the primary-source adapter version, so a build that changes bank parsing or metadata semantics cannot reuse a successful snapshot produced by the prior adapter. This makes the V2.21.37 publication-date candidate scan actually execute on a fresh issuer-IR snapshot and also prevents stale source_note/source_name/adapter_version labels from leaking forward. No issuer/ticker exception is added. EPS normalization, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.37: Universal Bank Publication-Date Candidate Scan Guard V33. Keeps the V2.21.36 display-currency cleanup unchanged and makes publication metadata robust when a quarterly PDF prints the quarter-end/as-of date before the actual release date. The generic release-date parser now exposes all issuer-document date candidates; issuer-owned archive/event links contribute period-bound date metadata; the bank snapshot accepts only the earliest candidate strictly after quarter end and no more than 60 days later. No issuer/ticker exception is added. Bank discovery/provenance, PDF parsing, special-item scope, strict four-quarter alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.35: Universal Bank Issuer-Redirect Provenance Trust Guard V31. Preserves the original issuer-owned document URL as the trusted source provenance when an official IR PDF link resolves through an external HTTPS document cache. The final redirected URL remains available as technical resolution metadata, but four-quarter TTM source validation is anchored to the issuer-declared origin link rather than globally trusting the cache host. Arbitrary third-party cache URLs remain blocked. Discovery, PDF parsing, special-item scope, strict four-quarter alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.34: Universal Bank Current-Period EPS Special-Item Scope Guard V30. Scopes EPS special-item detection to the current reported period instead of treating generic document-wide non-GAAP boilerplate as a current-quarter adjustment. Explicit issuer-adjusted EPS remains first priority; period-specific Selected Items / Impact-to-Diluted-EPS tables are accepted as quantitative company-designated bridges, including an explicit 'None' row. Unbridged current-period EPS special-item evidence still fails closed. Discovery, PDF loader, strict four-quarter alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -10708,8 +10709,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22137_universal_bank_publication_date_candidate_scan_v33"
-BANK_DISCOVERY_CACHE_EPOCH = "v22136_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22138_universal_bank_snapshot_cache_epoch_coupling_v34"
+BANK_DISCOVERY_CACHE_EPOCH = BANK_PRIMARY_SOURCE_ADAPTER_VERSION
 # Latest-quarter company-designated EPS adjustments at or below 2% are treated
 # as immaterial for the separate ROTCE anchor when the issuer publishes no
 # adjusted ROTCE. The reported issuer ROTCE is retained; no synthetic ROTCE is
@@ -16629,7 +16630,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": published_date,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Publication-Date Candidate Scan Guard · Table Parser V18",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Snapshot Cache-Epoch Coupling Guard · Table Parser V18",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -18411,7 +18412,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Publication-Date Candidate Scan Guard V2.21.37 lädt verifizierte Primärquellen-"
+            "Universal Bank Snapshot Cache-Epoch Coupling Guard V2.21.38 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -18488,13 +18489,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Publication-Date Candidate Scan Guard V2.21.37 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Snapshot Cache-Epoch Coupling Guard V2.21.38 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Publication-Date Candidate Scan Guard V2.21.37 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Snapshot Cache-Epoch Coupling Guard V2.21.38 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -51338,7 +51339,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Publication-Date Candidate Scan Guard V2.21.37"
+                        "🏦 Bank-Familienmodell · Universal Bank Snapshot Cache-Epoch Coupling Guard V2.21.38"
                     )
 
                     if bank_model.get("primary_source_complete"):
