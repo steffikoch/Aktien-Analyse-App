@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.36"
+APP_BUILD_VERSION = "V2.21.37"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,11 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Currency & Publication Metadata Consistency Cleanup V32"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Publication-Date Candidate Scan Guard V33"
 )
 
 
-# V2.21.36: Universal Bank Currency & Publication Metadata Consistency Cleanup V32. Renders the source-verified four-quarter Bank Core-EPS coverage note through the existing presentation-only FX layer so narrative amounts use the same selected display currency as the adjacent metrics, without changing any stored/model values. Also fills issuer-IR published_date only when the existing release-date parser finds a plausible date strictly after the reported quarter end and no more than 60 days later; otherwise the field remains unavailable rather than guessed. Bank discovery/provenance, PDF parsing, special-item scope, strict four-quarter alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
+# V2.21.37: Universal Bank Publication-Date Candidate Scan Guard V33. Keeps the V2.21.36 display-currency cleanup unchanged and makes publication metadata robust when a quarterly PDF prints the quarter-end/as-of date before the actual release date. The generic release-date parser now exposes all issuer-document date candidates; issuer-owned archive/event links contribute period-bound date metadata; the bank snapshot accepts only the earliest candidate strictly after quarter end and no more than 60 days later. No issuer/ticker exception is added. Bank discovery/provenance, PDF parsing, special-item scope, strict four-quarter alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.35: Universal Bank Issuer-Redirect Provenance Trust Guard V31. Preserves the original issuer-owned document URL as the trusted source provenance when an official IR PDF link resolves through an external HTTPS document cache. The final redirected URL remains available as technical resolution metadata, but four-quarter TTM source validation is anchored to the issuer-declared origin link rather than globally trusting the cache host. Arbitrary third-party cache URLs remain blocked. Discovery, PDF parsing, special-item scope, strict four-quarter alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.34: Universal Bank Current-Period EPS Special-Item Scope Guard V30. Scopes EPS special-item detection to the current reported period instead of treating generic document-wide non-GAAP boilerplate as a current-quarter adjustment. Explicit issuer-adjusted EPS remains first priority; period-specific Selected Items / Impact-to-Diluted-EPS tables are accepted as quantitative company-designated bridges, including an explicit 'None' row. Unbridged current-period EPS special-item evidence still fails closed. Discovery, PDF loader, strict four-quarter alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.33: Universal Bank Primary PDF Redirect & Signature Loader Guard V29. Adds explicit loader diagnostics for every prior silent rejection path, PDF-signature detection independent of response MIME metadata, issuer-owned direct-PDF redirect bridging only when the redirected HTTPS body proves to be a real PDF, and issuer-IR Referer/Accept headers for document downloads. Discovery, parser extraction rules, strict four-quarter EPS alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -10708,7 +10708,7 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22136_universal_bank_currency_metadata_consistency_v32"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22137_universal_bank_publication_date_candidate_scan_v33"
 BANK_DISCOVERY_CACHE_EPOCH = "v22136_bank_discovery_epoch_1"
 # Latest-quarter company-designated EPS adjustments at or below 2% are treated
 # as immaterial for the separate ROTCE anchor when the issuer publishes no
@@ -11646,36 +11646,49 @@ def _bank_q4_trusted_tenant_bases(documents):
     return roots[:3]
 
 
-def _bank_extract_release_date(text, expected_year=None):
-    """Extract an English/ISO release date from an issuer-hosted earnings page."""
+def _bank_extract_release_dates(text, expected_year=None):
+    """Extract all English/ISO date candidates from issuer-hosted earnings material.
+
+    Dates are returned in document order with duplicates removed.  This helper
+    deliberately does not decide which date is a publication date; callers must
+    apply period semantics (for example quarter-end < release <= +60 days).
+    """
     source = _clean_text(text)
     if not source:
-        return None
+        return []
     months = {
         "january": 1, "february": 2, "march": 3, "april": 4,
         "may": 5, "june": 6, "july": 7, "august": 8,
         "september": 9, "october": 10, "november": 11, "december": 12,
     }
+    found = []
+    seen = set()
+
+    def add_candidate(year, month, day):
+        if expected_year and abs(int(year) - int(expected_year)) > 1:
+            return
+        try:
+            value = datetime(int(year), int(month), int(day)).date()
+        except Exception:
+            return
+        if value not in seen:
+            seen.add(value)
+            found.append(value)
+
     for m in re.finditer(
         r"(?i)\b(" + "|".join(months) + r")\s+(\d{1,2}),\s+(20\d{2})\b",
         source[:20000],
     ):
-        year = int(m.group(3))
-        if expected_year and abs(year - int(expected_year)) > 1:
-            continue
-        try:
-            return datetime(year, months[m.group(1).lower()], int(m.group(2))).date()
-        except Exception:
-            pass
+        add_candidate(int(m.group(3)), months[m.group(1).lower()], int(m.group(2)))
     for m in re.finditer(r"\b(20\d{2})-(\d{2})-(\d{2})\b", source[:20000]):
-        year = int(m.group(1))
-        if expected_year and abs(year - int(expected_year)) > 1:
-            continue
-        try:
-            return datetime(year, int(m.group(2)), int(m.group(3))).date()
-        except Exception:
-            pass
-    return None
+        add_candidate(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    return found
+
+
+def _bank_extract_release_date(text, expected_year=None):
+    """Backward-compatible first date candidate for existing discovery callers."""
+    values = _bank_extract_release_dates(text, expected_year=expected_year)
+    return values[0] if values else None
 
 
 def _bank_q4_derived_supplement_candidates(tenant_roots, period, release_date, source_url, template_rows=None):
@@ -15813,6 +15826,21 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
     fetched = set()
     trusted_platform_hosts = set()
     q4_ir_roots = []
+    publication_dates_by_period = {}
+
+    def remember_publication_date(period, material):
+        """Store only issuer-link/page dates that are plausible for the stated quarter."""
+        period_end = _bank_period_end_date(period)
+        if not period_end:
+            return
+        candidates = _bank_extract_release_dates(material, expected_year=period_end.year)
+        plausible = sorted(d for d in candidates if period_end < d <= period_end + timedelta(days=60))
+        if not plausible:
+            return
+        candidate = plausible[0]
+        previous = publication_dates_by_period.get(period)
+        if previous is None or candidate < previous:
+            publication_dates_by_period[period] = candidate
 
     def has_primary_documents():
         return any(_bank_ir_is_primary_earnings_row(r) for r in documents.values())
@@ -15836,10 +15864,19 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
     def add_links(html, final_url, inherited_period=None):
         """Index direct documents and retain plausible same-domain hub/archive pages."""
         q4_page = _bank_q4_page_signature(html)
+        if inherited_period:
+            remember_publication_date(
+                inherited_period,
+                f"{final_url} {_html_to_text((html or '')[:60000])}",
+            )
         for row in _bank_extract_ir_links(
             html, final_url, company_domain,
             allow_trusted_q4_cdn=q4_page, inherited_period=inherited_period,
         ):
+            if row.get("period"):
+                remember_publication_date(
+                    row.get("period"), f"{row.get('title') or ''} {row.get('url') or ''}"
+                )
             url_low = row["url"].lower().split("?", 1)[0]
             title_low = (row.get("title") or "").lower()
             hay = f"{title_low} {url_low}"
@@ -16278,7 +16315,15 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
             f"Entry-Points={len(set(entrypoints))}, Dokumente={len(rows)} (Archiv={len(rows_all)}), Primär={primary_count}, Fallback={fallback_count}, "
             f"Perioden={','.join(periods[:6]) or 'keine'}."
         )
-    return {"documents": rows, "entrypoints": list(dict.fromkeys(entrypoints)), "trusted_platform_hosts": sorted(trusted_platform_hosts)}
+    return {
+        "documents": rows,
+        "entrypoints": list(dict.fromkeys(entrypoints)),
+        "trusted_platform_hosts": sorted(trusted_platform_hosts),
+        "publication_dates_by_period": {
+            period: value.strftime("%Y-%m-%d")
+            for period, value in publication_dates_by_period.items()
+        },
+    }
 
 
 def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, discovery, deadline=None, diagnostics=None):
@@ -16546,20 +16591,33 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         diag.append(f"Issuer-IR ROTCE Materiality Guard: {rotce_basis_note}")
 
     latest_end = _bank_period_end_date(latest_period)
-    # V2.21.36 metadata-only release-date recovery.  Reuse the existing issuer
-    # release-date parser, but accept a date only when it is strictly after the
-    # quarter end and within 60 days.  This prevents an accounting/as-of date
-    # printed in the PDF from being mislabeled as the publication date.
-    detected_release_date = _bank_extract_release_date(
-        latest_text, expected_year=latest_end.year if latest_end else None
+    # V2.21.37 metadata-only release-date recovery.  Quarterly PDFs often print
+    # the accounting/as-of date before the actual release date.  Scan all date
+    # candidates from the validated current-period payload plus its trusted
+    # provenance metadata, then accept only the earliest date strictly after the
+    # quarter end and within 60 days.  This remains display metadata only.
+    release_date_material = " ".join([
+        _clean_text(latest_text),
+        _clean_text(latest_row.get("title")),
+        _clean_text(latest_row.get("url")),
+        _clean_text(latest_payload.get("provenance_url")),
+        _clean_text(latest_payload.get("resolved_url")),
+        _clean_text(latest_payload.get("url")),
+    ])
+    release_date_candidates = _bank_extract_release_dates(
+        release_date_material, expected_year=latest_end.year if latest_end else None
     )
-    published_date = None
-    if (
-        latest_end
-        and detected_release_date
-        and latest_end < detected_release_date <= latest_end + timedelta(days=60)
-    ):
-        published_date = detected_release_date.strftime("%d.%m.%Y")
+    discovery_release_raw = ((discovery or {}).get("publication_dates_by_period") or {}).get(latest_period)
+    if discovery_release_raw:
+        release_date_candidates.extend(
+            _bank_extract_release_dates(discovery_release_raw, expected_year=latest_end.year if latest_end else None)
+        )
+    plausible_release_dates = sorted({
+        d for d in release_date_candidates
+        if latest_end and latest_end < d <= latest_end + timedelta(days=60)
+    })
+    detected_release_date = plausible_release_dates[0] if plausible_release_dates else None
+    published_date = detected_release_date.strftime("%d.%m.%Y") if detected_release_date else None
     # Freshness remains anchored to the reported quarter end.  Publication-date
     # recovery is display metadata only and must not alter validity mathematics.
     valid_until = latest_end + timedelta(days=110) if latest_end else None
@@ -16571,7 +16629,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": published_date,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Currency & Publication Metadata Consistency Cleanup · Table Parser V18",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Publication-Date Candidate Scan Guard · Table Parser V18",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -18353,7 +18411,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Currency & Publication Metadata Consistency Cleanup V2.21.36 lädt verifizierte Primärquellen-"
+            "Universal Bank Publication-Date Candidate Scan Guard V2.21.37 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -18430,13 +18488,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Currency & Publication Metadata Consistency Cleanup V2.21.36 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Publication-Date Candidate Scan Guard V2.21.37 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Currency & Publication Metadata Consistency Cleanup V2.21.36 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Publication-Date Candidate Scan Guard V2.21.37 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -51280,7 +51338,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Currency & Publication Metadata Consistency Cleanup V2.21.36"
+                        "🏦 Bank-Familienmodell · Universal Bank Publication-Date Candidate Scan Guard V2.21.37"
                     )
 
                     if bank_model.get("primary_source_complete"):
