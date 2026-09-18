@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.40"
+APP_BUILD_VERSION = "V2.21.41"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Period-Semantic Publication Guard V36"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Publication-Memory Identity Guard V37"
 )
 
 
+# V2.21.41: Universal Bank Publication-Memory Identity Guard V37. Fixes the pre-completion contamination path exposed by the PNC regression: publication_dates_by_period may no longer be populated from an inherited-quarter archive/hub page or direct IR link unless the page/link identity itself proves the exact quarter and earnings/results semantics. This moves the V36 identity gate in front of every publication-date memory write, so an unrelated issuer release such as a dividend announcement cannot suppress the later metadata-only completion pass merely because it is chronologically plausible. Actual date extraction may still inspect the bounded page lead only after identity has passed. The guard remains issuer-neutral and metadata-only; TFC and PNC are regression cases only. No issuer/ticker exception is added. EPS normalization, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.40: Universal Bank Period-Semantic Publication Guard V36. Hardens the metadata-only publication-date completion pass after PNC exposed a false-positive date from an unrelated issuer IR press release. A candidate page must now prove the exact target quarter in its own title/URL/H1 identity and simultaneously carry earnings/results semantics before any date is accepted. Search snippets may supply the date only after that identity gate passes; fetched pages use only title/H1/date-meta/lead paragraphs for release-date extraction, preventing archive/navigation dates from contaminating the candidate. The guard remains issuer-neutral and metadata-only. No issuer/ticker exception is added. EPS normalization, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.39: Universal Bank Publication-Metadata Completion Pass V35. Adds a metadata-only completion pass after issuer-primary four-quarter coverage is already complete: when the latest bank period still lacks a publication date, a bounded issuer-domain search resolves one official results/event page for that exact quarter and accepts only date candidates strictly after quarter end and within 60 days. This closes the TFC case where the earnings-document feed is complete but its PDF rows carry no release date, so discovery previously stopped before the official dated results/event page was visited. The pass cannot add valuation evidence, cannot change document priority, and cannot alter score or Fair Value inputs. Cache epoch remains coupled to the adapter version. No issuer/ticker exception is added. EPS normalization, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.38: Universal Bank Snapshot Cache-Epoch Coupling Guard V34. Fixes the remaining cross-build bank-snapshot cache leak exposed by the V2.21.37 TFC regression test: the explicit Streamlit bank discovery cache epoch is now coupled directly to the primary-source adapter version, so a build that changes bank parsing or metadata semantics cannot reuse a successful snapshot produced by the prior adapter. This makes the V2.21.37 publication-date candidate scan actually execute on a fresh issuer-IR snapshot and also prevents stale source_note/source_name/adapter_version labels from leaking forward. No issuer/ticker exception is added. EPS normalization, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -10711,7 +10712,7 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22140_universal_bank_period_semantic_publication_v36"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22141_universal_bank_publication_memory_identity_v37"
 BANK_DISCOVERY_CACHE_EPOCH = BANK_PRIMARY_SOURCE_ADAPTER_VERSION
 # Latest-quarter company-designated EPS adjustments at or below 2% are treated
 # as immaterial for the separate ROTCE anchor when the issuer publishes no
@@ -11662,6 +11663,27 @@ def _bank_publication_identity_matches(text, period):
         "earnings", "financial results", "quarterly results", "quarter results",
         "reports", "reported", "net income", "diluted eps", "results",
     ])
+
+
+def _bank_publication_page_identity_material(html, url=""):
+    """Return only page-owned identity fields, excluding body/navigation dates.
+
+    A generic archive/hub page can contain many period/date strings in cards or
+    navigation.  Only URL + document title + the leading headings may prove that
+    the page itself is the earnings/results page for the target quarter.
+    """
+    if not html:
+        return _clean_text(url)
+    try:
+        soup = BeautifulSoup(html[:220000], "html.parser")
+    except Exception:
+        return _clean_text(url)
+    bits = [_clean_text(url)]
+    if soup.title:
+        bits.append(_clean_text(soup.title.get_text(" ", strip=True)))
+    for tag in soup.find_all(["h1", "h2"], limit=3):
+        bits.append(_clean_text(tag.get_text(" ", strip=True)))
+    return _clean_text(" ".join(x for x in bits if x))
 
 
 def _bank_publication_page_lead_material(html, url=""):
@@ -15891,10 +15913,19 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
     q4_ir_roots = []
     publication_dates_by_period = {}
 
-    def remember_publication_date(period, material):
-        """Store only issuer-link/page dates that are plausible for the stated quarter."""
+    def remember_publication_date(period, material, identity_material=None):
+        """Store a release date only after exact-quarter earnings identity is proven.
+
+        ``material`` may contain date-bearing lead text, but it is never allowed to
+        prove the page identity by itself when a narrower ``identity_material`` is
+        available.  This prevents archive/hub body cards from contaminating an
+        inherited quarter with an unrelated IR date.
+        """
         period_end = _bank_period_end_date(period)
         if not period_end:
+            return
+        identity = _clean_text(identity_material if identity_material is not None else material)
+        if not _bank_publication_identity_matches(identity, period):
             return
         candidates = _bank_extract_release_dates(material, expected_year=period_end.year)
         plausible = sorted(d for d in candidates if period_end < d <= period_end + timedelta(days=60))
@@ -15928,17 +15959,23 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         """Index direct documents and retain plausible same-domain hub/archive pages."""
         q4_page = _bank_q4_page_signature(html)
         if inherited_period:
+            page_identity = _bank_publication_page_identity_material(html, final_url)
+            page_lead = _bank_publication_page_lead_material(html, final_url)
             remember_publication_date(
                 inherited_period,
-                f"{final_url} {_html_to_text((html or '')[:60000])}",
+                page_lead,
+                identity_material=page_identity,
             )
         for row in _bank_extract_ir_links(
             html, final_url, company_domain,
             allow_trusted_q4_cdn=q4_page, inherited_period=inherited_period,
         ):
             if row.get("period"):
+                row_identity = _clean_text(f"{row.get('title') or ''} {row.get('url') or ''}")
                 remember_publication_date(
-                    row.get("period"), f"{row.get('title') or ''} {row.get('url') or ''}"
+                    row.get("period"),
+                    row_identity,
+                    identity_material=row_identity,
                 )
             url_low = row["url"].lower().split("?", 1)[0]
             title_low = (row.get("title") or "").lower()
@@ -16429,7 +16466,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         if diag is not None:
             recovered = publication_dates_by_period.get(latest_metadata_period)
             diag.append(
-                "Issuer-IR Period-Semantic Publication Guard V36: "
+                "Issuer-IR Publication-Memory Identity Guard V37: "
                 f"Periode={latest_metadata_period}, Treffer={metadata_hits}, "
                 f"Datum={recovered.strftime('%Y-%m-%d') if recovered else 'keins'}."
             )
@@ -16777,7 +16814,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": published_date,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Period-Semantic Publication Guard · Table Parser V18",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Publication-Memory Identity Guard · Table Parser V18",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -18559,7 +18596,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Period-Semantic Publication Guard V2.21.40 lädt verifizierte Primärquellen-"
+            "Universal Bank Publication-Memory Identity Guard V2.21.41 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -18636,13 +18673,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Period-Semantic Publication Guard V2.21.40 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Publication-Memory Identity Guard V2.21.41 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Period-Semantic Publication Guard V2.21.40 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Publication-Memory Identity Guard V2.21.41 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -51486,7 +51523,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Period-Semantic Publication Guard V2.21.40"
+                        "🏦 Bank-Familienmodell · Universal Bank Publication-Memory Identity Guard V2.21.41"
                     )
 
                     if bank_model.get("primary_source_complete"):
