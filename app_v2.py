@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.47"
+APP_BUILD_VERSION = "V2.21.48"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Trusted Q4 Detail & Financials Bridge V43"
+    f"Build {APP_BUILD_VERSION} · Universal Bank CET1 Row & Q4 Publication Metadata Guard V44"
 )
 
 
+# V2.21.48: Universal Bank CET1 Row & Q4 Publication Metadata Guard V44. Period-aligned Standardized CET1 rows outrank generic CET1 narrative/footnote matches; trusted-Q4 current-quarter documents with missing publication metadata get one bounded issuer-domain results-detail metadata retry with exact quarter/results identity validation. The retry is metadata-only and cannot alter valuation evidence. No issuer/ticker exception is added. EPS normalization, Bank Score scoring thresholds, regulatory CET1 buffer mathematics, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.47: Universal Bank Trusted Q4 Detail & Financials Bridge V43. Extends the issuer-neutral latest-quarter recovery for proven Q4 IR architectures whose press-release/archive cards are client-rendered and whose current-quarter PDFs moved from /files/doc_events/... to Q4's /files/doc_financials/<year>/q<quarter>/... structure. The adapter now probes a bounded Q4-style same-domain news-detail route generated from the exact issuer name + expected quarter/results identity and independently revalidates page identity before accepting publication metadata. In parallel, a trusted Q4 tenant may contribute bounded current-quarter /doc_financials/ sibling candidates copied from already issuer-proven prior-quarter filenames; downstream PDF payload gates still require expected-period + issuer identity before any document can enter the bank snapshot. No ticker/domain exception is added. EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.46: Universal Bank Proven IR News-Archive Bridge V42. Adds a deterministic issuer-neutral latest-quarter bridge for Q4-style IR sites when bounded web search returns no current-period hit. On already verified same-domain IR hosts, the adapter probes a small set of conventional news/press-release archive paths, follows only links whose own title/URL prove the exact expected quarter plus earnings/results semantics, captures the page-owned publication date, and then reuses the existing trusted Q4-tenant sibling derivation to recover the official release/supplement. This closes the U.S. Bancorp 2Q26 gap without ticker/domain exceptions and reduces dependence on search-engine indexing. Document trust, parser rules, EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.45: Universal Bank Proven IR-Host Latest-Period Search Guard V41. Extends the issuer-neutral latest-quarter completion search to already verified issuer IR hosts/subdomains (for example ir.<issuer-domain>) instead of relying only on the corporate registrable domain in the search scope. This closes the U.S. Bancorp Q4-IR case where 1Q26/4Q25/3Q25 documents proved the Q4 tenant but the 2Q26 results page was indexed under the verified IR subdomain and therefore never reached the existing derived-sibling completion bridge. Search remains bounded to same issuer-domain-family hosts discovered by the adapter; no ticker/domain exception is added. Document trust, parser rules, EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -10716,7 +10717,7 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22147_universal_bank_trusted_q4_detail_financials_bridge_v43"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22148_universal_bank_cet1_row_q4_publication_metadata_v44"
 BANK_DISCOVERY_CACHE_EPOCH = BANK_PRIMARY_SOURCE_ADAPTER_VERSION
 # Latest-quarter company-designated EPS adjustments at or below 2% are treated
 # as immaterial for the separate ROTCE anchor when the issuer publishes no
@@ -11244,6 +11245,43 @@ def _bank_extract_rotce(text, latest_period=None):
 def _bank_extract_cet1_values(text, latest_period=None):
     """Extract Standardized and Advanced CET1 from local capital-table context."""
     t = _clean_text(text)
+
+    # V2.21.48: explicit quarter-aligned Standardized CET1 rows are the strongest
+    # evidence. Q4 releases can repeat CET1 in bullets/footnotes; those weaker
+    # occurrences must not replace the genuine regulatory-capital table row.
+    exact_standardized = None
+    if latest_period:
+        latest_key = _bank_period_sort_key(latest_period)
+        latest_y, latest_q = latest_key if latest_key[0] > 0 else (None, None)
+        prev_period = _bank_previous_period(latest_period, 1)
+        yoy_period = f"{latest_q}Q{str(latest_y - 1)[-2:]}" if latest_y and latest_q else None
+        exact_patterns = [
+            r"(?:basel\s+(?:iii|3)\s+)?standardi[sz]ed\s+CET1(?:\s+capital)?(?:\s+ratio)?\s*(?:\(%\))?",
+            r"(?:basel\s+(?:iii|3)\s+)?standardi[sz]ed\s+common\s+equity\s+tier\s+1(?:\s*\(CET1\))?(?:\s+capital)?(?:\s+ratio)?",
+        ]
+        for pat in exact_patterns:
+            if exact_standardized is not None:
+                break
+            for m in re.finditer(pat, t, flags=re.I | re.S):
+                if _bank_is_toc_context(t, m.start()):
+                    continue
+                prefix = t[max(0, m.start() - 520):m.start()]
+                tokens = list(re.finditer(r"\b([1-4])Q\s*'?([0-9]{2,4})\b", prefix, flags=re.I))
+                periods = []
+                for tok in tokens[-3:]:
+                    year = int(tok.group(2)); year = year + 2000 if year < 100 else year
+                    periods.append(f"{int(tok.group(1))}Q{str(year)[-2:]}")
+                if len(periods) != 3 or periods[0] != latest_period:
+                    continue
+                if prev_period not in periods or yoy_period not in periods:
+                    continue
+                values, first_pos = _bank_numeric_values_from_tail(
+                    t[m.end():m.end()+100], min_value=3.0, max_value=30.0, limit=3
+                )
+                if values and first_pos is not None and first_pos <= 30:
+                    exact_standardized = safe_float(values[0])
+                    break
+
     ratio_patterns = [
         r"common\s+equity\s+tier\s+1\s*(?:\(CET1\))?(?:\s+capital)?\s+ratio",
         r"CET1\s+(?:Capital\s+)?Ratio",
@@ -11288,7 +11326,9 @@ def _bank_extract_cet1_values(text, latest_period=None):
             std_candidates.append((score,value))
         else:
             generic_candidates.append((1000-min(first_pos or 999,999),value))
-    standardized=max(std_candidates,default=(None,None),key=lambda x:x[0])[1]
+    standardized = exact_standardized
+    if standardized is None:
+        standardized=max(std_candidates,default=(None,None),key=lambda x:x[0])[1]
     advanced=max(adv_candidates,default=(None,None),key=lambda x:x[0])[1]
     if standardized is None and generic_candidates:
         standardized=max(generic_candidates,key=lambda x:x[0])[1]
@@ -11710,6 +11750,24 @@ def _bank_publication_page_lead_material(html, url=""):
             "publication_date", "dc.date", "dc.date.issued",
         }:
             bits.append(_clean_text(meta.get("content")))
+    # Q4 detail pages often render the release dateline in a <time> element or
+    # a date-labelled span/div rather than a paragraph or standard metadata.
+    # Only date-bearing page-owned elements are added here.  The caller still
+    # requires exact-quarter results identity and the normal post-quarter
+    # 60-day plausibility window before accepting any candidate.
+    date_nodes = 0
+    for tag in soup.find_all(["time", "span", "div"], limit=180):
+        attrs = " ".join(str(x) for x in (tag.get("class") or [])) + " " + str(tag.get("id") or "")
+        attrs_low = attrs.lower()
+        if tag.name != "time" and not any(key in attrs_low for key in ["date", "publish", "release"]):
+            continue
+        txt = _clean_text(tag.get("datetime") or tag.get_text(" ", strip=True))
+        if not txt or not _bank_extract_release_dates(txt):
+            continue
+        bits.append(txt)
+        date_nodes += 1
+        if date_nodes >= 6:
+            break
     for para in soup.find_all("p", limit=8):
         txt = _clean_text(para.get_text(" ", strip=True))
         if txt:
@@ -17274,9 +17332,47 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
                 release_date_source = "current_period_document_fallback"
                 break
 
+    # V2.21.48: trusted-Q4 publication metadata retry. /doc_financials/ PDFs
+    # can prove valuation data while carrying no publication date. If discovery
+    # exhausted its shared crawl budget, retry only the deterministic issuer-owned
+    # Q4 results-detail route; exact quarter + results identity remains mandatory.
+    if detected_release_date is None and latest_row.get("trusted_q4_derived"):
+        proven_hosts = []
+        for source in ((discovery or {}).get("entrypoints") or []):
+            host = _normalize_host(source)
+            if not host or not _host_belongs_to_company_family(host, company_domain):
+                continue
+            if host not in proven_hosts:
+                proven_hosts.append(host)
+        proven_hosts.sort(key=lambda h: (
+            not (h.startswith("ir.") or h.startswith("investor.") or h.startswith("investors.")), len(h)
+        ))
+        for detail_url in _bank_q4_results_detail_route_candidates(
+            proven_hosts[:1], company_name, latest_period
+        )[:3]:
+            detail_html, detail_final = _fetch_html(detail_url, timeout=1.8, deadline=None)
+            if not detail_html:
+                continue
+            detail_final = detail_final or detail_url
+            if not _host_belongs_to_company_family(detail_final, company_domain):
+                continue
+            identity = _bank_publication_page_identity_material(detail_html, detail_final)
+            if not _bank_publication_identity_matches(identity, latest_period):
+                continue
+            lead = _bank_publication_page_lead_material(detail_html, detail_final)
+            for candidate in _bank_extract_release_dates(
+                lead, expected_year=latest_end.year if latest_end else None
+            ):
+                if latest_end and latest_end < candidate <= latest_end + timedelta(days=60):
+                    detected_release_date = candidate
+                    release_date_source = "trusted_q4_results_detail_metadata_retry"
+                    break
+            if detected_release_date is not None:
+                break
+
     if diag is not None:
         diag.append(
-            "Trusted Q4 Detail & Financials Bridge V43: "
+            "CET1 Row & Q4 Publication Metadata Guard V44: "
             f"Periode={latest_period}, Quelle={release_date_source or 'keine'}, "
             f"Datum={detected_release_date.strftime('%Y-%m-%d') if detected_release_date else 'keins'}."
         )
@@ -17292,7 +17388,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": published_date,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Trusted Q4 Detail & Financials Bridge · Table Parser V18",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank CET1 Row & Q4 Publication Metadata Guard · Table Parser V18",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -19074,7 +19170,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Trusted Q4 Detail & Financials Bridge V2.21.47 lädt verifizierte Primärquellen-"
+            "Universal Bank CET1 Row & Q4 Publication Metadata Guard V2.21.48 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -19151,13 +19247,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Trusted Q4 Detail & Financials Bridge V2.21.47 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank CET1 Row & Q4 Publication Metadata Guard V2.21.48 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Trusted Q4 Detail & Financials Bridge V2.21.47 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank CET1 Row & Q4 Publication Metadata Guard V2.21.48 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -52001,7 +52097,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Trusted Q4 Detail & Financials Bridge V2.21.47"
+                        "🏦 Bank-Familienmodell · Universal Bank CET1 Row & Q4 Publication Metadata Guard V2.21.48"
                     )
 
                     if bank_model.get("primary_source_complete"):
