@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.34"
+APP_BUILD_VERSION = "V2.21.35"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Current-Period EPS Special-Item Scope Guard V30"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Issuer-Redirect Provenance Trust Guard V31"
 )
 
 
+# V2.21.35: Universal Bank Issuer-Redirect Provenance Trust Guard V31. Preserves the original issuer-owned document URL as the trusted source provenance when an official IR PDF link resolves through an external HTTPS document cache. The final redirected URL remains available as technical resolution metadata, but four-quarter TTM source validation is anchored to the issuer-declared origin link rather than globally trusting the cache host. Arbitrary third-party cache URLs remain blocked. Discovery, PDF parsing, special-item scope, strict four-quarter alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.34: Universal Bank Current-Period EPS Special-Item Scope Guard V30. Scopes EPS special-item detection to the current reported period instead of treating generic document-wide non-GAAP boilerplate as a current-quarter adjustment. Explicit issuer-adjusted EPS remains first priority; period-specific Selected Items / Impact-to-Diluted-EPS tables are accepted as quantitative company-designated bridges, including an explicit 'None' row. Unbridged current-period EPS special-item evidence still fails closed. Discovery, PDF loader, strict four-quarter alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.33: Universal Bank Primary PDF Redirect & Signature Loader Guard V29. Adds explicit loader diagnostics for every prior silent rejection path, PDF-signature detection independent of response MIME metadata, issuer-owned direct-PDF redirect bridging only when the redirected HTTPS body proves to be a real PDF, and issuer-IR Referer/Accept headers for document downloads. Discovery, parser extraction rules, strict four-quarter EPS alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.31: Universal Bank Direct Earnings Fast-Lane & Coverage-First Discovery Guard V27. Prioritizes the issuer-owned /earnings archive on common IR subdomains before loading a generic Q4-powered IR root, preventing public Q4 feed probing from consuming the shared issuer-parser budget when a static earnings archive already exposes the required documents. Phase-0 discovery now stops on four-quarter primary coverage rather than the first primary document, so partial archives can continue through the existing issuer-neutral fallback chain. Discovery/parser only; TBVPS recognition, ROTCE materiality, strict four-quarter EPS alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -10706,8 +10707,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22134_universal_bank_current_period_eps_scope_v30"
-BANK_DISCOVERY_CACHE_EPOCH = "v22133_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22135_universal_bank_issuer_redirect_provenance_v31"
+BANK_DISCOVERY_CACHE_EPOCH = "v22135_bank_discovery_epoch_1"
 # Latest-quarter company-designated EPS adjustments at or below 2% are treated
 # as immaterial for the separate ROTCE anchor when the issuer publishes no
 # adjusted ROTCE. The reported issuer ROTCE is retained; no synthetic ROTCE is
@@ -15566,6 +15567,14 @@ def _bank_fetch_official_document(url, company_domain, deadline=None, timeout=4.
         return {
             "text": text,
             "url": final_url,
+            # V2.21.35: preserve the official origin URL separately from the
+            # technical download endpoint. The start URL already passed the
+            # strict issuer/SEC/Q4 trust gate above; for an external redirect
+            # bridge it was additionally required to resolve to a real PDF.
+            # Downstream TTM source validation therefore anchors to this
+            # provenance URL instead of globally trusting the cache host.
+            "provenance_url": url,
+            "resolved_url": final_url,
             "document_type": doc_type,
             "last_modified": response.headers.get("Last-Modified"),
         }
@@ -16264,7 +16273,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         primary_count = sum(1 for r in rows if _bank_ir_is_primary_earnings_row(r))
         fallback_count = sum(1 for r in rows if int(r.get("document_priority") or 0) in [1, 3])
         diag.append(
-            "Issuer-IR Discovery V30: Current-Period-EPS-Scope/Primary-PDF-Redirect/Phase-Isolated-Budget aktiv · "
+            "Issuer-IR Discovery V31: Issuer-Redirect-Provenance/Current-Period-EPS-Scope/Primary-PDF-Redirect aktiv · "
             f"Entry-Points={len(set(entrypoints))}, Dokumente={len(rows)} (Archiv={len(rows_all)}), Primär={primary_count}, Fallback={fallback_count}, "
             f"Perioden={','.join(periods[:6]) or 'keine'}."
         )
@@ -16285,6 +16294,8 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
             return {
                 "text": preloaded,
                 "url": (row or {}).get("url"),
+                "provenance_url": (row or {}).get("url"),
+                "resolved_url": (row or {}).get("url"),
                 "document_type": (row or {}).get("document_type") or "html",
                 "last_modified": None,
             }
@@ -16348,10 +16359,10 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         if diag is not None:
             _left = _research_budget_left(deadline)
             diag.append(
-                f"Issuer-IR Parser V30: Kandidat · Periode={row.get('period') or '–'} · Klasse={doc_class or 'unbekannt'} · "
+                f"Issuer-IR Parser V31: Kandidat · Periode={row.get('period') or '–'} · Klasse={doc_class or 'unbekannt'} · "
                 f"Priorität={int(doc_priority or 0)} · Rest={_left:.2f}s · URL={row.get('url')}"
                 if _left is not None else
-                f"Issuer-IR Parser V30: Kandidat · Periode={row.get('period') or '–'} · Klasse={doc_class or 'unbekannt'} · Priorität={int(doc_priority or 0)} · URL={row.get('url')}"
+                f"Issuer-IR Parser V31: Kandidat · Periode={row.get('period') or '–'} · Klasse={doc_class or 'unbekannt'} · Priorität={int(doc_priority or 0)} · URL={row.get('url')}"
             )
         payload = payload_for(row, 5.5)
         if not payload:
@@ -16394,7 +16405,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         len(multi) == 4 and (not latest_has_special_item_language or len(adjusted_multi) == 4)
     )
     if multi_bridge_ok:
-        source_url = latest_payload.get("url") or latest_row.get("url")
+        source_url = latest_payload.get("provenance_url") or latest_payload.get("url") or latest_row.get("url")
         core_map = {r["period"]: r["core_eps"] for r in adjusted_multi} if adjusted_multi else {}
         for row in reversed(multi):
             reported = safe_float(row.get("reported_eps"))
@@ -16438,7 +16449,8 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
                 found = {
                     "period": period,
                     "published_date": None,
-                    "source_url": payload.get("url") or candidate.get("url"),
+                    "source_url": payload.get("provenance_url") or payload.get("url") or candidate.get("url"),
+                    "resolved_source_url": payload.get("resolved_url") or payload.get("url"),
                     "reported_eps": eps,
                     "core_eps": core,
                     "special_items_eps_effect": effect,
@@ -16537,14 +16549,14 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
     # timestamp is not reliably exposed by the issuer archive.
     valid_until = latest_end + timedelta(days=110) if latest_end else None
     entrypoints = (discovery or {}).get("entrypoints") or []
-    source_url = latest_payload.get("url") or latest_row.get("url")
+    source_url = latest_payload.get("provenance_url") or latest_payload.get("url") or latest_row.get("url")
     return {
         "symbol": str(symbol or "").upper(),
         "company": company_name or str(symbol or "").upper(),
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": None,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Current-Period EPS Special-Item Scope Guard · Table Parser V17",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Issuer-Redirect Provenance Trust Guard · Table Parser V18",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -16595,7 +16607,7 @@ def _discover_universal_bank_snapshot_uncached(symbol, company_name=None, websit
         # not prevent the already-discovered primary PDF from being fetched.
         parser_deadline = time.monotonic() + 16.0
         ir_diagnostics.append(
-            "Issuer-IR Phase Budget V30: Discovery abgeschlossen; separates 16-s-Dokument-/Parser-Budget gestartet."
+            "Issuer-IR Phase Budget V31: Discovery abgeschlossen; separates 16-s-Dokument-/Parser-Budget gestartet."
         )
         snapshot = _bank_ir_snapshot_from_documents(
             symbol,
@@ -18277,7 +18289,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Current-Period EPS Special-Item Scope Guard V2.21.34 lädt verifizierte Primärquellen-"
+            "Universal Bank Issuer-Redirect Provenance Trust Guard V2.21.35 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -18354,13 +18366,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Current-Period EPS Special-Item Scope Guard V2.21.34 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Issuer-Redirect Provenance Trust Guard V2.21.35 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Current-Period EPS Special-Item Scope Guard V2.21.34 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Issuer-Redirect Provenance Trust Guard V2.21.35 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -51204,7 +51216,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Current-Period EPS Special-Item Scope Guard V2.21.34"
+                        "🏦 Bank-Familienmodell · Universal Bank Issuer-Redirect Provenance Trust Guard V2.21.35"
                     )
 
                     if bank_model.get("primary_source_complete"):
