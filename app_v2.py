@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.33"
+APP_BUILD_VERSION = "V2.21.34"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Primary PDF Redirect & Signature Loader Guard V29"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Current-Period EPS Special-Item Scope Guard V30"
 )
 
 
+# V2.21.34: Universal Bank Current-Period EPS Special-Item Scope Guard V30. Scopes EPS special-item detection to the current reported period instead of treating generic document-wide non-GAAP boilerplate as a current-quarter adjustment. Explicit issuer-adjusted EPS remains first priority; period-specific Selected Items / Impact-to-Diluted-EPS tables are accepted as quantitative company-designated bridges, including an explicit 'None' row. Unbridged current-period EPS special-item evidence still fails closed. Discovery, PDF loader, strict four-quarter alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.33: Universal Bank Primary PDF Redirect & Signature Loader Guard V29. Adds explicit loader diagnostics for every prior silent rejection path, PDF-signature detection independent of response MIME metadata, issuer-owned direct-PDF redirect bridging only when the redirected HTTPS body proves to be a real PDF, and issuer-IR Referer/Accept headers for document downloads. Discovery, parser extraction rules, strict four-quarter EPS alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.31: Universal Bank Direct Earnings Fast-Lane & Coverage-First Discovery Guard V27. Prioritizes the issuer-owned /earnings archive on common IR subdomains before loading a generic Q4-powered IR root, preventing public Q4 feed probing from consuming the shared issuer-parser budget when a static earnings archive already exposes the required documents. Phase-0 discovery now stops on four-quarter primary coverage rather than the first primary document, so partial archives can continue through the existing issuer-neutral fallback chain. Discovery/parser only; TBVPS recognition, ROTCE materiality, strict four-quarter EPS alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.30: Universal Bank Earnings Hub Budget & TBVPS Abbreviation Guard V26. Stops issuer-IR crawling once the expected four latest primary earnings periods are already covered, preserving parser time for the actual source documents instead of following redundant hubs/fallback material. Also recognizes issuer-defined TBVPS as an explicit tangible-book-value-per-share row label and counts TBVPS in bank-core-signal gating. The change is issuer-neutral and affects discovery/parser recognition only; ROTCE materiality, strict four-quarter EPS alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -10705,7 +10706,7 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22133_universal_bank_primary_pdf_redirect_signature_v29"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22134_universal_bank_current_period_eps_scope_v30"
 BANK_DISCOVERY_CACHE_EPOCH = "v22133_bank_discovery_epoch_1"
 # Latest-quarter company-designated EPS adjustments at or below 2% are treated
 # as immaterial for the separate ROTCE anchor when the issuer publishes no
@@ -11284,24 +11285,131 @@ def _bank_extract_cet1_values(text, latest_period=None):
     return standardized,advanced
 
 
-def _bank_detect_special_item_bridge(text, reported_eps):
-    """Return (core_eps, signed_effect, status). Fail closed on material unbridged special-item wording."""
+def _bank_period_long_label(period):
+    key = _bank_period_sort_key(period)
+    if key[0] < 0:
+        return None
+    year, quarter = key
+    qname = {1: "First", 2: "Second", 3: "Third", 4: "Fourth"}.get(quarter)
+    return f"{qname} Quarter {year}" if qname else None
+
+
+def _bank_selected_items_eps_bridge(text, reported_eps, current_period):
+    """Return an issuer-designated current-period Selected-Items EPS bridge.
+
+    V2.21.34: Some banks publish a period-specific table headed "Selected Items"
+    with a signed "Impact to Diluted EPS" column rather than a separate adjusted
+    EPS row.  Accept only the explicitly labelled current-period subsection.  A
+    literal "None" means reported EPS remains the core basis.  Otherwise sum
+    only signed per-share impacts from rows that expose the table's three-column
+    pre-tax / after-tax / diluted-EPS structure.  This avoids treating generic
+    non-GAAP boilerplate elsewhere in the document as an EPS adjustment.
+    """
+    reported = safe_float(reported_eps)
+    label = _bank_period_long_label(current_period)
+    if reported is None or not label:
+        return None
+    t = _clean_text(text)
+    # Require a nearby Selected Items heading so a normal quarter heading in a
+    # financial table cannot be mistaken for the reconciliation subsection.
+    pat = re.compile(r"Selected\s+Items(?:\s*\(\d+\))?.{0,420}?" + re.escape(label), re.I | re.S)
+    matches = list(pat.finditer(t))
+    if not matches:
+        return None
+    m = matches[-1]
+    section_start = m.end()
+    tail = t[section_start:section_start + 1500]
+    # Stop before the next explicit quarter heading when present.
+    next_q = re.search(r"\b(?:First|Second|Third|Fourth)\s+Quarter\s+20\d{2}\b", tail, flags=re.I)
+    if next_q:
+        tail = tail[:next_q.start()]
+    if re.match(r"\s*None\b", tail, flags=re.I):
+        return reported, 0.0, "Offizielle Selected-Items-Tabelle: aktuelles Quartal ausdrücklich ohne ausgewiesene EPS-Sonderposten"
+
+    # Item rows in these issuer tables are laid out as: description, pre-tax,
+    # after-tax, signed diluted-EPS impact. Footnote numbers embedded in labels
+    # are harmless because the regex anchors on the three financial cells.
+    triplet = re.compile(
+        r"(?:\$?\s*\(?-?\d{1,3}(?:,\d{3})*\)?\s+){2}"
+        r"\$?\s*(\(?-?(?:\d+\.\d+|\.\d+)\)?)"
+    )
+    impacts = []
+    for mm in triplet.finditer(tail):
+        raw = mm.group(1).replace("$", "").strip()
+        neg = raw.startswith("(") and raw.endswith(")")
+        raw = raw.strip("() ")
+        try:
+            value = float(raw)
+        except Exception:
+            continue
+        if neg:
+            value = -value
+        # EPS-impact cells should be per-share values, not dollar amounts.
+        if abs(value) <= 20.0:
+            impacts.append(value)
+    if not impacts:
+        return None
+    total_effect = sum(impacts)
+    core = reported - total_effect
+    if not math.isfinite(core) or abs(core) > 100.0:
+        return None
+    return core, total_effect, (
+        "Offizielle periodenspezifische Selected-Items-/Diluted-EPS-Impact-Brücke; "
+        "Core EPS aus gemeldetem EPS minus den explizit ausgewiesenen signierten EPS-Effekten"
+    )
+
+
+def _bank_has_current_period_unbridged_eps_special_item_evidence(text, current_period):
+    """Detect current-period EPS special-item evidence, excluding boilerplate."""
+    t = _clean_text(text)
+    low = t.lower()
+    sensitive = ["significant item", "significant items", "notable item", "notable items", "special item", "special items", "selected item", "selected items"]
+    # Generic non-GAAP definitions often mention significant items many pages
+    # after the earnings table.  They do not by themselves prove that current
+    # quarter EPS contains an adjustment.  Require local EPS/per-share context.
+    for term in sensitive:
+        pos = 0
+        while True:
+            pos = low.find(term, pos)
+            if pos < 0:
+                break
+            window = low[max(0, pos - 500):min(len(low), pos + 700)]
+            has_eps_context = any(k in window for k in ["diluted eps", "earnings per share", "per diluted share", "impact to diluted eps"])
+            has_current_adjustment_verb = any(k in window for k in [
+                " included ", " includes ", " impact ", " impact to ", " affecting ",
+                " adjusted ", " excluding ", " excludes ",
+            ])
+            if has_eps_context and has_current_adjustment_verb:
+                return True
+            pos += len(term)
+    return False
+
+
+def _bank_detect_special_item_bridge(text, reported_eps, current_period=None):
+    """Return (core_eps, signed_effect, status) using current-period evidence only.
+
+    Explicit issuer-adjusted EPS is preferred.  A period-specific Selected Items
+    / Impact-to-Diluted-EPS table is the second accepted bridge.  Generic
+    document-wide non-GAAP boilerplate never creates an adjustment by itself.
+    """
     t = _clean_text(text)
     reported = safe_float(reported_eps)
     if reported is None:
         return None, None, None
     core = _bank_extract_first_float(t, [
-        r"(?:EPS|earnings\s+per\s+share)[^\n]{0,80}?(?:ex|excluding)\s+(?:significant|notable|special)\s+items?[^$0-9]{0,30}\$?\s*([0-9]+(?:\.[0-9]+)?)",
-        r"(?:ex|excluding)\s+(?:significant|notable|special)\s+items?[^\n]{0,80}?(?:EPS|earnings\s+per\s+share)[^$0-9]{0,20}\$?\s*([0-9]+(?:\.[0-9]+)?)",
+        r"(?:EPS|earnings\s+per\s+share)[^\n]{0,80}?(?:ex|excluding)\s+(?:significant|notable|special|selected)\s+items?[^$0-9]{0,30}\$?\s*([0-9]+(?:\.[0-9]+)?)",
+        r"(?:ex|excluding)\s+(?:significant|notable|special|selected)\s+items?[^\n]{0,80}?(?:EPS|earnings\s+per\s+share)[^$0-9]{0,20}\$?\s*([0-9]+(?:\.[0-9]+)?)",
     ])
     if core is not None:
-        return core, reported - core, "Offizielle Ex-Significant-/Notable-Items-EPS-Brücke"
+        return core, reported - core, "Offizielle Ex-Significant-/Notable-/Selected-Items-EPS-Brücke"
+
     low = t.lower()
-    # V2.21.27: some banks label the company-designated bridge as
-    # "Diluted EPS - as adjusted" rather than "EPS excluding significant items".
-    # Accept it only when the same release explicitly identifies the adjustment
-    # as significant/notable/special items or integration costs.
-    if any(term in low for term in ["significant item", "significant items", "notable item", "notable items", "special item", "special items", "integration cost", "integration costs"]):
+    adjustment_context = any(term in low for term in [
+        "significant item", "significant items", "notable item", "notable items",
+        "special item", "special items", "selected item", "selected items",
+        "integration cost", "integration costs",
+    ])
+    if adjustment_context:
         adjusted_vals = _bank_row_numeric_values(t, [
             r"diluted\s+(?:earnings\s+per\s+(?:common\s+)?share|EPS)\s*[-–—]?\s*(?:as\s+)?adjusted(?:\s*\(non-GAAP\))?",
             r"adjusted\s+diluted\s+(?:earnings\s+per\s+(?:common\s+)?share|EPS)(?:\s*\(non-GAAP\))?",
@@ -11310,10 +11418,14 @@ def _bank_detect_special_item_bridge(text, reported_eps):
             core = safe_float(adjusted_vals[0])
             if core is not None:
                 return core, reported - core, "Offizielle Diluted-EPS-as-adjusted-Brücke für company-designierte Sonder-/Integrationsposten"
-    sensitive_terms = ["significant item", "significant items", "notable item", "notable items", "special item", "special items"]
-    if any(term in low for term in sensitive_terms):
-        return None, None, "Sonderposten-Hinweis ohne quantitative EPS-Brücke – fail-closed"
-    return reported, 0.0, "Keine company-designierte quantitative EPS-Sonderposten-Brücke erkannt; reported EPS bleibt Core-Basis"
+
+    selected = _bank_selected_items_eps_bridge(t, reported, current_period)
+    if selected is not None:
+        return selected
+
+    if _bank_has_current_period_unbridged_eps_special_item_evidence(t, current_period):
+        return None, None, "Aktueller EPS-Sonderposten-Hinweis ohne quantitative company-designierte Brücke – fail-closed"
+    return reported, 0.0, "Keine aktuelle company-designierte quantitative EPS-Sonderposten-Brücke erkannt; reported EPS bleibt Core-Basis"
 
 
 # V2.21.16: Hub-first universal bank IR discovery.  The previous ordering
@@ -16152,7 +16264,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         primary_count = sum(1 for r in rows if _bank_ir_is_primary_earnings_row(r))
         fallback_count = sum(1 for r in rows if int(r.get("document_priority") or 0) in [1, 3])
         diag.append(
-            "Issuer-IR Discovery V29: Primary-PDF-Redirect-Signature/Phase-Isolated-Budget/Recent-Window aktiv · "
+            "Issuer-IR Discovery V30: Current-Period-EPS-Scope/Primary-PDF-Redirect/Phase-Isolated-Budget aktiv · "
             f"Entry-Points={len(set(entrypoints))}, Dokumente={len(rows)} (Archiv={len(rows_all)}), Primär={primary_count}, Fallback={fallback_count}, "
             f"Perioden={','.join(periods[:6]) or 'keine'}."
         )
@@ -16236,10 +16348,10 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         if diag is not None:
             _left = _research_budget_left(deadline)
             diag.append(
-                f"Issuer-IR Parser V29: Kandidat · Periode={row.get('period') or '–'} · Klasse={doc_class or 'unbekannt'} · "
+                f"Issuer-IR Parser V30: Kandidat · Periode={row.get('period') or '–'} · Klasse={doc_class or 'unbekannt'} · "
                 f"Priorität={int(doc_priority or 0)} · Rest={_left:.2f}s · URL={row.get('url')}"
                 if _left is not None else
-                f"Issuer-IR Parser V29: Kandidat · Periode={row.get('period') or '–'} · Klasse={doc_class or 'unbekannt'} · Priorität={int(doc_priority or 0)} · URL={row.get('url')}"
+                f"Issuer-IR Parser V30: Kandidat · Periode={row.get('period') or '–'} · Klasse={doc_class or 'unbekannt'} · Priorität={int(doc_priority or 0)} · URL={row.get('url')}"
             )
         payload = payload_for(row, 5.5)
         if not payload:
@@ -16320,7 +16432,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
                 if not payload:
                     continue
                 eps = _bank_extract_eps_from_text(payload.get("text"))
-                core, effect, status = _bank_detect_special_item_bridge(payload.get("text"), eps)
+                core, effect, status = _bank_detect_special_item_bridge(payload.get("text"), eps, current_period=period)
                 if eps is None or core is None or effect is None or not status:
                     continue
                 found = {
@@ -16432,7 +16544,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": None,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Primary PDF Redirect & Signature Loader Guard · Table Parser V16",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Current-Period EPS Special-Item Scope Guard · Table Parser V17",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -16483,7 +16595,7 @@ def _discover_universal_bank_snapshot_uncached(symbol, company_name=None, websit
         # not prevent the already-discovered primary PDF from being fetched.
         parser_deadline = time.monotonic() + 16.0
         ir_diagnostics.append(
-            "Issuer-IR Phase Budget V29: Discovery abgeschlossen; separates 16-s-Dokument-/Parser-Budget gestartet."
+            "Issuer-IR Phase Budget V30: Discovery abgeschlossen; separates 16-s-Dokument-/Parser-Budget gestartet."
         )
         snapshot = _bank_ir_snapshot_from_documents(
             symbol,
@@ -18165,7 +18277,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Primary PDF Redirect & Signature Loader Guard V2.21.33 lädt verifizierte Primärquellen-"
+            "Universal Bank Current-Period EPS Special-Item Scope Guard V2.21.34 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -18242,13 +18354,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Primary PDF Redirect & Signature Loader Guard V2.21.33 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Current-Period EPS Special-Item Scope Guard V2.21.34 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Primary PDF Redirect & Signature Loader Guard V2.21.33 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Current-Period EPS Special-Item Scope Guard V2.21.34 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -51092,7 +51204,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Primary PDF Redirect & Signature Loader Guard V2.21.33"
+                        "🏦 Bank-Familienmodell · Universal Bank Current-Period EPS Special-Item Scope Guard V2.21.34"
                     )
 
                     if bank_model.get("primary_source_complete"):
