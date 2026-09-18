@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.42"
+APP_BUILD_VERSION = "V2.21.43"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,11 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Publication-Date Provenance Priority Guard V38"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Final Snapshot Publication Authority Guard V39"
 )
 
 
-# V2.21.42: Universal Bank Publication-Date Provenance Priority Guard V38. Fixes the remaining PNC publication-date regression after identity gating: an authentic Q2 earnings page/search hit can itself mention an earlier post-quarter corporate action date (for example a dividend action), and chronological sorting would incorrectly prefer that body date over the page-owned publication metadata/dateline. Publication dates now follow source provenance order instead of earliest-calendar order, and search snippets are never allowed to supply the date. Search title/URL may provide a date only when the exact-quarter earnings identity also passes; otherwise the official page is fetched and URL/title/meta/dateline order decides the first plausible post-quarter date. TFC and PNC remain regression cases only; no issuer/ticker exception is added. EPS normalization, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
+# V2.21.43: Universal Bank Final Snapshot Publication Authority Guard V39. Fixes the remaining PNC publication-date regression at the final snapshot layer: the discovery pipeline may correctly identify the earnings publication date, but the snapshot builder previously merged that qualified date with every plausible date in the full current-quarter document and then selected the earliest calendar date. This could resurrect an unrelated post-quarter corporate-action date such as a dividend reference. The final snapshot now treats the qualified discovery date as authoritative and uses current-period document provenance/text only as a bounded fallback, preserving source order instead of chronological order. TFC and PNC remain regression cases only; no issuer/ticker exception is added. EPS normalization, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.40: Universal Bank Period-Semantic Publication Guard V36. Hardens the metadata-only publication-date completion pass after PNC exposed a false-positive date from an unrelated issuer IR press release. A candidate page must now prove the exact target quarter in its own title/URL/H1 identity and simultaneously carry earnings/results semantics before any date is accepted. Search snippets may supply the date only after that identity gate passes; fetched pages use only title/H1/date-meta/lead paragraphs for release-date extraction, preventing archive/navigation dates from contaminating the candidate. The guard remains issuer-neutral and metadata-only. No issuer/ticker exception is added. EPS normalization, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.39: Universal Bank Publication-Metadata Completion Pass V35. Adds a metadata-only completion pass after issuer-primary four-quarter coverage is already complete: when the latest bank period still lacks a publication date, a bounded issuer-domain search resolves one official results/event page for that exact quarter and accepts only date candidates strictly after quarter end and within 60 days. This closes the TFC case where the earnings-document feed is complete but its PDF rows carry no release date, so discovery previously stopped before the official dated results/event page was visited. The pass cannot add valuation evidence, cannot change document priority, and cannot alter score or Fair Value inputs. Cache epoch remains coupled to the adapter version. No issuer/ticker exception is added. EPS normalization, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.38: Universal Bank Snapshot Cache-Epoch Coupling Guard V34. Fixes the remaining cross-build bank-snapshot cache leak exposed by the V2.21.37 TFC regression test: the explicit Streamlit bank discovery cache epoch is now coupled directly to the primary-source adapter version, so a build that changes bank parsing or metadata semantics cannot reuse a successful snapshot produced by the prior adapter. This makes the V2.21.37 publication-date candidate scan actually execute on a fresh issuer-IR snapshot and also prevents stale source_note/source_name/adapter_version labels from leaking forward. No issuer/ticker exception is added. EPS normalization, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -10712,7 +10712,7 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22142_universal_bank_publication_date_provenance_v38"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22143_universal_bank_final_snapshot_publication_authority_v39"
 BANK_DISCOVERY_CACHE_EPOCH = BANK_PRIMARY_SOURCE_ADAPTER_VERSION
 # Latest-quarter company-designated EPS adjustments at or below 2% are treated
 # as immaterial for the separate ROTCE anchor when the issuer publishes no
@@ -16803,32 +16803,56 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         diag.append(f"Issuer-IR ROTCE Materiality Guard: {rotce_basis_note}")
 
     latest_end = _bank_period_end_date(latest_period)
-    # V2.21.37 metadata-only release-date recovery.  Quarterly PDFs often print
-    # the accounting/as-of date before the actual release date.  Scan all date
-    # candidates from the validated current-period payload plus its trusted
-    # provenance metadata, then accept only the earliest date strictly after the
-    # quarter end and within 60 days.  This remains display metadata only.
-    release_date_material = " ".join([
-        _clean_text(latest_text),
-        _clean_text(latest_row.get("title")),
-        _clean_text(latest_row.get("url")),
-        _clean_text(latest_payload.get("provenance_url")),
-        _clean_text(latest_payload.get("resolved_url")),
-        _clean_text(latest_payload.get("url")),
-    ])
-    release_date_candidates = _bank_extract_release_dates(
-        release_date_material, expected_year=latest_end.year if latest_end else None
-    )
+    # V2.21.43 final-snapshot publication authority guard.  Discovery has already
+    # applied exact-quarter earnings identity and provenance rules.  Once it
+    # supplies a plausible publication date, the final snapshot must not mix that
+    # authoritative date back together with arbitrary dates from the full earnings
+    # document body and then choose the earliest calendar date.  That old final
+    # sort reintroduced unrelated corporate-action dates (PNC: July 6 dividend
+    # reference) after discovery had correctly found the July 15 earnings release.
+    #
+    # Therefore the qualified discovery date is the primary publication anchor.
+    # Only when discovery has no usable date do we fall back to current-period
+    # document provenance/title/URL and finally a bounded leading slice of the
+    # validated document text.  Fallback candidates preserve source order rather
+    # than chronological order.  This remains display metadata only.
+    detected_release_date = None
+    release_date_source = None
     discovery_release_raw = ((discovery or {}).get("publication_dates_by_period") or {}).get(latest_period)
     if discovery_release_raw:
-        release_date_candidates.extend(
-            _bank_extract_release_dates(discovery_release_raw, expected_year=latest_end.year if latest_end else None)
+        discovery_candidates = _bank_extract_release_dates(
+            discovery_release_raw, expected_year=latest_end.year if latest_end else None
         )
-    plausible_release_dates = sorted({
-        d for d in release_date_candidates
-        if latest_end and latest_end < d <= latest_end + timedelta(days=60)
-    })
-    detected_release_date = plausible_release_dates[0] if plausible_release_dates else None
+        for candidate in discovery_candidates:
+            if latest_end and latest_end < candidate <= latest_end + timedelta(days=60):
+                detected_release_date = candidate
+                release_date_source = "qualified_discovery"
+                break
+
+    if detected_release_date is None:
+        fallback_material = " ".join([
+            _clean_text(latest_row.get("title")),
+            _clean_text(latest_row.get("url")),
+            _clean_text(latest_payload.get("provenance_url")),
+            _clean_text(latest_payload.get("resolved_url")),
+            _clean_text(latest_payload.get("url")),
+            _clean_text(latest_text)[:5000],
+        ])
+        fallback_candidates = _bank_extract_release_dates(
+            fallback_material, expected_year=latest_end.year if latest_end else None
+        )
+        for candidate in fallback_candidates:
+            if latest_end and latest_end < candidate <= latest_end + timedelta(days=60):
+                detected_release_date = candidate
+                release_date_source = "current_period_document_fallback"
+                break
+
+    if diag is not None:
+        diag.append(
+            "Final Snapshot Publication Authority Guard V39: "
+            f"Periode={latest_period}, Quelle={release_date_source or 'keine'}, "
+            f"Datum={detected_release_date.strftime('%Y-%m-%d') if detected_release_date else 'keins'}."
+        )
     published_date = detected_release_date.strftime("%d.%m.%Y") if detected_release_date else None
     # Freshness remains anchored to the reported quarter end.  Publication-date
     # recovery is display metadata only and must not alter validity mathematics.
@@ -16841,7 +16865,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": published_date,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Publication-Date Provenance Priority Guard · Table Parser V18",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Final Snapshot Publication Authority Guard · Table Parser V18",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -18623,7 +18647,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Publication-Date Provenance Priority Guard V2.21.42 lädt verifizierte Primärquellen-"
+            "Universal Bank Final Snapshot Publication Authority Guard V2.21.43 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -18700,13 +18724,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Publication-Date Provenance Priority Guard V2.21.42 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Final Snapshot Publication Authority Guard V2.21.43 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Publication-Date Provenance Priority Guard V2.21.42 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Final Snapshot Publication Authority Guard V2.21.43 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -51550,7 +51574,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Publication-Date Provenance Priority Guard V2.21.42"
+                        "🏦 Bank-Familienmodell · Universal Bank Final Snapshot Publication Authority Guard V2.21.43"
                     )
 
                     if bank_model.get("primary_source_complete"):
