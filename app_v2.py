@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.25"
+APP_BUILD_VERSION = "V2.21.26"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Q4 Sibling Material Recovery V21"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Strict Quarter EPS Alignment Guard V22"
 )
 
 
+# V2.21.26: Universal Bank Strict Quarter EPS Alignment Guard V22. Fixes the issuer-neutral four-quarter EPS bridge after USB exposed a false multi-quarter mapping: a row such as 2Q26/1Q26/2Q25 plus change/YTD columns must never have its first four numeric cells reinterpreted as four consecutive quarters. Multi-quarter TTM extraction is now accepted only when the source text provides an explicit period-aligned four-quarter header covering the complete expected sequence. Otherwise the adapter falls back to the separately discovered issuer-primary documents for each quarter. This changes only EPS period alignment/reconciliation; Bank Score, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.25: Universal Bank Q4 Sibling Material Recovery V21. Extends the issuer-neutral current-quarter completion pass from supplement-only guessing to source-anchored Q4 sibling-material recovery. When prior issuer-linked Q4 earnings documents establish the tenant and filename convention, the adapter derives the current-quarter Supplement/Release/Presentation filenames from those proven templates and the official issuer release date. This avoids wasting the bounded parser budget on speculative separator variants and allows an earnings release to supply ROTCE/TBV/CET1 when the supplemental schedules intentionally contain only accounting tables. All derived files still require issuer identity + expected-period validation before use. Bank Score, Fed CET1 buffer scoring, ROTCE-justified P/TBV, Core-TTM, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.23: Universal Bank Earnings Document Classifier & Q4 Material Ranking V19. Adds issuer-neutral earnings-document classification before bank snapshot parsing: quarterly/earnings supplements and results releases outrank earnings presentations; corporate/company profiles, fact sheets and generic investor presentations are excluded from the earnings pool even when their filenames contain a current quarter. This prevents a profile PDF from prematurely stopping Q4 event discovery. The parser also sorts by document class before link score and rejects explicitly non-earnings material as the primary current-quarter payload. Bank Score, CET1 regulatory buffer, ROTCE-justified P/TBV, Core-TTM, target P/E, 60/40 Dual Anchor, 25% fail-closed spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.22: Universal Bank IR Subdomain & Q4 Event Bridge V18. Fixes the issuer-neutral IR discovery gap exposed by U.S. Bancorp without adding a USB-specific snapshot or valuation branch. The bank adapter now probes common issuer-owned IR subdomains (ir., investor., investors.) before exhausting deep corporate-root paths, keeps strict same-domain-family validation, and adds a bounded Q4 event-detail bridge for JavaScript-rendered Q4 sites. Q4 CDN documents are trusted only when linked directly from an issuer-owned Q4 page or returned by the issuer-hosted Q4 feed; the parent event period is inherited when the CDN URL itself is opaque. Bank Score, regulatory CET1 buffer, ROTCE-justified P/TBV, Core-TTM, target P/E, 60/40 Dual Anchor, 25% fail-closed spread gate, Reality Check and signal mathematics are unchanged.
@@ -10699,8 +10700,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22125_universal_bank_q4_sibling_material_v21"
-BANK_DISCOVERY_CACHE_EPOCH = "v22125_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22126_universal_bank_strict_quarter_eps_alignment_v22"
+BANK_DISCOVERY_CACHE_EPOCH = "v22126_bank_discovery_epoch_1"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -11009,15 +11010,14 @@ def _bank_extract_quarterly_eps_series(text, latest_period, count=4):
         if all(p in amap for p in expected):
             return [{"period": p, "reported_eps": amap[p]} for p in reversed(expected)]
 
-    # Compatibility fallback for supplements whose extracted header is not
-    # recoverable but whose row is already newest-to-oldest (the legacy path).
-    values = _bank_row_numeric_values(text, patterns, max_chars=260, min_value=-100.0, max_value=100.0)
-    if not latest_period or len(values) < int(count):
-        return []
-    descending = [_bank_previous_period(latest_period, i) for i in range(int(count))]
-    if any(p is None for p in descending):
-        return []
-    return [{"period": period, "reported_eps": eps} for period, eps in zip(descending, values[:int(count)])]
+    # V2.21.26 strict alignment guard: never manufacture a four-quarter
+    # sequence from the first four numeric cells of an EPS row when the
+    # document does not expose an unambiguous four-quarter header. Earnings
+    # releases commonly mix current/prior-year quarters with change and YTD
+    # columns; treating those cells as consecutive quarters creates unit/period
+    # conflicts. Returning [] deliberately activates the safer per-quarter
+    # official-document path in the bank adapter.
+    return []
 
 
 def _bank_extract_adjusted_quarterly_eps_series(text, latest_period, count=4, reported_series=None):
@@ -15707,7 +15707,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
                         break
         if diag is not None:
             diag.append(
-                "Issuer-IR Latest-Period Completion V21: "
+                "Issuer-IR Latest-Period Completion V22: "
                 f"erwartet={expected_latest or 'keine'}, zuvor={discovered_latest or 'keine'}, "
                 f"Issuer-News={news_hits}, Q4-Tenants={len(tenant_roots if words else [])}, "
                 f"abgeleitete Supplement-Kandidaten={derived_count}."
@@ -15928,7 +15928,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         primary_count = sum(1 for r in rows if _bank_ir_is_primary_earnings_row(r))
         fallback_count = sum(1 for r in rows if int(r.get("document_priority") or 0) in [1, 3])
         diag.append(
-            "Issuer-IR Discovery V21: Q4-Sibling-Material-Recovery/Earnings-Ranking aktiv · "
+            "Issuer-IR Discovery V22: Strict-Quarter-EPS-Alignment/Q4-Sibling-Material-Recovery aktiv · "
             f"Entry-Points={len(set(entrypoints))}, Dokumente={len(rows)}, Primär={primary_count}, Fallback={fallback_count}, "
             f"Perioden={','.join(periods[:6]) or 'keine'}."
         )
@@ -16160,7 +16160,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": None,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Q4 Sibling Material Recovery & Table Parser V8",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Strict Quarter EPS Alignment & Table Parser V9",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -17883,7 +17883,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Q4 Sibling Material Recovery V2.21.25 lädt verifizierte Primärquellen-"
+            "Universal Bank Strict Quarter EPS Alignment Guard V2.21.26 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -17960,13 +17960,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Q4 Sibling Material Recovery V2.21.25 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Strict Quarter EPS Alignment Guard V2.21.26 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Q4 Sibling Material Recovery V2.21.25 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Strict Quarter EPS Alignment Guard V2.21.26 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -50810,7 +50810,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Q4 Sibling Material Recovery V2.21.25"
+                        "🏦 Bank-Familienmodell · Universal Bank Strict Quarter EPS Alignment Guard V2.21.26"
                     )
 
                     if bank_model.get("primary_source_complete"):
