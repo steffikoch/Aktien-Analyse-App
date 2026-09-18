@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.46"
+APP_BUILD_VERSION = "V2.21.47"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Proven IR News-Archive Bridge V42"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Trusted Q4 Detail & Financials Bridge V43"
 )
 
 
+# V2.21.47: Universal Bank Trusted Q4 Detail & Financials Bridge V43. Extends the issuer-neutral latest-quarter recovery for proven Q4 IR architectures whose press-release/archive cards are client-rendered and whose current-quarter PDFs moved from /files/doc_events/... to Q4's /files/doc_financials/<year>/q<quarter>/... structure. The adapter now probes a bounded Q4-style same-domain news-detail route generated from the exact issuer name + expected quarter/results identity and independently revalidates page identity before accepting publication metadata. In parallel, a trusted Q4 tenant may contribute bounded current-quarter /doc_financials/ sibling candidates copied from already issuer-proven prior-quarter filenames; downstream PDF payload gates still require expected-period + issuer identity before any document can enter the bank snapshot. No ticker/domain exception is added. EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.46: Universal Bank Proven IR News-Archive Bridge V42. Adds a deterministic issuer-neutral latest-quarter bridge for Q4-style IR sites when bounded web search returns no current-period hit. On already verified same-domain IR hosts, the adapter probes a small set of conventional news/press-release archive paths, follows only links whose own title/URL prove the exact expected quarter plus earnings/results semantics, captures the page-owned publication date, and then reuses the existing trusted Q4-tenant sibling derivation to recover the official release/supplement. This closes the U.S. Bancorp 2Q26 gap without ticker/domain exceptions and reduces dependence on search-engine indexing. Document trust, parser rules, EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.45: Universal Bank Proven IR-Host Latest-Period Search Guard V41. Extends the issuer-neutral latest-quarter completion search to already verified issuer IR hosts/subdomains (for example ir.<issuer-domain>) instead of relying only on the corporate registrable domain in the search scope. This closes the U.S. Bancorp Q4-IR case where 1Q26/4Q25/3Q25 documents proved the Q4 tenant but the 2Q26 results page was indexed under the verified IR subdomain and therefore never reached the existing derived-sibling completion bridge. Search remains bounded to same issuer-domain-family hosts discovered by the adapter; no ticker/domain exception is added. Document trust, parser rules, EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.44: Universal Bank Period-Context Event Archive Guard V40. Adds an issuer-neutral publication-metadata fallback for banks whose static earnings archive exposes complete quarterly documents but no dated results/newsroom page. When the latest period still lacks a high-quality publication date, the adapter probes a bounded set of conventional issuer-owned event/presentation archive paths and accepts a date only when it sits in the immediate text context of the exact target quarter together with earnings/results semantics. This closes the TFC regression without ticker/domain exceptions and does not alter valuation evidence, document priority, EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check or signal mathematics.
@@ -10715,7 +10716,7 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22146_universal_bank_proven_ir_news_archive_bridge_v42"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22147_universal_bank_trusted_q4_detail_financials_bridge_v43"
 BANK_DISCOVERY_CACHE_EPOCH = BANK_PRIMARY_SOURCE_ADAPTER_VERSION
 # Latest-quarter company-designated EPS adjustments at or below 2% are treated
 # as immaterial for the separate ROTCE anchor when the issuer publishes no
@@ -11866,6 +11867,97 @@ def _bank_period_context_publication_date(html_or_text, period):
         return None
     ranked.sort(key=lambda x: (x[0], x[1]))
     return ranked[0][2]
+
+
+def _bank_q4_financials_directory_candidates(tenant_roots, period, source_url, template_rows=None):
+    """Build bounded Q4 /files/doc_financials current-quarter sibling candidates."""
+    words = _bank_period_words(period)
+    if not words:
+        return []
+    year = int(words["year"])
+    q = int(words["q"])
+    period_code = words["period"]
+    rows, seen = [], set()
+
+    def add(tenant, filename, doc_class, priority, score, channel):
+        if not tenant or not filename:
+            return
+        url = f"{tenant.rstrip('/')}/files/doc_financials/{year}/q{q}/{filename}"
+        if url in seen:
+            return
+        seen.add(url)
+        label = {
+            "earnings_supplement": "Earnings Supplement",
+            "earnings_release": "Earnings Release",
+            "earnings_presentation": "Earnings Presentation",
+        }.get(doc_class, "Earnings Material")
+        rows.append({
+            "url": url,
+            "title": f"{period_code} {label}",
+            "period": period_code,
+            "score": score,
+            "document_class": doc_class,
+            "document_priority": priority,
+            "trusted_q4_derived": True,
+            "derived_from_url": source_url,
+            "discovery_channel": channel,
+        })
+
+    for row in (template_rows or []):
+        if not isinstance(row, dict):
+            continue
+        if not (row.get("trusted_q4_direct") or row.get("trusted_q4_feed")):
+            continue
+        url = str(row.get("url") or "")
+        mroot = re.match(r"^(https://s\d+\.q4cdn\.com/\d+)(?:/|$)", url, flags=re.I)
+        if not mroot:
+            continue
+        tenant = mroot.group(1).rstrip("/")
+        if tenant not in tenant_roots[:2]:
+            continue
+        basename = unquote(url.split("?")[0].rstrip("/").rsplit("/", 1)[-1])
+        if not basename.lower().endswith(".pdf") or not re.search(r"[1-4]Q\d{2}", basename, flags=re.I):
+            continue
+        doc_class = row.get("document_class")
+        priority = row.get("document_priority")
+        if priority is None or not doc_class:
+            doc_class, priority = _bank_ir_document_class(url, row.get("title"))
+        if doc_class not in {"earnings_supplement", "earnings_release", "earnings_presentation"}:
+            continue
+        filename = re.sub(r"[1-4]Q\d{2}", period_code, basename, count=1, flags=re.I)
+        add(tenant, filename, doc_class, int(priority or 0), 996,
+            "issuer_current_quarter_q4_financials_template_sibling")
+
+    if not rows:
+        generic = [
+            (f"{period_code}EarningsSupplement.pdf", "earnings_supplement", 5),
+            (f"{period_code}EarningsRelease.pdf", "earnings_release", 4),
+            (f"{period_code}EarningsPresentation.pdf", "earnings_presentation", 3),
+        ]
+        for tenant in tenant_roots[:2]:
+            for filename, doc_class, priority in generic:
+                add(tenant, filename, doc_class, priority, 990,
+                    "issuer_current_quarter_q4_financials_generic_sibling")
+    return rows[:8]
+
+
+def _bank_q4_results_detail_route_candidates(hosts, company_name, period):
+    """Bounded Q4-style same-domain results-detail routes for client-rendered archives."""
+    words = _bank_period_words(period)
+    if not words or not company_name:
+        return []
+    title = f"{company_name} Reports {words['ordinal'].title()} Quarter {words['year']} Results"
+    slug = ''.join(ch if ch.isalnum() else '-' for ch in title).strip('-')
+    routes = [
+        f"/news-events/news/news-details/{words['year']}/{slug}/default.aspx",
+        f"/news/press-releases/news-details/{words['year']}/{slug}/default.aspx",
+        f"/news/news-details/{words['year']}/{slug}/default.aspx",
+    ]
+    out = []
+    for host in hosts[:3]:
+        for route in routes:
+            out.append(f"https://{host}{route}")
+    return out[:9]
 
 
 def _bank_q4_derived_supplement_candidates(tenant_roots, period, release_date, source_url, template_rows=None):
@@ -16254,8 +16346,54 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
                 ])
             if diag is not None:
                 diag.append(
-                    "Issuer-IR Proven IR News-Archive Bridge V42: "
+                    "Issuer-IR Trusted Q4 Detail & Financials Bridge V43: "
                     f"Periode={expected_latest}, Suchhosts={','.join(proven_search_hosts) or 'keine'}."
+                )
+
+            financials_directory_count = 0
+            for drow in _bank_q4_financials_directory_candidates(
+                tenant_roots, expected_latest,
+                (entrypoints[-1] if entrypoints else company_domain),
+                template_rows=list(documents.values()),
+            ):
+                old = documents.get(drow["url"])
+                if old is None or drow.get("score", 0) > old.get("score", 0):
+                    documents[drow["url"]] = drow
+                    financials_directory_count += 1
+            if financials_directory_count:
+                trusted_platform_hosts.add("q4cdn.com")
+
+            detail_route_hits = 0
+            for detail_url in _bank_q4_results_detail_route_candidates(
+                proven_search_hosts, company_name, expected_latest
+            ):
+                if detail_route_hits or not _research_budget_ok(deadline, reserve=1.05):
+                    break
+                if detail_url in fetched:
+                    continue
+                fetched.add(detail_url)
+                detail_html, detail_final = _fetch_html(detail_url, timeout=2.2, deadline=deadline)
+                if not detail_html:
+                    continue
+                detail_final = detail_final or detail_url
+                if not _host_belongs_to_company_family(detail_final, company_domain):
+                    continue
+                detail_identity = _bank_publication_page_identity_material(detail_html, detail_final)
+                if not _bank_publication_identity_matches(detail_identity, expected_latest):
+                    continue
+                detail_route_hits += 1
+                entrypoints.append(detail_final)
+                detail_lead = _bank_publication_page_lead_material(detail_html, detail_final)
+                remember_publication_date(
+                    expected_latest, detail_lead,
+                    identity_material=detail_identity, source_priority=4,
+                )
+                add_links(detail_html, detail_final, inherited_period=expected_latest)
+
+            if diag is not None:
+                diag.append(
+                    "Issuer-IR Trusted Q4 Detail & Financials Bridge V43: "
+                    f"Detail-Treffer={detail_route_hits}, Financials-Kandidaten={financials_directory_count}."
                 )
 
             # V2.21.46 deterministic archive bridge. Search engines can omit a newly
@@ -16424,7 +16562,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
                 "Issuer-IR Latest-Period Completion V22: "
                 f"erwartet={expected_latest or 'keine'}, zuvor={discovered_latest or 'keine'}, "
                 f"Issuer-News={news_hits}, Q4-Tenants={len(tenant_roots if words else [])}, "
-                f"abgeleitete Supplement-Kandidaten={derived_count}."
+                f"abgeleitete Supplement-Kandidaten={derived_count + financials_directory_count if words else derived_count}."
             )
 
     # Phase 1: hub-first.  Do not burn the complete request budget on guessed deep
@@ -17138,7 +17276,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
 
     if diag is not None:
         diag.append(
-            "Proven IR News-Archive Bridge V42: "
+            "Trusted Q4 Detail & Financials Bridge V43: "
             f"Periode={latest_period}, Quelle={release_date_source or 'keine'}, "
             f"Datum={detected_release_date.strftime('%Y-%m-%d') if detected_release_date else 'keins'}."
         )
@@ -17154,7 +17292,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": published_date,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Proven IR News-Archive Bridge · Table Parser V18",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Trusted Q4 Detail & Financials Bridge · Table Parser V18",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -18936,7 +19074,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Proven IR News-Archive Bridge V2.21.46 lädt verifizierte Primärquellen-"
+            "Universal Bank Trusted Q4 Detail & Financials Bridge V2.21.47 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -19013,13 +19151,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Proven IR News-Archive Bridge V2.21.46 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Trusted Q4 Detail & Financials Bridge V2.21.47 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Proven IR News-Archive Bridge V2.21.46 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Trusted Q4 Detail & Financials Bridge V2.21.47 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -51863,7 +52001,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Proven IR News-Archive Bridge V2.21.46"
+                        "🏦 Bank-Familienmodell · Universal Bank Trusted Q4 Detail & Financials Bridge V2.21.47"
                     )
 
                     if bank_model.get("primary_source_complete"):
