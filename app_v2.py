@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.27"
+APP_BUILD_VERSION = "V2.21.28"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,11 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Full-Year Q4 & Three-Column Table Bridge V23"
+    f"Build {APP_BUILD_VERSION} · Universal Bank ROTCE Materiality Guard V24"
 )
 
 
-# V2.21.27: Universal Bank Full-Year Q4 & Three-Column Table Bridge V23. Extends issuer-neutral bank IR parsing for common regional-bank release formats exposed by PNC: a Full Year YYYY earnings release is recognized as the fourth-quarter source only when earnings/results semantics are present; latest/prior/year-ago three-column quarter tables are accepted for current ROTCE/TBV/CET1 extraction while the strict four-quarter EPS TTM guard still requires four explicit consecutive quarters or four separate official period documents; and company-designated "Diluted EPS - as adjusted" rows are accepted only when the same release explicitly ties them to significant/notable/special items or integration costs. No Bank Score, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check or signal mathematics changed.
+# V2.21.28: Universal Bank ROTCE Materiality Guard V24. Preserves issuer-reported ROTCE as the valuation basis only when a company-designated latest-quarter EPS adjustment is immaterial (<=2% of reported EPS) and the issuer does not publish a separate adjusted ROTCE. Material adjustments still fail closed exactly as before; no adjusted ROTCE is derived or reverse-engineered. Full-Year-Q4 recognition, three-column table parsing, strict four-quarter EPS alignment, Bank Score thresholds, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.26: Universal Bank Strict Quarter EPS Alignment Guard V22. Fixes the issuer-neutral four-quarter EPS bridge after USB exposed a false multi-quarter mapping: a row such as 2Q26/1Q26/2Q25 plus change/YTD columns must never have its first four numeric cells reinterpreted as four consecutive quarters. Multi-quarter TTM extraction is now accepted only when the source text provides an explicit period-aligned four-quarter header covering the complete expected sequence. Otherwise the adapter falls back to the separately discovered issuer-primary documents for each quarter. This changes only EPS period alignment/reconciliation; Bank Score, Fed CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.25: Universal Bank Q4 Sibling Material Recovery V21. Extends the issuer-neutral current-quarter completion pass from supplement-only guessing to source-anchored Q4 sibling-material recovery. When prior issuer-linked Q4 earnings documents establish the tenant and filename convention, the adapter derives the current-quarter Supplement/Release/Presentation filenames from those proven templates and the official issuer release date. This avoids wasting the bounded parser budget on speculative separator variants and allows an earnings release to supply ROTCE/TBV/CET1 when the supplemental schedules intentionally contain only accounting tables. All derived files still require issuer identity + expected-period validation before use. Bank Score, Fed CET1 buffer scoring, ROTCE-justified P/TBV, Core-TTM, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.23: Universal Bank Earnings Document Classifier & Q4 Material Ranking V19. Adds issuer-neutral earnings-document classification before bank snapshot parsing: quarterly/earnings supplements and results releases outrank earnings presentations; corporate/company profiles, fact sheets and generic investor presentations are excluded from the earnings pool even when their filenames contain a current quarter. This prevents a profile PDF from prematurely stopping Q4 event discovery. The parser also sorts by document class before link score and rejects explicitly non-earnings material as the primary current-quarter payload. Bank Score, CET1 regulatory buffer, ROTCE-justified P/TBV, Core-TTM, target P/E, 60/40 Dual Anchor, 25% fail-closed spread gate, Reality Check and signal mathematics are unchanged.
@@ -10701,8 +10701,13 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22127_universal_bank_full_year_q4_three_column_v23"
-BANK_DISCOVERY_CACHE_EPOCH = "v22127_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22128_universal_bank_rotce_materiality_guard_v24"
+BANK_DISCOVERY_CACHE_EPOCH = "v22128_bank_discovery_epoch_1"
+# Latest-quarter company-designated EPS adjustments at or below 2% are treated
+# as immaterial for the separate ROTCE anchor when the issuer publishes no
+# adjusted ROTCE. The reported issuer ROTCE is retained; no synthetic ROTCE is
+# calculated. Material adjustments remain fail-closed.
+BANK_ROTCE_EPS_BRIDGE_IMMATERIALITY_LIMIT = 0.02
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -16014,7 +16019,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         primary_count = sum(1 for r in rows if _bank_ir_is_primary_earnings_row(r))
         fallback_count = sum(1 for r in rows if int(r.get("document_priority") or 0) in [1, 3])
         diag.append(
-            "Issuer-IR Discovery V23: Full-Year-Q4/Three-Column-Table-Bridge aktiv · "
+            "Issuer-IR Discovery V24: ROTCE-Materiality-Guard/Full-Year-Q4/Three-Column-Table aktiv · "
             f"Entry-Points={len(set(entrypoints))}, Dokumente={len(rows)}, Primär={primary_count}, Fallback={fallback_count}, "
             f"Perioden={','.join(periods[:6]) or 'keine'}."
         )
@@ -16220,6 +16225,40 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
     latest_eps = safe_float(latest_cov.get("reported_eps"))
     latest_core = safe_float(latest_cov.get("core_eps"))
     latest_effect = safe_float(latest_cov.get("special_items_eps_effect"))
+
+    # V2.21.28: do not require a separately adjusted ROTCE for a de-minimis
+    # company-designated EPS bridge.  We never derive an adjusted ROTCE.  The
+    # issuer-reported ROTCE is simply retained when the current-quarter EPS
+    # adjustment is <=2% of reported EPS; larger adjustments still block the
+    # normalized ROTCE anchor unless an explicit issuer-adjusted ROTCE exists.
+    rotce_eps_bridge_ratio = None
+    rotce_basis = None
+    rotce_basis_mode = None
+    rotce_basis_note = None
+    if rotce is not None:
+        if latest_effect is None or abs(latest_effect) <= 1e-12:
+            rotce_basis = rotce
+            rotce_basis_mode = "reported_no_current_eps_adjustment"
+            rotce_basis_note = "Gemeldeter ROTCE als Bewertungsbasis; im aktuellen Quartal keine quantitative EPS-Sonderposten-Brücke."
+        elif latest_eps is not None and abs(latest_eps) > 1e-12:
+            rotce_eps_bridge_ratio = abs(latest_effect / latest_eps)
+            if rotce_eps_bridge_ratio <= BANK_ROTCE_EPS_BRIDGE_IMMATERIALITY_LIMIT:
+                rotce_basis = rotce
+                rotce_basis_mode = "reported_rotce_immaterial_eps_bridge"
+                rotce_basis_note = (
+                    "Gemeldeter ROTCE bleibt Bewertungsbasis: Die company-designierte aktuelle EPS-Bereinigung "
+                    f"beträgt nur {rotce_eps_bridge_ratio * 100.0:.1f} % des gemeldeten Quartals-EPS und liegt damit "
+                    f"innerhalb des konservativen {BANK_ROTCE_EPS_BRIDGE_IMMATERIALITY_LIMIT * 100.0:.0f}-%-Materialitätslimits. "
+                    "Es wird kein adjusted ROTCE geschätzt oder abgeleitet."
+                )
+            else:
+                rotce_basis_mode = "blocked_material_eps_bridge_without_adjusted_rotce"
+                rotce_basis_note = (
+                    "ROTCE-Bewertungsbasis gesperrt: Die company-designierte aktuelle EPS-Bereinigung ist materiell "
+                    f"({rotce_eps_bridge_ratio * 100.0:.1f} % des gemeldeten Quartals-EPS), aber die Primärquelle weist "
+                    "keinen separaten adjusted ROTCE aus."
+                )
+
     if diag is not None:
         diag.append(
             "Issuer-IR Parser-Gate: "
@@ -16231,8 +16270,12 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
     # V2.21.24: ordinary Book Value is optional context.  The released bank
     # valuation is anchored to Tangible Book Value, so a missing ordinary BVPS
     # must not block an otherwise complete issuer-primary bank snapshot.
-    if None in [rotce, cet1_std, tbv, tbv_growth, latest_eps, latest_core, latest_effect]:
+    if None in [rotce_basis, cet1_std, tbv, tbv_growth, latest_eps, latest_core, latest_effect]:
+        if diag is not None and rotce is not None and rotce_basis is None and rotce_basis_note:
+            diag.append(f"Issuer-IR ROTCE Materiality Guard: {rotce_basis_note}")
         return None
+    if diag is not None and rotce_basis_note:
+        diag.append(f"Issuer-IR ROTCE Materiality Guard: {rotce_basis_note}")
 
     latest_end = _bank_period_end_date(latest_period)
     # Freshness is anchored to the reported quarter end when an exact release
@@ -16246,7 +16289,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": None,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Full-Year Q4 & Three-Column Table Parser V10",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank ROTCE Materiality Guard & Table Parser V11",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -16259,8 +16302,11 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "tangible_book_value_growth_yoy_pct": tbv_growth,
         "roe_reported_pct": None,
         "rotce_reported_pct": rotce,
-        "rotce_ex_significant_items_pct": rotce if abs(latest_effect or 0.0) <= 1e-12 else None,
+        "rotce_ex_significant_items_pct": rotce_basis,
         "rotce_normalized_label": "ROTCE Bewertungsbasis",
+        "rotce_basis_mode": rotce_basis_mode,
+        "rotce_basis_note": rotce_basis_note,
+        "rotce_eps_bridge_ratio": rotce_eps_bridge_ratio,
         "cet1_standardized_pct": cet1_std,
         "cet1_advanced_pct": cet1_adv,
         "quarter_eps_reported": latest_eps,
@@ -17969,7 +18015,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Full-Year Q4 & Three-Column Table Bridge V2.21.27 lädt verifizierte Primärquellen-"
+            "Universal Bank ROTCE Materiality Guard V2.21.28 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -18046,13 +18092,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Full-Year Q4 & Three-Column Table Bridge V2.21.27 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank ROTCE Materiality Guard V2.21.28 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Full-Year Q4 & Three-Column Table Bridge V2.21.27 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank ROTCE Materiality Guard V2.21.28 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -50896,7 +50942,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Full-Year Q4 & Three-Column Table Bridge V2.21.27"
+                        "🏦 Bank-Familienmodell · Universal Bank ROTCE Materiality Guard V2.21.28"
                     )
 
                     if bank_model.get("primary_source_complete"):
@@ -51019,7 +51065,10 @@ if selected_symbol:
                                     if reported_q_eps is not None and ex_q_eps is not None
                                     else ""
                                 )
-                                + "Die normalisierte ROTCE-/Ertragsqualitätsbasis folgt ausschließlich der verifizierten Primärquellen-Brücke."
+                                + (
+                                    snapshot.get("rotce_basis_note")
+                                    or "Die normalisierte ROTCE-/Ertragsqualitätsbasis folgt ausschließlich der verifizierten Primärquellen-Brücke."
+                                )
                             )
                         elif significant is not None:
                             ttm_cov_ui = snapshot.get("ttm_eps_coverage") or []
