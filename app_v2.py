@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.24"
+APP_BUILD_VERSION = "V2.21.25"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,11 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank Current-Quarter Completion & TBV Gate V20"
+    f"Build {APP_BUILD_VERSION} · Universal Bank Q4 Sibling Material Recovery V21"
 )
 
 
-# V2.21.24: Universal Bank Current-Quarter Completion & TBV Gate V20. Adds an issuer-neutral stale-quarter completion pass: when the newest primary IR earnings period trails the latest normally released calendar quarter, the adapter searches the issuer domain for that exact quarter, follows the official results/news page, and may derive a small set of Q4 CDN sibling supplement URLs only from a Q4 tenant already proven by issuer-linked prior-quarter documents plus the official current-quarter release date. Derived Q4 candidates must pass period and issuer-identity content checks before use. Also removes ordinary Book Value per share from the mandatory primary-source release gate because the bank valuation uses Tangible Book Value per share; ordinary book value remains optional context. Bank Score, Fed CET1 buffer scoring, ROTCE-justified P/TBV, Core-TTM, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
+# V2.21.25: Universal Bank Q4 Sibling Material Recovery V21. Extends the issuer-neutral current-quarter completion pass from supplement-only guessing to source-anchored Q4 sibling-material recovery. When prior issuer-linked Q4 earnings documents establish the tenant and filename convention, the adapter derives the current-quarter Supplement/Release/Presentation filenames from those proven templates and the official issuer release date. This avoids wasting the bounded parser budget on speculative separator variants and allows an earnings release to supply ROTCE/TBV/CET1 when the supplemental schedules intentionally contain only accounting tables. All derived files still require issuer identity + expected-period validation before use. Bank Score, Fed CET1 buffer scoring, ROTCE-justified P/TBV, Core-TTM, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.23: Universal Bank Earnings Document Classifier & Q4 Material Ranking V19. Adds issuer-neutral earnings-document classification before bank snapshot parsing: quarterly/earnings supplements and results releases outrank earnings presentations; corporate/company profiles, fact sheets and generic investor presentations are excluded from the earnings pool even when their filenames contain a current quarter. This prevents a profile PDF from prematurely stopping Q4 event discovery. The parser also sorts by document class before link score and rejects explicitly non-earnings material as the primary current-quarter payload. Bank Score, CET1 regulatory buffer, ROTCE-justified P/TBV, Core-TTM, target P/E, 60/40 Dual Anchor, 25% fail-closed spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.22: Universal Bank IR Subdomain & Q4 Event Bridge V18. Fixes the issuer-neutral IR discovery gap exposed by U.S. Bancorp without adding a USB-specific snapshot or valuation branch. The bank adapter now probes common issuer-owned IR subdomains (ir., investor., investors.) before exhausting deep corporate-root paths, keeps strict same-domain-family validation, and adds a bounded Q4 event-detail bridge for JavaScript-rendered Q4 sites. Q4 CDN documents are trusted only when linked directly from an issuer-owned Q4 page or returned by the issuer-hosted Q4 feed; the parent event period is inherited when the CDN URL itself is opaque. Bank Score, regulatory CET1 buffer, ROTCE-justified P/TBV, Core-TTM, target P/E, 60/40 Dual Anchor, 25% fail-closed spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.21: Universal Bank Dynamic IR Hub & Q4 Financial Feed Discovery V17. Extends issuer-neutral bank primary-source discovery for corporate sites whose public website differs from the investor-relations subdomain and for JavaScript-rendered quarterly-results hubs. Adds early same-domain IR-hub search, generic /financials/quarterly-results conventions, and a bounded Q4 FinancialReport feed bridge that is activated only when an issuer page itself identifies Q4 and exposes a public API key. Q4-hosted document URLs are accepted only when they are returned by that issuer-domain feed, preserving chain-of-trust. No Bank Score, regulatory CET1 buffer, ROTCE-justified P/TBV, Core-TTM, 60/40 Dual Anchor, 25% fail-closed spread gate, Reality Check, or signal mathematics changed.
@@ -10699,8 +10699,8 @@ def build_insurance_special_control(base_control, insurance_model):
 
 BANK_TTM_COVERAGE_INTEGRATION_VERSION = "v22039_ttm_4q"
 
-BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22124_universal_bank_current_quarter_completion_v20"
-BANK_DISCOVERY_CACHE_EPOCH = "v22124_bank_discovery_epoch_1"
+BANK_PRIMARY_SOURCE_ADAPTER_VERSION = "v22125_universal_bank_q4_sibling_material_v21"
+BANK_DISCOVERY_CACHE_EPOCH = "v22125_bank_discovery_epoch_1"
 
 
 def _bank_source_url_is_allowed(snapshot, url):
@@ -11458,8 +11458,18 @@ def _bank_extract_release_date(text, expected_year=None):
     return None
 
 
-def _bank_q4_derived_supplement_candidates(tenant_roots, period, release_date, source_url):
-    """Build bounded Q4 sibling candidates from proven tenant + issuer release date."""
+def _bank_q4_derived_supplement_candidates(tenant_roots, period, release_date, source_url, template_rows=None):
+    """Build bounded current-quarter Q4 sibling materials from issuer-proven templates.
+
+    Q4 tenants frequently keep a stable filename convention across quarters while
+    the current results page itself is client-rendered.  Prefer exact filename
+    templates already linked by the issuer (Supplement/Release/Presentation),
+    replacing only the quarter token and release-date directory.  Only when no
+    usable template survives do we fall back to a very small generic filename set.
+
+    Every returned URL is still subject to the downstream derived-payload gate,
+    which requires both expected-period and issuer-identity confirmation.
+    """
     words = _bank_period_words(period)
     if not words or not release_date:
         return []
@@ -11467,32 +11477,96 @@ def _bank_q4_derived_supplement_candidates(tenant_roots, period, release_date, s
     day = str(int(release_date.day))
     day2 = f"{release_date.day:02d}"
     period_code = words["period"]
-    filenames = [
-        f"{period_code}EarningsSupplement.pdf",
-        f"{period_code}-Earnings-Supplement.pdf",
-        f"{period_code}_Earnings_Supplement.pdf",
-    ]
+
     rows = []
     seen = set()
-    for tenant in tenant_roots[:2]:
+
+    def add_row(tenant, filename, doc_class, priority, score, channel):
+        if not tenant or not filename:
+            return
         for d in [day2, day]:
-            for filename in filenames:
-                url = f"{tenant}/files/doc_events/{release_date.year}/{mon}/{d}/{filename}"
-                if url in seen:
-                    continue
-                seen.add(url)
-                rows.append({
-                    "url": url,
-                    "title": f"{period_code} Earnings Supplement",
-                    "period": period_code,
-                    "score": 980,
-                    "document_class": "earnings_supplement",
-                    "document_priority": 5,
-                    "trusted_q4_derived": True,
-                    "derived_from_url": source_url,
-                    "discovery_channel": "issuer_current_quarter_q4_sibling",
-                })
-    return rows[:12]
+            url = f"{tenant.rstrip('/')}/files/doc_events/{release_date.year}/{mon}/{d}/{filename}"
+            if url in seen:
+                continue
+            seen.add(url)
+            label = {
+                "earnings_supplement": "Earnings Supplement",
+                "earnings_release": "Earnings Release",
+                "earnings_presentation": "Earnings Presentation",
+            }.get(doc_class, "Earnings Material")
+            rows.append({
+                "url": url,
+                "title": f"{period_code} {label}",
+                "period": period_code,
+                "score": score,
+                "document_class": doc_class,
+                "document_priority": priority,
+                "trusted_q4_derived": True,
+                "derived_from_url": source_url,
+                "discovery_channel": channel,
+            })
+
+    # Primary route: copy the issuer's own prior-quarter filename convention.
+    # This remains universal: no ticker, tenant id or issuer-specific filename is
+    # encoded here.  The prior row must already be issuer-linked and Q4-trusted.
+    for row in (template_rows or []):
+        if not isinstance(row, dict):
+            continue
+        if not (row.get("trusted_q4_direct") or row.get("trusted_q4_feed")):
+            continue
+        url = str(row.get("url") or "")
+        mroot = re.match(r"^(https://s\d+\.q4cdn\.com/\d+)(?:/|$)", url, flags=re.I)
+        if not mroot:
+            continue
+        tenant = mroot.group(1).rstrip("/")
+        if tenant not in tenant_roots[:2]:
+            continue
+        basename = unquote(url.split("?")[0].rstrip("/").rsplit("/", 1)[-1])
+        if not basename.lower().endswith(".pdf"):
+            continue
+        if not re.search(r"[1-4]Q\d{2}", basename, flags=re.I):
+            continue
+        doc_class = row.get("document_class")
+        priority = row.get("document_priority")
+        if priority is None or not doc_class:
+            doc_class, priority = _bank_ir_document_class(url, row.get("title"))
+        if doc_class not in {"earnings_supplement", "earnings_release", "earnings_presentation"}:
+            continue
+        filename = re.sub(r"[1-4]Q\d{2}", period_code, basename, count=1, flags=re.I)
+        add_row(
+            tenant, filename, doc_class, int(priority or 0), 995,
+            "issuer_current_quarter_q4_template_sibling",
+        )
+
+    if rows:
+        # Deduplicate equivalent templates from several prior quarters while
+        # preserving one candidate per material type/name.  Exact issuer-proven
+        # filename templates intentionally outrank generic spelling guesses.
+        compact = []
+        names = set()
+        for row in sorted(rows, key=lambda r: (int(r.get("document_priority") or 0), r.get("score", 0)), reverse=True):
+            key = (row.get("document_class"), row.get("url", "").rsplit("/", 1)[-1].lower())
+            if key in names:
+                continue
+            names.add(key)
+            compact.append(row)
+        return compact[:8]
+
+    # Conservative generic fallback when no prior-quarter material template was
+    # exposed.  Keep it small so failed spelling variants cannot consume the
+    # research budget before a valid release is attempted.
+    fallback = [
+        (f"{period_code}EarningsSupplement.pdf", "earnings_supplement", 5),
+        (f"{period_code}EarningsRelease.pdf", "earnings_release", 4),
+        (f"{period_code}EarningsPresentation.pdf", "earnings_presentation", 3),
+    ]
+    for tenant in tenant_roots[:2]:
+        for filename, doc_class, priority in fallback:
+            add_row(
+                tenant, filename, doc_class, priority, 970,
+                "issuer_current_quarter_q4_generic_sibling",
+            )
+    return rows[:6]
 
 
 def _bank_company_identity_matches(text, company_name):
@@ -15621,7 +15695,8 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
                     # Refresh tenant roots after following the current issuer page.
                     tenant_roots = _bank_q4_trusted_tenant_bases(documents) or tenant_roots
                     for drow in _bank_q4_derived_supplement_candidates(
-                        tenant_roots, expected_latest, release_date, final_url
+                        tenant_roots, expected_latest, release_date, final_url,
+                        template_rows=list(documents.values()),
                     ):
                         old = documents.get(drow["url"])
                         if old is None or drow.get("score", 0) > old.get("score", 0):
@@ -15632,7 +15707,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
                         break
         if diag is not None:
             diag.append(
-                "Issuer-IR Latest-Period Completion V20: "
+                "Issuer-IR Latest-Period Completion V21: "
                 f"erwartet={expected_latest or 'keine'}, zuvor={discovered_latest or 'keine'}, "
                 f"Issuer-News={news_hits}, Q4-Tenants={len(tenant_roots if words else [])}, "
                 f"abgeleitete Supplement-Kandidaten={derived_count}."
@@ -15853,7 +15928,7 @@ def _bank_discover_issuer_ir_documents(company_domain, company_name=None, deadli
         primary_count = sum(1 for r in rows if _bank_ir_is_primary_earnings_row(r))
         fallback_count = sum(1 for r in rows if int(r.get("document_priority") or 0) in [1, 3])
         diag.append(
-            "Issuer-IR Discovery V20: Current-Quarter-Completion/Earnings-Ranking aktiv · "
+            "Issuer-IR Discovery V21: Q4-Sibling-Material-Recovery/Earnings-Ranking aktiv · "
             f"Entry-Points={len(set(entrypoints))}, Dokumente={len(rows)}, Primär={primary_count}, Fallback={fallback_count}, "
             f"Perioden={','.join(periods[:6]) or 'keine'}."
         )
@@ -16085,7 +16160,7 @@ def _bank_ir_snapshot_from_documents(symbol, company_name, company_domain, disco
         "as_of_date": latest_end.strftime("%d.%m.%Y") if latest_end else None,
         "published_date": None,
         "valid_until": valid_until.strftime("%d.%m.%Y") if valid_until else None,
-        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Current-Quarter Completion & Table Parser V7",
+        "source_name": "Issuer IR Quarterly Earnings · Universal Bank Q4 Sibling Material Recovery & Table Parser V8",
         "source_url": source_url,
         "supplement_url": source_url,
         "source_discovery_url": entrypoints[0] if entrypoints else None,
@@ -17808,7 +17883,7 @@ def build_bank_special_model(
         "bank_core_eps": bank_core_eps,
         "bank_valuation": bank_valuation,
         "note": (
-            "Universal Bank Current-Quarter Completion & TBV Gate V2.21.24 lädt verifizierte Primärquellen-"
+            "Universal Bank Q4 Sibling Material Recovery V2.21.25 lädt verifizierte Primärquellen-"
             "Kennzahlen in das bestehende Bank-Familienmodell und verwendet ausschließlich bankspezifische Faktoren "
             "für den Bank-Score. Bei vollständiger Datenbasis wird ein "
             "Dual-Anchor-Fair-Value aus 60 % ROTCE-justified P/TBV und 40 % bank-normalisiertem Core-KGV "
@@ -17885,13 +17960,13 @@ def build_bank_special_control(base_control, bank_model):
             "bank_valuation": bank_valuation,
         },
         "note": (
-            "Bank-Schritt 3B mit Universal Bank Current-Quarter Completion & TBV Gate V2.21.24 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
+            "Bank-Schritt 3B mit Universal Bank Q4 Sibling Material Recovery V2.21.25 hat Primärdaten, Bank-Score, Vier-Quartals-TTM-Core-EPS-Abdeckung und beide "
             "Bewertungsanker validiert. Der Fair Value wird nur freigegeben, "
             "wenn P/TBV- und Core-KGV-Anker gleichzeitig belastbar und ausreichend "
             "konsistent sind."
             if valuation_released
             else (
-                "Bank-Schritt 3B mit Universal Bank Current-Quarter Completion & TBV Gate V2.21.24 hat die Primärdatenbasis validiert, "
+                "Bank-Schritt 3B mit Universal Bank Q4 Sibling Material Recovery V2.21.25 hat die Primärdatenbasis validiert, "
                 "aber die Bewertungsfreigabe bleibt gesperrt: "
                 + str(bank_valuation.get("note") or bank_score.get("note") or "Bankbewertung unvollständig.")
             )
@@ -50735,7 +50810,7 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🏦 Bank-Familienmodell · Universal Bank Current-Quarter Completion & TBV Gate V2.21.24"
+                        "🏦 Bank-Familienmodell · Universal Bank Q4 Sibling Material Recovery V2.21.25"
                     )
 
                     if bank_model.get("primary_source_complete"):
