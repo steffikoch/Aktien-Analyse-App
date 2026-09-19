@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.48"
+APP_BUILD_VERSION = "V2.21.49"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Bank CET1 Row & Q4 Publication Metadata Guard V44"
+    f"Build {APP_BUILD_VERSION} · Nordic Home-Listing & Cboe Venue Guard V45"
 )
 
 
+# V2.21.49: Nordic Home-Listing & Cboe Venue Guard V45. Extends only the Security Identity & Primary Listing Resolver. Verified Industrivärden name aliases resolve Class C to the issuer-declared Nasdaq Stockholm home line (Yahoo-style INDU-C.ST), while Cboe Europe .XD/DXE rows are treated as secondary venues for name searches. Exact ticker input still retains its exact-security priority, so an explicitly entered .XD ticker remains selectable as entered. No company-family routing, EPS normalization, specialist model, score, Fair Value, Reality Check or signal mathematics are changed.
 # V2.21.48: Universal Bank CET1 Row & Q4 Publication Metadata Guard V44. Period-aligned Standardized CET1 rows outrank generic CET1 narrative/footnote matches; trusted-Q4 current-quarter documents with missing publication metadata get one bounded issuer-domain results-detail metadata retry with exact quarter/results identity validation. The retry is metadata-only and cannot alter valuation evidence. No issuer/ticker exception is added. EPS normalization, Bank Score scoring thresholds, regulatory CET1 buffer mathematics, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.47: Universal Bank Trusted Q4 Detail & Financials Bridge V43. Extends the issuer-neutral latest-quarter recovery for proven Q4 IR architectures whose press-release/archive cards are client-rendered and whose current-quarter PDFs moved from /files/doc_events/... to Q4's /files/doc_financials/<year>/q<quarter>/... structure. The adapter now probes a bounded Q4-style same-domain news-detail route generated from the exact issuer name + expected quarter/results identity and independently revalidates page identity before accepting publication metadata. In parallel, a trusted Q4 tenant may contribute bounded current-quarter /doc_financials/ sibling candidates copied from already issuer-proven prior-quarter filenames; downstream PDF payload gates still require expected-period + issuer identity before any document can enter the bank snapshot. No ticker/domain exception is added. EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.46: Universal Bank Proven IR News-Archive Bridge V42. Adds a deterministic issuer-neutral latest-quarter bridge for Q4-style IR sites when bounded web search returns no current-period hit. On already verified same-domain IR hosts, the adapter probes a small set of conventional news/press-release archive paths, follows only links whose own title/URL prove the exact expected quarter plus earnings/results semantics, captures the page-owned publication date, and then reuses the existing trusted Q4-tenant sibling derivation to recover the official release/supplement. This closes the U.S. Bancorp 2Q26 gap without ticker/domain exceptions and reduces dependence on search-engine indexing. Document trust, parser rules, EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -7946,10 +7947,11 @@ SEARCH_EXCHANGE_PRIORITY = {
     "TAI": 120, "HKG": 118, "JPX": 118, "TOR": 118, "ASX": 118,
     # Secondary venues
     "FRA": 88, "SAO": 75,
+    "DXE": 55,  # Cboe Europe / pan-European secondary venue
 }
 
 SEARCH_SECONDARY_SUFFIXES = (
-    ".F", ".BE", ".MU", ".DU", ".HM", ".HA", ".SG", ".VI", ".MX", ".SA"
+    ".F", ".BE", ".MU", ".DU", ".HM", ".HA", ".SG", ".VI", ".MX", ".SA", ".XD"
 )
 
 SEARCH_LEGAL_WORDS = {
@@ -7987,6 +7989,15 @@ PRIMARY_SEARCH_ALIASES = [
         "aliases": ["MICROSOFT", "MICROSOFT CORPORATION"],
         "symbol": "MSFT", "quoteType": "EQUITY", "longname": "Microsoft Corporation",
         "exchange": "NMS", "exchDisp": "NASDAQ", "currency": "USD",
+    },
+    {
+        "aliases": [
+            "INDUSTRIVARDEN", "INDUSTRIVÄRDEN", "INDUSTRIVARDEN AB",
+            "INDUSTRIVÄRDEN AB", "AB INDUSTRIVARDEN", "AB INDUSTRIVÄRDEN",
+        ],
+        "symbol": "INDU-C.ST", "quoteType": "EQUITY",
+        "longname": "AB Industrivärden",
+        "exchange": "STO", "exchDisp": "Stockholm", "currency": "SEK",
     },
     {
         "aliases": ["ING", "ING GROEP", "ING GROEP N.V."],
@@ -8362,6 +8373,7 @@ SEARCH_ALTERNATIVE_VENUE_PRIORITY = {
     "SWISS": 123, "LONDON": 123, "FRANKFURT": 115, "VIENNA": 105,
     "WSE": 100, "WARSAW": 100, "HAMBURG": 92, "BERLIN": 90,
     "MUNICH": 90, "DUSSELDORF": 90, "DÜSSELDORF": 90, "STUTTGART": 90,
+    "CBOE EUROPE": 35,
     "OTC MARKETS": 10, "BUENOS AIRES": 10,
 }
 
