@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.49"
+APP_BUILD_VERSION = "V2.21.50"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,11 +31,12 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Nordic Home-Listing & Cboe Venue Guard V45"
+    f"Build {APP_BUILD_VERSION} · Security Resolver Cache-Epoch Guard V46"
 )
 
 
 # V2.21.49: Nordic Home-Listing & Cboe Venue Guard V45. Extends only the Security Identity & Primary Listing Resolver. Verified Industrivärden name aliases resolve Class C to the issuer-declared Nasdaq Stockholm home line (Yahoo-style INDU-C.ST), while Cboe Europe .XD/DXE rows are treated as secondary venues for name searches. Exact ticker input still retains its exact-security priority, so an explicitly entered .XD ticker remains selectable as entered. No company-family routing, EPS normalization, specialist model, score, Fair Value, Reality Check or signal mathematics are changed.
+# V2.21.50: Security Resolver Cache-Epoch Guard V46. Couples the cached security-search result to an explicit resolver epoch so primary-listing alias/venue changes cannot reuse stale Streamlit cache entries from an older build. Search ranking, verified Industrivärden Stockholm mapping, company-family routing, EPS normalization, specialist models, scores, Fair Value, Reality Check and signal mathematics are unchanged.
 # V2.21.48: Universal Bank CET1 Row & Q4 Publication Metadata Guard V44. Period-aligned Standardized CET1 rows outrank generic CET1 narrative/footnote matches; trusted-Q4 current-quarter documents with missing publication metadata get one bounded issuer-domain results-detail metadata retry with exact quarter/results identity validation. The retry is metadata-only and cannot alter valuation evidence. No issuer/ticker exception is added. EPS normalization, Bank Score scoring thresholds, regulatory CET1 buffer mathematics, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.47: Universal Bank Trusted Q4 Detail & Financials Bridge V43. Extends the issuer-neutral latest-quarter recovery for proven Q4 IR architectures whose press-release/archive cards are client-rendered and whose current-quarter PDFs moved from /files/doc_events/... to Q4's /files/doc_financials/<year>/q<quarter>/... structure. The adapter now probes a bounded Q4-style same-domain news-detail route generated from the exact issuer name + expected quarter/results identity and independently revalidates page identity before accepting publication metadata. In parallel, a trusted Q4 tenant may contribute bounded current-quarter /doc_financials/ sibling candidates copied from already issuer-proven prior-quarter filenames; downstream PDF payload gates still require expected-period + issuer identity before any document can enter the bank snapshot. No ticker/domain exception is added. EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.46: Universal Bank Proven IR News-Archive Bridge V42. Adds a deterministic issuer-neutral latest-quarter bridge for Q4-style IR sites when bounded web search returns no current-period hit. On already verified same-domain IR hosts, the adapter probes a small set of conventional news/press-release archive paths, follows only links whose own title/URL prove the exact expected quarter plus earnings/results semantics, captures the page-owned publication date, and then reuses the existing trusted Q4-tenant sibling derivation to recover the official release/supplement. This closes the U.S. Bancorp 2Q26 gap without ticker/domain exceptions and reduces dependence on search-engine indexing. Document trust, parser rules, EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -7937,6 +7938,8 @@ def classify_company(name, symbol, sector, industry):
 # Aktiensuche / Security Identity & Primary Listing Resolver
 # =========================================================
 
+SEARCH_RESOLVER_CACHE_EPOCH = "v22150_security_resolver_cache_epoch_v46"
+
 SEARCH_EXCHANGE_PRIORITY = {
     # US primary venues
     "NYQ": 120, "NMS": 120, "NGM": 115, "NCM": 110, "ASE": 105,
@@ -8419,7 +8422,7 @@ def _is_obvious_other_instrument(item, primary_item=None):
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def search_stock_suggestions(search_text):
+def search_stock_suggestions(search_text, cache_epoch):
     """
     V2.20.121 security search.
 
@@ -8658,7 +8661,7 @@ def _compact_suggestion_label(item):
 
 def find_stock(search_text):
     """Backward-compatible single-result helper: returns the top ranked listing."""
-    results = search_stock_suggestions(search_text)
+    results = search_stock_suggestions(search_text, SEARCH_RESOLVER_CACHE_EPOCH)
     if not results:
         return None
     top = results[0]
@@ -47946,7 +47949,7 @@ if search_text:
     else:
         with st.spinner("Passende Aktien werden gesucht..."):
             suggestions = search_stock_suggestions(
-                search_text
+                search_text, SEARCH_RESOLVER_CACHE_EPOCH
             )
 
         if suggestions:
