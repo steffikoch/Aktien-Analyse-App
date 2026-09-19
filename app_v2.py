@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.69"
+APP_BUILD_VERSION = "V2.21.70"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding Archive-First Historical NAV Series Guard V65"
+    f"Build {APP_BUILD_VERSION} · Listed Holding Locale-Agnostic Share-Class Pairing & Unique-Date History Guard V66"
 )
 
 
@@ -46,6 +46,7 @@ st.caption(
 # V2.21.60: Listed Holding Primary HTML NAV & Portfolio Fact Recovery Guard V56. Adds issuer-owned press/news archive navigation as the preferred NAV recovery before web search, and derives portfolio concentration from an already verified issuer-primary report market-value table when static website holdings are unavailable. Search/archive pages remain discovery only; NAV values require the concrete issuer release page. No ticker-specific valuation branch or hard-coded company values. Bank model, released valuation mathematics, Reality Check and signals remain unchanged; Fair Value stays fail-closed.
 # V2.21.62: Listed Holding NAV Token Fallback & Evidence Trace Guard V58. Keeps V58 portfolio/debt recovery unchanged and hardens only NAV extraction from issuer-owned HTML. Visible DOM text is Unicode-normalized (including zero-width/soft-hyphen cleanup); a bounded token fallback can recover NAV when CMS separators sit between label, currency, value and per-share wording. Failed issuer-release parses expose compact marker/currency/per-share/number probes so future failures are diagnosable without accepting search snippets as valuation evidence. No issuer/ticker constants or hard-coded company values are added. Fair Value remains fail-closed pending separate target premium/discount calibration; Bank model, released valuation mathematics, Reality Check and signals are unchanged.
 # V2.21.64: Listed Holding Full-DOM NAV Candidate Ranking Guard V60. Fixes the remaining issuer-HTML NAV miss exposed by V59 diagnostics: CMS release pages can render dozens of NAV labels in navigation/archive blocks, while the production parser inspected only the first 12 label positions. V60 evaluates every bounded NAV-label window and lets local NAV evidence (currency/value + per-share wording + date/source context) determine the best record instead of DOM order. Diagnostics also count locally eligible NAV windows. Portfolio/debt recovery, family routing, Bank model, released valuation mathematics, Reality Check and signals remain unchanged; no issuer/ticker constants or hard-coded company values are introduced and Fair Value remains fail-closed pending target premium/discount calibration.
+# V2.21.70: Listed Holding Locale-Agnostic Share-Class Pairing & Unique-Date History Guard V66. Fixes the V65 live result where seven issuer NAV releases parsed successfully but only one yielded a paired NAV/close observation. The NAV archive may expose Swedish as well as English releases; V66 normalizes both English “Class C shares” and Swedish “C-aktien” closing-price wording into the same share-class price map, and de-duplicates historical release candidates by NAV as-of date before network fetches so language twins cannot consume the bounded history window. Diagnostics expose fetched/parsed/class-price/target-class counts. Historical evidence remains calibration-only and cannot unlock target premium/discount, Fair Value, zones or signals. No issuer/ticker constants or hard-coded company values are introduced.
 # V2.21.69: Listed Holding Archive-First Historical NAV Series Guard V65. Fixes the first historical-calibration live test, where a large NAV-link set already present in article/CMS navigation incorrectly suppressed a fetch of the issuer press-release index, leaving only one paired NAV/closing-price observation. V65 always visits a bounded issuer-owned archive/index candidate before historical release selection, derives generic parent/year archive candidates from concrete NAV-release URLs, filters historical candidates to concrete dated NAV releases, and records candidate/fetch/paired counts. The historical layer remains calibration evidence only: no target premium/discount, Fair Value, zone or signal is released. No issuer/ticker constants or hard-coded company values are introduced.
 # V2.21.68: Listed Holding Historical NAV Premium/Discount Calibration Guard V64.
 # V2.21.65: Listed Holding Snapshot-Date Coherence & Freshest Evidence Guard V61. Keeps the now-working NAV parser unchanged and hardens only holding snapshot provenance. Debt/gearing discovery evaluates all bounded priority-report candidates instead of stopping on the first valid ratio, then keeps the newest issuer-primary reporting date. Portfolio candidates are ranked by reporting date before holding-count completeness, and a stale/missing homepage portfolio date triggers one bounded issuer-primary portfolio refresh instead of suppressing the dedicated portfolio page. Diagnostics expose NAV/debt/portfolio as-of dates and refresh status. No issuer/ticker constants or hard-coded company values are introduced; Fair Value and target premium/discount remain fail-closed. Bank model, released valuation mathematics, Reality Check and signals are unchanged.
@@ -7305,22 +7306,27 @@ def _holding_extract_nav_record(html, url):
 
         score = 3 + (2 if as_of else 0) + (1 if currency else 0) + (1 if published else 0)
         closing_prices = {}
-        # Scan the full visible page, because the closing-price sentence can be
-        # outside the NAV card even though it belongs to the same release.
-        class_patterns = [
-            r"(?:SEK|kr)\s*([0-9]{1,5}(?:[.,][0-9]{1,2})?)\s+for\s+(?:the\s+)?Class\s+([A-Z])\s+shares",
-            r"Class\s+([A-Z])\s+shares?.{0,45}?(?:SEK|kr)\s*([0-9]{1,5}(?:[.,][0-9]{1,2})?)",
+        # V66: Scan the full visible page and normalize language-specific
+        # share-class wording into the same {"A": price, "C": price} map.
+        # The archive can expose English releases ("Class C shares") or
+        # Swedish releases ("C-aktien").  Values remain issuer-primary only.
+        class_pattern_specs = [
+            (r"(?:SEK|EUR|USD|GBP|kr|kronor)\s*([0-9]{1,5}(?:[.,][0-9]{1,2})?)\s+for\s+(?:the\s+)?Class\s+([A-Z])\s+shares?", "value_class"),
+            (r"Class\s+([A-Z])\s+shares?.{0,55}?(?:SEK|EUR|USD|GBP|kr|kronor)\s*([0-9]{1,5}(?:[.,][0-9]{1,2})?)", "class_value"),
+            (r"([0-9]{1,5}(?:[.,][0-9]{1,2})?)\s*(?:SEK|kr|kronor)\s+f[oö]r\s+([A-Z])\s*[-–—]?\s*aktien", "value_class"),
+            (r"([0-9]{1,5}(?:[.,][0-9]{1,2})?)\s*(?:SEK|kr|kronor)\s+f[oö]r\s+(?:aktie(?:n)?\s+av\s+)?(?:klass|serie)\s+([A-Z])", "value_class"),
+            (r"\b([A-Z])\s*[-–—]?\s*aktien\b.{0,55}?([0-9]{1,5}(?:[.,][0-9]{1,2})?)\s*(?:SEK|kr|kronor)", "class_value"),
         ]
-        for pat_i, pat in enumerate(class_patterns):
+        for pat, order in class_pattern_specs:
             for match in re.findall(pat, text, flags=re.I | re.S):
                 try:
-                    if pat_i == 0:
+                    if order == "value_class":
                         value, cls = match
                     else:
                         cls, value = match
-                    cls_key = str(cls).upper()
-                    parsed_value = float(str(value).replace(",", "."))
-                    if pat_i == 0 or cls_key not in closing_prices:
+                    cls_key = str(cls).upper().strip()
+                    parsed_value = float(str(value).replace(" ", "").replace(",", "."))
+                    if cls_key and parsed_value > 0 and cls_key not in closing_prices:
                         closing_prices[cls_key] = parsed_value
                 except Exception:
                     pass
@@ -8355,6 +8361,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     history_candidate_count = 0
     history_release_attempts = 0
     history_release_parsed = 0
+    history_release_with_class_prices = 0
 
     def _concrete_nav_release_link(url, label):
         """True only for a dated issuer NAV-release/article candidate, not generic NAV navigation."""
@@ -8426,8 +8433,27 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 if len(strict_now) >= 6:
                     break
 
-            strict_candidates = [(u, l) for u, l in dedupe_sorted(nav_links) if _concrete_nav_release_link(u, l)]
-            history_candidate_count = len(strict_candidates)
+            strict_candidates_all = [(u, l) for u, l in dedupe_sorted(nav_links) if _concrete_nav_release_link(u, l)]
+            history_candidate_count = len(strict_candidates_all)
+
+            # V66: one network candidate per NAV as-of date before fetching.
+            # English/Swedish twins for the same issuer release otherwise consume
+            # the bounded history slot without extending the observation span.
+            strict_candidates = []
+            seen_candidate_dates = set()
+            undated_candidates = []
+            for u, l in strict_candidates_all:
+                hay = _clean_text(" ".join([l or "", str(u or "").replace("-", " ").replace("_", " ").replace("/", " ")]))
+                dt = _holding_parse_date_text(hay)
+                if dt:
+                    if dt in seen_candidate_dates:
+                        continue
+                    seen_candidate_dates.add(dt)
+                    strict_candidates.append((u, l))
+                else:
+                    undated_candidates.append((u, l))
+            strict_candidates.extend(undated_candidates)
+
             seen_hist_urls = {r.get("source_url") for r in history_records if r.get("source_url")}
             for hist_url, _ in strict_candidates[:14]:
                 if hist_url in seen_hist_urls:
@@ -8440,6 +8466,8 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 if not hrec:
                     continue
                 history_release_parsed += 1
+                if hrec.get("same_date_class_prices"):
+                    history_release_with_class_prices += 1
                 seen_hist_urls.add(hist_url)
                 # A concrete issuer release is also a richer candidate for the
                 # current NAV provenance (publication date + paired class price)
@@ -8470,10 +8498,20 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     result["nav_history"] = [by_hist_date[k] for k in sorted(by_hist_date.keys(), reverse=True)]
     _timed_bucket("history", history_started)
     if result.get("nav_history"):
+        target_cls = None
+        sym_base = str(symbol or "").upper().split(".", 1)[0]
+        target_m = re.search(r"(?:-|_)([A-Z])$", sym_base)
+        if target_m:
+            target_cls = target_m.group(1)
+        target_class_records = sum(
+            1 for r in (result.get("nav_history") or [])
+            if target_cls and safe_float((r.get("same_date_class_prices") or {}).get(target_cls)) is not None
+        )
         result["diagnostics"].append(
-            f"Holding Historical NAV Calibration V65: ArchiveFetch={history_archive_fetches}, "
-            f"Candidates={history_candidate_count}, ReleaseFetch={history_release_attempts}, Parsed={history_release_parsed}, "
-            f"paired NAV/close records={len(result.get('nav_history') or [])}; "
+            f"Holding Historical NAV Calibration V66: ArchiveFetch={history_archive_fetches}, "
+            f"Candidates={history_candidate_count}, UniqueDateCandidates={len(strict_candidates) if 'strict_candidates' in locals() else 0}, "
+            f"ReleaseFetch={history_release_attempts}, Parsed={history_release_parsed}, ClassPricePages={history_release_with_class_prices}, "
+            f"paired NAV/close records={len(result.get('nav_history') or [])}, TargetClass={target_cls or '–'}, TargetClassRecords={target_class_records}; "
             "share-class matching and distribution statistics are applied only in the specialist model."
         )
 
@@ -8526,7 +8564,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22169_listed_holding_archive_first_history_v65"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22170_listed_holding_locale_shareclass_history_v66"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
@@ -8698,7 +8736,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "historical_nav_observations": historical_calibration.get("observations") or [],
         "historical_nav_calibration_ready": bool(historical_calibration.get("ready")),
         "historical_nav_median_premium_discount_pct": safe_float(historical_calibration.get("median_pct")),
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Historical Calibration V65",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Historical Calibration V66",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
@@ -56398,7 +56436,7 @@ if selected_symbol:
                             )
                             hist_diag_lines_h = [
                                 str(x) for x in (snap_h.get("diagnostics") or [])
-                                if "Historical NAV Calibration V65" in str(x)
+                                if "Historical NAV Calibration V66" in str(x)
                             ]
                             if hist_diag_lines_h:
                                 st.caption("Historik-Adapter: " + hist_diag_lines_h[-1])
