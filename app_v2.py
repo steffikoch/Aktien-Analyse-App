@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.58"
+APP_BUILD_VERSION = "V2.21.59"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding Independent Evidence Budgets & Timing Diagnostics V54"
+    f"Build {APP_BUILD_VERSION} · Listed Holding Issuer-Archive NAV & Report-Portfolio Recovery Guard V55"
 )
 
 
@@ -43,6 +43,7 @@ st.caption(
 # V2.21.54: Listed Holding Issuer-Domain Bootstrap & Semantic Source Recovery V50. Hardens only the new listed-holding primary-source discovery. The adapter no longer depends solely on Yahoo's optional website field or on a successfully parsed issuer homepage: when the direct issuer path yields no NAV, it performs a bounded semantic search for issuer-owned NAV, interim-report and portfolio pages, accepts only the same verified issuer-domain family, and can bootstrap the issuer domain from repeated company-identity-matching search results when the provider website is absent. A browser-header retry is allowed only for those issuer-owned HTML pages. Search snippets never become valuation evidence; NAV/debt/portfolio metrics still require fetched issuer-primary page content. Fair Value and target NAV premium/discount remain fail-closed. Bank model, all released valuation mathematics, Reality Check and signals are unchanged.
 # V2.21.55: Listed Holding Primary-Link Priority & Budget Guard V51. Reorders only the listed-holding primary-source discovery so the first verified canonical issuer page immediately promotes exact NAV and interim-report links before locale/archive/semantic fallbacks can consume the bounded research budget. Report links may be recognized from issuer-owned report/PDF URL semantics and period labels even when the anchor text omits the words "Interim Report". Issuer-owned direct PDF reports use the existing signature-validated PDF text bridge, solely to feed the unchanged debt/gearing parser. A fixed fallback reserve prevents locale/archive/search crawling from starving already discovered primary NAV/report links. Search snippets remain discovery metadata only; NAV/debt/portfolio values still require fetched issuer-primary content. Fair Value and target NAV premium/discount remain fail-closed. Bank model, family routing, all released valuation mathematics, Reality Check and signals are unchanged.
 # V2.21.56: Listed Holding Need-Aware Semantic Fetch & Budget Reservation Guard V52. Changes only the final listed-holding semantic-recovery scheduler. It searches exclusively for evidence classes that are still missing, performs one focused issuer-domain query at a time, immediately fetches the best issuer-owned primary result before any next search can consume the budget, and reserves separate bounded fetch slots for NAV and portfolio evidence. A second NAV query is fallback-only after the first fetched primary page fails. The already working issuer-PDF debt/gearing bridge, parsers, family routing, released valuation mathematics, Bank model, Reality Check and signals are unchanged; search snippets remain discovery metadata only and Fair Value remains fail-closed pending justified target NAV premium/discount calibration.
+# V2.21.59: Listed Holding Issuer-Archive NAV & Report-Portfolio Recovery Guard V55. Adds issuer-owned press/news archive navigation as the preferred NAV recovery before web search, and derives portfolio concentration from an already verified issuer-primary report market-value table when static website holdings are unavailable. Search/archive pages remain discovery only; NAV values require the concrete issuer release page. No ticker-specific valuation branch or hard-coded company values. Bank model, released valuation mathematics, Reality Check and signals remain unchanged; Fair Value stays fail-closed.
 # V2.21.58: Listed Holding Independent Evidence Budgets & Timing Diagnostics V54. Replaces the single shared listed-holding countdown with bounded, independent phase budgets for canonical homepage, issuer-primary report/debt, NAV recovery and portfolio recovery, plus a separate overall safety cap. Slow report/PDF work can no longer consume the later NAV/portfolio windows. Adds per-phase elapsed-time diagnostics so live runs show where network time is spent. The working issuer-PDF debt/gearing bridge, all holding parsers, family routing, Bank model, released valuation mathematics, Reality Check and signals are unchanged; Fair Value remains fail-closed pending justified target NAV premium/discount calibration.
 # V2.21.48: Universal Bank CET1 Row & Q4 Publication Metadata Guard V44. Period-aligned Standardized CET1 rows outrank generic CET1 narrative/footnote matches; trusted-Q4 current-quarter documents with missing publication metadata get one bounded issuer-domain results-detail metadata retry with exact quarter/results identity validation. The retry is metadata-only and cannot alter valuation evidence. No issuer/ticker exception is added. EPS normalization, Bank Score scoring thresholds, regulatory CET1 buffer mathematics, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.47: Universal Bank Trusted Q4 Detail & Financials Bridge V43. Extends the issuer-neutral latest-quarter recovery for proven Q4 IR architectures whose press-release/archive cards are client-rendered and whose current-quarter PDFs moved from /files/doc_events/... to Q4's /files/doc_financials/<year>/q<quarter>/... structure. The adapter now probes a bounded Q4-style same-domain news-detail route generated from the exact issuer name + expected quarter/results identity and independently revalidates page identity before accepting publication metadata. In parallel, a trusted Q4 tenant may contribute bounded current-quarter /doc_financials/ sibling candidates copied from already issuer-proven prior-quarter filenames; downstream PDF payload gates still require expected-period + issuer identity before any document can enter the bank snapshot. No ticker/domain exception is added. EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -7329,6 +7330,59 @@ def _holding_extract_portfolio(html, url):
     }
 
 
+def _holding_extract_portfolio_from_report_text(text, url):
+    """Recover portfolio weights from an issuer-primary report table."""
+    if not text:
+        return None
+    raw = str(text).replace("\u00a0", " ")
+    lines = [_clean_text(x) for x in raw.splitlines() if _clean_text(x)]
+    joined = " ".join(lines)
+    total = None
+    for pat in [r"Equities portfolio\s+([0-9]{2,3}(?:[ ,][0-9]{3})+)", r"Total\s+([0-9]{2,3}(?:[ ,][0-9]{3})+)"]:
+        m = re.search(pat, joined, flags=re.I)
+        if m:
+            try: total = float(re.sub(r"[ ,]", "", m.group(1)))
+            except Exception: total = None
+            if total: break
+    values = {}
+    in_perf = False
+    for line in lines:
+        low=line.lower()
+        if "performance of the equities portfolio" in low or ("market value" in low and "change in value" in low):
+            in_perf=True; continue
+        if in_perf and (low.startswith("total ") or low.startswith("jan ") or low.startswith("investment activities")):
+            if values: break
+        if not in_perf:
+            continue
+        # Performance table rows: Company + market value + later columns.
+        m=re.match(r"^([A-ZÅÄÖ][A-Za-zÅÄÖåäö&.\- ]{1,35}?)\s+([0-9]{1,3}(?:,[0-9]{3})+)(?:\s|$)",line)
+        if not m: continue
+        name=_clean_text(m.group(1));
+        if name.lower() in {"total","other","market value","equities portfolio"}: continue
+        try: value=float(m.group(2).replace(",",""))
+        except Exception: continue
+        if value>0: values[name]=values.get(name,0.0)+value
+    # Fallback to the share-of-value table: explicit final percentage rows.
+    explicit={}
+    for line in lines:
+        m=re.match(r"^([A-ZÅÄÖ][A-Za-zÅÄÖåäö&.\- ]{1,35}?)(?:\s+[ABC])?\s+(?:[0-9][0-9, .]*\s+){2,7}([0-9]{1,2}(?:[.,][0-9])?)$",line)
+        if not m: continue
+        name=re.sub(r"\s+[ABC]$","",_clean_text(m.group(1)),flags=re.I)
+        try: w=float(m.group(2).replace(",","."))
+        except Exception: continue
+        if 0<w<=70: explicit[name]=max(explicit.get(name,0.0),w)
+    holdings=[]
+    if total and len(values)>=2:
+        holdings=[{"name":n,"weight_pct":round(100.0*v/total,0)} for n,v in values.items() if 0.005 <= v/total <= 0.70]
+    elif len(explicit)>=2:
+        holdings=[{"name":n,"weight_pct":w} for n,w in explicit.items()]
+    holdings=sorted(holdings,key=lambda x:x["weight_pct"],reverse=True)[:12]
+    if len(holdings)<2: return None
+    weights=[x["weight_pct"] for x in holdings]
+    return {"holdings":holdings,"holding_count":len(holdings),"top1_pct":weights[0],
+            "top2_pct":sum(weights[:2]),"top3_pct":sum(weights[:3]),
+            "source_url":url,"source_kind":"issuer_report"}
+
 def _holding_link_rank(text):
     dt = _holding_parse_date_text(text)
     return dt.toordinal() if dt else 0
@@ -7472,11 +7526,11 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         if company_domain:
             raw_website = f"https://{company_domain}/"
             result["diagnostics"].append(
-                f"Holding Primary Source V54: Issuer-Domain aus wiederholten Company-Identity-Suchtreffern verifiziert ({company_domain})."
+                f"Holding Primary Source V55: Issuer-Domain aus wiederholten Company-Identity-Suchtreffern verifiziert ({company_domain})."
             )
         else:
             result["diagnostics"].append(
-                "Holding Primary Source V54: Provider-Website fehlt und kein ausreichend verifizierter Issuer-Domain-Bootstrap gelungen."
+                "Holding Primary Source V55: Provider-Website fehlt und kein ausreichend verifizierter Issuer-Domain-Bootstrap gelungen."
             )
             return result
     parsed = urlparse(raw_website if "://" in raw_website else "https://" + raw_website)
@@ -7549,8 +7603,13 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 html = doc.get("text") or ""
                 resolved = doc.get("url") or url
                 result["diagnostics"].append(
-                    f"Holding Primary PDF Bridge V54: issuer-eigener Reporttext geladen ({len(html)} Zeichen)."
+                    f"Holding Primary PDF Bridge V55: issuer-eigener Reporttext geladen ({len(html)} Zeichen)."
                 )
+                nonlocal portfolio_best
+                report_port = _holding_extract_portfolio_from_report_text(html, resolved)
+                if report_port and (portfolio_best is None or int(report_port.get("holding_count") or 0) > int(portfolio_best.get("holding_count") or 0)):
+                    portfolio_best = report_port
+                    result["diagnostics"].append("Holding Report-Portfolio Recovery V55: Portfoliokonzentration aus issuer-eigenem Reporttext rekonstruiert.")
         else:
             html, final_url = _fetch_html(url, timeout=3.6, deadline=active_deadline)
             resolved = final_url or url
@@ -7678,7 +7737,37 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             consume_priority_links(referer=canonical_url, phase_deadline=report_deadline, include_nav=False, include_report=True)
         _timed_bucket("report", report_started)
 
-    # Phase 2 (V2.21.58): each still-missing critical evidence class receives
+    # V2.21.59: issuer archive is the preferred NAV recovery bridge.  The
+    # archive supplies links only; the NAV value is parsed from the linked
+    # issuer-owned release itself. This avoids dependence on a search engine.
+    if not nav_records and archive_links:
+        nav_started = time.monotonic()
+        archive_nav_deadline = _evidence_deadline(4.8)
+        archive_hits = 0
+        if archive_nav_deadline is not None:
+            for archive_url, _ in dedupe_sorted(archive_links)[:2]:
+                if not _research_budget_ok(archive_nav_deadline, reserve=1.55):
+                    break
+                ahtml = fetch(archive_url, referer=canonical_url, phase_deadline=archive_nav_deadline)
+                collect_links(archive_url, ahtml)
+                candidates = dedupe_sorted(nav_links)
+                archive_hits = len(candidates)
+                for nav_url, _ in candidates[:3]:
+                    if not _research_budget_ok(archive_nav_deadline, reserve=0.35):
+                        break
+                    nhtml = fetch(nav_url, referer=archive_url, phase_deadline=archive_nav_deadline)
+                    rec = _holding_extract_nav_record(nhtml, nav_url)
+                    if rec:
+                        nav_records.append(rec)
+                        break
+                if nav_records:
+                    break
+        _timed_bucket("nav", nav_started)
+        result["diagnostics"].append(
+            f"Holding Issuer-Archive NAV Recovery V55: NAV-Links={archive_hits}, NAV={'ja' if nav_records else 'nein'}."
+        )
+
+    # Phase 2 (V2.21.59): each still-missing critical evidence class receives
     # a fresh local budget, independent of time already spent on other classes.
     semantic_counts = {"nav": 0, "report": 0, "portfolio": 0}
 
@@ -7779,7 +7868,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
     if any(semantic_counts.values()):
         result["diagnostics"].append(
-            "Holding Independent-Evidence Recovery V54: "
+            "Holding Independent-Evidence Recovery V55: "
             f"NAV-Treffer={semantic_counts['nav']}, "
             f"Portfolio-Treffer={semantic_counts['portfolio']}, "
             f"Report-Treffer={semantic_counts['report']}; "
@@ -7835,13 +7924,13 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     total_elapsed = max(0.0, time.monotonic() - started_at)
     safety_remaining = max(0.0, overall_deadline - time.monotonic())
     result["diagnostics"].append(
-        "Holding Primary Source V54: "
+        "Holding Primary Source V55: "
         f"Domain={company_domain}, ProviderWebsite={'ja' if website else 'nein'}, Seiten={len([v for v in fetched.values() if v])}, "
         f"NAV={'ja' if result.get('nav') else 'nein'}, DebtRatio={'ja' if result.get('debt') else 'nein'}, "
         f"Portfolio={'ja' if result.get('portfolio') else 'nein'}, SafetyRest={safety_remaining:.2f}s."
     )
     result["diagnostics"].append(
-        "Holding Timing V54: "
+        "Holding Timing V55: "
         f"Bootstrap={timings['bootstrap']:.2f}s · Homepage={timings['homepage']:.2f}s · "
         f"Report={timings['report']:.2f}s · NAV={timings['nav']:.2f}s · "
         f"Portfolio={timings['portfolio']:.2f}s · Fallback={timings['fallback']:.2f}s · Gesamt={total_elapsed:.2f}s."
@@ -7850,7 +7939,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22158_listed_holding_independent_evidence_budgets_v54"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22159_listed_holding_archive_nav_report_portfolio_v55"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
