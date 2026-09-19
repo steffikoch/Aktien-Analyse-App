@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.73"
+APP_BUILD_VERSION = "V2.21.74"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding Justified NAV Premium/Discount Calibration Guard V69"
+    f"Build {APP_BUILD_VERSION} · Listed Holding Issuer-Primary Management-Cost Evidence & Structural-Drag Guard V70"
 )
 
 
@@ -50,6 +50,7 @@ st.caption(
 # V2.21.72: Listed Holding Semantic NAV As-Of Hint & Publication-Date Separation Guard V68. Fixes the V67 live trace where 2026 issuer NAV releases were fetched but rejected because the historical candidate pre-parser treated the archive publication date (for example Sep 1, 2026) as the expected NAV as-of date even when the concrete release title/URL stated “Net asset value on August 31, 2026”. V68 extracts the NAV as-of hint semantically from release title/slug wording first (English/Swedish), uses that hint for date de-duplication and strict historical parsing, and leaves publication dates as provenance only. Generic first-date parsing is no longer allowed to override a semantic NAV date. Historical evidence remains calibration-only; target premium/discount, Fair Value, zones and signals stay fail-closed. No issuer/ticker constants or hard-coded company values are introduced.
 
 # V2.21.73: Listed Holding Justified NAV Premium/Discount Calibration Guard V69. Adds a transparent diagnostic target-calibration layer on top of the now-stable issuer-primary historical NAV series. The historical median is the base anchor; bounded leverage and portfolio-concentration overlays are shown separately as current-risk diagnostics, with an explicit double-count guard because the issuer's own historical premium/discount distribution already embeds its normal structure. Missing issuer-primary holding-cost/structural-drag evidence and missing comparable peer evidence remain hard blockers for a released target premium/discount. A provisional risk-adjusted candidate may be displayed for model inspection only; valuation_anchor_complete stays false, Fair Value/zones/signals remain fail-closed, and no issuer/ticker constants or hard-coded company values are introduced.
+# V2.21.74: Listed Holding Issuer-Primary Management-Cost Evidence & Structural-Drag Guard V70. Adds an issuer-neutral primary-source parser for recurring holding/management cost ratios reported as a percentage of portfolio/NAV value, including multi-year table extraction and latest-vs-own-history normalization. The cost layer is a guard, not a second standalone valuation engine: when current recurring cost is at or below the issuer's own recent norm it adds 0.00 pp, avoiding double-counting already embedded in the historical NAV discount; missing or materially elevated cost evidence remains fail-closed. Peer evidence remains the only mandatory blocker for Industrivärden-like low-cost cases, and Fair Value/zones/signals remain locked.
 # V2.21.71: Listed Holding Record-Level NAV/Close Pairing & Pair-Rejection Trace Guard V67. Fixes the V66 live result where seven issuer NAV releases parsed with class-price evidence but collapsed to one historical observation. Each concrete issuer release is now normalized into a record-level NAV/close probe before calibration, with the NAV as-of date anchored to the dated release title/URL when local article markup omits it. Target-share-class close, NAV, currency and date are validated independently; publication date is provenance only and is never required to equal the NAV date or the paired trading-date close. Diagnostics expose one PairProbe per fetched release with explicit accept/reject reason, plus aggregate anchored-date and valid-target-pair counts. Historical evidence remains calibration-only and cannot unlock target premium/discount, Fair Value, zones or signals. No issuer/ticker constants or hard-coded company values are introduced.
 # V2.21.69: Listed Holding Archive-First Historical NAV Series Guard V65. Fixes the first historical-calibration live test, where a large NAV-link set already present in article/CMS navigation incorrectly suppressed a fetch of the issuer press-release index, leaving only one paired NAV/closing-price observation. V65 always visits a bounded issuer-owned archive/index candidate before historical release selection, derives generic parent/year archive candidates from concrete NAV-release URLs, filters historical candidates to concrete dated NAV releases, and records candidate/fetch/paired counts. The historical layer remains calibration evidence only: no target premium/discount, Fair Value, zone or signal is released. No issuer/ticker constants or hard-coded company values are introduced.
 # V2.21.68: Listed Holding Historical NAV Premium/Discount Calibration Guard V64.
@@ -7540,6 +7541,149 @@ def _holding_extract_debt_ratio(html, url):
     }
 
 
+def _holding_extract_management_cost_ratio(html, url):
+    """Parse issuer-primary recurring holding/management cost as % of portfolio/NAV.
+
+    V70 intentionally accepts only explicitly labelled recurring cost ratios. It
+    does not derive a ratio from generic SG&A, Yahoo cash flow, or absolute
+    expenses because those are not comparable across listed holding companies.
+    """
+    if not html:
+        return None
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:
+        return None
+
+    label_terms = (
+        "management cost", "management costs", "management expense", "management expenses",
+        "cost ratio", "expense ratio", "administration cost", "administrative cost",
+        "forvaltningskostnad", "forvaltningskostnader", "administrationskostnad",
+    )
+
+    def _is_cost_label(value):
+        folded = _holding_fold_text(value)
+        if not any(term in folded for term in label_terms):
+            return False
+        # Require portfolio/NAV semantics unless the label itself is the common
+        # industry ratio name "expense ratio"/"cost ratio".
+        return (
+            any(term in folded for term in ["portfolio", "portfolj", "nav", "net asset value", "substansvarde"])
+            or "expense ratio" in folded or "cost ratio" in folded
+            or "management cost" in folded or "forvaltningskostnad" in folded
+        )
+
+    observations = []
+    metric_label = None
+
+    for table in soup.find_all("table"):
+        rows = []
+        for tr in table.find_all("tr"):
+            cells = [_clean_text(c.get_text(" ", strip=True)).replace("\u00a0", " ") for c in tr.find_all(["th", "td"])]
+            if cells:
+                rows.append(cells)
+        if not rows:
+            continue
+
+        years = []
+        for cells in rows[:4]:
+            found = [int(y) for y in re.findall(r"\b(20\d{2})\b", " ".join(cells))]
+            if len(found) >= 2:
+                years = found
+                break
+
+        for cells in rows:
+            if not cells or not _is_cost_label(cells[0]):
+                continue
+            metric_label = cells[0]
+            vals = []
+            for cell in cells[1:]:
+                m = re.search(r"(?<![0-9])([0-9]{1,2}(?:[.,][0-9]{1,3})?)(?![0-9])", cell)
+                if not m:
+                    continue
+                try:
+                    val = float(m.group(1).replace(",", "."))
+                except Exception:
+                    continue
+                # Holding-company management-cost ratios are normally well below
+                # a few percent. Reject obvious unrelated percentages/numbers.
+                if 0 <= val <= 5.0:
+                    vals.append(val)
+            if vals:
+                if years:
+                    for idx, val in enumerate(vals[:len(years)]):
+                        observations.append({"year": years[idx], "cost_pct": val})
+                else:
+                    observations.append({"year": None, "cost_pct": vals[0]})
+                break
+        if observations:
+            break
+
+    # Conservative text fallback for issuer pages whose responsive table markup
+    # is flattened by the CMS.
+    if not observations:
+        text = _clean_text(soup.get_text(" ", strip=True)).replace("\u00a0", " ")
+        folded = _holding_fold_text(text)
+        label_match = None
+        for term in label_terms:
+            pos = folded.find(term)
+            if pos >= 0:
+                label_match = pos
+                break
+        if label_match is not None:
+            # Map the first bounded run of percentages to the first bounded run
+            # of year headers seen on the page.
+            years = [int(y) for y in re.findall(r"\b(20\d{2})\b", text[:4000])][:12]
+            segment = text[max(0, label_match - 80): label_match + 700]
+            vals = []
+            for raw in re.findall(r"(?<![0-9])([0-9]{1,2}(?:[.,][0-9]{1,3})?)(?![0-9])", segment):
+                try:
+                    val = float(raw.replace(",", "."))
+                except Exception:
+                    continue
+                if 0 <= val <= 5.0:
+                    vals.append(val)
+            if years and vals:
+                for idx, val in enumerate(vals[:len(years)]):
+                    observations.append({"year": years[idx], "cost_pct": val})
+
+    # Deduplicate and order newest first.
+    by_year = {}
+    undated = []
+    for obs in observations:
+        yr = obs.get("year")
+        val = safe_float(obs.get("cost_pct"))
+        if val is None:
+            continue
+        if yr:
+            by_year[int(yr)] = val
+        else:
+            undated.append(val)
+    ordered = [{"year": y, "cost_pct": by_year[y]} for y in sorted(by_year, reverse=True)]
+    if not ordered and undated:
+        ordered = [{"year": None, "cost_pct": undated[0]}]
+    if not ordered:
+        return None
+
+    latest = ordered[0]
+    recent_vals = [safe_float(x.get("cost_pct")) for x in ordered[:5] if safe_float(x.get("cost_pct")) is not None]
+    if not recent_vals:
+        return None
+    recent_ser = pd.Series(recent_vals, dtype="float64")
+    return {
+        "latest_cost_pct": safe_float(latest.get("cost_pct")),
+        "latest_year": latest.get("year"),
+        "median_5y_pct": float(recent_ser.median()),
+        "min_5y_pct": float(recent_ser.min()),
+        "max_5y_pct": float(recent_ser.max()),
+        "observation_count": len(ordered),
+        "observations": ordered[:12],
+        "metric_label": metric_label or "Management/holding cost ratio",
+        "source_url": url,
+        "quality": 3 if len(ordered) >= 5 else (2 if len(ordered) >= 3 else 1),
+    }
+
+
 def _holding_extract_portfolio(html, url):
     if not html:
         return None
@@ -7916,7 +8060,7 @@ def _holding_semantic_source_search(company_domain, company_name, deadline=None,
     each returned issuer-owned page immediately before launching another query.
     """
     if not company_domain:
-        return {"nav": [], "report": [], "portfolio": [], "all": []}
+        return {"nav": [], "report": [], "portfolio": [], "cost": [], "all": []}
     name = _clean_text(company_name)
     query_map = {
         "nav": [
@@ -7929,9 +8073,13 @@ def _holding_semantic_source_search(company_domain, company_name, deadline=None,
         "portfolio": [
             f'site:{company_domain} "{name}" portfolio holdings',
         ],
+        "cost": [
+            f'site:{company_domain} "{name}" "management cost" "portfolio value"',
+            f'site:{company_domain} "{name}" "cost ratio" portfolio',
+        ],
     }
-    wanted = [k for k in (needed_kinds or ["nav", "report", "portfolio"]) if k in query_map]
-    out = {"nav": [], "report": [], "portfolio": [], "all": []}
+    wanted = [k for k in (needed_kinds or ["nav", "report", "portfolio", "cost"]) if k in query_map]
+    out = {"nav": [], "report": [], "portfolio": [], "cost": [], "all": []}
     seen = set()
     for kind in wanted:
         queries = query_map[kind]
@@ -7944,7 +8092,7 @@ def _holding_semantic_source_search(company_domain, company_name, deadline=None,
                     continue
                 if name and not _holding_search_result_matches_company(item, name):
                     semantic = _holding_fold_text(" ".join([_clean_text(item.get("title")), _clean_text(item.get("snippet"))]))
-                    if not any(term in semantic for term in ["net asset value", "interim report", "portfolio", "holdings"]):
+                    if not any(term in semantic for term in ["net asset value", "interim report", "portfolio", "holdings", "management cost", "cost ratio", "expense ratio"]):
                         continue
                 seen.add(url)
                 row = (url, _clean_text(item.get("title")) or _clean_text(item.get("snippet")))
@@ -7954,13 +8102,13 @@ def _holding_semantic_source_search(company_domain, company_name, deadline=None,
 
 
 def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol=None):
-    result = {"available": False, "nav": None, "debt": None, "portfolio": None, "nav_history": [], "diagnostics": []}
+    result = {"available": False, "nav": None, "debt": None, "portfolio": None, "holding_cost": None, "nav_history": [], "diagnostics": []}
     started_at = time.monotonic()
     # V2.21.58 gives each evidence class its own bounded budget. The overall
     # safety cap prevents runaway research, but elapsed time in one class does
     # not shrink the next class's local window.
-    overall_deadline = started_at + 30.0
-    timings = {"bootstrap": 0.0, "homepage": 0.0, "report": 0.0, "nav": 0.0, "portfolio": 0.0, "history": 0.0, "fallback": 0.0}
+    overall_deadline = started_at + 34.0
+    timings = {"bootstrap": 0.0, "homepage": 0.0, "report": 0.0, "nav": 0.0, "portfolio": 0.0, "cost": 0.0, "history": 0.0, "fallback": 0.0}
 
     def _evidence_deadline(seconds):
         now = time.monotonic()
@@ -8010,6 +8158,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     report_links = []
     archive_links = []
     portfolio_links = []
+    cost_links = []
     portfolio_best = None
 
     def _portfolio_candidate_rank(rec):
@@ -8031,6 +8180,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             return True
 
     debt_records = []
+    holding_cost_records = []
 
     def _latest_debt_date(records):
         dates = [r.get("as_of_date_obj") for r in (records or []) if r and r.get("as_of_date_obj")]
@@ -8167,6 +8317,12 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 "ownership and development", "ownership development", "shareholdings"
             ]):
                 portfolio_links.append((url, label))
+            cost_hay = _holding_fold_text(" ".join([label or "", url or ""]))
+            if any(term in cost_hay for term in [
+                "management cost", "cost ratio", "expense ratio", "key ratios", "key figures",
+                "forvaltningskostnad", "nyckeltal", "industrivarden in figures"
+            ]):
+                cost_links.append((url, label))
             if any(term in low for term in ["press release", "press releases", "news", "media", "regulatory releases"]):
                 archive_links.append((url, label))
 
@@ -8325,7 +8481,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
     # Phase 2 (V2.21.60): each still-missing critical evidence class receives
     # a fresh local budget, independent of time already spent on other classes.
-    semantic_counts = {"nav": 0, "report": 0, "portfolio": 0}
+    semantic_counts = {"nav": 0, "report": 0, "portfolio": 0, "cost": 0}
 
     def _search_deadline_with_fetch_reserve(slot_end, fetch_reserve=2.20, max_search_window=1.80):
         now = time.monotonic()
@@ -8389,6 +8545,20 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 ):
                     return True
             return portfolio_best is not None and not _portfolio_is_stale(portfolio_best)
+        if kind == "cost":
+            cost_links.extend(found)
+            candidates = dedupe_sorted(found)[:fetch_limit]
+            for url, _ in candidates:
+                if time.monotonic() >= slot_end:
+                    break
+                html = fetch(url, referer=canonical_url, phase_deadline=slot_end)
+                rec = _holding_extract_management_cost_ratio(html, url)
+                if rec:
+                    holding_cost_records.append(rec)
+                    collect_links(url, html)
+                    return True
+                collect_links(url, html)
+            return bool(holding_cost_records)
         return False
 
     # NAV is the valuation anchor and gets a full independent recovery budget.
@@ -8436,13 +8606,34 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         _timed_bucket("report", report_started)
     debt_refresh_after = _latest_debt_date(debt_records)
 
+    # V70: issuer-primary recurring holding/management cost evidence. This is
+    # deliberately separate from generic SG&A/FCF and gets its own bounded slot.
+    cost_started = time.monotonic()
+    cost_slot_end = _evidence_deadline(3.8)
+    if cost_slot_end is not None:
+        for url, _ in dedupe_sorted(cost_links)[:2]:
+            if not _research_budget_ok(cost_slot_end, reserve=0.85):
+                break
+            chtml = fetch(url, referer=canonical_url, phase_deadline=cost_slot_end)
+            crec = _holding_extract_management_cost_ratio(chtml, url)
+            if crec:
+                holding_cost_records.append(crec)
+                break
+            collect_links(url, chtml)
+        if not holding_cost_records:
+            _semantic_search_and_fetch("cost", cost_slot_end, query_offset=0, fetch_limit=2)
+        if not holding_cost_records and _research_budget_ok(cost_slot_end, reserve=2.30):
+            _semantic_search_and_fetch("cost", cost_slot_end, query_offset=1, fetch_limit=2)
+    _timed_bucket("cost", cost_started)
+
     if any(semantic_counts.values()):
         result["diagnostics"].append(
             "Holding Independent-Evidence Recovery V65: "
             f"NAV-Treffer={semantic_counts['nav']}, "
             f"Portfolio-Treffer={semantic_counts['portfolio']}, "
-            f"Report-Treffer={semantic_counts['report']}; "
-            "NAV, Report/Debt und Portfolio besitzen voneinander unabhängige Zeitfenster."
+            f"Report-Treffer={semantic_counts['report']}, "
+            f"Cost-Treffer={semantic_counts['cost']}; "
+            "NAV, Report/Debt, Portfolio und Holdingkosten besitzen voneinander unabhängige Zeitfenster."
         )
 
     # Phase 3/4: locale/archive are last-resort fallbacks and have their own
@@ -8726,7 +8917,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 rejection_counts[reason] = rejection_counts.get(reason, 0) + 1
         reject_summary = ",".join(f"{k}:{v}" for k, v in sorted(rejection_counts.items())) or "none"
         result["diagnostics"].append(
-            f"Holding Historical NAV Calibration V69: ArchiveFetch={history_archive_fetches}, "
+            f"Holding Historical NAV Calibration V70: ArchiveFetch={history_archive_fetches}, "
             f"Candidates={history_candidate_count}, UniqueDateCandidates={len(strict_candidates) if 'strict_candidates' in locals() else 0}, "
             f"ReleaseFetch={history_release_attempts}, Parsed={history_release_parsed}, DateAnchored={history_expected_date_matches}, "
             f"ClassPricePages={history_release_with_class_prices}, NavHistoryRecords={len(result.get('nav_history') or [])}, "
@@ -8749,6 +8940,15 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         debt_records.sort(key=lambda r: (r.get("as_of_date_obj") or datetime(1900,1,1).date()), reverse=True)
         result["debt"] = debt_records[0]
     result["portfolio"] = portfolio_best
+    if holding_cost_records:
+        holding_cost_records.sort(key=lambda r: (int(r.get("latest_year") or 0), int(r.get("quality") or 0)), reverse=True)
+        result["holding_cost"] = holding_cost_records[0]
+        c = result["holding_cost"]
+        result["diagnostics"].append(
+            f"Holding Management-Cost Evidence V70: Latest={safe_float(c.get('latest_cost_pct')):.3f}% "
+            f"({c.get('latest_year') or '–'}), Median5Y={safe_float(c.get('median_5y_pct')):.3f}%, "
+            f"Obs={int(c.get('observation_count') or 0)}, Source=issuer-primary."
+        )
     result["available"] = bool(result.get("nav"))
     total_elapsed = max(0.0, time.monotonic() - started_at)
     safety_remaining = max(0.0, overall_deadline - time.monotonic())
@@ -8777,14 +8977,14 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         "Holding Timing V65: "
         f"Bootstrap={timings['bootstrap']:.2f}s · Homepage={timings['homepage']:.2f}s · "
         f"Report={timings['report']:.2f}s · NAV={timings['nav']:.2f}s · "
-        f"Portfolio={timings['portfolio']:.2f}s · History={timings['history']:.2f}s · "
+        f"Portfolio={timings['portfolio']:.2f}s · Cost={timings['cost']:.2f}s · History={timings['history']:.2f}s · "
         f"Fallback={timings['fallback']:.2f}s · Gesamt={total_elapsed:.2f}s."
     )
     return result
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22173_listed_holding_justified_target_diag_v69"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22174_listed_holding_management_cost_guard_v70"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
@@ -8856,17 +9056,17 @@ def _holding_build_historical_nav_calibration(nav_history, symbol):
     }
 
 
-def _holding_build_justified_nav_target_diagnostic(historical_calibration, debt_ratio_pct, top2_pct, top4_pct):
-    """Diagnostic-only target NAV premium/discount bridge.
+def _holding_build_justified_nav_target_diagnostic(historical_calibration, debt_ratio_pct, top2_pct, top4_pct, holding_cost_evidence=None):
+    """Diagnostic-only target NAV premium/discount bridge with cost guard.
 
-    V69 deliberately does *not* release a valuation target.  The issuer's own
-    historical premium/discount median is the base anchor.  Current leverage
-    and concentration are translated into small downside-only stress overlays
-    solely so the user can inspect the direction and scale of the eventual
-    model.  Because the historical distribution already embeds the holding's
-    normal structure, these overlays are bounded and carry an explicit
-    double-count warning.  Holding-cost/structural-drag and peer evidence are
-    still required before a target can be released.
+    V70 keeps the issuer's own historical premium/discount median as the base
+    anchor. Current leverage and concentration remain bounded downside-only
+    diagnostics. Recurring management/holding cost is evaluated against the
+    issuer's own recent cost history instead of being capitalized into a second
+    discount, which would double-count structure already embedded in the market
+    history. A normal/low current cost therefore adds 0.00 pp; missing or
+    materially elevated cost evidence remains fail-closed pending a separately
+    justified translation rule. Peer evidence is still required for release.
     """
     hist = historical_calibration or {}
     hist_ready = bool(hist.get("ready"))
@@ -8899,8 +9099,6 @@ def _holding_build_justified_nav_target_diagnostic(historical_calibration, debt_
     concentration_adj = None
     concentration_band = "Nicht verfügbar"
     if top2 is not None or top4 is not None:
-        # Take the more conservative of the Top-2 and Top-4 diagnostics, but cap
-        # the stress overlay because history already embeds the normal portfolio.
         penalties = [0.0]
         if top2 is not None:
             if top2 >= 70.0:
@@ -8926,17 +9124,40 @@ def _holding_build_justified_nav_target_diagnostic(historical_calibration, debt_
         else:
             concentration_band = "Breit · kein zusätzlicher Abschlag"
 
-    # V69 has no generic, issuer-primary holding-cost parser yet.  Do not invent
-    # a cost ratio or silently assume zero.  The same applies to peer evidence.
-    holding_cost_adj = None
+    cost = holding_cost_evidence or {}
+    cost_latest = safe_float(cost.get("latest_cost_pct"))
+    cost_median = safe_float(cost.get("median_5y_pct"))
+    cost_year = cost.get("latest_year")
+    cost_obs = int(cost.get("observation_count") or 0)
+    cost_adj = None
+    cost_status = "Issuer-primary Holdingkosten/Strukturdrag noch nicht quantifiziert"
+    cost_guard_state = "missing"
+    if cost_latest is not None and cost_median is not None and cost_obs >= 3:
+        # A tolerance of 0.02 percentage points (= 2 bps of portfolio value)
+        # prevents noise around the issuer's own multi-year norm from becoming a
+        # second valuation penalty. Elevated cases remain blocked rather than
+        # receiving an invented capitalization multiple.
+        if cost_latest <= cost_median + 0.02:
+            cost_adj = 0.0
+            cost_guard_state = "normal_or_low"
+            cost_status = (
+                f"Issuer-primary Managementkosten {cost_latest:.2f}% ({cost_year or 'aktuell'}) "
+                f"vs. 5J-Median {cost_median:.2f}% · normal/niedrig · kein zusätzlicher Abschlag"
+            )
+        else:
+            cost_guard_state = "elevated_translation_unreleased"
+            cost_status = (
+                f"Issuer-primary Managementkosten {cost_latest:.2f}% ({cost_year or 'aktuell'}) "
+                f"vs. 5J-Median {cost_median:.2f}% · erhöht · Bewertungsübersetzung noch nicht freigegeben"
+            )
+
     peer_adj = None
     provisional = None
     if anchor is not None:
         provisional = anchor
-        if leverage_adj is not None:
-            provisional += leverage_adj
-        if concentration_adj is not None:
-            provisional += concentration_adj
+        for adj in [leverage_adj, concentration_adj, cost_adj]:
+            if adj is not None:
+                provisional += adj
 
     blockers = []
     if not hist_ready:
@@ -8945,7 +9166,10 @@ def _holding_build_justified_nav_target_diagnostic(historical_calibration, debt_
         blockers.append("leverage_evidence_missing")
     if top2 is None and top4 is None:
         blockers.append("concentration_evidence_missing")
-    blockers.append("holding_cost_evidence_missing")
+    if cost_guard_state == "missing":
+        blockers.append("holding_cost_evidence_missing")
+    elif cost_guard_state == "elevated_translation_unreleased":
+        blockers.append("holding_cost_translation_unreleased")
     blockers.append("peer_evidence_missing")
 
     return {
@@ -8958,18 +9182,25 @@ def _holding_build_justified_nav_target_diagnostic(historical_calibration, debt_
         "leverage_band": leverage_band,
         "concentration_adjustment_pp": concentration_adj,
         "concentration_band": concentration_band,
-        "holding_cost_adjustment_pp": holding_cost_adj,
-        "holding_cost_status": "Issuer-primary Holdingkosten/Strukturdrag noch nicht quantifiziert",
+        "holding_cost_adjustment_pp": cost_adj,
+        "holding_cost_status": cost_status,
+        "holding_cost_guard_state": cost_guard_state,
+        "holding_cost_latest_pct": cost_latest,
+        "holding_cost_latest_year": cost_year,
+        "holding_cost_median_5y_pct": cost_median,
+        "holding_cost_observation_count": cost_obs,
+        "holding_cost_source_url": cost.get("source_url"),
         "peer_adjustment_pp": peer_adj,
         "peer_status": "Vergleichbare Holding-Peer-Evidenz noch nicht freigegeben",
         "provisional_target_pct": provisional,
         "final_target_pct": None,
         "release_blockers": blockers,
         "double_count_guard": (
-            "Historischer Median enthält die normale Holdingstruktur bereits teilweise; "
-            "Leverage-/Konzentrationswerte sind in V69 nur begrenzte downside-only Diagnose-Overlays und keine freigegebene Bewertungsregel."
+            "Historischer Median enthält normale Holdingkosten und Struktur bereits teilweise. "
+            "V70 verwendet die issuer-primary Kostenquote deshalb nur als Abweichungs-Guard gegen die eigene Mehrjahresnorm; "
+            "eine normale/niedrige Kostenquote erhält 0,00 pp und wird nicht nochmals kapitalisiert."
         ),
-        "method": "Historical median + bounded current-risk diagnostic overlays; holding-cost and peer guards required before release",
+        "method": "Historical median + bounded current-risk overlays + issuer-primary own-history management-cost guard; peer guard required before release",
     }
 
 
@@ -8982,6 +9213,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
     nav = discovery.get("nav") or {}
     debt = discovery.get("debt") or {}
     portfolio = discovery.get("portfolio") or {}
+    holding_cost = discovery.get("holding_cost") or {}
     historical_calibration = _holding_build_historical_nav_calibration(discovery.get("nav_history") or [], symbol)
     nav_value = safe_float(nav.get("nav_per_share"))
     nav_currency = str(nav.get("currency") or (fundamental_info or {}).get("financialCurrency") or "").upper()
@@ -9036,7 +9268,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         concentration_status = "Hoch" if top2 >= 60 else ("Mittel" if top2 >= 40 else "Breit")
 
     justified_target_diag = _holding_build_justified_nav_target_diagnostic(
-        historical_calibration, debt_ratio, top2, top4
+        historical_calibration, debt_ratio, top2, top4, holding_cost_evidence=holding_cost
     )
 
     primary_complete = bool(nav_value and nav_value > 0 and nav_date_obj and nav_fresh and currency_ok)
@@ -9073,6 +9305,14 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "portfolio_source_url": portfolio.get("source_url"),
         "leverage_status": leverage_status,
         "concentration_status": concentration_status,
+        "holding_cost_latest_pct": safe_float(holding_cost.get("latest_cost_pct")),
+        "holding_cost_latest_year": holding_cost.get("latest_year"),
+        "holding_cost_median_5y_pct": safe_float(holding_cost.get("median_5y_pct")),
+        "holding_cost_min_5y_pct": safe_float(holding_cost.get("min_5y_pct")),
+        "holding_cost_max_5y_pct": safe_float(holding_cost.get("max_5y_pct")),
+        "holding_cost_observations": holding_cost.get("observations") or [],
+        "holding_cost_source_url": holding_cost.get("source_url"),
+        "holding_cost_metric_label": holding_cost.get("metric_label"),
         "historical_nav_calibration": historical_calibration,
         "historical_nav_observations": historical_calibration.get("observations") or [],
         "historical_nav_calibration_ready": bool(historical_calibration.get("ready")),
@@ -9081,7 +9321,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "justified_nav_target_diagnostic": justified_target_diag,
         "provisional_target_premium_discount_pct": safe_float(justified_target_diag.get("provisional_target_pct")),
         "target_premium_discount_released": False,
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Justified Target Calibration V69",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Management-Cost Guard V70",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
@@ -9098,6 +9338,8 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
             "portfolio_context_available": bool(portfolio.get("holdings")),
             "leverage_status": leverage_status,
             "concentration_status": concentration_status,
+            "holding_cost_evidence_available": bool(holding_cost.get("latest_cost_pct") is not None),
+            "holding_cost_guard_state": justified_target_diag.get("holding_cost_guard_state"),
             "historical_calibration_available": bool(historical_calibration.get("available")),
             "historical_calibration_ready": bool(historical_calibration.get("ready")),
             "historical_observation_count": int(historical_calibration.get("observation_count") or 0),
@@ -9106,15 +9348,16 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
             "justified_target_blockers": justified_target_diag.get("release_blockers") or [],
         },
         "readiness": (
-            "NAV-/Premium-Discount-Primärdaten vollständig · historische Kalibrierung belastbar · Ziel-Premium/Discount-Diagnose aktiv · Fair Value noch gesperrt"
+            "NAV-/Premium-Discount-Primärdaten vollständig · historische Kalibrierung belastbar · Ziel-Premium/Discount-Diagnose + Holdingkosten-Guard aktiv · Fair Value noch gesperrt"
             if primary_complete and historical_calibration.get("ready") else
             ("NAV-/Premium-Discount-Primärdaten vollständig · historische Kalibrierung noch begrenzt · Fair Value gesperrt"
              if primary_complete else "NAV-Primärdaten unvollständig · fail-closed")
         ),
         "note": (
             f"{APP_BUILD_VERSION} trennt aktuellen issuer-primary NAV, Kurs/NAV-Premium-Discount, Holding-Leverage und Portfoliokonzentration. "
-            "Die historische Verteilung liefert jetzt den Basisanker; Leverage und Konzentration werden als begrenzte diagnostische Overlays ausgewiesen. "
-            "Holdingkosten/Strukturdrag und Peer-Evidenz bleiben harte Freigabe-Blocker, deshalb entsteht noch kein freigegebener Ziel-NAV-Multiple oder Fair Value."
+            "Die historische Verteilung liefert den Basisanker; Leverage und Konzentration bleiben begrenzte diagnostische Overlays. "
+            "Issuer-primary Holdingkosten/Strukturdrag werden gegen die eigene Mehrjahresnorm geprüft; Peer-Evidenz bleibt der nächste separate Freigabe-Blocker. "
+            "Deshalb entsteht noch kein freigegebener Ziel-NAV-Multiple oder Fair Value."
         ),
     }
 
@@ -9140,7 +9383,7 @@ def build_listed_investment_holding_special_control(control, specialist_model):
             "Analystenziele ausschließlich Reality Check",
         ],
         "status": (
-            "Primärquellen-NAV-Modell aktiv · Ziel-Premium/Discount-Kalibrierung diagnostisch aktiv · Fair Value noch nicht freigegeben"
+            "Primärquellen-NAV-Modell aktiv · Holdingkosten-Guard aktiv · Peer-Guard ausstehend · Fair Value noch nicht freigegeben"
             if primary_complete else "NAV-Primärdaten unvollständig · fail-closed"
         ),
         "router_status": "Holding-NAV-Spezialmodell V1 aktiv",
@@ -56785,7 +57028,7 @@ if selected_symbol:
                             )
                             hist_diag_lines_h = [
                                 str(x) for x in (snap_h.get("diagnostics") or [])
-                                if "Historical NAV Calibration V69" in str(x)
+                                if "Historical NAV Calibration V70" in str(x)
                             ]
                             if hist_diag_lines_h:
                                 st.caption("Historik-Adapter: " + hist_diag_lines_h[-1])
@@ -56809,7 +57052,7 @@ if selected_symbol:
 
                         target_diag_h = snap_h.get("justified_nav_target_diagnostic") or {}
                         if target_diag_h.get("available"):
-                            st.write("**Justified NAV Premium/Discount – diagnostische Kalibrierung V69:**")
+                            st.write("**Justified NAV Premium/Discount – diagnostische Kalibrierung V70:**")
                             jt1, jt2, jt3 = st.columns(3)
                             with jt1:
                                 st.metric("Historischer Basisanker", f"{safe_float(target_diag_h.get('historical_anchor_pct')):+.1f} %")
@@ -56821,6 +57064,22 @@ if selected_symbol:
                                 st.caption(text_or_dash(target_diag_h.get("concentration_band")))
                             provisional_target_h = safe_float(target_diag_h.get("provisional_target_pct"))
                             st.metric("Vorläufiger diagnostischer Ziel-Premium/Discount", f"{provisional_target_h:+.1f} %" if provisional_target_h is not None else "–")
+                            cost_latest_h = safe_float(target_diag_h.get("holding_cost_latest_pct"))
+                            cost_median_h = safe_float(target_diag_h.get("holding_cost_median_5y_pct"))
+                            cost_adj_h = safe_float(target_diag_h.get("holding_cost_adjustment_pp"))
+                            if cost_latest_h is not None:
+                                hc1, hc2, hc3 = st.columns(3)
+                                with hc1:
+                                    st.metric("Managementkosten aktuell", f"{cost_latest_h:.2f} %")
+                                    st.caption(text_or_dash(target_diag_h.get("holding_cost_latest_year")))
+                                with hc2:
+                                    st.metric("Managementkosten 5J-Median", f"{cost_median_h:.2f} %" if cost_median_h is not None else "–")
+                                    st.caption("% des Portfolio-/NAV-Werts")
+                                with hc3:
+                                    st.metric("Holdingkosten-Overlay", f"{cost_adj_h:+.2f} pp" if cost_adj_h is not None else "–")
+                                    st.caption(text_or_dash(target_diag_h.get("holding_cost_guard_state")))
+                                if target_diag_h.get("holding_cost_source_url"):
+                                    st.markdown(f"[Holdingkosten-Primärquelle]({target_diag_h.get('holding_cost_source_url')})")
                             st.caption("Holdingkosten/Strukturdrag: " + text_or_dash(target_diag_h.get("holding_cost_status")))
                             st.caption("Peer-Guard: " + text_or_dash(target_diag_h.get("peer_status")))
                             st.warning(text_or_dash(target_diag_h.get("double_count_guard")))
@@ -56840,7 +57099,7 @@ if selected_symbol:
                             st.caption("Adapter-Diagnose: " + " | ".join(str(x) for x in diag_lines_h[-6:]))
                     st.warning(
                         f"Fair Value bleibt in {APP_BUILD_VERSION} bewusst gesperrt: Die historische Verteilung liefert jetzt einen Basisanker und Leverage/Konzentration werden diagnostisch überlagert. "
-                        "Holdingkosten/Strukturdrag und Peer-Evidenz sind noch nicht freigegeben; der angezeigte vorläufige Ziel-Premium/Discount darf deshalb weder Fair Value noch Zonen oder Signale steuern."
+                        "Issuer-primary Holdingkosten/Strukturdrag werden jetzt gegen die eigene Mehrjahresnorm geprüft; Peer-Evidenz ist noch nicht freigegeben. Der angezeigte vorläufige Ziel-Premium/Discount darf deshalb weiterhin weder Fair Value noch Zonen oder Signale steuern."
                     )
                     st.caption(text_or_dash(special_control.get("note")))
 
