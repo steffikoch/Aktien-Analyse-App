@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.71"
+APP_BUILD_VERSION = "V2.21.72"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding Record-Level NAV/Close Pairing & Pair-Rejection Trace Guard V67"
+    f"Build {APP_BUILD_VERSION} · Listed Holding Semantic NAV As-Of Hint & Publication-Date Separation Guard V68"
 )
 
 
@@ -47,6 +47,7 @@ st.caption(
 # V2.21.62: Listed Holding NAV Token Fallback & Evidence Trace Guard V58. Keeps V58 portfolio/debt recovery unchanged and hardens only NAV extraction from issuer-owned HTML. Visible DOM text is Unicode-normalized (including zero-width/soft-hyphen cleanup); a bounded token fallback can recover NAV when CMS separators sit between label, currency, value and per-share wording. Failed issuer-release parses expose compact marker/currency/per-share/number probes so future failures are diagnosable without accepting search snippets as valuation evidence. No issuer/ticker constants or hard-coded company values are added. Fair Value remains fail-closed pending separate target premium/discount calibration; Bank model, released valuation mathematics, Reality Check and signals are unchanged.
 # V2.21.64: Listed Holding Full-DOM NAV Candidate Ranking Guard V60. Fixes the remaining issuer-HTML NAV miss exposed by V59 diagnostics: CMS release pages can render dozens of NAV labels in navigation/archive blocks, while the production parser inspected only the first 12 label positions. V60 evaluates every bounded NAV-label window and lets local NAV evidence (currency/value + per-share wording + date/source context) determine the best record instead of DOM order. Diagnostics also count locally eligible NAV windows. Portfolio/debt recovery, family routing, Bank model, released valuation mathematics, Reality Check and signals remain unchanged; no issuer/ticker constants or hard-coded company values are introduced and Fair Value remains fail-closed pending target premium/discount calibration.
 # V2.21.70: Listed Holding Locale-Agnostic Share-Class Pairing & Unique-Date History Guard V66. Fixes the V65 live result where seven issuer NAV releases parsed successfully but only one yielded a paired NAV/close observation. The NAV archive may expose Swedish as well as English releases; V66 normalizes both English “Class C shares” and Swedish “C-aktien” closing-price wording into the same share-class price map, and de-duplicates historical release candidates by NAV as-of date before network fetches so language twins cannot consume the bounded history window. Diagnostics expose fetched/parsed/class-price/target-class counts. Historical evidence remains calibration-only and cannot unlock target premium/discount, Fair Value, zones or signals. No issuer/ticker constants or hard-coded company values are introduced.
+# V2.21.72: Listed Holding Semantic NAV As-Of Hint & Publication-Date Separation Guard V68. Fixes the V67 live trace where 2026 issuer NAV releases were fetched but rejected because the historical candidate pre-parser treated the archive publication date (for example Sep 1, 2026) as the expected NAV as-of date even when the concrete release title/URL stated “Net asset value on August 31, 2026”. V68 extracts the NAV as-of hint semantically from release title/slug wording first (English/Swedish), uses that hint for date de-duplication and strict historical parsing, and leaves publication dates as provenance only. Generic first-date parsing is no longer allowed to override a semantic NAV date. Historical evidence remains calibration-only; target premium/discount, Fair Value, zones and signals stay fail-closed. No issuer/ticker constants or hard-coded company values are introduced.
 # V2.21.71: Listed Holding Record-Level NAV/Close Pairing & Pair-Rejection Trace Guard V67. Fixes the V66 live result where seven issuer NAV releases parsed with class-price evidence but collapsed to one historical observation. Each concrete issuer release is now normalized into a record-level NAV/close probe before calibration, with the NAV as-of date anchored to the dated release title/URL when local article markup omits it. Target-share-class close, NAV, currency and date are validated independently; publication date is provenance only and is never required to equal the NAV date or the paired trading-date close. Diagnostics expose one PairProbe per fetched release with explicit accept/reject reason, plus aggregate anchored-date and valid-target-pair counts. Historical evidence remains calibration-only and cannot unlock target premium/discount, Fair Value, zones or signals. No issuer/ticker constants or hard-coded company values are introduced.
 # V2.21.69: Listed Holding Archive-First Historical NAV Series Guard V65. Fixes the first historical-calibration live test, where a large NAV-link set already present in article/CMS navigation incorrectly suppressed a fetch of the issuer press-release index, leaving only one paired NAV/closing-price observation. V65 always visits a bounded issuer-owned archive/index candidate before historical release selection, derives generic parent/year archive candidates from concrete NAV-release URLs, filters historical candidates to concrete dated NAV releases, and records candidate/fetch/paired counts. The historical layer remains calibration evidence only: no target premium/discount, Fair Value, zone or signal is released. No issuer/ticker constants or hard-coded company values are introduced.
 # V2.21.68: Listed Holding Historical NAV Premium/Discount Calibration Guard V64.
@@ -7087,6 +7088,37 @@ def _holding_parse_date_text(value):
     return None
 
 
+
+def _holding_nav_asof_hint_from_release(url=None, label=None):
+    """Extract the NAV *as-of* date from release semantics, not archive publication date.
+
+    A press-release archive row may begin with its publication date and then carry
+    a title such as "Net asset value on August 31, 2026".  Generic first-date
+    parsing would therefore return Sep 1, 2026.  Historical NAV pairing must bind
+    to the date governed by the NAV wording itself.
+    """
+    raw_values = [label, url]
+    patterns = [
+        r"(?:net\s+asset\s+value|\bnav\b)\s+(?:as\s+of|on|at)\s+([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
+        r"(?:net\s+asset\s+value|\bnav\b)\s+(?:as\s+of|on|at)\s+(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
+        r"substansv[aä]rd(?:e|et)?\s*(?:per(?:\s+den)?|den|p[aå])?\s*(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
+        r"substansv[aä]rd(?:e|et)?\s*(?:per(?:\s+den)?|den|p[aå])?\s*([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
+    ]
+    for raw in raw_values:
+        if not raw:
+            continue
+        text = unquote(str(raw))
+        text = text.replace("-", " " ).replace("_", " " ).replace("/", " " )
+        text = unicodedata.normalize("NFKC", _clean_text(text) or "")
+        for pat in patterns:
+            m = re.search(pat, text, flags=re.I)
+            if not m:
+                continue
+            dt = _holding_parse_date_text(m.group(1))
+            if dt:
+                return dt
+    return None
+
 def _holding_date_display(value):
     if hasattr(value, "strftime"):
         return value.strftime("%d.%m.%Y")
@@ -8585,8 +8617,9 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             seen_candidate_dates = set()
             undated_candidates = []
             for u, l in strict_candidates_all:
-                hay = _clean_text(" ".join([l or "", str(u or "").replace("-", " ").replace("_", " ").replace("/", " ")]))
-                dt = _holding_parse_date_text(hay)
+                # V68: de-duplicate by the NAV as-of date encoded in the release
+                # title/slug, never by the archive row's publication date.
+                dt = _holding_nav_asof_hint_from_release(u, l)
                 if dt:
                     if dt in seen_candidate_dates:
                         continue
@@ -8603,9 +8636,10 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 if not _research_budget_ok(history_slot_end, reserve=0.35):
                     break
                 history_release_attempts += 1
-                expected_hist_date = _holding_parse_date_text(
-                    _clean_text(" ".join([hist_label or "", str(hist_url or "").replace("-", " ").replace("_", " ").replace("/", " ")]))
-                )
+                # V68: strict historical parsing is anchored to the semantic NAV
+                # date in the concrete release title/URL. Publication date is
+                # provenance only and must never become expected_hist_date.
+                expected_hist_date = _holding_nav_asof_hint_from_release(hist_url, hist_label)
                 hhtml = fetch(hist_url, referer=canonical_url, phase_deadline=history_slot_end)
                 if not hhtml:
                     history_pair_probes.append({
@@ -8690,7 +8724,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 rejection_counts[reason] = rejection_counts.get(reason, 0) + 1
         reject_summary = ",".join(f"{k}:{v}" for k, v in sorted(rejection_counts.items())) or "none"
         result["diagnostics"].append(
-            f"Holding Historical NAV Calibration V67: ArchiveFetch={history_archive_fetches}, "
+            f"Holding Historical NAV Calibration V68: ArchiveFetch={history_archive_fetches}, "
             f"Candidates={history_candidate_count}, UniqueDateCandidates={len(strict_candidates) if 'strict_candidates' in locals() else 0}, "
             f"ReleaseFetch={history_release_attempts}, Parsed={history_release_parsed}, DateAnchored={history_expected_date_matches}, "
             f"ClassPricePages={history_release_with_class_prices}, NavHistoryRecords={len(result.get('nav_history') or [])}, "
@@ -8748,7 +8782,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22171_listed_holding_release_date_anchor_v67"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22172_listed_holding_semantic_asof_hint_v68"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
@@ -8921,7 +8955,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "historical_nav_calibration_ready": bool(historical_calibration.get("ready")),
         "historical_nav_median_premium_discount_pct": safe_float(historical_calibration.get("median_pct")),
         "historical_pair_probes": discovery.get("historical_pair_probes") or [],
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Historical Calibration V67",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Historical Calibration V68",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
@@ -56621,7 +56655,7 @@ if selected_symbol:
                             )
                             hist_diag_lines_h = [
                                 str(x) for x in (snap_h.get("diagnostics") or [])
-                                if "Historical NAV Calibration V67" in str(x)
+                                if "Historical NAV Calibration V68" in str(x)
                             ]
                             if hist_diag_lines_h:
                                 st.caption("Historik-Adapter: " + hist_diag_lines_h[-1])
