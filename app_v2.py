@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.50"
+APP_BUILD_VERSION = "V2.21.51"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,12 +31,13 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Security Resolver Cache-Epoch Guard V46"
+    f"Build {APP_BUILD_VERSION} · Listed Investment Holding Family Router V47"
 )
 
 
 # V2.21.49: Nordic Home-Listing & Cboe Venue Guard V45. Extends only the Security Identity & Primary Listing Resolver. Verified Industrivärden name aliases resolve Class C to the issuer-declared Nasdaq Stockholm home line (Yahoo-style INDU-C.ST), while Cboe Europe .XD/DXE rows are treated as secondary venues for name searches. Exact ticker input still retains its exact-security priority, so an explicitly entered .XD ticker remains selectable as entered. No company-family routing, EPS normalization, specialist model, score, Fair Value, Reality Check or signal mathematics are changed.
 # V2.21.50: Security Resolver Cache-Epoch Guard V46. Couples the cached security-search result to an explicit resolver epoch so primary-listing alias/venue changes cannot reuse stale Streamlit cache entries from an older build. Search ranking, verified Industrivärden Stockholm mapping, company-family routing, EPS normalization, specialist models, scores, Fair Value, Reality Check and signal mathematics are unchanged.
+# V2.21.51: Listed Investment Holding Family Router V47. Separates principal-capital listed investment/holding companies from fee-based Asset Management by business-model evidence. Client AUM/advisory/management-fee signals keep the existing Asset-Manager route; own-portfolio/active-ownership/listed-holding signals route to a new fail-closed NAV family. No NAV Fair Value is released in this build. Security search, bank model, all released specialist scores/multiples/Fair Values, Reality Check and signal mathematics are unchanged.
 # V2.21.48: Universal Bank CET1 Row & Q4 Publication Metadata Guard V44. Period-aligned Standardized CET1 rows outrank generic CET1 narrative/footnote matches; trusted-Q4 current-quarter documents with missing publication metadata get one bounded issuer-domain results-detail metadata retry with exact quarter/results identity validation. The retry is metadata-only and cannot alter valuation evidence. No issuer/ticker exception is added. EPS normalization, Bank Score scoring thresholds, regulatory CET1 buffer mathematics, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.47: Universal Bank Trusted Q4 Detail & Financials Bridge V43. Extends the issuer-neutral latest-quarter recovery for proven Q4 IR architectures whose press-release/archive cards are client-rendered and whose current-quarter PDFs moved from /files/doc_events/... to Q4's /files/doc_financials/<year>/q<quarter>/... structure. The adapter now probes a bounded Q4-style same-domain news-detail route generated from the exact issuer name + expected quarter/results identity and independently revalidates page identity before accepting publication metadata. In parallel, a trusted Q4 tenant may contribute bounded current-quarter /doc_financials/ sibling candidates copied from already issuer-proven prior-quarter filenames; downstream PDF payload gates still require expected-period + issuer identity before any document can enter the bank snapshot. No ticker/domain exception is added. EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.46: Universal Bank Proven IR News-Archive Bridge V42. Adds a deterministic issuer-neutral latest-quarter bridge for Q4-style IR sites when bounded web search returns no current-period hit. On already verified same-domain IR hosts, the adapter probes a small set of conventional news/press-release archive paths, follows only links whose own title/URL prove the exact expected quarter plus earnings/results semantics, captures the page-owned publication date, and then reuses the existing trusted Q4-tenant sibling derivation to recover the official release/supplement. This closes the U.S. Bancorp 2Q26 gap without ticker/domain exceptions and reduces dependence on search-engine indexing. Document trust, parser rules, EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -6581,6 +6582,7 @@ UNIVERSAL_VALUATION_FAMILY_CATALOG = {
     "investment_bank_broker_dealer": {"label": "Investment Bank / Broker-Dealer", "policy": "specialist"},
     "credit_data_analytics": {"label": "Credit Bureau / Data & Analytics", "policy": "specialist"},
     "asset_manager": {"label": "Asset Management", "policy": "specialist"},
+    "listed_investment_holding": {"label": "Listed Investment / Holding Company", "policy": "specialist"},
     "insurance": {"label": "Insurance", "policy": "specialist"},
     "reinsurance": {"label": "Reinsurance", "policy": "specialist"},
     "reit": {"label": "REIT / Real Estate", "policy": "specialist"},
@@ -6699,12 +6701,68 @@ def _infer_universal_family_from_existing_type(company_type, name_text=""):
     return None
 
 
+def _looks_like_listed_investment_holding(industry, business_summary):
+    """High-confidence principal-capital holding-company profile.
+
+    Yahoo can label listed investment holdings as Asset Management.  Distinguish
+    companies investing their own balance-sheet capital / owning portfolio
+    companies from fee-based managers that manage client AUM.  This is a
+    reusable business-model rule, not an issuer/ticker exception.
+    """
+    industry_text = str(industry or "").lower()
+    summary_text = str(business_summary or "").lower()
+    combined = " ".join([industry_text, summary_text])
+
+    # Strong evidence of a fee/advisory business: keep Asset Management.
+    client_manager_terms = [
+        "assets under management", " aum ", "investment advisory", "advisory services",
+        "investment management services", "management fees", "advisory fees",
+        "provides its services to", "client focused", "client-focused", "for its clients",
+        "manages separate", "separate accounts", "mutual funds", "institutional clients",
+        "retail clients", "fund management", "third-party capital", "third party capital",
+    ]
+    padded = f" {combined} "
+    if any(term in padded for term in client_manager_terms):
+        return False
+
+    direct_holding_terms = [
+        "listed holding company", "investment holding company", "listed investment company",
+        "active ownership", "active owner", "ownership stakes", "portfolio companies",
+        "equity portfolio", "own portfolio", "principal investments",
+    ]
+    if any(term in combined for term in direct_holding_terms):
+        return True
+
+    # Common provider wording for Nordic listed holdings (e.g. principal
+    # portfolio investors) can misleadingly say "investment manager" even
+    # though there is no client-AUM fee business.
+    if (
+        "publicly owned investment manager" in combined
+        and "invests in the public equity markets" in combined
+    ):
+        return True
+
+    # Listed private-equity / venture holding structures without client-capital
+    # management also belong to the principal-capital NAV family.
+    if any(term in combined for term in ["private equity firm", "venture capital firm"]):
+        if any(term in combined for term in [
+            "invests in listed companies", "invests in both listed and unlisted companies",
+            "portfolio companies", "ownership stake", "majority or minority investments",
+        ]):
+            return True
+
+    return False
+
+
 def _infer_universal_family_from_metadata(symbol, sector, industry, business_summary):
     sym = str(symbol or "").upper().strip()
     sector_text = str(sector or "").lower()
     industry_text = str(industry or "").lower()
     summary_text = str(business_summary or "").lower()
     combined = " ".join([sector_text, industry_text, summary_text])
+
+    if _looks_like_listed_investment_holding(industry_text, summary_text):
+        return "listed_investment_holding", "business_summary_rule"
 
     if sym in UNIVERSAL_SECURITY_FAMILY_MASTER:
         return UNIVERSAL_SECURITY_FAMILY_MASTER[sym], "security_family_master"
@@ -6853,6 +6911,9 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
     current_type = normalized_company_type_name(out)
 
     existing_family = _infer_universal_family_from_existing_type(out, name_text=name_text)
+    listed_holding_profile = _looks_like_listed_investment_holding(industry, business_summary)
+    if listed_holding_profile and existing_family == "asset_manager":
+        existing_family = None
     if _legacy_classification_is_family_overrideable(current_type):
         # Generic/unresolved legacy labels are not evidence that a released
         # specialist family exists. Let the universal metadata/master route win.
@@ -6883,6 +6944,11 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
     # Block (XYZ) from being tagged Payments Processor while still executing
     # the old ambiguous Software route.
     legacy_overrideable = _legacy_classification_is_family_overrideable(current_type)
+    if family_id == "listed_investment_holding" and listed_holding_profile:
+        # High-confidence business-model contradiction: Yahoo industry can call
+        # principal-capital listed holdings "Asset Management".  Allow the
+        # universal family layer to override that generic legacy classification.
+        legacy_overrideable = True
     if not legacy_overrideable:
         out["family_model_status"] = "existing_route"
         out["family_model_ready"] = True
@@ -6895,6 +6961,19 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
             f"Universal Family Router: {meta['label']} erkannt; familiengerechte Kennzahlen/Anker erforderlich. "
             "Generischer Standard-Score, Yahoo-FCF/Net-Debt-to-FCF und Standard-KGV sind bis zur Freigabe des Familienmodells gesperrt."
         )
+        if family_id == "listed_investment_holding":
+            out["method"] = (
+                "Primary-source NAV je Aktie + Kurs/NAV-Premium-Discount + Holdingkosten/Netto-Verschuldung + "
+                "Portfolio-/Kapitalallokationskontrolle; NAV-Fair-Value-Modell noch nicht freigegeben"
+            )
+            out["business_model"] = (
+                "Börsennotierte Investment-/Holdinggesellschaft, die eigenes Kapital in Beteiligungen investiert; "
+                "kein fee-basiertes Client-AUM-Geschäft"
+            )
+            out["focus_areas"] = (
+                "NAV je Aktie · Kurs/NAV Premium/Discount · Portfolioqualität/-konzentration · "
+                "Holdingkosten · Netto-Verschuldung · Kapitalallokation · Dividenden"
+            )
         out["confidence_cap"] = "Niedrig bis Mittel"
         out["family_model_status"] = "defined_unreleased"
         out["family_model_ready"] = False
