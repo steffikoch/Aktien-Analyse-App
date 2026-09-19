@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.70"
+APP_BUILD_VERSION = "V2.21.71"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding Locale-Agnostic Share-Class Pairing & Unique-Date History Guard V66"
+    f"Build {APP_BUILD_VERSION} · Listed Holding Record-Level NAV/Close Pairing & Pair-Rejection Trace Guard V67"
 )
 
 
@@ -47,6 +47,7 @@ st.caption(
 # V2.21.62: Listed Holding NAV Token Fallback & Evidence Trace Guard V58. Keeps V58 portfolio/debt recovery unchanged and hardens only NAV extraction from issuer-owned HTML. Visible DOM text is Unicode-normalized (including zero-width/soft-hyphen cleanup); a bounded token fallback can recover NAV when CMS separators sit between label, currency, value and per-share wording. Failed issuer-release parses expose compact marker/currency/per-share/number probes so future failures are diagnosable without accepting search snippets as valuation evidence. No issuer/ticker constants or hard-coded company values are added. Fair Value remains fail-closed pending separate target premium/discount calibration; Bank model, released valuation mathematics, Reality Check and signals are unchanged.
 # V2.21.64: Listed Holding Full-DOM NAV Candidate Ranking Guard V60. Fixes the remaining issuer-HTML NAV miss exposed by V59 diagnostics: CMS release pages can render dozens of NAV labels in navigation/archive blocks, while the production parser inspected only the first 12 label positions. V60 evaluates every bounded NAV-label window and lets local NAV evidence (currency/value + per-share wording + date/source context) determine the best record instead of DOM order. Diagnostics also count locally eligible NAV windows. Portfolio/debt recovery, family routing, Bank model, released valuation mathematics, Reality Check and signals remain unchanged; no issuer/ticker constants or hard-coded company values are introduced and Fair Value remains fail-closed pending target premium/discount calibration.
 # V2.21.70: Listed Holding Locale-Agnostic Share-Class Pairing & Unique-Date History Guard V66. Fixes the V65 live result where seven issuer NAV releases parsed successfully but only one yielded a paired NAV/close observation. The NAV archive may expose Swedish as well as English releases; V66 normalizes both English “Class C shares” and Swedish “C-aktien” closing-price wording into the same share-class price map, and de-duplicates historical release candidates by NAV as-of date before network fetches so language twins cannot consume the bounded history window. Diagnostics expose fetched/parsed/class-price/target-class counts. Historical evidence remains calibration-only and cannot unlock target premium/discount, Fair Value, zones or signals. No issuer/ticker constants or hard-coded company values are introduced.
+# V2.21.71: Listed Holding Record-Level NAV/Close Pairing & Pair-Rejection Trace Guard V67. Fixes the V66 live result where seven issuer NAV releases parsed with class-price evidence but collapsed to one historical observation. Each concrete issuer release is now normalized into a record-level NAV/close probe before calibration, with the NAV as-of date anchored to the dated release title/URL when local article markup omits it. Target-share-class close, NAV, currency and date are validated independently; publication date is provenance only and is never required to equal the NAV date or the paired trading-date close. Diagnostics expose one PairProbe per fetched release with explicit accept/reject reason, plus aggregate anchored-date and valid-target-pair counts. Historical evidence remains calibration-only and cannot unlock target premium/discount, Fair Value, zones or signals. No issuer/ticker constants or hard-coded company values are introduced.
 # V2.21.69: Listed Holding Archive-First Historical NAV Series Guard V65. Fixes the first historical-calibration live test, where a large NAV-link set already present in article/CMS navigation incorrectly suppressed a fetch of the issuer press-release index, leaving only one paired NAV/closing-price observation. V65 always visits a bounded issuer-owned archive/index candidate before historical release selection, derives generic parent/year archive candidates from concrete NAV-release URLs, filters historical candidates to concrete dated NAV releases, and records candidate/fetch/paired counts. The historical layer remains calibration evidence only: no target premium/discount, Fair Value, zone or signal is released. No issuer/ticker constants or hard-coded company values are introduced.
 # V2.21.68: Listed Holding Historical NAV Premium/Discount Calibration Guard V64.
 # V2.21.65: Listed Holding Snapshot-Date Coherence & Freshest Evidence Guard V61. Keeps the now-working NAV parser unchanged and hardens only holding snapshot provenance. Debt/gearing discovery evaluates all bounded priority-report candidates instead of stopping on the first valid ratio, then keeps the newest issuer-primary reporting date. Portfolio candidates are ranked by reporting date before holding-count completeness, and a stale/missing homepage portfolio date triggers one bounded issuer-primary portfolio refresh instead of suppressing the dedicated portfolio page. Diagnostics expose NAV/debt/portfolio as-of dates and refresh status. No issuer/ticker constants or hard-coded company values are introduced; Fair Value and target premium/discount remain fail-closed. Bank model, released valuation mathematics, Reality Check and signals are unchanged.
@@ -7145,12 +7146,35 @@ def _holding_publication_date_fallback(text, as_of_date=None):
     return min(dates)
 
 
-def _holding_extract_nav_record(html, url):
+def _holding_extract_nav_record(html, url, expected_as_of_date=None):
     if not html:
         return None
+
+    expected_date_obj = None
+    if expected_as_of_date is not None:
+        if all(hasattr(expected_as_of_date, attr) for attr in ("year", "month", "day")):
+            try:
+                expected_date_obj = expected_as_of_date if not hasattr(expected_as_of_date, "date") else expected_as_of_date.date()
+            except Exception:
+                expected_date_obj = expected_as_of_date
+        else:
+            expected_date_obj = _holding_parse_date_text(expected_as_of_date)
+
     try:
         soup = BeautifulSoup(html, "html.parser")
-        strings = [_clean_text(x).replace("\u00a0", " ") for x in soup.stripped_strings]
+        # V67: dated historical releases are parsed from the issuer article/main
+        # content when such a semantic container exists.  This excludes page
+        # title/navigation/current-NAV widgets before candidate ranking.
+        content_scope = soup
+        if expected_date_obj is not None:
+            content_scope = (
+                soup.find("article")
+                or soup.find("main")
+                or soup.find(attrs={"role": "main"})
+                or soup.body
+                or soup
+            )
+        strings = [_clean_text(x).replace("\u00a0", " ") for x in content_scope.stripped_strings]
         text = _clean_text(" ".join(strings)).replace("\u00a0", " ")
         # V58: normalize CMS/Unicode separators that are invisible in the UI but
         # can break an otherwise obvious "SEK 532 per share" regex match.
@@ -7270,33 +7294,91 @@ def _holding_extract_nav_record(html, url):
     # bounded label window; only windows that independently contain a valid
     # NAV value + currency + per-share relationship can become records.
     for pos in label_positions:
-        window = text[max(0, pos - 260): min(len(text), pos + 2400)]
-        nav, currency = _value_from_window(window)
+        # Historical issuer releases are deliberately parsed in a tighter local
+        # window.  Date context may look slightly backward, but NAV VALUE
+        # extraction starts at this exact label so an earlier current-NAV widget
+        # cannot leak its number into an older article candidate.
+        forward_span = 1200 if expected_date_obj is not None else 2400
+        window = text[max(0, pos - 260): min(len(text), pos + forward_span)]
+        value_window = (
+            text[pos: min(len(text), pos + 1000)]
+            if expected_date_obj is not None
+            else window
+        )
+        nav, currency = _value_from_window(value_window)
         if nav is None:
             continue
 
-        as_of = None
-        date_sources = [window, h1_text, title_text, url_text]
+        # V67: Bind the NAV fact to dates immediately surrounding THIS exact
+        # NAV label, not to any later date elsewhere in the same window.  This
+        # rejects a newer global NAV widget on an older historical article.
         date_patterns = [
             rf"(?:{label_re})\s+on\s+([A-Za-zÅÄÖåäö]+\s+\d{{1,2}},?\s+20\d{{2}})",
             r"per share\s+on\s+([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
             rf"(?:{label_re}).*?on\s+(\d{{1,2}}\s+[A-Za-zÅÄÖåäö]+\s+20\d{{2}})",
             r"substansv[aä]rd(?:e|et).*?den\s+(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
             r"per aktie(?:\s+den)?\s+(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
-            # URL/title fallback such as "net asset value on august 31 2026".
+            rf"on\s+([A-Za-zÅÄÖåäö]+\s+\d{{1,2}},?\s+20\d{{2}}).{{0,90}}?(?:{label_re})",
+            rf"(?:den\s+)?(\d{{1,2}}\s+[A-Za-zÅÄÖåäö]+\s+20\d{{2}}).{{0,90}}?(?:{label_re})",
             rf"(?:{label_re}).{{0,80}}?([A-Za-zÅÄÖåäö]+\s+\d{{1,2}},?\s+20\d{{2}})",
         ]
-        for source in date_sources:
-            if not source:
-                continue
+
+        tight_start = max(0, pos - 180)
+        tight_date_context = text[tight_start: min(len(text), pos + 320)]
+        label_offset = pos - tight_start
+        tight_date_hits = []
+        for generic_pat in [
+            r"([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
+            r"(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
+        ]:
+            for dm in re.finditer(generic_pat, tight_date_context, flags=re.I):
+                dt = _holding_parse_date_text(dm.group(1))
+                if not dt:
+                    continue
+                if dm.end() <= label_offset:
+                    distance = label_offset - dm.end()
+                elif dm.start() >= label_offset:
+                    distance = dm.start() - label_offset
+                else:
+                    distance = 0
+                tight_date_hits.append((distance, dm.start(), dt))
+        tight_date_hits.sort(key=lambda x: (x[0], x[1]))
+        nearest_tight_date = tight_date_hits[0][2] if tight_date_hits else None
+
+        if expected_date_obj is not None and nearest_tight_date is not None and nearest_tight_date != expected_date_obj:
+            continue
+
+        local_as_of = nearest_tight_date
+
+        # Preserve the broader legacy date recovery only for non-historical
+        # discovery. Historical article parsing is intentionally stricter.
+        if local_as_of is None and expected_date_obj is None:
             for pat in date_patterns:
-                m = re.search(pat, source, flags=re.I | re.S)
+                m = re.search(pat, window, flags=re.I | re.S)
                 if m:
-                    as_of = _holding_parse_date_text(m.group(1))
-                    if as_of:
+                    local_as_of = _holding_parse_date_text(m.group(1))
+                    if local_as_of:
                         break
-            if as_of:
-                break
+
+        as_of = local_as_of
+        if as_of is None:
+            for source in [h1_text, title_text, url_text]:
+                if not source:
+                    continue
+                for pat in date_patterns:
+                    m = re.search(pat, source, flags=re.I | re.S)
+                    if m:
+                        as_of = _holding_parse_date_text(m.group(1))
+                        if as_of:
+                            break
+                if as_of:
+                    break
+
+        if expected_date_obj is not None:
+            # If the exact NAV label had no local date, the concrete dated
+            # release URL/title can supply it; any explicit conflicting local
+            # date was already rejected above.
+            as_of = expected_date_obj
 
         published = _holding_structured_publication_date(soup)
         if published is None:
@@ -7305,7 +7387,14 @@ def _holding_extract_nav_record(html, url):
                 published = fallback_published
 
         score = 3 + (2 if as_of else 0) + (1 if currency else 0) + (1 if published else 0)
+        if expected_date_obj is not None and as_of == expected_date_obj:
+            score += 8
         closing_prices = {}
+        price_scan_text = (
+            text[pos: min(len(text), pos + 1800)]
+            if expected_date_obj is not None
+            else text
+        )
         # V66: Scan the full visible page and normalize language-specific
         # share-class wording into the same {"A": price, "C": price} map.
         # The archive can expose English releases ("Class C shares") or
@@ -7318,7 +7407,7 @@ def _holding_extract_nav_record(html, url):
             (r"\b([A-Z])\s*[-–—]?\s*aktien\b.{0,55}?([0-9]{1,5}(?:[.,][0-9]{1,2})?)\s*(?:SEK|kr|kronor)", "class_value"),
         ]
         for pat, order in class_pattern_specs:
-            for match in re.findall(pat, text, flags=re.I | re.S):
+            for match in re.findall(pat, price_scan_text, flags=re.I | re.S):
                 try:
                     if order == "value_class":
                         value, cls = match
@@ -7336,7 +7425,7 @@ def _holding_extract_nav_record(html, url):
             r"closing\s+price\s+on\s+([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
             r"st[aä]ngningskurs(?:en)?(?:\s+den)?\s+(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
         ]:
-            pm = re.search(ppat, text, flags=re.I | re.S)
+            pm = re.search(ppat, price_scan_text, flags=re.I | re.S)
             if pm:
                 paired_price_date = _holding_parse_date_text(pm.group(1))
                 if paired_price_date:
@@ -8362,6 +8451,59 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     history_release_attempts = 0
     history_release_parsed = 0
     history_release_with_class_prices = 0
+    history_expected_date_matches = 0
+    history_pair_probes = []
+
+    history_target_cls = None
+    history_sym_base = str(symbol or "").upper().split(".", 1)[0]
+    history_target_m = re.search(r"(?:-|_)([A-Z])$", history_sym_base)
+    if history_target_m:
+        history_target_cls = history_target_m.group(1)
+
+    def _history_pair_probe(rec, expected_date=None, source_url=None):
+        """Normalize one issuer release into a target-class NAV/close pairing decision."""
+        rec = rec or {}
+        nav_value = safe_float(rec.get("nav_per_share"))
+        as_of_obj = rec.get("as_of_date_obj")
+        prices = rec.get("same_date_class_prices") or {}
+        target_close = safe_float(prices.get(history_target_cls)) if history_target_cls else None
+        currency = str(rec.get("currency") or "").upper() or None
+        reasons = []
+        if as_of_obj is None:
+            reasons.append("missing_nav_date")
+        if nav_value is None:
+            reasons.append("missing_nav")
+        elif nav_value <= 0:
+            reasons.append("invalid_nav")
+        if not history_target_cls:
+            reasons.append("missing_target_class")
+        elif target_close is None:
+            reasons.append("missing_target_class_close")
+        elif target_close <= 0:
+            reasons.append("invalid_target_class_close")
+        if currency is None:
+            reasons.append("missing_currency")
+        if expected_date is not None and as_of_obj is not None and as_of_obj != expected_date:
+            reasons.append("nav_date_conflict")
+
+        # Publication date and paired closing-price date are provenance only.
+        # The paired close may legitimately be the preceding trading day when
+        # the NAV date is a weekend/month-end holiday.
+        accepted = not reasons
+        return {
+            "accepted": accepted,
+            "reason": "accepted" if accepted else ",".join(reasons),
+            "expected_date": _holding_date_display(expected_date),
+            "as_of_date": rec.get("as_of_date"),
+            "published_date": rec.get("published_date"),
+            "price_date": rec.get("paired_price_date"),
+            "nav_per_share": nav_value,
+            "currency": currency,
+            "target_class": history_target_cls,
+            "target_close": target_close,
+            "available_classes": ",".join(sorted(str(k) for k in prices.keys())) if prices else "–",
+            "source_url": source_url or rec.get("source_url"),
+        }
 
     def _concrete_nav_release_link(url, label):
         """True only for a dated issuer NAV-release/article candidate, not generic NAV navigation."""
@@ -8455,20 +8597,59 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             strict_candidates.extend(undated_candidates)
 
             seen_hist_urls = {r.get("source_url") for r in history_records if r.get("source_url")}
-            for hist_url, _ in strict_candidates[:14]:
+            for hist_url, hist_label in strict_candidates[:14]:
                 if hist_url in seen_hist_urls:
                     continue
                 if not _research_budget_ok(history_slot_end, reserve=0.35):
                     break
                 history_release_attempts += 1
+                expected_hist_date = _holding_parse_date_text(
+                    _clean_text(" ".join([hist_label or "", str(hist_url or "").replace("-", " ").replace("_", " ").replace("/", " ")]))
+                )
                 hhtml = fetch(hist_url, referer=canonical_url, phase_deadline=history_slot_end)
-                hrec = _holding_extract_nav_record(hhtml, hist_url)
+                if not hhtml:
+                    history_pair_probes.append({
+                        "accepted": False,
+                        "reason": "fetch_failed",
+                        "expected_date": _holding_date_display(expected_hist_date),
+                        "as_of_date": None,
+                        "published_date": None,
+                        "price_date": None,
+                        "nav_per_share": None,
+                        "currency": None,
+                        "target_class": history_target_cls,
+                        "target_close": None,
+                        "available_classes": "–",
+                        "source_url": hist_url,
+                    })
+                    continue
+                hrec = _holding_extract_nav_record(hhtml, hist_url, expected_as_of_date=expected_hist_date)
                 if not hrec:
+                    history_pair_probes.append({
+                        "accepted": False,
+                        "reason": "nav_release_parse_failed",
+                        "expected_date": _holding_date_display(expected_hist_date),
+                        "as_of_date": None,
+                        "published_date": None,
+                        "price_date": None,
+                        "nav_per_share": None,
+                        "currency": None,
+                        "target_class": history_target_cls,
+                        "target_close": None,
+                        "available_classes": "–",
+                        "source_url": hist_url,
+                    })
                     continue
                 history_release_parsed += 1
+                if expected_hist_date is not None and hrec.get("as_of_date_obj") == expected_hist_date:
+                    history_expected_date_matches += 1
                 if hrec.get("same_date_class_prices"):
                     history_release_with_class_prices += 1
+
+                pair_probe = _history_pair_probe(hrec, expected_date=expected_hist_date, source_url=hist_url)
+                history_pair_probes.append(pair_probe)
                 seen_hist_urls.add(hist_url)
+
                 # A concrete issuer release is also a richer candidate for the
                 # current NAV provenance (publication date + paired class price)
                 # than a summary/homepage widget with the same NAV as-of date.
@@ -8496,23 +8677,26 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         if prev is None or rank > prev_rank:
             by_hist_date[dt] = rec
     result["nav_history"] = [by_hist_date[k] for k in sorted(by_hist_date.keys(), reverse=True)]
+    result["historical_pair_probes"] = history_pair_probes[:12]
     _timed_bucket("history", history_started)
-    if result.get("nav_history"):
-        target_cls = None
-        sym_base = str(symbol or "").upper().split(".", 1)[0]
-        target_m = re.search(r"(?:-|_)([A-Z])$", sym_base)
-        if target_m:
-            target_cls = target_m.group(1)
-        target_class_records = sum(
-            1 for r in (result.get("nav_history") or [])
-            if target_cls and safe_float((r.get("same_date_class_prices") or {}).get(target_cls)) is not None
-        )
+
+    target_class_records = sum(1 for probe in history_pair_probes if probe.get("accepted"))
+    if result.get("nav_history") or history_pair_probes:
+        rejection_counts = {}
+        for probe in history_pair_probes:
+            if probe.get("accepted"):
+                continue
+            for reason in str(probe.get("reason") or "unknown").split(","):
+                rejection_counts[reason] = rejection_counts.get(reason, 0) + 1
+        reject_summary = ",".join(f"{k}:{v}" for k, v in sorted(rejection_counts.items())) or "none"
         result["diagnostics"].append(
-            f"Holding Historical NAV Calibration V66: ArchiveFetch={history_archive_fetches}, "
+            f"Holding Historical NAV Calibration V67: ArchiveFetch={history_archive_fetches}, "
             f"Candidates={history_candidate_count}, UniqueDateCandidates={len(strict_candidates) if 'strict_candidates' in locals() else 0}, "
-            f"ReleaseFetch={history_release_attempts}, Parsed={history_release_parsed}, ClassPricePages={history_release_with_class_prices}, "
-            f"paired NAV/close records={len(result.get('nav_history') or [])}, TargetClass={target_cls or '–'}, TargetClassRecords={target_class_records}; "
-            "share-class matching and distribution statistics are applied only in the specialist model."
+            f"ReleaseFetch={history_release_attempts}, Parsed={history_release_parsed}, DateAnchored={history_expected_date_matches}, "
+            f"ClassPricePages={history_release_with_class_prices}, NavHistoryRecords={len(result.get('nav_history') or [])}, "
+            f"TargetClass={history_target_cls or '–'}, ValidTargetPairs={target_class_records}, Rejections={reject_summary}, "
+            f"AsOfDates={','.join([str(r.get('as_of_date') or '–') for r in (result.get('nav_history') or [])[:8]])}; "
+            "publication date and paired trading-date close are provenance only and are not required to equal the NAV as-of date."
         )
 
     if nav_records:
@@ -8564,7 +8748,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22170_listed_holding_locale_shareclass_history_v66"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22171_listed_holding_release_date_anchor_v67"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
@@ -8736,7 +8920,8 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "historical_nav_observations": historical_calibration.get("observations") or [],
         "historical_nav_calibration_ready": bool(historical_calibration.get("ready")),
         "historical_nav_median_premium_discount_pct": safe_float(historical_calibration.get("median_pct")),
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Historical Calibration V66",
+        "historical_pair_probes": discovery.get("historical_pair_probes") or [],
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Historical Calibration V67",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
@@ -56436,10 +56621,25 @@ if selected_symbol:
                             )
                             hist_diag_lines_h = [
                                 str(x) for x in (snap_h.get("diagnostics") or [])
-                                if "Historical NAV Calibration V66" in str(x)
+                                if "Historical NAV Calibration V67" in str(x)
                             ]
                             if hist_diag_lines_h:
                                 st.caption("Historik-Adapter: " + hist_diag_lines_h[-1])
+                            pair_probes_h = snap_h.get("historical_pair_probes") or []
+                            if pair_probes_h:
+                                probe_parts_h = []
+                                for probe_h in pair_probes_h[:8]:
+                                    nav_probe_h = safe_float(probe_h.get("nav_per_share"))
+                                    close_probe_h = safe_float(probe_h.get("target_close"))
+                                    nav_txt_h = f"{nav_probe_h:.2f}" if nav_probe_h is not None else "–"
+                                    close_txt_h = f"{close_probe_h:.2f}" if close_probe_h is not None else "–"
+                                    probe_parts_h.append(
+                                        f"{text_or_dash(probe_h.get('as_of_date') or probe_h.get('expected_date'))} "
+                                        f"NAV={nav_txt_h} {text_or_dash(probe_h.get('target_class'))}={close_txt_h} "
+                                        f"Pair={'yes' if probe_h.get('accepted') else 'no'}"
+                                        + ("" if probe_h.get("accepted") else f" · reason={text_or_dash(probe_h.get('reason'))}")
+                                    )
+                                st.caption("HistoricalPairProbe: " + " | ".join(probe_parts_h))
                         else:
                             st.caption("Historische issuer-primary NAV-Premium/Discount-Reihe noch nicht ausreichend verfügbar.")
                         st.success("Holding-NAV-Primärdatenmodell aktiv: NAV, aktueller Premium/Discount und historische issuer-primary Kalibrierung sind getrennt vom EPS/KGV-Pfad verfügbar.")
