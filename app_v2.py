@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.64"
+APP_BUILD_VERSION = "V2.21.65"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding Full-DOM NAV Candidate Ranking Guard V60"
+    f"Build {APP_BUILD_VERSION} · Listed Holding Snapshot-Date Coherence & Freshest Evidence Guard V61"
 )
 
 
@@ -46,6 +46,7 @@ st.caption(
 # V2.21.60: Listed Holding Primary HTML NAV & Portfolio Fact Recovery Guard V56. Adds issuer-owned press/news archive navigation as the preferred NAV recovery before web search, and derives portfolio concentration from an already verified issuer-primary report market-value table when static website holdings are unavailable. Search/archive pages remain discovery only; NAV values require the concrete issuer release page. No ticker-specific valuation branch or hard-coded company values. Bank model, released valuation mathematics, Reality Check and signals remain unchanged; Fair Value stays fail-closed.
 # V2.21.62: Listed Holding NAV Token Fallback & Evidence Trace Guard V58. Keeps V58 portfolio/debt recovery unchanged and hardens only NAV extraction from issuer-owned HTML. Visible DOM text is Unicode-normalized (including zero-width/soft-hyphen cleanup); a bounded token fallback can recover NAV when CMS separators sit between label, currency, value and per-share wording. Failed issuer-release parses expose compact marker/currency/per-share/number probes so future failures are diagnosable without accepting search snippets as valuation evidence. No issuer/ticker constants or hard-coded company values are added. Fair Value remains fail-closed pending separate target premium/discount calibration; Bank model, released valuation mathematics, Reality Check and signals are unchanged.
 # V2.21.64: Listed Holding Full-DOM NAV Candidate Ranking Guard V60. Fixes the remaining issuer-HTML NAV miss exposed by V59 diagnostics: CMS release pages can render dozens of NAV labels in navigation/archive blocks, while the production parser inspected only the first 12 label positions. V60 evaluates every bounded NAV-label window and lets local NAV evidence (currency/value + per-share wording + date/source context) determine the best record instead of DOM order. Diagnostics also count locally eligible NAV windows. Portfolio/debt recovery, family routing, Bank model, released valuation mathematics, Reality Check and signals remain unchanged; no issuer/ticker constants or hard-coded company values are introduced and Fair Value remains fail-closed pending target premium/discount calibration.
+# V2.21.65: Listed Holding Snapshot-Date Coherence & Freshest Evidence Guard V61. Keeps the now-working NAV parser unchanged and hardens only holding snapshot provenance. Debt/gearing discovery evaluates all bounded priority-report candidates instead of stopping on the first valid ratio, then keeps the newest issuer-primary reporting date. Portfolio candidates are ranked by reporting date before holding-count completeness, and a stale/missing homepage portfolio date triggers one bounded issuer-primary portfolio refresh instead of suppressing the dedicated portfolio page. Diagnostics expose NAV/debt/portfolio as-of dates and refresh status. No issuer/ticker constants or hard-coded company values are introduced; Fair Value and target premium/discount remain fail-closed. Bank model, released valuation mathematics, Reality Check and signals are unchanged.
 # V2.21.58: Listed Holding Independent Evidence Budgets & Timing Diagnostics V54. Replaces the single shared listed-holding countdown with bounded, independent phase budgets for canonical homepage, issuer-primary report/debt, NAV recovery and portfolio recovery, plus a separate overall safety cap. Slow report/PDF work can no longer consume the later NAV/portfolio windows. Adds per-phase elapsed-time diagnostics so live runs show where network time is spent. The working issuer-PDF debt/gearing bridge, all holding parsers, family routing, Bank model, released valuation mathematics, Reality Check and signals are unchanged; Fair Value remains fail-closed pending justified target NAV premium/discount calibration.
 # V2.21.48: Universal Bank CET1 Row & Q4 Publication Metadata Guard V44. Period-aligned Standardized CET1 rows outrank generic CET1 narrative/footnote matches; trusted-Q4 current-quarter documents with missing publication metadata get one bounded issuer-domain results-detail metadata retry with exact quarter/results identity validation. The retry is metadata-only and cannot alter valuation evidence. No issuer/ticker exception is added. EPS normalization, Bank Score scoring thresholds, regulatory CET1 buffer mathematics, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.47: Universal Bank Trusted Q4 Detail & Financials Bridge V43. Extends the issuer-neutral latest-quarter recovery for proven Q4 IR architectures whose press-release/archive cards are client-rendered and whose current-quarter PDFs moved from /files/doc_events/... to Q4's /files/doc_financials/<year>/q<quarter>/... structure. The adapter now probes a bounded Q4-style same-domain news-detail route generated from the exact issuer name + expected quarter/results identity and independently revalidates page identity before accepting publication metadata. In parallel, a trusted Q4 tenant may contribute bounded current-quarter /doc_financials/ sibling candidates copied from already issuer-proven prior-quarter filenames; downstream PDF payload gates still require expected-period + issuer identity before any document can enter the bank snapshot. No ticker/domain exception is added. EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -7258,7 +7259,7 @@ def _holding_extract_nav_record(html, url):
     h1 = soup.find("h1")
     h1_text = _clean_text(h1.get_text(" ", strip=True)) if h1 else ""
     url_text = str(url or "").replace("-", " ").replace("_", " ").replace("/", " ")
-    # V60: do not trust DOM order. CMS templates may place dozens of NAV
+    # V61: do not trust DOM order. CMS templates may place dozens of NAV
     # archive/navigation labels before the actual release body. Evaluate every
     # bounded label window; only windows that independently contain a valid
     # NAV value + currency + per-share relationship can become records.
@@ -7453,6 +7454,12 @@ def _holding_extract_portfolio(html, url):
         if not folded or len(name) > 60:
             return
         if any(token in folded.split() for token in rejection):
+            return
+        # Never turn a portfolio-value/currency node into a company merely
+        # because it sits next to the first percentage in a CMS card layout.
+        if re.search(r"\b(?:SEK|EUR|USD|GBP|NOK|DKK|CHF)\b", name, flags=re.I) and re.search(r"\d", name):
+            return
+        if re.search(r"\b(?:bn|billion|mn|million|mio|mrd)\b", folded) and re.search(r"\d", name):
             return
         if re.search(r"\b20\d{2}\b", name):
             return
@@ -7756,11 +7763,11 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         if company_domain:
             raw_website = f"https://{company_domain}/"
             result["diagnostics"].append(
-                f"Holding Primary Source V60: Issuer-Domain aus wiederholten Company-Identity-Suchtreffern verifiziert ({company_domain})."
+                f"Holding Primary Source V61: Issuer-Domain aus wiederholten Company-Identity-Suchtreffern verifiziert ({company_domain})."
             )
         else:
             result["diagnostics"].append(
-                "Holding Primary Source V60: Provider-Website fehlt und kein ausreichend verifizierter Issuer-Domain-Bootstrap gelungen."
+                "Holding Primary Source V61: Provider-Website fehlt und kein ausreichend verifizierter Issuer-Domain-Bootstrap gelungen."
             )
             return result
     parsed = urlparse(raw_website if "://" in raw_website else "https://" + raw_website)
@@ -7786,7 +7793,40 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     archive_links = []
     portfolio_links = []
     portfolio_best = None
+
+    def _portfolio_candidate_rank(rec):
+        if not rec:
+            return (datetime(1900, 1, 1).date(), 0, 0, 0)
+        as_of = rec.get("as_of_date_obj") or datetime(1900, 1, 1).date()
+        holding_count = int(rec.get("holding_count") or 0)
+        has_value = 1 if safe_float(rec.get("portfolio_value_bn")) is not None else 0
+        is_html = 1 if rec.get("source_kind") == "issuer_html" else 0
+        return (as_of, holding_count, has_value, is_html)
+
+    def _portfolio_is_stale(rec, max_age_days=120):
+        if not rec or not rec.get("as_of_date_obj"):
+            return True
+        try:
+            age = (datetime.now().date() - rec.get("as_of_date_obj")).days
+            return age > max_age_days
+        except Exception:
+            return True
+
     debt_records = []
+
+    def _latest_debt_date(records):
+        dates = [r.get("as_of_date_obj") for r in (records or []) if r and r.get("as_of_date_obj")]
+        return max(dates) if dates else None
+
+    def _debt_records_are_stale(records, max_age_days=120):
+        latest = _latest_debt_date(records)
+        if latest is None:
+            return True
+        try:
+            return (datetime.now().date() - latest).days > max_age_days
+        except Exception:
+            return True
+
     nav_records = []
     nav_release_fetch_attempts = 0
     nav_release_fetch_success = 0
@@ -7841,13 +7881,13 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 html = doc.get("text") or ""
                 resolved = doc.get("url") or url
                 result["diagnostics"].append(
-                    f"Holding Primary PDF Bridge V60: issuer-eigener Reporttext geladen ({len(html)} Zeichen)."
+                    f"Holding Primary PDF Bridge V61: issuer-eigener Reporttext geladen ({len(html)} Zeichen)."
                 )
                 nonlocal portfolio_best
                 report_port = _holding_extract_portfolio_from_report_text(html, resolved)
-                if report_port and (portfolio_best is None or int(report_port.get("holding_count") or 0) > int(portfolio_best.get("holding_count") or 0)):
+                if report_port and (portfolio_best is None or _portfolio_candidate_rank(report_port) > _portfolio_candidate_rank(portfolio_best)):
                     portfolio_best = report_port
-                    result["diagnostics"].append("Holding Report-Portfolio Recovery V60: Portfoliokonzentration aus issuer-eigenem Reporttext rekonstruiert.")
+                    result["diagnostics"].append("Holding Report-Portfolio Recovery V61: Portfoliokonzentration aus issuer-eigenem Reporttext rekonstruiert.")
         else:
             html, final_url = _fetch_html(url, timeout=3.6, deadline=active_deadline)
             resolved = final_url or url
@@ -7891,7 +7931,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         except Exception:
             return
         port = _holding_extract_portfolio(html, base_url)
-        if port and (portfolio_best is None or int(port.get("holding_count") or 0) > int(portfolio_best.get("holding_count") or 0)):
+        if port and (portfolio_best is None or _portfolio_candidate_rank(port) > _portfolio_candidate_rank(portfolio_best)):
             portfolio_best = port
         for a in soup.find_all("a", href=True):
             label = _clean_text(a.get_text(" ", strip=True))
@@ -7961,9 +8001,11 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 if rec:
                     debt_records.append(rec)
                 # HTML reports can expose further issuer links; PDF text simply has none.
+                # V61 deliberately keeps evaluating the bounded priority set: the
+                # first valid ratio can belong to an older year-end report while a
+                # newer interim report is also linked by the issuer. Final selection
+                # remains newest as-of date, never DOM order.
                 collect_links(url, html)
-                if debt_records:
-                    break
 
     # Phase 1: canonical issuer page receives its own budget.
     homepage_started = time.monotonic()
@@ -8057,7 +8099,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                     break
         _timed_bucket("nav", nav_started)
         result["diagnostics"].append(
-            f"Holding Issuer-Archive NAV Recovery V60: NAV-Links={archive_hits}, "
+            f"Holding Issuer-Archive NAV Recovery V61: NAV-Links={archive_hits}, "
             f"ReleaseFetch={nav_release_fetch_success}/{nav_release_fetch_attempts}, Marker={nav_release_marker_pages}, "
             f"NAV={'ja' if nav_records else 'nein'}" +
             ((" · ParseProbe=" + "; ".join(nav_release_parse_probes)) if (not nav_records and nav_release_parse_probes) else "") + "."
@@ -8103,6 +8145,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         if kind == "report":
             report_links.extend(found)
             candidates = dedupe_sorted(found)[:fetch_limit]
+            found_valid = False
             for url, _ in candidates:
                 if time.monotonic() >= slot_end:
                     break
@@ -8110,21 +8153,24 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 rec = _holding_extract_debt_ratio(html, url)
                 if rec:
                     debt_records.append(rec)
-                    collect_links(url, html)
-                    return True
+                    found_valid = True
                 collect_links(url, html)
-            return bool(debt_records)
+            return found_valid or bool(debt_records)
         if kind == "portfolio":
             portfolio_links.extend(found)
             candidates = dedupe_sorted(found)[:fetch_limit]
+            starting_rank = _portfolio_candidate_rank(portfolio_best)
             for url, _ in candidates:
                 if time.monotonic() >= slot_end:
                     break
                 html = fetch(url, referer=canonical_url, phase_deadline=slot_end)
                 collect_links(url, html)
-                if portfolio_best is not None:
+                if portfolio_best is not None and (
+                    not _portfolio_is_stale(portfolio_best)
+                    or _portfolio_candidate_rank(portfolio_best) > starting_rank
+                ):
                     return True
-            return portfolio_best is not None
+            return portfolio_best is not None and not _portfolio_is_stale(portfolio_best)
         return False
 
     # NAV is the valuation anchor and gets a full independent recovery budget.
@@ -8137,34 +8183,44 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 _semantic_search_and_fetch("nav", nav_slot_end, query_offset=1, fetch_limit=2)
         _timed_bucket("nav", nav_started)
 
-    # Portfolio receives its own fresh window regardless of NAV/report duration.
-    if portfolio_best is None:
+    # Portfolio receives its own fresh window when missing OR when the first
+    # homepage/CMS snapshot carries a stale or absent reporting date. A usable
+    # older snapshot stays as fallback, but it no longer suppresses the issuer's
+    # dedicated portfolio page.
+    portfolio_refresh_requested = _portfolio_is_stale(portfolio_best)
+    portfolio_refresh_before = (portfolio_best or {}).get("as_of_date_obj")
+    if portfolio_best is None or portfolio_refresh_requested:
         portfolio_started = time.monotonic()
         portfolio_slot_end = _evidence_deadline(4.5)
         if portfolio_slot_end is not None:
-            for url, _ in dedupe_sorted(portfolio_links)[:1]:
+            for url, _ in dedupe_sorted(portfolio_links)[:2]:
                 if not _research_budget_ok(portfolio_slot_end, reserve=1.10):
                     break
                 phtml = fetch(url, referer=canonical_url, phase_deadline=portfolio_slot_end)
                 collect_links(url, phtml)
-                if portfolio_best is not None:
+                if portfolio_best is not None and not _portfolio_is_stale(portfolio_best):
                     break
-            if portfolio_best is None:
+            if portfolio_best is None or _portfolio_is_stale(portfolio_best):
                 _semantic_search_and_fetch("portfolio", portfolio_slot_end, query_offset=0, fetch_limit=2)
         _timed_bucket("portfolio", portfolio_started)
+    portfolio_refresh_after = (portfolio_best or {}).get("as_of_date_obj")
 
-    # Debt normally arrives from the direct PDF bridge. Only missing debt gets a
-    # separate semantic-report window; completed report work is never repeated.
-    if not debt_records:
+    # Debt normally arrives from the direct PDF bridge. V61 also refreshes a
+    # stale-but-valid ratio once, because an older year-end report must not
+    # suppress a newer interim report. The old record remains a fallback.
+    debt_refresh_requested = (not debt_records) or _debt_records_are_stale(debt_records)
+    debt_refresh_before = _latest_debt_date(debt_records)
+    if debt_refresh_requested:
         report_started = time.monotonic()
         debt_slot_end = _evidence_deadline(4.5)
         if debt_slot_end is not None:
-            _semantic_search_and_fetch("report", debt_slot_end, query_offset=0, fetch_limit=1)
+            _semantic_search_and_fetch("report", debt_slot_end, query_offset=0, fetch_limit=2)
         _timed_bucket("report", report_started)
+    debt_refresh_after = _latest_debt_date(debt_records)
 
     if any(semantic_counts.values()):
         result["diagnostics"].append(
-            "Holding Independent-Evidence Recovery V60: "
+            "Holding Independent-Evidence Recovery V61: "
             f"NAV-Treffer={semantic_counts['nav']}, "
             f"Portfolio-Treffer={semantic_counts['portfolio']}, "
             f"Report-Treffer={semantic_counts['report']}; "
@@ -8219,14 +8275,28 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     result["available"] = bool(result.get("nav"))
     total_elapsed = max(0.0, time.monotonic() - started_at)
     safety_remaining = max(0.0, overall_deadline - time.monotonic())
+    nav_dt = (result.get("nav") or {}).get("as_of_date") or "–"
+    debt_dt = (result.get("debt") or {}).get("as_of_date") or "–"
+    portfolio_dt = (result.get("portfolio") or {}).get("as_of_date") or "–"
+    refresh_txt = "ja" if portfolio_refresh_requested else "nein"
+    refresh_improved = bool(portfolio_refresh_after and (not portfolio_refresh_before or portfolio_refresh_after > portfolio_refresh_before))
+    debt_refresh_txt = "ja" if debt_refresh_requested else "nein"
+    debt_refresh_improved = bool(debt_refresh_after and (not debt_refresh_before or debt_refresh_after > debt_refresh_before))
     result["diagnostics"].append(
-        "Holding Primary Source V60: "
+        "Holding Snapshot-Date Coherence V61: "
+        f"NAV={nav_dt} · Debt={debt_dt} · Portfolio={portfolio_dt} · "
+        f"DebtRefresh={debt_refresh_txt}/{('verbessert' if debt_refresh_improved else 'unveraendert')} · "
+        f"PortfolioRefresh={refresh_txt}/{('verbessert' if refresh_improved else 'unveraendert')}."
+    )
+
+    result["diagnostics"].append(
+        "Holding Primary Source V61: "
         f"Domain={company_domain}, ProviderWebsite={'ja' if website else 'nein'}, Seiten={len([v for v in fetched.values() if v])}, "
         f"NAV={'ja' if result.get('nav') else 'nein'}, DebtRatio={'ja' if result.get('debt') else 'nein'}, "
         f"Portfolio={'ja' if result.get('portfolio') else 'nein'}, SafetyRest={safety_remaining:.2f}s."
     )
     result["diagnostics"].append(
-        "Holding Timing V60: "
+        "Holding Timing V61: "
         f"Bootstrap={timings['bootstrap']:.2f}s · Homepage={timings['homepage']:.2f}s · "
         f"Report={timings['report']:.2f}s · NAV={timings['nav']:.2f}s · "
         f"Portfolio={timings['portfolio']:.2f}s · Fallback={timings['fallback']:.2f}s · Gesamt={total_elapsed:.2f}s."
@@ -8235,7 +8305,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22164_listed_holding_full_dom_nav_candidate_ranking_v60"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22165_listed_holding_snapshot_date_coherence_v61"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
