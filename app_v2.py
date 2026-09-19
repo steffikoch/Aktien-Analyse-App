@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.51"
+APP_BUILD_VERSION = "V2.21.52"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,13 +31,14 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Investment Holding Family Router V47"
+    f"Build {APP_BUILD_VERSION} · Listed Investment Holding Primary NAV Model V48"
 )
 
 
 # V2.21.49: Nordic Home-Listing & Cboe Venue Guard V45. Extends only the Security Identity & Primary Listing Resolver. Verified Industrivärden name aliases resolve Class C to the issuer-declared Nasdaq Stockholm home line (Yahoo-style INDU-C.ST), while Cboe Europe .XD/DXE rows are treated as secondary venues for name searches. Exact ticker input still retains its exact-security priority, so an explicitly entered .XD ticker remains selectable as entered. No company-family routing, EPS normalization, specialist model, score, Fair Value, Reality Check or signal mathematics are changed.
 # V2.21.50: Security Resolver Cache-Epoch Guard V46. Couples the cached security-search result to an explicit resolver epoch so primary-listing alias/venue changes cannot reuse stale Streamlit cache entries from an older build. Search ranking, verified Industrivärden Stockholm mapping, company-family routing, EPS normalization, specialist models, scores, Fair Value, Reality Check and signal mathematics are unchanged.
 # V2.21.51: Listed Investment Holding Family Router V47. Separates principal-capital listed investment/holding companies from fee-based Asset Management by business-model evidence. Client AUM/advisory/management-fee signals keep the existing Asset-Manager route; own-portfolio/active-ownership/listed-holding signals route to a new fail-closed NAV family. No NAV Fair Value is released in this build. Security search, bank model, all released specialist scores/multiples/Fair Values, Reality Check and signal mathematics are unchanged.
+# V2.21.52: Listed Investment Holding Primary NAV Model V48. Adds a reusable issuer-primary data layer for listed principal-capital holding companies: latest reported NAV per share + NAV date/publication metadata, current price/NAV premium-discount, latest holding-level debt-equities/gearing ratio when available, and portfolio concentration diagnostics from issuer-owned pages. The model remains fail-closed for Fair Value because no justified target NAV premium/discount has yet been calibrated; generic EPS/KGV/ROE/Yahoo-FCF math remains blocked. The implementation is business-model/primary-source driven and contains no Industrivärden ticker exception. Bank model, all released specialist valuations, Reality Check and signal mathematics are unchanged.
 # V2.21.48: Universal Bank CET1 Row & Q4 Publication Metadata Guard V44. Period-aligned Standardized CET1 rows outrank generic CET1 narrative/footnote matches; trusted-Q4 current-quarter documents with missing publication metadata get one bounded issuer-domain results-detail metadata retry with exact quarter/results identity validation. The retry is metadata-only and cannot alter valuation evidence. No issuer/ticker exception is added. EPS normalization, Bank Score scoring thresholds, regulatory CET1 buffer mathematics, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.47: Universal Bank Trusted Q4 Detail & Financials Bridge V43. Extends the issuer-neutral latest-quarter recovery for proven Q4 IR architectures whose press-release/archive cards are client-rendered and whose current-quarter PDFs moved from /files/doc_events/... to Q4's /files/doc_financials/<year>/q<quarter>/... structure. The adapter now probes a bounded Q4-style same-domain news-detail route generated from the exact issuer name + expected quarter/results identity and independently revalidates page identity before accepting publication metadata. In parallel, a trusted Q4 tenant may contribute bounded current-quarter /doc_financials/ sibling candidates copied from already issuer-proven prior-quarter filenames; downstream PDF payload gates still require expected-period + issuer identity before any document can enter the bank snapshot. No ticker/domain exception is added. EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.46: Universal Bank Proven IR News-Archive Bridge V42. Adds a deterministic issuer-neutral latest-quarter bridge for Q4-style IR sites when bounded web search returns no current-period hit. On already verified same-domain IR hosts, the adapter probes a small set of conventional news/press-release archive paths, follows only links whose own title/URL prove the exact expected quarter plus earnings/results semantics, captures the page-owned publication date, and then reuses the existing trusted Q4-tenant sibling derivation to recover the official release/supplement. This closes the U.S. Bancorp 2Q26 gap without ticker/domain exceptions and reduces dependence on search-engine indexing. Document trust, parser rules, EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -6963,16 +6964,19 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
         )
         if family_id == "listed_investment_holding":
             out["method"] = (
-                "Primary-source NAV je Aktie + Kurs/NAV-Premium-Discount + Holdingkosten/Netto-Verschuldung + "
-                "Portfolio-/Kapitalallokationskontrolle; NAV-Fair-Value-Modell noch nicht freigegeben"
+                "Primary-source NAV je Aktie + aktueller Kurs/NAV-Premium-Discount + Holding-Leverage + "
+                "Portfolio-Konzentrationsdiagnose; NAV-Primärdatenmodell aktiv, Ziel-Premium/Discount und Fair Value noch nicht freigegeben"
             )
             out["business_model"] = (
                 "Börsennotierte Investment-/Holdinggesellschaft, die eigenes Kapital in Beteiligungen investiert; "
                 "kein fee-basiertes Client-AUM-Geschäft"
             )
+            out["core_segments"] = (
+                "Börsennotierte Beteiligungen · Active Ownership · Holding-Level Net Debt/Liquidity · Kapitalallokation"
+            )
             out["focus_areas"] = (
                 "NAV je Aktie · Kurs/NAV Premium/Discount · Portfolioqualität/-konzentration · "
-                "Holdingkosten · Netto-Verschuldung · Kapitalallokation · Dividenden"
+                "Holdingkosten · Netto-Verschuldung/Geared Capital · Kapitalallokation · Dividenden"
             )
         out["confidence_cap"] = "Niedrig bis Mittel"
         out["family_model_status"] = "defined_unreleased"
@@ -7013,6 +7017,585 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
 
 def is_universal_family_fail_closed(company_type):
     return bool((company_type or {}).get("universal_family_fail_closed"))
+
+
+def is_listed_investment_holding_type(company_type):
+    family_id = str((company_type or {}).get("valuation_family_id") or "").strip().lower()
+    type_name = str((company_type or {}).get("type") or "").strip().lower()
+    return family_id == "listed_investment_holding" or "listed investment / holding company" in type_name
+
+
+_HOLDING_MONTHS = {
+    "january": 1, "jan": 1, "januari": 1,
+    "february": 2, "feb": 2, "februari": 2,
+    "march": 3, "mar": 3, "mars": 3,
+    "april": 4, "apr": 4,
+    "may": 5, "maj": 5,
+    "june": 6, "jun": 6, "juni": 6,
+    "july": 7, "jul": 7, "juli": 7,
+    "august": 8, "aug": 8, "augusti": 8,
+    "september": 9, "sep": 9, "sept": 9,
+    "october": 10, "oct": 10, "oktober": 10, "okt": 10,
+    "november": 11, "nov": 11,
+    "december": 12, "dec": 12,
+}
+
+
+def _holding_parse_date_text(value):
+    text = _clean_text(value)
+    if not text:
+        return None
+    text = text.replace("\u00a0", " ")
+    iso = re.search(r"\b(20\d{2})[-/.](\d{1,2})[-/.](\d{1,2})(?=$|[T\s])", text)
+    if iso:
+        try:
+            return datetime(int(iso.group(1)), int(iso.group(2)), int(iso.group(3))).date()
+        except Exception:
+            pass
+    m = re.search(r"\b([A-Za-zÅÄÖåäö]+)\s+(\d{1,2}),?\s+(20\d{2})\b", text)
+    if m:
+        month = _HOLDING_MONTHS.get(m.group(1).lower().rstrip("."))
+        if month:
+            try:
+                return datetime(int(m.group(3)), month, int(m.group(2))).date()
+            except Exception:
+                pass
+    m = re.search(r"\b(\d{1,2})\s+([A-Za-zÅÄÖåäö]+)\s+(20\d{2})\b", text)
+    if m:
+        month = _HOLDING_MONTHS.get(m.group(2).lower().rstrip("."))
+        if month:
+            try:
+                return datetime(int(m.group(3)), month, int(m.group(1))).date()
+            except Exception:
+                pass
+    return None
+
+
+def _holding_date_display(value):
+    if hasattr(value, "strftime"):
+        return value.strftime("%d.%m.%Y")
+    parsed = _holding_parse_date_text(value)
+    return parsed.strftime("%d.%m.%Y") if parsed else None
+
+
+def _holding_same_issuer_url(url, company_domain):
+    try:
+        host = _normalize_host(url)
+    except Exception:
+        host = None
+    return bool(host and company_domain and _host_belongs_to_company_family(host, company_domain))
+
+
+def _holding_structured_publication_date(soup):
+    if soup is None:
+        return None
+    candidates = []
+    for attrs in [
+        {"property": "article:published_time"}, {"name": "date"},
+        {"name": "datePublished"}, {"itemprop": "datePublished"},
+    ]:
+        node = soup.find(attrs=attrs)
+        if node:
+            candidates.append(node.get("content") or node.get_text(" ", strip=True))
+    for node in soup.find_all("time", limit=4):
+        candidates.append(node.get("datetime") or node.get_text(" ", strip=True))
+    for value in candidates:
+        parsed = _holding_parse_date_text(value)
+        if parsed:
+            return parsed
+    return None
+
+
+def _holding_publication_date_fallback(text, as_of_date=None):
+    text = _clean_text(text) or ""
+    dates = []
+    patterns = [
+        r"([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
+        r"(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
+    ]
+    for pat in patterns:
+        for m in re.finditer(pat, text[:1800]):
+            dt = _holding_parse_date_text(m.group(1))
+            if dt and dt not in dates:
+                dates.append(dt)
+    if not dates:
+        return None
+    if as_of_date:
+        plausible = [d for d in dates if d >= as_of_date and (d - as_of_date).days <= 60]
+        later = [d for d in plausible if d > as_of_date]
+        if later:
+            return min(later)
+        if plausible:
+            return max(plausible)
+    return min(dates)
+
+
+def _holding_extract_nav_record(html, url):
+    if not html:
+        return None
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+        text = _clean_text(soup.get_text(" ", strip=True)).replace("\u00a0", " ")
+    except Exception:
+        return None
+    low = text.lower()
+    label_positions = [m.start() for m in re.finditer(r"net asset value|substansv[aä]rde", low)]
+    if not label_positions:
+        return None
+    best = None
+    for pos in label_positions[:8]:
+        window = text[max(0, pos - 120): min(len(text), pos + 650)]
+        nav = None
+        currency = None
+        patterns = [
+            r"(?:SEK|sek)\s*([0-9]{2,5}(?:[.,][0-9]{1,2})?)\s*(?:per share|per aktie)",
+            r"([0-9]{2,5}(?:[.,][0-9]{1,2})?)\s*(?:SEK|sek|kr|kronor)\s*(?:per share|per aktie)",
+            r"(?:SEK|sek)\s*([0-9]{2,5}(?:[.,][0-9]{1,2})?).{0,80}?(?:per share|per aktie)",
+        ]
+        for pat in patterns:
+            m = re.search(pat, window, flags=re.I)
+            if m:
+                try:
+                    nav = float(m.group(1).replace(" ", "").replace(",", "."))
+                except Exception:
+                    nav = None
+                if nav is not None:
+                    currency = "SEK" if re.search(r"\bSEK\b|\bkr\b|kronor", m.group(0), flags=re.I) else None
+                    break
+        if nav is None or nav <= 0:
+            continue
+        as_of = None
+        date_patterns = [
+            r"net asset value\s+on\s+([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
+            r"per share\s+on\s+([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
+            r"substansv[aä]rd(?:e|et).*?den\s+(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
+            r"per aktie\s+(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
+        ]
+        for pat in date_patterns:
+            m = re.search(pat, window, flags=re.I)
+            if m:
+                as_of = _holding_parse_date_text(m.group(1))
+                if as_of:
+                    break
+        published = _holding_structured_publication_date(soup)
+        if published is None:
+            published = _holding_publication_date_fallback(text, as_of)
+        score = 3 + (2 if as_of else 0) + (1 if currency else 0) + (1 if published else 0)
+        rec = {
+            "nav_per_share": nav,
+            "currency": currency,
+            "as_of_date_obj": as_of,
+            "as_of_date": _holding_date_display(as_of),
+            "published_date_obj": published,
+            "published_date": _holding_date_display(published),
+            "source_url": url,
+            "source_title": _clean_text(soup.title.get_text(" ", strip=True)) if soup.title else None,
+            "quality": score,
+        }
+        if best is None or (rec["quality"], rec["as_of_date_obj"] or datetime(1900,1,1).date()) > (best["quality"], best["as_of_date_obj"] or datetime(1900,1,1).date()):
+            best = rec
+    return best
+
+
+def _holding_extract_debt_ratio(html, url):
+    if not html:
+        return None
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+        text = _clean_text(soup.get_text(" ", strip=True)).replace("\u00a0", " ")
+    except Exception:
+        return None
+    patterns = [
+        ("Debt-equities ratio", r"debt[- ]equities\s+ratio\s*[:|]?\s*([0-9]{1,2}(?:[.,][0-9])?)\s*%"),
+        ("Debt/Equity ratio", r"debt\s*/\s*equity\s+ratio\s*[:|]?\s*([0-9]{1,2}(?:[.,][0-9])?)\s*%"),
+        ("Gearing", r"\bgearing(?:\s+ratio)?\s*[:|]?\s*([0-9]{1,2}(?:[.,][0-9])?)\s*%"),
+        ("Skuldsättningsgrad", r"skulds[aä]ttningsgrad\s*[:|]?\s*([0-9]{1,2}(?:[.,][0-9])?)\s*%"),
+    ]
+    metric = None
+    ratio = None
+    for label, pat in patterns:
+        m = re.search(pat, text, flags=re.I)
+        if m:
+            try:
+                ratio = float(m.group(1).replace(",", "."))
+            except Exception:
+                ratio = None
+            if ratio is not None:
+                metric = label
+                break
+    if ratio is None:
+        return None
+    as_of = None
+    title_text = _clean_text((soup.find("h1") or soup.title).get_text(" ", strip=True)) if (soup.find("h1") or soup.title) else ""
+    for candidate in [title_text, text[:1800]]:
+        dates = []
+        for pat in [r"([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})", r"(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})"]:
+            for m in re.finditer(pat, candidate):
+                dt = _holding_parse_date_text(m.group(1))
+                if dt:
+                    dates.append(dt)
+        if dates:
+            # Interim-report titles usually mention the reporting-period end.
+            # Choose the earliest current/recent date; publication is often a few days later.
+            as_of = min(dates)
+            break
+    published = _holding_structured_publication_date(soup)
+    if published is None:
+        published = _holding_publication_date_fallback(text, as_of)
+    return {
+        "debt_ratio_pct": ratio,
+        "metric_name": metric,
+        "as_of_date_obj": as_of,
+        "as_of_date": _holding_date_display(as_of),
+        "published_date_obj": published,
+        "published_date": _holding_date_display(published),
+        "source_url": url,
+    }
+
+
+def _holding_extract_portfolio(html, url):
+    if not html:
+        return None
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+        strings = [_clean_text(x).replace("\u00a0", " ") for x in soup.stripped_strings]
+    except Exception:
+        return None
+    start = None
+    for i, value in enumerate(strings):
+        low = value.lower()
+        if low in {"the holdings", "holdings", "portfolio", "portfölj", "våra innehav"} or low.startswith("the holdings"):
+            start = i
+            break
+    if start is None:
+        return None
+    stop_terms = ("investment activities", "investments", "investeringsaktiviteter", "investeringar", "dividends received", "erhållna utdelningar", "contact", "kontakt")
+    holdings = []
+    seen = set()
+    rejection = ("return", "ratio", "margin", "growth", "debt", "yield", "share", "nav", "value", "portfolio", "holding", "total", "june", "august", "september", "2026", "2025")
+    upper = min(len(strings), start + 90)
+    for i in range(start + 1, upper):
+        value = strings[i]
+        low = value.lower()
+        if i > start + 4 and any(low.startswith(term) for term in stop_terms):
+            break
+        name = None
+        weight = None
+        m = re.match(r"^(.{1,50}?)\s+([0-9]{1,2}(?:[.,][0-9])?)\s*%$", value)
+        if m:
+            name = _clean_text(m.group(1))
+            try:
+                weight = float(m.group(2).replace(",", "."))
+            except Exception:
+                weight = None
+        elif re.match(r"^[0-9]{1,2}(?:[.,][0-9])?\s*%$", value) and i > 0:
+            name = _clean_text(strings[i-1])
+            try:
+                weight = float(re.search(r"[0-9]{1,2}(?:[.,][0-9])?", value).group(0).replace(",", "."))
+            except Exception:
+                weight = None
+        if not name or weight is None or weight <= 0 or weight > 70:
+            continue
+        name_low = name.lower()
+        if len(name) > 45 or any(term in name_low for term in rejection):
+            continue
+        key = re.sub(r"\W+", "", name_low)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        holdings.append({"name": name, "weight_pct": weight})
+    if len(holdings) < 2:
+        return None
+    holdings = sorted(holdings, key=lambda x: x["weight_pct"], reverse=True)[:12]
+    weights = [x["weight_pct"] for x in holdings]
+    return {
+        "holdings": holdings,
+        "holding_count": len(holdings),
+        "top1_pct": weights[0] if weights else None,
+        "top2_pct": sum(weights[:2]) if len(weights) >= 2 else None,
+        "top3_pct": sum(weights[:3]) if len(weights) >= 3 else None,
+        "source_url": url,
+    }
+
+
+def _holding_link_rank(text):
+    dt = _holding_parse_date_text(text)
+    return dt.toordinal() if dt else 0
+
+
+def _discover_listed_holding_primary_snapshot(website):
+    result = {"available": False, "nav": None, "debt": None, "portfolio": None, "diagnostics": []}
+    company_domain = _extract_company_domain(website)
+    if not company_domain:
+        result["diagnostics"].append("Holding Primary Source: keine verifizierbare Unternehmenswebsite verfügbar.")
+        return result
+    parsed = urlparse(str(website or "").strip())
+    scheme = parsed.scheme or "https"
+    host = parsed.netloc or company_domain
+    root = f"{scheme}://{host}".rstrip("/")
+    initial_urls = []
+    for url in [str(website or "").strip(), root + "/", root + "/en-gb", root + "/en-GB", root + "/en"]:
+        if url and url not in initial_urls and _holding_same_issuer_url(url, company_domain):
+            initial_urls.append(url)
+    fetched = {}
+    nav_links = []
+    report_links = []
+    archive_links = []
+    portfolio_best = None
+
+    def fetch(url):
+        if not url or url in fetched:
+            return fetched.get(url)
+        html = _fetch_html(url, timeout=3.5)
+        fetched[url] = html
+        return html
+
+    def collect_links(base_url, html):
+        if not html:
+            return
+        nonlocal portfolio_best
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+        except Exception:
+            return
+        port = _holding_extract_portfolio(html, base_url)
+        if port and (portfolio_best is None or int(port.get("holding_count") or 0) > int(portfolio_best.get("holding_count") or 0)):
+            portfolio_best = port
+        for a in soup.find_all("a", href=True):
+            label = _clean_text(a.get_text(" ", strip=True))
+            low = label.lower()
+            url = urljoin(base_url, a.get("href"))
+            if not _holding_same_issuer_url(url, company_domain):
+                continue
+            if any(term in low for term in ["net asset value", "substansvärde", "substansvarde"]):
+                nav_links.append((url, label))
+            if any(term in low for term in ["interim report", "half-year", "six months", "year-end report", "delårsrapport", "bokslutsrapport"]):
+                report_links.append((url, label))
+            if any(term in low for term in ["press release", "press releases", "news", "media", "regulatory releases"]):
+                archive_links.append((url, label))
+
+    nav_records = []
+    for url in initial_urls[:4]:
+        html = fetch(url)
+        if html:
+            rec = _holding_extract_nav_record(html, url)
+            if rec:
+                nav_records.append(rec)
+            collect_links(url, html)
+
+    # Dynamic home pages often expose only archive links. One bounded archive
+    # hop is allowed, still inside the verified issuer-domain family.
+    unique_archives = []
+    for url, label in archive_links:
+        if url not in [x[0] for x in unique_archives]:
+            unique_archives.append((url, label))
+    for url, _ in unique_archives[:2]:
+        html = fetch(url)
+        collect_links(url, html)
+
+    # Newest semantic links first; fetch only a bounded number.
+    def dedupe_sorted(items):
+        seen_urls = set(); out = []
+        for url, label in sorted(items, key=lambda x: (_holding_link_rank(x[1]), len(x[1])), reverse=True):
+            if url in seen_urls:
+                continue
+            seen_urls.add(url); out.append((url, label))
+        return out
+
+    for url, _ in dedupe_sorted(nav_links)[:5]:
+        html = fetch(url)
+        rec = _holding_extract_nav_record(html, url)
+        if rec:
+            nav_records.append(rec)
+        collect_links(url, html)
+
+    debt_records = []
+    for url, _ in dedupe_sorted(report_links)[:4]:
+        html = fetch(url)
+        rec = _holding_extract_debt_ratio(html, url)
+        if rec:
+            debt_records.append(rec)
+        collect_links(url, html)
+
+    if nav_records:
+        nav_records.sort(
+            key=lambda r: (
+                r.get("as_of_date_obj") or datetime(1900,1,1).date(),
+                int(r.get("quality") or 0),
+                1 if r.get("published_date_obj") else 0,
+            ),
+            reverse=True,
+        )
+        result["nav"] = nav_records[0]
+    if debt_records:
+        debt_records.sort(key=lambda r: (r.get("as_of_date_obj") or datetime(1900,1,1).date()), reverse=True)
+        result["debt"] = debt_records[0]
+    result["portfolio"] = portfolio_best
+    result["available"] = bool(result.get("nav"))
+    result["diagnostics"].append(
+        "Holding Primary Source V48: "
+        f"Domain={company_domain}, Seiten={len([v for v in fetched.values() if v])}, "
+        f"NAV={'ja' if result.get('nav') else 'nein'}, DebtRatio={'ja' if result.get('debt') else 'nein'}, "
+        f"Portfolio={'ja' if result.get('portfolio') else 'nein'}."
+    )
+    return result
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _discover_listed_holding_primary_snapshot_cached(website, cache_epoch="v22152_listed_holding_primary_nav_v48"):
+    return _discover_listed_holding_primary_snapshot(website)
+
+
+def build_listed_investment_holding_specialist_model(company_type, fundamental_info, symbol, current_price, currency_context):
+    if not is_listed_investment_holding_type(company_type):
+        return {"applicable": False}
+    website = (fundamental_info or {}).get("website")
+    discovery = _discover_listed_holding_primary_snapshot_cached(website)
+    nav = discovery.get("nav") or {}
+    debt = discovery.get("debt") or {}
+    portfolio = discovery.get("portfolio") or {}
+    nav_value = safe_float(nav.get("nav_per_share"))
+    nav_currency = str(nav.get("currency") or (fundamental_info or {}).get("financialCurrency") or "").upper()
+    financial_currency = str((currency_context or {}).get("financial_currency") or "").upper()
+    nav_date_obj = nav.get("as_of_date_obj")
+    age_days = None
+    if nav_date_obj:
+        try:
+            age_days = (datetime.now().date() - nav_date_obj).days
+        except Exception:
+            age_days = None
+    nav_fresh = bool(age_days is not None and -3 <= age_days <= 62)
+    currency_ok = bool(nav_value is not None and nav_value > 0 and nav_currency and financial_currency and nav_currency == financial_currency)
+
+    price_financial = safe_float(current_price)
+    price_note = None
+    share_context = (currency_context or {}).get("share_unit_context") or {}
+    if share_context.get("conversion_required"):
+        if not share_context.get("conversion_available"):
+            price_financial = None
+            price_note = "Kurs/NAV-Vergleich gesperrt: Aktien-/ADR-Umrechnung nicht verifiziert."
+        else:
+            ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
+            if ratio is None or ratio <= 0:
+                price_financial = None
+                price_note = "Kurs/NAV-Vergleich gesperrt: Aktien-/ADR-Verhältnis nicht belastbar."
+            elif price_financial is not None:
+                price_financial = price_financial / ratio
+    if price_financial is not None and (currency_context or {}).get("mixed_units"):
+        factor = safe_float((currency_context or {}).get("financial_to_quote_factor"))
+        if not (currency_context or {}).get("conversion_available") or factor is None or factor <= 0:
+            price_financial = None
+            price_note = "Kurs/NAV-Vergleich gesperrt: Währungsumrechnung nicht belastbar."
+        else:
+            price_financial = price_financial / factor
+    elif price_financial is not None and str((currency_context or {}).get("quote_currency") or "").upper() != financial_currency:
+        price_financial = None
+        price_note = "Kurs/NAV-Vergleich gesperrt: Handels- und Finanzwährung weichen ohne verifizierte Umrechnung ab."
+
+    price_to_nav = (price_financial / nav_value) if (price_financial is not None and nav_value and nav_value > 0 and currency_ok) else None
+    premium_discount_pct = ((price_to_nav - 1.0) * 100.0) if price_to_nav is not None else None
+    debt_ratio = safe_float(debt.get("debt_ratio_pct"))
+    top1 = safe_float(portfolio.get("top1_pct"))
+    top2 = safe_float(portfolio.get("top2_pct"))
+    top3 = safe_float(portfolio.get("top3_pct"))
+    leverage_status = None
+    if debt_ratio is not None:
+        leverage_status = "Niedrig" if debt_ratio <= 5 else ("Moderat" if debt_ratio <= 10 else "Erhöht")
+    concentration_status = None
+    if top2 is not None:
+        concentration_status = "Hoch" if top2 >= 60 else ("Mittel" if top2 >= 40 else "Breit")
+
+    primary_complete = bool(nav_value and nav_value > 0 and nav_date_obj and nav_fresh and currency_ok)
+    snapshot = {
+        "company": (fundamental_info or {}).get("shortName") or (fundamental_info or {}).get("longName") or symbol,
+        "symbol": symbol,
+        "website": website,
+        "reporting_currency": financial_currency or nav_currency,
+        "nav_per_share": nav_value,
+        "nav_currency": nav_currency,
+        "nav_as_of_date": nav.get("as_of_date"),
+        "nav_published_date": nav.get("published_date"),
+        "nav_source_url": nav.get("source_url"),
+        "nav_source_title": nav.get("source_title"),
+        "nav_age_days": age_days,
+        "current_price_financial": price_financial,
+        "price_to_nav": price_to_nav,
+        "premium_discount_pct": premium_discount_pct,
+        "price_nav_note": price_note,
+        "debt_ratio_pct": debt_ratio,
+        "debt_ratio_metric": debt.get("metric_name"),
+        "debt_as_of_date": debt.get("as_of_date"),
+        "debt_published_date": debt.get("published_date"),
+        "debt_source_url": debt.get("source_url"),
+        "portfolio_holdings": portfolio.get("holdings") or [],
+        "portfolio_top1_pct": top1,
+        "portfolio_top2_pct": top2,
+        "portfolio_top3_pct": top3,
+        "portfolio_source_url": portfolio.get("source_url"),
+        "leverage_status": leverage_status,
+        "concentration_status": concentration_status,
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure",
+        "diagnostics": discovery.get("diagnostics") or [],
+    }
+    return {
+        "applicable": True,
+        "primary_source_complete": primary_complete,
+        "valuation_anchor_complete": False,
+        "snapshot": snapshot,
+        "nav_diagnostics": {
+            "available": bool(nav_value and nav_value > 0),
+            "fresh": nav_fresh,
+            "currency_aligned": currency_ok,
+            "price_nav_available": price_to_nav is not None,
+            "debt_context_available": debt_ratio is not None,
+            "portfolio_context_available": bool(portfolio.get("holdings")),
+            "leverage_status": leverage_status,
+            "concentration_status": concentration_status,
+        },
+        "readiness": (
+            "NAV-/Premium-Discount-Primärdaten vollständig · Fair-Value-Kalibrierung noch gesperrt"
+            if primary_complete else
+            "NAV-Primärdaten unvollständig · fail-closed"
+        ),
+        "note": (
+            "V2.21.52 trennt aktuellen issuer-primary NAV, Kurs/NAV-Premium-Discount, Holding-Leverage und Portfoliokonzentration. "
+            "Diese Diagnose setzt bewusst noch keinen Ziel-NAV-Multiple und erzeugt deshalb keinen Fair Value."
+        ),
+    }
+
+
+def build_listed_investment_holding_special_control(control, specialist_model):
+    if not (specialist_model or {}).get("applicable"):
+        return control
+    snap = (specialist_model or {}).get("snapshot") or {}
+    primary_complete = bool((specialist_model or {}).get("primary_source_complete"))
+    return {
+        "required": True,
+        "implemented": True,
+        "released": False,
+        "control_key": "listed_investment_holding_nav",
+        "control_name": "Listed Investment / Holding Company · Primary NAV-, Leverage- & Konzentrationskontrolle",
+        "planned_checks": [
+            "aktueller issuer-primary NAV je Aktie mit Daten-/Publikationsdatum",
+            "aktueller Kurs/NAV-Premium-Discount in gleicher Aktien-/Währungseinheit",
+            "Holding-Level Debt-equities/Gearing bzw. Netto-Verschuldung",
+            "Portfolio-Konzentration / Top-Holdings",
+            "nächster Schritt: justified target NAV premium/discount mit Holdingkosten-, Leverage-, Konzentrations- und Historical/Peer-Guard",
+            "Analystenziele ausschließlich Reality Check",
+        ],
+        "status": (
+            "Primärquellen-NAV-Modell aktiv · Ziel-Premium/Discount und Fair Value noch nicht freigegeben"
+            if primary_complete else "NAV-Primärdaten unvollständig · fail-closed"
+        ),
+        "router_status": "Holding-NAV-Spezialmodell V1 aktiv",
+        "confidence_cap": "Mittel" if primary_complete else "Niedrig",
+        "checks": {
+            "nav_snapshot": snap,
+            "nav_diagnostics": (specialist_model or {}).get("nav_diagnostics") or {},
+        },
+        "snapshot": snap,
+        "note": (specialist_model or {}).get("note"),
+    }
 
 
 def build_legacy_specialist_if_allowed(company_type, builder, *args, **kwargs):
@@ -46140,6 +46723,14 @@ def load_stock(selected_symbol, cache_version):
         historical.get("eps", [])
     )
 
+    listed_investment_holding_specialist_model = build_listed_investment_holding_specialist_model(
+        company_type,
+        fundamental_info,
+        fundamental_symbol,
+        price,
+        currency_context,
+    )
+
     defense_high_growth_specialist_model = build_legacy_specialist_if_allowed(
         company_type,
         build_defense_high_growth_specialist_model,
@@ -46915,6 +47506,11 @@ def load_stock(selected_symbol, cache_version):
         asset_management_specialist_model
     )
 
+    special_control = build_listed_investment_holding_special_control(
+        special_control,
+        listed_investment_holding_specialist_model
+    )
+
     special_control = build_ctva_separation_special_control(
         special_control,
         ctva_separation_pre_gate_model
@@ -46990,7 +47586,13 @@ def load_stock(selected_symbol, cache_version):
     # decision later in the chain. Released family/specialist routes never enter
     # this branch, so their frozen controls and mathematics are unchanged.
     if is_universal_family_fail_closed(company_type):
-        special_control = _universal_family_special_control(company_type)
+        if (listed_investment_holding_specialist_model or {}).get("applicable"):
+            special_control = build_listed_investment_holding_special_control(
+                _universal_family_special_control(company_type),
+                listed_investment_holding_specialist_model,
+            )
+        else:
+            special_control = _universal_family_special_control(company_type)
 
     special_event_warning = build_special_event_warning(
         eps_normalization,
@@ -47007,26 +47609,50 @@ def load_stock(selected_symbol, cache_version):
             if _diagnostic_level and _diagnostic_level.lower() != "grün" and _diagnostic_reason
             else ""
         )
-        special_event_warning = {
-            "level": "Grün",
-            "icon": "🟢",
-            "title": "Keine automatische Sonderereignis-Recherche – Familienmodell-Gate aktiv",
-            "requires_research": False,
-            "valuation_usable": False,
-            "reason": (
-                f"{_family_label} ist als eigene Bewertungsfamilie erkannt. Die Standard-TTM/Forward-EPS-Basis ist hier nur Diagnosekontext "
-                "und darf vor Freigabe des Familienmodells weder eine Bewertung noch eine ad-hoc Sonderereignis-Recherche steuern."
-                + _diagnostic_note
-            ),
-            "action": (
-                "Keine Sonderereignis-Recherche aus der generischen EPS-Normalisierung starten. Der Universal Family Router sperrt "
-                "Standard-Score, Standard-KGV, Fair Value, Bewertungszonen und Handlungssignale, bis das wiederverwendbare Familienmodell "
-                "mit eigener Primärdaten-/Comparability-Basis freigegeben ist."
-            ),
-            "family_model_gate": True,
-            "diagnostic_original_level": _diagnostic_level or None,
-            "diagnostic_original_reason": _diagnostic_reason or None,
-        }
+        if (listed_investment_holding_specialist_model or {}).get("applicable"):
+            _holding_snap_event = (listed_investment_holding_specialist_model or {}).get("snapshot") or {}
+            _holding_nav_event = safe_float(_holding_snap_event.get("nav_per_share"))
+            _holding_prem_event = safe_float(_holding_snap_event.get("premium_discount_pct"))
+            _holding_nav_text = (f"{_holding_nav_event:.2f} {_holding_snap_event.get('nav_currency') or financial_currency}" if _holding_nav_event is not None else "nicht verfügbar")
+            _holding_pd_text = (f"{_holding_prem_event:+.1f} %" if _holding_prem_event is not None else "nicht verfügbar")
+            special_event_warning = {
+                "level": "Grün",
+                "icon": "🟢",
+                "title": "Holding-NAV-Primärdatenmodell aktiv – Fair-Value-Kalibrierung noch gesperrt",
+                "requires_research": False,
+                "valuation_usable": False,
+                "reason": (
+                    f"Issuer-primary NAV {_holding_nav_text} je Aktie und aktueller Kurs/NAV-Abstand {_holding_pd_text} werden separat vom generischen EPS/KGV-Pfad geführt. "
+                    "Das ist eine normale Holding-Bewertungsbasis und kein Sonderereignis."
+                ),
+                "action": (
+                    "Keine EPS-Sonderrecherche starten. V2.21.52 validiert NAV, Kurs/NAV, Holding-Leverage und Portfoliokonzentration; "
+                    "ein Ziel-Premium/Discount und damit Fair Value/Signale bleiben bis zur separaten Kalibrierung gesperrt."
+                ),
+                "family_model_gate": True,
+                "holding_nav_model": True,
+            }
+        else:
+            special_event_warning = {
+                "level": "Grün",
+                "icon": "🟢",
+                "title": "Keine automatische Sonderereignis-Recherche – Familienmodell-Gate aktiv",
+                "requires_research": False,
+                "valuation_usable": False,
+                "reason": (
+                    f"{_family_label} ist als eigene Bewertungsfamilie erkannt. Die Standard-TTM/Forward-EPS-Basis ist hier nur Diagnosekontext "
+                    "und darf vor Freigabe des Familienmodells weder eine Bewertung noch eine ad-hoc Sonderereignis-Recherche steuern."
+                    + _diagnostic_note
+                ),
+                "action": (
+                    "Keine Sonderereignis-Recherche aus der generischen EPS-Normalisierung starten. Der Universal Family Router sperrt "
+                    "Standard-Score, Standard-KGV, Fair Value, Bewertungszonen und Handlungssignale, bis das wiederverwendbare Familienmodell "
+                    "mit eigener Primärdaten-/Comparability-Basis freigegeben ist."
+                ),
+                "family_model_gate": True,
+                "diagnostic_original_level": _diagnostic_level or None,
+                "diagnostic_original_reason": _diagnostic_reason or None,
+            }
 
     # V2.20.123 – Family calibration is not a special event.  Keep a
     # dedicated gate so an uncalibrated Nestlé profile can fail closed
@@ -47917,6 +48543,7 @@ def load_stock(selected_symbol, cache_version):
         "integrated_oil_gas_specialist_model": integrated_oil_gas_specialist_model,
         "branded_consumer_staples_specialist_model": branded_consumer_staples_specialist_model,
         "asset_management_specialist_model": asset_management_specialist_model,
+        "listed_investment_holding_specialist_model": listed_investment_holding_specialist_model,
         "defense_high_growth_specialist_model": defense_high_growth_specialist_model,
         "ctva_separation_pre_gate_model": ctva_separation_pre_gate_model,
         "fundamental_multiple": fundamental_multiple,
@@ -51345,7 +51972,8 @@ if selected_symbol:
                         )
 
                 if (
-                    not is_bank_company_type(company_type)
+                    not is_universal_family_fail_closed(company_type)
+                    and not is_bank_company_type(company_type)
                     and not is_insurance_company_type(company_type)
                     and not is_reit_company_type(company_type)
                     and not is_midstream_company_type(company_type)
@@ -51699,7 +52327,8 @@ if selected_symbol:
                         )
 
                 if (
-                    not is_bank_company_type(company_type)
+                    not is_universal_family_fail_closed(company_type)
+                    and not is_bank_company_type(company_type)
                     and not is_insurance_company_type(company_type)
                     and not is_reit_company_type(company_type)
                     and not is_midstream_company_type(company_type)
@@ -54512,6 +55141,67 @@ if selected_symbol:
                         st.caption(text_or_dash(special_control.get("note")))
                     else:
                         st.warning("Integrated-Oil-&-Gas-Spezialkontrolle noch nicht implementiert/freigegeben.")
+
+                elif special_control.get("control_key") == "listed_investment_holding_nav":
+                    st.divider()
+                    st.subheader("🏛️ Modul 6 – Schritt 3B: Listed Investment / Holding Company NAV Model V1")
+                    checks_h = special_control.get("checks") or {}
+                    snap_h = special_control.get("snapshot") or checks_h.get("nav_snapshot") or {}
+                    diag_h = checks_h.get("nav_diagnostics") or {}
+                    nav_h = safe_float(snap_h.get("nav_per_share"))
+                    price_h = safe_float(snap_h.get("current_price_financial"))
+                    pnav_h = safe_float(snap_h.get("price_to_nav"))
+                    prem_h = safe_float(snap_h.get("premium_discount_pct"))
+                    debt_h = safe_float(snap_h.get("debt_ratio_pct"))
+                    top1_h = safe_float(snap_h.get("portfolio_top1_pct"))
+                    top2_h = safe_float(snap_h.get("portfolio_top2_pct"))
+                    top3_h = safe_float(snap_h.get("portfolio_top3_pct"))
+                    hccy = snap_h.get("nav_currency") or financial_currency
+                    if diag_h.get("available"):
+                        st.write(f"**NAV-Datenstand:** {text_or_dash(snap_h.get('nav_as_of_date'))} (veröffentlicht {text_or_dash(snap_h.get('nav_published_date'))})")
+                        st.caption(text_or_dash(snap_h.get("source_name")))
+                        if snap_h.get("nav_source_url"):
+                            st.markdown(f"[NAV-Primärquelle]({snap_h.get('nav_source_url')})")
+                        h1, h2 = st.columns(2)
+                        with h1:
+                            st.metric("Issuer-primary NAV je Aktie", format_currency_value(nav_h, hccy, 2) if nav_h is not None else "–")
+                            st.metric("Aktueller Kurs – NAV-Währung", format_currency_value(price_h, hccy, 2) if price_h is not None else "–")
+                            st.metric("Kurs / NAV", f"{pnav_h:.3f}×" if pnav_h is not None else "–")
+                        with h2:
+                            st.metric("Aktuelles Premium / Discount", f"{prem_h:+.1f} %" if prem_h is not None else "–")
+                            st.metric(text_or_dash(snap_h.get("debt_ratio_metric")), f"{debt_h:.1f} %" if debt_h is not None else "–")
+                            st.write(f"**Leverage-Einordnung:** {text_or_dash(snap_h.get('leverage_status'))}")
+                        if snap_h.get("debt_source_url"):
+                            st.caption(f"Holding-Leverage Datenstand: {text_or_dash(snap_h.get('debt_as_of_date'))} · [Primärquelle]({snap_h.get('debt_source_url')})")
+                        if top1_h is not None or top2_h is not None:
+                            st.write("**Portfolio-Konzentration:**")
+                            st.write(
+                                f"Top 1: {top1_h:.1f} %" if top1_h is not None else "Top 1: –",
+                                " · ",
+                                f"Top 2: {top2_h:.1f} %" if top2_h is not None else "Top 2: –",
+                                " · ",
+                                f"Top 3: {top3_h:.1f} %" if top3_h is not None else "Top 3: –",
+                            )
+                            st.write(f"**Konzentrations-Einordnung:** {text_or_dash(snap_h.get('concentration_status'))}")
+                        holdings_h = snap_h.get("portfolio_holdings") or []
+                        if holdings_h:
+                            st.write("**Größte Beteiligungen:** " + " · ".join(
+                                f"{item.get('name')} {safe_float(item.get('weight_pct')):.0f} %"
+                                for item in holdings_h[:8]
+                                if safe_float(item.get('weight_pct')) is not None
+                            ))
+                            if snap_h.get("portfolio_source_url"):
+                                st.markdown(f"[Portfolio-Primärquelle]({snap_h.get('portfolio_source_url')})")
+                        if snap_h.get("price_nav_note"):
+                            st.warning(snap_h.get("price_nav_note"))
+                        st.success("Holding-NAV-Primärdatenmodell aktiv: NAV und aktueller Premium/Discount sind belastbar getrennt vom EPS/KGV-Pfad verfügbar.")
+                    else:
+                        st.warning("Holding-NAV-Primärdaten nicht vollständig – Modell bleibt fail-closed.")
+                    st.warning(
+                        "Fair Value bleibt in V2.21.52 bewusst gesperrt: Der aktuelle Kurs/NAV-Abstand ist eine Diagnose, aber noch kein gerechtfertigter Ziel-Premium/Discount. "
+                        "Der nächste Modellschritt muss Holdingkosten, Leverage, Portfoliokonzentration sowie historische/vergleichbare NAV-Premien oder -Discounts kalibrieren."
+                    )
+                    st.caption(text_or_dash(special_control.get("note")))
 
                 elif special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
