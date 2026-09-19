@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.72"
+APP_BUILD_VERSION = "V2.21.73"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding Semantic NAV As-Of Hint & Publication-Date Separation Guard V68"
+    f"Build {APP_BUILD_VERSION} · Listed Holding Justified NAV Premium/Discount Calibration Guard V69"
 )
 
 
@@ -48,6 +48,8 @@ st.caption(
 # V2.21.64: Listed Holding Full-DOM NAV Candidate Ranking Guard V60. Fixes the remaining issuer-HTML NAV miss exposed by V59 diagnostics: CMS release pages can render dozens of NAV labels in navigation/archive blocks, while the production parser inspected only the first 12 label positions. V60 evaluates every bounded NAV-label window and lets local NAV evidence (currency/value + per-share wording + date/source context) determine the best record instead of DOM order. Diagnostics also count locally eligible NAV windows. Portfolio/debt recovery, family routing, Bank model, released valuation mathematics, Reality Check and signals remain unchanged; no issuer/ticker constants or hard-coded company values are introduced and Fair Value remains fail-closed pending target premium/discount calibration.
 # V2.21.70: Listed Holding Locale-Agnostic Share-Class Pairing & Unique-Date History Guard V66. Fixes the V65 live result where seven issuer NAV releases parsed successfully but only one yielded a paired NAV/close observation. The NAV archive may expose Swedish as well as English releases; V66 normalizes both English “Class C shares” and Swedish “C-aktien” closing-price wording into the same share-class price map, and de-duplicates historical release candidates by NAV as-of date before network fetches so language twins cannot consume the bounded history window. Diagnostics expose fetched/parsed/class-price/target-class counts. Historical evidence remains calibration-only and cannot unlock target premium/discount, Fair Value, zones or signals. No issuer/ticker constants or hard-coded company values are introduced.
 # V2.21.72: Listed Holding Semantic NAV As-Of Hint & Publication-Date Separation Guard V68. Fixes the V67 live trace where 2026 issuer NAV releases were fetched but rejected because the historical candidate pre-parser treated the archive publication date (for example Sep 1, 2026) as the expected NAV as-of date even when the concrete release title/URL stated “Net asset value on August 31, 2026”. V68 extracts the NAV as-of hint semantically from release title/slug wording first (English/Swedish), uses that hint for date de-duplication and strict historical parsing, and leaves publication dates as provenance only. Generic first-date parsing is no longer allowed to override a semantic NAV date. Historical evidence remains calibration-only; target premium/discount, Fair Value, zones and signals stay fail-closed. No issuer/ticker constants or hard-coded company values are introduced.
+
+# V2.21.73: Listed Holding Justified NAV Premium/Discount Calibration Guard V69. Adds a transparent diagnostic target-calibration layer on top of the now-stable issuer-primary historical NAV series. The historical median is the base anchor; bounded leverage and portfolio-concentration overlays are shown separately as current-risk diagnostics, with an explicit double-count guard because the issuer's own historical premium/discount distribution already embeds its normal structure. Missing issuer-primary holding-cost/structural-drag evidence and missing comparable peer evidence remain hard blockers for a released target premium/discount. A provisional risk-adjusted candidate may be displayed for model inspection only; valuation_anchor_complete stays false, Fair Value/zones/signals remain fail-closed, and no issuer/ticker constants or hard-coded company values are introduced.
 # V2.21.71: Listed Holding Record-Level NAV/Close Pairing & Pair-Rejection Trace Guard V67. Fixes the V66 live result where seven issuer NAV releases parsed with class-price evidence but collapsed to one historical observation. Each concrete issuer release is now normalized into a record-level NAV/close probe before calibration, with the NAV as-of date anchored to the dated release title/URL when local article markup omits it. Target-share-class close, NAV, currency and date are validated independently; publication date is provenance only and is never required to equal the NAV date or the paired trading-date close. Diagnostics expose one PairProbe per fetched release with explicit accept/reject reason, plus aggregate anchored-date and valid-target-pair counts. Historical evidence remains calibration-only and cannot unlock target premium/discount, Fair Value, zones or signals. No issuer/ticker constants or hard-coded company values are introduced.
 # V2.21.69: Listed Holding Archive-First Historical NAV Series Guard V65. Fixes the first historical-calibration live test, where a large NAV-link set already present in article/CMS navigation incorrectly suppressed a fetch of the issuer press-release index, leaving only one paired NAV/closing-price observation. V65 always visits a bounded issuer-owned archive/index candidate before historical release selection, derives generic parent/year archive candidates from concrete NAV-release URLs, filters historical candidates to concrete dated NAV releases, and records candidate/fetch/paired counts. The historical layer remains calibration evidence only: no target premium/discount, Fair Value, zone or signal is released. No issuer/ticker constants or hard-coded company values are introduced.
 # V2.21.68: Listed Holding Historical NAV Premium/Discount Calibration Guard V64.
@@ -8724,7 +8726,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 rejection_counts[reason] = rejection_counts.get(reason, 0) + 1
         reject_summary = ",".join(f"{k}:{v}" for k, v in sorted(rejection_counts.items())) or "none"
         result["diagnostics"].append(
-            f"Holding Historical NAV Calibration V68: ArchiveFetch={history_archive_fetches}, "
+            f"Holding Historical NAV Calibration V69: ArchiveFetch={history_archive_fetches}, "
             f"Candidates={history_candidate_count}, UniqueDateCandidates={len(strict_candidates) if 'strict_candidates' in locals() else 0}, "
             f"ReleaseFetch={history_release_attempts}, Parsed={history_release_parsed}, DateAnchored={history_expected_date_matches}, "
             f"ClassPricePages={history_release_with_class_prices}, NavHistoryRecords={len(result.get('nav_history') or [])}, "
@@ -8782,7 +8784,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22172_listed_holding_semantic_asof_hint_v68"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22173_listed_holding_justified_target_diag_v69"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
@@ -8854,6 +8856,123 @@ def _holding_build_historical_nav_calibration(nav_history, symbol):
     }
 
 
+def _holding_build_justified_nav_target_diagnostic(historical_calibration, debt_ratio_pct, top2_pct, top4_pct):
+    """Diagnostic-only target NAV premium/discount bridge.
+
+    V69 deliberately does *not* release a valuation target.  The issuer's own
+    historical premium/discount median is the base anchor.  Current leverage
+    and concentration are translated into small downside-only stress overlays
+    solely so the user can inspect the direction and scale of the eventual
+    model.  Because the historical distribution already embeds the holding's
+    normal structure, these overlays are bounded and carry an explicit
+    double-count warning.  Holding-cost/structural-drag and peer evidence are
+    still required before a target can be released.
+    """
+    hist = historical_calibration or {}
+    hist_ready = bool(hist.get("ready"))
+    anchor = safe_float(hist.get("median_pct")) if hist_ready else None
+    q1 = safe_float(hist.get("q1_pct"))
+    q3 = safe_float(hist.get("q3_pct"))
+    debt = safe_float(debt_ratio_pct)
+    top2 = safe_float(top2_pct)
+    top4 = safe_float(top4_pct)
+
+    leverage_adj = None
+    leverage_band = "Nicht verfügbar"
+    if debt is not None:
+        if debt <= 5.0:
+            leverage_adj = 0.0
+            leverage_band = "Niedrig · kein zusätzlicher Abschlag"
+        elif debt <= 10.0:
+            leverage_adj = -0.25
+            leverage_band = "Moderat · kleiner diagnostischer Abschlag"
+        elif debt <= 20.0:
+            leverage_adj = -0.75
+            leverage_band = "Erhöht · diagnostischer Abschlag"
+        elif debt <= 30.0:
+            leverage_adj = -1.50
+            leverage_band = "Hoch · deutlicher diagnostischer Abschlag"
+        else:
+            leverage_adj = -2.50
+            leverage_band = "Sehr hoch · starker diagnostischer Abschlag"
+
+    concentration_adj = None
+    concentration_band = "Nicht verfügbar"
+    if top2 is not None or top4 is not None:
+        # Take the more conservative of the Top-2 and Top-4 diagnostics, but cap
+        # the stress overlay because history already embeds the normal portfolio.
+        penalties = [0.0]
+        if top2 is not None:
+            if top2 >= 70.0:
+                penalties.append(-1.00)
+            elif top2 >= 55.0:
+                penalties.append(-0.50)
+            elif top2 >= 40.0:
+                penalties.append(-0.25)
+        if top4 is not None:
+            if top4 >= 95.0:
+                penalties.append(-1.00)
+            elif top4 >= 85.0:
+                penalties.append(-0.50)
+            elif top4 >= 70.0:
+                penalties.append(-0.25)
+        concentration_adj = min(penalties)
+        if concentration_adj <= -1.0:
+            concentration_band = "Sehr hoch · begrenzter diagnostischer Abschlag"
+        elif concentration_adj <= -0.5:
+            concentration_band = "Hoch · begrenzter diagnostischer Abschlag"
+        elif concentration_adj < 0:
+            concentration_band = "Mittel · kleiner diagnostischer Abschlag"
+        else:
+            concentration_band = "Breit · kein zusätzlicher Abschlag"
+
+    # V69 has no generic, issuer-primary holding-cost parser yet.  Do not invent
+    # a cost ratio or silently assume zero.  The same applies to peer evidence.
+    holding_cost_adj = None
+    peer_adj = None
+    provisional = None
+    if anchor is not None:
+        provisional = anchor
+        if leverage_adj is not None:
+            provisional += leverage_adj
+        if concentration_adj is not None:
+            provisional += concentration_adj
+
+    blockers = []
+    if not hist_ready:
+        blockers.append("historical_calibration_not_ready")
+    if debt is None:
+        blockers.append("leverage_evidence_missing")
+    if top2 is None and top4 is None:
+        blockers.append("concentration_evidence_missing")
+    blockers.append("holding_cost_evidence_missing")
+    blockers.append("peer_evidence_missing")
+
+    return {
+        "available": anchor is not None,
+        "released": False,
+        "historical_anchor_pct": anchor,
+        "historical_q1_pct": q1,
+        "historical_q3_pct": q3,
+        "leverage_adjustment_pp": leverage_adj,
+        "leverage_band": leverage_band,
+        "concentration_adjustment_pp": concentration_adj,
+        "concentration_band": concentration_band,
+        "holding_cost_adjustment_pp": holding_cost_adj,
+        "holding_cost_status": "Issuer-primary Holdingkosten/Strukturdrag noch nicht quantifiziert",
+        "peer_adjustment_pp": peer_adj,
+        "peer_status": "Vergleichbare Holding-Peer-Evidenz noch nicht freigegeben",
+        "provisional_target_pct": provisional,
+        "final_target_pct": None,
+        "release_blockers": blockers,
+        "double_count_guard": (
+            "Historischer Median enthält die normale Holdingstruktur bereits teilweise; "
+            "Leverage-/Konzentrationswerte sind in V69 nur begrenzte downside-only Diagnose-Overlays und keine freigegebene Bewertungsregel."
+        ),
+        "method": "Historical median + bounded current-risk diagnostic overlays; holding-cost and peer guards required before release",
+    }
+
+
 def build_listed_investment_holding_specialist_model(company_type, fundamental_info, symbol, current_price, currency_context):
     if not is_listed_investment_holding_type(company_type):
         return {"applicable": False}
@@ -8916,6 +9035,10 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
     if top2 is not None:
         concentration_status = "Hoch" if top2 >= 60 else ("Mittel" if top2 >= 40 else "Breit")
 
+    justified_target_diag = _holding_build_justified_nav_target_diagnostic(
+        historical_calibration, debt_ratio, top2, top4
+    )
+
     primary_complete = bool(nav_value and nav_value > 0 and nav_date_obj and nav_fresh and currency_ok)
     snapshot = {
         "company": (fundamental_info or {}).get("shortName") or (fundamental_info or {}).get("longName") or symbol,
@@ -8955,7 +9078,10 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "historical_nav_calibration_ready": bool(historical_calibration.get("ready")),
         "historical_nav_median_premium_discount_pct": safe_float(historical_calibration.get("median_pct")),
         "historical_pair_probes": discovery.get("historical_pair_probes") or [],
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Historical Calibration V68",
+        "justified_nav_target_diagnostic": justified_target_diag,
+        "provisional_target_premium_discount_pct": safe_float(justified_target_diag.get("provisional_target_pct")),
+        "target_premium_discount_released": False,
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Justified Target Calibration V69",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
@@ -8975,16 +9101,20 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
             "historical_calibration_available": bool(historical_calibration.get("available")),
             "historical_calibration_ready": bool(historical_calibration.get("ready")),
             "historical_observation_count": int(historical_calibration.get("observation_count") or 0),
+            "justified_target_diagnostic_available": bool(justified_target_diag.get("available")),
+            "justified_target_released": False,
+            "justified_target_blockers": justified_target_diag.get("release_blockers") or [],
         },
         "readiness": (
-            "NAV-/Premium-Discount-Primärdaten vollständig · historische Kalibrierung belastbar · Fair Value noch gesperrt"
+            "NAV-/Premium-Discount-Primärdaten vollständig · historische Kalibrierung belastbar · Ziel-Premium/Discount-Diagnose aktiv · Fair Value noch gesperrt"
             if primary_complete and historical_calibration.get("ready") else
             ("NAV-/Premium-Discount-Primärdaten vollständig · historische Kalibrierung noch begrenzt · Fair Value gesperrt"
              if primary_complete else "NAV-Primärdaten unvollständig · fail-closed")
         ),
         "note": (
             f"{APP_BUILD_VERSION} trennt aktuellen issuer-primary NAV, Kurs/NAV-Premium-Discount, Holding-Leverage und Portfoliokonzentration. "
-            "Die historische Premium/Discount-Verteilung ist Kalibrierungsevidenz, setzt aber bewusst noch keinen Ziel-NAV-Multiple und erzeugt deshalb keinen Fair Value."
+            "Die historische Verteilung liefert jetzt den Basisanker; Leverage und Konzentration werden als begrenzte diagnostische Overlays ausgewiesen. "
+            "Holdingkosten/Strukturdrag und Peer-Evidenz bleiben harte Freigabe-Blocker, deshalb entsteht noch kein freigegebener Ziel-NAV-Multiple oder Fair Value."
         ),
     }
 
@@ -9006,11 +9136,11 @@ def build_listed_investment_holding_special_control(control, specialist_model):
             "Holding-Level Debt-equities/Gearing bzw. Netto-Verschuldung",
             "Portfolio-Konzentration / Top-Holdings",
             "historische issuer-primary NAV-Premium/Discount-Verteilung derselben Aktienklasse",
-            "nächster Schritt: justified target NAV premium/discount mit Holdingkosten-, Leverage-, Konzentrations- und Peer-Guard",
+            "justified target NAV premium/discount: historischer Basisanker + Leverage-/Konzentrationsdiagnose + Holdingkosten-/Peer-Guard",
             "Analystenziele ausschließlich Reality Check",
         ],
         "status": (
-            "Primärquellen-NAV-Modell aktiv · Ziel-Premium/Discount und Fair Value noch nicht freigegeben"
+            "Primärquellen-NAV-Modell aktiv · Ziel-Premium/Discount-Kalibrierung diagnostisch aktiv · Fair Value noch nicht freigegeben"
             if primary_complete else "NAV-Primärdaten unvollständig · fail-closed"
         ),
         "router_status": "Holding-NAV-Spezialmodell V1 aktiv",
@@ -56655,7 +56785,7 @@ if selected_symbol:
                             )
                             hist_diag_lines_h = [
                                 str(x) for x in (snap_h.get("diagnostics") or [])
-                                if "Historical NAV Calibration V68" in str(x)
+                                if "Historical NAV Calibration V69" in str(x)
                             ]
                             if hist_diag_lines_h:
                                 st.caption("Historik-Adapter: " + hist_diag_lines_h[-1])
@@ -56676,15 +56806,41 @@ if selected_symbol:
                                 st.caption("HistoricalPairProbe: " + " | ".join(probe_parts_h))
                         else:
                             st.caption("Historische issuer-primary NAV-Premium/Discount-Reihe noch nicht ausreichend verfügbar.")
-                        st.success("Holding-NAV-Primärdatenmodell aktiv: NAV, aktueller Premium/Discount und historische issuer-primary Kalibrierung sind getrennt vom EPS/KGV-Pfad verfügbar.")
+
+                        target_diag_h = snap_h.get("justified_nav_target_diagnostic") or {}
+                        if target_diag_h.get("available"):
+                            st.write("**Justified NAV Premium/Discount – diagnostische Kalibrierung V69:**")
+                            jt1, jt2, jt3 = st.columns(3)
+                            with jt1:
+                                st.metric("Historischer Basisanker", f"{safe_float(target_diag_h.get('historical_anchor_pct')):+.1f} %")
+                            with jt2:
+                                st.metric("Leverage-Overlay", f"{safe_float(target_diag_h.get('leverage_adjustment_pp')):+.2f} pp" if safe_float(target_diag_h.get('leverage_adjustment_pp')) is not None else "–")
+                                st.caption(text_or_dash(target_diag_h.get("leverage_band")))
+                            with jt3:
+                                st.metric("Konzentrations-Overlay", f"{safe_float(target_diag_h.get('concentration_adjustment_pp')):+.2f} pp" if safe_float(target_diag_h.get('concentration_adjustment_pp')) is not None else "–")
+                                st.caption(text_or_dash(target_diag_h.get("concentration_band")))
+                            provisional_target_h = safe_float(target_diag_h.get("provisional_target_pct"))
+                            st.metric("Vorläufiger diagnostischer Ziel-Premium/Discount", f"{provisional_target_h:+.1f} %" if provisional_target_h is not None else "–")
+                            st.caption("Holdingkosten/Strukturdrag: " + text_or_dash(target_diag_h.get("holding_cost_status")))
+                            st.caption("Peer-Guard: " + text_or_dash(target_diag_h.get("peer_status")))
+                            st.warning(text_or_dash(target_diag_h.get("double_count_guard")))
+                            blockers_h = target_diag_h.get("release_blockers") or []
+                            if blockers_h:
+                                st.caption("Freigabe-Blocker: " + " · ".join(str(x) for x in blockers_h))
+                            st.info(
+                                "Der angezeigte Zielwert ist nur eine **diagnostische Zwischenrechnung**. "
+                                "Er wird weder als Fair-Value-Anker noch für Bewertungszonen oder Signale verwendet."
+                            )
+
+                        st.success("Holding-NAV-Primärdatenmodell aktiv: NAV, aktueller Premium/Discount, historische Kalibrierung und diagnostische Ziel-Premium/Discount-Brücke sind getrennt vom EPS/KGV-Pfad verfügbar.")
                     else:
                         st.warning("Holding-NAV-Primärdaten nicht vollständig – Modell bleibt fail-closed.")
                         diag_lines_h = snap_h.get("diagnostics") or []
                         if diag_lines_h:
                             st.caption("Adapter-Diagnose: " + " | ".join(str(x) for x in diag_lines_h[-6:]))
                     st.warning(
-                        f"Fair Value bleibt in {APP_BUILD_VERSION} bewusst gesperrt: Der aktuelle Kurs/NAV-Abstand ist eine Diagnose, aber noch kein gerechtfertigter Ziel-Premium/Discount. "
-                        "Der nächste Modellschritt muss aus historischer issuer-primary Verteilung, Holdingkosten, Leverage, Portfoliokonzentration und später Peer-Evidenz einen gerechtfertigten Ziel-Premium/Discount ableiten."
+                        f"Fair Value bleibt in {APP_BUILD_VERSION} bewusst gesperrt: Die historische Verteilung liefert jetzt einen Basisanker und Leverage/Konzentration werden diagnostisch überlagert. "
+                        "Holdingkosten/Strukturdrag und Peer-Evidenz sind noch nicht freigegeben; der angezeigte vorläufige Ziel-Premium/Discount darf deshalb weder Fair Value noch Zonen oder Signale steuern."
                     )
                     st.caption(text_or_dash(special_control.get("note")))
 
