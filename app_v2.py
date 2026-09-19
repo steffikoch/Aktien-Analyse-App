@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.65"
+APP_BUILD_VERSION = "V2.21.66"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding Snapshot-Date Coherence & Freshest Evidence Guard V61"
+    f"Build {APP_BUILD_VERSION} · Listed Holding Portfolio Evidence-Cluster Date Binding Guard V62"
 )
 
 
@@ -47,6 +47,7 @@ st.caption(
 # V2.21.62: Listed Holding NAV Token Fallback & Evidence Trace Guard V58. Keeps V58 portfolio/debt recovery unchanged and hardens only NAV extraction from issuer-owned HTML. Visible DOM text is Unicode-normalized (including zero-width/soft-hyphen cleanup); a bounded token fallback can recover NAV when CMS separators sit between label, currency, value and per-share wording. Failed issuer-release parses expose compact marker/currency/per-share/number probes so future failures are diagnosable without accepting search snippets as valuation evidence. No issuer/ticker constants or hard-coded company values are added. Fair Value remains fail-closed pending separate target premium/discount calibration; Bank model, released valuation mathematics, Reality Check and signals are unchanged.
 # V2.21.64: Listed Holding Full-DOM NAV Candidate Ranking Guard V60. Fixes the remaining issuer-HTML NAV miss exposed by V59 diagnostics: CMS release pages can render dozens of NAV labels in navigation/archive blocks, while the production parser inspected only the first 12 label positions. V60 evaluates every bounded NAV-label window and lets local NAV evidence (currency/value + per-share wording + date/source context) determine the best record instead of DOM order. Diagnostics also count locally eligible NAV windows. Portfolio/debt recovery, family routing, Bank model, released valuation mathematics, Reality Check and signals remain unchanged; no issuer/ticker constants or hard-coded company values are introduced and Fair Value remains fail-closed pending target premium/discount calibration.
 # V2.21.65: Listed Holding Snapshot-Date Coherence & Freshest Evidence Guard V61. Keeps the now-working NAV parser unchanged and hardens only holding snapshot provenance. Debt/gearing discovery evaluates all bounded priority-report candidates instead of stopping on the first valid ratio, then keeps the newest issuer-primary reporting date. Portfolio candidates are ranked by reporting date before holding-count completeness, and a stale/missing homepage portfolio date triggers one bounded issuer-primary portfolio refresh instead of suppressing the dedicated portfolio page. Diagnostics expose NAV/debt/portfolio as-of dates and refresh status. No issuer/ticker constants or hard-coded company values are introduced; Fair Value and target premium/discount remain fail-closed. Bank model, released valuation mathematics, Reality Check and signals are unchanged.
+# V2.21.66: Listed Holding Portfolio Evidence-Cluster Date Binding Guard V62. Fixes the remaining portfolio provenance mismatch exposed by V61: holdings weights can come from the correct issuer table while the date parser anchors to an earlier navigation/CMS section labeled Portfolio. V62 binds the portfolio as-of date to the densest local DOM cluster containing the actually accepted holding names, then searches only a narrow surrounding window for the reporting date. The legacy section-date parser remains fallback-only. NAV, debt/gearing, portfolio weights and valuation gates are unchanged; Fair Value and target premium/discount remain fail-closed. No issuer/ticker constants or hard-coded company values are introduced.
 # V2.21.58: Listed Holding Independent Evidence Budgets & Timing Diagnostics V54. Replaces the single shared listed-holding countdown with bounded, independent phase budgets for canonical homepage, issuer-primary report/debt, NAV recovery and portfolio recovery, plus a separate overall safety cap. Slow report/PDF work can no longer consume the later NAV/portfolio windows. Adds per-phase elapsed-time diagnostics so live runs show where network time is spent. The working issuer-PDF debt/gearing bridge, all holding parsers, family routing, Bank model, released valuation mathematics, Reality Check and signals are unchanged; Fair Value remains fail-closed pending justified target NAV premium/discount calibration.
 # V2.21.48: Universal Bank CET1 Row & Q4 Publication Metadata Guard V44. Period-aligned Standardized CET1 rows outrank generic CET1 narrative/footnote matches; trusted-Q4 current-quarter documents with missing publication metadata get one bounded issuer-domain results-detail metadata retry with exact quarter/results identity validation. The retry is metadata-only and cannot alter valuation evidence. No issuer/ticker exception is added. EPS normalization, Bank Score scoring thresholds, regulatory CET1 buffer mathematics, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.47: Universal Bank Trusted Q4 Detail & Financials Bridge V43. Extends the issuer-neutral latest-quarter recovery for proven Q4 IR architectures whose press-release/archive cards are client-rendered and whose current-quarter PDFs moved from /files/doc_events/... to Q4's /files/doc_financials/<year>/q<quarter>/... structure. The adapter now probes a bounded Q4-style same-domain news-detail route generated from the exact issuer name + expected quarter/results identity and independently revalidates page identity before accepting publication metadata. In parallel, a trusted Q4 tenant may contribute bounded current-quarter /doc_financials/ sibling candidates copied from already issuer-proven prior-quarter filenames; downstream PDF payload gates still require expected-period + issuer identity before any document can enter the bank snapshot. No ticker/domain exception is added. EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -7519,16 +7520,71 @@ def _holding_extract_portfolio(html, url):
         return None
     weights = [x["weight_pct"] for x in holdings]
 
+    # V62: bind the portfolio reporting date to the same DOM neighborhood that
+    # supplied the accepted holding names. A CMS/navigation item named
+    # "Portfolio" can appear much earlier in the page than the actual holdings
+    # table; using that first heading for provenance can therefore combine fresh
+    # weights with an unrelated stale date. Find the densest cluster of accepted
+    # holding names and inspect only a narrow window around that cluster.
     as_of = None
-    for pat in [
-        r"([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
-        r"(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
-    ]:
-        dates = [_holding_parse_date_text(m.group(1)) for m in re.finditer(pat, section_text)]
-        dates = [d for d in dates if d]
-        if dates:
-            as_of = max(dates)
-            break
+    date_binding = "section_fallback"
+    accepted_names = {_holding_fold_text(x.get("name")) for x in holdings if x.get("name")}
+    name_hits = []
+    for idx, value in enumerate(strings):
+        folded_value = _holding_fold_text(value)
+        if not folded_value:
+            continue
+        for name_key in accepted_names:
+            if not name_key:
+                continue
+            if (folded_value == name_key or folded_value.startswith(name_key + " ") or
+                    folded_value.endswith(" " + name_key) or (" " + name_key + " ") in (" " + folded_value + " ")):
+                name_hits.append((idx, name_key))
+                break
+
+    cluster_indices = []
+    if len(name_hits) >= 2:
+        # Sliding 80-node window: broad enough for responsive card/table markup,
+        # narrow enough to reject navigation and unrelated historical sections.
+        best = None
+        left = 0
+        for right in range(len(name_hits)):
+            while name_hits[right][0] - name_hits[left][0] > 80:
+                left += 1
+            window = name_hits[left:right + 1]
+            unique_names = len({name for _, name in window})
+            score = (unique_names, len(window), window[-1][0])
+            if best is None or score > best[0]:
+                best = (score, [idx for idx, _ in window])
+        if best and best[0][0] >= 2:
+            cluster_indices = best[1]
+
+    if cluster_indices:
+        local_start = max(0, min(cluster_indices) - 12)
+        local_end = min(len(strings), max(cluster_indices) + 31)
+        local_text = _clean_text(" ".join(strings[local_start:local_end]))
+        local_dates = []
+        for pat in [
+            r"([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
+            r"(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
+        ]:
+            local_dates.extend(
+                d for d in (_holding_parse_date_text(m.group(1)) for m in re.finditer(pat, local_text)) if d
+            )
+        if local_dates:
+            as_of = max(local_dates)
+            date_binding = "holding_cluster"
+
+    if as_of is None:
+        for pat in [
+            r"([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
+            r"(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
+        ]:
+            dates = [_holding_parse_date_text(m.group(1)) for m in re.finditer(pat, section_text)]
+            dates = [d for d in dates if d]
+            if dates:
+                as_of = max(dates)
+                break
 
     portfolio_value_bn = None
     portfolio_currency = None
@@ -7560,6 +7616,7 @@ def _holding_extract_portfolio(html, url):
         "top4_pct": sum(weights[:4]) if len(weights) >= 4 else None,
         "as_of_date_obj": as_of,
         "as_of_date": _holding_date_display(as_of),
+        "date_binding": date_binding,
         "portfolio_value_bn": portfolio_value_bn,
         "portfolio_currency": portfolio_currency,
         "source_url": url,
@@ -7763,11 +7820,11 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         if company_domain:
             raw_website = f"https://{company_domain}/"
             result["diagnostics"].append(
-                f"Holding Primary Source V61: Issuer-Domain aus wiederholten Company-Identity-Suchtreffern verifiziert ({company_domain})."
+                f"Holding Primary Source V62: Issuer-Domain aus wiederholten Company-Identity-Suchtreffern verifiziert ({company_domain})."
             )
         else:
             result["diagnostics"].append(
-                "Holding Primary Source V61: Provider-Website fehlt und kein ausreichend verifizierter Issuer-Domain-Bootstrap gelungen."
+                "Holding Primary Source V62: Provider-Website fehlt und kein ausreichend verifizierter Issuer-Domain-Bootstrap gelungen."
             )
             return result
     parsed = urlparse(raw_website if "://" in raw_website else "https://" + raw_website)
@@ -7881,13 +7938,13 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 html = doc.get("text") or ""
                 resolved = doc.get("url") or url
                 result["diagnostics"].append(
-                    f"Holding Primary PDF Bridge V61: issuer-eigener Reporttext geladen ({len(html)} Zeichen)."
+                    f"Holding Primary PDF Bridge V62: issuer-eigener Reporttext geladen ({len(html)} Zeichen)."
                 )
                 nonlocal portfolio_best
                 report_port = _holding_extract_portfolio_from_report_text(html, resolved)
                 if report_port and (portfolio_best is None or _portfolio_candidate_rank(report_port) > _portfolio_candidate_rank(portfolio_best)):
                     portfolio_best = report_port
-                    result["diagnostics"].append("Holding Report-Portfolio Recovery V61: Portfoliokonzentration aus issuer-eigenem Reporttext rekonstruiert.")
+                    result["diagnostics"].append("Holding Report-Portfolio Recovery V62: Portfoliokonzentration aus issuer-eigenem Reporttext rekonstruiert.")
         else:
             html, final_url = _fetch_html(url, timeout=3.6, deadline=active_deadline)
             resolved = final_url or url
@@ -8099,7 +8156,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                     break
         _timed_bucket("nav", nav_started)
         result["diagnostics"].append(
-            f"Holding Issuer-Archive NAV Recovery V61: NAV-Links={archive_hits}, "
+            f"Holding Issuer-Archive NAV Recovery V62: NAV-Links={archive_hits}, "
             f"ReleaseFetch={nav_release_fetch_success}/{nav_release_fetch_attempts}, Marker={nav_release_marker_pages}, "
             f"NAV={'ja' if nav_records else 'nein'}" +
             ((" · ParseProbe=" + "; ".join(nav_release_parse_probes)) if (not nav_records and nav_release_parse_probes) else "") + "."
@@ -8220,7 +8277,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
     if any(semantic_counts.values()):
         result["diagnostics"].append(
-            "Holding Independent-Evidence Recovery V61: "
+            "Holding Independent-Evidence Recovery V62: "
             f"NAV-Treffer={semantic_counts['nav']}, "
             f"Portfolio-Treffer={semantic_counts['portfolio']}, "
             f"Report-Treffer={semantic_counts['report']}; "
@@ -8283,20 +8340,21 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     debt_refresh_txt = "ja" if debt_refresh_requested else "nein"
     debt_refresh_improved = bool(debt_refresh_after and (not debt_refresh_before or debt_refresh_after > debt_refresh_before))
     result["diagnostics"].append(
-        "Holding Snapshot-Date Coherence V61: "
+        "Holding Snapshot-Date Coherence V62: "
         f"NAV={nav_dt} · Debt={debt_dt} · Portfolio={portfolio_dt} · "
         f"DebtRefresh={debt_refresh_txt}/{('verbessert' if debt_refresh_improved else 'unveraendert')} · "
-        f"PortfolioRefresh={refresh_txt}/{('verbessert' if refresh_improved else 'unveraendert')}."
+        f"PortfolioRefresh={refresh_txt}/{('verbessert' if refresh_improved else 'unveraendert')} · "
+        f"PortfolioDateBinding={(result.get('portfolio') or {}).get('date_binding') or '–'}."
     )
 
     result["diagnostics"].append(
-        "Holding Primary Source V61: "
+        "Holding Primary Source V62: "
         f"Domain={company_domain}, ProviderWebsite={'ja' if website else 'nein'}, Seiten={len([v for v in fetched.values() if v])}, "
         f"NAV={'ja' if result.get('nav') else 'nein'}, DebtRatio={'ja' if result.get('debt') else 'nein'}, "
         f"Portfolio={'ja' if result.get('portfolio') else 'nein'}, SafetyRest={safety_remaining:.2f}s."
     )
     result["diagnostics"].append(
-        "Holding Timing V61: "
+        "Holding Timing V62: "
         f"Bootstrap={timings['bootstrap']:.2f}s · Homepage={timings['homepage']:.2f}s · "
         f"Report={timings['report']:.2f}s · NAV={timings['nav']:.2f}s · "
         f"Portfolio={timings['portfolio']:.2f}s · Fallback={timings['fallback']:.2f}s · Gesamt={total_elapsed:.2f}s."
@@ -8305,7 +8363,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22165_listed_holding_snapshot_date_coherence_v61"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22166_listed_holding_portfolio_evidence_cluster_date_v62"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
