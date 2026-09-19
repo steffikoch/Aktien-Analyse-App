@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.60"
+APP_BUILD_VERSION = "V2.21.61"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding Primary HTML NAV & Portfolio Fact Recovery Guard V56"
+    f"Build {APP_BUILD_VERSION} · Listed Holding DOM Fact Parser & Fetch Diagnostics Guard V57"
 )
 
 
@@ -44,6 +44,7 @@ st.caption(
 # V2.21.55: Listed Holding Primary-Link Priority & Budget Guard V51. Reorders only the listed-holding primary-source discovery so the first verified canonical issuer page immediately promotes exact NAV and interim-report links before locale/archive/semantic fallbacks can consume the bounded research budget. Report links may be recognized from issuer-owned report/PDF URL semantics and period labels even when the anchor text omits the words "Interim Report". Issuer-owned direct PDF reports use the existing signature-validated PDF text bridge, solely to feed the unchanged debt/gearing parser. A fixed fallback reserve prevents locale/archive/search crawling from starving already discovered primary NAV/report links. Search snippets remain discovery metadata only; NAV/debt/portfolio values still require fetched issuer-primary content. Fair Value and target NAV premium/discount remain fail-closed. Bank model, family routing, all released valuation mathematics, Reality Check and signals are unchanged.
 # V2.21.56: Listed Holding Need-Aware Semantic Fetch & Budget Reservation Guard V52. Changes only the final listed-holding semantic-recovery scheduler. It searches exclusively for evidence classes that are still missing, performs one focused issuer-domain query at a time, immediately fetches the best issuer-owned primary result before any next search can consume the budget, and reserves separate bounded fetch slots for NAV and portfolio evidence. A second NAV query is fallback-only after the first fetched primary page fails. The already working issuer-PDF debt/gearing bridge, parsers, family routing, released valuation mathematics, Bank model, Reality Check and signals are unchanged; search snippets remain discovery metadata only and Fair Value remains fail-closed pending justified target NAV premium/discount calibration.
 # V2.21.60: Listed Holding Primary HTML NAV & Portfolio Fact Recovery Guard V56. Adds issuer-owned press/news archive navigation as the preferred NAV recovery before web search, and derives portfolio concentration from an already verified issuer-primary report market-value table when static website holdings are unavailable. Search/archive pages remain discovery only; NAV values require the concrete issuer release page. No ticker-specific valuation branch or hard-coded company values. Bank model, released valuation mathematics, Reality Check and signals remain unchanged; Fair Value stays fail-closed.
+# V2.21.61: Listed Holding DOM Fact Parser & Fetch Diagnostics Guard V57. Hardens only listed-holding issuer-primary HTML extraction. NAV parsing now tolerates CMS layouts that split label, currency, value and per-share text across DOM nodes and recognizes both English and Swedish value orderings; portfolio parsing reads table rows plus bounded holdings-section text in either name→weight or weight→name order. NAV release fetch diagnostics expose concrete-page load/marker status without accepting archive/search snippets as valuation evidence. No issuer/ticker constants or hard-coded company values are added. Fair Value remains fail-closed pending separate target premium/discount calibration; Bank model, released valuation mathematics, Reality Check and signals are unchanged.
 # V2.21.58: Listed Holding Independent Evidence Budgets & Timing Diagnostics V54. Replaces the single shared listed-holding countdown with bounded, independent phase budgets for canonical homepage, issuer-primary report/debt, NAV recovery and portfolio recovery, plus a separate overall safety cap. Slow report/PDF work can no longer consume the later NAV/portfolio windows. Adds per-phase elapsed-time diagnostics so live runs show where network time is spent. The working issuer-PDF debt/gearing bridge, all holding parsers, family routing, Bank model, released valuation mathematics, Reality Check and signals are unchanged; Fair Value remains fail-closed pending justified target NAV premium/discount calibration.
 # V2.21.48: Universal Bank CET1 Row & Q4 Publication Metadata Guard V44. Period-aligned Standardized CET1 rows outrank generic CET1 narrative/footnote matches; trusted-Q4 current-quarter documents with missing publication metadata get one bounded issuer-domain results-detail metadata retry with exact quarter/results identity validation. The retry is metadata-only and cannot alter valuation evidence. No issuer/ticker exception is added. EPS normalization, Bank Score scoring thresholds, regulatory CET1 buffer mathematics, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.47: Universal Bank Trusted Q4 Detail & Financials Bridge V43. Extends the issuer-neutral latest-quarter recovery for proven Q4 IR architectures whose press-release/archive cards are client-rendered and whose current-quarter PDFs moved from /files/doc_events/... to Q4's /files/doc_financials/<year>/q<quarter>/... structure. The adapter now probes a bounded Q4-style same-domain news-detail route generated from the exact issuer name + expected quarter/results identity and independently revalidates page identity before accepting publication metadata. In parallel, a trusted Q4 tenant may contribute bounded current-quarter /doc_financials/ sibling candidates copied from already issuer-proven prior-quarter filenames; downstream PDF payload gates still require expected-period + issuer identity before any document can enter the bank snapshot. No ticker/domain exception is added. EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -7141,69 +7142,107 @@ def _holding_extract_nav_record(html, url):
         return None
     try:
         soup = BeautifulSoup(html, "html.parser")
-        text = _clean_text(soup.get_text(" ", strip=True)).replace("\u00a0", " ")
+        strings = [_clean_text(x).replace("\u00a0", " ") for x in soup.stripped_strings]
+        text = _clean_text(" ".join(strings)).replace("\u00a0", " ")
     except Exception:
         return None
     low = text.lower()
-    label_positions = [m.start() for m in re.finditer(r"net asset value|substansv[aä]rde", low)]
+    # V57: CMS pages often split "Net asset value", currency/value and
+    # "per share" across several DOM nodes. Work on the flattened visible DOM
+    # text and accept English/Swedish labels without relying on node adjacency.
+    label_re = r"net asset value|substansv[aä]rd(?:e|et)|\bnav\b"
+    label_positions = [m.start() for m in re.finditer(label_re, low, flags=re.I)]
     if not label_positions:
         return None
-    best = None
-    for pos in label_positions[:8]:
-        window = text[max(0, pos - 120): min(len(text), pos + 650)]
-        nav = None
-        currency = None
+
+    def _value_from_window(window):
         patterns = [
-            r"(?:SEK|sek)\s*([0-9]{2,5}(?:[.,][0-9]{1,2})?)\s*(?:per share|per aktie)",
-            r"([0-9]{2,5}(?:[.,][0-9]{1,2})?)\s*(?:SEK|sek|kr|kronor)\s*(?:per share|per aktie)",
-            r"(?:SEK|sek)\s*([0-9]{2,5}(?:[.,][0-9]{1,2})?).{0,80}?(?:per share|per aktie)",
+            # Net asset value was SEK 532 per share / Net asset value SEK 532 Per share
+            r"(?:net asset value|substansv[aä]rd(?:e|et)|\bnav\b).{0,180}?(?:was|is|var|är|:)?\s*(?:SEK|EUR|USD|GBP|kr|kronor)\s*([0-9]{2,5}(?:[.,][0-9]{1,2})?).{0,90}?(?:per share|per aktie)",
+            # SEK 532 per share / 532 SEK per share / 532 kr per aktie
+            r"(?:SEK|EUR|USD|GBP|kr|kronor)\s*([0-9]{2,5}(?:[.,][0-9]{1,2})?).{0,90}?(?:per share|per aktie)",
+            r"([0-9]{2,5}(?:[.,][0-9]{1,2})?)\s*(?:SEK|EUR|USD|GBP|kr|kronor).{0,90}?(?:per share|per aktie)",
+            # Last-resort labelled layout: value and per-share wording may be in
+            # separate cards, but remain tightly bounded around the NAV label.
+            r"(?:net asset value|substansv[aä]rd(?:e|et)|\bnav\b).{0,120}?([0-9]{2,5}(?:[.,][0-9]{1,2})?).{0,120}?(?:per share|per aktie)",
         ]
         for pat in patterns:
-            m = re.search(pat, window, flags=re.I)
-            if m:
-                try:
-                    nav = float(m.group(1).replace(" ", "").replace(",", "."))
-                except Exception:
-                    nav = None
-                if nav is not None:
-                    currency = "SEK" if re.search(r"\bSEK\b|\bkr\b|kronor", m.group(0), flags=re.I) else None
-                    break
-        if nav is None or nav <= 0:
+            m = re.search(pat, window, flags=re.I | re.S)
+            if not m:
+                continue
+            try:
+                value = float(m.group(1).replace(" ", "").replace(",", "."))
+            except Exception:
+                value = None
+            if value is not None and 1.0 <= value <= 100000.0:
+                token = m.group(0)
+                cm = re.search(r"\b(SEK|EUR|USD|GBP)\b", token, flags=re.I)
+                currency = cm.group(1).upper() if cm else ("SEK" if re.search(r"\bkr\b|kronor", token, flags=re.I) else None)
+                return value, currency
+        return None, None
+
+    best = None
+    title_text = _clean_text(soup.title.get_text(" ", strip=True)) if soup.title else ""
+    h1 = soup.find("h1")
+    h1_text = _clean_text(h1.get_text(" ", strip=True)) if h1 else ""
+    url_text = str(url or "").replace("-", " ").replace("_", " ").replace("/", " ")
+    for pos in label_positions[:12]:
+        window = text[max(0, pos - 180): min(len(text), pos + 1200)]
+        nav, currency = _value_from_window(window)
+        if nav is None:
             continue
+
         as_of = None
+        date_sources = [window, h1_text, title_text, url_text]
         date_patterns = [
             r"net asset value\s+on\s+([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
             r"per share\s+on\s+([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
+            r"net asset value.*?on\s+(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
             r"substansv[aä]rd(?:e|et).*?den\s+(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
-            r"per aktie\s+(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
+            r"per aktie(?:\s+den)?\s+(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
+            # URL/title fallback such as "net asset value on august 31 2026".
+            r"(?:net asset value|substansv[aä]rd(?:e|et)).{0,80}?([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
         ]
-        for pat in date_patterns:
-            m = re.search(pat, window, flags=re.I)
-            if m:
-                as_of = _holding_parse_date_text(m.group(1))
-                if as_of:
-                    break
+        for source in date_sources:
+            if not source:
+                continue
+            for pat in date_patterns:
+                m = re.search(pat, source, flags=re.I | re.S)
+                if m:
+                    as_of = _holding_parse_date_text(m.group(1))
+                    if as_of:
+                        break
+            if as_of:
+                break
+
         published = _holding_structured_publication_date(soup)
         if published is None:
             fallback_published = _holding_publication_date_fallback(text, as_of)
-            # V2.21.53: a summary card often contains only the NAV as-of date.
-            # Do not promote that same date to publication provenance.  A same-day
-            # publication remains valid when it is explicitly carried by structured
-            # page metadata; unstructured fallback must be strictly later.
             if fallback_published is not None and (as_of is None or fallback_published > as_of):
                 published = fallback_published
+
         score = 3 + (2 if as_of else 0) + (1 if currency else 0) + (1 if published else 0)
         closing_prices = {}
-        # The regex groups are value, class; keep a generic class-price map for
-        # same-date diagnostics without hard-coding an issuer or ticker.
-        for value, cls in re.findall(
-            r"SEK\s*([0-9]{1,5}(?:[.,][0-9]{1,2})?)\s+for\s+the\s+Class\s+([A-Z])\s+shares",
-            window, flags=re.I
-        ):
-            try:
-                closing_prices[str(cls).upper()] = float(value.replace(",", "."))
-            except Exception:
-                pass
+        # Scan the full visible page, because the closing-price sentence can be
+        # outside the NAV card even though it belongs to the same release.
+        class_patterns = [
+            r"(?:SEK|kr)\s*([0-9]{1,5}(?:[.,][0-9]{1,2})?)\s+for\s+(?:the\s+)?Class\s+([A-Z])\s+shares",
+            r"Class\s+([A-Z])\s+shares?.{0,45}?(?:SEK|kr)\s*([0-9]{1,5}(?:[.,][0-9]{1,2})?)",
+        ]
+        for pat_i, pat in enumerate(class_patterns):
+            for match in re.findall(pat, text, flags=re.I | re.S):
+                try:
+                    if pat_i == 0:
+                        value, cls = match
+                    else:
+                        cls, value = match
+                    cls_key = str(cls).upper()
+                    parsed_value = float(str(value).replace(",", "."))
+                    if pat_i == 0 or cls_key not in closing_prices:
+                        closing_prices[cls_key] = parsed_value
+                except Exception:
+                    pass
+
         rec = {
             "nav_per_share": nav,
             "currency": currency,
@@ -7212,7 +7251,7 @@ def _holding_extract_nav_record(html, url):
             "published_date_obj": published,
             "published_date": _holding_date_display(published),
             "source_url": url,
-            "source_title": _clean_text(soup.title.get_text(" ", strip=True)) if soup.title else None,
+            "source_title": title_text or h1_text or None,
             "same_date_class_prices": closing_prices,
             "quality": score,
         }
@@ -7285,67 +7324,150 @@ def _holding_extract_portfolio(html, url):
         strings = [_clean_text(x).replace("\u00a0", " ") for x in soup.stripped_strings]
     except Exception:
         return None
+
+    # Find a bounded holdings section first; this prevents unrelated ownership,
+    # return or margin percentages elsewhere on an issuer page from entering the
+    # portfolio concentration metric.
     start = None
     for i, value in enumerate(strings):
-        low = value.lower()
-        if low in {"the holdings", "holdings", "portfolio", "portfölj", "våra innehav"} or low.startswith("the holdings"):
+        folded = _holding_fold_text(value)
+        if folded in {"the holdings", "holdings", "portfolio", "portfolj", "vara innehav"} or folded.startswith("the holdings"):
             start = i
             break
     if start is None:
+        # Some CMS templates expose only a section heading such as "Our portfolio".
+        for i, value in enumerate(strings):
+            folded = _holding_fold_text(value)
+            if any(term in folded for term in ["our portfolio", "our holdings", "portfolio companies"]):
+                start = i
+                break
+    if start is None:
         return None
-    stop_terms = ("investment activities", "investments", "investeringsaktiviteter", "investeringar", "dividends received", "erhållna utdelningar", "contact", "kontakt")
-    holdings = []
-    seen = set()
-    rejection = ("return", "ratio", "margin", "growth", "debt", "yield", "share", "nav", "value", "portfolio", "holding", "total", "june", "august", "september", "2026", "2025")
-    upper = min(len(strings), start + 90)
-    for i in range(start + 1, upper):
-        value = strings[i]
-        low = value.lower()
-        if i > start + 4 and any(low.startswith(term) for term in stop_terms):
+
+    stop_terms = (
+        "investment activities", "investments", "investeringsaktiviteter", "investeringar",
+        "dividends received", "erhallna utdelningar", "contact", "kontakt",
+    )
+    end = min(len(strings), start + 140)
+    for i in range(start + 4, end):
+        folded = _holding_fold_text(strings[i])
+        if any(folded.startswith(term) for term in stop_terms):
+            end = i
             break
-        name = None
-        weight = None
-        m = re.match(r"^(.{1,50}?)\s+([0-9]{1,2}(?:[.,][0-9])?)\s*%$", value)
+    section = strings[start:end]
+    section_text = _clean_text(" ".join(section))
+
+    holdings = []
+    by_key = {}
+    rejection = {
+        "return", "ratio", "margin", "growth", "debt", "yield", "share", "shares",
+        "nav", "value", "portfolio", "holding", "holdings", "total", "capital", "votes",
+        "company", "companies", "bolag", "andel", "weight",
+    }
+
+    def _accept(name, weight):
+        name = _clean_text(name)
+        try:
+            weight = float(str(weight).replace(",", "."))
+        except Exception:
+            return
+        if not name or not (0 < weight <= 70):
+            return
+        folded = _holding_fold_text(name)
+        if not folded or len(name) > 60:
+            return
+        if any(token in folded.split() for token in rejection):
+            return
+        if re.search(r"\b20\d{2}\b", name):
+            return
+        key = re.sub(r"\W+", "", folded)
+        if not key:
+            return
+        prev = by_key.get(key)
+        row = {"name": name, "weight_pct": weight}
+        if prev is None or weight > prev["weight_pct"]:
+            by_key[key] = row
+
+    # 1) Prefer real HTML table rows whenever available.
+    for row in soup.find_all("tr"):
+        cells = [_clean_text(c.get_text(" ", strip=True)) for c in row.find_all(["th", "td"])]
+        cells = [c for c in cells if c]
+        if len(cells) < 2:
+            continue
+        pct = None
+        pct_idx = None
+        for idx, cell in enumerate(cells):
+            m = re.fullmatch(r"([0-9]{1,2}(?:[.,][0-9])?)\s*%", cell)
+            if m:
+                pct = m.group(1); pct_idx = idx; break
+        if pct is None:
+            continue
+        names = [c for idx, c in enumerate(cells) if idx != pct_idx and re.search(r"[A-Za-zÅÄÖåäö]", c)]
+        if names:
+            # Tables frequently use either Weight|Company or Company|Weight.
+            _accept(names[-1] if pct_idx == 0 else names[0], pct)
+
+    # 2) CMS cards can split company and percentage into adjacent nodes.
+    for i, value in enumerate(section):
+        m = re.fullmatch(r"([0-9]{1,2}(?:[.,][0-9])?)\s*%", value)
         if m:
-            name = _clean_text(m.group(1))
-            try:
-                weight = float(m.group(2).replace(",", "."))
-            except Exception:
-                weight = None
-        elif re.match(r"^[0-9]{1,2}(?:[.,][0-9])?\s*%$", value) and i > 0:
-            name = _clean_text(strings[i-1])
-            try:
-                weight = float(re.search(r"[0-9]{1,2}(?:[.,][0-9])?", value).group(0).replace(",", "."))
-            except Exception:
-                weight = None
-        if not name or weight is None or weight <= 0 or weight > 70:
-            continue
-        name_low = name.lower()
-        if len(name) > 45 or any(term in name_low for term in rejection):
-            continue
-        key = re.sub(r"\W+", "", name_low)
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        holdings.append({"name": name, "weight_pct": weight})
+            # Card layouts are normally Company -> Weight. Use the next node
+            # only when the previous node clearly is not a plausible company
+            # label (table Weight -> Company is handled above).
+            before_count = len(by_key)
+            if i > 0:
+                _accept(section[i-1], m.group(1))
+            if len(by_key) == before_count and i + 1 < len(section):
+                _accept(section[i+1], m.group(1))
+        m = re.match(r"^(.{1,60}?)\s+([0-9]{1,2}(?:[.,][0-9])?)\s*%$", value)
+        if m:
+            _accept(m.group(1), m.group(2))
+        m = re.match(r"^([0-9]{1,2}(?:[.,][0-9])?)\s*%\s+(.{1,60}?)$", value)
+        if m:
+            _accept(m.group(2), m.group(1))
+
+    # Deliberately do not infer company names from a fully flattened text
+    # stream: adjacent percentages can otherwise be assigned to the next
+    # company and inflate Top-N concentration. Table rows, adjacent DOM nodes
+    # and one-node "Company 33 %" cards above are the accepted evidence forms.
+
+    holdings = sorted(by_key.values(), key=lambda x: x["weight_pct"], reverse=True)[:12]
     if len(holdings) < 2:
         return None
-    holdings = sorted(holdings, key=lambda x: x["weight_pct"], reverse=True)[:12]
     weights = [x["weight_pct"] for x in holdings]
-    text = " ".join(strings)
+
     as_of = None
-    for pat in [r"([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})", r"(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})"]:
-        dates = [_holding_parse_date_text(m.group(1)) for m in re.finditer(pat, text)]
+    for pat in [
+        r"([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
+        r"(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
+    ]:
+        dates = [_holding_parse_date_text(m.group(1)) for m in re.finditer(pat, section_text)]
         dates = [d for d in dates if d]
         if dates:
-            as_of = max(dates); break
+            as_of = max(dates)
+            break
+
     portfolio_value_bn = None
     portfolio_currency = None
-    m = re.search(r"\b(SEK|EUR|USD|GBP)\s*([0-9]{1,4}(?:[.,][0-9]+)?)\s*(?:bn|billion|mdr)", text, flags=re.I)
-    if m:
-        portfolio_currency = m.group(1).upper()
-        try: portfolio_value_bn = float(m.group(2).replace(",", "."))
-        except Exception: portfolio_value_bn = None
+    value_patterns = [
+        r"\b(SEK|EUR|USD|GBP)\s*([0-9]{1,4}(?:[.,][0-9]+)?)\s*(?:bn|billion|mdr)",
+        r"\b([0-9]{1,4}(?:[.,][0-9]+)?)\s*(?:bn|billion)\s*(SEK|EUR|USD|GBP)\b",
+    ]
+    for idx, pat in enumerate(value_patterns):
+        m = re.search(pat, section_text, flags=re.I)
+        if not m:
+            continue
+        try:
+            if idx == 0:
+                ccy, val = m.group(1), m.group(2)
+            else:
+                val, ccy = m.group(1), m.group(2)
+            portfolio_currency = ccy.upper()
+            portfolio_value_bn = float(val.replace(",", "."))
+        except Exception:
+            portfolio_value_bn = None
+        break
+
     return {
         "holdings": holdings,
         "holding_count": len(holdings),
@@ -7558,11 +7680,11 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         if company_domain:
             raw_website = f"https://{company_domain}/"
             result["diagnostics"].append(
-                f"Holding Primary Source V56: Issuer-Domain aus wiederholten Company-Identity-Suchtreffern verifiziert ({company_domain})."
+                f"Holding Primary Source V57: Issuer-Domain aus wiederholten Company-Identity-Suchtreffern verifiziert ({company_domain})."
             )
         else:
             result["diagnostics"].append(
-                "Holding Primary Source V56: Provider-Website fehlt und kein ausreichend verifizierter Issuer-Domain-Bootstrap gelungen."
+                "Holding Primary Source V57: Provider-Website fehlt und kein ausreichend verifizierter Issuer-Domain-Bootstrap gelungen."
             )
             return result
     parsed = urlparse(raw_website if "://" in raw_website else "https://" + raw_website)
@@ -7590,6 +7712,9 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     portfolio_best = None
     debt_records = []
     nav_records = []
+    nav_release_fetch_attempts = 0
+    nav_release_fetch_success = 0
+    nav_release_marker_pages = 0
 
     def _looks_like_report_link(url, label):
         folded_label = _holding_fold_text(label)
@@ -7618,7 +7743,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         active_deadline = phase_deadline if phase_deadline is not None else overall_deadline
         if not url:
             return None
-        # V56: only successful fetches are sticky. A timeout/empty response from
+        # V57: only successful fetches are sticky. A timeout/empty response from
         # an earlier short evidence window may be retried in a later fresh window.
         if url in fetched and fetched.get(url):
             return fetched.get(url)
@@ -7639,13 +7764,13 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 html = doc.get("text") or ""
                 resolved = doc.get("url") or url
                 result["diagnostics"].append(
-                    f"Holding Primary PDF Bridge V56: issuer-eigener Reporttext geladen ({len(html)} Zeichen)."
+                    f"Holding Primary PDF Bridge V57: issuer-eigener Reporttext geladen ({len(html)} Zeichen)."
                 )
                 nonlocal portfolio_best
                 report_port = _holding_extract_portfolio_from_report_text(html, resolved)
                 if report_port and (portfolio_best is None or int(report_port.get("holding_count") or 0) > int(portfolio_best.get("holding_count") or 0)):
                     portfolio_best = report_port
-                    result["diagnostics"].append("Holding Report-Portfolio Recovery V56: Portfoliokonzentration aus issuer-eigenem Reporttext rekonstruiert.")
+                    result["diagnostics"].append("Holding Report-Portfolio Recovery V57: Portfoliokonzentration aus issuer-eigenem Reporttext rekonstruiert.")
         else:
             html, final_url = _fetch_html(url, timeout=3.6, deadline=active_deadline)
             resolved = final_url or url
@@ -7808,7 +7933,13 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 for nav_url, _ in candidates[:3]:
                     if not _research_budget_ok(archive_nav_deadline, reserve=0.35):
                         break
+                    nav_release_fetch_attempts += 1
                     nhtml = fetch(nav_url, referer=archive_url, phase_deadline=archive_nav_deadline)
+                    if nhtml:
+                        nav_release_fetch_success += 1
+                        marker_text = _holding_fold_text(BeautifulSoup(nhtml, "html.parser").get_text(" ", strip=True))
+                        if any(term in marker_text for term in ["net asset value", "substansvarde", "nav per share"]):
+                            nav_release_marker_pages += 1
                     rec = _holding_extract_nav_record(nhtml, nav_url)
                     if rec:
                         nav_records.append(rec)
@@ -7817,7 +7948,9 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                     break
         _timed_bucket("nav", nav_started)
         result["diagnostics"].append(
-            f"Holding Issuer-Archive NAV Recovery V56: NAV-Links={archive_hits}, NAV={'ja' if nav_records else 'nein'}."
+            f"Holding Issuer-Archive NAV Recovery V57: NAV-Links={archive_hits}, "
+            f"ReleaseFetch={nav_release_fetch_success}/{nav_release_fetch_attempts}, Marker={nav_release_marker_pages}, "
+            f"NAV={'ja' if nav_records else 'nein'}."
         )
 
     # Phase 2 (V2.21.60): each still-missing critical evidence class receives
@@ -7921,7 +8054,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
     if any(semantic_counts.values()):
         result["diagnostics"].append(
-            "Holding Independent-Evidence Recovery V56: "
+            "Holding Independent-Evidence Recovery V57: "
             f"NAV-Treffer={semantic_counts['nav']}, "
             f"Portfolio-Treffer={semantic_counts['portfolio']}, "
             f"Report-Treffer={semantic_counts['report']}; "
@@ -7977,13 +8110,13 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     total_elapsed = max(0.0, time.monotonic() - started_at)
     safety_remaining = max(0.0, overall_deadline - time.monotonic())
     result["diagnostics"].append(
-        "Holding Primary Source V56: "
+        "Holding Primary Source V57: "
         f"Domain={company_domain}, ProviderWebsite={'ja' if website else 'nein'}, Seiten={len([v for v in fetched.values() if v])}, "
         f"NAV={'ja' if result.get('nav') else 'nein'}, DebtRatio={'ja' if result.get('debt') else 'nein'}, "
         f"Portfolio={'ja' if result.get('portfolio') else 'nein'}, SafetyRest={safety_remaining:.2f}s."
     )
     result["diagnostics"].append(
-        "Holding Timing V56: "
+        "Holding Timing V57: "
         f"Bootstrap={timings['bootstrap']:.2f}s · Homepage={timings['homepage']:.2f}s · "
         f"Report={timings['report']:.2f}s · NAV={timings['nav']:.2f}s · "
         f"Portfolio={timings['portfolio']:.2f}s · Fallback={timings['fallback']:.2f}s · Gesamt={total_elapsed:.2f}s."
@@ -7992,7 +8125,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22160_listed_holding_primary_html_nav_portfolio_v56"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22161_listed_holding_dom_fact_parser_v57"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
@@ -8091,7 +8224,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "portfolio_source_url": portfolio.get("source_url"),
         "leverage_status": leverage_status,
         "concentration_status": concentration_status,
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Primary HTML Recovery V56",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Primary HTML Recovery V57",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
