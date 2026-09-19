@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.61"
+APP_BUILD_VERSION = "V2.21.62"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding DOM Fact Parser & Fetch Diagnostics Guard V57"
+    f"Build {APP_BUILD_VERSION} · Listed Holding NAV Token Fallback & Evidence Trace Guard V58"
 )
 
 
@@ -44,7 +44,7 @@ st.caption(
 # V2.21.55: Listed Holding Primary-Link Priority & Budget Guard V51. Reorders only the listed-holding primary-source discovery so the first verified canonical issuer page immediately promotes exact NAV and interim-report links before locale/archive/semantic fallbacks can consume the bounded research budget. Report links may be recognized from issuer-owned report/PDF URL semantics and period labels even when the anchor text omits the words "Interim Report". Issuer-owned direct PDF reports use the existing signature-validated PDF text bridge, solely to feed the unchanged debt/gearing parser. A fixed fallback reserve prevents locale/archive/search crawling from starving already discovered primary NAV/report links. Search snippets remain discovery metadata only; NAV/debt/portfolio values still require fetched issuer-primary content. Fair Value and target NAV premium/discount remain fail-closed. Bank model, family routing, all released valuation mathematics, Reality Check and signals are unchanged.
 # V2.21.56: Listed Holding Need-Aware Semantic Fetch & Budget Reservation Guard V52. Changes only the final listed-holding semantic-recovery scheduler. It searches exclusively for evidence classes that are still missing, performs one focused issuer-domain query at a time, immediately fetches the best issuer-owned primary result before any next search can consume the budget, and reserves separate bounded fetch slots for NAV and portfolio evidence. A second NAV query is fallback-only after the first fetched primary page fails. The already working issuer-PDF debt/gearing bridge, parsers, family routing, released valuation mathematics, Bank model, Reality Check and signals are unchanged; search snippets remain discovery metadata only and Fair Value remains fail-closed pending justified target NAV premium/discount calibration.
 # V2.21.60: Listed Holding Primary HTML NAV & Portfolio Fact Recovery Guard V56. Adds issuer-owned press/news archive navigation as the preferred NAV recovery before web search, and derives portfolio concentration from an already verified issuer-primary report market-value table when static website holdings are unavailable. Search/archive pages remain discovery only; NAV values require the concrete issuer release page. No ticker-specific valuation branch or hard-coded company values. Bank model, released valuation mathematics, Reality Check and signals remain unchanged; Fair Value stays fail-closed.
-# V2.21.61: Listed Holding DOM Fact Parser & Fetch Diagnostics Guard V57. Hardens only listed-holding issuer-primary HTML extraction. NAV parsing now tolerates CMS layouts that split label, currency, value and per-share text across DOM nodes and recognizes both English and Swedish value orderings; portfolio parsing reads table rows plus bounded holdings-section text in either name→weight or weight→name order. NAV release fetch diagnostics expose concrete-page load/marker status without accepting archive/search snippets as valuation evidence. No issuer/ticker constants or hard-coded company values are added. Fair Value remains fail-closed pending separate target premium/discount calibration; Bank model, released valuation mathematics, Reality Check and signals are unchanged.
+# V2.21.62: Listed Holding NAV Token Fallback & Evidence Trace Guard V58. Keeps V58 portfolio/debt recovery unchanged and hardens only NAV extraction from issuer-owned HTML. Visible DOM text is Unicode-normalized (including zero-width/soft-hyphen cleanup); a bounded token fallback can recover NAV when CMS separators sit between label, currency, value and per-share wording. Failed issuer-release parses expose compact marker/currency/per-share/number probes so future failures are diagnosable without accepting search snippets as valuation evidence. No issuer/ticker constants or hard-coded company values are added. Fair Value remains fail-closed pending separate target premium/discount calibration; Bank model, released valuation mathematics, Reality Check and signals are unchanged.
 # V2.21.58: Listed Holding Independent Evidence Budgets & Timing Diagnostics V54. Replaces the single shared listed-holding countdown with bounded, independent phase budgets for canonical homepage, issuer-primary report/debt, NAV recovery and portfolio recovery, plus a separate overall safety cap. Slow report/PDF work can no longer consume the later NAV/portfolio windows. Adds per-phase elapsed-time diagnostics so live runs show where network time is spent. The working issuer-PDF debt/gearing bridge, all holding parsers, family routing, Bank model, released valuation mathematics, Reality Check and signals are unchanged; Fair Value remains fail-closed pending justified target NAV premium/discount calibration.
 # V2.21.48: Universal Bank CET1 Row & Q4 Publication Metadata Guard V44. Period-aligned Standardized CET1 rows outrank generic CET1 narrative/footnote matches; trusted-Q4 current-quarter documents with missing publication metadata get one bounded issuer-domain results-detail metadata retry with exact quarter/results identity validation. The retry is metadata-only and cannot alter valuation evidence. No issuer/ticker exception is added. EPS normalization, Bank Score scoring thresholds, regulatory CET1 buffer mathematics, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.47: Universal Bank Trusted Q4 Detail & Financials Bridge V43. Extends the issuer-neutral latest-quarter recovery for proven Q4 IR architectures whose press-release/archive cards are client-rendered and whose current-quarter PDFs moved from /files/doc_events/... to Q4's /files/doc_financials/<year>/q<quarter>/... structure. The adapter now probes a bounded Q4-style same-domain news-detail route generated from the exact issuer name + expected quarter/results identity and independently revalidates page identity before accepting publication metadata. In parallel, a trusted Q4 tenant may contribute bounded current-quarter /doc_financials/ sibling candidates copied from already issuer-proven prior-quarter filenames; downstream PDF payload gates still require expected-period + issuer identity before any document can enter the bank snapshot. No ticker/domain exception is added. EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -7144,10 +7144,15 @@ def _holding_extract_nav_record(html, url):
         soup = BeautifulSoup(html, "html.parser")
         strings = [_clean_text(x).replace("\u00a0", " ") for x in soup.stripped_strings]
         text = _clean_text(" ".join(strings)).replace("\u00a0", " ")
+        # V58: normalize CMS/Unicode separators that are invisible in the UI but
+        # can break an otherwise obvious "SEK 532 per share" regex match.
+        text = unicodedata.normalize("NFKC", text)
+        text = re.sub(r"[\u200b\u200c\u200d\u2060\ufeff\u00ad]", "", text)
+        text = _clean_text(text)
     except Exception:
         return None
     low = text.lower()
-    # V57: CMS pages often split "Net asset value", currency/value and
+    # V58: CMS pages often split "Net asset value", currency/value and
     # "per share" across several DOM nodes. Work on the flattened visible DOM
     # text and accept English/Swedish labels without relying on node adjacency.
     label_re = r"net asset value|substansv[aä]rd(?:e|et)|\bnav\b"
@@ -7156,15 +7161,15 @@ def _holding_extract_nav_record(html, url):
         return None
 
     def _value_from_window(window):
+        window = unicodedata.normalize("NFKC", window or "")
+        window = re.sub(r"[\u200b\u200c\u200d\u2060\ufeff\u00ad]", "", window)
         patterns = [
-            # Net asset value was SEK 532 per share / Net asset value SEK 532 Per share
-            r"(?:net asset value|substansv[aä]rd(?:e|et)|\bnav\b).{0,180}?(?:was|is|var|är|:)?\s*(?:SEK|EUR|USD|GBP|kr|kronor)\s*([0-9]{2,5}(?:[.,][0-9]{1,2})?).{0,90}?(?:per share|per aktie)",
-            # SEK 532 per share / 532 SEK per share / 532 kr per aktie
-            r"(?:SEK|EUR|USD|GBP|kr|kronor)\s*([0-9]{2,5}(?:[.,][0-9]{1,2})?).{0,90}?(?:per share|per aktie)",
-            r"([0-9]{2,5}(?:[.,][0-9]{1,2})?)\s*(?:SEK|EUR|USD|GBP|kr|kronor).{0,90}?(?:per share|per aktie)",
-            # Last-resort labelled layout: value and per-share wording may be in
-            # separate cards, but remain tightly bounded around the NAV label.
-            r"(?:net asset value|substansv[aä]rd(?:e|et)|\bnav\b).{0,120}?([0-9]{2,5}(?:[.,][0-9]{1,2})?).{0,120}?(?:per share|per aktie)",
+            # Conventional sentence/layout. Separator tolerance is deliberately
+            # wider than V57 because CMS cards can insert punctuation/labels.
+            r"(?:net asset value|substansv[aä]rd(?:e|et)|\bnav\b).{0,500}?(?:was|is|var|är|:)?[^A-Za-z0-9]{0,50}(?:SEK|EUR|USD|GBP|kr|kronor)[^0-9]{0,80}([0-9]{1,6}(?:[.,][0-9]{1,2})?).{0,220}?(?:per share|per aktie)",
+            r"(?:SEK|EUR|USD|GBP|kr|kronor)[^0-9]{0,80}([0-9]{1,6}(?:[.,][0-9]{1,2})?).{0,220}?(?:per share|per aktie)",
+            r"([0-9]{1,6}(?:[.,][0-9]{1,2})?)[^A-Za-z0-9]{0,50}(?:SEK|EUR|USD|GBP|kr|kronor).{0,220}?(?:per share|per aktie)",
+            r"(?:net asset value|substansv[aä]rd(?:e|et)|\bnav\b).{0,500}?([0-9]{1,6}(?:[.,][0-9]{1,2})?).{0,220}?(?:per share|per aktie)",
         ]
         for pat in patterns:
             m = re.search(pat, window, flags=re.I | re.S)
@@ -7179,6 +7184,46 @@ def _holding_extract_nav_record(html, url):
                 cm = re.search(r"\b(SEK|EUR|USD|GBP)\b", token, flags=re.I)
                 currency = cm.group(1).upper() if cm else ("SEK" if re.search(r"\bkr\b|kronor", token, flags=re.I) else None)
                 return value, currency
+
+        # V58 bounded token fallback. This is intentionally not a generic
+        # "first number after NAV" rule: a currency token AND per-share wording
+        # must surround the candidate inside the same local evidence window.
+        folded = window.lower()
+        per_share_spans = [(m.start(), m.end()) for m in re.finditer(r"per\s+(?:share|aktie)", folded, flags=re.I)]
+        if per_share_spans:
+            currency_re = re.compile(r"\b(SEK|EUR|USD|GBP|kr|kronor)\b", flags=re.I)
+            number_re = re.compile(r"(?<![0-9])([0-9]{1,6}(?:[.,][0-9]{1,2})?)(?![0-9])")
+            label_spans = [(m.start(), m.end()) for m in re.finditer(label_re, folded, flags=re.I)]
+            candidates = []
+            for cm in currency_re.finditer(window):
+                # Currency before value (SEK ... 532).
+                tail = window[cm.end(): min(len(window), cm.end() + 180)]
+                nm = number_re.search(tail)
+                if nm:
+                    nstart = cm.end() + nm.start(1)
+                    nend = cm.end() + nm.end(1)
+                    if any(-40 <= ps - nend <= 280 for ps, _ in per_share_spans) and any(-900 <= ls - nstart <= 0 for ls, _ in label_spans):
+                        candidates.append((nstart, nm.group(1), cm.group(1)))
+                # Value before currency (532 ... SEK).
+                head_start = max(0, cm.start() - 180)
+                head = window[head_start:cm.start()]
+                nums = list(number_re.finditer(head))
+                if nums:
+                    nm = nums[-1]
+                    nstart = head_start + nm.start(1)
+                    nend = head_start + nm.end(1)
+                    if any(-40 <= ps - nend <= 320 for ps, _ in per_share_spans) and any(-900 <= ls - nstart <= 0 for ls, _ in label_spans):
+                        candidates.append((nstart, nm.group(1), cm.group(1)))
+            for _, raw_value, raw_currency in sorted(candidates, key=lambda x: x[0]):
+                try:
+                    value = float(raw_value.replace(",", "."))
+                except Exception:
+                    continue
+                if 1.0 <= value <= 100000.0:
+                    cur = raw_currency.upper()
+                    if cur.lower() in {"kr", "kronor"}:
+                        cur = "SEK"
+                    return value, cur
         return None, None
 
     best = None
@@ -7187,7 +7232,7 @@ def _holding_extract_nav_record(html, url):
     h1_text = _clean_text(h1.get_text(" ", strip=True)) if h1 else ""
     url_text = str(url or "").replace("-", " ").replace("_", " ").replace("/", " ")
     for pos in label_positions[:12]:
-        window = text[max(0, pos - 180): min(len(text), pos + 1200)]
+        window = text[max(0, pos - 260): min(len(text), pos + 2400)]
         nav, currency = _value_from_window(window)
         if nav is None:
             continue
@@ -7680,11 +7725,11 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         if company_domain:
             raw_website = f"https://{company_domain}/"
             result["diagnostics"].append(
-                f"Holding Primary Source V57: Issuer-Domain aus wiederholten Company-Identity-Suchtreffern verifiziert ({company_domain})."
+                f"Holding Primary Source V58: Issuer-Domain aus wiederholten Company-Identity-Suchtreffern verifiziert ({company_domain})."
             )
         else:
             result["diagnostics"].append(
-                "Holding Primary Source V57: Provider-Website fehlt und kein ausreichend verifizierter Issuer-Domain-Bootstrap gelungen."
+                "Holding Primary Source V58: Provider-Website fehlt und kein ausreichend verifizierter Issuer-Domain-Bootstrap gelungen."
             )
             return result
     parsed = urlparse(raw_website if "://" in raw_website else "https://" + raw_website)
@@ -7715,6 +7760,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     nav_release_fetch_attempts = 0
     nav_release_fetch_success = 0
     nav_release_marker_pages = 0
+    nav_release_parse_probes = []
 
     def _looks_like_report_link(url, label):
         folded_label = _holding_fold_text(label)
@@ -7743,7 +7789,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         active_deadline = phase_deadline if phase_deadline is not None else overall_deadline
         if not url:
             return None
-        # V57: only successful fetches are sticky. A timeout/empty response from
+        # V58: only successful fetches are sticky. A timeout/empty response from
         # an earlier short evidence window may be retried in a later fresh window.
         if url in fetched and fetched.get(url):
             return fetched.get(url)
@@ -7764,13 +7810,13 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 html = doc.get("text") or ""
                 resolved = doc.get("url") or url
                 result["diagnostics"].append(
-                    f"Holding Primary PDF Bridge V57: issuer-eigener Reporttext geladen ({len(html)} Zeichen)."
+                    f"Holding Primary PDF Bridge V58: issuer-eigener Reporttext geladen ({len(html)} Zeichen)."
                 )
                 nonlocal portfolio_best
                 report_port = _holding_extract_portfolio_from_report_text(html, resolved)
                 if report_port and (portfolio_best is None or int(report_port.get("holding_count") or 0) > int(portfolio_best.get("holding_count") or 0)):
                     portfolio_best = report_port
-                    result["diagnostics"].append("Holding Report-Portfolio Recovery V57: Portfoliokonzentration aus issuer-eigenem Reporttext rekonstruiert.")
+                    result["diagnostics"].append("Holding Report-Portfolio Recovery V58: Portfoliokonzentration aus issuer-eigenem Reporttext rekonstruiert.")
         else:
             html, final_url = _fetch_html(url, timeout=3.6, deadline=active_deadline)
             resolved = final_url or url
@@ -7915,6 +7961,26 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             consume_priority_links(referer=canonical_url, phase_deadline=report_deadline, include_nav=False, include_report=True)
         _timed_bucket("report", report_started)
 
+    def _nav_parse_probe(html):
+        """Compact diagnostics only; never supplies valuation values."""
+        if not html:
+            return "empty"
+        try:
+            psoup = BeautifulSoup(html, "html.parser")
+            ptext = _clean_text(" ".join(_clean_text(x) for x in psoup.stripped_strings)).replace("\u00a0", " ")
+            ptext = unicodedata.normalize("NFKC", ptext)
+            ptext = re.sub(r"[\u200b\u200c\u200d\u2060\ufeff\u00ad]", "", ptext)
+            pfold = _holding_fold_text(ptext)
+            marker = any(term in pfold for term in ["net asset value", "substansvarde", "nav per share"])
+            currency = bool(re.search(r"\b(?:SEK|EUR|USD|GBP|kr|kronor)\b", ptext, flags=re.I))
+            per_share = bool(re.search(r"per\s+(?:share|aktie)", ptext, flags=re.I))
+            # Report number candidates only as a count so diagnostics do not
+            # accidentally become a second unvalidated data source.
+            nums = len(re.findall(r"(?<![0-9])[0-9]{1,6}(?:[.,][0-9]{1,2})?(?![0-9])", ptext))
+            return f"marker={'ja' if marker else 'nein'},ccy={'ja' if currency else 'nein'},perShare={'ja' if per_share else 'nein'},nums={nums}"
+        except Exception:
+            return "probe-error"
+
     # V2.21.60: issuer archive is the preferred NAV recovery bridge.  The
     # archive supplies links only; the NAV value is parsed from the linked
     # issuer-owned release itself. This avoids dependence on a search engine.
@@ -7944,13 +8010,16 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                     if rec:
                         nav_records.append(rec)
                         break
+                    elif nhtml and len(nav_release_parse_probes) < 3:
+                        nav_release_parse_probes.append(_nav_parse_probe(nhtml))
                 if nav_records:
                     break
         _timed_bucket("nav", nav_started)
         result["diagnostics"].append(
-            f"Holding Issuer-Archive NAV Recovery V57: NAV-Links={archive_hits}, "
+            f"Holding Issuer-Archive NAV Recovery V58: NAV-Links={archive_hits}, "
             f"ReleaseFetch={nav_release_fetch_success}/{nav_release_fetch_attempts}, Marker={nav_release_marker_pages}, "
-            f"NAV={'ja' if nav_records else 'nein'}."
+            f"NAV={'ja' if nav_records else 'nein'}" +
+            ((" · ParseProbe=" + "; ".join(nav_release_parse_probes)) if (not nav_records and nav_release_parse_probes) else "") + "."
         )
 
     # Phase 2 (V2.21.60): each still-missing critical evidence class receives
@@ -8054,7 +8123,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
     if any(semantic_counts.values()):
         result["diagnostics"].append(
-            "Holding Independent-Evidence Recovery V57: "
+            "Holding Independent-Evidence Recovery V58: "
             f"NAV-Treffer={semantic_counts['nav']}, "
             f"Portfolio-Treffer={semantic_counts['portfolio']}, "
             f"Report-Treffer={semantic_counts['report']}; "
@@ -8110,13 +8179,13 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     total_elapsed = max(0.0, time.monotonic() - started_at)
     safety_remaining = max(0.0, overall_deadline - time.monotonic())
     result["diagnostics"].append(
-        "Holding Primary Source V57: "
+        "Holding Primary Source V58: "
         f"Domain={company_domain}, ProviderWebsite={'ja' if website else 'nein'}, Seiten={len([v for v in fetched.values() if v])}, "
         f"NAV={'ja' if result.get('nav') else 'nein'}, DebtRatio={'ja' if result.get('debt') else 'nein'}, "
         f"Portfolio={'ja' if result.get('portfolio') else 'nein'}, SafetyRest={safety_remaining:.2f}s."
     )
     result["diagnostics"].append(
-        "Holding Timing V57: "
+        "Holding Timing V58: "
         f"Bootstrap={timings['bootstrap']:.2f}s · Homepage={timings['homepage']:.2f}s · "
         f"Report={timings['report']:.2f}s · NAV={timings['nav']:.2f}s · "
         f"Portfolio={timings['portfolio']:.2f}s · Fallback={timings['fallback']:.2f}s · Gesamt={total_elapsed:.2f}s."
@@ -8125,7 +8194,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22161_listed_holding_dom_fact_parser_v57"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22162_listed_holding_nav_token_fallback_v58"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
@@ -8224,7 +8293,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "portfolio_source_url": portfolio.get("source_url"),
         "leverage_status": leverage_status,
         "concentration_status": concentration_status,
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Primary HTML Recovery V57",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Primary HTML Recovery V58",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
@@ -15334,7 +15403,7 @@ iPvQT5vh/cQISHolFKlyobdMckK8keWjyHhG8x2SnNJys5NiudK0KvOMS0WsyHBaaCnmlS5x8IkpVH6K
 FMuEAEFFqSkXa6FxTZdJbAusfxdSuaA1l+kKf9lc5ELvxo4LoYvYbYF2jDZMapFWOZO0qeSmVBEsisuESnMm1jy7BwN0Jf7IC01qxfL8g9ZyW3AZ6f9D6DxC
 5YLNcz41g9RMSJ7qqOl7lMJAUMwTUhueihjwLxx6mNwlQAUKcBX/s8I1pClja7aEwNv/cQbDSSvJ15F2uQCMquZKC11pTsuyzEbHFZePIuXqd8pLNZpWKZ6g
 h2axeQSBY0gjnldKRO+i34XmUlYbLcriDsPewh3oZyjORpvLYhQMo0q5i7DRiXEKCW1XHOeYdjFp05JFKxS8S/X1RfSElfpKKRV8mYslL1Ies2XE2QrF78ax
-CRWviKn1lqFvFaWP4wKzKbxa4WQcKokFsexRROrTZYBhFZR4WxscqipdvRl/P5vN8NB7T+lwOYV57c3DjPBpzQFPYhMPb705HhJq61A/0P4SjL+jn/+Yogei
+CRWviKn1lqFvFaWP4wKzKbxa4WQcKokFsexRROrTZYBhFZR4WxscqipdvRl/P5vN8NB7T+lwOYV58c3DjPBpzQFPYhMPb705HhJq61A/0P4SjL+jn/+Yogei
 Gzxn9VOHXO/wgnkxwwgQP3hNnod+rJx9Q23Nj0S9Zi9avKtsuNx+03I3iTnhyuwrUEsDBBQAAAAIAMtKMV1kMX1W1wUAAM0RAAAnAAAAcHlwZGYvX2NyeXB0
 X3Byb3ZpZGVycy9fY3J5cHRvZ3JhcGh5LnB5vVZhb9s2EP3uX3FLMMBeFSVpg2zw0AGyzCTEHMmT5KRBURiyRMdaZFGQaLfur98dJduKk6Vp4c0fWoa8e/fu
 3R3FQ7BlviqS+5mCdtSBtydv3xkgviSpiB+S7D6KWodgpSlokxIKUYpiKWKzdYgHnoiTUhXJZKESmUGYxbAoBSQZlHJRRELvTJIsLFYwlcW8NOBzomYgC/2/
@@ -15925,7 +15994,7 @@ tQIfhh1CAdVnFQN3Kwr9u0qkwG6zAoNUg7Zk/+jshP1Rfp7DPhJ+11/oib7WLIgUe61JnOhrTfoYvdYk
 bGMPwlhaE94dzGXX1MHCZvjz/SZsDDSbftCpmW0tXIXqxoaAqZoGqW4I+tfaxm08bjj0L/xxyxFdRdb1ede0F1NurPB740ZZ76ORar5MYiSs5SjK4OpiPt/u
 P6a4DuKbebivMHgxD67oOFJ/yDGfwWWQWjcDnJ6HANRJBjex6v31E26gzzWib4UjiFHMkxRXlzcEe8o8Aup+UjHC/doMLnF1vzeu3zm1zXdvJNX+U8UXLlQe
 ERvCnSD73gGs4xCibY/gRkV9fGq+/9aWwXOY6t2Pz83Bx/U9+kDWp0o4U+Q41ZyrTXO8/Fp/BU4B9/I6zgHjgcPCw80lyiNEwXNGD6U+vnjvGJ99QohA46Cm
-PYBzsizNVUJzoRb0fPTP9i83XxfdjcFdeQp3ijN8wninuqlSF3D3+fzhlIVUrGbNb0pwteMDJtNteHDyWx9vdVlV57ebI9cgbbiIUh9P18vNH1nZ3QT/e3Xx
+PYBzsizNVUJzoRb0fPTP9i83XxfdjcFdeQp3ijN8wninuqlSF3D3+fzhlIVUrGbNb0pwteMDJtNteHDyWx9vdVlV58ebI9cgbbiIUh9P18vNH1nZ3QT/e3Xx
 MaeD1CGki3ANaRQhdTEADJM+/Y/r4UnhmcZ/FQQM93j2VzGDnvIpFvLih+Vg79jk7tCTd+kbHHCoEt0Jlwfg8755fvuow31ytYXSc5zthlVCpvbwNKM8Xmqb
 YT5Et9TMUOW0Us2O72h/VLOZbooI6FaAZ5Dr3Bb87Fb9EjNA7crfGeHmqSud1cvlMShlXxn0vdlfD1J1nbx99jfppUuca9RvJ/n43s+7cJa52cxinLDhFGjR
 rHyQ+PqoeAvi+bO57UvlT178n3vRxjiGeV7bPJXS/PNVDO0H8ztrnU4161w9Q3vIslkULtvQLzvbyKIcMJ+VYtTU06D5vKsT9AJPEY/v6oSxWGHRbpXqggbc
@@ -16293,7 +16362,7 @@ P/KmVYdmSLXYPEtVn07eRCt/omGf8+xju+fppj7HtR6TfdTPPrZ9lmrqUxONqLXAT1LRVPBqxwSJwSsM
 hcJT475ZhKbqN0hEkl3aGtOg9czFlG0JiWOGAJsxpquOfp43iZNcwjTXeDLgwgs0oEa82OmIRkNlEerNCgSKZAPuJTcJ9WQFOVIl7d3jJqRi1AagetXwJRLE
 2iaKGRGCSCNZgjT2rrb0jMCcTjnalSUmoW8AChmy2HzNmNPhsxlTpDzwh90MqJFk+oCq1Npyk1zgpeUmoSHZwoRCA89eTG4SEs8Wvkad3NlGpwbooD/mDNmL
 yU1CwtvZj82pavbOchPuGYLPUVt3fX8RO6kFJzYXnpuEPmn2ZgEVU27NSHZ6m2zNiEhHo+ndtjM1mXPhuZltmcEXnpuARMqO74haAC40N+IgXZED7ZWLSQfa
-gkCufD0Yeq/euTC5w8XOMfbEUZCK39n9sxggT96KLFcTPOn+WbCqov09O37r847NiVNRG+mneetAjp9mSZEuhVHYKulqWRTOvGsV57pqNOogp9QoisZxb7TG
+gkCufD0Yeq/euTC5w8XOMfbEUZCK39n9sxggT96KLFcTPOn+WbCqov09O37r847NiVNRG+mneetAjp9mSZEuhVHYKulqWRTOvGsV58pqNOogp9QoisZxb7TG
 8T7uVedbbFKMySQBEZpSXoN08kpX9FHnu9KVDHlElF9Vp638kjtx5QSnxSseNC54QDLipsC9l8KidGqsYjTzVEIUyJxQNzgWMs6OgfscQWHdLBDHvJlQsm8W
 aPF3/Qhejaq38zitoffIgXHIzEFmh3vHAasPWXGxXs9CSns81+rAOE5aO9y1AvxqcF/yAvCVB69zA28kfNK5m1PkDo92d/hkgq3t8HyuQTy/offRAYQjGro8
 vWO1ie20w13ziJnGCPcMVq8XC88c2Jw/0I3mgJ1rEwkz2EUpg1WtutfUNKJmeDsrGDzeRR64tl0498B9ZpoK1yWDf0D2Mwe/9LahUwdttL0uiEBCjPoNMg8l
