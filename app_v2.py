@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.68"
+APP_BUILD_VERSION = "V2.21.69"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding Historical NAV Premium/Discount Calibration Guard V64"
+    f"Build {APP_BUILD_VERSION} · Listed Holding Archive-First Historical NAV Series Guard V65"
 )
 
 
@@ -46,9 +46,11 @@ st.caption(
 # V2.21.60: Listed Holding Primary HTML NAV & Portfolio Fact Recovery Guard V56. Adds issuer-owned press/news archive navigation as the preferred NAV recovery before web search, and derives portfolio concentration from an already verified issuer-primary report market-value table when static website holdings are unavailable. Search/archive pages remain discovery only; NAV values require the concrete issuer release page. No ticker-specific valuation branch or hard-coded company values. Bank model, released valuation mathematics, Reality Check and signals remain unchanged; Fair Value stays fail-closed.
 # V2.21.62: Listed Holding NAV Token Fallback & Evidence Trace Guard V58. Keeps V58 portfolio/debt recovery unchanged and hardens only NAV extraction from issuer-owned HTML. Visible DOM text is Unicode-normalized (including zero-width/soft-hyphen cleanup); a bounded token fallback can recover NAV when CMS separators sit between label, currency, value and per-share wording. Failed issuer-release parses expose compact marker/currency/per-share/number probes so future failures are diagnosable without accepting search snippets as valuation evidence. No issuer/ticker constants or hard-coded company values are added. Fair Value remains fail-closed pending separate target premium/discount calibration; Bank model, released valuation mathematics, Reality Check and signals are unchanged.
 # V2.21.64: Listed Holding Full-DOM NAV Candidate Ranking Guard V60. Fixes the remaining issuer-HTML NAV miss exposed by V59 diagnostics: CMS release pages can render dozens of NAV labels in navigation/archive blocks, while the production parser inspected only the first 12 label positions. V60 evaluates every bounded NAV-label window and lets local NAV evidence (currency/value + per-share wording + date/source context) determine the best record instead of DOM order. Diagnostics also count locally eligible NAV windows. Portfolio/debt recovery, family routing, Bank model, released valuation mathematics, Reality Check and signals remain unchanged; no issuer/ticker constants or hard-coded company values are introduced and Fair Value remains fail-closed pending target premium/discount calibration.
+# V2.21.69: Listed Holding Archive-First Historical NAV Series Guard V65. Fixes the first historical-calibration live test, where a large NAV-link set already present in article/CMS navigation incorrectly suppressed a fetch of the issuer press-release index, leaving only one paired NAV/closing-price observation. V65 always visits a bounded issuer-owned archive/index candidate before historical release selection, derives generic parent/year archive candidates from concrete NAV-release URLs, filters historical candidates to concrete dated NAV releases, and records candidate/fetch/paired counts. The historical layer remains calibration evidence only: no target premium/discount, Fair Value, zone or signal is released. No issuer/ticker constants or hard-coded company values are introduced.
+# V2.21.68: Listed Holding Historical NAV Premium/Discount Calibration Guard V64.
 # V2.21.65: Listed Holding Snapshot-Date Coherence & Freshest Evidence Guard V61. Keeps the now-working NAV parser unchanged and hardens only holding snapshot provenance. Debt/gearing discovery evaluates all bounded priority-report candidates instead of stopping on the first valid ratio, then keeps the newest issuer-primary reporting date. Portfolio candidates are ranked by reporting date before holding-count completeness, and a stale/missing homepage portfolio date triggers one bounded issuer-primary portfolio refresh instead of suppressing the dedicated portfolio page. Diagnostics expose NAV/debt/portfolio as-of dates and refresh status. No issuer/ticker constants or hard-coded company values are introduced; Fair Value and target premium/discount remain fail-closed. Bank model, released valuation mathematics, Reality Check and signals are unchanged.
 # V2.21.66: Listed Holding Portfolio Evidence-Cluster Date Binding Guard V62. Fixes the remaining portfolio provenance mismatch exposed by V61: holdings weights can come from the correct issuer table while the date parser anchors to an earlier navigation/CMS section labeled Portfolio. V62 binds the portfolio as-of date to the densest local DOM cluster containing the actually accepted holding names, then searches only a narrow surrounding window for the reporting date. The legacy section-date parser remains fallback-only. NAV, debt/gearing, portfolio weights and valuation gates are unchanged; Fair Value and target premium/discount remain fail-closed. No issuer/ticker constants or hard-coded company values are introduced.
-# V2.21.68: Listed Holding Historical NAV Premium/Discount Calibration Guard V64. Extends the issuer-primary holding model with a bounded historical calibration layer. The adapter follows issuer-owned NAV releases already exposed by the verified press-release archive, pairs each NAV/share observation only with the issuer-reported closing price for the same listed share class, and derives a robust historical premium/discount distribution (median, interquartile band, min/max and observation span). Search snippets and market-data backfills are not accepted as calibration evidence. The historical median is diagnostic calibration evidence only: it does not become a target premium/discount, does not unlock Fair Value and does not change signals. No issuer/ticker constants or hard-coded company values are introduced.
+# V2.21.68: Listed Holding Historical NAV Premium/Discount Calibration Guard V65. Extends the issuer-primary holding model with a bounded historical calibration layer. The adapter follows issuer-owned NAV releases already exposed by the verified press-release archive, pairs each NAV/share observation only with the issuer-reported closing price for the same listed share class, and derives a robust historical premium/discount distribution (median, interquartile band, min/max and observation span). Search snippets and market-data backfills are not accepted as calibration evidence. The historical median is diagnostic calibration evidence only: it does not become a target premium/discount, does not unlock Fair Value and does not change signals. No issuer/ticker constants or hard-coded company values are introduced.
 # V2.21.67: Listed Holding Portfolio Following-Date Provenance Guard V63. Corrects the final V62 portfolio-date ambiguity: when a holdings cluster sits below a newer NAV/share date on the same issuer page, choosing the maximum date inside a local window can attach the NAV date to the portfolio weights. V63 binds the portfolio snapshot first to the nearest parseable date immediately following the final accepted holding row; only if no such following date exists does it fall back to the nearest preceding local date, then to the legacy section parser. Portfolio weights, NAV, debt/gearing, valuation gates and Fair Value lock remain unchanged. No issuer/ticker constants or hard-coded company values are introduced.
 # V2.21.58: Listed Holding Independent Evidence Budgets & Timing Diagnostics V54. Replaces the single shared listed-holding countdown with bounded, independent phase budgets for canonical homepage, issuer-primary report/debt, NAV recovery and portfolio recovery, plus a separate overall safety cap. Slow report/PDF work can no longer consume the later NAV/portfolio windows. Adds per-phase elapsed-time diagnostics so live runs show where network time is spent. The working issuer-PDF debt/gearing bridge, all holding parsers, family routing, Bank model, released valuation mathematics, Reality Check and signals are unchanged; Fair Value remains fail-closed pending justified target NAV premium/discount calibration.
 # V2.21.48: Universal Bank CET1 Row & Q4 Publication Metadata Guard V44. Period-aligned Standardized CET1 rows outrank generic CET1 narrative/footnote matches; trusted-Q4 current-quarter documents with missing publication metadata get one bounded issuer-domain results-detail metadata retry with exact quarter/results identity validation. The retry is metadata-only and cannot alter valuation evidence. No issuer/ticker exception is added. EPS normalization, Bank Score scoring thresholds, regulatory CET1 buffer mathematics, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -7828,7 +7830,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     # V2.21.58 gives each evidence class its own bounded budget. The overall
     # safety cap prevents runaway research, but elapsed time in one class does
     # not shrink the next class's local window.
-    overall_deadline = started_at + 24.0
+    overall_deadline = started_at + 30.0
     timings = {"bootstrap": 0.0, "homepage": 0.0, "report": 0.0, "nav": 0.0, "portfolio": 0.0, "history": 0.0, "fallback": 0.0}
 
     def _evidence_deadline(seconds):
@@ -7850,11 +7852,11 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         if company_domain:
             raw_website = f"https://{company_domain}/"
             result["diagnostics"].append(
-                f"Holding Primary Source V64: Issuer-Domain aus wiederholten Company-Identity-Suchtreffern verifiziert ({company_domain})."
+                f"Holding Primary Source V65: Issuer-Domain aus wiederholten Company-Identity-Suchtreffern verifiziert ({company_domain})."
             )
         else:
             result["diagnostics"].append(
-                "Holding Primary Source V64: Provider-Website fehlt und kein ausreichend verifizierter Issuer-Domain-Bootstrap gelungen."
+                "Holding Primary Source V65: Provider-Website fehlt und kein ausreichend verifizierter Issuer-Domain-Bootstrap gelungen."
             )
             return result
     parsed = urlparse(raw_website if "://" in raw_website else "https://" + raw_website)
@@ -7968,7 +7970,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 html = doc.get("text") or ""
                 resolved = doc.get("url") or url
                 result["diagnostics"].append(
-                    f"Holding Primary PDF Bridge V64: issuer-eigener Reporttext geladen ({len(html)} Zeichen)."
+                    f"Holding Primary PDF Bridge V65: issuer-eigener Reporttext geladen ({len(html)} Zeichen)."
                 )
                 nonlocal portfolio_best
                 report_port = _holding_extract_portfolio_from_report_text(html, resolved)
@@ -8186,7 +8188,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                     break
         _timed_bucket("nav", nav_started)
         result["diagnostics"].append(
-            f"Holding Issuer-Archive NAV Recovery V64: NAV-Links={archive_hits}, "
+            f"Holding Issuer-Archive NAV Recovery V65: NAV-Links={archive_hits}, "
             f"ReleaseFetch={nav_release_fetch_success}/{nav_release_fetch_attempts}, Marker={nav_release_marker_pages}, "
             f"NAV={'ja' if nav_records else 'nein'}" +
             ((" · ParseProbe=" + "; ".join(nav_release_parse_probes)) if (not nav_records and nav_release_parse_probes) else "") + "."
@@ -8307,7 +8309,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
     if any(semantic_counts.values()):
         result["diagnostics"].append(
-            "Holding Independent-Evidence Recovery V64: "
+            "Holding Independent-Evidence Recovery V65: "
             f"NAV-Treffer={semantic_counts['nav']}, "
             f"Portfolio-Treffer={semantic_counts['portfolio']}, "
             f"Report-Treffer={semantic_counts['report']}; "
@@ -8345,39 +8347,99 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                     break
         _timed_bucket("fallback", fallback_started)
 
-    # V64: issuer-primary historical NAV premium/discount evidence.  This is
+    # V65: issuer-primary historical NAV premium/discount evidence.  This is
     # calibration evidence only; it must never unlock Fair Value by itself.
     history_started = time.monotonic()
     history_records = []
+    history_archive_fetches = 0
+    history_candidate_count = 0
+    history_release_attempts = 0
+    history_release_parsed = 0
+
+    def _concrete_nav_release_link(url, label):
+        """True only for a dated issuer NAV-release/article candidate, not generic NAV navigation."""
+        hay = _holding_fold_text(" ".join([label or "", str(url or "").replace("-", " ").replace("_", " ")]))
+        if not any(term in hay for term in ["net asset value on", "substansvarde", "substansvardet"]):
+            return False
+        # Article/release links should carry a date in label or URL. This rejects
+        # generic NAV landing pages that polluted the V64 historical top-N list.
+        if re.search(r"\b20\d{2}\b", hay):
+            return True
+        return bool(re.search(r"\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\b", hay))
+
+    def _derived_archive_index_urls():
+        """Derive generic issuer-owned parent/year archive pages from concrete NAV release URLs."""
+        candidates = []
+        for u, lab in dedupe_sorted(archive_links):
+            candidates.append((u, lab or "issuer archive"))
+        source_urls = []
+        source_urls.extend([r.get("source_url") for r in nav_records if r and r.get("source_url")])
+        source_urls.extend([u for u, _ in dedupe_sorted(nav_links)[:12]])
+        seen = {u for u, _ in candidates}
+        for source_url in source_urls:
+            try:
+                parsed_u = urlparse(source_url or "")
+                if not parsed_u.scheme or not parsed_u.netloc or not _holding_same_issuer_url(source_url, company_domain):
+                    continue
+                parts = [p for p in (parsed_u.path or "/").split("/") if p]
+                if len(parts) < 2:
+                    continue
+                # Drop concrete article/file slug. Parent is commonly a year archive.
+                parent_parts = parts[:-1]
+                parent_path = "/" + "/".join(parent_parts) + "/"
+                parent_url = f"{parsed_u.scheme}://{parsed_u.netloc}{parent_path}"
+                if parent_url not in seen:
+                    seen.add(parent_url); candidates.append((parent_url, "derived parent archive"))
+                # If parent ends in a four-digit year, also visit its collection root.
+                if parent_parts and re.fullmatch(r"20\d{2}", parent_parts[-1]):
+                    root_parts = parent_parts[:-1]
+                    if root_parts:
+                        root_path = "/" + "/".join(root_parts) + "/"
+                        root_url = f"{parsed_u.scheme}://{parsed_u.netloc}{root_path}"
+                        if root_url not in seen:
+                            seen.add(root_url); candidates.append((root_url, "derived archive root"))
+            except Exception:
+                continue
+        return candidates
+
     if nav_records:
         # Reuse already parsed NAV releases first.
         for rec in nav_records:
             if rec and rec.get("as_of_date_obj") and (rec.get("same_date_class_prices") or {}):
                 history_records.append(rec)
 
-        history_slot_end = _evidence_deadline(5.8)
+        history_slot_end = _evidence_deadline(10.5)
         if history_slot_end is not None:
-            # Ensure one verified issuer press-release archive has been visited so
-            # the link set contains more than only the current NAV release.
-            if len(dedupe_sorted(nav_links)) < 6:
-                for archive_url, _ in dedupe_sorted(archive_links)[:2]:
-                    if not _research_budget_ok(history_slot_end, reserve=2.2):
-                        break
-                    ahtml = fetch(archive_url, referer=canonical_url, phase_deadline=history_slot_end)
-                    collect_links(archive_url, ahtml)
-                    if len(dedupe_sorted(nav_links)) >= 6:
-                        break
+            # V65 is archive-first: a pre-existing CMS NAV-link count is not proof
+            # that the historical release index has been visited. Fetch up to two
+            # verified issuer-owned index candidates before ranking release links.
+            for archive_url, _ in _derived_archive_index_urls()[:4]:
+                if history_archive_fetches >= 2 or not _research_budget_ok(history_slot_end, reserve=5.0):
+                    break
+                ahtml = fetch(archive_url, referer=canonical_url, phase_deadline=history_slot_end)
+                if not ahtml:
+                    continue
+                history_archive_fetches += 1
+                collect_links(archive_url, ahtml)
+                strict_now = [(u, l) for u, l in dedupe_sorted(nav_links) if _concrete_nav_release_link(u, l)]
+                # Six dated release candidates are enough for the first robust series.
+                if len(strict_now) >= 6:
+                    break
 
+            strict_candidates = [(u, l) for u, l in dedupe_sorted(nav_links) if _concrete_nav_release_link(u, l)]
+            history_candidate_count = len(strict_candidates)
             seen_hist_urls = {r.get("source_url") for r in history_records if r.get("source_url")}
-            for hist_url, _ in dedupe_sorted(nav_links)[:10]:
+            for hist_url, _ in strict_candidates[:14]:
                 if hist_url in seen_hist_urls:
                     continue
-                if not _research_budget_ok(history_slot_end, reserve=0.30):
+                if not _research_budget_ok(history_slot_end, reserve=0.35):
                     break
+                history_release_attempts += 1
                 hhtml = fetch(hist_url, referer=canonical_url, phase_deadline=history_slot_end)
                 hrec = _holding_extract_nav_record(hhtml, hist_url)
                 if not hrec:
                     continue
+                history_release_parsed += 1
                 seen_hist_urls.add(hist_url)
                 # A concrete issuer release is also a richer candidate for the
                 # current NAV provenance (publication date + paired class price)
@@ -8385,11 +8447,13 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 nav_records.append(hrec)
                 if hrec.get("as_of_date_obj") and (hrec.get("same_date_class_prices") or {}):
                     history_records.append(hrec)
-                # Six issuer-paired observations are enough to expose a first
-                # robust median without turning startup into an archive crawl.
                 unique_dates = {r.get("as_of_date_obj") for r in history_records if r.get("as_of_date_obj")}
-                if len(unique_dates) >= 8:
-                    break
+                # Stop once the readiness requirement is satisfied; this keeps
+                # startup bounded while still producing a statistically useful span.
+                if len(unique_dates) >= 6:
+                    dts = [d for d in unique_dates if d]
+                    if len(dts) >= 2 and (max(dts) - min(dts)).days >= 150:
+                        break
 
     # Deduplicate by NAV date, keeping the richer record if the same release was
     # reachable through more than one issuer URL.
@@ -8407,7 +8471,9 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     _timed_bucket("history", history_started)
     if result.get("nav_history"):
         result["diagnostics"].append(
-            f"Holding Historical NAV Calibration V64: issuer-primary paired NAV/close records={len(result.get('nav_history') or [])}; "
+            f"Holding Historical NAV Calibration V65: ArchiveFetch={history_archive_fetches}, "
+            f"Candidates={history_candidate_count}, ReleaseFetch={history_release_attempts}, Parsed={history_release_parsed}, "
+            f"paired NAV/close records={len(result.get('nav_history') or [])}; "
             "share-class matching and distribution statistics are applied only in the specialist model."
         )
 
@@ -8436,7 +8502,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     debt_refresh_txt = "ja" if debt_refresh_requested else "nein"
     debt_refresh_improved = bool(debt_refresh_after and (not debt_refresh_before or debt_refresh_after > debt_refresh_before))
     result["diagnostics"].append(
-        "Holding Snapshot-Date Coherence V64: "
+        "Holding Snapshot-Date Coherence V65: "
         f"NAV={nav_dt} · Debt={debt_dt} · Portfolio={portfolio_dt} · "
         f"DebtRefresh={debt_refresh_txt}/{('verbessert' if debt_refresh_improved else 'unveraendert')} · "
         f"PortfolioRefresh={refresh_txt}/{('verbessert' if refresh_improved else 'unveraendert')} · "
@@ -8444,13 +8510,13 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     )
 
     result["diagnostics"].append(
-        "Holding Primary Source V64: "
+        "Holding Primary Source V65: "
         f"Domain={company_domain}, ProviderWebsite={'ja' if website else 'nein'}, Seiten={len([v for v in fetched.values() if v])}, "
         f"NAV={'ja' if result.get('nav') else 'nein'}, DebtRatio={'ja' if result.get('debt') else 'nein'}, "
         f"Portfolio={'ja' if result.get('portfolio') else 'nein'}, HistoryNAV={len(result.get('nav_history') or [])}, SafetyRest={safety_remaining:.2f}s."
     )
     result["diagnostics"].append(
-        "Holding Timing V64: "
+        "Holding Timing V65: "
         f"Bootstrap={timings['bootstrap']:.2f}s · Homepage={timings['homepage']:.2f}s · "
         f"Report={timings['report']:.2f}s · NAV={timings['nav']:.2f}s · "
         f"Portfolio={timings['portfolio']:.2f}s · History={timings['history']:.2f}s · "
@@ -8460,7 +8526,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22168_listed_holding_historical_nav_calibration_v64"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22169_listed_holding_archive_first_history_v65"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
@@ -8632,7 +8698,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "historical_nav_observations": historical_calibration.get("observations") or [],
         "historical_nav_calibration_ready": bool(historical_calibration.get("ready")),
         "historical_nav_median_premium_discount_pct": safe_float(historical_calibration.get("median_pct")),
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Historical Calibration V64",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Historical Calibration V65",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
@@ -56330,6 +56396,12 @@ if selected_symbol:
                                 "Der historische Median ist noch **kein Ziel-Premium/Discount**. Er dient nur als robuste Kalibrierungsevidenz; "
                                 "Holdingkosten, Leverage, Konzentration und später Peer-Evidenz müssen den Zielwert erst begründen."
                             )
+                            hist_diag_lines_h = [
+                                str(x) for x in (snap_h.get("diagnostics") or [])
+                                if "Historical NAV Calibration V65" in str(x)
+                            ]
+                            if hist_diag_lines_h:
+                                st.caption("Historik-Adapter: " + hist_diag_lines_h[-1])
                         else:
                             st.caption("Historische issuer-primary NAV-Premium/Discount-Reihe noch nicht ausreichend verfügbar.")
                         st.success("Holding-NAV-Primärdatenmodell aktiv: NAV, aktueller Premium/Discount und historische issuer-primary Kalibrierung sind getrennt vom EPS/KGV-Pfad verfügbar.")
