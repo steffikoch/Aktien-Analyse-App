@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.75"
+APP_BUILD_VERSION = "V2.21.76"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding Cost-Source Discovery & Table-Shape Guard V71"
+    f"Build {APP_BUILD_VERSION} · Listed Holding Management-Cost Semantic Series Validation Guard V72"
 )
 
 
@@ -7669,9 +7669,20 @@ def _holding_extract_management_cost_ratio(html, url):
     if not ordered:
         return None
 
+    # V72 semantic/evidence guard: accounting-policy pages can mention
+    # "management cost" next to unrelated percentages (for example tax/VAT
+    # rates). A recurring holding-cost series is accepted only when the source
+    # supplies a genuine multi-year ratio series with at least three distinct
+    # years. Single-value/flat false positives must not satisfy the guard.
+    if len(ordered) < 3 or sum(1 for x in ordered if x.get("year") is not None) < 3:
+        return None
+    distinct_vals = {round(float(x.get("cost_pct")), 6) for x in ordered if safe_float(x.get("cost_pct")) is not None}
+    if len(distinct_vals) < 2:
+        return None
+
     latest = ordered[0]
     recent_vals = [safe_float(x.get("cost_pct")) for x in ordered[:5] if safe_float(x.get("cost_pct")) is not None]
-    if not recent_vals:
+    if len(recent_vals) < 3:
         return None
     recent_ser = pd.Series(recent_vals, dtype="float64")
     return {
@@ -8190,6 +8201,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     cost_candidate_count = 0
     cost_fetch_attempts = 0
     cost_parse_success = 0
+    cost_semantic_rejections = 0
 
     def _latest_debt_date(records):
         dates = [r.get("as_of_date_obj") for r in (records or []) if r and r.get("as_of_date_obj")]
@@ -8565,6 +8577,8 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 cost_fetch_attempts += 1
                 html = fetch(url, referer=canonical_url, phase_deadline=slot_end)
                 rec = _holding_extract_management_cost_ratio(html, url)
+                if not rec:
+                    cost_semantic_rejections += 1
                 if rec:
                     cost_parse_success += 1
                     holding_cost_records.append(rec)
@@ -8632,6 +8646,8 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             cost_fetch_attempts += 1
             chtml = fetch(url, referer=canonical_url, phase_deadline=cost_slot_end)
             crec = _holding_extract_management_cost_ratio(chtml, url)
+            if not crec:
+                cost_semantic_rejections += 1
             if crec:
                 cost_parse_success += 1
                 holding_cost_records.append(crec)
@@ -8645,8 +8661,8 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             _semantic_search_and_fetch("cost", cost_slot_end, query_offset=2, fetch_limit=1)
     _timed_bucket("cost", cost_started)
     result["holding_cost_adapter_diagnostic"] = (
-        f"Holding Management-Cost Adapter V71: Candidates={cost_candidate_count}, "
-        f"Fetch={cost_fetch_attempts}, Parsed={cost_parse_success}, "
+        f"Holding Management-Cost Adapter V72: Candidates={cost_candidate_count}, "
+        f"Fetch={cost_fetch_attempts}, Parsed={cost_parse_success}, SemanticReject={cost_semantic_rejections}, "
         f"Evidence={'yes' if holding_cost_records else 'no'}"
     )
 
@@ -9008,7 +9024,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22175_listed_holding_cost_source_discovery_v71"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22176_listed_holding_cost_source_discovery_v71"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
@@ -9221,7 +9237,7 @@ def _holding_build_justified_nav_target_diagnostic(historical_calibration, debt_
         "release_blockers": blockers,
         "double_count_guard": (
             "Historischer Median enthält normale Holdingkosten und Struktur bereits teilweise. "
-            "V71 verwendet die issuer-primary Kostenquote deshalb nur als Abweichungs-Guard gegen die eigene Mehrjahresnorm; "
+            "V72 verwendet die issuer-primary Kostenquote deshalb nur als Abweichungs-Guard gegen die eigene Mehrjahresnorm; "
             "eine normale/niedrige Kostenquote erhält 0,00 pp und wird nicht nochmals kapitalisiert."
         ),
         "method": "Historical median + bounded current-risk overlays + issuer-primary own-history management-cost guard; peer guard required before release",
