@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.53"
+APP_BUILD_VERSION = "V2.21.54"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding Fetch & Publication Provenance Guard V49"
+    f"Build {APP_BUILD_VERSION} · Listed Holding Issuer-Domain Bootstrap & Semantic Source Recovery V50"
 )
 
 
@@ -40,6 +40,7 @@ st.caption(
 # V2.21.51: Listed Investment Holding Family Router V47. Separates principal-capital listed investment/holding companies from fee-based Asset Management by business-model evidence. Client AUM/advisory/management-fee signals keep the existing Asset-Manager route; own-portfolio/active-ownership/listed-holding signals route to a new fail-closed NAV family. No NAV Fair Value is released in this build. Security search, bank model, all released specialist scores/multiples/Fair Values, Reality Check and signal mathematics are unchanged.
 # V2.21.52: Listed Investment Holding Primary NAV Model V48. Adds a reusable issuer-primary data layer for listed principal-capital holding companies: latest reported NAV per share + NAV date/publication metadata, current price/NAV premium-discount, latest holding-level debt-equities/gearing ratio when available, and portfolio concentration diagnostics from issuer-owned pages. The model remains fail-closed for Fair Value because no justified target NAV premium/discount has yet been calibrated; generic EPS/KGV/ROE/Yahoo-FCF math remains blocked. The implementation is business-model/primary-source driven and contains no Industrivärden ticker exception. Bank model, all released specialist valuations, Reality Check and signal mathematics are unchanged.
 # V2.21.53: Listed Holding Fetch & Publication Provenance Guard V49. Fixes the new holding-primary-source fetch wrapper: the shared _fetch_html helper returns (html, final_url), while V2.21.52 accidentally forwarded that tuple to BeautifulSoup as if it were raw HTML. The wrapper now unpacks the shared fetch contract, rejects cross-domain redirects, and caches only HTML text. It also prevents an unstructured NAV as-of date on a summary page from being reused as a synthetic publication date; structured page metadata remains authoritative and a text fallback is accepted only when it is later than the NAV as-of date. NAV/debt/portfolio values, family routing, all released valuation mathematics, Bank model, Reality Check and signals are unchanged. Fair Value remains fail-closed pending target NAV premium/discount calibration.
+# V2.21.54: Listed Holding Issuer-Domain Bootstrap & Semantic Source Recovery V50. Hardens only the new listed-holding primary-source discovery. The adapter no longer depends solely on Yahoo's optional website field or on a successfully parsed issuer homepage: when the direct issuer path yields no NAV, it performs a bounded semantic search for issuer-owned NAV, interim-report and portfolio pages, accepts only the same verified issuer-domain family, and can bootstrap the issuer domain from repeated company-identity-matching search results when the provider website is absent. A browser-header retry is allowed only for those issuer-owned HTML pages. Search snippets never become valuation evidence; NAV/debt/portfolio metrics still require fetched issuer-primary page content. Fair Value and target NAV premium/discount remain fail-closed. Bank model, all released valuation mathematics, Reality Check and signals are unchanged.
 # V2.21.48: Universal Bank CET1 Row & Q4 Publication Metadata Guard V44. Period-aligned Standardized CET1 rows outrank generic CET1 narrative/footnote matches; trusted-Q4 current-quarter documents with missing publication metadata get one bounded issuer-domain results-detail metadata retry with exact quarter/results identity validation. The retry is metadata-only and cannot alter valuation evidence. No issuer/ticker exception is added. EPS normalization, Bank Score scoring thresholds, regulatory CET1 buffer mathematics, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.47: Universal Bank Trusted Q4 Detail & Financials Bridge V43. Extends the issuer-neutral latest-quarter recovery for proven Q4 IR architectures whose press-release/archive cards are client-rendered and whose current-quarter PDFs moved from /files/doc_events/... to Q4's /files/doc_financials/<year>/q<quarter>/... structure. The adapter now probes a bounded Q4-style same-domain news-detail route generated from the exact issuer name + expected quarter/results identity and independently revalidates page identity before accepting publication metadata. In parallel, a trusted Q4 tenant may contribute bounded current-quarter /doc_financials/ sibling candidates copied from already issuer-proven prior-quarter filenames; downstream PDF payload gates still require expected-period + issuer identity before any document can enter the bank snapshot. No ticker/domain exception is added. EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.46: Universal Bank Proven IR News-Archive Bridge V42. Adds a deterministic issuer-neutral latest-quarter bridge for Q4-style IR sites when bounded web search returns no current-period hit. On already verified same-domain IR hosts, the adapter probes a small set of conventional news/press-release archive paths, follows only links whose own title/URL prove the exact expected quarter plus earnings/results semantics, captures the page-owned publication date, and then reuses the existing trusted Q4-tenant sibling derivation to recover the official release/supplement. This closes the U.S. Bancorp 2Q26 gap without ticker/domain exceptions and reduces dependence on search-engine indexing. Document trust, parser rules, EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -7330,18 +7331,127 @@ def _holding_link_rank(text):
     return dt.toordinal() if dt else 0
 
 
-def _discover_listed_holding_primary_snapshot(website):
-    result = {"available": False, "nav": None, "debt": None, "portfolio": None, "diagnostics": []}
-    company_domain = _extract_company_domain(website)
+def _holding_fold_text(value):
+    text = unicodedata.normalize("NFKD", _clean_text(value).lower())
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return re.sub(r"[^a-z0-9]+", " ", text).strip()
+
+
+def _holding_identity_terms(company_name):
+    folded = _holding_fold_text(company_name)
+    stop = {"ab", "publ", "inc", "corp", "corporation", "company", "co", "ltd", "limited", "plc", "ag", "sa", "se", "nv", "group", "holding", "holdings", "investment"}
+    return [t for t in folded.split() if len(t) >= 5 and t not in stop][:6]
+
+
+def _holding_search_result_matches_company(item, company_name):
+    terms = _holding_identity_terms(company_name)
+    if not terms:
+        return False
+    hay = _holding_fold_text(" ".join([
+        _clean_text((item or {}).get("title")),
+        _clean_text((item or {}).get("snippet")),
+        _clean_text((item or {}).get("url")),
+    ]))
+    return any(term in hay for term in terms)
+
+
+def _holding_bootstrap_company_domain(company_name, deadline=None):
+    """Resolve an issuer domain only from repeated identity-matching web results.
+
+    Search results are discovery metadata only; they never supply NAV/debt/portfolio
+    values.  The actual metrics still require a fetched issuer-owned page.
+    """
+    name = _clean_text(company_name)
+    if not name:
+        return None, []
+    queries = [
+        f'"{name}" "net asset value"',
+        f'"{name}" official website',
+    ]
+    excluded = (
+        "yahoo.", "reuters.", "bloomberg.", "marketscreener.", "morningstar.",
+        "simplywall.st", "marketwatch.", "google.", "wikipedia.", "nasdaq.com",
+        "businesswire.", "globenewswire.", "prnewswire.", "stockanalysis.",
+    )
+    rows = []
+    counts = {}
+    for query in queries:
+        for item in _duckduckgo_html_search(query, max_results=6, deadline=deadline):
+            if not _holding_search_result_matches_company(item, name):
+                continue
+            host = _normalize_host(item.get("url"))
+            if not host or any(x in host for x in excluded):
+                continue
+            rows.append(item)
+            counts[host] = counts.get(host, 0) + 1
+    if not counts:
+        return None, rows
+    ranked = sorted(counts.items(), key=lambda x: (x[1], -len(x[0])), reverse=True)
+    best_host, best_count = ranked[0]
+    # Require repetition unless there is only one high-confidence exact-domain result
+    # whose host itself carries a distinctive company identity term.
+    host_fold = _holding_fold_text(best_host).replace(" ", "")
+    identity_in_host = any(term in host_fold for term in _holding_identity_terms(name))
+    if best_count < 2 and not identity_in_host:
+        return None, rows
+    return best_host, rows
+
+
+def _holding_semantic_source_search(company_domain, company_name, deadline=None):
+    """Discover issuer-owned primary pages when homepage navigation is unavailable."""
     if not company_domain:
-        result["diagnostics"].append("Holding Primary Source: keine verifizierbare Unternehmenswebsite verfügbar.")
-        return result
-    parsed = urlparse(str(website or "").strip())
+        return {"nav": [], "report": [], "portfolio": [], "all": []}
+    name = _clean_text(company_name)
+    queries = [
+        ("nav", f'site:{company_domain} "{name}" "net asset value"'),
+        ("nav", f'site:{company_domain} "net asset value" "per share"'),
+        ("report", f'site:{company_domain} "{name}" "interim report"'),
+        ("portfolio", f'site:{company_domain} "{name}" portfolio holdings'),
+    ]
+    out = {"nav": [], "report": [], "portfolio": [], "all": []}
+    seen = set()
+    for kind, query in queries:
+        for item in _duckduckgo_html_search(query, max_results=6, deadline=deadline):
+            url = _clean_text(item.get("url"))
+            if not url or url in seen or not _holding_same_issuer_url(url, company_domain):
+                continue
+            if name and not _holding_search_result_matches_company(item, name):
+                # Same issuer domain is already strong provenance; allow semantic
+                # pages whose title/snippet is generic (e.g. "Press Releases").
+                semantic = _holding_fold_text(" ".join([_clean_text(item.get("title")), _clean_text(item.get("snippet"))]))
+                if not any(term in semantic for term in ["net asset value", "interim report", "portfolio", "holdings"]):
+                    continue
+            seen.add(url)
+            row = (url, _clean_text(item.get("title")) or _clean_text(item.get("snippet")))
+            out[kind].append(row)
+            out["all"].append(row)
+    return out
+
+
+def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol=None):
+    result = {"available": False, "nav": None, "debt": None, "portfolio": None, "diagnostics": []}
+    deadline = time.monotonic() + 9.0
+    raw_website = _clean_text(website)
+    company_domain = _extract_company_domain(raw_website)
+    bootstrap_rows = []
+    if not company_domain:
+        company_domain, bootstrap_rows = _holding_bootstrap_company_domain(company_name, deadline=deadline)
+        if company_domain:
+            raw_website = f"https://{company_domain}/"
+            result["diagnostics"].append(
+                f"Holding Primary Source V50: Issuer-Domain aus wiederholten Company-Identity-Suchtreffern verifiziert ({company_domain})."
+            )
+        else:
+            result["diagnostics"].append(
+                "Holding Primary Source V50: Provider-Website fehlt und kein ausreichend verifizierter Issuer-Domain-Bootstrap gelungen."
+            )
+            return result
+    parsed = urlparse(raw_website if "://" in raw_website else "https://" + raw_website)
     scheme = parsed.scheme or "https"
     host = parsed.netloc or company_domain
     root = f"{scheme}://{host}".rstrip("/")
     initial_urls = []
-    for url in [str(website or "").strip(), root + "/", root + "/en-gb", root + "/en-GB", root + "/en"]:
+    for url in [raw_website, root + "/", root + "/en-gb", root + "/en-GB", root + "/en"]:
         if url and url not in initial_urls and _holding_same_issuer_url(url, company_domain):
             initial_urls.append(url)
     fetched = {}
@@ -7353,14 +7463,36 @@ def _discover_listed_holding_primary_snapshot(website):
     def fetch(url):
         if not url or url in fetched:
             return fetched.get(url)
-        # V2.21.53: shared _fetch_html returns (html, final_url).  V2.21.52
-        # accidentally passed that tuple to the holding parsers as if it were raw
-        # HTML, causing NAV/debt/portfolio discovery to fail together.  Unpack the
-        # shared contract and retain issuer-domain provenance after redirects.
-        html, final_url = _fetch_html(url, timeout=3.5)
+        html, final_url = _fetch_html(url, timeout=4.8, deadline=deadline)
         resolved = final_url or url
         if resolved and not _holding_same_issuer_url(resolved, company_domain):
             html = ""
+        # V2.21.54: some issuer CMS/WAF configurations reject a minimalist GET
+        # while accepting a normal browser navigation. Retry once, but only for
+        # the already verified issuer-domain family.
+        if not html and _holding_same_issuer_url(url, company_domain) and _research_budget_ok(deadline, reserve=0.8):
+            effective_timeout = _bounded_timeout(deadline, 4.8)
+            if effective_timeout is not None:
+                try:
+                    headers = dict(_request_headers())
+                    headers.update({
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                        "Accept-Language": "en-US,en;q=0.9,sv;q=0.7",
+                        "Cache-Control": "no-cache",
+                    })
+                    response = requests.get(
+                        url, headers=headers,
+                        timeout=(min(2.2, effective_timeout), effective_timeout),
+                        allow_redirects=True,
+                    )
+                    response.raise_for_status()
+                    ctype = (response.headers.get("Content-Type") or "").lower()
+                    retry_resolved = response.url or url
+                    if ("html" in ctype or "text" in ctype or "xml" in ctype) and _holding_same_issuer_url(retry_resolved, company_domain):
+                        html = response.text[:1_500_000]
+                        resolved = retry_resolved
+                except Exception:
+                    pass
         fetched[url] = html
         if html and resolved != url:
             fetched[resolved] = html
@@ -7409,6 +7541,28 @@ def _discover_listed_holding_primary_snapshot(website):
         html = fetch(url)
         collect_links(url, html)
 
+    # V2.21.54: if homepage/archive navigation did not expose a usable NAV,
+    # discover exact issuer-owned primary pages semantically. Search results
+    # contribute URLs only; all metrics still require fetched issuer HTML.
+    semantic_rows = {"nav": [], "report": [], "portfolio": [], "all": []}
+    if not nav_records and _research_budget_ok(deadline, reserve=1.2):
+        semantic_rows = _holding_semantic_source_search(company_domain, company_name, deadline=deadline)
+        nav_links.extend(semantic_rows.get("nav") or [])
+        report_links.extend(semantic_rows.get("report") or [])
+        for url, label in semantic_rows.get("portfolio") or []:
+            html = fetch(url)
+            if html:
+                collect_links(url, html)
+                port = _holding_extract_portfolio(html, url)
+                if port and (portfolio_best is None or int(port.get("holding_count") or 0) > int(portfolio_best.get("holding_count") or 0)):
+                    portfolio_best = port
+        result["diagnostics"].append(
+            "Holding Semantic Primary-Source Recovery V50: "
+            f"NAV-Treffer={len(semantic_rows.get('nav') or [])}, "
+            f"Report-Treffer={len(semantic_rows.get('report') or [])}, "
+            f"Portfolio-Treffer={len(semantic_rows.get('portfolio') or [])}."
+        )
+
     # Newest semantic links first; fetch only a bounded number.
     def dedupe_sorted(items):
         seen_urls = set(); out = []
@@ -7449,8 +7603,8 @@ def _discover_listed_holding_primary_snapshot(website):
     result["portfolio"] = portfolio_best
     result["available"] = bool(result.get("nav"))
     result["diagnostics"].append(
-        "Holding Primary Source V49: "
-        f"Domain={company_domain}, Seiten={len([v for v in fetched.values() if v])}, "
+        "Holding Primary Source V50: "
+        f"Domain={company_domain}, ProviderWebsite={'ja' if website else 'nein'}, Seiten={len([v for v in fetched.values() if v])}, "
         f"NAV={'ja' if result.get('nav') else 'nein'}, DebtRatio={'ja' if result.get('debt') else 'nein'}, "
         f"Portfolio={'ja' if result.get('portfolio') else 'nein'}."
     )
@@ -7458,15 +7612,16 @@ def _discover_listed_holding_primary_snapshot(website):
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, cache_epoch="v22153_listed_holding_html_fetch_contract_v49"):
-    return _discover_listed_holding_primary_snapshot(website)
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22154_listed_holding_domain_bootstrap_semantic_recovery_v50"):
+    return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
 def build_listed_investment_holding_specialist_model(company_type, fundamental_info, symbol, current_price, currency_context):
     if not is_listed_investment_holding_type(company_type):
         return {"applicable": False}
     website = (fundamental_info or {}).get("website")
-    discovery = _discover_listed_holding_primary_snapshot_cached(website)
+    company_name = (fundamental_info or {}).get("longName") or (fundamental_info or {}).get("shortName") or symbol
+    discovery = _discover_listed_holding_primary_snapshot_cached(website, company_name=company_name, symbol=symbol)
     nav = discovery.get("nav") or {}
     debt = discovery.get("debt") or {}
     portfolio = discovery.get("portfolio") or {}
@@ -7550,7 +7705,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "portfolio_source_url": portfolio.get("source_url"),
         "leverage_status": leverage_status,
         "concentration_status": concentration_status,
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Semantic Recovery V50",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
@@ -55213,6 +55368,9 @@ if selected_symbol:
                         st.success("Holding-NAV-Primärdatenmodell aktiv: NAV und aktueller Premium/Discount sind belastbar getrennt vom EPS/KGV-Pfad verfügbar.")
                     else:
                         st.warning("Holding-NAV-Primärdaten nicht vollständig – Modell bleibt fail-closed.")
+                        diag_lines_h = snap_h.get("diagnostics") or []
+                        if diag_lines_h:
+                            st.caption("Adapter-Diagnose: " + " | ".join(str(x) for x in diag_lines_h[-6:]))
                     st.warning(
                         f"Fair Value bleibt in {APP_BUILD_VERSION} bewusst gesperrt: Der aktuelle Kurs/NAV-Abstand ist eine Diagnose, aber noch kein gerechtfertigter Ziel-Premium/Discount. "
                         "Der nächste Modellschritt muss Holdingkosten, Leverage, Portfoliokonzentration sowie historische/vergleichbare NAV-Premien oder -Discounts kalibrieren."
