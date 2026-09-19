@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.56"
+APP_BUILD_VERSION = "V2.21.57"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding Need-Aware Semantic Fetch & Budget Reservation Guard V52"
+    f"Build {APP_BUILD_VERSION} · Listed Holding Critical-Evidence Priority & Hard Budget Guard V53"
 )
 
 
@@ -43,6 +43,7 @@ st.caption(
 # V2.21.54: Listed Holding Issuer-Domain Bootstrap & Semantic Source Recovery V50. Hardens only the new listed-holding primary-source discovery. The adapter no longer depends solely on Yahoo's optional website field or on a successfully parsed issuer homepage: when the direct issuer path yields no NAV, it performs a bounded semantic search for issuer-owned NAV, interim-report and portfolio pages, accepts only the same verified issuer-domain family, and can bootstrap the issuer domain from repeated company-identity-matching search results when the provider website is absent. A browser-header retry is allowed only for those issuer-owned HTML pages. Search snippets never become valuation evidence; NAV/debt/portfolio metrics still require fetched issuer-primary page content. Fair Value and target NAV premium/discount remain fail-closed. Bank model, all released valuation mathematics, Reality Check and signals are unchanged.
 # V2.21.55: Listed Holding Primary-Link Priority & Budget Guard V51. Reorders only the listed-holding primary-source discovery so the first verified canonical issuer page immediately promotes exact NAV and interim-report links before locale/archive/semantic fallbacks can consume the bounded research budget. Report links may be recognized from issuer-owned report/PDF URL semantics and period labels even when the anchor text omits the words "Interim Report". Issuer-owned direct PDF reports use the existing signature-validated PDF text bridge, solely to feed the unchanged debt/gearing parser. A fixed fallback reserve prevents locale/archive/search crawling from starving already discovered primary NAV/report links. Search snippets remain discovery metadata only; NAV/debt/portfolio values still require fetched issuer-primary content. Fair Value and target NAV premium/discount remain fail-closed. Bank model, family routing, all released valuation mathematics, Reality Check and signals are unchanged.
 # V2.21.56: Listed Holding Need-Aware Semantic Fetch & Budget Reservation Guard V52. Changes only the final listed-holding semantic-recovery scheduler. It searches exclusively for evidence classes that are still missing, performs one focused issuer-domain query at a time, immediately fetches the best issuer-owned primary result before any next search can consume the budget, and reserves separate bounded fetch slots for NAV and portfolio evidence. A second NAV query is fallback-only after the first fetched primary page fails. The already working issuer-PDF debt/gearing bridge, parsers, family routing, released valuation mathematics, Bank model, Reality Check and signals are unchanged; search snippets remain discovery metadata only and Fair Value remains fail-closed pending justified target NAV premium/discount calibration.
+# V2.21.57: Listed Holding Critical-Evidence Priority & Hard Budget Guard V53. Reorders only the listed-holding primary-source scheduler: after the canonical issuer page and any already discovered primary NAV/report links, still-missing NAV is recovered before portfolio, and both critical evidence classes run before locale/archive fallbacks. Static portfolio reservation can no longer suppress a NAV attempt when the remaining budget is tight. Each critical/fallback phase receives its own bounded deadline, and fallback pages cannot run until NAV/portfolio have had their reserved first opportunity. The working issuer-PDF debt/gearing bridge, all holding parsers, family routing, Bank model, released valuation mathematics, Reality Check and signals are unchanged; Fair Value remains fail-closed pending justified target NAV premium/discount calibration.
 # V2.21.48: Universal Bank CET1 Row & Q4 Publication Metadata Guard V44. Period-aligned Standardized CET1 rows outrank generic CET1 narrative/footnote matches; trusted-Q4 current-quarter documents with missing publication metadata get one bounded issuer-domain results-detail metadata retry with exact quarter/results identity validation. The retry is metadata-only and cannot alter valuation evidence. No issuer/ticker exception is added. EPS normalization, Bank Score scoring thresholds, regulatory CET1 buffer mathematics, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.47: Universal Bank Trusted Q4 Detail & Financials Bridge V43. Extends the issuer-neutral latest-quarter recovery for proven Q4 IR architectures whose press-release/archive cards are client-rendered and whose current-quarter PDFs moved from /files/doc_events/... to Q4's /files/doc_financials/<year>/q<quarter>/... structure. The adapter now probes a bounded Q4-style same-domain news-detail route generated from the exact issuer name + expected quarter/results identity and independently revalidates page identity before accepting publication metadata. In parallel, a trusted Q4 tenant may contribute bounded current-quarter /doc_financials/ sibling candidates copied from already issuer-proven prior-quarter filenames; downstream PDF payload gates still require expected-period + issuer identity before any document can enter the bank snapshot. No ticker/domain exception is added. EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.46: Universal Bank Proven IR News-Archive Bridge V42. Adds a deterministic issuer-neutral latest-quarter bridge for Q4-style IR sites when bounded web search returns no current-period hit. On already verified same-domain IR hosts, the adapter probes a small set of conventional news/press-release archive paths, follows only links whose own title/URL prove the exact expected quarter plus earnings/results semantics, captures the page-owned publication date, and then reuses the existing trusted Q4-tenant sibling derivation to recover the official release/supplement. This closes the U.S. Bancorp 2Q26 gap without ticker/domain exceptions and reduces dependence on search-engine indexing. Document trust, parser rules, EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -7446,10 +7447,9 @@ def _holding_semantic_source_search(company_domain, company_name, deadline=None,
 def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol=None):
     result = {"available": False, "nav": None, "debt": None, "portfolio": None, "diagnostics": []}
     deadline = time.monotonic() + 9.0
-    # V2.21.56 retains the bounded reserve for already discovered primary
-    # links that have already been discovered. Locale/archive/semantic fallback
-    # may use the remainder only after those links have had first opportunity.
-    fallback_reserve_seconds = 2.4
+    # V2.21.57 uses phase-local deadlines. Critical NAV/portfolio evidence is
+    # scheduled before locale/archive fallbacks, so no global fallback reserve
+    # can suppress the NAV attempt under tight remaining time.
     raw_website = _clean_text(website)
     company_domain = _extract_company_domain(raw_website)
     bootstrap_rows = []
@@ -7458,11 +7458,11 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         if company_domain:
             raw_website = f"https://{company_domain}/"
             result["diagnostics"].append(
-                f"Holding Primary Source V52: Issuer-Domain aus wiederholten Company-Identity-Suchtreffern verifiziert ({company_domain})."
+                f"Holding Primary Source V53: Issuer-Domain aus wiederholten Company-Identity-Suchtreffern verifiziert ({company_domain})."
             )
         else:
             result["diagnostics"].append(
-                "Holding Primary Source V52: Provider-Website fehlt und kein ausreichend verifizierter Issuer-Domain-Bootstrap gelungen."
+                "Holding Primary Source V53: Provider-Website fehlt und kein ausreichend verifizierter Issuer-Domain-Bootstrap gelungen."
             )
             return result
     parsed = urlparse(raw_website if "://" in raw_website else "https://" + raw_website)
@@ -7535,7 +7535,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 html = doc.get("text") or ""
                 resolved = doc.get("url") or url
                 result["diagnostics"].append(
-                    f"Holding Primary PDF Bridge V52: issuer-eigener Reporttext geladen ({len(html)} Zeichen)."
+                    f"Holding Primary PDF Bridge V53: issuer-eigener Reporttext geladen ({len(html)} Zeichen)."
                 )
         else:
             html, final_url = _fetch_html(url, timeout=3.6, deadline=active_deadline)
@@ -7605,13 +7605,16 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             seen_urls.add(url); out.append((url, label))
         return out
 
-    def consume_priority_links(referer=None):
-        # NAV first, then the latest report. These are the two evidence classes
-        # that earlier builds could discover but starve behind locale/archive crawling.
+    def consume_priority_links(referer=None, phase_deadline=None):
+        # NAV first, then the latest report. V53 allows fallback callers to pass
+        # a phase-local deadline so a slow fallback cannot consume later budget.
+        active_deadline = phase_deadline if phase_deadline is not None else deadline
         for url, _ in dedupe_sorted(nav_links)[:3]:
             if any((r.get("source_url") == url) for r in nav_records):
                 continue
-            html = fetch(url, referer=referer)
+            if not _research_budget_ok(active_deadline, reserve=0.55):
+                break
+            html = fetch(url, referer=referer, phase_deadline=active_deadline)
             rec = _holding_extract_nav_record(html, url)
             if rec:
                 nav_records.append(rec)
@@ -7621,7 +7624,9 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         for url, _ in dedupe_sorted(report_links)[:2]:
             if any((r.get("source_url") == url) for r in debt_records):
                 continue
-            html = fetch(url, allow_pdf=True, referer=referer)
+            if not _research_budget_ok(active_deadline, reserve=0.55):
+                break
+            html = fetch(url, allow_pdf=True, referer=referer, phase_deadline=active_deadline)
             rec = _holding_extract_debt_ratio(html, url)
             if rec:
                 debt_records.append(rec)
@@ -7640,57 +7645,28 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         collect_links(canonical_url, html)
     consume_priority_links(referer=canonical_url)
 
-    # If a canonical page already carried portfolio weights, keep them. Otherwise
-    # a directly linked portfolio page gets one bounded opportunity before fallback.
-    if portfolio_best is None:
-        for url, _ in dedupe_sorted(portfolio_links)[:1]:
-            if not _research_budget_ok(deadline, reserve=fallback_reserve_seconds):
-                break
-            phtml = fetch(url, referer=canonical_url)
-            collect_links(url, phtml)
-            if portfolio_best is not None:
-                break
-
-    # Phase 2: locale fallbacks, but only while the reserve remains. After each
-    # page, promote newly discovered exact primary links immediately.
-    for url in locale_fallback_urls[:3]:
-        if nav_records and debt_records:
-            break
-        if not _research_budget_ok(deadline, reserve=fallback_reserve_seconds):
-            break
-        html = fetch(url)
-        if not html:
-            continue
-        rec = _holding_extract_nav_record(html, url)
-        if rec:
-            nav_records.append(rec)
-        collect_links(url, html)
-        consume_priority_links(referer=url)
-
-    # Phase 3: at most one archive hop. Newly exposed primary links again outrank
-    # any further crawling.
-    for url, _ in dedupe_sorted(archive_links)[:1]:
-        if nav_records and debt_records:
-            break
-        if not _research_budget_ok(deadline, reserve=fallback_reserve_seconds):
-            break
-        ahtml = fetch(url)
-        collect_links(url, ahtml)
-        consume_priority_links(referer=url)
-
-    # Phase 4 (V2.21.56): need-aware semantic recovery with immediate fetch.
-    # Each missing evidence class gets its own search/fetch slot. A successful
-    # search result is fetched before any later search is allowed to spend time.
+    # Phase 2 (V2.21.57): critical evidence first.  Locale/archive fallbacks
+    # are deliberately forbidden until still-missing NAV and portfolio have had
+    # a bounded first opportunity. NAV is the valuation anchor and therefore
+    # outranks portfolio when the remaining budget is tight.
     semantic_counts = {"nav": 0, "report": 0, "portfolio": 0}
 
-    def _search_deadline_with_fetch_reserve(slot_end, fetch_reserve=0.85, max_search_window=1.35):
+    def _hard_phase_end(max_window, reserve_after=0.0, min_window=0.65):
+        now = time.monotonic()
+        ceiling = deadline - max(0.0, float(reserve_after or 0.0))
+        phase_end = min(ceiling, now + max(float(min_window), float(max_window)))
+        if phase_end <= now + float(min_window):
+            return None
+        return phase_end
+
+    def _search_deadline_with_fetch_reserve(slot_end, fetch_reserve=0.85, max_search_window=1.20):
         now = time.monotonic()
         if slot_end is None:
             return None
-        latest_search_end = slot_end - max(0.35, float(fetch_reserve))
-        if latest_search_end <= now + 0.20:
+        latest_search_end = slot_end - max(0.55, float(fetch_reserve))
+        if latest_search_end <= now + 0.35:
             return None
-        return min(latest_search_end, now + max(0.35, float(max_search_window)))
+        return min(latest_search_end, now + max(0.45, float(max_search_window)))
 
     def _semantic_search_and_fetch(kind, slot_end, query_offset=0, fetch_limit=2):
         search_deadline = _search_deadline_with_fetch_reserve(slot_end)
@@ -7743,34 +7719,83 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             return portfolio_best is not None
         return False
 
-    # Reserve the final portfolio slot before NAV search. The reservation is
-    # conditional, so already complete evidence classes do not waste budget.
-    portfolio_reserve = 1.35 if portfolio_best is None else 0.0
-    report_reserve = 1.20 if (not debt_records and portfolio_best is not None) else 0.0
-
+    # NAV gets the first critical slot without a static portfolio reservation
+    # that could suppress the NAV attempt entirely. When enough time remains we
+    # keep a small tail for portfolio, but under tight budgets NAV still starts.
     if not nav_records:
-        nav_slot_end = max(time.monotonic(), deadline - portfolio_reserve - report_reserve)
-        _semantic_search_and_fetch("nav", nav_slot_end, query_offset=0, fetch_limit=2)
-        # Only if the first fetched primary candidates failed do we spend a
-        # second NAV query; this can never precede the first fetch.
-        if not nav_records and _research_budget_ok(nav_slot_end, reserve=0.75):
-            _semantic_search_and_fetch("nav", nav_slot_end, query_offset=1, fetch_limit=2)
+        remaining = _research_budget_left(deadline) or 0.0
+        tail_reserve = 1.05 if remaining >= 3.10 else (0.65 if remaining >= 2.35 else 0.0)
+        nav_slot_end = _hard_phase_end(2.65, reserve_after=tail_reserve, min_window=0.65)
+        if nav_slot_end is not None:
+            _semantic_search_and_fetch("nav", nav_slot_end, query_offset=0, fetch_limit=2)
+            # Second NAV query is strictly fallback-only and is skipped unless
+            # enough of the same NAV slot remains for another search + fetch.
+            if not nav_records and _research_budget_ok(nav_slot_end, reserve=1.35):
+                _semantic_search_and_fetch("nav", nav_slot_end, query_offset=1, fetch_limit=2)
 
-    if not debt_records:
-        debt_slot_end = max(time.monotonic(), deadline - (1.25 if portfolio_best is None else 0.0))
-        _semantic_search_and_fetch("report", debt_slot_end, query_offset=0, fetch_limit=1)
-
+    # Portfolio is second. A directly discovered issuer-owned portfolio link is
+    # cheaper and therefore preferred before a semantic search.
     if portfolio_best is None:
-        _semantic_search_and_fetch("portfolio", deadline, query_offset=0, fetch_limit=2)
+        portfolio_slot_end = _hard_phase_end(2.05, reserve_after=(0.70 if not debt_records else 0.0), min_window=0.65)
+        if portfolio_slot_end is not None:
+            for url, _ in dedupe_sorted(portfolio_links)[:1]:
+                if not _research_budget_ok(portfolio_slot_end, reserve=0.55):
+                    break
+                phtml = fetch(url, referer=canonical_url, phase_deadline=portfolio_slot_end)
+                collect_links(url, phtml)
+                if portfolio_best is not None:
+                    break
+            if portfolio_best is None and _research_budget_ok(portfolio_slot_end, reserve=1.20):
+                _semantic_search_and_fetch("portfolio", portfolio_slot_end, query_offset=0, fetch_limit=2)
+
+    # Debt is normally already satisfied by the immediate primary PDF bridge.
+    # Search for it only if still missing after NAV and portfolio had priority.
+    if not debt_records:
+        debt_slot_end = _hard_phase_end(1.75, reserve_after=0.0, min_window=0.65)
+        if debt_slot_end is not None:
+            _semantic_search_and_fetch("report", debt_slot_end, query_offset=0, fetch_limit=1)
 
     if any(semantic_counts.values()):
         result["diagnostics"].append(
-            "Holding Need-Aware Semantic Recovery V52: "
+            "Holding Critical-Evidence Recovery V53: "
             f"NAV-Treffer={semantic_counts['nav']}, "
-            f"Report-Treffer={semantic_counts['report']}, "
-            f"Portfolio-Treffer={semantic_counts['portfolio']}; "
-            "Treffer werden je Datenklasse sofort vor der nächsten Suche geladen."
+            f"Portfolio-Treffer={semantic_counts['portfolio']}, "
+            f"Report-Treffer={semantic_counts['report']}; "
+            "NAV und Portfolio werden vor Locale-/Archiv-Fallbacks priorisiert."
         )
+
+    # Phase 3: locale fallback only after critical evidence. Give the whole
+    # locale phase one hard short deadline; no single locale request can be
+    # started once this phase deadline is exhausted.
+    if not (nav_records and debt_records and portfolio_best is not None):
+        locale_phase_end = _hard_phase_end(1.10, reserve_after=0.45, min_window=0.55)
+        if locale_phase_end is not None:
+            for url in locale_fallback_urls[:1]:
+                if not _research_budget_ok(locale_phase_end, reserve=0.55):
+                    break
+                html = fetch(url, phase_deadline=locale_phase_end)
+                if not html:
+                    continue
+                rec = _holding_extract_nav_record(html, url)
+                if rec:
+                    nav_records.append(rec)
+                collect_links(url, html)
+                consume_priority_links(referer=url, phase_deadline=locale_phase_end)
+                if nav_records and debt_records and portfolio_best is not None:
+                    break
+
+    # Phase 4: one archive hop is the final fallback, also with a phase-local
+    # hard deadline. It is never allowed to precede critical NAV/portfolio work.
+    if not (nav_records and debt_records and portfolio_best is not None):
+        archive_phase_end = _hard_phase_end(0.85, reserve_after=0.0, min_window=0.55)
+        if archive_phase_end is not None:
+            for url, _ in dedupe_sorted(archive_links)[:1]:
+                if not _research_budget_ok(archive_phase_end, reserve=0.55):
+                    break
+                ahtml = fetch(url, phase_deadline=archive_phase_end)
+                collect_links(url, ahtml)
+                consume_priority_links(referer=url, phase_deadline=archive_phase_end)
+                break
 
     if nav_records:
         nav_records.sort(
@@ -7789,12 +7814,12 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     result["available"] = bool(result.get("nav"))
     remaining = _research_budget_left(deadline)
     result["diagnostics"].append(
-        "Holding Primary Source V52: "
+        "Holding Primary Source V53: "
         f"Domain={company_domain}, ProviderWebsite={'ja' if website else 'nein'}, Seiten={len([v for v in fetched.values() if v])}, "
         f"NAV={'ja' if result.get('nav') else 'nein'}, DebtRatio={'ja' if result.get('debt') else 'nein'}, "
         f"Portfolio={'ja' if result.get('portfolio') else 'nein'}, Restbudget={remaining:.2f}s."
         if remaining is not None else
-        "Holding Primary Source V52: "
+        "Holding Primary Source V53: "
         f"Domain={company_domain}, ProviderWebsite={'ja' if website else 'nein'}, Seiten={len([v for v in fetched.values() if v])}, "
         f"NAV={'ja' if result.get('nav') else 'nein'}, DebtRatio={'ja' if result.get('debt') else 'nein'}, "
         f"Portfolio={'ja' if result.get('portfolio') else 'nein'}."
@@ -7803,7 +7828,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22156_listed_holding_need_aware_semantic_budget_v52"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22157_listed_holding_critical_evidence_priority_v53"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
