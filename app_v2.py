@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.77"
+APP_BUILD_VERSION = "V2.21.78"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding Management-Cost Source Ranking & Candidate Trace Guard V73"
+    f"Build {APP_BUILD_VERSION} · Listed Holding Family Peer NAV Reference & Comparability Guard V74"
 )
 
 
+# V2.21.78: Listed Holding Family Peer NAV Reference & Comparability Guard V74. Adds a reusable Stockholm-listed holding-company peer template (Investor AB, Lundbergföretagen, Latour, Bure and Industrivärden, excluding the analyzed issuer) and a bounded peer evidence adapter. Peer metrics require issuer-owned latest NAV/share evidence plus a current market quote in the same SEK share unit; at least three fresh peers are required. The peer median/IQR is a plausibility guard only: if the issuer-specific provisional target lies inside a deliberately widened peer band, the peer layer passes with 0.00 pp and the justified target premium/discount may be marked released; a conflict remains fail-closed rather than forcing an arbitrary adjustment. Fair Value, valuation zones and signals remain locked in V74 so the target-release layer can be tested independently. No peer NAV values are hard-coded; only the family peer universe and issuer home URLs are static metadata.
 # V2.21.49: Nordic Home-Listing & Cboe Venue Guard V45. Extends only the Security Identity & Primary Listing Resolver. Verified Industrivärden name aliases resolve Class C to the issuer-declared Nasdaq Stockholm home line (Yahoo-style INDU-C.ST), while Cboe Europe .XD/DXE rows are treated as secondary venues for name searches. Exact ticker input still retains its exact-security priority, so an explicitly entered .XD ticker remains selectable as entered. No company-family routing, EPS normalization, specialist model, score, Fair Value, Reality Check or signal mathematics are changed.
 # V2.21.50: Security Resolver Cache-Epoch Guard V46. Couples the cached security-search result to an explicit resolver epoch so primary-listing alias/venue changes cannot reuse stale Streamlit cache entries from an older build. Search ranking, verified Industrivärden Stockholm mapping, company-family routing, EPS normalization, specialist models, scores, Fair Value, Reality Check and signal mathematics are unchanged.
 # V2.21.51: Listed Investment Holding Family Router V47. Separates principal-capital listed investment/holding companies from fee-based Asset Management by business-model evidence. Client AUM/advisory/management-fee signals keep the existing Asset-Manager route; own-portfolio/active-ownership/listed-holding signals route to a new fail-closed NAV family. No NAV Fair Value is released in this build. Security search, bank model, all released specialist scores/multiples/Fair Values, Reality Check and signal mathematics are unchanged.
@@ -9164,7 +9165,164 @@ def _holding_build_historical_nav_calibration(nav_history, symbol):
     }
 
 
-def _holding_build_justified_nav_target_diagnostic(historical_calibration, debt_ratio_pct, top2_pct, top4_pct, holding_cost_evidence=None):
+def _holding_family_peer_universe(symbol):
+    """Family-level identity/discovery metadata for Stockholm holdings."""
+    own = str(symbol or "").strip().upper()
+    if not own.endswith(".ST"):
+        return []
+    universe = [
+        {"symbol": "INVE-B.ST", "name": "Investor AB", "website": "https://www.investorab.com/"},
+        {"symbol": "LUND-B.ST", "name": "L E Lundbergföretagen AB", "website": "https://www.lundbergforetagen.se/en/"},
+        {"symbol": "LATO-B.ST", "name": "Investment AB Latour", "website": "https://www.latour.se/en/"},
+        {"symbol": "BURE.ST", "name": "Bure Equity AB", "website": "https://www.bure.se/en/home-en"},
+        {"symbol": "INDU-C.ST", "name": "AB Industrivärden", "website": "https://www.industrivarden.se/en-gb/"},
+    ]
+    return [row for row in universe if not _same_canonical_issuer_symbol(row.get("symbol"), own)]
+
+
+def _holding_peer_last_price(symbol):
+    try:
+        t = yf.Ticker(symbol)
+        try:
+            fi = t.fast_info
+            for attr in ["last_price", "previous_close"]:
+                value = safe_float(getattr(fi, attr, None))
+                if value is not None and value > 0:
+                    return value
+        except Exception:
+            pass
+        try:
+            hist = t.history(period="5d", auto_adjust=False)
+            if hist is not None and not hist.empty and "Close" in hist:
+                vals = pd.to_numeric(hist["Close"], errors="coerce").dropna()
+                if not vals.empty:
+                    value = safe_float(vals.iloc[-1])
+                    if value is not None and value > 0:
+                        return value
+        except Exception:
+            pass
+    except Exception:
+        pass
+    return None
+
+
+def _holding_discover_peer_nav_record(peer, deadline):
+    symbol = _clean_text((peer or {}).get("symbol"))
+    name = _clean_text((peer or {}).get("name"))
+    website = _clean_text((peer or {}).get("website"))
+    domain = _extract_company_domain(website)
+    if not domain:
+        return None, "domain_missing"
+    candidates = []
+    try:
+        found = _holding_semantic_source_search(
+            domain, name, deadline=deadline, needed_kinds=["nav", "report"],
+            query_offset=0, max_queries_per_kind=2,
+        )
+        candidates.extend(found.get("nav") or [])
+        candidates.extend(found.get("report") or [])
+    except Exception:
+        pass
+    if _research_budget_ok(deadline, reserve=1.2):
+        try:
+            html, resolved = _fetch_html(website, timeout=3.2, deadline=deadline)
+            if html and _holding_same_issuer_url(resolved or website, domain):
+                rec_home = _holding_extract_nav_record(html, resolved or website)
+                if rec_home and safe_float(rec_home.get("nav_per_share")) is not None:
+                    candidates.insert(0, (resolved or website, "issuer homepage"))
+                soup = BeautifulSoup(html, "html.parser")
+                for a in soup.find_all("a", href=True):
+                    label = _clean_text(a.get_text(" ", strip=True))
+                    url = urljoin(resolved or website, a.get("href"))
+                    if not _holding_same_issuer_url(url, domain):
+                        continue
+                    hay = _holding_fold_text(" ".join([label, url]))
+                    if any(k in hay for k in ["net asset value", "nav", "substansvarde", "interim report", "year end report"]):
+                        candidates.append((url, label))
+        except Exception:
+            pass
+    seen = set(); records = []
+    for url, label in candidates:
+        if not _research_budget_ok(deadline, reserve=0.6):
+            break
+        url = _clean_text(url)
+        if not url or url in seen or not _holding_same_issuer_url(url, domain):
+            continue
+        seen.add(url)
+        try:
+            html, final_url = _fetch_html(url, timeout=3.2, deadline=deadline)
+        except Exception:
+            html, final_url = "", url
+        if not html or not _holding_same_issuer_url(final_url or url, domain):
+            continue
+        rec = _holding_extract_nav_record(html, final_url or url)
+        if not rec:
+            continue
+        nav = safe_float(rec.get("nav_per_share")); as_of = rec.get("as_of_date_obj")
+        cur = str(rec.get("currency") or "").upper()
+        if nav is None or nav <= 0 or not as_of or cur != "SEK":
+            continue
+        try:
+            age = (datetime.now().date() - as_of).days
+        except Exception:
+            age = None
+        if age is None or age < -3 or age > 150:
+            continue
+        rec = dict(rec); rec["nav_age_days"] = age; rec["peer_symbol"] = symbol; rec["peer_name"] = name
+        records.append(rec)
+    if not records:
+        return None, "no_fresh_primary_nav"
+    records.sort(key=lambda r: (r.get("as_of_date_obj") or datetime(1900,1,1).date(), int(r.get("quality") or 0)), reverse=True)
+    return records[0], "ok"
+
+
+def _holding_build_family_peer_guard(symbol, max_seconds=16.0):
+    peers = _holding_family_peer_universe(symbol)
+    if not peers:
+        return {"available": False, "ready": False, "observations": [], "status": "Kein freigegebener Holding-Peer-Cluster für diesen Markt.", "diagnostic": "Holding Peer NAV Guard V74: PeerUniverse=0"}
+    deadline = time.monotonic() + max(6.0, float(max_seconds or 16.0))
+    observations = []; trace = []
+    for peer in peers:
+        if not _research_budget_ok(deadline, reserve=1.0):
+            trace.append(f"budget:{peer.get('symbol')}"); break
+        rec, reason = _holding_discover_peer_nav_record(peer, deadline)
+        if not rec:
+            trace.append(f"reject:{peer.get('symbol')}:{reason}"); continue
+        price = _holding_peer_last_price(peer.get("symbol")); nav = safe_float(rec.get("nav_per_share"))
+        if price is None or nav is None or nav <= 0:
+            trace.append(f"reject:{peer.get('symbol')}:price_missing"); continue
+        premium = (price / nav - 1.0) * 100.0
+        if premium < -60.0 or premium > 120.0:
+            trace.append(f"reject:{peer.get('symbol')}:implausible_pnav"); continue
+        observations.append({
+            "symbol": peer.get("symbol"), "name": peer.get("name"), "nav_per_share": nav,
+            "nav_as_of_date": rec.get("as_of_date"), "nav_age_days": rec.get("nav_age_days"),
+            "nav_source_url": rec.get("source_url"), "current_price": price,
+            "premium_discount_pct": premium, "currency": rec.get("currency") or "SEK",
+        })
+        trace.append(f"accept:{peer.get('symbol')}:{premium:+.1f}%")
+        if len(observations) >= 4:
+            break
+    vals = [safe_float(x.get("premium_discount_pct")) for x in observations if safe_float(x.get("premium_discount_pct")) is not None]
+    if vals:
+        ser = pd.Series(vals, dtype="float64"); median = float(ser.median()); q1 = float(ser.quantile(0.25)); q3 = float(ser.quantile(0.75))
+    else:
+        median = q1 = q3 = None
+    ready = len(vals) >= 3
+    return {
+        "available": bool(vals), "ready": ready, "observation_count": len(vals), "median_pct": median, "q1_pct": q1, "q3_pct": q3,
+        "observations": observations,
+        "status": (f"{len(vals)} frische issuer-primary Holding-Peers · Median {median:+.1f}%" if ready and median is not None else f"Nur {len(vals)} brauchbare Holding-Peers; mindestens 3 erforderlich."),
+        "diagnostic": f"Holding Peer NAV Guard V74: PeerUniverse={len(peers)}, ValidPeers={len(vals)}, Ready={'yes' if ready else 'no'}; Trace=" + " | ".join(trace[:8]),
+    }
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _holding_build_family_peer_guard_cached(symbol, cache_epoch="v22178_listed_holding_family_peer_guard_v74"):
+    return _holding_build_family_peer_guard(symbol)
+
+
+def _holding_build_justified_nav_target_diagnostic(historical_calibration, debt_ratio_pct, top2_pct, top4_pct, holding_cost_evidence=None, peer_evidence=None):
     """Diagnostic-only target NAV premium/discount bridge with cost guard.
 
     V71 keeps the issuer's own historical premium/discount median as the base
@@ -9259,13 +9417,31 @@ def _holding_build_justified_nav_target_diagnostic(historical_calibration, debt_
                 f"vs. 5J-Median {cost_median:.2f}% · erhöht · Bewertungsübersetzung noch nicht freigegeben"
             )
 
+    peer = peer_evidence or {}
     peer_adj = None
+    peer_guard_state = "missing"
+    peer_status = "Vergleichbare Holding-Peer-Evidenz noch nicht freigegeben"
+    peer_median = safe_float(peer.get("median_pct"))
+    peer_q1 = safe_float(peer.get("q1_pct"))
+    peer_q3 = safe_float(peer.get("q3_pct"))
+    peer_obs = int(peer.get("observation_count") or 0)
     provisional = None
     if anchor is not None:
         provisional = anchor
         for adj in [leverage_adj, concentration_adj, cost_adj]:
             if adj is not None:
                 provisional += adj
+
+    if bool(peer.get("ready")) and peer_median is not None and peer_q1 is not None and peer_q3 is not None and provisional is not None:
+        lower_guard = peer_q1 - 5.0
+        upper_guard = peer_q3 + 5.0
+        if lower_guard <= provisional <= upper_guard:
+            peer_adj = 0.0
+            peer_guard_state = "comparable_reference_pass"
+            peer_status = (f"{peer_obs} frische Holding-Peers · Median {peer_median:+.1f}% · IQR {peer_q1:+.1f}% bis {peer_q3:+.1f}% · issuer-spezifischer Zielwert {provisional:+.1f}% innerhalb Plausibilitätsband · 0,00 pp")
+        else:
+            peer_guard_state = "peer_conflict_translation_unreleased"
+            peer_status = (f"{peer_obs} frische Holding-Peers · Median {peer_median:+.1f}% · IQR {peer_q1:+.1f}% bis {peer_q3:+.1f}% · issuer-spezifischer Zielwert {provisional:+.1f}% außerhalb Plausibilitätsband · keine automatische Anpassung")
 
     blockers = []
     if not hist_ready:
@@ -9278,11 +9454,16 @@ def _holding_build_justified_nav_target_diagnostic(historical_calibration, debt_
         blockers.append("holding_cost_evidence_missing")
     elif cost_guard_state == "elevated_translation_unreleased":
         blockers.append("holding_cost_translation_unreleased")
-    blockers.append("peer_evidence_missing")
+    if peer_guard_state == "missing":
+        blockers.append("peer_evidence_missing")
+    elif peer_guard_state == "peer_conflict_translation_unreleased":
+        blockers.append("peer_conflict_translation_unreleased")
 
+    released = bool(anchor is not None and not blockers)
+    final_target = provisional if released else None
     return {
         "available": anchor is not None,
-        "released": False,
+        "released": released,
         "historical_anchor_pct": anchor,
         "historical_q1_pct": q1,
         "historical_q3_pct": q3,
@@ -9299,16 +9480,23 @@ def _holding_build_justified_nav_target_diagnostic(historical_calibration, debt_
         "holding_cost_observation_count": cost_obs,
         "holding_cost_source_url": cost.get("source_url"),
         "peer_adjustment_pp": peer_adj,
-        "peer_status": "Vergleichbare Holding-Peer-Evidenz noch nicht freigegeben",
+        "peer_status": peer_status,
+        "peer_guard_state": peer_guard_state,
+        "peer_median_pct": peer_median,
+        "peer_q1_pct": peer_q1,
+        "peer_q3_pct": peer_q3,
+        "peer_observation_count": peer_obs,
+        "peer_observations": peer.get("observations") or [],
+        "peer_diagnostic": peer.get("diagnostic"),
         "provisional_target_pct": provisional,
-        "final_target_pct": None,
+        "final_target_pct": final_target,
         "release_blockers": blockers,
         "double_count_guard": (
             "Historischer Median enthält normale Holdingkosten und Struktur bereits teilweise. "
-            "V73 verwendet die issuer-primary Kostenquote deshalb nur als Abweichungs-Guard gegen die eigene Mehrjahresnorm; "
+            "V74 verwendet die issuer-primary Kostenquote deshalb nur als Abweichungs-Guard gegen die eigene Mehrjahresnorm. Der Holding-Peer-Median ist ebenfalls nur ein Plausibilitäts-Guard; "
             "eine normale/niedrige Kostenquote erhält 0,00 pp und wird nicht nochmals kapitalisiert."
         ),
-        "method": "Historical median + bounded current-risk overlays + issuer-primary own-history management-cost guard; peer guard required before release",
+        "method": "Historical median + bounded current-risk overlays + issuer-primary own-history management-cost guard + family peer NAV plausibility guard",
     }
 
 
@@ -9323,6 +9511,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
     portfolio = discovery.get("portfolio") or {}
     holding_cost = discovery.get("holding_cost") or {}
     historical_calibration = _holding_build_historical_nav_calibration(discovery.get("nav_history") or [], symbol)
+    peer_evidence = _holding_build_family_peer_guard_cached(symbol)
     nav_value = safe_float(nav.get("nav_per_share"))
     nav_currency = str(nav.get("currency") or (fundamental_info or {}).get("financialCurrency") or "").upper()
     financial_currency = str((currency_context or {}).get("financial_currency") or "").upper()
@@ -9376,7 +9565,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         concentration_status = "Hoch" if top2 >= 60 else ("Mittel" if top2 >= 40 else "Breit")
 
     justified_target_diag = _holding_build_justified_nav_target_diagnostic(
-        historical_calibration, debt_ratio, top2, top4, holding_cost_evidence=holding_cost
+        historical_calibration, debt_ratio, top2, top4, holding_cost_evidence=holding_cost, peer_evidence=peer_evidence
     )
 
     primary_complete = bool(nav_value and nav_value > 0 and nav_date_obj and nav_fresh and currency_ok)
@@ -9429,8 +9618,10 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "historical_pair_probes": discovery.get("historical_pair_probes") or [],
         "justified_nav_target_diagnostic": justified_target_diag,
         "provisional_target_premium_discount_pct": safe_float(justified_target_diag.get("provisional_target_pct")),
-        "target_premium_discount_released": False,
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Cost-Source Ranking Guard V73",
+        "final_target_premium_discount_pct": safe_float(justified_target_diag.get("final_target_pct")),
+        "target_premium_discount_released": bool(justified_target_diag.get("released")),
+        "holding_peer_evidence": peer_evidence,
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Family Peer NAV Guard V74",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
@@ -9453,7 +9644,9 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
             "historical_calibration_ready": bool(historical_calibration.get("ready")),
             "historical_observation_count": int(historical_calibration.get("observation_count") or 0),
             "justified_target_diagnostic_available": bool(justified_target_diag.get("available")),
-            "justified_target_released": False,
+            "peer_evidence_ready": bool(peer_evidence.get("ready")),
+            "peer_observation_count": int(peer_evidence.get("observation_count") or 0),
+            "justified_target_released": bool(justified_target_diag.get("released")),
             "justified_target_blockers": justified_target_diag.get("release_blockers") or [],
         },
         "readiness": (
@@ -9465,8 +9658,8 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "note": (
             f"{APP_BUILD_VERSION} trennt aktuellen issuer-primary NAV, Kurs/NAV-Premium-Discount, Holding-Leverage und Portfoliokonzentration. "
             "Die historische Verteilung liefert den Basisanker; Leverage und Konzentration bleiben begrenzte diagnostische Overlays. "
-            "Issuer-primary Holdingkosten/Strukturdrag werden gegen die eigene Mehrjahresnorm geprüft; Peer-Evidenz bleibt der nächste separate Freigabe-Blocker. "
-            "Deshalb entsteht noch kein freigegebener Ziel-NAV-Multiple oder Fair Value."
+            "Issuer-primary Holdingkosten/Strukturdrag werden gegen die eigene Mehrjahresnorm geprüft; ein markt-/familiengerechter Holding-Peer-Cluster dient nur als Plausibilitäts-Guard. "
+            "V74 kann den Ziel-Premium/Discount freigeben; Fair Value, Zonen und Signale bleiben trotzdem noch gesperrt."
         ),
     }
 
@@ -31963,6 +32156,15 @@ def get_peer_group(company_type, symbol, industry=None):
 
     own_symbol = str(symbol or "").upper()
 
+    if "listed investment / holding company" in type_name and own_symbol.endswith(".ST"):
+        family_peers = _holding_family_peer_universe(own_symbol)
+        peers = [{"symbol": row.get("symbol"), "name": row.get("name"), "role": "core"} for row in family_peers]
+        return {
+            "available": bool(peers), "peers": peers, "count": len(peers), "target_symbol": own_symbol,
+            "peer_model": "listed_holding_nav_reference_v1", "reference_only": True,
+            "note": (f"Listed-Holding NAV Peer Template {APP_BUILD_VERSION}: Stockholm-Peers werden über issuer-primary NAV/share und aktuellen Marktpreis geprüft. Mindestens 3 frische Peers sind Pflicht; Median/IQR sind nur Plausibilitäts-Guard und erzwingen keine automatische Anpassung des issuer-spezifischen Ziel-Premium/Discount."),
+        }
+
     if own_symbol in {"RHM.DE", "RHM.F", "RNMBY", "RNMBF"} and "defense / stark wachsend" in type_name:
         peers = [
             ("BA.L", "BAE Systems"),
@@ -33825,6 +34027,15 @@ def calculate_peer_check(
             result["note"] = (
                 "Keine automatische Peer-Gruppe verfügbar."
             )
+        return result
+
+    if (peer_group or {}).get("peer_model") == "listed_holding_nav_reference_v1":
+        result.update({
+            "method_supported": True,
+            "adjusted_multiple": fundamental_multiple,
+            "applied": False,
+            "note": "Listed-Holding-Peers werden nicht über Yahoo-Forward-KGV bewertet. Der NAV/Premium-Discount-Peer-Guard läuft ausschließlich im Holding-Spezialmodell; Schritt 2B bleibt reference-only.",
+        })
         return result
 
     if (peer_group or {}).get("target_symbol") == "BKR" and "energy technology / oilfield services" in type_name:
@@ -57137,7 +57348,7 @@ if selected_symbol:
                             )
                             hist_diag_lines_h = [
                                 str(x) for x in (snap_h.get("diagnostics") or [])
-                                if "Historical NAV Calibration V70" in str(x)
+                                if "Historical NAV Calibration V71" in str(x)
                             ]
                             if hist_diag_lines_h:
                                 st.caption("Historik-Adapter: " + hist_diag_lines_h[-1])
@@ -57161,7 +57372,7 @@ if selected_symbol:
 
                         target_diag_h = snap_h.get("justified_nav_target_diagnostic") or {}
                         if target_diag_h.get("available"):
-                            st.write("**Justified NAV Premium/Discount – diagnostische Kalibrierung V73:**")
+                            st.write("**Justified NAV Premium/Discount – Kalibrierung & Peer-Guard V74:**")
                             jt1, jt2, jt3 = st.columns(3)
                             with jt1:
                                 st.metric("Historischer Basisanker", f"{safe_float(target_diag_h.get('historical_anchor_pct')):+.1f} %")
@@ -57193,13 +57404,25 @@ if selected_symbol:
                             if snap_h.get("holding_cost_adapter_diagnostic"):
                                 st.caption("Kosten-Adapter: " + text_or_dash(snap_h.get("holding_cost_adapter_diagnostic")))
                             st.caption("Peer-Guard: " + text_or_dash(target_diag_h.get("peer_status")))
+                            peer_obs_h = target_diag_h.get("peer_observations") or []
+                            if peer_obs_h:
+                                peer_parts_h = []
+                                for prow_h in peer_obs_h[:4]:
+                                    pp_h = safe_float(prow_h.get("premium_discount_pct"))
+                                    peer_parts_h.append(f"{text_or_dash(prow_h.get('symbol'))}: {pp_h:+.1f}%" if pp_h is not None else f"{text_or_dash(prow_h.get('symbol'))}: –")
+                                st.caption("Holding-Peers P/NAV: " + " · ".join(peer_parts_h))
+                            if target_diag_h.get("peer_diagnostic"):
+                                st.caption("Peer-Adapter: " + text_or_dash(target_diag_h.get("peer_diagnostic")))
+                            final_target_h = safe_float(target_diag_h.get("final_target_pct"))
+                            if target_diag_h.get("released") and final_target_h is not None:
+                                st.success(f"Ziel-Premium/Discount V74 freigegeben: {final_target_h:+.1f} %. Fair Value bleibt in diesem Build noch separat gesperrt.")
                             st.warning(text_or_dash(target_diag_h.get("double_count_guard")))
                             blockers_h = target_diag_h.get("release_blockers") or []
                             if blockers_h:
                                 st.caption("Freigabe-Blocker: " + " · ".join(str(x) for x in blockers_h))
                             st.info(
-                                "Der angezeigte Zielwert ist nur eine **diagnostische Zwischenrechnung**. "
-                                "Er wird weder als Fair-Value-Anker noch für Bewertungszonen oder Signale verwendet."
+                                "Der vorläufige Zielwert wird erst nach bestandenem Holding-Peer-Guard als Ziel-Premium/Discount freigegeben. "
+                                "Auch ein freigegebener Zielwert steuert in V74 noch **nicht** Fair Value, Bewertungszonen oder Signale."
                             )
 
                         st.success("Holding-NAV-Primärdatenmodell aktiv: NAV, aktueller Premium/Discount, historische Kalibrierung und diagnostische Ziel-Premium/Discount-Brücke sind getrennt vom EPS/KGV-Pfad verfügbar.")
@@ -57209,8 +57432,8 @@ if selected_symbol:
                         if diag_lines_h:
                             st.caption("Adapter-Diagnose: " + " | ".join(str(x) for x in diag_lines_h[-6:]))
                     st.warning(
-                        f"Fair Value bleibt in {APP_BUILD_VERSION} bewusst gesperrt: Die historische Verteilung liefert jetzt einen Basisanker und Leverage/Konzentration werden diagnostisch überlagert. "
-                        "Issuer-primary Holdingkosten/Strukturdrag werden jetzt gegen die eigene Mehrjahresnorm geprüft; Peer-Evidenz ist noch nicht freigegeben. Der angezeigte vorläufige Ziel-Premium/Discount darf deshalb weiterhin weder Fair Value noch Zonen oder Signale steuern."
+                        f"Fair Value bleibt in {APP_BUILD_VERSION} bewusst gesperrt: Historie, Leverage, Konzentration, issuer-primary Holdingkosten und der Holding-Peer-NAV-Guard werden jetzt getrennt geprüft. "
+                        "Ein bestandener Peer-Guard darf den Ziel-Premium/Discount freigeben; die eigentliche Fair-Value-Rechnung, Zonen und Signale folgen erst in einem separaten Build."
                     )
                     st.caption(text_or_dash(special_control.get("note")))
 
