@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.52"
+APP_BUILD_VERSION = "V2.21.53"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Investment Holding Primary NAV Model V48"
+    f"Build {APP_BUILD_VERSION} · Listed Holding Fetch & Publication Provenance Guard V49"
 )
 
 
@@ -39,6 +39,7 @@ st.caption(
 # V2.21.50: Security Resolver Cache-Epoch Guard V46. Couples the cached security-search result to an explicit resolver epoch so primary-listing alias/venue changes cannot reuse stale Streamlit cache entries from an older build. Search ranking, verified Industrivärden Stockholm mapping, company-family routing, EPS normalization, specialist models, scores, Fair Value, Reality Check and signal mathematics are unchanged.
 # V2.21.51: Listed Investment Holding Family Router V47. Separates principal-capital listed investment/holding companies from fee-based Asset Management by business-model evidence. Client AUM/advisory/management-fee signals keep the existing Asset-Manager route; own-portfolio/active-ownership/listed-holding signals route to a new fail-closed NAV family. No NAV Fair Value is released in this build. Security search, bank model, all released specialist scores/multiples/Fair Values, Reality Check and signal mathematics are unchanged.
 # V2.21.52: Listed Investment Holding Primary NAV Model V48. Adds a reusable issuer-primary data layer for listed principal-capital holding companies: latest reported NAV per share + NAV date/publication metadata, current price/NAV premium-discount, latest holding-level debt-equities/gearing ratio when available, and portfolio concentration diagnostics from issuer-owned pages. The model remains fail-closed for Fair Value because no justified target NAV premium/discount has yet been calibrated; generic EPS/KGV/ROE/Yahoo-FCF math remains blocked. The implementation is business-model/primary-source driven and contains no Industrivärden ticker exception. Bank model, all released specialist valuations, Reality Check and signal mathematics are unchanged.
+# V2.21.53: Listed Holding Fetch & Publication Provenance Guard V49. Fixes the new holding-primary-source fetch wrapper: the shared _fetch_html helper returns (html, final_url), while V2.21.52 accidentally forwarded that tuple to BeautifulSoup as if it were raw HTML. The wrapper now unpacks the shared fetch contract, rejects cross-domain redirects, and caches only HTML text. It also prevents an unstructured NAV as-of date on a summary page from being reused as a synthetic publication date; structured page metadata remains authoritative and a text fallback is accepted only when it is later than the NAV as-of date. NAV/debt/portfolio values, family routing, all released valuation mathematics, Bank model, Reality Check and signals are unchanged. Fair Value remains fail-closed pending target NAV premium/discount calibration.
 # V2.21.48: Universal Bank CET1 Row & Q4 Publication Metadata Guard V44. Period-aligned Standardized CET1 rows outrank generic CET1 narrative/footnote matches; trusted-Q4 current-quarter documents with missing publication metadata get one bounded issuer-domain results-detail metadata retry with exact quarter/results identity validation. The retry is metadata-only and cannot alter valuation evidence. No issuer/ticker exception is added. EPS normalization, Bank Score scoring thresholds, regulatory CET1 buffer mathematics, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.47: Universal Bank Trusted Q4 Detail & Financials Bridge V43. Extends the issuer-neutral latest-quarter recovery for proven Q4 IR architectures whose press-release/archive cards are client-rendered and whose current-quarter PDFs moved from /files/doc_events/... to Q4's /files/doc_financials/<year>/q<quarter>/... structure. The adapter now probes a bounded Q4-style same-domain news-detail route generated from the exact issuer name + expected quarter/results identity and independently revalidates page identity before accepting publication metadata. In parallel, a trusted Q4 tenant may contribute bounded current-quarter /doc_financials/ sibling candidates copied from already issuer-proven prior-quarter filenames; downstream PDF payload gates still require expected-period + issuer identity before any document can enter the bank snapshot. No ticker/domain exception is added. EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
 # V2.21.46: Universal Bank Proven IR News-Archive Bridge V42. Adds a deterministic issuer-neutral latest-quarter bridge for Q4-style IR sites when bounded web search returns no current-period hit. On already verified same-domain IR hosts, the adapter probes a small set of conventional news/press-release archive paths, follows only links whose own title/URL prove the exact expected quarter plus earnings/results semantics, captures the page-owned publication date, and then reuses the existing trusted Q4-tenant sibling derivation to recover the official release/supplement. This closes the U.S. Bancorp 2Q26 gap without ticker/domain exceptions and reduces dependence on search-engine indexing. Document trust, parser rules, EPS normalization, Bank Score, CET1 buffer scoring, ROTCE-justified P/TBV, target P/E, 60/40 Dual Anchor, 25% spread gate, Reality Check and signal mathematics are unchanged.
@@ -7179,7 +7180,13 @@ def _holding_extract_nav_record(html, url):
                     break
         published = _holding_structured_publication_date(soup)
         if published is None:
-            published = _holding_publication_date_fallback(text, as_of)
+            fallback_published = _holding_publication_date_fallback(text, as_of)
+            # V2.21.53: a summary card often contains only the NAV as-of date.
+            # Do not promote that same date to publication provenance.  A same-day
+            # publication remains valid when it is explicitly carried by structured
+            # page metadata; unstructured fallback must be strictly later.
+            if fallback_published is not None and (as_of is None or fallback_published > as_of):
+                published = fallback_published
         score = 3 + (2 if as_of else 0) + (1 if currency else 0) + (1 if published else 0)
         rec = {
             "nav_per_share": nav,
@@ -7346,8 +7353,17 @@ def _discover_listed_holding_primary_snapshot(website):
     def fetch(url):
         if not url or url in fetched:
             return fetched.get(url)
-        html = _fetch_html(url, timeout=3.5)
+        # V2.21.53: shared _fetch_html returns (html, final_url).  V2.21.52
+        # accidentally passed that tuple to the holding parsers as if it were raw
+        # HTML, causing NAV/debt/portfolio discovery to fail together.  Unpack the
+        # shared contract and retain issuer-domain provenance after redirects.
+        html, final_url = _fetch_html(url, timeout=3.5)
+        resolved = final_url or url
+        if resolved and not _holding_same_issuer_url(resolved, company_domain):
+            html = ""
         fetched[url] = html
+        if html and resolved != url:
+            fetched[resolved] = html
         return html
 
     def collect_links(base_url, html):
@@ -7433,7 +7449,7 @@ def _discover_listed_holding_primary_snapshot(website):
     result["portfolio"] = portfolio_best
     result["available"] = bool(result.get("nav"))
     result["diagnostics"].append(
-        "Holding Primary Source V48: "
+        "Holding Primary Source V49: "
         f"Domain={company_domain}, Seiten={len([v for v in fetched.values() if v])}, "
         f"NAV={'ja' if result.get('nav') else 'nein'}, DebtRatio={'ja' if result.get('debt') else 'nein'}, "
         f"Portfolio={'ja' if result.get('portfolio') else 'nein'}."
@@ -7442,7 +7458,7 @@ def _discover_listed_holding_primary_snapshot(website):
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, cache_epoch="v22152_listed_holding_primary_nav_v48"):
+def _discover_listed_holding_primary_snapshot_cached(website, cache_epoch="v22153_listed_holding_html_fetch_contract_v49"):
     return _discover_listed_holding_primary_snapshot(website)
 
 
@@ -7558,7 +7574,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
             "NAV-Primärdaten unvollständig · fail-closed"
         ),
         "note": (
-            "V2.21.52 trennt aktuellen issuer-primary NAV, Kurs/NAV-Premium-Discount, Holding-Leverage und Portfoliokonzentration. "
+            f"{APP_BUILD_VERSION} trennt aktuellen issuer-primary NAV, Kurs/NAV-Premium-Discount, Holding-Leverage und Portfoliokonzentration. "
             "Diese Diagnose setzt bewusst noch keinen Ziel-NAV-Multiple und erzeugt deshalb keinen Fair Value."
         ),
     }
@@ -47626,7 +47642,7 @@ def load_stock(selected_symbol, cache_version):
                     "Das ist eine normale Holding-Bewertungsbasis und kein Sonderereignis."
                 ),
                 "action": (
-                    "Keine EPS-Sonderrecherche starten. V2.21.52 validiert NAV, Kurs/NAV, Holding-Leverage und Portfoliokonzentration; "
+                    f"Keine EPS-Sonderrecherche starten. {APP_BUILD_VERSION} validiert NAV, Kurs/NAV, Holding-Leverage und Portfoliokonzentration; "
                     "ein Ziel-Premium/Discount und damit Fair Value/Signale bleiben bis zur separaten Kalibrierung gesperrt."
                 ),
                 "family_model_gate": True,
@@ -55198,7 +55214,7 @@ if selected_symbol:
                     else:
                         st.warning("Holding-NAV-Primärdaten nicht vollständig – Modell bleibt fail-closed.")
                     st.warning(
-                        "Fair Value bleibt in V2.21.52 bewusst gesperrt: Der aktuelle Kurs/NAV-Abstand ist eine Diagnose, aber noch kein gerechtfertigter Ziel-Premium/Discount. "
+                        f"Fair Value bleibt in {APP_BUILD_VERSION} bewusst gesperrt: Der aktuelle Kurs/NAV-Abstand ist eine Diagnose, aber noch kein gerechtfertigter Ziel-Premium/Discount. "
                         "Der nächste Modellschritt muss Holdingkosten, Leverage, Portfoliokonzentration sowie historische/vergleichbare NAV-Premien oder -Discounts kalibrieren."
                     )
                     st.caption(text_or_dash(special_control.get("note")))
