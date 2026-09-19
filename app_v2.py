@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.76"
+APP_BUILD_VERSION = "V2.21.77"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding Management-Cost Semantic Series Validation Guard V72"
+    f"Build {APP_BUILD_VERSION} · Listed Holding Management-Cost Source Ranking & Candidate Trace Guard V73"
 )
 
 
@@ -51,6 +51,8 @@ st.caption(
 
 # V2.21.73: Listed Holding Justified NAV Premium/Discount Calibration Guard V69. Adds a transparent diagnostic target-calibration layer on top of the now-stable issuer-primary historical NAV series. The historical median is the base anchor; bounded leverage and portfolio-concentration overlays are shown separately as current-risk diagnostics, with an explicit double-count guard because the issuer's own historical premium/discount distribution already embeds its normal structure. Missing issuer-primary holding-cost/structural-drag evidence and missing comparable peer evidence remain hard blockers for a released target premium/discount. A provisional risk-adjusted candidate may be displayed for model inspection only; valuation_anchor_complete stays false, Fair Value/zones/signals remain fail-closed, and no issuer/ticker constants or hard-coded company values are introduced.
 # V2.21.74: Listed Holding Issuer-Primary Management-Cost Evidence & Structural-Drag Guard V70. Adds an issuer-neutral primary-source parser for recurring holding/management cost ratios reported as a percentage of portfolio/NAV value, including multi-year table extraction and latest-vs-own-history normalization. The cost layer is a guard, not a second standalone valuation engine: when current recurring cost is at or below the issuer's own recent norm it adds 0.00 pp, avoiding double-counting already embedded in the historical NAV discount; missing or materially elevated cost evidence remains fail-closed. Peer evidence remains the only mandatory blocker for Industrivärden-like low-cost cases, and Fair Value/zones/signals remain locked.
+
+# V2.21.77: Listed Holding Management-Cost Source Ranking & Candidate Trace Guard V73. Keeps V72's strict semantic metric binding, but fixes live source selection: cost candidates now use a dedicated semantic rank instead of generic dated-link ranking, prioritizing issuer-owned Key Ratios/Key Figures pages and labels that explicitly bind management cost to portfolio/NAV value while strongly demoting accounting/tax/policy prose. Adds bounded candidate/rejection tracing so live tests expose which issuer URLs were actually fetched and why they failed. Fair Value, peer logic and all other family layers remain unchanged/fail-closed.
 # V2.21.75: Listed Holding Cost-Source Discovery & Table-Shape Guard V71. Fixes the V70 live miss where the management-cost model existed but issuer-primary cost evidence did not reach the calibration object. Cost discovery now uses issuer-domain-only management-cost/key-ratio queries (without requiring the provider company-name string), records candidate/fetch/parse counts, and accepts both row-oriented and compact multi-line key-ratio tables. The cost ratio remains an own-history deviation guard only; no hard-coded issuer URL/value is used, peer evidence remains separate, and Fair Value/zones/signals stay fail-closed.
 # V2.21.71: Listed Holding Record-Level NAV/Close Pairing & Pair-Rejection Trace Guard V67. Fixes the V66 live result where seven issuer NAV releases parsed with class-price evidence but collapsed to one historical observation. Each concrete issuer release is now normalized into a record-level NAV/close probe before calibration, with the NAV as-of date anchored to the dated release title/URL when local article markup omits it. Target-share-class close, NAV, currency and date are validated independently; publication date is provenance only and is never required to equal the NAV date or the paired trading-date close. Diagnostics expose one PairProbe per fetched release with explicit accept/reject reason, plus aggregate anchored-date and valid-target-pair counts. Historical evidence remains calibration-only and cannot unlock target premium/discount, Fair Value, zones or signals. No issuer/ticker constants or hard-coded company values are introduced.
 # V2.21.69: Listed Holding Archive-First Historical NAV Series Guard V65. Fixes the first historical-calibration live test, where a large NAV-link set already present in article/CMS navigation incorrectly suppressed a fetch of the issuer press-release index, leaving only one paired NAV/closing-price observation. V65 always visits a bounded issuer-owned archive/index candidate before historical release selection, derives generic parent/year archive candidates from concrete NAV-release URLs, filters historical candidates to concrete dated NAV releases, and records candidate/fetch/paired counts. The historical layer remains calibration evidence only: no target premium/discount, Fair Value, zone or signal is released. No issuer/ticker constants or hard-coded company values are introduced.
@@ -7545,9 +7547,11 @@ def _holding_extract_debt_ratio(html, url):
 def _holding_extract_management_cost_ratio(html, url):
     """Parse issuer-primary recurring holding/management cost as % of portfolio/NAV.
 
-    V70 intentionally accepts only explicitly labelled recurring cost ratios. It
-    does not derive a ratio from generic SG&A, Yahoo cash flow, or absolute
-    expenses because those are not comparable across listed holding companies.
+    V72 is deliberately strict about semantic binding. Generic prose that merely
+    contains the words "management cost" is not enough: the metric label itself
+    must prove a portfolio/NAV percentage basis, or use an explicit ratio name.
+    This prevents unrelated percentages on accounting/tax-policy pages from
+    becoming holding-cost evidence.
     """
     if not html:
         return None
@@ -7556,27 +7560,42 @@ def _holding_extract_management_cost_ratio(html, url):
     except Exception:
         return None
 
-    label_terms = (
+    cost_terms = (
         "management cost", "management costs", "management expense", "management expenses",
-        "cost ratio", "expense ratio", "administration cost", "administrative cost",
+        "administration cost", "administrative cost",
         "forvaltningskostnad", "forvaltningskostnader", "administrationskostnad",
     )
+    basis_terms = (
+        "portfolio", "portfolj", "nav", "net asset value", "substansvarde",
+        "asset value", "managed assets",
+    )
+    explicit_ratio_terms = (
+        "cost ratio", "expense ratio", "management cost ratio", "management expense ratio",
+    )
 
-    def _is_cost_label(value):
+    def _label_semantics(value):
         folded = _holding_fold_text(value)
-        if not any(term in folded for term in label_terms):
-            return False
-        # Require portfolio/NAV semantics unless the label itself is the common
-        # industry ratio name "expense ratio"/"cost ratio".
-        return (
-            any(term in folded for term in ["portfolio", "portfolj", "nav", "net asset value", "substansvarde"])
-            or "expense ratio" in folded or "cost ratio" in folded
-            or "management cost" in folded or "forvaltningskostnad" in folded
-        )
+        has_cost = any(term in folded for term in cost_terms)
+        has_basis = any(term in folded for term in basis_terms)
+        explicit_ratio = any(term in folded for term in explicit_ratio_terms)
+        accepted = bool((has_cost and has_basis) or explicit_ratio)
+        return accepted, folded
 
-    observations = []
-    metric_label = None
+    def _cell_ratio_candidates(cell):
+        vals = []
+        cleaned = _clean_text(cell).replace("\u00a0", " ")
+        for raw in re.findall(r"(?<![0-9])([0-9]{1,2}(?:[.,][0-9]{1,4})?)(?![0-9])", cleaned):
+            try:
+                val = float(raw.replace(",", "."))
+            except Exception:
+                continue
+            if 0 <= val <= 5.0:
+                vals.append(val)
+        return vals
 
+    candidates = []
+
+    # Preferred path: real table row whose label proves the ratio basis.
     for table in soup.find_all("table"):
         rows = []
         for tr in table.find_all("tr"):
@@ -7587,71 +7606,84 @@ def _holding_extract_management_cost_ratio(html, url):
             continue
 
         years = []
-        for cells in rows[:4]:
+        for cells in rows[:10]:
             found = [int(y) for y in re.findall(r"\b(20\d{2})\b", " ".join(cells))]
-            if len(found) >= 2:
+            if len(found) > len(years):
                 years = found
-                break
 
         for cells in rows:
-            if not cells or not _is_cost_label(cells[0]):
+            if not cells:
+                continue
+            accepted, _ = _label_semantics(cells[0])
+            if not accepted:
                 continue
             metric_label = cells[0]
             vals = []
             for cell in cells[1:]:
-                # V71 also accepts compact key-ratio tables where each year is a
-                # column and several metric values are stacked in one cell. In
-                # that layout EPS may precede the management-cost ratio, so a
-                # first-number-only parser would miss the valid sub-5% ratio.
-                valid_in_cell = []
-                for raw in re.findall(r"(?<![0-9])([0-9]{1,2}(?:[.,][0-9]{1,3})?)(?![0-9])", cell):
-                    try:
-                        val = float(raw.replace(",", "."))
-                    except Exception:
-                        continue
-                    if 0 <= val <= 5.0:
-                        valid_in_cell.append(val)
-                if valid_in_cell:
-                    vals.append(valid_in_cell[0])
-            if vals:
-                if years:
-                    for idx, val in enumerate(vals[:len(years)]):
-                        observations.append({"year": years[idx], "cost_pct": val})
-                else:
-                    observations.append({"year": None, "cost_pct": vals[0]})
-                break
-        if observations:
-            break
-
-    # Conservative text fallback for issuer pages whose responsive table markup
-    # is flattened by the CMS.
-    if not observations:
-        text = _clean_text(soup.get_text(" ", strip=True)).replace("\u00a0", " ")
-        folded = _holding_fold_text(text)
-        label_match = None
-        for term in label_terms:
-            pos = folded.find(term)
-            if pos >= 0:
-                label_match = pos
-                break
-        if label_match is not None:
-            # Map the first bounded run of percentages to the first bounded run
-            # of year headers seen on the page.
-            years = [int(y) for y in re.findall(r"\b(20\d{2})\b", text[:4000])][:12]
-            segment = text[max(0, label_match - 80): label_match + 700]
-            vals = []
-            for raw in re.findall(r"(?<![0-9])([0-9]{1,2}(?:[.,][0-9]{1,3})?)(?![0-9])", segment):
-                try:
-                    val = float(raw.replace(",", "."))
-                except Exception:
-                    continue
-                if 0 <= val <= 5.0:
-                    vals.append(val)
+                in_cell = _cell_ratio_candidates(cell)
+                if in_cell:
+                    vals.append(min(in_cell))
+            obs = []
             if years and vals:
                 for idx, val in enumerate(vals[:len(years)]):
-                    observations.append({"year": years[idx], "cost_pct": val})
+                    obs.append({"year": years[idx], "cost_pct": val})
+            elif vals:
+                obs.append({"year": None, "cost_pct": vals[0]})
+            if obs:
+                candidates.append({
+                    "observations": obs,
+                    "metric_label": metric_label,
+                    "semantic_guard": "explicit_cost_to_portfolio_nav_ratio_label",
+                    "source_shape": "table",
+                })
 
-    # Deduplicate and order newest first.
+    # Conservative flattened-CMS fallback. The same strong metric label is
+    # mandatory and at least three historical observations must be recoverable.
+    if not candidates:
+        strings = [_clean_text(x).replace("\u00a0", " ") for x in soup.stripped_strings]
+        for idx, value in enumerate(strings):
+            accepted, _ = _label_semantics(value)
+            if not accepted:
+                continue
+            years = []
+            for node in strings[max(0, idx - 35): idx + 3]:
+                found = [int(y) for y in re.findall(r"\b(20\d{2})\b", node)]
+                for yr in found:
+                    if yr not in years:
+                        years.append(yr)
+            vals = []
+            for node in strings[idx + 1: idx + 45]:
+                clean_node = _clean_text(node)
+                if len(clean_node) > 30:
+                    continue
+                node_vals = _cell_ratio_candidates(clean_node)
+                if len(node_vals) == 1:
+                    vals.append(node_vals[0])
+                if years and len(vals) >= len(years):
+                    break
+            if len(years) >= 3 and len(vals) >= 3:
+                obs = [{"year": years[i], "cost_pct": vals[i]} for i in range(min(len(years), len(vals)))]
+                candidates.append({
+                    "observations": obs,
+                    "metric_label": value,
+                    "semantic_guard": "explicit_cost_to_portfolio_nav_ratio_label",
+                    "source_shape": "flattened_table",
+                })
+                break
+
+    if not candidates:
+        return None
+
+    candidates.sort(
+        key=lambda c: (
+            sum(1 for x in c.get("observations", []) if x.get("year")),
+            len(c.get("observations", [])),
+        ),
+        reverse=True,
+    )
+    chosen = candidates[0]
+    observations = chosen.get("observations") or []
+
     by_year = {}
     undated = []
     for obs in observations:
@@ -7669,20 +7701,9 @@ def _holding_extract_management_cost_ratio(html, url):
     if not ordered:
         return None
 
-    # V72 semantic/evidence guard: accounting-policy pages can mention
-    # "management cost" next to unrelated percentages (for example tax/VAT
-    # rates). A recurring holding-cost series is accepted only when the source
-    # supplies a genuine multi-year ratio series with at least three distinct
-    # years. Single-value/flat false positives must not satisfy the guard.
-    if len(ordered) < 3 or sum(1 for x in ordered if x.get("year") is not None) < 3:
-        return None
-    distinct_vals = {round(float(x.get("cost_pct")), 6) for x in ordered if safe_float(x.get("cost_pct")) is not None}
-    if len(distinct_vals) < 2:
-        return None
-
     latest = ordered[0]
     recent_vals = [safe_float(x.get("cost_pct")) for x in ordered[:5] if safe_float(x.get("cost_pct")) is not None]
-    if len(recent_vals) < 3:
+    if not recent_vals:
         return None
     recent_ser = pd.Series(recent_vals, dtype="float64")
     return {
@@ -7693,9 +7714,11 @@ def _holding_extract_management_cost_ratio(html, url):
         "max_5y_pct": float(recent_ser.max()),
         "observation_count": len(ordered),
         "observations": ordered[:12],
-        "metric_label": metric_label or "Management/holding cost ratio",
+        "metric_label": chosen.get("metric_label") or "Management/holding cost ratio",
+        "semantic_guard": chosen.get("semantic_guard"),
+        "source_shape": chosen.get("source_shape"),
         "source_url": url,
-        "quality": 3 if len(ordered) >= 5 else (2 if len(ordered) >= 3 else 1),
+        "quality": 4 if len(ordered) >= 5 else (3 if len(ordered) >= 3 else 1),
     }
 
 
@@ -8089,6 +8112,8 @@ def _holding_semantic_source_search(company_domain, company_name, deadline=None,
             f'site:{company_domain} "{name}" portfolio holdings',
         ],
         "cost": [
+            f'site:{company_domain} "management cost, % of portfolio value"',
+            f'site:{company_domain} "key ratios" "management cost"',
             f'site:{company_domain} "management cost" "portfolio value"',
             f'site:{company_domain} "key ratios"',
             f'site:{company_domain} "cost ratio" portfolio',
@@ -8202,6 +8227,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     cost_fetch_attempts = 0
     cost_parse_success = 0
     cost_semantic_rejections = 0
+    cost_candidate_trace = []
 
     def _latest_debt_date(records):
         dates = [r.get("as_of_date_obj") for r in (records or []) if r and r.get("as_of_date_obj")]
@@ -8368,6 +8394,43 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             seen_urls.add(url); out.append((url, label))
         return out
 
+    def _cost_source_rank(url, label):
+        # V73: management-cost evidence needs a metric-specific source order.
+        # Generic dated-link ranking is actively harmful here because undated
+        # Accounting Policies pages can outrank the actual Key Ratios table.
+        raw = " ".join([_clean_text(label), str(url or "").replace("-", " ").replace("_", " ").replace("/", " ")])
+        hay = _holding_fold_text(raw)
+        score = 0
+        if "management cost" in hay and any(term in hay for term in ["portfolio value", "portfolio", "nav", "net asset value"]):
+            score += 140
+        if any(term in hay for term in ["key ratios", "key figures", "nyckeltal"]):
+            score += 120
+        if any(term in hay for term in ["in figures", "figures"]):
+            score += 35
+        if any(term in hay for term in ["cost ratio", "expense ratio", "forvaltningskostnad"]):
+            score += 45
+        # Policy/tax prose may mention management cost but does not define the
+        # recurring portfolio-value ratio. Keep it available only as a remote
+        # fallback; never let it consume the first bounded fetch slots.
+        if any(term in hay for term in ["accounting polic", "tax polic", "taxation", "tax", "policy", "policies"]):
+            score -= 180
+        return (score, len(_clean_text(label)))
+
+    def dedupe_cost_sorted(items):
+        seen_urls = set(); out = []
+        for url, label in sorted(items, key=lambda x: _cost_source_rank(x[0], x[1]), reverse=True):
+            if url in seen_urls:
+                continue
+            seen_urls.add(url); out.append((url, label))
+        return out
+
+    def _record_cost_trace(url, label, status):
+        if len(cost_candidate_trace) >= 8:
+            return
+        path = urlparse(str(url or "")).path or "/"
+        short_label = _clean_text(label)[:70]
+        cost_candidate_trace.append(f"{status}:{path}" + (f" [{short_label}]" if short_label else ""))
+
     def consume_priority_links(referer=None, phase_deadline=None, include_nav=True, include_report=True):
         # NAV first, then the latest report. V54 allows fallback callers to pass
         # a phase-local deadline so a slow fallback cannot consume later budget.
@@ -8514,7 +8577,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         return min(latest_search_end, now + max(0.45, float(max_search_window)))
 
     def _semantic_search_and_fetch(kind, slot_end, query_offset=0, fetch_limit=2):
-        nonlocal cost_candidate_count, cost_fetch_attempts, cost_parse_success
+        nonlocal cost_candidate_count, cost_fetch_attempts, cost_parse_success, cost_semantic_rejections
         search_deadline = _search_deadline_with_fetch_reserve(slot_end)
         if search_deadline is None:
             return False
@@ -8570,8 +8633,8 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         if kind == "cost":
             cost_links.extend(found)
             cost_candidate_count += len(found)
-            candidates = dedupe_sorted(found)[:fetch_limit]
-            for url, _ in candidates:
+            candidates = dedupe_cost_sorted(found)[:fetch_limit]
+            for url, label in candidates:
                 if time.monotonic() >= slot_end:
                     break
                 cost_fetch_attempts += 1
@@ -8579,9 +8642,11 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 rec = _holding_extract_management_cost_ratio(html, url)
                 if not rec:
                     cost_semantic_rejections += 1
+                    _record_cost_trace(url, label, "reject")
                 if rec:
                     cost_parse_success += 1
                     holding_cost_records.append(rec)
+                    _record_cost_trace(url, label, "accept")
                     collect_links(url, html)
                     return True
                 collect_links(url, html)
@@ -8638,9 +8703,9 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     cost_started = time.monotonic()
     cost_slot_end = _evidence_deadline(5.4)
     if cost_slot_end is not None:
-        initial_cost_candidates = dedupe_sorted(cost_links)[:3]
+        initial_cost_candidates = dedupe_cost_sorted(cost_links)[:3]
         cost_candidate_count += len(initial_cost_candidates)
-        for url, _ in initial_cost_candidates:
+        for url, label in initial_cost_candidates:
             if not _research_budget_ok(cost_slot_end, reserve=0.85):
                 break
             cost_fetch_attempts += 1
@@ -8648,9 +8713,11 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             crec = _holding_extract_management_cost_ratio(chtml, url)
             if not crec:
                 cost_semantic_rejections += 1
+                _record_cost_trace(url, label, "reject")
             if crec:
                 cost_parse_success += 1
                 holding_cost_records.append(crec)
+                _record_cost_trace(url, label, "accept")
                 break
             collect_links(url, chtml)
         if not holding_cost_records:
@@ -8661,9 +8728,10 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             _semantic_search_and_fetch("cost", cost_slot_end, query_offset=2, fetch_limit=1)
     _timed_bucket("cost", cost_started)
     result["holding_cost_adapter_diagnostic"] = (
-        f"Holding Management-Cost Adapter V72: Candidates={cost_candidate_count}, "
+        f"Holding Management-Cost Adapter V73: Candidates={cost_candidate_count}, "
         f"Fetch={cost_fetch_attempts}, Parsed={cost_parse_success}, SemanticReject={cost_semantic_rejections}, "
         f"Evidence={'yes' if holding_cost_records else 'no'}"
+        + (("; CandidateTrace=" + " | ".join(cost_candidate_trace)) if cost_candidate_trace else "")
     )
 
     if any(semantic_counts.values()):
@@ -8985,7 +9053,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         result["holding_cost"] = holding_cost_records[0]
         c = result["holding_cost"]
         result["diagnostics"].append(
-            f"Holding Management-Cost Evidence V71: Latest={safe_float(c.get('latest_cost_pct')):.3f}% "
+            f"Holding Management-Cost Evidence V73: Latest={safe_float(c.get('latest_cost_pct')):.3f}% "
             f"({c.get('latest_year') or '–'}), Median5Y={safe_float(c.get('median_5y_pct')):.3f}%, "
             f"Obs={int(c.get('observation_count') or 0)}, Source=issuer-primary."
         )
@@ -9024,7 +9092,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22176_listed_holding_cost_source_discovery_v71"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22177_listed_holding_cost_source_ranking_v73"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
@@ -9237,7 +9305,7 @@ def _holding_build_justified_nav_target_diagnostic(historical_calibration, debt_
         "release_blockers": blockers,
         "double_count_guard": (
             "Historischer Median enthält normale Holdingkosten und Struktur bereits teilweise. "
-            "V72 verwendet die issuer-primary Kostenquote deshalb nur als Abweichungs-Guard gegen die eigene Mehrjahresnorm; "
+            "V73 verwendet die issuer-primary Kostenquote deshalb nur als Abweichungs-Guard gegen die eigene Mehrjahresnorm; "
             "eine normale/niedrige Kostenquote erhält 0,00 pp und wird nicht nochmals kapitalisiert."
         ),
         "method": "Historical median + bounded current-risk overlays + issuer-primary own-history management-cost guard; peer guard required before release",
@@ -9362,7 +9430,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "justified_nav_target_diagnostic": justified_target_diag,
         "provisional_target_premium_discount_pct": safe_float(justified_target_diag.get("provisional_target_pct")),
         "target_premium_discount_released": False,
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Cost-Source Discovery Guard V71",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Cost-Source Ranking Guard V73",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
@@ -57093,7 +57161,7 @@ if selected_symbol:
 
                         target_diag_h = snap_h.get("justified_nav_target_diagnostic") or {}
                         if target_diag_h.get("available"):
-                            st.write("**Justified NAV Premium/Discount – diagnostische Kalibrierung V71:**")
+                            st.write("**Justified NAV Premium/Discount – diagnostische Kalibrierung V73:**")
                             jt1, jt2, jt3 = st.columns(3)
                             with jt1:
                                 st.metric("Historischer Basisanker", f"{safe_float(target_diag_h.get('historical_anchor_pct')):+.1f} %")
