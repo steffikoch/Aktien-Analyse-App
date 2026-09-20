@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.81"
+APP_BUILD_VERSION = "V2.21.82"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,13 +31,15 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Holding Template V1 · Multi-Source NAV Evidence & Dynamic Peer Fallback V77"
+    f"Build {APP_BUILD_VERSION} · Holding NAV Fair Value Release & Unit-Safe Translation Guard V78"
 )
 
 
 # V2.21.79: Universal Listed-Holding Peer NAV Adapter & Unit/Share-Class Trace Guard V75. Fixes the V74 peer layer without changing valuation mathematics. The peer-only extractor anchors on explicit NAV-per-share semantics so total NAV cannot masquerade as NAV/share, supports quarter-end provenance when issuer tables use Q1/Q2/Q3/Q4 labels, and records source/market share-class context, NAV currency/unit, NAV date, latest market-price date and computed P/NAV in a per-peer trace. The peer runner gives every configured peer its own bounded research slice instead of allowing early peers to consume the entire budget. The generic issuer NAV/history adapters remain unchanged. Fair Value, valuation zones and signals remain locked until the peer evidence layer passes. No peer NAV values are hard-coded.
 # V2.21.80: Universal Listed-Holding Peer NAV Discovery & IR Second-Hop Guard V76. Keeps V75 valuation mathematics frozen and repairs only peer primary-source discovery. Peer research now uses multilingual exact NAV/share queries (English + Swedish), can crawl one bounded issuer-owned IR/report/NAV index hop, and can parse issuer-owned PDF reports through the existing embedded primary-document bridge. This is family-level HOLDING_TEMPLATE logic: no peer NAV values are hard-coded. Three valid peers remain mandatory; Fair Value, zones and signals stay locked until the peer guard passes.
 # V2.21.81: Universal Holding Template V1 · Multi-Source NAV Evidence & Dynamic Peer Fallback V77. Converts the Stockholm holding peer layer from a fixed four-name fetch into a reusable preferred-plus-fallback family template. Preferred peers remain the closest large Stockholm investment holdings; issuer-primary Svolder and Creades are researched only when fewer than three preferred peers validate. The peer NAV adapter broadens issuer-owned IR/report/press navigation, accepts ISO NAV as-of dates, and keeps HTML, press release, quarterly-report and issuer-PDF evidence under the same strict NAV/share semantic guard. Search snippets never become valuation evidence, no NAV values are hard-coded, and peer evidence remains a plausibility guard only. Fair Value, zones and signals remain locked.
+# V2.21.82: Holding NAV Fair Value Release & Unit-Safe Translation Guard V78. Promotes only the already released listed-holding target premium/discount into a dedicated NAV-based Fair Value: issuer-primary NAV/share × (1 + released target premium/discount). The branch requires fresh primary NAV, released historical/cost/peer calibration, explicit quote/report currency alignment and any verified share-unit conversion. Generic EPS/KGV/FCF mathematics remain blocked. Valuation zones and buy/hold signals remain intentionally locked for a later build so Fair Value translation can be tested independently. No issuer values are hard-coded.
+
 # V2.21.49: Nordic Home-Listing & Cboe Venue Guard V45. Extends only the Security Identity & Primary Listing Resolver. Verified Industrivärden name aliases resolve Class C to the issuer-declared Nasdaq Stockholm home line (Yahoo-style INDU-C.ST), while Cboe Europe .XD/DXE rows are treated as secondary venues for name searches. Exact ticker input still retains its exact-security priority, so an explicitly entered .XD ticker remains selectable as entered. No company-family routing, EPS normalization, specialist model, score, Fair Value, Reality Check or signal mathematics are changed.
 # V2.21.50: Security Resolver Cache-Epoch Guard V46. Couples the cached security-search result to an explicit resolver epoch so primary-listing alias/venue changes cannot reuse stale Streamlit cache entries from an older build. Search ranking, verified Industrivärden Stockholm mapping, company-family routing, EPS normalization, specialist models, scores, Fair Value, Reality Check and signal mathematics are unchanged.
 # V2.21.51: Listed Investment Holding Family Router V47. Separates principal-capital listed investment/holding companies from fee-based Asset Management by business-model evidence. Client AUM/advisory/management-fee signals keep the existing Asset-Manager route; own-portfolio/active-ownership/listed-holding signals route to a new fail-closed NAV family. No NAV Fair Value is released in this build. Security search, bank model, all released specialist scores/multiples/Fair Values, Reality Check and signal mathematics are unchanged.
@@ -6991,7 +6993,7 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
         if family_id == "listed_investment_holding":
             out["method"] = (
                 "Primary-source NAV je Aktie + aktueller Kurs/NAV-Premium-Discount + Holding-Leverage + "
-                "Portfolio-Konzentrationsdiagnose; NAV-Primärdatenmodell aktiv, Ziel-Premium/Discount und Fair Value noch nicht freigegeben"
+                "Portfolio-Konzentrationsdiagnose; NAV-Primärdatenmodell aktiv, Ziel-Premium/Discount und Fair Value werden ausschließlich über das Holding-Spezialmodell freigegeben"
             )
             out["business_model"] = (
                 "Börsennotierte Investment-/Holdinggesellschaft, die eigenes Kapital in Beteiligungen investiert; "
@@ -10083,13 +10085,13 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "final_target_premium_discount_pct": safe_float(justified_target_diag.get("final_target_pct")),
         "target_premium_discount_released": bool(justified_target_diag.get("released")),
         "holding_peer_evidence": peer_evidence,
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Multi-Source NAV Evidence & Dynamic Peer Fallback V77",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Holding NAV Fair Value Release V78",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
         "applicable": True,
         "primary_source_complete": primary_complete,
-        "valuation_anchor_complete": False,
+        "valuation_anchor_complete": bool(primary_complete and justified_target_diag.get("released")),
         "snapshot": snapshot,
         "nav_diagnostics": {
             "available": bool(nav_value and nav_value > 0),
@@ -10112,16 +10114,16 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
             "justified_target_blockers": justified_target_diag.get("release_blockers") or [],
         },
         "readiness": (
-            "NAV-/Premium-Discount-Primärdaten vollständig · historische Kalibrierung belastbar · Ziel-Premium/Discount-Diagnose + Holdingkosten-Guard aktiv · Fair Value noch gesperrt"
-            if primary_complete and historical_calibration.get("ready") else
-            ("NAV-/Premium-Discount-Primärdaten vollständig · historische Kalibrierung noch begrenzt · Fair Value gesperrt"
+            "NAV-/Premium-Discount-Primärdaten vollständig · Ziel-Premium/Discount freigegeben · NAV-Fair-Value-Anker freigegeben"
+            if primary_complete and justified_target_diag.get("released") else
+            ("NAV-/Premium-Discount-Primärdaten vollständig · Ziel-Premium/Discount noch nicht freigegeben · Fair Value gesperrt"
              if primary_complete else "NAV-Primärdaten unvollständig · fail-closed")
         ),
         "note": (
             f"{APP_BUILD_VERSION} trennt aktuellen issuer-primary NAV, Kurs/NAV-Premium-Discount, Holding-Leverage und Portfoliokonzentration. "
             "Die historische Verteilung liefert den Basisanker; Leverage und Konzentration bleiben begrenzte diagnostische Overlays. "
             "Issuer-primary Holdingkosten/Strukturdrag werden gegen die eigene Mehrjahresnorm geprüft; ein markt-/familiengerechter Holding-Peer-Cluster dient nur als Plausibilitäts-Guard. "
-            "V77 kann den Ziel-Premium/Discount freigeben; Fair Value, Zonen und Signale bleiben trotzdem noch gesperrt."
+            "V78 darf einen bereits freigegebenen Ziel-Premium/Discount ausschließlich als NAV-Multiplikator in den Holding-Fair-Value übersetzen. Bewertungszonen und Signale bleiben separat gesperrt."
         ),
     }
 
@@ -10131,10 +10133,12 @@ def build_listed_investment_holding_special_control(control, specialist_model):
         return control
     snap = (specialist_model or {}).get("snapshot") or {}
     primary_complete = bool((specialist_model or {}).get("primary_source_complete"))
+    target_released = bool(snap.get("target_premium_discount_released"))
+    fair_value_ready = bool(primary_complete and target_released)
     return {
         "required": True,
         "implemented": True,
-        "released": False,
+        "released": fair_value_ready,
         "control_key": "listed_investment_holding_nav",
         "control_name": "Listed Investment / Holding Company · Primary NAV-, Leverage- & Konzentrationskontrolle",
         "planned_checks": [
@@ -10147,11 +10151,14 @@ def build_listed_investment_holding_special_control(control, specialist_model):
             "Analystenziele ausschließlich Reality Check",
         ],
         "status": (
-            "Primärquellen-NAV-Modell aktiv · Holdingkosten-Guard aktiv · Peer-Guard ausstehend · Fair Value noch nicht freigegeben"
-            if primary_complete else "NAV-Primärdaten unvollständig · fail-closed"
+            "Holding-NAV-Spezialmodell vollständig · Ziel-Premium/Discount und Fair-Value-Anker freigegeben"
+            if fair_value_ready else
+            ("Primärquellen-NAV-Modell aktiv · Ziel-Premium/Discount noch nicht freigegeben · Fair Value gesperrt"
+             if primary_complete else "NAV-Primärdaten unvollständig · fail-closed")
         ),
         "router_status": "Holding-NAV-Spezialmodell V1 aktiv",
-        "confidence_cap": "Mittel" if primary_complete else "Niedrig",
+        "confidence_cap": "Niedrig bis Mittel" if fair_value_ready else ("Mittel" if primary_complete else "Niedrig"),
+        "step3b_status": ("Schritt 3B vollständig – Holding-Fair-Value freigegeben" if fair_value_ready else "Schritt 3B nicht freigegeben"),
         "checks": {
             "nav_snapshot": snap,
             "nav_diagnostics": (specialist_model or {}).get("nav_diagnostics") or {},
@@ -42101,7 +42108,14 @@ def calculate_valuation_confidence(
     is_integrated_oil_gas_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "integrated_oil_gas_through_cycle_pe"
     is_asset_management_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "asset_management_through_cycle_pe"
     is_defense_high_growth_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "defense_high_growth_current_fy_pe"
-    if is_auto_valuation:
+    is_holding_nav_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "listed_holding_nav_target"
+    if is_holding_nav_valuation:
+        holding_diag = ((special_control or {}).get("checks") or {}).get("nav_diagnostics") or {}
+        nav_level = "Mittel" if holding_diag.get("available") and holding_diag.get("fresh") and holding_diag.get("currency_aligned") else "Niedrig"
+        target_level = "Mittel" if holding_diag.get("justified_target_released") and int(holding_diag.get("peer_observation_count") or 0) >= 3 else "Niedrig"
+        components["Issuer-primary NAV-Basis"] = (_confidence_rank_value(nav_level), nav_level)
+        components["Ziel-P/NAV-Kalibrierung"] = (_confidence_rank_value(target_level), target_level)
+    elif is_auto_valuation:
         cycle_status = str(fair_value.get("cycle_status") or "")
         cycle_level = "Mittel" if cycle_status in {"Stark", "Mittel"} else "Mittel bis Hoch"
         components["Cycle-compressed EPS-Basis"] = (_confidence_rank_value(cycle_level), cycle_level)
@@ -42149,7 +42163,7 @@ def calculate_valuation_confidence(
         earnings_rank = _confidence_rank_value(earnings_level)
         if earnings_rank is not None:
             components["Defense Current-FY Earnings-Basis"] = (earnings_rank, earnings_level)
-    elif not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation and not is_branded_consumer_staples_valuation and not is_oilfield_services_energy_tech_valuation and not is_integrated_oil_gas_valuation and not is_defense_high_growth_valuation and not is_payment_network_valuation:
+    elif not is_holding_nav_valuation and not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation and not is_branded_consumer_staples_valuation and not is_oilfield_services_energy_tech_valuation and not is_integrated_oil_gas_valuation and not is_defense_high_growth_valuation and not is_payment_network_valuation:
         eps_level = (eps_normalization or {}).get("confidence")
         eps_rank = _confidence_rank_value(eps_level)
         if eps_rank is not None:
@@ -42679,6 +42693,123 @@ def calculate_fair_value_v1(
                     "Asset-NAV sind noch nicht belastbar freigegeben."
                 )
             return result
+
+    # Listed Holding V2.21.82 – dedicated NAV × released target P/NAV Fair Value.
+    # This branch is intentionally independent of the generic EPS × P/E path.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "listed_investment_holding_nav"
+    ):
+        if not special_control.get("released", False):
+            result["note"] = (
+                "Fair Value V1 gesperrt: Das Holding-NAV-Modell ist implementiert, aber der "
+                "issuer-spezifische Ziel-Premium/Discount ist noch nicht vollständig freigegeben."
+            )
+            return result
+
+        snap = special_control.get("snapshot") or ((special_control.get("checks") or {}).get("nav_snapshot") or {})
+        nav_per_share = safe_float(snap.get("nav_per_share"))
+        target_pd_pct = safe_float(snap.get("final_target_premium_discount_pct"))
+        if nav_per_share is None or nav_per_share <= 0 or target_pd_pct is None or target_pd_pct <= -100:
+            result["note"] = "Fair Value V1 gesperrt: Holding-NAV oder freigegebener Ziel-Premium/Discount ist nicht belastbar verfügbar."
+            return result
+
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        nav_currency = str(snap.get("nav_currency") or financial_currency or "").strip()
+        if not quote_currency or not financial_currency or not nav_currency:
+            result["note"] = "Fair Value V1 gesperrt: Die Währungseinheiten der Holding-Bewertung sind nicht eindeutig."
+            return result
+        if nav_currency.upper() != financial_currency.upper():
+            result["note"] = (
+                "Fair Value V1 gesperrt: Issuer-primary NAV-Währung und Finanzwährung sind nicht identisch; "
+                "eine implizite NAV-Umrechnung ist nicht zulässig."
+            )
+            return result
+
+        target_pnav = 1.0 + target_pd_pct / 100.0
+        fair_value_financial = nav_per_share * target_pnav
+        if fair_value_financial <= 0:
+            result["note"] = "Fair Value V1 gesperrt: Der resultierende Holding-NAV-Fair-Value ist nicht positiv."
+            return result
+
+        share_context = context.get("share_unit_context") or {}
+        share_ratio = 1.0
+        unit_notes = []
+        if share_context.get("conversion_required"):
+            if not share_context.get("conversion_available"):
+                result["note"] = (
+                    "Fair Value V1 gesperrt: Die Holding-Handelsnotierung verwendet eine abweichende "
+                    "Aktieneinheit ohne verifizierte Umrechnung."
+                )
+                return result
+            share_ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
+            if share_ratio is None or share_ratio <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Aktien-/ADR-Verhältnis ist nicht belastbar."
+                return result
+            unit_notes.append(
+                "Aktieneinheit ausdrücklich angeglichen: 1 "
+                f"{share_context.get('quote_unit_name') or 'Handelseinheit'} = {share_ratio:g} "
+                f"{share_context.get('fundamental_unit_name') or 'Fundamentalaktien'}."
+            )
+
+        fair_value_quote = fair_value_financial * share_ratio
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = (
+                    "Fair Value V1 gesperrt: Finanz- und Handelswährung weichen ab, aber die "
+                    "Umrechnung ist nicht belastbar verfügbar."
+                )
+                return result
+            fair_value_quote *= factor
+            if context.get("conversion_kind") == "gbp_pence":
+                unit_notes.append("Währungseinheit ausdrücklich angeglichen: 1 GBP = 100 GBp.")
+            else:
+                fx_symbol = context.get("fx_symbol")
+                unit_notes.append(
+                    f"Währungsangleichung für den Holding-Fair-Value/Kurs-Vergleich: {financial_currency} "
+                    f"→ {quote_currency} mit 1 {financial_currency} = {factor:.6f} {quote_currency}"
+                    + (f" über {fx_symbol}." if fx_symbol else ".")
+                )
+        elif quote_currency.upper() != financial_currency.upper():
+            result["note"] = (
+                "Fair Value V1 gesperrt: Finanz- und Handelswährung weichen ohne ausdrückliche Umrechnung ab."
+            )
+            return result
+
+        current_price_value = safe_float(current_price)
+        potential_pct = None
+        if current_price_value is not None and current_price_value > 0:
+            potential_pct = (fair_value_quote / current_price_value - 1.0) * 100.0
+
+        result.update({
+            "available": True,
+            "valuation_method": "listed_holding_nav_target",
+            "normalized_eps": None,
+            "used_multiple": target_pnav,
+            "multiple_source": "Issuer-primary NAV × freigegebenes Ziel-P/NAV",
+            "fair_value_financial": fair_value_financial,
+            "fair_value_quote": fair_value_quote,
+            "potential_pct": potential_pct,
+            "nav_per_share": nav_per_share,
+            "nav_as_of_date": snap.get("nav_as_of_date"),
+            "nav_currency": nav_currency,
+            "target_premium_discount_pct": target_pd_pct,
+            "target_pnav": target_pnav,
+            "current_pnav": safe_float(snap.get("price_to_nav")),
+            "current_premium_discount_pct": safe_float(snap.get("premium_discount_pct")),
+            "historical_nav_median_premium_discount_pct": safe_float(snap.get("historical_nav_median_premium_discount_pct")),
+            "peer_observation_count": int(((snap.get("holding_peer_evidence") or {}).get("observation_count") or 0)),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "Holding-Fair-Value V78 = aktueller issuer-primary NAV je Aktie × freigegebenes issuer-spezifisches Ziel-P/NAV. "
+                "Der Zielwert wurde zuvor separat aus eigener NAV-Historie, Leverage/Konzentration, Holdingkosten und Peer-Plausibilitäts-Guard freigegeben. "
+                "Generisches EPS/KGV, Yahoo-FCF und Analystenkursziele sind keine Fair-Value-Inputs."
+            ),
+        })
+        return result
 
     # Bank V2.20.39 – dedicated dual-anchor fair value. This branch is
     # intentionally separate from the generic EPS x single-multiple path.
@@ -50196,19 +50327,21 @@ def load_stock(selected_symbol, cache_version):
             _holding_prem_event = safe_float(_holding_snap_event.get("premium_discount_pct"))
             _holding_nav_text = (f"{_holding_nav_event:.2f} {_holding_snap_event.get('nav_currency') or financial_currency}" if _holding_nav_event is not None else "nicht verfügbar")
             _holding_pd_text = (f"{_holding_prem_event:+.1f} %" if _holding_prem_event is not None else "nicht verfügbar")
+            _holding_target_released = bool(_holding_snap_event.get("target_premium_discount_released"))
             special_event_warning = {
                 "level": "Grün",
                 "icon": "🟢",
-                "title": "Holding-NAV-Primärdatenmodell aktiv – Fair-Value-Kalibrierung noch gesperrt",
+                "title": ("Holding-NAV-Fair-Value-Modell aktiv – V78 freigegeben" if _holding_target_released else "Holding-NAV-Primärdatenmodell aktiv – Fair Value noch gesperrt"),
                 "requires_research": False,
-                "valuation_usable": False,
+                "valuation_usable": bool(_holding_target_released),
                 "reason": (
                     f"Issuer-primary NAV {_holding_nav_text} je Aktie und aktueller Kurs/NAV-Abstand {_holding_pd_text} werden separat vom generischen EPS/KGV-Pfad geführt. "
                     "Das ist eine normale Holding-Bewertungsbasis und kein Sonderereignis."
                 ),
                 "action": (
-                    f"Keine EPS-Sonderrecherche starten. {APP_BUILD_VERSION} validiert NAV, Kurs/NAV, Holding-Leverage und Portfoliokonzentration; "
-                    "ein Ziel-Premium/Discount und damit Fair Value/Signale bleiben bis zur separaten Kalibrierung gesperrt."
+                    (f"Keine EPS-Sonderrecherche starten. {APP_BUILD_VERSION} übersetzt den bereits freigegebenen Ziel-Premium/Discount jetzt ausschließlich über NAV × Ziel-P/NAV in den Fair Value; Bewertungszonen und Signale bleiben separat gesperrt.")
+                    if _holding_target_released else
+                    (f"Keine EPS-Sonderrecherche starten. {APP_BUILD_VERSION} hält den Fair Value bis zur vollständigen Ziel-Premium/Discount-Freigabe geschlossen.")
                 ),
                 "family_model_gate": True,
                 "holding_nav_model": True,
@@ -50868,6 +51001,18 @@ def load_stock(selected_symbol, cache_version):
         fair_value,
         valuation_confidence
     )
+
+    if fair_value.get("valuation_method") == "listed_holding_nav_target":
+        valuation_zone = {
+            "available": False,
+            "zone": None,
+            "price_vs_fair_value_pct": None,
+            "fair_lower": None,
+            "fair_upper": None,
+            "strong_undervaluation_limit": None,
+            "strong_overvaluation_limit": None,
+            "note": "Holding V78: Fair Value freigegeben; Bewertungszonen werden erst in einem separaten Build kalibriert."
+        }
 
     new_buy_signal = generate_new_buy_signal(
         valuation_zone,
@@ -57835,7 +57980,7 @@ if selected_symbol:
 
                         target_diag_h = snap_h.get("justified_nav_target_diagnostic") or {}
                         if target_diag_h.get("available"):
-                            st.write("**Justified NAV Premium/Discount – Kalibrierung & Peer-Guard V77:**")
+                            st.write("**Justified NAV Premium/Discount – Kalibrierung & Peer-Guard V78:**")
                             jt1, jt2, jt3 = st.columns(3)
                             with jt1:
                                 st.metric("Historischer Basisanker", f"{safe_float(target_diag_h.get('historical_anchor_pct')):+.1f} %")
@@ -57878,14 +58023,14 @@ if selected_symbol:
                                 st.caption("Peer-Adapter: " + text_or_dash(target_diag_h.get("peer_diagnostic")))
                             final_target_h = safe_float(target_diag_h.get("final_target_pct"))
                             if target_diag_h.get("released") and final_target_h is not None:
-                                st.success(f"Ziel-Premium/Discount V77 freigegeben: {final_target_h:+.1f} %. Fair Value bleibt in diesem Build noch separat gesperrt.")
+                                st.success(f"Ziel-Premium/Discount V78 freigegeben: {final_target_h:+.1f} %. Dieser Wert darf jetzt ausschließlich den NAV-basierten Fair Value steuern.")
                             st.warning(text_or_dash(target_diag_h.get("double_count_guard")))
                             blockers_h = target_diag_h.get("release_blockers") or []
                             if blockers_h:
                                 st.caption("Freigabe-Blocker: " + " · ".join(str(x) for x in blockers_h))
                             st.info(
                                 "Der vorläufige Zielwert wird erst nach bestandenem Holding-Peer-Guard als Ziel-Premium/Discount freigegeben. "
-                                "Auch ein freigegebener Zielwert steuert in V77 noch **nicht** Fair Value, Bewertungszonen oder Signale."
+                                "In V78 darf ein freigegebener Zielwert den NAV-basierten **Fair Value** steuern; Bewertungszonen und Signale bleiben weiterhin separat gesperrt."
                             )
 
                         st.success("Holding-NAV-Primärdatenmodell aktiv: NAV, aktueller Premium/Discount, historische Kalibrierung und diagnostische Ziel-Premium/Discount-Brücke sind getrennt vom EPS/KGV-Pfad verfügbar.")
@@ -57894,10 +58039,15 @@ if selected_symbol:
                         diag_lines_h = snap_h.get("diagnostics") or []
                         if diag_lines_h:
                             st.caption("Adapter-Diagnose: " + " | ".join(str(x) for x in diag_lines_h[-6:]))
-                    st.warning(
-                        f"Fair Value bleibt in {APP_BUILD_VERSION} bewusst gesperrt: Historie, Leverage, Konzentration, issuer-primary Holdingkosten und der Holding-Peer-NAV-Guard werden jetzt getrennt geprüft. "
-                        "Ein bestandener Peer-Guard darf den Ziel-Premium/Discount freigeben; die eigentliche Fair-Value-Rechnung, Zonen und Signale folgen erst in einem separaten Build."
-                    )
+                    if special_control.get("released"):
+                        st.success(
+                            f"Holding-Fair-Value ist in {APP_BUILD_VERSION} freigegeben: Der bereits geprüfte issuer-primary NAV wird ausschließlich mit dem freigegebenen Ziel-P/NAV übersetzt. "
+                            "Bewertungszonen und Signale bleiben in V78 bewusst noch separat gesperrt."
+                        )
+                    else:
+                        st.warning(
+                            f"Fair Value bleibt in {APP_BUILD_VERSION} gesperrt, solange der Ziel-Premium/Discount-Guard nicht vollständig freigegeben ist."
+                        )
                     st.caption(text_or_dash(special_control.get("note")))
 
                 elif special_control.get("control_key") == "asset_management_specialist":
@@ -62157,6 +62307,21 @@ if selected_symbol:
                             "Die Bezeichnung 'normalisiertes EPS' des generischen Pfads wird hier bewusst nicht verwendet: "
                             "der Defense-Fair-Value verankert sich explizit am 0Y/current-FY-Earnings-Horizont."
                         )
+                    elif fair_value.get("valuation_method") == "listed_holding_nav_target":
+                        st.write("**Bewertungsformel:** Issuer-primary NAV je Aktie × freigegebenes Ziel-P/NAV")
+                        st.write(
+                            "**Issuer-primary NAV je Aktie:** "
+                            + format_currency_value(fair_value.get("nav_per_share"), fair_value.get("nav_currency") or fair_value["financial_currency"], 2)
+                        )
+                        st.write(f"**NAV-Datenstand:** {text_or_dash(fair_value.get('nav_as_of_date'))}")
+                        st.write(f"**Freigegebenes Ziel-Premium/Discount:** {safe_float(fair_value.get('target_premium_discount_pct')):+.1f} %")
+                        st.write(f"**Ziel-P/NAV:** {safe_float(fair_value.get('target_pnav')):.3f}×")
+                        if safe_float(fair_value.get("current_pnav")) is not None:
+                            st.write(f"**Aktuelles P/NAV:** {safe_float(fair_value.get('current_pnav')):.3f}×")
+                        st.caption(
+                            f"Peer-Evidenz: {int(fair_value.get('peer_observation_count') or 0)} valide Holding-Peers. "
+                            "Analystenziele, generisches EPS/KGV und Yahoo-FCF sind keine Fair-Value-Inputs."
+                        )
                     elif fair_value.get("valuation_method") == "reit_paffo":
                         st.write("**Bewertungsformel:** Offizieller AFFO-Guidance-Mittelwert × scoregesteuertes Ziel-P/AFFO")
                         st.write(f"**REIT-Score:** {fair_value.get('reit_score'):.0f}/100 · {fair_value.get('reit_quality_level')}")
@@ -62236,7 +62401,12 @@ if selected_symbol:
                             f"{potential:+.1f} %"
                         )
 
-                    if fair_value.get("valuation_method") == "bank_dual_anchor":
+                    if fair_value.get("valuation_method") == "listed_holding_nav_target":
+                        st.success(
+                            "Holding-Fair-Value V78 wurde aus dem aktuellen issuer-primary NAV je Aktie und dem separat freigegebenen Ziel-P/NAV berechnet. "
+                            "Bewertungszonen und Signale bleiben in diesem Build bewusst noch gesperrt."
+                        )
+                    elif fair_value.get("valuation_method") == "bank_dual_anchor":
                         st.success(
                             "Bank-Fair-Value V1 wurde aus zwei unabhängigen, bankspezifischen "
                             "Bewertungsankern berechnet und erst nach der Schritt-3B-Freigabe veröffentlicht."
