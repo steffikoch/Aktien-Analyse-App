@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.09"
+APP_BUILD_VERSION = "V2.22.10"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Asset Management Same-Basis Annual EPS History Adapter V105"
+    f"Build {APP_BUILD_VERSION} · Universal Asset Management Full-Year Scope Integrity Guard V106"
 )
 
 
@@ -57,7 +57,7 @@ st.caption(
 
 # V2.22.02: Universal Asset Management Same-Basis Earnings & Evidence-Backed Premium Corridor Guard V98. Fixes two cross-company valuation-consistency gaps exposed by BlackRock. First, if a specialist uses issuer-adjusted TTM EPS, the 3Y Through-Cycle component may no longer fall back to generic GAAP history; it must use explicit issuer-adjusted annual EPS history from the same earnings family or remain fail-closed. Second, the traditional 9–18x asset-manager corridor remains the base corridor, but a fully validated 5/5 Premium-Unlock with score >=80 and a 3Y historical forward-P/E median above 18x can add a smooth evidence-backed extension. The historical median is only a ceiling (capped at 24x), never an automatic target; extension rises gradually with quality from score 80 to 100. Negative-flow and Money-Market downside guards remain dominant. TROW and other non-premium managers retain their prior mathematics.
 # V2.22.07: Universal Asset Management Current-Results Ranking & Multilingual Evidence Guard V103. Hardens the generic issuer-primary adapter after Amundi proved that a current IR hub can expose generic corporate-report PDFs ahead of the actual financial-results article. Candidate ranking now prioritizes current-period financial/results/quarter/half-year semantics (including French IR vocabulary) and penalizes generic corporate/ESG/engagement publications. The current-report parser adds bilingual EN/FR evidence aliases for AUM/encours, net inflows/collecte nette, management fees/commissions de gestion, cost-income/coefficient d'exploitation, adjusted EPS/bénéfice par action ajusté, French publication dates and current AUM-history tables. Same-basis Through-Cycle earnings remain independently fail-closed; TROW/BLK valuation mathematics are unchanged and no Amundi ticker/value snapshot is hard-coded.
-# V2.22.09: Universal Asset Management Same-Basis Annual EPS History Adapter V105. Keeps the V104 current-report evidence adapter unchanged, then enriches only generic issuer-primary Asset-Manager snapshots with a bounded issuer-owned annual-results crawl. Q4/T4/full-year releases are ranked by IR-table year context, adjusted annual EPS is parsed from comparable annual income-statement tables, and current-period/prior-period adjusted EPS from the current H1 report is bridged to an issuer-adjusted TTM. Three consecutive adjusted annual EPS values are required before Through-Cycle earnings can release. Search remains discovery-only fallback; missing annual history stays fail-closed. TROW/BLK fixed snapshots and valuation mathematics remain unchanged; no Amundi ticker/value snapshot is hard-coded.
+# V2.22.10: Universal Asset Management Full-Year Scope Integrity Guard V106. Fixes the V105 annual-EPS parser so a later Q4/T4/quarter table can never overwrite issuer-adjusted full-year EPS from the annual table. Annual sections are bounded before subsequent quarter/interim sections, explicit quarter-scope headers are rejected, first valid full-year observations win, and sentence fallbacks require annual context while rejecting quarter-only context. Ambiguous annual history remains fail-closed. Current-report evidence, TROW/BLK fixed snapshots, score/multiple mathematics and peer guards are unchanged; no issuer-specific annual EPS values are hard-coded.
 # V2.22.06: Universal Asset Management Direct-IR Bootstrap & Same-Basis Fail-Closed Guard V102. Keeps V101 runtime isolation, but no longer relies on semantic web search as the first discovery route. The generic Asset-Manager adapter now crawls the provider-declared issuer site/root first, promotes current-year results/report links, follows one bounded issuer-owned second hop such as a Press Release PDF, and uses search only as fallback. Partial evidence/trace is retained for diagnostics. Generic discovered issuers are explicitly prevented from falling back to provider/GAAP Through-Cycle EPS until an issuer-adjusted same-basis TTM/3Y earnings bridge is available. Asset-Management special-event text is aligned with the fail-closed specialist state. TROW/BLK valuation mathematics remain unchanged; no Amundi ticker/value snapshot is hard-coded.
 # V2.22.01: Universal Asset Management BlackRock Primary-Snapshot & Fail-Closed UI Guard V97. Validates BlackRock as a second main-company Asset-Management path using issuer-primary Q2/H1 2026 AUM, same-scope Long-Term flows, adjusted operating margin, base-fee/Average-AUM fee-rate evidence and issuer-adjusted TTM EPS; BLK remains a premium-franchise reference but is no longer reference-only when selected as the target. Also hardens Step 3B so any unsupported asset manager with an empty snapshot renders a fail-closed diagnostic instead of crashing the whole stock page. TROW/FHI/BEN/IVZ score, multiple and Fair Value mathematics are unchanged.
 
@@ -30792,7 +30792,7 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V105"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22209_asset_manager_same_basis_annual_eps_v105"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22210_asset_manager_full_year_scope_integrity_v106"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -31368,64 +31368,109 @@ def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
 
 
 def _asset_manager_parse_adjusted_annual_eps_map(text):
-    """Return issuer-adjusted annual EPS keyed by fiscal year from an annual/Q4 results report.
+    """Return issuer-adjusted *full-year* EPS keyed by fiscal year.
 
-    The parser is deliberately table-first.  Many issuer releases present two
-    comparable fiscal years in one adjusted income-statement table; using that
-    table avoids mixing quarterly EPS with full-year EPS and also lets the most
-    recent report contribute the prior-year comparable value.
+    V106 scope-integrity rule: Q4/T4/quarter/interim tables may coexist in the
+    same annual-results release but must never overwrite the full-year table.
+    The parser therefore bounds each annual table before the next period table,
+    rejects explicit quarter/interim headers, and preserves the first valid
+    full-year observation for each year.
     """
     clean = _clean_text(text)
     if len(clean) < 300:
         return {}
-    result = {}
     folded = unicodedata.normalize("NFKD", clean).encode("ascii", "ignore").decode("ascii")
+    result = {}
 
-    anchor_patterns = [
-        r"adjusted\s+income\s+statement\d*\s+(?:for\s+)?(?:FY\s*)?(?P<y1>20\d{2})\s+(?:and|&)\s+(?P<y2>20\d{2})",
-        r"adjusted\s+income\s+statement\d*.{0,80}?(?P<y1>20\d{2}).{0,40}?(?P<y2>20\d{2})",
-        r"compte\s+de\s+resultat\s+ajuste\d*.{0,80}?(?P<y1>20\d{2}).{0,40}?(?P<y2>20\d{2})",
+    def _scope_fold(value):
+        return unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii").lower()
+
+    def _quarter_or_interim_scope(value):
+        h = _scope_fold(value)
+        return bool(
+            re.search(r"\b(?:q[1-4]|t[1-4]|h[12]|s[12])\b", h)
+            or any(term in h for term in [
+                "first quarter", "second quarter", "third quarter", "fourth quarter",
+                "quarter of", "quarterly", "trimestre", "premier semestre",
+                "1er semestre", "first half", "half-year", "half year", "interim",
+            ])
+        )
+
+    # Locate adjusted-income-statement headings.  The generic heading pattern is
+    # intentionally broad enough for issuers that write either "FY 2025 and
+    # 2024" or simply "2024 and 2023", but explicit quarter/interim scope is
+    # rejected before any values are accepted.
+    heading_re = re.compile(
+        r"(?:adjusted\s+income\s+statement|compte\s+de\s+resultat\s+ajuste)\d*"
+        r"(?P<header>.{0,180}?)(?P<y1>20\d{2}).{0,55}?(?P<y2>20\d{2})",
+        re.I | re.S,
+    )
+    headings = list(heading_re.finditer(folded))
+    row_patterns = [
+        r"earnings\s+per\s+share\s*-\s*adjusted\s*(?:\([^)]*\))?\s*(?P<v1>[0-9]{1,2}[\.,][0-9]{1,3})\s+(?P<v2>[0-9]{1,2}[\.,][0-9]{1,3})",
+        r"adjusted\s+earnings\s+per\s+share\s*(?:\([^)]*\))?\s*(?P<v1>[0-9]{1,2}[\.,][0-9]{1,3})\s+(?P<v2>[0-9]{1,2}[\.,][0-9]{1,3})",
+        r"benefice\s+(?:net\s+)?par\s+action\s*-\s*ajuste\s*(?:\([^)]*\))?\s*(?P<v1>[0-9]{1,2}[\.,][0-9]{1,3})\s+(?P<v2>[0-9]{1,2}[\.,][0-9]{1,3})",
     ]
-    for pat in anchor_patterns:
-        for am in re.finditer(pat, folded, re.I | re.S):
-            years = [int(am.group("y1")), int(am.group("y2"))]
-            window = folded[am.start():am.start() + 5200]
-            row_patterns = [
-                r"earnings\s+per\s+share\s*-\s*adjusted\s*(?:\([^)]*\))?\s*(?P<v1>[0-9]{1,2}[\.,][0-9]{1,3})\s+(?P<v2>[0-9]{1,2}[\.,][0-9]{1,3})",
-                r"adjusted\s+earnings\s+per\s+share\s*(?:\([^)]*\))?\s*(?P<v1>[0-9]{1,2}[\.,][0-9]{1,3})\s+(?P<v2>[0-9]{1,2}[\.,][0-9]{1,3})",
-                r"benefice\s+(?:net\s+)?par\s+action\s*-\s*ajuste\s*(?:\([^)]*\))?\s*(?P<v1>[0-9]{1,2}[\.,][0-9]{1,3})\s+(?P<v2>[0-9]{1,2}[\.,][0-9]{1,3})",
-            ]
-            for rpat in row_patterns:
-                rm = re.search(rpat, window, re.I | re.S)
-                if not rm:
-                    continue
-                vals = [safe_float(rm.group("v1").replace(",", ".")), safe_float(rm.group("v2").replace(",", "."))]
-                if all(v is not None and 0 < v < 1000 for v in vals):
-                    result[years[0]] = vals[0]
-                    result[years[1]] = vals[1]
-                    break
+    for idx, am in enumerate(headings):
+        header_context = folded[am.start():min(len(folded), am.end() + 120)]
+        if _quarter_or_interim_scope(header_context):
+            continue
+        years = [int(am.group("y1")), int(am.group("y2"))]
+        # Do not let the search spill into the following Q4/interim table.
+        next_start = headings[idx + 1].start() if idx + 1 < len(headings) else min(len(folded), am.start() + 5200)
+        section_end = min(next_start, am.start() + 5200)
+        window = folded[am.start():section_end]
+        for rpat in row_patterns:
+            rm = re.search(rpat, window, re.I | re.S)
+            if not rm:
+                continue
+            vals = [safe_float(rm.group("v1").replace(",", ".")), safe_float(rm.group("v2").replace(",", "."))]
+            if all(v is not None and 0 < v < 1000 for v in vals):
+                # First unambiguous full-year table wins.  A later Q4 table or
+                # duplicate appendix cannot overwrite it.
+                result.setdefault(years[0], vals[0])
+                result.setdefault(years[1], vals[1])
+                break
 
-    # Explicit full-year sentences are a fallback for issuers without a compact
-    # two-year table.  Require the fiscal year in the same sentence/window so a
-    # Q4 EPS cannot be mistaken for annual EPS.
+    # Explicit full-year prose is fallback evidence for issuers without a
+    # compact two-year annual table.  Require annual wording in the same local
+    # context and reject quarter/interim-only wording.
     current_year = datetime.now().year
+    eps_label_re = re.compile(
+        r"(?:adjusted\s+(?:net\s+)?earnings\s+per\s+share|benefice\s+(?:net\s+)?par\s+action\s+ajuste)",
+        re.I,
+    )
     for year in range(current_year - 6, current_year + 1):
         if year in result:
             continue
-        patterns = [
-            rf"adjusted\s+(?:net\s+)?earnings\s+per\s+share.{{0,100}}?(?:for\s+the\s+year\s+)?{year}.{{0,80}}?(?:reached|was|at|of)?\s*[€$£]?\s*(?P<v>[0-9]{{1,2}}[\.,][0-9]{{1,3}})",
-            rf"adjusted\s+(?:net\s+)?earnings\s+per\s+share.{{0,80}}?(?:reached|was|at|of)\s*[€$£]?\s*(?P<v>[0-9]{{1,2}}[\.,][0-9]{{1,3}}).{{0,60}}?(?:in|for)\s+{year}",
-            rf"benefice\s+(?:net\s+)?par\s+action\s+ajuste.{{0,100}}?{year}.{{0,80}}?(?:atteint|de|a)?\s*(?P<v>[0-9]{{1,2}}[\.,][0-9]{{1,3}})\s*€?",
-        ]
-        for pat in patterns:
-            m = re.search(pat, folded, re.I | re.S)
-            if m:
+        for lm in eps_label_re.finditer(folded):
+            local = folded[max(0, lm.start() - 140):min(len(folded), lm.start() + 340)]
+            if str(year) not in local:
+                continue
+            annual_context = bool(
+                re.search(rf"\b(?:fy\s*)?{year}\b", local)
+                and any(term in local for term in [
+                    "for the year", "full year", "full-year", "annual", "fiscal year",
+                    "year ended", "exercice", "annuel", "annee", "sur l annee",
+                ])
+            )
+            if not annual_context or _quarter_or_interim_scope(local):
+                continue
+            value_patterns = [
+                rf"(?:for\s+the\s+year\s+{year}|(?:fy\s*)?{year}).{{0,120}}?(?:reached|was|at|of|atteint|de|a)?\s*[€$£]?\s*(?P<v>[0-9]{{1,2}}[\.,][0-9]{{1,3}})",
+                rf"(?:reached|was|at|of|atteint|de|a)\s*[€$£]?\s*(?P<v>[0-9]{{1,2}}[\.,][0-9]{{1,3}}).{{0,90}}?(?:in|for|exercice|annee)\s+{year}",
+            ]
+            for pat in value_patterns:
+                m = re.search(pat, local, re.I | re.S)
+                if not m:
+                    continue
                 value = safe_float(m.group("v").replace(",", "."))
                 if value is not None and 0 < value < 1000:
-                    result[year] = value
+                    result.setdefault(year, value)
                     break
+            if year in result:
+                break
     return result
-
 
 def _asset_manager_annual_candidate_score(row, target_year):
     hay = " ".join([
@@ -37611,7 +37656,7 @@ def get_special_control(company_type, symbol):
                 "JHG/Take-private Delisting Guard",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Same-Basis Annual EPS History Adapter V105",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Full-Year Scope Integrity Guard V106",
             "note": (
                 "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
                 "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
@@ -61333,7 +61378,7 @@ if selected_symbol:
 
                 elif special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Same-Basis Annual EPS History Adapter V105")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Full-Year Scope Integrity Guard V106")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
