@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.83"
+APP_BUILD_VERSION = "V2.21.84"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Holding P/NAV Evidence-Calibrated Valuation Zone Guard V79"
+    f"Build {APP_BUILD_VERSION} · Holding Zone-to-Signal Translation & No-Generic-Fundamental Guard V80"
 )
 
 
@@ -40,6 +40,7 @@ st.caption(
 # V2.21.81: Universal Holding Template V1 · Multi-Source NAV Evidence & Dynamic Peer Fallback V77. Converts the Stockholm holding peer layer from a fixed four-name fetch into a reusable preferred-plus-fallback family template. Preferred peers remain the closest large Stockholm investment holdings; issuer-primary Svolder and Creades are researched only when fewer than three preferred peers validate. The peer NAV adapter broadens issuer-owned IR/report/press navigation, accepts ISO NAV as-of dates, and keeps HTML, press release, quarterly-report and issuer-PDF evidence under the same strict NAV/share semantic guard. Search snippets never become valuation evidence, no NAV values are hard-coded, and peer evidence remains a plausibility guard only. Fair Value, zones and signals remain locked.
 # V2.21.82: Holding NAV Fair Value Release & Unit-Safe Translation Guard V78. Promotes only the already released listed-holding target premium/discount into a dedicated NAV-based Fair Value: issuer-primary NAV/share × (1 + released target premium/discount). The branch requires fresh primary NAV, released historical/cost/peer calibration, explicit quote/report currency alignment and any verified share-unit conversion. Generic EPS/KGV/FCF mathematics remain blocked. Valuation zones and buy/hold signals remain intentionally locked for a later build so Fair Value translation can be tested independently. No issuer values are hard-coded.
 # V2.21.83: Holding P/NAV Evidence-Calibrated Valuation Zone Guard V79. Releases only the valuation-zone layer for listed holdings after V78 Fair Value is available. Zones are calibrated in P/NAV premium/discount percentage-point space around the already released issuer-specific target rather than reusing the generic EPS/P-E confidence bands. The band width is derived from the wider of issuer historical IQR and fresh peer IQR, with conservative family floors/caps; no new target valuation assumption is introduced. Price thresholds are translated back through the same issuer-primary NAV/share and existing unit-safe Fair Value context. Buy/hold/sell signals remain explicitly locked for a later build.
+# V2.21.84: Holding Zone-to-Signal Translation & No-Generic-Fundamental Guard V80. Releases only the action-translation layer for listed holdings after the V78 NAV Fair Value and V79 P/NAV zone are available. The holding signal engine does not invent or reuse the generic 100-point industrial fundamental score: it translates only the already released evidence-calibrated P/NAV zone under the existing valuation-confidence cap. At medium confidence, strong undervaluation may release Kauf/Nachkaufen, ordinary undervaluation remains Beobachten/Halten, fair valuation maps to Abwarten/Halten, ordinary overvaluation blocks new buys without forcing a sale, and only strong overvaluation may release Reduzieren for an existing holding. The holding engine never emits Starker Kauf or automatic Verkaufen from valuation alone. External analyst consensus remains a brake-only Reality Check and cannot create or upgrade an action.
 
 # V2.21.49: Nordic Home-Listing & Cboe Venue Guard V45. Extends only the Security Identity & Primary Listing Resolver. Verified Industrivärden name aliases resolve Class C to the issuer-declared Nasdaq Stockholm home line (Yahoo-style INDU-C.ST), while Cboe Europe .XD/DXE rows are treated as secondary venues for name searches. Exact ticker input still retains its exact-security priority, so an explicitly entered .XD ticker remains selectable as entered. No company-family routing, EPS normalization, specialist model, score, Fair Value, Reality Check or signal mathematics are changed.
 # V2.21.50: Security Resolver Cache-Epoch Guard V46. Couples the cached security-search result to an explicit resolver epoch so primary-listing alias/venue changes cannot reuse stale Streamlit cache entries from an older build. Search ranking, verified Industrivärden Stockholm mapping, company-family routing, EPS normalization, specialist models, scores, Fair Value, Reality Check and signal mathematics are unchanged.
@@ -10086,7 +10087,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "final_target_premium_discount_pct": safe_float(justified_target_diag.get("final_target_pct")),
         "target_premium_discount_released": bool(justified_target_diag.get("released")),
         "holding_peer_evidence": peer_evidence,
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Holding P/NAV Zone Guard V79",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Holding Zone-to-Signal Translation Guard V80",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
@@ -10124,7 +10125,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
             f"{APP_BUILD_VERSION} trennt aktuellen issuer-primary NAV, Kurs/NAV-Premium-Discount, Holding-Leverage und Portfoliokonzentration. "
             "Die historische Verteilung liefert den Basisanker; Leverage und Konzentration bleiben begrenzte diagnostische Overlays. "
             "Issuer-primary Holdingkosten/Strukturdrag werden gegen die eigene Mehrjahresnorm geprüft; ein markt-/familiengerechter Holding-Peer-Cluster dient nur als Plausibilitäts-Guard. "
-            "V79 übernimmt den bereits freigegebenen Holding-Fair-Value und kalibriert ausschließlich die P/NAV-Bewertungszone aus eigener Historie und Peer-IQR. Handlungssignale bleiben separat gesperrt."
+            "V80 übernimmt den unveränderten V78-Holding-Fair-Value und die unveränderte V79-P/NAV-Zone. Die Handlungssignal-Übersetzung ist jetzt als eigene Holding-Schicht freigegeben und verwendet keinen generischen industriellen Fundamental-Score."
         ),
     }
 
@@ -42673,6 +42674,216 @@ def generate_holding_signal(
     return result
 
 
+def generate_listed_holding_action_signals(
+    valuation_zone,
+    valuation_confidence,
+    fair_value,
+    special_control,
+    special_event_warning=None,
+):
+    """Translate an already released listed-holding P/NAV zone into actions.
+
+    V80 deliberately does *not* use the generic industrial Multiple Score. The
+    holding family has already embedded its business-model evidence in the
+    issuer-primary NAV target, historical premium/discount calibration,
+    leverage/concentration diagnostics, management-cost guard and peer
+    plausibility guard. Re-scoring the same evidence through the generic
+    growth/margin/FCF/balance engine would both misclassify the business model
+    and double count evidence.
+
+    The action layer is intentionally conservative: it can release Kauf or
+    Nachkaufen only from strong P/NAV undervaluation at at least medium
+    valuation confidence. It never emits Starker Kauf or an automatic
+    Verkaufen from valuation alone. Ordinary undervaluation remains a watch / 
+    hold state, ordinary overvaluation blocks new buying, and only strong
+    overvaluation can translate into Reduzieren for an existing position.
+    """
+    zone_data = valuation_zone if isinstance(valuation_zone, dict) else {}
+    confidence_data = valuation_confidence if isinstance(valuation_confidence, dict) else {}
+    fv = fair_value if isinstance(fair_value, dict) else {}
+    control = special_control if isinstance(special_control, dict) else {}
+    warning = special_event_warning if isinstance(special_event_warning, dict) else {}
+
+    zone = str(zone_data.get("zone") or "").strip()
+    confidence = str(confidence_data.get("level") or "").strip()
+    confidence_rank = _confidence_rank_value(confidence)
+    distance_pct = safe_float(zone_data.get("price_vs_fair_value_pct"))
+    target_pd = safe_float(zone_data.get("target_premium_discount_pct"))
+    current_pd = safe_float(fv.get("current_premium_discount_pct"))
+    peer_count = int(fv.get("peer_observation_count") or 0)
+
+    common = {
+        "available": False,
+        "signal": None,
+        "reason": None,
+        "special_event_blocked": False,
+        "listed_holding_signal": True,
+        "fundamental_strength": "Nicht anwendbar – Holding-NAV-Modell",
+        "valuation_confidence": confidence or None,
+        "zone": zone or None,
+        "price_vs_fair_value_pct": distance_pct,
+        "target_premium_discount_pct": target_pd,
+        "current_premium_discount_pct": current_pd,
+        "peer_observation_count": peer_count,
+        "evidence_basis": (
+            "Issuer-primary NAV + freigegebenes Ziel-P/NAV + eigene NAV-Historie + "
+            "Leverage/Konzentration + Holdingkosten + Holding-Peers"
+        ),
+        "generic_fundamental_score_used": False,
+    }
+    new_buy = dict(common)
+    existing = dict(common)
+
+    special_blocked, warning = _special_event_signal_block(warning)
+    if special_blocked:
+        reason = (
+            "Holding-Handlungssignale bleiben gesperrt, solange die Sonderprüfung offen ist; "
+            "die NAV-Zone darf dann nicht in eine Aktion übersetzt werden."
+        )
+        for result in (new_buy, existing):
+            result.update({
+                "signal": "Kein Handlungssignal – Sonderprüfung offen",
+                "reason": reason,
+                "special_event_blocked": True,
+                "next_step": warning.get("action"),
+            })
+        return new_buy, existing
+
+    snap = control.get("snapshot") or ((control.get("checks") or {}).get("nav_snapshot") or {})
+    diag = ((control.get("checks") or {}).get("nav_diagnostics") or {})
+    evidence_ready = bool(
+        control.get("released")
+        and fv.get("available")
+        and fv.get("valuation_method") == "listed_holding_nav_target"
+        and zone_data.get("available")
+        and snap.get("target_premium_discount_released")
+        and diag.get("historical_calibration_ready")
+        and diag.get("peer_evidence_ready")
+        and int(diag.get("peer_observation_count") or 0) >= 3
+        and not (diag.get("justified_target_blockers") or [])
+    )
+    if not evidence_ready or not zone or not confidence:
+        reason = (
+            "Holding-Signal gesperrt: NAV-Fair-Value, P/NAV-Zone und die vollständige "
+            "Historie-/Kosten-/Peer-Freigabekette müssen gleichzeitig belastbar vorliegen."
+        )
+        new_buy["reason"] = reason
+        existing["reason"] = reason
+        return new_buy, existing
+
+    # Low confidence can provide only non-aggressive watch/hold guidance.
+    if confidence_rank is None or confidence_rank <= _confidence_rank_value("Niedrig"):
+        new_buy.update({
+            "available": True,
+            "signal": "Beobachten" if zone in {"Stark unterbewertet", "Unterbewertet"} else "Kein Kauf",
+            "reason": (
+                "Die Holding-Zone ist verfügbar, die Bewertungssicherheit ist aber niedrig. "
+                "Daraus wird kein Kauf-/Reduzier-Signal freigegeben."
+            ),
+        })
+        existing.update({
+            "available": True,
+            "signal": "Halten / überprüfen",
+            "reason": (
+                "Die Holding-Zone ist verfügbar, die Bewertungssicherheit ist aber niedrig. "
+                "Keine harte Bestandsaktion allein aus dem NAV-Modell ableiten."
+            ),
+        })
+        return new_buy, existing
+
+    # V80: medium-or-better holding actions, driven only by the released P/NAV zone.
+    if zone == "Stark unterbewertet":
+        new_buy.update({
+            "available": True,
+            "signal": "Kauf",
+            "reason": (
+                "Der Kurs liegt unter der starken, evidenzkalibrierten P/NAV-Untergrenze. "
+                "Das Holding-Modell gibt deshalb einen Kauf frei; ein 'Starker Kauf' wird ohne "
+                "separaten Qualitäts-/Fundamentalscore bewusst nicht erzeugt."
+            ),
+        })
+        existing.update({
+            "available": True,
+            "signal": "Nachkaufen",
+            "reason": (
+                "Der Kurs liegt unter der starken P/NAV-Untergrenze bei freigegebener NAV-, "
+                "Historie-, Kosten- und Peer-Evidenz."
+            ),
+        })
+    elif zone == "Unterbewertet":
+        new_buy.update({
+            "available": True,
+            "signal": "Beobachten",
+            "reason": (
+                "Der Kurs liegt unter dem Fair-Band, aber noch nicht in der starken "
+                "P/NAV-Unterbewertungszone. Für einen direkten Neukauf bleibt V80 konservativ."
+            ),
+        })
+        existing.update({
+            "available": True,
+            "signal": "Halten / Nachkauf beobachten",
+            "reason": (
+                "Moderate NAV-Unterbewertung vorhanden; bestehende Position halten, einen "
+                "Nachkauf aber erst bei stärkerem P/NAV-Abschlag freigeben."
+            ),
+        })
+    elif zone == "Fair bewertet":
+        new_buy.update({
+            "available": True,
+            "signal": "Abwarten",
+            "reason": (
+                "Das aktuelle P/NAV liegt innerhalb des evidenzkalibrierten Fair-Bands; "
+                "für einen Neukauf besteht kein ausreichender NAV-Abschlag."
+            ),
+        })
+        existing.update({
+            "available": True,
+            "signal": "Halten",
+            "reason": (
+                "Das aktuelle P/NAV liegt innerhalb des evidenzkalibrierten Fair-Bands."
+            ),
+        })
+    elif zone == "Überbewertet":
+        new_buy.update({
+            "available": True,
+            "signal": "Kein Kauf",
+            "reason": (
+                "Das aktuelle P/NAV liegt oberhalb des Fair-Bands; ein Neukauf wird nicht freigegeben."
+            ),
+        })
+        existing.update({
+            "available": True,
+            "signal": "Halten / nicht nachkaufen",
+            "reason": (
+                "Moderate P/NAV-Überbewertung; V80 erzwingt daraus noch keine Reduzierung."
+            ),
+        })
+    elif zone == "Stark überbewertet":
+        new_buy.update({
+            "available": True,
+            "signal": "Kein Kauf",
+            "reason": (
+                "Das aktuelle P/NAV liegt oberhalb der starken Überbewertungsgrenze."
+            ),
+        })
+        existing.update({
+            "available": True,
+            "signal": "Reduzieren",
+            "reason": (
+                "Das aktuelle P/NAV liegt oberhalb der starken, evidenzkalibrierten "
+                "Überbewertungsgrenze. V80 gibt deshalb Reduzieren frei, erzeugt aus "
+                "Bewertung allein aber kein automatisches Verkaufen."
+            ),
+        })
+    else:
+        reason = "Holding-Signal gesperrt: unbekannte oder nicht freigegebene Bewertungszone."
+        new_buy["reason"] = reason
+        existing["reason"] = reason
+        return new_buy, existing
+
+    return new_buy, existing
+
+
 # =========================================================
 # Modul 6 – Fair Value V1
 # =========================================================
@@ -42937,7 +43148,7 @@ def calculate_fair_value_v1(
             "unit_conversion_applied": bool(unit_notes),
             "unit_note": " ".join(unit_notes) if unit_notes else None,
             "note": (
-                "Holding-Fair-Value V79 (unveränderte V78-Mathematik) = aktueller issuer-primary NAV je Aktie × freigegebenes issuer-spezifisches Ziel-P/NAV. "
+                "Holding-Fair-Value V80 (unveränderte V78-Mathematik) = aktueller issuer-primary NAV je Aktie × freigegebenes issuer-spezifisches Ziel-P/NAV. "
                 "Der Zielwert wurde zuvor separat aus eigener NAV-Historie, Leverage/Konzentration, Holdingkosten und Peer-Plausibilitäts-Guard freigegeben. "
                 "Generisches EPS/KGV, Yahoo-FCF und Analystenkursziele sind keine Fair-Value-Inputs."
             ),
@@ -50464,7 +50675,7 @@ def load_stock(selected_symbol, cache_version):
             special_event_warning = {
                 "level": "Grün",
                 "icon": "🟢",
-                "title": ("Holding-NAV-Fair-Value-/Zonenmodell aktiv – V79 freigegeben" if _holding_target_released else "Holding-NAV-Primärdatenmodell aktiv – Fair Value noch gesperrt"),
+                "title": ("Holding-NAV-Fair-Value-/Zonen-/Signalmodell aktiv – V80 freigegeben" if _holding_target_released else "Holding-NAV-Primärdatenmodell aktiv – Fair Value noch gesperrt"),
                 "requires_research": False,
                 "valuation_usable": bool(_holding_target_released),
                 "reason": (
@@ -50472,7 +50683,7 @@ def load_stock(selected_symbol, cache_version):
                     "Das ist eine normale Holding-Bewertungsbasis und kein Sonderereignis."
                 ),
                 "action": (
-                    (f"Keine EPS-Sonderrecherche starten. {APP_BUILD_VERSION} übersetzt den bereits freigegebenen Ziel-Premium/Discount jetzt ausschließlich über NAV × Ziel-P/NAV in den Fair Value; Bewertungszonen und Signale bleiben separat gesperrt.")
+                    (f"Keine EPS-Sonderrecherche starten. {APP_BUILD_VERSION} nutzt ausschließlich den Holding-Spezialpfad: NAV → freigegebenes Ziel-P/NAV → Fair Value → evidenzkalibrierte P/NAV-Zone → konservative Holding-Signalübersetzung. Der generische Multiple-/Fundamental-Score bleibt gesperrt. Als nächstes dieselbe Vorlage an einer zweiten Holding als Hauptaktie validieren, bevor die Familie global freigegeben wird.")
                     if _holding_target_released else
                     (f"Keine EPS-Sonderrecherche starten. {APP_BUILD_VERSION} hält den Fair Value bis zur vollständigen Ziel-Premium/Discount-Freigabe geschlossen.")
                 ),
@@ -51157,18 +51368,13 @@ def load_stock(selected_symbol, cache_version):
     )
 
     if fair_value.get("valuation_method") == "listed_holding_nav_target":
-        holding_signal_reason = (
-            "Holding V79: NAV-Fair-Value und P/NAV-Bewertungszone sind freigegeben, aber die "
-            "Handlungssignal-Übersetzung wird erst in einem separaten Build kalibriert. "
-            "Die aktuelle Zone darf deshalb noch kein Kauf-, Nachkauf-, Reduzieren- oder Verkaufssignal erzeugen."
+        new_buy_signal, holding_signal = generate_listed_holding_action_signals(
+            valuation_zone,
+            valuation_confidence,
+            fair_value,
+            special_control,
+            special_event_warning=special_event_warning,
         )
-        new_buy_signal = {
-            "available": False,
-            "signal": "Kein Handlungssignal – Holding-Zone nur Bewertungsdiagnose",
-            "reason": holding_signal_reason,
-            "holding_zone_signal_locked": True,
-        }
-        holding_signal = dict(new_buy_signal)
 
     if branded_consumer_family_gate.get("active") and branded_consumer_family_gate.get("blocked"):
         family_signal_reason = (
@@ -58122,7 +58328,7 @@ if selected_symbol:
 
                         target_diag_h = snap_h.get("justified_nav_target_diagnostic") or {}
                         if target_diag_h.get("available"):
-                            st.write("**Justified NAV Premium/Discount – Kalibrierung & Peer-Guard V79:**")
+                            st.write("**Justified NAV Premium/Discount – Kalibrierung & Peer-Guard V80:**")
                             jt1, jt2, jt3 = st.columns(3)
                             with jt1:
                                 st.metric("Historischer Basisanker", f"{safe_float(target_diag_h.get('historical_anchor_pct')):+.1f} %")
@@ -58165,14 +58371,14 @@ if selected_symbol:
                                 st.caption("Peer-Adapter: " + text_or_dash(target_diag_h.get("peer_diagnostic")))
                             final_target_h = safe_float(target_diag_h.get("final_target_pct"))
                             if target_diag_h.get("released") and final_target_h is not None:
-                                st.success(f"Ziel-Premium/Discount V79 freigegeben: {final_target_h:+.1f} %. Dieser Wert steuert weiterhin ausschließlich den NAV-basierten Fair Value; die V79-Zone nutzt ihn nur als bereits freigegebenen Mittelpunkt.")
+                                st.success(f"Ziel-Premium/Discount V80 freigegeben: {final_target_h:+.1f} %. Dieser Wert steuert weiterhin ausschließlich den NAV-basierten Fair Value; die unveränderte V79-Zone nutzt ihn als bereits freigegebenen Mittelpunkt und V80 übersetzt nur die daraus resultierende Zone in ein Handlungssignal.")
                             st.warning(text_or_dash(target_diag_h.get("double_count_guard")))
                             blockers_h = target_diag_h.get("release_blockers") or []
                             if blockers_h:
                                 st.caption("Freigabe-Blocker: " + " · ".join(str(x) for x in blockers_h))
                             st.info(
                                 "Der vorläufige Zielwert wird erst nach bestandenem Holding-Peer-Guard als Ziel-Premium/Discount freigegeben. "
-                                "In V79 steuert der freigegebene Zielwert weiterhin den NAV-basierten **Fair Value**; zusätzlich darf die freigegebene Historik-/Peer-IQR-Evidenz die Bewertungszone kalibrieren. Handlungssignale bleiben separat gesperrt."
+                                "In V80 steuert der freigegebene Zielwert weiterhin den NAV-basierten **Fair Value**; die unveränderte V79-Historik-/Peer-IQR-Evidenz kalibriert die Bewertungszone. Erst danach übersetzt V80 diese bereits freigegebene Zone konservativ in Holding-spezifische Handlungssignale – ohne generischen Fundamental-Score."
                             )
 
                         st.success("Holding-NAV-Primärdatenmodell aktiv: NAV, aktueller Premium/Discount, historische Kalibrierung und diagnostische Ziel-Premium/Discount-Brücke sind getrennt vom EPS/KGV-Pfad verfügbar.")
@@ -58184,7 +58390,7 @@ if selected_symbol:
                     if special_control.get("released"):
                         st.success(
                             f"Holding-Fair-Value ist in {APP_BUILD_VERSION} freigegeben: Der bereits geprüfte issuer-primary NAV wird ausschließlich mit dem freigegebenen Ziel-P/NAV übersetzt. "
-                            "Die Bewertungszone ist in V79 freigegeben; Handlungssignale bleiben bewusst separat gesperrt."
+                            "Die Bewertungszone bleibt unverändert aus V79 freigegeben; die Holding-spezifische Signalübersetzung ist in V80 separat freigegeben."
                         )
                     else:
                         st.warning(
@@ -62545,8 +62751,8 @@ if selected_symbol:
 
                     if fair_value.get("valuation_method") == "listed_holding_nav_target":
                         st.success(
-                            "Holding-Fair-Value V79 (unveränderte V78-Mathematik) wurde aus dem aktuellen issuer-primary NAV je Aktie und dem separat freigegebenen Ziel-P/NAV berechnet. "
-                            "Die Bewertungszone ist in V79 freigegeben; Handlungssignale bleiben in diesem Build bewusst noch gesperrt."
+                            "Holding-Fair-Value V80 (unveränderte V78-Mathematik) wurde aus dem aktuellen issuer-primary NAV je Aktie und dem separat freigegebenen Ziel-P/NAV berechnet. "
+                            "Die Bewertungszone bleibt unverändert aus V79 freigegeben; V80 übersetzt sie jetzt separat in konservative Holding-Handlungssignale."
                         )
                     elif fair_value.get("valuation_method") == "bank_dual_anchor":
                         st.success(
@@ -62782,7 +62988,7 @@ if selected_symbol:
                                 parts.append(f"Issuer-IQR-Breite {issuer_iqr_ui:.1f} pp")
                             if peer_iqr_ui is not None:
                                 parts.append(f"Peer-IQR-Breite {peer_iqr_ui:.1f} pp")
-                            st.caption("Holding-Zonenbasis V79: " + " · ".join(parts))
+                            st.caption("Holding-Zonenbasis V79 (in V80 unverändert): " + " · ".join(parts))
 
                     if valuation_zone.get("price_vs_fair_value_pct") is not None:
                         if fair_value.get("valuation_method") in {"semicap_quality_adjusted_pe", "nvidia_ai_quality_operating_pe"} and fair_value.get("potential_pct") is not None:
@@ -62934,11 +63140,24 @@ if selected_symbol:
                         )
 
                 elif new_buy_signal.get("available"):
-                    st.write(
-                        "**Fundamentale Basis:** "
-                        f"{text_or_dash(new_buy_signal.get('fundamental_strength'))} "
-                        f"({text_or_dash(data.get('fundamental_multiple', {}).get('score'))}/100)"
-                    )
+                    if new_buy_signal.get("listed_holding_signal"):
+                        st.write(
+                            "**Holding-Evidenzbasis:** "
+                            + text_or_dash(new_buy_signal.get("evidence_basis"))
+                        )
+                        st.caption(
+                            "Bewertungssicherheit: "
+                            + text_or_dash(new_buy_signal.get("valuation_confidence"))
+                            + " · gültige Holding-Peers: "
+                            + str(int(new_buy_signal.get("peer_observation_count") or 0))
+                            + " · generischer Fundamental-/Multiple-Score: nicht verwendet"
+                        )
+                    else:
+                        st.write(
+                            "**Fundamentale Basis:** "
+                            f"{text_or_dash(new_buy_signal.get('fundamental_strength'))} "
+                            f"({text_or_dash(data.get('fundamental_multiple', {}).get('score'))}/100)"
+                        )
 
                     st.metric(
                         "🛒 Neukauf-Signal",
