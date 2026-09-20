@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.96"
+APP_BUILD_VERSION = "V2.21.97"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Holding Family Release & Standard-Path Isolation Guard V92"
+    f"Build {APP_BUILD_VERSION} · Universal Holding Released-Family Text Consistency Guard V93"
 )
 
 
@@ -50,7 +50,7 @@ st.caption(
 # V2.21.93: Universal Holding Evidence Cache Invalidation & Report-First Precedence Guard V89. Invalidates the stale listed-holding primary-snapshot cache epoch that could return pre-V88 V73/V87 evidence despite a V88 build label, and makes already-discovered issuer reports the first management-cost evidence route before legacy Key-Figures/website candidates. Report concentration/cost evidence is merged before release-blocker evaluation; website/search adapters remain fallback-only. Adds visible concentration/cost adapter traces for regression testing. Current NAV, leverage, historical NAV calibration, peer mathematics, V78 Fair Value, V79 zones, V80 signals and Reality Check mathematics remain byte-identical; no issuer/ticker values are hard-coded.
 # V2.21.94: Universal Holding Cadence-Aware NAV Freshness & Release-Reason Guard V90. Replaces the fixed 62-day live-NAV freshness cutoff with an issuer-history-derived cadence window: when at least three issuer-primary NAV dates establish a stable reporting rhythm, the freshness allowance becomes median reporting interval + 35 days, bounded to 62–150 days; otherwise the conservative 62-day fallback remains. This prevents normal quarterly holdings from becoming mechanically stale before their next scheduled reporting cycle while keeping monthly reporters tighter and very old NAVs fail-closed. The same freshness state is propagated into Step 3B and Fair-Value blocker text so a stale NAV can no longer be mislabeled as an unreleased target premium/discount. Target-P/NAV calibration, V78 Fair Value mathematics, V79 zones, V80 signals, peer/cost/concentration rules and all non-holding models remain unchanged; no issuer/ticker values are hard-coded.
 # V2.21.95: Universal Holding Holding Family Release & Standard-Path Isolation Guard V92. Keeps the six-observation/150-day historical calibration threshold unchanged and repairs only evidence recovery. Issuer HTML/report tables whose period header is split across a year row and a month/day row (for example 2026/2025/2025 above 30 June/30 June/31 Dec) are reconstructed into explicit period-end dates before NAV/share and target-share-class price pairing. Share-price labels that place the class letter immediately before the printed currency are recognized under the same strict table semantics. HTML report pages reuse the same parser before flat-report fallback. Holding snapshot and peer caches receive a new epoch and the peer research slice is modestly widened so a stale incomplete two-peer result cannot survive the release. Target-P/NAV mathematics, cost/leverage/concentration overlays, V78 Fair Value, V79 zones, V80 signals and all non-holding models remain unchanged; no issuer values are hard-coded.
-# V2.21.96: Universal Holding Family Release & Standard-Path Isolation Guard V92. Promotes the reusable Listed Investment / Holding Company family after two independent main-issuer validations while preserving strict NAV-specialist isolation. family_model_status becomes released_specialist and family_model_ready=True, but the generic industrial EPS/KGV/FCF path remains intentionally blocked for this family. Per-issuer primary NAV freshness, historical calibration, holding-cost, concentration, leverage, peer and unit/currency gates remain fail-closed. No V78 Fair Value, V79 zone, V80 signal, V89 evidence or V90/V91 freshness/history mathematics changed.
+# V2.21.97: Universal Holding Released-Family Text Consistency Guard V93. Text/status-only cleanup after Investor AB and Industrivärden regression validation. For released Listed Investment / Holding Company routes, explanatory UI copy now states that EPS, Yahoo-FCF, generic growth/profitability and industrial multiples are intentionally non-valuation diagnostics because the released specialist model uses issuer-primary NAV, leverage, concentration, costs and P/NAV evidence. No valuation, evidence, freshness, history, peer, zone or signal mathematics changed.
 
 # V2.21.89: Universal Holding Quarterly NAV/Share-Price History Table Guard V85. Adds an issuer-neutral historical calibration route for holdings that publish periodic NAV/share and share-class prices in Financials/Key Figures tables instead of dated standalone NAV press releases. The adapter binds quarter headers, an explicit NAV-per-share row and the requested listed share-class price row column-by-column, derives same-period premium/discount observations only from issuer-primary values, and merges them into the existing historical calibration without promoting table history into the live current-NAV snapshot. The existing dated-release archive path remains unchanged as fallback. Current NAV V84, leverage, portfolio, holding-cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics are unchanged; no issuer/ticker values are hard-coded.
 # V2.21.85: Universal Holding Primary Listing & Issuer-Root Evidence Hub Guard V81. Fixes two reuse failures exposed by validating Investor AB after Industrivärden. Security-name normalization now treats Swedish public-company marker “publ” as a legal-form token, preventing a German secondary listing from outranking the Nasdaq Stockholm home listing merely because its display name omits “(publ)”. Listed-holding primary discovery now tries the provider/root URL before guessed locale paths, recognizes Q1–Q4 report links as issuer evidence hubs, and parses current NAV/share from report/homepage content through the strict explicit-per-share extractor before the broader legacy NAV parser. Report pages may contribute current NAV and leverage in the same bounded evidence window. Historical calibration, management-cost requirements, peer guard, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged/fail-closed until their own evidence gates pass; no Investor ticker/domain/value is hard-coded.
@@ -53843,11 +53843,19 @@ if selected_symbol:
                             "Er steuert weder den Turnaround-P/S- noch den Post-Merger-Adjusted-P/E-Fair-Value; Cashflow-/Finanzierungsqualität wird ausschließlich in den jeweiligen Primärquellen-Komponenten des Spezial-Scores berücksichtigt."
                         )
                     elif is_universal_family_fcf_context:
-                        st.caption(
-                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
-                            f"Bei {company_type.get('valuation_family') or company_type.get('type')} bleibt dieser Yahoo-/Cashflow-Statement-FCF ausschließlich Diagnosekontext. "
-                            "Solange das Familienmodell nicht freigegeben ist, steuert er weder FCF-Score noch Net-Debt/FCF, Multiple oder Fair Value."
-                        )
+                        if is_released_listed_holding_family(company_type):
+                            st.caption(
+                                "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                                f"Bei {company_type.get('valuation_family') or company_type.get('type')} bleibt dieser Yahoo-/Cashflow-Statement-FCF ausschließlich Diagnosekontext. "
+                                "Das freigegebene Holding-Spezialmodell verwendet stattdessen issuer-primary NAV, Holding-Leverage, Portfoliokonzentration, Holdingkosten und P/NAV-Evidenz; "
+                                "dieser FCF steuert weder Family Score noch Multiple, Ziel-P/NAV oder Fair Value."
+                            )
+                        else:
+                            st.caption(
+                                "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                                f"Bei {company_type.get('valuation_family') or company_type.get('type')} bleibt dieser Yahoo-/Cashflow-Statement-FCF ausschließlich Diagnosekontext. "
+                                "Solange das Familienmodell nicht freigegeben ist, steuert er weder FCF-Score noch Net-Debt/FCF, Multiple oder Fair Value."
+                            )
                     else:
                         st.caption(
                             "FCF-Bewertungsquelle: " + str(source_text) + ". "
@@ -53956,13 +53964,22 @@ if selected_symbol:
                                 "bei noch nicht kalibriertem Profil bleibt dieser Anker gesperrt."
                             )
                         elif is_universal_family_fcf_context:
-                            st.info(
-                                "ℹ️ FCF-Quellenabweichung im Universal-Family-Gate: Yahoo quoteSummary/info zeigt "
-                                f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
-                                f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
-                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Werte bleiben Diagnose-/Rohdaten und beeinflussen "
-                                "weder Family Score noch Multiple oder Fair Value, solange das Familienmodell nicht freigegeben ist."
-                            )
+                            if is_released_listed_holding_family(company_type):
+                                st.info(
+                                    "ℹ️ FCF-Quellenabweichung im Universal-Family-Gate: Yahoo quoteSummary/info zeigt "
+                                    f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
+                                    f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
+                                    f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Werte bleiben Diagnose-/Rohdaten und beeinflussen "
+                                    "weder das freigegebene Holding-NAV-Modell noch Ziel-P/NAV, Fair Value, Bewertungszone oder Signal."
+                                )
+                            else:
+                                st.info(
+                                    "ℹ️ FCF-Quellenabweichung im Universal-Family-Gate: Yahoo quoteSummary/info zeigt "
+                                    f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
+                                    f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
+                                    f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Werte bleiben Diagnose-/Rohdaten und beeinflussen "
+                                    "weder Family Score noch Multiple oder Fair Value, solange das Familienmodell nicht freigegeben ist."
+                                )
                         else:
                             st.warning(
                                 "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info zeigt "
@@ -54324,13 +54341,23 @@ if selected_symbol:
                             "Das Earnings-Horizon-Alignment verwendet eine separate operative FY27-Proxy-Basis; das Standard-EPS bleibt für NVIDIA nicht freigegeben."
                         )
                     elif universal_family_eps_context_ui:
-                        st.info(
-                            f"Universal Family Router {APP_BUILD_VERSION}: Diese Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
-                            f"Für die Bewertungsfamilie {company_type.get('valuation_family') or company_type.get('type')} wird erst nach Freigabe des wiederverwendbaren Familienmodells eine Earnings-Basis als Fair-Value-Anker zugelassen."
-                        )
-                        st.caption(
-                            "Analysten-EPS, Yahoo-FCF, Net-Debt/FCF und das industrielle Standard-KGV dürfen das Family-Model-Gate nicht umgehen."
-                        )
+                        if is_released_listed_holding_family(company_type):
+                            st.info(
+                                f"Universal Family Router {APP_BUILD_VERSION}: Diese Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                                f"Für die freigegebene Bewertungsfamilie {company_type.get('valuation_family') or company_type.get('type')} ist EPS bewusst kein Fair-Value-Anker; "
+                                "maßgeblich sind issuer-primary NAV und die Holding-spezifischen Evidenz-Gates."
+                            )
+                            st.caption(
+                                "Analysten-EPS, Yahoo-FCF, Net-Debt/FCF und das industrielle Standard-KGV haben in der freigegebenen Holding-Bewertung keine Bewertungswirkung."
+                            )
+                        else:
+                            st.info(
+                                f"Universal Family Router {APP_BUILD_VERSION}: Diese Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                                f"Für die Bewertungsfamilie {company_type.get('valuation_family') or company_type.get('type')} wird erst nach Freigabe des wiederverwendbaren Familienmodells eine Earnings-Basis als Fair-Value-Anker zugelassen."
+                            )
+                            st.caption(
+                                "Analysten-EPS, Yahoo-FCF, Net-Debt/FCF und das industrielle Standard-KGV dürfen das Family-Model-Gate nicht umgehen."
+                            )
                     elif cof_card_bank_eps_context_ui:
                         cof_eps_model_ui = data.get("cof_card_bank_specialist_model") or {}
                         cof_eps_snap_ui = cof_eps_model_ui.get("snapshot") or {}
@@ -54977,11 +55004,17 @@ if selected_symbol:
                         "Fundamental-Multiple und Fair Value bleiben gesperrt."
                     )
                 else:
-                    st.caption(
-                        "Dieser Wert ist noch kein Fair Value. "
-                        "Er bildet nur die Gewinnbasis für die "
-                        "spätere Bewertung."
-                    )
+                    if is_released_listed_holding_family(company_type):
+                        st.caption(
+                            "Dieser EPS-Wert ist ausschließlich Diagnosekontext und keine Gewinnbasis der Holding-Bewertung. "
+                            "Der Fair Value wird separat aus issuer-primary NAV × freigegebenem Ziel-P/NAV berechnet."
+                        )
+                    else:
+                        st.caption(
+                            "Dieser Wert ist noch kein Fair Value. "
+                            "Er bildet nur die Gewinnbasis für die "
+                            "spätere Bewertung."
+                        )
 
                 st.divider()
 
@@ -55600,7 +55633,11 @@ if selected_symbol:
                         f"Universal Family Router {APP_BUILD_VERSION}: Der generische Umsatz-/Gewinnwachstums-Score wird für "
                         f"{company_type.get('valuation_family') or company_type.get('type')} nicht verwendet."
                     )
-                    st.caption("Provider-Wachstum bleibt Diagnosekontext; Familienkennzahlen und eine vergleichbare Primärdatenbasis müssen zuerst freigegeben werden.")
+                    st.caption(
+                        "Provider-Wachstum bleibt Diagnosekontext; das freigegebene Holding-Familienmodell bewertet stattdessen issuer-primary NAV, P/NAV-Historie, Leverage, Konzentration, Kosten und Peer-Evidenz."
+                        if is_released_listed_holding_family(company_type)
+                        else "Provider-Wachstum bleibt Diagnosekontext; Familienkennzahlen und eine vergleichbare Primärdatenbasis müssen zuerst freigegeben werden."
+                    )
                 elif is_bkr_score_ui:
                     st.info("Baker Hughes/Post-Chart-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. V2.20.129 bewertet Q2 Orders/RPO und OFSE/IET Segmententwicklung aus Primärquellen.")
                     st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf einen späteren Post-Chart Bewertungsanker.")
@@ -55849,7 +55886,11 @@ if selected_symbol:
                         f"Universal Family Router {APP_BUILD_VERSION}: Die generische Nettomargen-/ROE-Punktelogik wird für "
                         f"{company_type.get('valuation_family') or company_type.get('type')} nicht verwendet."
                     )
-                    st.caption("Profitabilität wird erst über die familiengerechten Kennzahlen des freigegebenen Family Models bewertet.")
+                    st.caption(
+                        "Nettomarge und ROE bleiben Diagnosekontext; das freigegebene Holding-Familienmodell beurteilt die Bewertungsqualität über NAV-/P/NAV-Evidenz, Holding-Leverage, Konzentration, Kosten und Peers."
+                        if is_released_listed_holding_family(company_type)
+                        else "Profitabilität wird erst über die familiengerechten Kennzahlen des freigegebenen Family Models bewertet."
+                    )
                 elif is_bkr_profitability_ui:
                     st.info("Baker Hughes/Post-Chart-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. Q2 OFSE-/IET-Adjusted-EBITDA-Margen werden separat aus der Primärquelle gezeigt; eine konsolidierte Post-Chart Profitabilitätsbasis folgt später.")
                 elif is_cof_card_bank_profitability_ui:
@@ -58785,11 +58826,17 @@ if selected_symbol:
                         multiple_result["note"]
                     )
 
-                    st.caption(
-                        "Schritt 1 berechnet ausschließlich das "
-                        "Fundamental-Multiple. Peer-Check und Fair Value "
-                        "werden in getrennten nachfolgenden Schritten geprüft."
-                    )
+                    if is_released_listed_holding_family(company_type):
+                        st.caption(
+                            "Für die freigegebene Holding-Familie bleibt Schritt 1 absichtlich ohne industrielles Fundamental-Multiple. "
+                            "Peer-Evidenz und Fair Value werden ausschließlich im Holding-Spezialmodell geprüft."
+                        )
+                    else:
+                        st.caption(
+                            "Schritt 1 berechnet ausschließlich das "
+                            "Fundamental-Multiple. Peer-Check und Fair Value "
+                            "werden in getrennten nachfolgenden Schritten geprüft."
+                        )
 
                 st.divider()
 
@@ -59349,18 +59396,28 @@ if selected_symbol:
                         "Vergleichbarkeit wieder freigegeben werden."
                     )
                 else:
-                    st.caption(
-                        "Schritt 3A ist ausschließlich der Router. "
-                        "Die eigentliche Spezialprüfung erfolgt – sofern bereits "
-                        "implementiert – getrennt in Schritt 3B und verändert weder "
-                        "Multiple Score noch Fundamental-/Peer-Multiple."
-                    )
+                    if is_released_listed_holding_family(company_type):
+                        st.caption(
+                            "Schritt 3A ist ausschließlich der Router. Das freigegebene Holding-Spezialmodell wird getrennt in Schritt 3B geprüft "
+                            "und verwendet keinen generischen Multiple Score oder industrielles Fundamental-Multiple."
+                        )
+                        st.caption(
+                            "Fehlt bei einem Einzeltitel belastbare issuer-primary Evidenz für NAV, Historie, Leverage, Konzentration, Kosten, Peers oder Einheiten, "
+                            "bleibt nur dieser Titel fail-closed; die Holding-Familie selbst bleibt freigegeben."
+                        )
+                    else:
+                        st.caption(
+                            "Schritt 3A ist ausschließlich der Router. "
+                            "Die eigentliche Spezialprüfung erfolgt – sofern bereits "
+                            "implementiert – getrennt in Schritt 3B und verändert weder "
+                            "Multiple Score noch Fundamental-/Peer-Multiple."
+                        )
 
-                    st.caption(
-                        "Erforderliche Spezialkontrollen sperren den "
-                        "nachfolgenden Fair-Value-Schritt, solange sie noch "
-                        "nicht vollständig implementiert und freigegeben sind."
-                    )
+                        st.caption(
+                            "Erforderliche Spezialkontrollen sperren den "
+                            "nachfolgenden Fair-Value-Schritt, solange sie noch "
+                            "nicht vollständig implementiert und freigegeben sind."
+                        )
 
                 if special_control.get("control_key") == "universal_family_model_gate":
                     st.divider()
