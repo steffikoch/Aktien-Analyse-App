@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.92"
+APP_BUILD_VERSION = "V2.21.93"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Holding Report Concentration & Cost-Ratio Evidence Guard V88"
+    f"Build {APP_BUILD_VERSION} · Universal Holding Evidence Cache Invalidation & Report-First Precedence Guard V89"
 )
 
 
@@ -47,6 +47,7 @@ st.caption(
 
 # V2.21.91: Universal Holding Flat-PDF Report Table Recovery Guard V87. Extends the V85 historical calibration with an issuer-neutral multi-period report-table parser for quarterly/interim PDFs or report text that exposes explicit period-end columns together with NAV/share and the requested share-class price row. This lets a current report contribute prior-quarter NAV/price pairs when a website Key Figures table lags behind. Report-derived history remains historical-only and cannot overwrite the V84 live NAV snapshot. Diagnostics now count valid target-class pairs across all accepted historical routes rather than only standalone NAV-release probes. Current NAV, leverage, portfolio, holding-cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics are unchanged; no issuer/ticker values are hard-coded.
 # V2.21.92: Universal Holding Report Concentration & Cost-Ratio Evidence Guard V88. Adds two issuer-neutral report-evidence adapters on top of the now-stable V84/V87 NAV stack. First, flattened issuer reports that expose a Net Asset Value overview with an explicit Share of total assets (%) column can supply portfolio-company weights and Top-1/2/3/4 concentration without relying on CMS holding cards. Second, interim/annual reports can supply management-cost ratios only when the text explicitly binds recurring management cost to NAV/adjusted NAV; annual-report tail pages may be extracted in the holding-cost slot to recover multi-year key-ratio series without changing the generic document bridge for other models. Current NAV, leverage, historical NAV calibration, peer mathematics, Fair Value, zones, V80 signals and Reality Check are unchanged; no issuer/ticker values are hard-coded.
+# V2.21.93: Universal Holding Evidence Cache Invalidation & Report-First Precedence Guard V89. Invalidates the stale listed-holding primary-snapshot cache epoch that could return pre-V88 V73/V87 evidence despite a V88 build label, and makes already-discovered issuer reports the first management-cost evidence route before legacy Key-Figures/website candidates. Report concentration/cost evidence is merged before release-blocker evaluation; website/search adapters remain fallback-only. Adds visible concentration/cost adapter traces for regression testing. Current NAV, leverage, historical NAV calibration, peer mathematics, V78 Fair Value, V79 zones, V80 signals and Reality Check mathematics remain byte-identical; no issuer/ticker values are hard-coded.
 # V2.21.89: Universal Holding Quarterly NAV/Share-Price History Table Guard V85. Adds an issuer-neutral historical calibration route for holdings that publish periodic NAV/share and share-class prices in Financials/Key Figures tables instead of dated standalone NAV press releases. The adapter binds quarter headers, an explicit NAV-per-share row and the requested listed share-class price row column-by-column, derives same-period premium/discount observations only from issuer-primary values, and merges them into the existing historical calibration without promoting table history into the live current-NAV snapshot. The existing dated-release archive path remains unchanged as fallback. Current NAV V84, leverage, portfolio, holding-cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics are unchanged; no issuer/ticker values are hard-coded.
 # V2.21.85: Universal Holding Primary Listing & Issuer-Root Evidence Hub Guard V81. Fixes two reuse failures exposed by validating Investor AB after Industrivärden. Security-name normalization now treats Swedish public-company marker “publ” as a legal-form token, preventing a German secondary listing from outranking the Nasdaq Stockholm home listing merely because its display name omits “(publ)”. Listed-holding primary discovery now tries the provider/root URL before guessed locale paths, recognizes Q1–Q4 report links as issuer evidence hubs, and parses current NAV/share from report/homepage content through the strict explicit-per-share extractor before the broader legacy NAV parser. Report pages may contribute current NAV and leverage in the same bounded evidence window. Historical calibration, management-cost requirements, peer guard, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged/fail-closed until their own evidence gates pass; no Investor ticker/domain/value is hard-coded.
 
@@ -9831,23 +9832,9 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     cost_started = time.monotonic()
     cost_slot_end = _evidence_deadline(5.4)
     if cost_slot_end is not None:
-        initial_cost_candidates = dedupe_cost_sorted(cost_links)[:3]
-        cost_candidate_count += len(initial_cost_candidates)
-        for url, label in initial_cost_candidates:
-            if not _research_budget_ok(cost_slot_end, reserve=0.85):
-                break
-            cost_fetch_attempts += 1
-            chtml = fetch(url, referer=canonical_url, phase_deadline=cost_slot_end)
-            crec = _holding_extract_management_cost_ratio(chtml, url)
-            if not crec:
-                cost_semantic_rejections += 1
-                _record_cost_trace(url, label, "reject")
-            if crec:
-                cost_parse_success += 1
-                holding_cost_records.append(crec)
-                _record_cost_trace(url, label, "accept")
-                break
-            collect_links(url, chtml)
+        # V89 precedence: issuer reports are evaluated before legacy website/key-figures
+        # candidates. A slow or semantically irrelevant HTML page must not consume the
+        # bounded slot before the already discovered current/annual reports are parsed.
         # V88: issuer reports are a first-class cost source when the report
         # explicitly binds management cost to NAV. Current/interim reports are
         # normally already cached from leverage/portfolio work, so try those
@@ -9911,7 +9898,31 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             if current_report_cost_found and annual_report_cost_found:
                 break
 
-        # Search is now fallback-only after already discovered issuer reports.
+        # V89: legacy issuer HTML/key-figures evidence is fallback-only after the
+        # report pass. It may enrich a sparse report history but can no longer starve
+        # the current/annual report parsers of their evidence budget.
+        merged_probe = _holding_merge_management_cost_records(holding_cost_records)
+        merged_obs = int((merged_probe or {}).get("observation_count") or 0)
+        if merged_obs < 3:
+            initial_cost_candidates = dedupe_cost_sorted(cost_links)[:3]
+            cost_candidate_count += len(initial_cost_candidates)
+            for url, label in initial_cost_candidates:
+                if not _research_budget_ok(cost_slot_end, reserve=0.85):
+                    break
+                cost_fetch_attempts += 1
+                chtml = fetch(url, referer=canonical_url, phase_deadline=cost_slot_end)
+                crec = _holding_extract_management_cost_ratio(chtml, url)
+                if not crec:
+                    cost_semantic_rejections += 1
+                    _record_cost_trace(url, label, "reject")
+                else:
+                    cost_parse_success += 1
+                    holding_cost_records.append(crec)
+                    _record_cost_trace(url, label, "accept")
+                    break
+                collect_links(url, chtml)
+
+        # Search is now fallback-only after already discovered issuer reports/HTML.
         merged_probe = _holding_merge_management_cost_records(holding_cost_records)
         merged_obs = int((merged_probe or {}).get("observation_count") or 0)
         if merged_obs < 3:
@@ -9926,7 +9937,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             _semantic_search_and_fetch("cost", cost_slot_end, query_offset=2, fetch_limit=1)
     _timed_bucket("cost", cost_started)
     result["holding_cost_adapter_diagnostic"] = (
-        f"Holding Management-Cost Adapter V88: Candidates={cost_candidate_count}, "
+        f"Holding Management-Cost Adapter V89: Candidates={cost_candidate_count}, "
         f"HTMLFetch={cost_fetch_attempts}, HTMLParsed={cost_parse_success}, SemanticReject={cost_semantic_rejections}, "
         f"ReportFetch={cost_report_fetch_attempts}, ReportParsed={cost_report_parse_success}, "
         f"Evidence={'yes' if holding_cost_records else 'no'}"
@@ -10358,6 +10369,20 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         debt_records.sort(key=lambda r: (r.get("as_of_date_obj") or datetime(1900,1,1).date()), reverse=True)
         result["debt"] = debt_records[0]
     result["portfolio"] = portfolio_best
+    _pdiag = result.get("portfolio") or {}
+    if _pdiag:
+        _top1 = safe_float(_pdiag.get("top1_pct")); _top2 = safe_float(_pdiag.get("top2_pct"))
+        _top3 = safe_float(_pdiag.get("top3_pct")); _top4 = safe_float(_pdiag.get("top4_pct"))
+        def _pd(v):
+            return f"{v:.1f}%" if v is not None else "–"
+        result["portfolio_adapter_diagnostic"] = (
+            "Holding Concentration Evidence V89: "
+            f"Evidence=yes, SourceKind={_pdiag.get('source_kind') or '–'}, Shape={_pdiag.get('source_shape') or '–'}, "
+            f"Top1={_pd(_top1)}, Top2={_pd(_top2)}, Top3={_pd(_top3)}, Top4={_pd(_top4)}, "
+            f"AsOf={_pdiag.get('as_of_date') or '–'}."
+        )
+    else:
+        result["portfolio_adapter_diagnostic"] = "Holding Concentration Evidence V89: Evidence=no."
     if holding_cost_records:
         result["holding_cost"] = _holding_merge_management_cost_records(holding_cost_records)
         c = result["holding_cost"] or {}
@@ -10422,7 +10447,8 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22191_holding_flat_pdf_history_v87"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22193_holding_report_evidence_cache_v89"):
+    # V89: explicit cache epoch prevents V87/V88 snapshots from surviving a parser/evidence-layer release.
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
@@ -11095,7 +11121,10 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         return {"applicable": False}
     website = (fundamental_info or {}).get("website")
     company_name = (fundamental_info or {}).get("longName") or (fundamental_info or {}).get("shortName") or symbol
-    discovery = _discover_listed_holding_primary_snapshot_cached(website, company_name=company_name, symbol=symbol)
+    discovery = _discover_listed_holding_primary_snapshot_cached(
+        website, company_name=company_name, symbol=symbol,
+        cache_epoch="v22193_holding_report_evidence_cache_v89",
+    )
     nav = discovery.get("nav") or {}
     debt = discovery.get("debt") or {}
     portfolio = discovery.get("portfolio") or {}
@@ -11190,6 +11219,9 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "portfolio_value_bn": safe_float(portfolio.get("portfolio_value_bn")),
         "portfolio_currency": portfolio.get("portfolio_currency"),
         "portfolio_source_url": portfolio.get("source_url"),
+        "portfolio_source_kind": portfolio.get("source_kind"),
+        "portfolio_source_shape": portfolio.get("source_shape"),
+        "portfolio_adapter_diagnostic": discovery.get("portfolio_adapter_diagnostic"),
         "leverage_status": leverage_status,
         "concentration_status": concentration_status,
         "holding_cost_latest_pct": safe_float(holding_cost.get("latest_cost_pct")),
@@ -11211,7 +11243,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "final_target_premium_discount_pct": safe_float(justified_target_diag.get("final_target_pct")),
         "target_premium_discount_released": bool(justified_target_diag.get("released")),
         "holding_peer_evidence": peer_evidence,
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Report Concentration & Cost-Ratio Evidence Guard V88",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Evidence Cache Invalidation & Report-First Precedence Guard V89",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
@@ -59465,7 +59497,7 @@ if selected_symbol:
 
                         target_diag_h = snap_h.get("justified_nav_target_diagnostic") or {}
                         if target_diag_h.get("available"):
-                            st.write("**Justified NAV Premium/Discount – Kalibrierung & Peer-Guard V88:**")
+                            st.write("**Justified NAV Premium/Discount – Kalibrierung & Peer-Guard V89:**")
                             jt1, jt2, jt3 = st.columns(3)
                             with jt1:
                                 st.metric("Historischer Basisanker", f"{safe_float(target_diag_h.get('historical_anchor_pct')):+.1f} %")
@@ -59493,6 +59525,8 @@ if selected_symbol:
                                     st.caption(text_or_dash(target_diag_h.get("holding_cost_guard_state")))
                                 if target_diag_h.get("holding_cost_source_url"):
                                     st.markdown(f"[Holdingkosten-Primärquelle]({target_diag_h.get('holding_cost_source_url')})")
+                            if snap_h.get("portfolio_adapter_diagnostic"):
+                                st.caption("Konzentrations-Adapter: " + text_or_dash(snap_h.get("portfolio_adapter_diagnostic")))
                             st.caption("Holdingkosten/Strukturdrag: " + text_or_dash(target_diag_h.get("holding_cost_status")))
                             if snap_h.get("holding_cost_adapter_diagnostic"):
                                 st.caption("Kosten-Adapter: " + text_or_dash(snap_h.get("holding_cost_adapter_diagnostic")))
