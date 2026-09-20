@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.87"
+APP_BUILD_VERSION = "V2.21.88"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding Historical/Current NAV Isolation & Strict Promotion Guard V83"
+    f"Build {APP_BUILD_VERSION} · Listed Holding NAV/share Semantic Adjacency & Report-Row Guard V84"
 )
 
 
@@ -43,6 +43,7 @@ st.caption(
 # V2.21.84: Holding Zone-to-Signal Translation & No-Generic-Fundamental Guard V80. Releases only the action-translation layer for listed holdings after the V78 NAV Fair Value and V79 P/NAV zone are available. The holding signal engine does not invent or reuse the generic 100-point industrial fundamental score: it translates only the already released evidence-calibrated P/NAV zone under the existing valuation-confidence cap. At medium confidence, strong undervaluation may release Kauf/Nachkaufen, ordinary undervaluation remains Beobachten/Halten, fair valuation maps to Abwarten/Halten, ordinary overvaluation blocks new buys without forcing a sale, and only strong overvaluation may release Reduzieren for an existing holding. The holding engine never emits Starker Kauf or automatic Verkaufen from valuation alone. External analyst consensus remains a brake-only Reality Check and cannot create or upgrade an action.
 # V2.21.86: Listed Holding Current NAV Strict-Only & Metric-Date Coherence Guard V82. Hardens the reusable holding template after Investor AB exposed a false current-NAV record. Current valuation snapshots now accept only the strict explicit NAV/share extractor; the broader legacy NAV parser remains historical-release-only and can no longer populate a live current NAV. Any NAV as-of date after the runtime date is rejected rather than allowed to outrank valid current-period evidence, and undated page-level fallback dates ignore future governance/event dates. Holding leverage dates are now bound locally to the accepted ratio occurrence (for example “Leverage was 1.9 percent as of June 30, 2026”) instead of taking the earliest date in a report that may describe a prior-year comparator. Primary listing, historical calibration, management-cost guard, peer calibration, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged/fail-closed until their own evidence gates pass; no issuer values are hard-coded.
 # V2.21.87: Listed Holding Historical/Current NAV Isolation & Strict Promotion Guard V83. Fixes a cross-layer contamination bug exposed by Investor AB after V82: the historical release parser could append its broad historical NAV record back into the live current-NAV candidate pool, allowing a richer but non-current parse to outrank the strict current NAV by date. V83 physically separates historical calibration records from live current NAV evidence, permits promotion from a historical-release fetch only after that same document independently passes the strict current NAV/share extractor, and final-selects only records carrying the strict current-nav guard. Historical same-date share-price pairing remains available to the calibration layer but can no longer overwrite the live snapshot. Adds current-candidate source/guard trace diagnostics. Listing resolution, leverage, portfolio, cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged; no issuer values are hard-coded.
+# V2.21.88: Listed Holding NAV/share Semantic Adjacency & Report-Row Guard V84. Fixes a false-positive exposed by Investor AB where a broad “per share” anchor could bind an unrelated consolidated profit figure (SEK 117,290m) to an earlier NAV label and silently convert it into 117.29 SEK/share. Narrative NAV/share evidence now requires the NAV label and per-share phrase to be locally adjacent without an intervening earnings/profit/loss/share-price metric, and numeric tokens cannot truncate thousands-formatted amounts into decimal-looking values. Linearized issuer-report rows such as “Adjusted NAV, SEK per share* 397 367 355” explicitly support footnote markers and infer the printed row currency; adjusted NAV receives a small semantic preference over reported/accounting NAV when both are presented for the same period. Current/historical isolation, future-date rejection, leverage, portfolio, cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged; no issuer values are hard-coded.
 # V2.21.85: Universal Holding Primary Listing & Issuer-Root Evidence Hub Guard V81. Fixes two reuse failures exposed by validating Investor AB after Industrivärden. Security-name normalization now treats Swedish public-company marker “publ” as a legal-form token, preventing a German secondary listing from outranking the Nasdaq Stockholm home listing merely because its display name omits “(publ)”. Listed-holding primary discovery now tries the provider/root URL before guessed locale paths, recognizes Q1–Q4 report links as issuer evidence hubs, and parses current NAV/share from report/homepage content through the strict explicit-per-share extractor before the broader legacy NAV parser. Report pages may contribute current NAV and leverage in the same bounded evidence window. Historical calibration, management-cost requirements, peer guard, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged/fail-closed until their own evidence gates pass; no Investor ticker/domain/value is hard-coded.
 
 # V2.21.49: Nordic Home-Listing & Cboe Venue Guard V45. Extends only the Security Identity & Primary Listing Resolver. Verified Industrivärden name aliases resolve Class C to the issuer-declared Nasdaq Stockholm home line (Yahoo-style INDU-C.ST), while Cboe Europe .XD/DXE rows are treated as secondary venues for name searches. Exact ticker input still retains its exact-security priority, so an explicitly entered .XD ticker remains selectable as entered. No company-family routing, EPS normalization, specialist model, score, Fair Value, Reality Check or signal mathematics are changed.
@@ -7500,14 +7501,13 @@ def _holding_extract_nav_record(html, url, expected_as_of_date=None):
 
 
 def _holding_extract_peer_nav_record(html, url):
-    """Strict peer-only NAV/share extractor.
+    """Strict NAV/share extractor for peer and live current holding evidence.
 
-    V75 deliberately differs from the broad issuer NAV adapter: a peer record
-    must bind to an explicit per-share semantic. This prevents a narrative such
-    as "NAV was SEK 1,214.7bn (SEK 397 per share)" from treating the total NAV
-    amount as NAV/share. Quarterly NAV/share tables are also supported and a
-    quarter label can provide the period-end date when the page omits a full
-    calendar date next to the metric.
+    V84 hardens semantic adjacency. A generic ``per share`` occurrence is not
+    enough: the nearest NAV label must belong to the same local metric phrase.
+    This prevents an unrelated ``earnings per share`` row from binding a nearby
+    consolidated profit figure to an earlier NAV label. Linearized report rows
+    with footnote markers remain supported.
     """
     if not html:
         return None
@@ -7521,12 +7521,15 @@ def _holding_extract_peer_nav_record(html, url):
 
     label_re = r"(?:adjusted\s+)?net(?:[\W_]+)asset(?:[\W_]+)value|substansv[aä]rd(?:e|et)|\bnav\b"
     per_share_label_re = rf"(?:{label_re}).{{0,90}}?(?:per\s+(?:share|aktie)|/\s*(?:share|aktie))"
+    unrelated_metric_re = r"\b(?:earnings?|eps|profit|loss|dividend|share\s+price|market\s+capitali[sz]ation)\b"
+    # Never allow a regex to reinterpret a thousands-formatted token such as
+    # 117,290 as 117.29 merely because the final zero falls outside the match.
+    num_token = r"([0-9]{1,5}(?:[.,][0-9]{1,2})?)(?![0-9.,])"
 
     def _num(raw):
         raw = _clean_text(raw).replace(" ", "")
-        # Per-share values can use a comma as decimal separator. Thousands are
-        # intentionally not accepted here because a per-share semantic should
-        # not need a bn/m total amount.
+        if re.search(r"[.,]\d{3,}$", raw):
+            return None
         try:
             return float(raw.replace(",", "."))
         except Exception:
@@ -7547,6 +7550,13 @@ def _holding_extract_peer_nav_record(html, url):
                 dt = _holding_parse_date_text(m.group(1))
                 if dt:
                     hits.append((m.start(), dt))
+        # Common PDF table header form: 6/30 2026, 3/31 2026, ...
+        for m in re.finditer(r"\b(\d{1,2})/(\d{1,2})\s+(20\d{2})\b", fragment or ""):
+            try:
+                dt = datetime(int(m.group(3)), int(m.group(1)), int(m.group(2))).date()
+            except Exception:
+                continue
+            hits.append((m.start(), dt))
         return hits
 
     def _quarter_end(raw):
@@ -7560,80 +7570,96 @@ def _holding_extract_peer_nav_record(html, url):
         except Exception:
             return None
 
+    def _adjusted_bonus(fragment):
+        return 2 if re.search(r"\badjusted\s+(?:net\s+asset\s+value|nav)\b", fragment or "", flags=re.I) else 0
+
     candidates = []
 
-    # 1) Narrative/card pattern: anchor on the actual "per share/per aktie"
-    # phrase and choose the immediately adjacent currency/value pair. This is
-    # the critical V75 protection against total-NAV amounts in the same sentence.
+    # 1) Narrative/card form, e.g. “Adjusted net asset value ... (SEK 397 per share)”.
+    # The NAV label must be in the same compact phrase as the per-share anchor.
     for pm in re.finditer(r"(?:per\s+(?:share|aktie)|/\s*(?:share|aktie))", text, flags=re.I):
-        start = max(0, pm.start() - 420)
+        start = max(0, pm.start() - 190)
         prefix = text[start:pm.start()]
-        if not re.search(label_re, prefix, flags=re.I):
+        labels = list(re.finditer(label_re, prefix, flags=re.I))
+        if not labels:
             continue
+        last_label = labels[-1]
+        local_phrase = prefix[last_label.start():]
+        if len(local_phrase) > 155:
+            continue
+        after_label = local_phrase[last_label.end() - last_label.start():]
+        if re.search(unrelated_metric_re, after_label, flags=re.I):
+            continue
+
         local = []
-        # SEK 397 per share
-        for m in re.finditer(r"\b(SEK|EUR|USD|GBP|kr|kronor)\b\s*([0-9]{1,5}(?:[.,][0-9]{1,2})?)\s*$", prefix, flags=re.I):
+        for m in re.finditer(rf"\b(SEK|EUR|USD|GBP|kr|kronor)\b\s*{num_token}", local_phrase, flags=re.I):
             local.append((m.end(), _num(m.group(2)), _currency(m.group(1))))
-        # 397 SEK per share
-        for m in re.finditer(r"([0-9]{1,5}(?:[.,][0-9]{1,2})?)\s*\b(SEK|EUR|USD|GBP|kr|kronor)\b\s*$", prefix, flags=re.I):
+        for m in re.finditer(rf"{num_token}\s*\b(SEK|EUR|USD|GBP|kr|kronor)\b", local_phrase, flags=re.I):
             local.append((m.end(), _num(m.group(1)), _currency(m.group(2))))
-        if not local:
-            # Permit short punctuation/parenthesis gaps, but still choose the
-            # nearest qualifying pair before the per-share phrase.
-            for m in re.finditer(r"\b(SEK|EUR|USD|GBP|kr|kronor)\b[^0-9]{0,12}([0-9]{1,5}(?:[.,][0-9]{1,2})?)", prefix, flags=re.I):
-                local.append((m.end(), _num(m.group(2)), _currency(m.group(1))))
-            for m in re.finditer(r"([0-9]{1,5}(?:[.,][0-9]{1,2})?)[^A-Za-z0-9]{0,12}\b(SEK|EUR|USD|GBP|kr|kronor)\b", prefix, flags=re.I):
-                local.append((m.end(), _num(m.group(1)), _currency(m.group(2))))
         local = [x for x in local if x[1] is not None and 1.0 <= x[1] <= 10000.0]
         if not local:
             continue
         _, nav, cur = max(local, key=lambda x: x[0])
-        ctx_start = max(0, start - 220)
-        ctx_end = min(len(text), pm.end() + 360)
+        ctx_start = max(0, start - 120)
+        ctx_end = min(len(text), pm.end() + 220)
         ctx = text[ctx_start:ctx_end]
         dates = _exact_dates(ctx)
         as_of = None
         if dates:
-            # Prefer the closest explicit date to this per-share fact.
             fact_pos = pm.start() - ctx_start
             as_of = min(dates, key=lambda x: abs(x[0] - fact_pos))[1]
         candidates.append({
             "nav_per_share": nav, "currency": cur, "as_of_date_obj": as_of,
-            "semantic_guard": "explicit_per_share_nearest_value", "quality": 9 + (2 if as_of else 0),
+            "semantic_guard": "nav_label_adjacent_explicit_per_share_v84",
+            "quality": 11 + _adjusted_bonus(local_phrase) + (2 if as_of else 0),
         })
 
-    # 2) Linearized report/text row: issuer PDFs and accessibility renderers may
-    # flatten a table into "Substansvärde per aktie 79 83 ...".  The label is
-    # still explicit per-share semantics; the first adjacent value is the current
-    # column, never a total NAV amount.  Swedish labels imply SEK only when the
-    # currency is not printed in the same local fragment.
+    # 2) Linearized report/text row, e.g. “Adjusted NAV, SEK per share* 397 367 355”.
+    # Footnote markers between the row label and first value are allowed.
     for lm in re.finditer(per_share_label_re, text, flags=re.I | re.S):
+        label_text = lm.group(0)
+        if re.search(unrelated_metric_re, label_text, flags=re.I):
+            continue
         suffix = text[lm.end():min(len(text), lm.end() + 180)]
+        foot = r"\s*[,;:()\-–—]*\s*(?:[*†‡]+\s*(?:\d+\))?\s*)?"
         local = []
-        for m in re.finditer(r"^\s*[,;:()\-–—]*\s*\b(SEK|EUR|USD|GBP|kr|kronor)\b[\s:(),;\-–—]{0,8}([0-9]{1,5}(?:[.,][0-9]{1,2})?)", suffix, flags=re.I):
+        for m in re.finditer(rf"^{foot}\b(SEK|EUR|USD|GBP|kr|kronor)\b[\s:(),;\-–—]{{0,8}}{num_token}", suffix, flags=re.I):
             local.append((m.end(), _num(m.group(2)), _currency(m.group(1))))
-        for m in re.finditer(r"^\s*[,;:()\-–—]*\s*([0-9]{1,5}(?:[.,][0-9]{1,2})?)[\s:(),;\-–—]{0,8}\b(SEK|EUR|USD|GBP|kr|kronor)\b", suffix, flags=re.I):
+        for m in re.finditer(rf"^{foot}{num_token}[\s:(),;\-–—]{{0,8}}\b(SEK|EUR|USD|GBP|kr|kronor)\b", suffix, flags=re.I):
             local.append((m.end(), _num(m.group(1)), _currency(m.group(2))))
         if not local:
-            m = re.match(r"\s*[,;:()\-–—]*\s*([0-9]{1,5}(?:[.,][0-9]{1,2})?)\b", suffix, flags=re.I)
-            if m and re.search(r"substansv[aä]rd", lm.group(0), flags=re.I):
-                local.append((m.end(), _num(m.group(1)), "SEK"))
+            cm = re.search(r"\b(SEK|EUR|USD|GBP|kr|kronor)\b", label_text, flags=re.I)
+            inferred_cur = _currency(cm.group(1)) if cm else ("SEK" if re.search(r"substansv[aä]rd", label_text, flags=re.I) else None)
+            m = re.match(rf"^{foot}{num_token}", suffix, flags=re.I)
+            if m and inferred_cur:
+                local.append((m.end(), _num(m.group(1)), inferred_cur))
+        if not local:
+            # KPI cards may render value before label, e.g.
+            # “SEK 397 Adjusted net asset value per share”. Keep the lookback
+            # very short so another metric cannot bleed into this row.
+            prefix_card = text[max(0, lm.start() - 55):lm.start()]
+            card = list(re.finditer(rf"\b(SEK|EUR|USD|GBP|kr|kronor)\b\s*{num_token}\s*$", prefix_card, flags=re.I))
+            if card:
+                m = card[-1]
+                local.append((m.end(), _num(m.group(2)), _currency(m.group(1))))
         local = [x for x in local if x[1] is not None and 1.0 <= x[1] <= 10000.0]
         if not local:
             continue
         _, nav, cur = min(local, key=lambda x: x[0])
-        ctx_start = max(0, lm.start() - 360)
-        ctx_end = min(len(text), lm.end() + 420)
+        ctx_start = max(0, lm.start() - 420)
+        ctx_end = min(len(text), lm.end() + 320)
         ctx = text[ctx_start:ctx_end]
         dates = _exact_dates(ctx)
-        as_of = max((d for _, d in dates), default=None)
+        # Report tables often list the current-period header immediately before
+        # the NAV row. Prefer the latest non-future date in this local block.
+        as_of = max((d for _, d in dates if d <= datetime.now().date()), default=None)
         candidates.append({
             "nav_per_share": nav, "currency": cur, "as_of_date_obj": as_of,
-            "semantic_guard": "explicit_per_share_linearized_row", "quality": 10 + (2 if as_of else 0),
+            "semantic_guard": "nav_per_share_linearized_report_row_v84",
+            "quality": 13 + _adjusted_bonus(label_text) + (2 if as_of else 0),
         })
 
-    # 3) HTML table: explicit NAV/share row + period columns. This covers pages
-    # such as Latour where Q2/2026 is the provenance rather than a release date.
+    # 3) HTML table: explicit NAV/share row + period columns.
     for table in soup.find_all("table"):
         rows = []
         for tr in table.find_all("tr"):
@@ -7665,23 +7691,20 @@ def _holding_extract_peer_nav_record(html, url):
             as_of = _quarter_end(period_label)
             if as_of is None:
                 ds = _exact_dates(" ".join(strings[:120]))
-                as_of = max((d for _, d in ds), default=None)
+                as_of = max((d for _, d in ds if d <= datetime.now().date()), default=None)
             cur = None
             cm = re.search(r"\b(SEK|EUR|USD|GBP)\b|\b(kr|kronor)\b", cells[0], flags=re.I)
             if cm:
                 cur = _currency(cm.group(1) or cm.group(2))
             candidates.append({
                 "nav_per_share": nav, "currency": cur or "SEK", "as_of_date_obj": as_of,
-                "semantic_guard": "explicit_per_share_table_latest_period", "period_label": period_label,
-                "quality": 12 + (3 if as_of else 0),
+                "semantic_guard": "explicit_per_share_table_latest_period_v84", "period_label": period_label,
+                "quality": 14 + _adjusted_bonus(cells[0]) + (3 if as_of else 0),
             })
 
     if not candidates:
         return None
 
-    # V82: a reported current NAV can never have an as-of date in the future.
-    # Corporate-governance/event links (for example AGM 2027) may be present in
-    # navigation and must not become provenance for a current NAV/share fact.
     runtime_today = datetime.now().date()
     page_dates = [(pos, d) for pos, d in _exact_dates(" ".join(strings[:160])) if d <= runtime_today]
     page_latest = max((d for _, d in page_dates), default=None)
@@ -7691,7 +7714,7 @@ def _holding_extract_peer_nav_record(html, url):
             continue
         if rec.get("as_of_date_obj") is None and page_latest is not None:
             rec["as_of_date_obj"] = page_latest
-            rec["quality"] = int(rec.get("quality") or 0) + 2
+            rec["quality"] = int(rec.get("quality") or 0) + 1
 
     candidates = [r for r in candidates if not r.get("future_date_rejected") and (r.get("as_of_date_obj") is None or r.get("as_of_date_obj") <= runtime_today)]
     if not candidates:
@@ -7707,9 +7730,8 @@ def _holding_extract_peer_nav_record(html, url):
         best["source_title"] = None
     return best
 
-
 def _holding_extract_current_nav_record(html, url):
-    """V83 current-snapshot NAV/share extractor.
+    """V84 current-snapshot NAV/share extractor.
 
     Prefer the strict explicit-per-share semantic used by the universal peer
     adapter. This prevents a total NAV amount (for example SEK bn) from being
@@ -7744,7 +7766,7 @@ def _holding_extract_current_nav_record(html, url):
         rec.setdefault("paired_price_date_obj", None)
         rec.setdefault("paired_price_date", None)
         rec["quality"] = max(int(rec.get("quality") or 0), 11) + (1 if published else 0)
-        rec["current_nav_guard"] = "strict_explicit_per_share_nonfuture_v83"
+        rec["current_nav_guard"] = "strict_nav_semantic_adjacency_nonfuture_v84"
         return rec
     # V83: the broad legacy NAV extractor is intentionally historical-only.
     # A current valuation anchor must prove explicit per-share semantics.
@@ -9417,7 +9439,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             f"[{_r.get('semantic_guard') or _r.get('current_nav_guard') or 'strict'}:{_path}]"
         )
     result["diagnostics"].append(
-        "Holding Current/Historical NAV Isolation V83: "
+        "Holding Current NAV Semantic Guard V84: "
         f"Canonical={canonical_url} · ReportLinks={len(dedupe_sorted(report_links))} · NAVLinks={len(dedupe_sorted(nav_links))} · "
         f"CurrentCandidates={len([r for r in nav_records if r.get('current_nav_guard')])} · "
         f"SelectedGuard={(result.get('nav') or {}).get('current_nav_guard') or 'strict-only/no-current-nav'}"
@@ -9435,7 +9457,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22187_holding_current_history_isolation_v83"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22188_holding_nav_semantic_adjacency_v84"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
@@ -10224,7 +10246,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "final_target_premium_discount_pct": safe_float(justified_target_diag.get("final_target_pct")),
         "target_premium_discount_released": bool(justified_target_diag.get("released")),
         "holding_peer_evidence": peer_evidence,
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Current/Historical NAV Isolation & Strict Promotion Guard V83",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · NAV/share Semantic Adjacency & Report-Row Guard V84",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
