@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.03"
+APP_BUILD_VERSION = "V2.22.04"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Asset Management Two-Issuer Validation & Release-Readiness Guard V99"
+    f"Build {APP_BUILD_VERSION} · Universal Asset Management Generic Current-Report Evidence Adapter V100"
 )
 
 
@@ -56,7 +56,7 @@ st.caption(
 # V2.22.00: Universal Asset Management AUM-Scope & Fee-Rate Evidence Guard V96. Corrects an evidence-taxonomy bug exposed by T. Rowe Price: issuer disclosure that combines Fixed Income including Money Market must not be converted into Money-Market AUM = 0 or Long-Term AUM = Total AUM. Flow rates are now labeled and calculated only against an explicitly matching issuer scope (e.g. Firmwide or Long-Term), with compatibility aliases retained for existing guards. TROW therefore keeps its verified H1 2026 annualized firmwide net-flow rate (~-2.28%) but no longer claims a separately disclosed Long-Term AUM or zero liquidity AUM. Effective fee-rate evidence is surfaced in Step 3B. Score, target P/E, Fair Value, zones and signals are unchanged unless scope evidence truly changes.
 
 # V2.22.02: Universal Asset Management Same-Basis Earnings & Evidence-Backed Premium Corridor Guard V98. Fixes two cross-company valuation-consistency gaps exposed by BlackRock. First, if a specialist uses issuer-adjusted TTM EPS, the 3Y Through-Cycle component may no longer fall back to generic GAAP history; it must use explicit issuer-adjusted annual EPS history from the same earnings family or remain fail-closed. Second, the traditional 9–18x asset-manager corridor remains the base corridor, but a fully validated 5/5 Premium-Unlock with score >=80 and a 3Y historical forward-P/E median above 18x can add a smooth evidence-backed extension. The historical median is only a ceiling (capped at 24x), never an automatic target; extension rises gradually with quality from score 80 to 100. Negative-flow and Money-Market downside guards remain dominant. TROW and other non-premium managers retain their prior mathematics.
-# V2.22.03: Universal Asset Management Two-Issuer Validation & Release-Readiness Guard V99. TROW and BLK have now passed end-to-end on materially different Asset-Management profiles without regression. This build changes no score, earnings, corridor, multiple, Fair-Value, zone or signal mathematics. It marks the existing Asset-Management specialist route as two-main-issuer validated but deliberately not yet globally released because primary AUM/flow/fee/margin evidence is still supplied by ticker-bound verified snapshots rather than a reusable issuer-primary discovery/parser stack. It also aligns UI text with the V98 premium corridor, makes the BlackRock peer-note target-aware, and fixes Reality-Check wording when model and consensus are on opposite sides of the current price without reaching the hard-conflict threshold.
+# V2.22.04: Universal Asset Management Generic Current-Report Evidence Adapter V100. Adds a bounded reusable issuer-primary discovery/parser path for previously unknown Asset Managers while preserving TROW/BLK snapshots as regression fallbacks. Search results are discovery-only; fetched issuer-family HTML/PDF must explicitly support AUM, same-scope flows, fee growth and margin evidence. The family remains validated_existing_route until this generic adapter passes an independent third issuer end-to-end.
 # V2.22.01: Universal Asset Management BlackRock Primary-Snapshot & Fail-Closed UI Guard V97. Validates BlackRock as a second main-company Asset-Management path using issuer-primary Q2/H1 2026 AUM, same-scope Long-Term flows, adjusted operating margin, base-fee/Average-AUM fee-rate evidence and issuer-adjusted TTM EPS; BLK remains a premium-franchise reference but is no longer reference-only when selected as the target. Also hardens Step 3B so any unsupported asset manager with an empty snapshot renders a fail-closed diagnostic instead of crashing the whole stock page. TROW/FHI/BEN/IVZ score, multiple and Fair Value mathematics are unchanged.
 
 # V2.21.89: Universal Holding Quarterly NAV/Share-Price History Table Guard V85. Adds an issuer-neutral historical calibration route for holdings that publish periodic NAV/share and share-class prices in Financials/Key Figures tables instead of dated standalone NAV press releases. The adapter binds quarter headers, an explicit NAV-per-share row and the requested listed share-class price row column-by-column, derives same-period premium/discount observations only from issuer-primary values, and merges them into the existing historical calibration without promoting table history into the live current-NAV snapshot. The existing dated-release archive path remains unchanged as fallback. Current NAV V84, leverage, portfolio, holding-cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics are unchanged; no issuer/ticker values are hard-coded.
@@ -118,6 +118,7 @@ st.caption(
 # V2.21.15: Universal Bank Official 4Q TTM Authority & Provider Reconciliation V11. Keeps the self-contained issuer-PDF runtime from V2.21.14, but fixes an overly strict bank TTM gate: four consecutive source-verified official quarterly diluted-EPS observations are now the primary TTM authority, while Yahoo/provider trailing EPS is a plausibility cross-check rather than a 1%-identity requirement. A mismatch fails closed only when both the absolute gap exceeds $0.10/share and the relative gap exceeds 5%, which still catches likely period/unit conflicts while allowing small provider aggregation-basis differences such as WFC 6.88 official vs 6.68 provider. Bank Score, CET1/ROTCE/TBV mathematics, target corridors, 60/40 Dual-Anchor, horizon alignment and signal logic remain unchanged.
 # V2.21.14: Universal Bank Single-File Embedded PDF Runtime V10. Embeds a compressed pypdf runtime directly inside app_v2.py and activates it through Python zipimport on demand, so PDF extraction no longer depends on sidecar package folders being present on the host import path. This fixes deployments that update/run only the single Streamlit app file. Issuer-IR discovery, SEC fallback, Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and all fail-closed valuation mathematics remain unchanged.
 # V2.21.13: Universal Bank Self-Contained PDF Recovery V9. Bundles a local pypdf runtime with the release so issuer-primary quarterly supplements can be parsed even when the hosting Streamlit image has no PDF extraction package installed and SEC endpoints return HTTP 403. Issuer-IR discovery, strict same-domain validation, four-quarter EPS coverage, ROTCE/TBVPS/CET1 parsing and all fail-closed bank valuation gates remain generic and unchanged. No issuer-specific WFC valuation branch is introduced; Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and signal mathematics remain frozen.
+# V2.22.04: Universal Asset Management Generic Current-Report Evidence Adapter V100. Adds a bounded issuer-domain discovery adapter for previously unknown Asset Management issuers. Search results are discovery-only; AUM, same-scope flows, fee growth, explicit Long-Term/Liquidity sub-scopes, cost-income/operating-margin evidence and current adjusted-EPS quality are accepted only from fetched issuer-family HTML/PDF. Existing TROW/BLK snapshots remain regression fallbacks. Through-cycle earnings and Fair Value remain independently fail-closed if their own basis is incomplete. No issuer/ticker values are hard-coded.
 # V2.21.12: Universal Bank SEC Fair-Access & Issuer-IR Recovery V8. The generic bank adapter now uses one centrally declared SEC User-Agent without forcing an incorrect Host header, supports an optional AKTIENANALYSE_SEC_CONTACT environment value, and adds bounded Fair-Access pacing before bank-specific SEC requests. In parallel, the issuer-IR path now exposes stage diagnostics and broadens PDF text extraction across pypdf, PyPDF2 and PyMuPDF/fitz so an issuer supplement can still satisfy the bank gate when a hosting environment receives SEC HTTP 403. No issuer-specific WFC valuation branch is introduced. Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment and fail-closed mathematics remain unchanged.
 # V2.21.11: Universal Bank SEC CIK Resolver & Fallback Diagnostics V7. Hardens the generic SEC ticker-to-CIK stage that blocked WFC before submissions discovery. The resolver now prefers the SEC's lightweight official ticker.txt mapping, normalizes common ticker punctuation, falls back to company_tickers.json and company_tickers_exchange.json, and records per-source HTTP/timeout/parse diagnostics instead of collapsing every failure into a generic no-CIK result. Successful CIK resolution then feeds the unchanged Item-2.02/Primary-8-K/Supplement parser path. A new cache epoch prevents prior failed CIK lookups from being reused. No Bank Score, Core-TTM, P/TBV/Core-P-E Dual Anchor, horizon alignment, or fail-closed valuation mathematics changed.
 # V2.21.16: Universal Bank IR Entry-Point Discovery Expansion V12. Reorders bank IR discovery to issuer-root / investor-hub first, follows same-domain investor/quarterly-material links before deep-path guesses, adds common nested corporate prefixes such as /global/investors as generic conventions, and keeps search only as bounded issuer-domain fallback. No ticker/domain special case and no Bank Score, 4Q-TTM reconciliation, P/TBV/Core-P-E or fail-closed valuation mathematics changed.
@@ -30764,6 +30765,390 @@ def _asset_manager_history_median_eps(historical_eps):
     return float(pd.Series(values).median())
 
 
+
+
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V100"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22204_asset_manager_generic_current_report_v100"
+
+
+def _asset_manager_primary_amount(value_text, unit_text):
+    """Parse issuer-disclosed EUR/USD/GBP scale amounts into absolute units."""
+    raw = str(value_text or "").strip().replace("\u00a0", " ")
+    raw = re.sub(r"\s+", "", raw)
+    if not raw:
+        return None
+    # European thousands commas in reports such as 2,581bn are thousands,
+    # while 56.4bn uses a decimal point.  A single comma followed by exactly
+    # three digits is therefore treated as a thousands separator.
+    if re.fullmatch(r"[+-]?\d{1,3}(?:,\d{3})+", raw):
+        raw = raw.replace(",", "")
+    elif re.fullmatch(r"[+-]?\d+,\d+", raw):
+        raw = raw.replace(",", ".")
+    else:
+        raw = raw.replace(",", "")
+    try:
+        value = float(raw)
+    except Exception:
+        return None
+    unit = str(unit_text or "").strip().lower()
+    if unit in {"tn", "trillion", "trillions"}:
+        value *= 1e12
+    elif unit in {"bn", "billion", "billions", "mrd", "mrd."}:
+        value *= 1e9
+    elif unit in {"m", "mn", "million", "millions", "mio", "mio."}:
+        value *= 1e6
+    return value
+
+
+def _asset_manager_first_amount(patterns, text, flags=re.I | re.S):
+    for pattern in patterns:
+        m = re.search(pattern, text or "", flags)
+        if not m:
+            continue
+        amount = _asset_manager_primary_amount(m.group("value"), m.group("unit"))
+        if amount is not None:
+            return amount
+    return None
+
+
+def _asset_manager_extract_date_label(text, year=None):
+    hay = str(text or "")
+    months = (
+        r"January|February|March|April|May|June|July|August|September|October|November|December|"
+        r"Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?"
+    )
+    candidates = []
+    for m in re.finditer(rf"\b(\d{{1,2}})\s+({months})\s+(20\d{{2}})\b", hay, re.I):
+        if year is not None and int(m.group(3)) != int(year):
+            continue
+        candidates.append(m.group(0))
+    return candidates[0] if candidates else None
+
+
+def _asset_manager_format_date_label(value):
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    for fmt in ["%d %B %Y", "%d %b %Y"]:
+        try:
+            return datetime.strptime(raw, fmt).strftime("%d.%m.%Y")
+        except Exception:
+            pass
+    return raw
+
+
+def _asset_manager_parse_generic_primary_report(text, source_url, company_name, fundamental_info=None):
+    """Universal semantic parser for issuer-primary asset-manager result reports.
+
+    It accepts only explicitly labelled AUM / flow / fee / margin evidence and
+    never fills a missing sub-scope with Total AUM or a synthetic zero.
+    """
+    raw = str(text or "")
+    clean = _clean_text(raw)
+    low = clean.lower()
+    out = {"available": False, "source_url": source_url, "adapter_version": ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION}
+    if len(clean) < 500 or "asset" not in low or not any(k in low for k in ["assets under management", "aum"]):
+        return out
+    if not any(k in low for k in ["net inflow", "net flow", "net cash flow"]):
+        return out
+
+    current_year = datetime.now().year
+    # Current total AUM. Prefer an explicit as-at/end-of-period sentence.
+    total_aum = _asset_manager_first_amount([
+        r"assets\s+under\s+management.{0,220}?(?:to\s+reach\s+(?:an\s+all[- ]time\s+high\s+at\s+)?|reached\s+|to\s+|at\s+|of\s+)[€$£]?\s*(?P<value>[0-9][0-9,\.\s]*)\s*(?P<unit>tn|trillion|bn|billion|mrd\.?|million|mn|mio\.?)",
+        r"assets\s+under\s+management.{0,100}?[€$£]\s*(?P<value>[0-9][0-9,\.\s]*)\s*(?P<unit>tn|trillion|bn|billion|mrd\.?|million|mn|mio\.?)",
+        r"total\s+aum.{0,80}?[€$£]?\s*(?P<value>[0-9][0-9,\.\s]*)\s*(?P<unit>tn|trillion|bn|billion|mrd\.?|million|mn|mio\.?)",
+    ], clean)
+    if total_aum is None:
+        return out
+
+    # Beginning firmwide AUM: prefer prior 31-Dec table row when available.
+    beginning_total_aum = None
+    prior_year = current_year - 1
+    m = re.search(rf"31[/.\-]12[/.\-]{prior_year}\s+(?P<value>[0-9][0-9,\.\s]{{1,12}})", clean, re.I)
+    if m:
+        beginning_total_aum = _asset_manager_primary_amount(m.group("value"), "bn")
+    if beginning_total_aum is None:
+        m = re.search(rf"31\s+December\s+{prior_year}.{{0,80}}?(?P<value>[0-9][0-9,\.\s]*)\s*(?P<unit>tn|trillion|bn|billion|mrd\.?)", clean, re.I | re.S)
+        if m:
+            beginning_total_aum = _asset_manager_primary_amount(m.group("value"), m.group("unit"))
+
+    # H1/first-half firmwide net flows are ideal because the matching 31-Dec
+    # total-AUM denominator is commonly disclosed in the same report.
+    period_net_flows = _asset_manager_first_amount([
+        r"net\s+inflows\s+for\s+the\s+first\s+half.{0,80}?(?:reach|reached|of)?\s*[+]?\s*[€$£]?\s*(?P<value>[0-9][0-9,\.\s]*)\s*(?P<unit>bn|billion|mrd\.?|million|mn|mio\.?)",
+        r"net\s+inflows.{0,120}?[+]?\s*[€$£]?\s*(?P<value>[0-9][0-9,\.\s]*)\s*(?P<unit>bn|billion|mrd\.?|million|mn|mio\.?)\s+in\s+H1",
+        r"H1\s+20\d{2}.{0,80}?net\s+(?:cash\s+)?flows?.{0,50}?[+]?\s*[€$£]?\s*(?P<value>[0-9][0-9,\.\s]*)\s*(?P<unit>bn|billion|mrd\.?|million|mn|mio\.?)",
+    ], clean)
+    flow_period_fraction = 0.5 if period_net_flows is not None else None
+    flow_period_label = f"H1 {current_year}" if period_net_flows is not None else None
+
+    # Explicit Long-Term / MLT and liquidity/treasury scopes. Missing means None.
+    long_term_aum = None
+    money_market_aum = None
+    m = re.search(r"(?:o/w\s+)?(?:MLT|medium[- ]to[- ]long[- ]term|long[- ]term)\s+assets\D{0,10}(?P<value>[0-9][0-9,\.\s]{1,12})", clean, re.I)
+    if m:
+        long_term_aum = _asset_manager_primary_amount(m.group("value"), "bn")
+    m = re.search(r"(?:o/w\s+)?(?:treasury\s+products|money[- ]market|liquidity)\D{0,10}(?P<value>[0-9][0-9,\.\s]{1,12})", clean, re.I)
+    if m:
+        money_market_aum = _asset_manager_primary_amount(m.group("value"), "bn")
+
+    # Use the H1 table when present so fee-growth/margin evidence matches the
+    # same six-month flow period instead of mixing Q2 with H1.
+    h1_anchor = -1
+    for marker in [
+        "adjusted income statement of the first half",
+        f"first half {current_year} results",
+        f"h1 {current_year}",
+    ]:
+        pos = low.find(marker)
+        if pos >= 0:
+            h1_anchor = pos
+            break
+    h1_text = clean[h1_anchor:] if h1_anchor >= 0 else clean
+    fee_growth = None
+    for pat in [
+        r"net\s+management\s+fees.{0,80}?\+(?P<pct>[0-9]+(?:[\.,][0-9]+)?)%",
+        r"management\s+fees\s+(?:grow|increase|increased).{0,40}?\+(?P<pct>[0-9]+(?:[\.,][0-9]+)?)%",
+    ]:
+        mm = re.search(pat, h1_text, re.I | re.S)
+        if mm:
+            fee_growth = safe_float(mm.group("pct").replace(",", "."))
+            break
+
+    cost_income = None
+    mm = re.search(r"cost[/ -]?income\s+ratio(?:\s*-\s*adjusted)?(?:\s*\(%\))?.{0,60}?(?P<pct>[0-9]+(?:[\.,][0-9]+)?)%", h1_text, re.I | re.S)
+    if mm:
+        cost_income = safe_float(mm.group("pct").replace(",", "."))
+    operating_margin = (100.0 - cost_income) if cost_income is not None and 0 < cost_income < 100 else None
+
+    # Fee amount supports a transparent effective-fee-rate diagnostic.
+    management_fees_amount = None
+    mm = re.search(r"net\s+management\s+fees\s+(?P<value>[0-9][0-9,\.]*)\s+(?:[0-9][0-9,\.]*\s+)?(?:\+[0-9]+(?:[\.,][0-9]+)?%)", h1_text, re.I)
+    if mm:
+        management_fees_amount = _asset_manager_primary_amount(mm.group("value"), "m")
+    effective_fee_rate_bps = None
+    if management_fees_amount and beginning_total_aum and total_aum:
+        avg_aum = (beginning_total_aum + total_aum) / 2.0
+        if avg_aum > 0:
+            effective_fee_rate_bps = management_fees_amount / avg_aum / 0.5 * 10000.0
+
+    # Same-period adjusted EPS is used only as earnings-quality evidence here;
+    # V100 deliberately leaves through-cycle EPS construction to the existing
+    # specialist earnings engine until a generic multi-year adjusted-EPS adapter
+    # has also been validated.
+    adjusted_h1_eps = None
+    adjusted_h1_prior_eps = None
+    mm = re.search(r"earnings\s+per\s+share\s*-?\s*adjusted\s*\([^)]*\)\s*(?P<cur>[0-9]+(?:[\.,][0-9]+)?)\s+(?P<prior>[0-9]+(?:[\.,][0-9]+)?)", h1_text, re.I)
+    if mm:
+        adjusted_h1_eps = safe_float(mm.group("cur").replace(",", "."))
+        adjusted_h1_prior_eps = safe_float(mm.group("prior").replace(",", "."))
+    if adjusted_h1_eps is None:
+        mm = re.search(r"adjusted\s+net\s+earnings\s+per\s+share.{0,80}?(?:achieved|of)?\s*[€$£]?\s*(?P<cur>[0-9]+(?:[\.,][0-9]+)?)", h1_text, re.I | re.S)
+        if mm:
+            adjusted_h1_eps = safe_float(mm.group("cur").replace(",", "."))
+
+    # Conservative quality sub-scores from explicitly evidenced report content.
+    has_perf_fees = "performance fees" in low
+    has_technology = any(x in low for x in ["technology revenues", "technology revenue", "subscription revenue"])
+    fee_mix_score = 12.0 if has_perf_fees and has_technology else 10.0 if has_perf_fees else 8.0
+    earnings_stability_score = 8.0
+    if adjusted_h1_eps is not None and adjusted_h1_prior_eps is not None and adjusted_h1_eps > 0 and adjusted_h1_prior_eps > 0:
+        growth = adjusted_h1_eps / adjusted_h1_prior_eps - 1.0
+        earnings_stability_score = 10.0 if -0.35 <= growth <= 0.60 else 8.0
+
+    fi = fundamental_info if isinstance(fundamental_info, dict) else {}
+    cash = safe_float(fi.get("totalCash"))
+    debt = safe_float(fi.get("totalDebt"))
+    if cash is not None and debt is not None:
+        if cash >= debt:
+            balance_quality_score = 9.0
+        elif debt <= max(cash, 1.0) * 1.5:
+            balance_quality_score = 8.0
+        elif debt <= max(cash, 1.0) * 3.0:
+            balance_quality_score = 7.0
+        else:
+            balance_quality_score = 5.0
+    else:
+        balance_quality_score = 7.0
+
+    has_buyback = any(x in low for x in ["share buyback", "share repurchase", "buyback programme", "buyback program"])
+    has_dividend = "dividend" in low
+    capital_allocation_score = 10.0 if has_buyback and has_dividend else 9.0 if has_buyback else 7.0
+    diversity_terms = ["active management", "etf", "index", "private", "alternative", "technology", "institutional", "retail"]
+    diversity_count = sum(1 for t in diversity_terms if t in low)
+    franchise_score = 5.0 if diversity_count >= 5 else 4.0 if diversity_count >= 3 else 3.0
+
+    # Publication / as-of provenance.
+    published_label = None
+    pub_match = re.search(r"(?:Paris|London|New York|Frankfurt|Milan|Dublin)?\s*,?\s*(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+20\d{2})", clean, re.I)
+    if pub_match:
+        published_label = _asset_manager_format_date_label(pub_match.group(1))
+    asof_label = None
+    asof_match = re.search(r"assets\s+under\s+management.{0,80}?as\s+at\s+(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+20\d{2})", clean, re.I | re.S)
+    if asof_match:
+        asof_label = _asset_manager_format_date_label(asof_match.group(1))
+    if asof_label is None and "end of june" in low:
+        asof_label = f"30.06.{current_year}"
+
+    # Evidence sufficiency: current AUM + same-scope flow basis + margin + fee growth.
+    complete = all(v is not None for v in [total_aum, beginning_total_aum, period_net_flows, operating_margin, fee_growth])
+    out.update({
+        "available": complete,
+        "symbol": None,
+        "company": company_name,
+        "as_of_date": asof_label,
+        "published_date": published_label,
+        "source_name": f"{company_name} issuer-primary current results report · Generic Asset-Manager Evidence Adapter {ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION}",
+        "source_url": source_url,
+        "total_aum": total_aum,
+        "beginning_total_aum": beginning_total_aum,
+        "long_term_aum": long_term_aum,
+        "money_market_aum": money_market_aum,
+        "liquidity_aum_disclosure": "issuer_explicit" if money_market_aum is not None else "not_separately_disclosed",
+        "flow_scope_label": "Firmwide",
+        "flow_beginning_aum": beginning_total_aum,
+        "period_net_flows": period_net_flows,
+        "flow_period_fraction_year": flow_period_fraction,
+        "flow_period_label": flow_period_label,
+        "flow_scope_matches_denominator": bool(beginning_total_aum is not None and period_net_flows is not None),
+        "acquisition_effects_separately_disclosed": any(x in low for x in ["scope effect", "acquisition", "first consolidation"]),
+        "verified_flow_direction": "positive" if period_net_flows is not None and period_net_flows > 0 else "negative" if period_net_flows is not None and period_net_flows < 0 else "flat" if period_net_flows == 0 else None,
+        "fee_revenue_growth_pct": fee_growth,
+        "effective_fee_rate_bps": effective_fee_rate_bps,
+        "operating_margin_pct": operating_margin,
+        "earnings_stability_score": earnings_stability_score,
+        "fee_mix_score": fee_mix_score,
+        "balance_quality_score": balance_quality_score,
+        "capital_allocation_score": capital_allocation_score,
+        "franchise_diversification_score": franchise_score,
+        "historical_forward_pe_3y_median": None,
+        "valuation_confidence_cap": "Mittel",
+        "current_period_adjusted_eps": adjusted_h1_eps,
+        "prior_period_adjusted_eps": adjusted_h1_prior_eps,
+        "generic_primary_adapter": True,
+        "note": (
+            "Issuer-primary Current-Report-Adapter: AUM, Same-Scope-Firmwide-Flows, Fee-Wachstum und Kosten-/Margin-Evidenz wurden semantisch aus dem geladenen Emittentenbericht gewonnen. "
+            "Fehlende Long-Term-/Liquidity-Sub-Segmente bleiben None; Such-Snippets sind keine Bewertungsquelle. Through-Cycle-Earnings werden separat fail-closed geprüft."
+        ),
+    })
+    return out
+
+
+def _asset_manager_fetch_primary_text(url, company_domain, deadline=None):
+    if not url or not _host_belongs_to_company_family(url, company_domain):
+        return "", None, []
+    diagnostics = []
+    try:
+        effective_timeout = _bounded_timeout(deadline, 4.5) or 3.0
+        response = requests.get(url, headers=_request_headers(), timeout=(min(1.8, effective_timeout), effective_timeout), allow_redirects=True)
+        response.raise_for_status()
+        final_url = response.url or url
+        content = response.content or b""
+        ctype = str(response.headers.get("Content-Type") or "").lower()
+        if content[:5] == b"%PDF-" or "application/pdf" in ctype:
+            text = _bank_pdf_bytes_to_text(content, diagnostics=diagnostics, include_tail=False)
+            return text, final_url, diagnostics
+        html = response.text or ""
+        text = _html_to_text(html)
+        return text, final_url, diagnostics
+    except Exception as exc:
+        diagnostics.append(f"fetch_error:{type(exc).__name__}")
+        return "", None, diagnostics
+
+
+def _asset_manager_domain_family_root(company_domain):
+    host = _clean_text(company_domain).lower().split(":")[0].strip(".")
+    parts = [p for p in host.split(".") if p]
+    if len(parts) <= 2:
+        return host
+    if parts[-2] in {"co", "com", "org", "net", "ac"} and len(parts[-1]) == 2 and len(parts) >= 3:
+        return ".".join(parts[-3:])
+    return ".".join(parts[-2:])
+
+
+def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=None, fundamental_info=None):
+    """Bounded issuer-primary discovery for previously unknown asset managers.
+
+    Search results are discovery metadata only. Values are accepted only after
+    fetching issuer-family HTML/PDF and parsing explicit report labels.
+    """
+    company_domain = _extract_company_domain(website)
+    if not company_domain:
+        return None
+    company_domain = _asset_manager_domain_family_root(company_domain)
+    deadline = _evidence_deadline(16.0)
+    year = datetime.now().year
+    company_label = _clean_text(company_name) or _clean_text(symbol)
+    queries = [
+        f'site:{company_domain} "{company_label}" "{year}" "assets under management" "net inflows" results',
+        f'site:{company_domain} "{year}" "assets under management" "net inflows" "cost-income"',
+    ]
+    candidates = []
+    seen = set()
+    for query in queries:
+        if not _research_budget_ok(deadline, reserve=3.0):
+            break
+        for row in _duckduckgo_html_search(query, max_results=5, deadline=deadline):
+            url = row.get("url")
+            if not url or url in seen or not _host_belongs_to_company_family(url, company_domain):
+                continue
+            seen.add(url)
+            hay = f"{row.get('title','')} {row.get('url','')} {row.get('snippet','')}".lower()
+            score = 0
+            if str(year) in hay: score += 20
+            if any(x in hay for x in ["half", "quarter", "q2", "q1", "results", "result"]): score += 20
+            if "assets under management" in hay or "aum" in hay: score += 20
+            if "net inflow" in hay or "net flow" in hay: score += 20
+            if any(x in hay for x in ["press release", "financial", "earnings"]): score += 10
+            candidates.append((score, row))
+    candidates.sort(key=lambda x: x[0], reverse=True)
+
+    trace = []
+    for _, row in candidates[:5]:
+        if not _research_budget_ok(deadline, reserve=1.2):
+            break
+        url = row.get("url")
+        text, final_url, diag = _asset_manager_fetch_primary_text(url, company_domain, deadline=deadline)
+        trace.append(f"fetch:{url}:{'ok' if text else 'empty'}")
+        parsed = _asset_manager_parse_generic_primary_report(text, final_url or url, company_label, fundamental_info=fundamental_info)
+        if parsed.get("available"):
+            parsed["discovery_trace"] = trace
+            return parsed
+
+        # HTML result pages often expose a direct issuer PDF/press-release link.
+        # Follow only a tiny set of same-family report-looking links.
+        try:
+            html, html_final = _fetch_html(url, timeout=3.0, deadline=deadline)
+        except Exception:
+            html, html_final = None, None
+        if not html:
+            continue
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+            links = []
+            for a in soup.find_all("a", href=True):
+                href = urljoin(html_final or url, a.get("href"))
+                label = _clean_text(a.get_text(" ", strip=True))
+                hay = f"{label} {href}".lower()
+                if not _host_belongs_to_company_family(href, company_domain):
+                    continue
+                if not any(x in hay for x in ["press release", "download", ".pdf", "quarter", "results", "financial"]):
+                    continue
+                links.append((40 if "press release" in hay else 20, href))
+            for _, href in sorted(links, reverse=True)[:3]:
+                if not _research_budget_ok(deadline, reserve=0.8):
+                    break
+                ptext, pfinal, pdiag = _asset_manager_fetch_primary_text(href, company_domain, deadline=deadline)
+                trace.append(f"follow:{href}:{'ok' if ptext else 'empty'}")
+                pparsed = _asset_manager_parse_generic_primary_report(ptext, pfinal or href, company_label, fundamental_info=fundamental_info)
+                if pparsed.get("available"):
+                    pparsed["discovery_trace"] = trace
+                    return pparsed
+        except Exception:
+            pass
+    return None
+
 def get_verified_asset_manager_snapshot(symbol):
     """Primary-source specialist snapshots for the V1 validation universe.
 
@@ -31406,6 +31791,13 @@ def build_asset_management_specialist_model(company_type, fundamental_info, symb
         return {"applicable": False}
     snapshot = get_verified_asset_manager_snapshot(symbol)
     if not snapshot:
+        snapshot = discover_generic_asset_manager_snapshot(
+            symbol,
+            company_name=(fundamental_info or {}).get("longName") or (fundamental_info or {}).get("shortName") or symbol,
+            website=(fundamental_info or {}).get("website"),
+            fundamental_info=fundamental_info,
+        )
+    if not snapshot:
         return {
             "applicable": True,
             "primary_source_complete": False,
@@ -31413,7 +31805,7 @@ def build_asset_management_specialist_model(company_type, fundamental_info, symb
             "earnings_basis": {"available": False},
             "specialist_valuation": {"available": False},
             "valuation_anchor_complete": False,
-            "readiness": "Asset-Management-Spezialdaten unvollständig · Fair Value fail-closed",
+            "readiness": "Asset-Management-Spezialdaten unvollständig · Generic issuer-primary Evidence Adapter ohne vollständigen Treffer · Fair Value fail-closed",
         }
     if snapshot.get("inactive_delisted"):
         return {
@@ -36463,7 +36855,7 @@ def get_special_control(company_type, symbol):
                 "JHG/Take-private Delisting Guard",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Two-Issuer Validation & Release-Readiness Guard V99",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Generic Current-Report Evidence Adapter V100",
             "note": (
                 "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
                 "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
@@ -60184,7 +60576,7 @@ if selected_symbol:
 
                 elif special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Two-Issuer Validation & Release-Readiness Guard V99")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Generic Current-Report Evidence Adapter V100")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
