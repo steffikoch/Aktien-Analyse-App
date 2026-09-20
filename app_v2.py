@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.07"
+APP_BUILD_VERSION = "V2.22.08"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Asset Management Current-Results Ranking & Multilingual Evidence Guard V103"
+    f"Build {APP_BUILD_VERSION} · Universal Asset Management IR-Table Context & Current-Period Evidence Guard V104"
 )
 
 
@@ -57,6 +57,7 @@ st.caption(
 
 # V2.22.02: Universal Asset Management Same-Basis Earnings & Evidence-Backed Premium Corridor Guard V98. Fixes two cross-company valuation-consistency gaps exposed by BlackRock. First, if a specialist uses issuer-adjusted TTM EPS, the 3Y Through-Cycle component may no longer fall back to generic GAAP history; it must use explicit issuer-adjusted annual EPS history from the same earnings family or remain fail-closed. Second, the traditional 9–18x asset-manager corridor remains the base corridor, but a fully validated 5/5 Premium-Unlock with score >=80 and a 3Y historical forward-P/E median above 18x can add a smooth evidence-backed extension. The historical median is only a ceiling (capped at 24x), never an automatic target; extension rises gradually with quality from score 80 to 100. Negative-flow and Money-Market downside guards remain dominant. TROW and other non-premium managers retain their prior mathematics.
 # V2.22.07: Universal Asset Management Current-Results Ranking & Multilingual Evidence Guard V103. Hardens the generic issuer-primary adapter after Amundi proved that a current IR hub can expose generic corporate-report PDFs ahead of the actual financial-results article. Candidate ranking now prioritizes current-period financial/results/quarter/half-year semantics (including French IR vocabulary) and penalizes generic corporate/ESG/engagement publications. The current-report parser adds bilingual EN/FR evidence aliases for AUM/encours, net inflows/collecte nette, management fees/commissions de gestion, cost-income/coefficient d'exploitation, adjusted EPS/bénéfice par action ajusté, French publication dates and current AUM-history tables. Same-basis Through-Cycle earnings remain independently fail-closed; TROW/BLK valuation mathematics are unchanged and no Amundi ticker/value snapshot is hard-coded.
+# V2.22.08: Universal Asset Management IR-Table Context & Current-Period Evidence Guard V104. Fixes the remaining generic Asset-Manager discovery gap exposed by Amundi V103. Financial-results hubs can encode the report period only in table row/column context (for example row “Communiqué de Presse”, column “2026”, anchor “T2”), while the downloadable PDF URL itself is opaque. V104 propagates table row/column context into candidate ranking, recognizes Q/T/H/S period tokens, prefers later available periods within the current year, penalizes explicitly older columns, and expands same-scope H1/S1 flow parsing for French/English headline/table wording. Search fallback also gains French current-results semantics. Same-basis Through-Cycle earnings remain independently fail-closed; TROW/BLK valuation mathematics are unchanged and no Amundi ticker/value snapshot is hard-coded.
 # V2.22.06: Universal Asset Management Direct-IR Bootstrap & Same-Basis Fail-Closed Guard V102. Keeps V101 runtime isolation, but no longer relies on semantic web search as the first discovery route. The generic Asset-Manager adapter now crawls the provider-declared issuer site/root first, promotes current-year results/report links, follows one bounded issuer-owned second hop such as a Press Release PDF, and uses search only as fallback. Partial evidence/trace is retained for diagnostics. Generic discovered issuers are explicitly prevented from falling back to provider/GAAP Through-Cycle EPS until an issuer-adjusted same-basis TTM/3Y earnings bridge is available. Asset-Management special-event text is aligned with the fail-closed specialist state. TROW/BLK valuation mathematics remain unchanged; no Amundi ticker/value snapshot is hard-coded.
 # V2.22.01: Universal Asset Management BlackRock Primary-Snapshot & Fail-Closed UI Guard V97. Validates BlackRock as a second main-company Asset-Management path using issuer-primary Q2/H1 2026 AUM, same-scope Long-Term flows, adjusted operating margin, base-fee/Average-AUM fee-rate evidence and issuer-adjusted TTM EPS; BLK remains a premium-franchise reference but is no longer reference-only when selected as the target. Also hardens Step 3B so any unsupported asset manager with an empty snapshot renders a fail-closed diagnostic instead of crashing the whole stock page. TROW/FHI/BEN/IVZ score, multiple and Fair Value mathematics are unchanged.
 
@@ -30790,7 +30791,7 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V103"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V104"
 ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22207_asset_manager_multilingual_current_results_v103"
 
 
@@ -30937,9 +30938,11 @@ def _asset_manager_parse_generic_primary_report(text, source_url, company_name, 
         r"net\s+inflows\s+for\s+the\s+first\s+half.{0,80}?(?:reach|reached|of)?\s*[+]?\s*[€$£]?\s*(?P<value>[0-9][0-9,\.\s]*)\s*(?P<unit>bn|billion|mrd\.?|md\.?|milliards?|million|mn|mio\.?)",
         r"net\s+inflows.{0,120}?[+]?\s*[€$£]?\s*(?P<value>[0-9][0-9,\.\s]*)\s*(?P<unit>bn|billion|mrd\.?|md\.?|milliards?|million|mn|mio\.?)\s+in\s+H1",
         r"H1\s+20\d{2}.{0,80}?net\s+(?:cash\s+)?flows?.{0,50}?[+]?\s*[€$£]?\s*(?P<value>[0-9][0-9,\.\s]*)\s*(?P<unit>bn|billion|mrd\.?|md\.?|milliards?|million|mn|mio\.?)",
-        r"collecte\s+nette\s+(?:du|au)\s+(?:premier\s+semestre|semestre|S1).{0,100}?(?:atteint|atteindre|de|a)?\s*[+]?\s*(?P<value>[0-9][0-9,\.\s]*)\s*(?P<unit>md\.?|milliards?|mrd\.?|bn|million|mn|mio\.?)",
-        r"collecte\s+nette.{0,140}?[+]?\s*(?P<value>[0-9][0-9,\.\s]*)\s*(?P<unit>md\.?|milliards?|mrd\.?|bn|million|mn|mio\.?)\s+(?:au|sur)\s+(?:S1|premier\s+semestre)",
+        r"collecte\s+nette\d*\s+(?:du|au)\s+(?:premier\s+semestre|semestre|S1).{0,100}?(?:atteint|atteindre|de|a)?\s*[+]?\s*(?P<value>[0-9][0-9,\.\s]*)\s*(?P<unit>md\.?|milliards?|mrd\.?|bn|million|mn|mio\.?)",
+        r"collecte\s+nette\d*.{0,140}?[+]?\s*(?P<value>[0-9][0-9,\.\s]*)\s*(?P<unit>md\.?|milliards?|mrd\.?|bn|million|mn|mio\.?)\s+(?:au|sur)\s+(?:S1|premier\s+semestre)",
         r"collecte\s+nette\d*\s+de\s*[+]?\s*(?P<value>[0-9][0-9,\.\s]*)\s*(?P<unit>md\.?|milliards?|mrd\.?|bn|million|mn|mio\.?)\s+au\s+S1",
+        r"collecte\s+nette\d*\s+de\s*[+]?\s*[0-9][0-9,\.\s]*\s*(?:md\.?|milliards?|mrd\.?|bn)\s+au\s+T2.{0,40}?[+]?\s*(?P<value>[0-9][0-9,\.\s]*)\s*(?P<unit>md\.?|milliards?|mrd\.?|bn|million|mn|mio\.?)\s+au\s+S1",
+        r"net\s+(?:cash\s+)?flows?\s+of\s*[+]?\s*[0-9][0-9,\.\s]*\s*(?:bn|billion)\s+in\s+Q2.{0,40}?[+]?\s*(?P<value>[0-9][0-9,\.\s]*)\s*(?P<unit>bn|billion|mrd\.?|md\.?|milliards?)\s+in\s+H1",
     ], clean)
     flow_period_fraction = 0.5 if period_net_flows is not None else None
     flow_period_label = f"H1 {current_year}" if period_net_flows is not None else None
@@ -31197,12 +31200,81 @@ def _asset_manager_bootstrap_company_domain(company_name, deadline=None):
     return best_family, rows
 
 
+def _asset_manager_anchor_table_context(anchor):
+    """Recover row/column context for compact IR tables.
+
+    Financial-results hubs often render anchors only as T1/T2/Q1/Q2 while the
+    period year lives in a column header and the document class in the row
+    label.  This helper binds those semantics without relying on issuer names or
+    hard-coded URLs.
+    """
+    if anchor is None:
+        return ""
+    parts = []
+    try:
+        cell = anchor.find_parent(["td", "th"])
+        row = cell.find_parent("tr") if cell is not None else None
+        table = row.find_parent("table") if row is not None else None
+        if cell is None or row is None or table is None:
+            return ""
+
+        row_cells = row.find_all(["td", "th"], recursive=False)
+        target_col = None
+        cursor = 0
+        for rc in row_cells:
+            try:
+                span = max(1, int(rc.get("colspan") or 1))
+            except Exception:
+                span = 1
+            if rc is cell:
+                target_col = cursor
+                break
+            cursor += span
+
+        if row_cells:
+            row_label = _clean_text(row_cells[0].get_text(" ", strip=True))
+            if row_label:
+                parts.append(row_label)
+
+        if target_col is not None:
+            all_rows = table.find_all("tr")
+            try:
+                row_pos = all_rows.index(row)
+            except Exception:
+                row_pos = len(all_rows)
+            # Walk upward and capture the nearest header-like cell covering the
+            # same logical column.  Colspans are respected so multi-year tables
+            # remain generic.
+            for prev in reversed(all_rows[:row_pos]):
+                prev_cells = prev.find_all(["td", "th"], recursive=False)
+                pcursor = 0
+                matched_text = None
+                for pc in prev_cells:
+                    try:
+                        span = max(1, int(pc.get("colspan") or 1))
+                    except Exception:
+                        span = 1
+                    if pcursor <= target_col < pcursor + span:
+                        txt = _clean_text(pc.get_text(" ", strip=True))
+                        if txt:
+                            matched_text = txt
+                        break
+                    pcursor += span
+                if matched_text and re.search(r"\b20\d{2}\b", matched_text):
+                    parts.append(matched_text)
+                    break
+    except Exception:
+        return ""
+    return _clean_text(" ".join(parts))
+
+
 def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
     """Rank issuer-owned current financial-results links ahead of generic publications.
 
-    V103 is deliberately multilingual at the navigation layer (EN/FR first): a
-    current results/quarter/half-year article must outrank a same-year corporate,
-    ESG or engagement PDF. Search/link labels remain discovery-only evidence.
+    V104 is deliberately multilingual at the navigation layer (EN/FR first).
+    Compact IR tables are interpreted with row/column context so an anchor such
+    as "T2" can inherit both document class (row) and year (column).
+    Search/link labels remain discovery-only evidence.
     """
     if not html or not base_url or not company_domain:
         return []
@@ -31218,7 +31290,8 @@ def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
             continue
         seen.add(href)
         label = _clean_text(a.get_text(" ", strip=True))
-        raw_hay = f"{label} {href}".lower()
+        table_context = _asset_manager_anchor_table_context(a)
+        raw_hay = f"{label} {href} {table_context}".lower()
         hay = unicodedata.normalize("NFKD", raw_hay).encode("ascii", "ignore").decode("ascii")
         report_terms = [
             "results", "result", "resultats", "earnings", "quarter", "trimestre",
@@ -31229,37 +31302,68 @@ def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
             "investor", "shareholder", "financial communication", "communication financiere",
             "financial results", "resultats financiers", "news", "media", "publications",
         ]
-        is_report = any(term in hay for term in report_terms)
+        period_token = re.search(r"\b(?:q[1-4]|t[1-4]|h[12]|s[12])\b", hay)
+        is_report = any(term in hay for term in report_terms) or bool(period_token and any(x in hay for x in ["/files/", ".pdf"]))
         is_hub = any(term in hay for term in hub_terms)
         if not is_report and not is_hub:
             continue
+
         score = 0
-        if str(year) in hay:
+        explicit_years = {int(v) for v in re.findall(r"\b(20\d{2})\b", table_context or "")}
+        if year in explicit_years:
+            score += 55
+        elif explicit_years and year not in explicit_years:
+            score -= 35
+        elif str(year) in hay:
             score += 35
-        if any(term in hay for term in ["first half", "1st half", "h1", "q2", "q1", "q3", "q4", "quarter", "premier semestre", "1er semestre", "s1", "trimestre"]):
-            score += 34
+
+        if any(term in hay for term in ["first half", "1st half", "h1", "half year", "premier semestre", "1er semestre", "s1"]):
+            score += 36
+        if any(term in hay for term in ["quarter", "trimestre"]):
+            score += 18
+        if period_token:
+            token = period_token.group(0).lower()
+            score += 22
+            # Within the same explicitly current-year table, later available
+            # periods should outrank earlier ones. Missing future periods have no
+            # href and therefore never enter the candidate set.
+            m_period = re.match(r"[qt]([1-4])", token)
+            if m_period:
+                score += int(m_period.group(1)) * 5
+            elif token in {"h1", "s1"}:
+                score += 12
+            elif token in {"h2", "s2"}:
+                score += 20
+
         if any(term in hay for term in ["results", "resultats", "result", "earnings"]):
             score += 30
         if any(term in hay for term in ["financial communication", "communication financiere", "financial results", "resultats financiers"]):
             score += 18
         if any(term in hay for term in ["press release", "communique de presse"]):
-            score += 30
+            score += 38
         if any(term in hay for term in [".pdf", "/files/", "download", "telecharger"]):
             score += 12
         if "financial" in hay or "financier" in hay:
             score += 10
         if is_hub and not is_report:
             score += 6
-        # Generic same-year publications are useful context but must not consume
-        # the bounded current-results budget ahead of a real earnings release.
+
+        # Generic publications are context only and must not consume the bounded
+        # results budget ahead of an actual current-period earnings release.
         if any(term in hay for term in [
             "corporate report", "rapport corporate", "engagement report", "rapport d engagement",
             "sustainability", "durabilite", "esg", "climate", "climat", "stewardship",
             "annual report", "rapport annuel", "universal registration", "document d enregistrement",
         ]):
-            score -= 45
-        rows.append({"score": score, "url": href, "label": label, "kind": "report" if is_report else "hub"})
-    rows.sort(key=lambda x: (x.get("score", 0), str(year) in unicodedata.normalize("NFKD", f"{x.get('label','')} {x.get('url','')}").encode("ascii", "ignore").decode("ascii").lower()), reverse=True)
+            score -= 55
+        rows.append({
+            "score": score,
+            "url": href,
+            "label": label,
+            "table_context": table_context,
+            "kind": "report" if is_report else "hub",
+        })
+    rows.sort(key=lambda x: (x.get("score", 0), x.get("table_context") or "", x.get("label") or ""), reverse=True)
     return rows
 
 def _asset_manager_partial_evidence_score(parsed):
@@ -31295,7 +31399,7 @@ def _asset_manager_missing_current_evidence(parsed):
 def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=None, fundamental_info=None):
     """Bounded issuer-primary discovery for previously unknown asset managers.
 
-    V103 prefers direct issuer navigation over web search and current financial-results semantics: provider-declared
+    V104 prefers direct issuer navigation over web search and current financial-results semantics: provider-declared
     website/root -> current report/article -> one issuer-owned report/PDF hop.
     Search remains a bounded fallback and snippets never become evidence.
     """
@@ -31406,7 +31510,7 @@ def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=N
                 if child_url and child_url not in direct_seen:
                     direct_seen.add(child_url)
                     second_hop.append(child)
-            # V103: a current results article often links the actual financial
+            # V104: a current results article often links the actual financial
             # press-release PDF. Fetch the best child immediately so generic
             # corporate PDFs elsewhere on the root cannot consume the budget.
             for child in children[:2]:
@@ -31440,6 +31544,8 @@ def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=N
     queries = [
         f'site:{company_domain} "{year}" "assets under management" "net inflows" results',
         f'site:{company_domain} "{year}" "assets under management" "net flows" financial results',
+        f'site:{company_domain} "{year}" encours "collecte nette" résultats',
+        f'site:{company_domain} "{year}" "premier semestre" résultats',
         f'site:{company_domain} "{company_label}" "financial results"',
     ]
     candidates = []
@@ -31455,10 +31561,11 @@ def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=N
             hay = f"{row.get('title','')} {row.get('url','')} {row.get('snippet','')}".lower()
             score = 0
             if str(year) in hay: score += 20
-            if any(x in hay for x in ["half", "quarter", "q2", "q1", "results", "result"]): score += 20
-            if "assets under management" in hay or "aum" in hay: score += 20
-            if "net inflow" in hay or "net flow" in hay: score += 20
-            if any(x in hay for x in ["press release", "financial", "earnings"]): score += 10
+            hay_folded = unicodedata.normalize("NFKD", hay).encode("ascii", "ignore").decode("ascii")
+            if any(x in hay_folded for x in ["half", "quarter", "q2", "q1", "t2", "t1", "results", "result", "resultats", "semestre", "trimestre"]): score += 20
+            if any(x in hay_folded for x in ["assets under management", "aum", "encours"]): score += 20
+            if any(x in hay_folded for x in ["net inflow", "net flow", "collecte nette"]): score += 20
+            if any(x in hay_folded for x in ["press release", "communique de presse", "financial", "financier", "earnings"]): score += 10
             candidates.append((score, row))
     candidates.sort(key=lambda x: x[0], reverse=True)
 
@@ -32143,7 +32250,7 @@ def build_asset_management_specialist_model(company_type, fundamental_info, symb
     snapshot = get_verified_asset_manager_snapshot(symbol)
     evidence_discovery = None
     if not snapshot:
-        # V103: discovery may return a partial issuer-primary record for
+        # V104: discovery may return a partial issuer-primary record for
         # diagnostics. Only an explicitly complete current-evidence snapshot is
         # promoted into scoring; partial evidence remains fail-closed.
         try:
@@ -37223,7 +37330,7 @@ def get_special_control(company_type, symbol):
                 "JHG/Take-private Delisting Guard",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Current-Results Ranking & Multilingual Evidence Guard V103",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · IR-Table Context & Current-Period Evidence Guard V104",
             "note": (
                 "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
                 "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
@@ -60945,7 +61052,7 @@ if selected_symbol:
 
                 elif special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Current-Results Ranking & Multilingual Evidence Guard V103")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · IR-Table Context & Current-Period Evidence Guard V104")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
