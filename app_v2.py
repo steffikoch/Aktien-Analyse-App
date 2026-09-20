@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.00"
+APP_BUILD_VERSION = "V2.22.01"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Asset Management AUM-Scope & Fee-Rate Evidence Guard V96"
+    f"Build {APP_BUILD_VERSION} · Universal Asset Management BlackRock Primary-Snapshot & Fail-Closed UI Guard V97"
 )
 
 
@@ -54,6 +54,8 @@ st.caption(
 # V2.21.98: Universal Holding Report Metadata & Financial-Calendar Provenance Guard V94. Metadata-only completion for released listed holdings. Issuer-primary report text may now recover a missing report publication date from bounded post-period date context and the next future reporting date from an explicit Financial Calendar/Calendar of Events section. Recovered dates are provenance/UI metadata only: they cannot change NAV freshness, target-P/NAV, historical calibration, overlays, peer evidence, Fair Value, zones or signals. No issuer/ticker/date constants are hard-coded.
 # V2.21.99: Universal Holding Full-Report Publication-Cue Recovery Guard V95. Fixes the remaining released-holding metadata gap exposed by Investor AB: publication/submission statements can sit in the middle of a long interim PDF rather than in the report head or tail, while the financial calendar on the same page was already recovered correctly. V95 first scans the full issuer-primary report text only for dates in explicit publication/submission context, then falls back to the prior bounded head/tail heuristic. The same post-period 60-day plausibility gate remains. Publication date and financial-calendar metadata remain UI/provenance only and cannot alter NAV freshness, target-P/NAV, history, overlays, peers, Fair Value, zones or signals. No issuer/ticker/date constants are hard-coded.
 # V2.22.00: Universal Asset Management AUM-Scope & Fee-Rate Evidence Guard V96. Corrects an evidence-taxonomy bug exposed by T. Rowe Price: issuer disclosure that combines Fixed Income including Money Market must not be converted into Money-Market AUM = 0 or Long-Term AUM = Total AUM. Flow rates are now labeled and calculated only against an explicitly matching issuer scope (e.g. Firmwide or Long-Term), with compatibility aliases retained for existing guards. TROW therefore keeps its verified H1 2026 annualized firmwide net-flow rate (~-2.28%) but no longer claims a separately disclosed Long-Term AUM or zero liquidity AUM. Effective fee-rate evidence is surfaced in Step 3B. Score, target P/E, Fair Value, zones and signals are unchanged unless scope evidence truly changes.
+
+# V2.22.01: Universal Asset Management BlackRock Primary-Snapshot & Fail-Closed UI Guard V97. Validates BlackRock as a second main-company Asset-Management path using issuer-primary Q2/H1 2026 AUM, same-scope Long-Term flows, adjusted operating margin, base-fee/Average-AUM fee-rate evidence and issuer-adjusted TTM EPS; BLK remains a premium-franchise reference but is no longer reference-only when selected as the target. Also hardens Step 3B so any unsupported asset manager with an empty snapshot renders a fail-closed diagnostic instead of crashing the whole stock page. TROW/FHI/BEN/IVZ score, multiple and Fair Value mathematics are unchanged.
 
 # V2.21.89: Universal Holding Quarterly NAV/Share-Price History Table Guard V85. Adds an issuer-neutral historical calibration route for holdings that publish periodic NAV/share and share-class prices in Financials/Key Figures tables instead of dated standalone NAV press releases. The adapter binds quarter headers, an explicit NAV-per-share row and the requested listed share-class price row column-by-column, derives same-period premium/discount observations only from issuer-primary values, and merges them into the existing historical calibration without promoting table history into the live current-NAV snapshot. The existing dated-release archive path remains unchanged as fallback. Current NAV V84, leverage, portfolio, holding-cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics are unchanged; no issuer/ticker values are hard-coded.
 # V2.21.85: Universal Holding Primary Listing & Issuer-Root Evidence Hub Guard V81. Fixes two reuse failures exposed by validating Investor AB after Industrivärden. Security-name normalization now treats Swedish public-company marker “publ” as a legal-form token, preventing a German secondary listing from outranking the Nasdaq Stockholm home listing merely because its display name omits “(publ)”. Listed-holding primary discovery now tries the provider/root URL before guessed locale paths, recognizes Q1–Q4 report links as issuer evidence hubs, and parses current NAV/share from report/homepage content through the strict explicit-per-share extractor before the broader legacy NAV parser. Report pages may contribute current NAV and leverage in the same bounded evidence window. Historical calibration, management-cost requirements, peer guard, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged/fail-closed until their own evidence gates pass; no Investor ticker/domain/value is hard-coded.
@@ -30825,6 +30827,49 @@ def get_verified_asset_manager_snapshot(symbol):
             "valuation_confidence_cap": "Mittel",
             "note": "Sehr starke Bilanz und hohe Marge, aber anhaltende firmweite Nettoabflüsse und sinkende effektive Fee Rate begrenzen das Multiple. TROW weist Money-Market-AUM nicht separat aus; V96 setzt diesen Wert deshalb nicht künstlich auf null.",
         },
+        "BLK": {
+            "symbol": "BLK",
+            "company": "BlackRock, Inc.",
+            "as_of_date": "30.06.2026",
+            "published_date": "15.07.2026",
+            "source_name": "BlackRock Q2 2026 Earnings Release + Form 10-Q",
+            "source_url": "https://s24.q4cdn.com/856567660/files/doc_financials/2026/Q2/BLK-2Q26-Earnings-Release.pdf",
+            # Issuer-primary Q2/H1 2026 AUM scope: long-term and cash-management are
+            # explicitly separated, so the same-scope H1 flow rate is defensible.
+            "total_aum": 15.344624e12,
+            "beginning_total_aum": 14.041518e12,
+            "long_term_aum": 14.275777e12,
+            "money_market_aum": 1.068847e12,
+            "beginning_long_term_aum": 12.960786e12,
+            "ytd_long_term_net_flows": 335.036e9,
+            "flow_scope_label": "Long-Term",
+            "flow_period_fraction_year": 0.5,
+            "flow_period_label": "H1 2026",
+            "flow_scope_matches_denominator": True,
+            "acquisition_effects_separately_disclosed": True,
+            "verified_long_term_flow_direction": "positive",
+            "q2_long_term_net_flows": 199.134e9,
+            # Base fees + securities-lending revenue grew from 4.454bn to 5.726bn YoY.
+            "fee_revenue_growth_pct": 28.56,
+            # Effective fee rate = quarterly base-fee/securities-lending revenue / average AUM × 4.
+            "effective_fee_rate_bps": 15.42,
+            "effective_fee_rate_prior_year_bps": 14.88,
+            "operating_margin_pct": 45.9,
+            "operating_margin_change_bps": 260.0,
+            # Issuer-adjusted TTM EPS = FY2025 adjusted EPS 48.09 - H1'25 23.35 + H1'26 26.44.
+            "issuer_adjusted_ttm_eps": 51.18,
+            "earnings_stability_score": 10.0,
+            # 94% of Q2 base-fee/securities-lending revenue is tied to long-term AUM;
+            # technology/subscription revenue adds a diversified fee stream.
+            "fee_mix_score": 14.0,
+            "balance_quality_score": 9.0,
+            "capital_allocation_score": 10.0,
+            "franchise_diversification_score": 5.0,
+            # External historical-multiple guard only; not a Fair-Value input by itself.
+            "historical_forward_pe_3y_median": 22.21,
+            "valuation_confidence_cap": "Mittel",
+            "note": "Sehr starke organische Long-Term-Flows, 45,9% adjusted Operating Margin, breite ETF/Active/Private-Markets-/Technology-Plattform und steigende Fee-Rate. Akquisitionskomplexität und höhere Aktienzahl begrenzen die Sicherheit; BlackRock bleibt Premium-Franchise, aber der Fair Value wird ausschließlich über denselben Asset-Manager-Spezialpfad freigegeben.",
+        },
         "BEN": {
             "symbol": "BEN",
             "company": "Franklin Templeton, Inc. (formerly Franklin Resources, Inc.)",
@@ -31251,7 +31296,7 @@ def build_asset_management_specialist_valuation(snapshot, specialist_score, earn
         flow_cap_applied = True
     elif not flow_rate_verified and flow_direction == "negative":
         target = min(target, 12.5)
-        caps.append("Directional-Flow-Guard: verifizierte negative Long-Term-Flows, Rate nicht sicher berechenbar; max. 12,5×")
+        caps.append("Directional-Flow-Guard: verifizierte negative Organic Flows im Issuer-Scope, Rate nicht sicher berechenbar; max. 12,5×")
         flow_cap_applied = True
     if target > 15.0 and not score_data.get("premium_unlocked"):
         target = 15.0
@@ -31280,7 +31325,7 @@ def build_asset_management_specialist_valuation(snapshot, specialist_score, earn
         "fair_value_financial": normalized_eps * target,
         "note": (
             "Fair Value = geglättete Asset-Manager-Earnings × nichtlinear scoregesteuertes 9–18× Spezial-KGV. "
-            "Negative Long-Term-Flows und fehlender Premium-Unlock wirken ausschließlich downside-only; unvollständige Flow-Raten werden nicht künstlich präzisiert."
+            "Negative Organic Flows im issuer-verifizierten Scope und fehlender Premium-Unlock wirken ausschließlich downside-only; unvollständige Flow-Raten werden nicht künstlich präzisiert."
         ),
     })
     return result
@@ -55905,7 +55950,7 @@ if selected_symbol:
                     st.caption("Rheinmetall wird über Backlog/Fixed Orders, organische FY26-Wachstums-Guidance, Operating-Result-Wachstum und Revenue Visibility aus Primärquellen bewertet. Yahoo-Gewinnwachstum bleibt Diagnosekontext.")
                 elif is_asset_management_score_ui:
                     st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
-                    st.caption("AUM-Anstieg wird von organischen Long-Term-Net-Flows getrennt; Marktperformance, FX und Akquisitionen erzeugen keine Growth-Punkte wie bei einem Industrieunternehmen.")
+                    st.caption("AUM-Anstieg wird von Organic Net Flows im issuer-verifizierten Scope getrennt; Marktperformance, FX und Akquisitionen erzeugen keine Growth-Punkte wie bei einem Industrieunternehmen.")
                 elif is_oilfield_services_score_ui:
                     of_growth_model_ui = data.get("oilfield_services_energy_tech_specialist_model") or {}
                     of_growth_snap_ui = of_growth_model_ui.get("snapshot") or {}
@@ -60044,14 +60089,19 @@ if selected_symbol:
 
                 elif special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · AUM-Scope & Fee-Rate Evidence Guard V96")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · BlackRock Primary-Snapshot & Fail-Closed UI Guard V97")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
                         score_am = checks_am.get("specialist_score") or {}
                         earn_am = checks_am.get("earnings_basis") or {}
                         val_am = checks_am.get("specialist_valuation") or {}
-                        if snap_am.get("inactive_delisted"):
+                        if not snap_am:
+                            st.warning(
+                                "Asset-Management-Familie erkannt, aber für diesen Emittenten liegt noch kein vollständiger issuer-primary Spezial-Snapshot vor. "
+                                "Der industrielle Standardpfad bleibt gesperrt; Fair Value und Signale bleiben für diesen Einzeltitel fail-closed."
+                            )
+                        elif snap_am.get("inactive_delisted"):
                             st.error(
                                 f"{text_or_dash(snap_am.get('company'))}: Take-private am {text_or_dash(snap_am.get('take_private_date'))} "
                                 f"zu {safe_float(snap_am.get('take_private_cash_usd')):.2f} USD je Aktie abgeschlossen; Titel delistet. "
@@ -60115,7 +60165,7 @@ if selected_symbol:
                                 st.write("**Score-Komponenten:** " + " · ".join(f"{name} {safe_float(points):.0f}" for name, points in score_am.get("components", {}).items()))
                                 st.write(f"**Premium-Unlock:** {int(score_am.get('premium_unlock_count') or 0)}/5 Bedingungen · " + ("bestanden" if score_am.get("premium_unlocked") else "nicht bestanden"))
                                 if any("Flow-Guard" in str(cap) for cap in (val_am.get("caps") or [])):
-                                    st.caption("Der Premium-Unlock hebt einen aktiven downside-only Flow-Guard nicht auf; negative Long-Term-Flows können das Ziel-KGV weiterhin begrenzen.")
+                                    st.caption("Der Premium-Unlock hebt einen aktiven downside-only Flow-Guard nicht auf; negative Organic Flows im issuer-verifizierten Scope können das Ziel-KGV weiterhin begrenzen.")
                             if earn_am.get("available"):
                                 st.metric("Through-Cycle Earnings-Basis", format_eps(earn_am.get("normalized_eps"), financial_currency))
                                 st.caption(text_or_dash(earn_am.get("method")))
