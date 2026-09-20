@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.93"
+APP_BUILD_VERSION = "V2.21.94"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Holding Evidence Cache Invalidation & Report-First Precedence Guard V89"
+    f"Build {APP_BUILD_VERSION} · Universal Holding Cadence-Aware NAV Freshness & Release-Reason Guard V90"
 )
 
 
@@ -48,6 +48,7 @@ st.caption(
 # V2.21.91: Universal Holding Flat-PDF Report Table Recovery Guard V87. Extends the V85 historical calibration with an issuer-neutral multi-period report-table parser for quarterly/interim PDFs or report text that exposes explicit period-end columns together with NAV/share and the requested share-class price row. This lets a current report contribute prior-quarter NAV/price pairs when a website Key Figures table lags behind. Report-derived history remains historical-only and cannot overwrite the V84 live NAV snapshot. Diagnostics now count valid target-class pairs across all accepted historical routes rather than only standalone NAV-release probes. Current NAV, leverage, portfolio, holding-cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics are unchanged; no issuer/ticker values are hard-coded.
 # V2.21.92: Universal Holding Report Concentration & Cost-Ratio Evidence Guard V88. Adds two issuer-neutral report-evidence adapters on top of the now-stable V84/V87 NAV stack. First, flattened issuer reports that expose a Net Asset Value overview with an explicit Share of total assets (%) column can supply portfolio-company weights and Top-1/2/3/4 concentration without relying on CMS holding cards. Second, interim/annual reports can supply management-cost ratios only when the text explicitly binds recurring management cost to NAV/adjusted NAV; annual-report tail pages may be extracted in the holding-cost slot to recover multi-year key-ratio series without changing the generic document bridge for other models. Current NAV, leverage, historical NAV calibration, peer mathematics, Fair Value, zones, V80 signals and Reality Check are unchanged; no issuer/ticker values are hard-coded.
 # V2.21.93: Universal Holding Evidence Cache Invalidation & Report-First Precedence Guard V89. Invalidates the stale listed-holding primary-snapshot cache epoch that could return pre-V88 V73/V87 evidence despite a V88 build label, and makes already-discovered issuer reports the first management-cost evidence route before legacy Key-Figures/website candidates. Report concentration/cost evidence is merged before release-blocker evaluation; website/search adapters remain fallback-only. Adds visible concentration/cost adapter traces for regression testing. Current NAV, leverage, historical NAV calibration, peer mathematics, V78 Fair Value, V79 zones, V80 signals and Reality Check mathematics remain byte-identical; no issuer/ticker values are hard-coded.
+# V2.21.94: Universal Holding Cadence-Aware NAV Freshness & Release-Reason Guard V90. Replaces the fixed 62-day live-NAV freshness cutoff with an issuer-history-derived cadence window: when at least three issuer-primary NAV dates establish a stable reporting rhythm, the freshness allowance becomes median reporting interval + 35 days, bounded to 62–150 days; otherwise the conservative 62-day fallback remains. This prevents normal quarterly holdings from becoming mechanically stale before their next scheduled reporting cycle while keeping monthly reporters tighter and very old NAVs fail-closed. The same freshness state is propagated into Step 3B and Fair-Value blocker text so a stale NAV can no longer be mislabeled as an unreleased target premium/discount. Target-P/NAV calibration, V78 Fair Value mathematics, V79 zones, V80 signals, peer/cost/concentration rules and all non-holding models remain unchanged; no issuer/ticker values are hard-coded.
 # V2.21.89: Universal Holding Quarterly NAV/Share-Price History Table Guard V85. Adds an issuer-neutral historical calibration route for holdings that publish periodic NAV/share and share-class prices in Financials/Key Figures tables instead of dated standalone NAV press releases. The adapter binds quarter headers, an explicit NAV-per-share row and the requested listed share-class price row column-by-column, derives same-period premium/discount observations only from issuer-primary values, and merges them into the existing historical calibration without promoting table history into the live current-NAV snapshot. The existing dated-release archive path remains unchanged as fallback. Current NAV V84, leverage, portfolio, holding-cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics are unchanged; no issuer/ticker values are hard-coded.
 # V2.21.85: Universal Holding Primary Listing & Issuer-Root Evidence Hub Guard V81. Fixes two reuse failures exposed by validating Investor AB after Industrivärden. Security-name normalization now treats Swedish public-company marker “publ” as a legal-form token, preventing a German secondary listing from outranking the Nasdaq Stockholm home listing merely because its display name omits “(publ)”. Listed-holding primary discovery now tries the provider/root URL before guessed locale paths, recognizes Q1–Q4 report links as issuer evidence hubs, and parses current NAV/share from report/homepage content through the strict explicit-per-share extractor before the broader legacy NAV parser. Report pages may contribute current NAV and leverage in the same bounded evidence window. Historical calibration, management-cost requirements, peer guard, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged/fail-closed until their own evidence gates pass; no Investor ticker/domain/value is hard-coded.
 
@@ -11116,6 +11117,55 @@ def _holding_build_justified_nav_target_diagnostic(historical_calibration, debt_
     }
 
 
+def _holding_nav_freshness_policy(nav_date_obj, historical_calibration):
+    """Cadence-aware live-NAV freshness gate for listed holdings.
+
+    V90 keeps the former 62-day threshold as a conservative fallback, but when
+    issuer-primary history provides a stable reporting cadence it allows one
+    normal cadence plus 35 days of publication/processing slack.  The result is
+    capped so an old NAV can never stay valuation-usable indefinitely.
+    """
+    age_days = None
+    if nav_date_obj:
+        try:
+            age_days = (datetime.now().date() - nav_date_obj).days
+        except Exception:
+            age_days = None
+
+    hist = historical_calibration or {}
+    hist_dates = []
+    for row in (hist.get("observations") or []):
+        dt = row.get("as_of_date_obj")
+        if dt is not None:
+            hist_dates.append(dt)
+    hist_dates = sorted(set(hist_dates))
+    intervals = []
+    for left, right in zip(hist_dates, hist_dates[1:]):
+        try:
+            gap = (right - left).days
+        except Exception:
+            gap = None
+        if gap is not None and 20 <= gap <= 200:
+            intervals.append(float(gap))
+
+    cadence_days = float(pd.Series(intervals, dtype="float64").median()) if len(intervals) >= 2 else None
+    freshness_limit_days = 62
+    basis = "fixed_fallback_62d"
+    if cadence_days is not None:
+        freshness_limit_days = int(round(max(62.0, min(150.0, cadence_days + 35.0))))
+        basis = "issuer_history_median_cadence_plus_35d"
+
+    fresh = bool(age_days is not None and -3 <= age_days <= freshness_limit_days)
+    return {
+        "fresh": fresh,
+        "age_days": age_days,
+        "freshness_limit_days": freshness_limit_days,
+        "expected_cadence_days": cadence_days,
+        "cadence_interval_count": len(intervals),
+        "basis": basis,
+    }
+
+
 def build_listed_investment_holding_specialist_model(company_type, fundamental_info, symbol, current_price, currency_context):
     if not is_listed_investment_holding_type(company_type):
         return {"applicable": False}
@@ -11135,13 +11185,9 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
     nav_currency = str(nav.get("currency") or (fundamental_info or {}).get("financialCurrency") or "").upper()
     financial_currency = str((currency_context or {}).get("financial_currency") or "").upper()
     nav_date_obj = nav.get("as_of_date_obj")
-    age_days = None
-    if nav_date_obj:
-        try:
-            age_days = (datetime.now().date() - nav_date_obj).days
-        except Exception:
-            age_days = None
-    nav_fresh = bool(age_days is not None and -3 <= age_days <= 62)
+    nav_freshness = _holding_nav_freshness_policy(nav_date_obj, historical_calibration)
+    age_days = nav_freshness.get("age_days")
+    nav_fresh = bool(nav_freshness.get("fresh"))
     currency_ok = bool(nav_value is not None and nav_value > 0 and nav_currency and financial_currency and nav_currency == financial_currency)
 
     price_financial = safe_float(current_price)
@@ -11201,6 +11247,10 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "nav_source_title": nav.get("source_title"),
         "nav_same_date_class_prices": nav.get("same_date_class_prices") or {},
         "nav_age_days": age_days,
+        "nav_freshness_limit_days": nav_freshness.get("freshness_limit_days"),
+        "nav_expected_cadence_days": nav_freshness.get("expected_cadence_days"),
+        "nav_cadence_interval_count": nav_freshness.get("cadence_interval_count"),
+        "nav_freshness_basis": nav_freshness.get("basis"),
         "current_price_financial": price_financial,
         "price_to_nav": price_to_nav,
         "premium_discount_pct": premium_discount_pct,
@@ -11243,7 +11293,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "final_target_premium_discount_pct": safe_float(justified_target_diag.get("final_target_pct")),
         "target_premium_discount_released": bool(justified_target_diag.get("released")),
         "holding_peer_evidence": peer_evidence,
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Evidence Cache Invalidation & Report-First Precedence Guard V89",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Cadence-Aware NAV Freshness & Release-Reason Guard V90",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
@@ -11254,6 +11304,10 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "nav_diagnostics": {
             "available": bool(nav_value and nav_value > 0),
             "fresh": nav_fresh,
+            "nav_age_days": age_days,
+            "nav_freshness_limit_days": nav_freshness.get("freshness_limit_days"),
+            "nav_expected_cadence_days": nav_freshness.get("expected_cadence_days"),
+            "nav_freshness_basis": nav_freshness.get("basis"),
             "currency_aligned": currency_ok,
             "price_nav_available": price_to_nav is not None,
             "debt_context_available": debt_ratio is not None,
@@ -44214,10 +44268,29 @@ def calculate_fair_value_v1(
         and special_control.get("control_key") == "listed_investment_holding_nav"
     ):
         if not special_control.get("released", False):
-            result["note"] = (
-                "Fair Value V1 gesperrt: Das Holding-NAV-Modell ist implementiert, aber der "
-                "issuer-spezifische Ziel-Premium/Discount ist noch nicht vollständig freigegeben."
-            )
+            checks = special_control.get("checks") or {}
+            snap_block = special_control.get("snapshot") or (checks.get("nav_snapshot") or {})
+            diag_block = checks.get("nav_diagnostics") or {}
+            if diag_block.get("available") and not diag_block.get("fresh"):
+                age_block = diag_block.get("nav_age_days")
+                limit_block = diag_block.get("nav_freshness_limit_days")
+                age_txt = f"{int(age_block)}" if age_block is not None else "–"
+                limit_txt = f"{int(limit_block)}" if limit_block is not None else "–"
+                result["note"] = (
+                    "Fair Value V1 gesperrt: Der issuer-primary Holding-NAV ist nicht mehr frisch genug "
+                    f"({age_txt} Tage seit NAV-Stichtag; zulässiger Frischekorridor {limit_txt} Tage)."
+                )
+            elif not bool(snap_block.get("target_premium_discount_released")):
+                blockers_block = diag_block.get("justified_target_blockers") or []
+                blocker_txt = (" · ".join(str(x) for x in blockers_block)) if blockers_block else "Ziel-P/NAV-Kalibrierung unvollständig"
+                result["note"] = (
+                    "Fair Value V1 gesperrt: Der issuer-spezifische Ziel-Premium/Discount ist noch nicht vollständig freigegeben. "
+                    + blocker_txt
+                )
+            elif not diag_block.get("currency_aligned"):
+                result["note"] = "Fair Value V1 gesperrt: NAV- und Berichtswährung sind nicht belastbar ausgerichtet."
+            else:
+                result["note"] = "Fair Value V1 gesperrt: Der Holding-Primärdatenanker ist noch nicht vollständig freigegeben."
             return result
 
         snap = special_control.get("snapshot") or ((special_control.get("checks") or {}).get("nav_snapshot") or {})
@@ -51841,20 +51914,24 @@ def load_stock(selected_symbol, cache_version):
             _holding_nav_text = (f"{_holding_nav_event:.2f} {_holding_snap_event.get('nav_currency') or financial_currency}" if _holding_nav_event is not None else "nicht verfügbar")
             _holding_pd_text = (f"{_holding_prem_event:+.1f} %" if _holding_prem_event is not None else "nicht verfügbar")
             _holding_target_released = bool(_holding_snap_event.get("target_premium_discount_released"))
+            _holding_valuation_released = bool((special_control or {}).get("released"))
             special_event_warning = {
                 "level": "Grün",
                 "icon": "🟢",
-                "title": ("Holding-NAV-Fair-Value-/Zonen-/Signalmodell aktiv – V80 freigegeben" if _holding_target_released else "Holding-NAV-Primärdatenmodell aktiv – Fair Value noch gesperrt"),
+                "title": ("Holding-NAV-Fair-Value-/Zonen-/Signalmodell aktiv – V80 freigegeben" if _holding_valuation_released else "Holding-NAV-Primärdatenmodell aktiv – Fair Value noch gesperrt"),
                 "requires_research": False,
-                "valuation_usable": bool(_holding_target_released),
+                "valuation_usable": bool(_holding_valuation_released),
                 "reason": (
                     f"Issuer-primary NAV {_holding_nav_text} je Aktie und aktueller Kurs/NAV-Abstand {_holding_pd_text} werden separat vom generischen EPS/KGV-Pfad geführt. "
                     "Das ist eine normale Holding-Bewertungsbasis und kein Sonderereignis."
                 ),
                 "action": (
                     (f"Keine EPS-Sonderrecherche starten. {APP_BUILD_VERSION} nutzt ausschließlich den Holding-Spezialpfad: NAV → freigegebenes Ziel-P/NAV → Fair Value → evidenzkalibrierte P/NAV-Zone → konservative Holding-Signalübersetzung. Der generische Multiple-/Fundamental-Score bleibt gesperrt. Als nächstes dieselbe Vorlage an einer zweiten Holding als Hauptaktie validieren, bevor die Familie global freigegeben wird.")
-                    if _holding_target_released else
-                    (f"Keine EPS-Sonderrecherche starten. {APP_BUILD_VERSION} hält den Fair Value bis zur vollständigen Ziel-Premium/Discount-Freigabe geschlossen.")
+                    if _holding_valuation_released else
+                    (
+                        f"Keine EPS-Sonderrecherche starten. {APP_BUILD_VERSION} hält den Fair Value geschlossen, bis sowohl der Ziel-Premium/Discount-Guard "
+                        "als auch NAV-Frische, Währungs- und Aktieneinheiten-Gates vollständig freigegeben sind."
+                    )
                 ),
                 "family_model_gate": True,
                 "holding_nav_model": True,
@@ -59404,6 +59481,17 @@ if selected_symbol:
                     hccy = snap_h.get("nav_currency") or financial_currency
                     if diag_h.get("available"):
                         st.write(f"**NAV-Datenstand:** {text_or_dash(snap_h.get('nav_as_of_date'))} (veröffentlicht {text_or_dash(snap_h.get('nav_published_date'))})")
+                        nav_age_h = safe_float(diag_h.get("nav_age_days"))
+                        nav_limit_h = safe_float(diag_h.get("nav_freshness_limit_days"))
+                        nav_cadence_h = safe_float(diag_h.get("nav_expected_cadence_days"))
+                        if nav_age_h is not None and nav_limit_h is not None:
+                            freshness_txt_h = f"NAV-Frische V90: {nav_age_h:.0f} Tage seit Stichtag · zulässig bis {nav_limit_h:.0f} Tage"
+                            if nav_cadence_h is not None:
+                                freshness_txt_h += f" · issuer-history Reporting-Cadence ca. {nav_cadence_h:.0f} Tage"
+                            if diag_h.get("fresh"):
+                                st.caption(freshness_txt_h + " · Gate bestanden")
+                            else:
+                                st.warning(freshness_txt_h + " · Gate nicht bestanden")
                         st.caption(text_or_dash(snap_h.get("source_name")))
                         if snap_h.get("nav_source_url"):
                             st.markdown(f"[NAV-Primärquelle]({snap_h.get('nav_source_url')})")
@@ -59564,9 +59652,18 @@ if selected_symbol:
                             "Die Bewertungszone bleibt unverändert aus V79 freigegeben; die Holding-spezifische Signalübersetzung ist in V80 separat freigegeben."
                         )
                     else:
-                        st.warning(
-                            f"Fair Value bleibt in {APP_BUILD_VERSION} gesperrt, solange der Ziel-Premium/Discount-Guard nicht vollständig freigegeben ist."
-                        )
+                        if diag_h.get("available") and not diag_h.get("fresh"):
+                            st.warning(
+                                f"Fair Value bleibt in {APP_BUILD_VERSION} gesperrt: issuer-primary NAV ist älter als der zulässige cadence-basierte Frischekorridor."
+                            )
+                        elif not snap_h.get("target_premium_discount_released"):
+                            st.warning(
+                                f"Fair Value bleibt in {APP_BUILD_VERSION} gesperrt, solange der Ziel-Premium/Discount-Guard nicht vollständig freigegeben ist."
+                            )
+                        else:
+                            st.warning(
+                                f"Fair Value bleibt in {APP_BUILD_VERSION} gesperrt, solange NAV-Frische, Währungs-/Aktieneinheiten- und Ziel-P/NAV-Gates nicht gemeinsam freigegeben sind."
+                            )
                     st.caption(text_or_dash(special_control.get("note")))
 
                 elif special_control.get("control_key") == "asset_management_specialist":
