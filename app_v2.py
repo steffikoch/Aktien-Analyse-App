@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.88"
+APP_BUILD_VERSION = "V2.21.89"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding NAV/share Semantic Adjacency & Report-Row Guard V84"
+    f"Build {APP_BUILD_VERSION} · Universal Holding Quarterly NAV/Share-Price History Table Guard V85"
 )
 
 
@@ -44,6 +44,8 @@ st.caption(
 # V2.21.86: Listed Holding Current NAV Strict-Only & Metric-Date Coherence Guard V82. Hardens the reusable holding template after Investor AB exposed a false current-NAV record. Current valuation snapshots now accept only the strict explicit NAV/share extractor; the broader legacy NAV parser remains historical-release-only and can no longer populate a live current NAV. Any NAV as-of date after the runtime date is rejected rather than allowed to outrank valid current-period evidence, and undated page-level fallback dates ignore future governance/event dates. Holding leverage dates are now bound locally to the accepted ratio occurrence (for example “Leverage was 1.9 percent as of June 30, 2026”) instead of taking the earliest date in a report that may describe a prior-year comparator. Primary listing, historical calibration, management-cost guard, peer calibration, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged/fail-closed until their own evidence gates pass; no issuer values are hard-coded.
 # V2.21.87: Listed Holding Historical/Current NAV Isolation & Strict Promotion Guard V83. Fixes a cross-layer contamination bug exposed by Investor AB after V82: the historical release parser could append its broad historical NAV record back into the live current-NAV candidate pool, allowing a richer but non-current parse to outrank the strict current NAV by date. V83 physically separates historical calibration records from live current NAV evidence, permits promotion from a historical-release fetch only after that same document independently passes the strict current NAV/share extractor, and final-selects only records carrying the strict current-nav guard. Historical same-date share-price pairing remains available to the calibration layer but can no longer overwrite the live snapshot. Adds current-candidate source/guard trace diagnostics. Listing resolution, leverage, portfolio, cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged; no issuer values are hard-coded.
 # V2.21.88: Listed Holding NAV/share Semantic Adjacency & Report-Row Guard V84. Fixes a false-positive exposed by Investor AB where a broad “per share” anchor could bind an unrelated consolidated profit figure (SEK 117,290m) to an earlier NAV label and silently convert it into 117.29 SEK/share. Narrative NAV/share evidence now requires the NAV label and per-share phrase to be locally adjacent without an intervening earnings/profit/loss/share-price metric, and numeric tokens cannot truncate thousands-formatted amounts into decimal-looking values. Linearized issuer-report rows such as “Adjusted NAV, SEK per share* 397 367 355” explicitly support footnote markers and infer the printed row currency; adjusted NAV receives a small semantic preference over reported/accounting NAV when both are presented for the same period. Current/historical isolation, future-date rejection, leverage, portfolio, cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged; no issuer values are hard-coded.
+
+# V2.21.89: Universal Holding Quarterly NAV/Share-Price History Table Guard V85. Adds an issuer-neutral historical calibration route for holdings that publish periodic NAV/share and share-class prices in Financials/Key Figures tables instead of dated standalone NAV press releases. The adapter binds quarter headers, an explicit NAV-per-share row and the requested listed share-class price row column-by-column, derives same-period premium/discount observations only from issuer-primary values, and merges them into the existing historical calibration without promoting table history into the live current-NAV snapshot. The existing dated-release archive path remains unchanged as fallback. Current NAV V84, leverage, portfolio, holding-cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics are unchanged; no issuer/ticker values are hard-coded.
 # V2.21.85: Universal Holding Primary Listing & Issuer-Root Evidence Hub Guard V81. Fixes two reuse failures exposed by validating Investor AB after Industrivärden. Security-name normalization now treats Swedish public-company marker “publ” as a legal-form token, preventing a German secondary listing from outranking the Nasdaq Stockholm home listing merely because its display name omits “(publ)”. Listed-holding primary discovery now tries the provider/root URL before guessed locale paths, recognizes Q1–Q4 report links as issuer evidence hubs, and parses current NAV/share from report/homepage content through the strict explicit-per-share extractor before the broader legacy NAV parser. Report pages may contribute current NAV and leverage in the same bounded evidence window. Historical calibration, management-cost requirements, peer guard, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged/fail-closed until their own evidence gates pass; no Investor ticker/domain/value is hard-coded.
 
 # V2.21.49: Nordic Home-Listing & Cboe Venue Guard V45. Extends only the Security Identity & Primary Listing Resolver. Verified Industrivärden name aliases resolve Class C to the issuer-declared Nasdaq Stockholm home line (Yahoo-style INDU-C.ST), while Cboe Europe .XD/DXE rows are treated as secondary venues for name searches. Exact ticker input still retains its exact-security priority, so an explicitly entered .XD ticker remains selectable as entered. No company-family routing, EPS normalization, specialist model, score, Fair Value, Reality Check or signal mathematics are changed.
@@ -7730,6 +7732,186 @@ def _holding_extract_peer_nav_record(html, url):
         best["source_title"] = None
     return best
 
+
+def _holding_extract_quarterly_nav_price_history(html, url, target_class=None):
+    """V85 parse issuer-primary quarterly NAV/share + share-class price history.
+
+    This is intentionally a historical-only adapter.  A record is accepted only
+    when one table supplies (1) quarter/year columns, (2) an explicit NAV-per-share
+    row and (3) the requested share-class price row for the same columns.  It never
+    supplies the live current NAV snapshot.
+    """
+    if not html:
+        return []
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:
+        return []
+
+    target = str(target_class or "").upper().strip() or None
+
+    def _quarter_end(label):
+        raw = _clean_text(label).replace("’", "'")
+        pats = [
+            r"\bQ([1-4])\s*[/\- ]*\s*(20\d{2})\b",
+            r"\b([1-4])Q\s*[/\- ]*\s*(20\d{2})\b",
+            r"\bQ([1-4])\s*[/\- ]*\s*(\d{2})\b",
+            r"\b([1-4])Q\s*[/\- ]*\s*(\d{2})\b",
+        ]
+        for idx, pat in enumerate(pats):
+            m = re.search(pat, raw, flags=re.I)
+            if not m:
+                continue
+            q = int(m.group(1)); y = int(m.group(2))
+            if idx >= 2:
+                y += 2000
+            month, day = {1:(3,31), 2:(6,30), 3:(9,30), 4:(12,31)}[q]
+            try:
+                return datetime(y, month, day).date()
+            except Exception:
+                return None
+        return None
+
+    def _number(cell):
+        raw = _clean_text(cell).replace("\u00a0", " ").strip()
+        if not raw or raw in {"-", "–", "—"}:
+            return None
+        # This adapter handles per-share values, not total NAV.  Spaces can be
+        # thousands separators elsewhere, but accepted values remain bounded.
+        raw = raw.replace("%", "").strip()
+        raw = re.sub(r"\s+", "", raw)
+        # Nordic decimal comma; ordinary decimal point is also accepted.
+        if "," in raw and "." not in raw:
+            raw = raw.replace(",", ".")
+        # If both separators occur, treat the last one as decimal and the other
+        # as thousands punctuation.
+        elif "," in raw and "." in raw:
+            if raw.rfind(",") > raw.rfind("."):
+                raw = raw.replace(".", "").replace(",", ".")
+            else:
+                raw = raw.replace(",", "")
+        raw = re.sub(r"[^0-9.\-+]", "", raw)
+        try:
+            val = float(raw)
+        except Exception:
+            return None
+        return val if 0 < val <= 100000 else None
+
+    def _nav_label_score(label):
+        folded = _holding_fold_text(label)
+        if not any(x in folded for x in ["net asset value", "substansvarde", "nav"]):
+            return -1
+        if not any(x in folded for x in ["per share", "per aktie", "/ share", "/ aktie"]):
+            return -1
+        if any(x in folded for x in ["growth", "change", "sequential", "%"]):
+            return -1
+        score = 10
+        if "adjusted" in folded or "justerat" in folded:
+            score += 4
+        if any(x in folded for x in ["sek", "eur", "usd", "gbp", "kr"]):
+            score += 1
+        return score
+
+    def _price_label_class(label):
+        folded = _holding_fold_text(label)
+        if not any(x in folded for x in ["share price", "stock price", "aktiekurs", "closing price", "stangningskurs"]):
+            return None
+        # English forms: class B / B share(s). Swedish: B-aktien / aktie B.
+        for pat in [
+            r"\bclass\s+([a-z])\b", r"\b([a-z])\s+shares?\b", r"\b([a-z])\s*[-–—]?\s*aktien\b",
+            r"\baktie(?:n)?\s+([a-z])\b", r"\bserie\s+([a-z])\b",
+        ]:
+            m = re.search(pat, folded, flags=re.I)
+            if m:
+                return m.group(1).upper()
+        return None
+
+    out = []
+    for table in soup.find_all("table"):
+        rows = []
+        for tr in table.find_all("tr"):
+            cells = [_clean_text(c.get_text(" ", strip=True)).replace("\u00a0", " ") for c in tr.find_all(["th", "td"])]
+            if cells:
+                rows.append(cells)
+        if len(rows) < 3:
+            continue
+
+        # Find the row with the densest quarter labels; map actual cell index to date.
+        period_map = {}
+        for cells in rows[:16]:
+            local = {idx: _quarter_end(cell) for idx, cell in enumerate(cells)}
+            local = {idx: dt for idx, dt in local.items() if dt is not None and dt <= datetime.now().date()}
+            if len(local) > len(period_map):
+                period_map = local
+        if len(period_map) < 3:
+            continue
+
+        nav_row = None; nav_score = -1
+        price_rows = {}
+        for cells in rows:
+            if not cells:
+                continue
+            score = _nav_label_score(cells[0])
+            if score > nav_score:
+                nav_row, nav_score = cells, score
+            cls = _price_label_class(cells[0])
+            if cls:
+                price_rows[cls] = cells
+        if nav_row is None or nav_score < 0:
+            continue
+        chosen_class = target if target in price_rows else (next(iter(price_rows)) if len(price_rows) == 1 else None)
+        if chosen_class is None:
+            continue
+        price_row = price_rows.get(chosen_class)
+        if not price_row:
+            continue
+
+        # Currency comes from the NAV label; SEK is a safe semantic inference only
+        # when the printed label explicitly says SEK/kr.
+        nav_label = nav_row[0]
+        currency = None
+        cm = re.search(r"\b(SEK|EUR|USD|GBP)\b", nav_label, flags=re.I)
+        if cm:
+            currency = cm.group(1).upper()
+        elif re.search(r"\bkr\b|kronor", nav_label, flags=re.I):
+            currency = "SEK"
+        if currency is None:
+            continue
+
+        for idx, dt in period_map.items():
+            if idx >= len(nav_row) or idx >= len(price_row):
+                continue
+            nav = _number(nav_row[idx]); price = _number(price_row[idx])
+            if nav is None or price is None or nav <= 0 or price <= 0:
+                continue
+            premium = (price / nav - 1.0) * 100.0
+            if premium < -60.0 or premium > 120.0:
+                continue
+            out.append({
+                "nav_per_share": nav,
+                "currency": currency,
+                "as_of_date_obj": dt,
+                "as_of_date": _holding_date_display(dt),
+                "published_date_obj": None,
+                "published_date": None,
+                "source_url": url,
+                "source_title": "Quarterly NAV/share & share-price key figures",
+                "same_date_class_prices": {chosen_class: price},
+                "paired_price_date_obj": dt,
+                "paired_price_date": _holding_date_display(dt),
+                "quality": 12 + (2 if nav_score >= 14 else 0),
+                "history_source_kind": "issuer_quarterly_key_figures_table_v85",
+            })
+
+    # One record per quarter-end; richest/adjusted record wins.
+    by_date = {}
+    for rec in out:
+        dt = rec.get("as_of_date_obj")
+        prev = by_date.get(dt)
+        if prev is None or int(rec.get("quality") or 0) > int(prev.get("quality") or 0):
+            by_date[dt] = rec
+    return [by_date[k] for k in sorted(by_date.keys(), reverse=True)]
+
 def _holding_extract_current_nav_record(html, url):
     """V84 current-snapshot NAV/share extractor.
 
@@ -8510,6 +8692,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     archive_links = []
     portfolio_links = []
     cost_links = []
+    history_table_links = []
     portfolio_best = None
 
     def _portfolio_candidate_rank(rec):
@@ -8682,6 +8865,13 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 "forvaltningskostnad", "nyckeltal", "industrivarden in figures"
             ]):
                 cost_links.append((url, label))
+            history_hay = _holding_fold_text(" ".join([label or "", url or ""]))
+            if any(term in history_hay for term in [
+                "financials", "financial data", "financial information", "key figures", "key ratios",
+                "quarterly data", "quarterly figures", "historical figures", "financial history",
+                "nyckeltal", "finansiell data", "finansiell information"
+            ]):
+                history_table_links.append((url, label))
             if any(term in low for term in ["press release", "press releases", "news", "media", "regulatory releases"]):
                 archive_links.append((url, label))
 
@@ -9104,12 +9294,38 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     history_release_with_class_prices = 0
     history_expected_date_matches = 0
     history_pair_probes = []
+    history_table_fetches = 0
+    history_table_records = 0
+    history_table_sources = []
 
     history_target_cls = None
     history_sym_base = str(symbol or "").upper().split(".", 1)[0]
     history_target_m = re.search(r"(?:-|_)([A-Z])$", history_sym_base)
     if history_target_m:
         history_target_cls = history_target_m.group(1)
+
+    def _history_series_ready(records):
+        dates = sorted({r.get("as_of_date_obj") for r in (records or []) if r.get("as_of_date_obj")})
+        return bool(len(dates) >= 6 and len(dates) >= 2 and (dates[-1] - dates[0]).days >= 150)
+
+    def _history_table_candidate_urls():
+        items = []
+        seen = set()
+        for u, lab in history_table_links:
+            if u and u not in seen and _holding_same_issuer_url(u, company_domain):
+                seen.add(u); items.append((u, lab or "financial/key figures"))
+        # Generic same-domain fallbacks. They are discovery URLs only; records
+        # are accepted solely if the fetched page contains the strict table.
+        generic_paths = [
+            "/investors-media/financials", "/investors/financials",
+            "/investor-relations/financials", "/financials",
+            "/investors/key-figures", "/investor-relations/key-figures",
+        ]
+        for gp in generic_paths:
+            u = root + gp
+            if u not in seen:
+                seen.add(u); items.append((u, "generic issuer financials candidate"))
+        return items
 
     def _history_pair_probe(rec, expected_date=None, source_url=None):
         """Normalize one issuer release into a target-class NAV/close pairing decision."""
@@ -9210,6 +9426,26 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
         history_slot_end = _evidence_deadline(10.5)
         if history_slot_end is not None:
+            # V85: quarterly key-figure tables are a first-class historical route.
+            # They are often both faster and more complete than crawling individual
+            # NAV releases, especially for holdings that report NAV quarterly.
+            for table_url, _table_label in _history_table_candidate_urls()[:4]:
+                if history_table_fetches >= 2 or not _research_budget_ok(history_slot_end, reserve=5.0):
+                    break
+                thtml = fetch(table_url, referer=canonical_url, phase_deadline=history_slot_end)
+                if not thtml:
+                    continue
+                history_table_fetches += 1
+                trecs = _holding_extract_quarterly_nav_price_history(thtml, table_url, target_class=history_target_cls)
+                if trecs:
+                    history_table_sources.append(table_url)
+                    history_table_records += len(trecs)
+                    history_records.extend(trecs)
+                    if _history_series_ready(history_records):
+                        break
+
+            # Existing archive-first dated NAV release route remains fallback and
+            # can enrich a partial quarterly table series.
             # V65 is archive-first: a pre-existing CMS NAV-link count is not proof
             # that the historical release index has been visited. Fetch up to two
             # verified issuer-owned index candidates before ranking release links.
@@ -9365,7 +9601,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 rejection_counts[reason] = rejection_counts.get(reason, 0) + 1
         reject_summary = ",".join(f"{k}:{v}" for k, v in sorted(rejection_counts.items())) or "none"
         result["diagnostics"].append(
-            f"Holding Historical NAV Calibration V71: ArchiveFetch={history_archive_fetches}, "
+            f"Holding Historical NAV Calibration V85: QuarterlyTableFetch={history_table_fetches}, QuarterlyTableRecords={history_table_records}, ArchiveFetch={history_archive_fetches}, "
             f"Candidates={history_candidate_count}, UniqueDateCandidates={len(strict_candidates) if 'strict_candidates' in locals() else 0}, "
             f"ReleaseFetch={history_release_attempts}, Parsed={history_release_parsed}, DateAnchored={history_expected_date_matches}, "
             f"ClassPricePages={history_release_with_class_prices}, NavHistoryRecords={len(result.get('nav_history') or [])}, "
@@ -9457,7 +9693,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22188_holding_nav_semantic_adjacency_v84"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22189_holding_quarterly_history_table_v85"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
@@ -9525,7 +9761,7 @@ def _holding_build_historical_nav_calibration(nav_history, symbol):
         "max_pct": float(ser.max()),
         "mean_pct": float(ser.mean()),
         "observations": observations,
-        "method": "Issuer-primary NAV releases · issuer-paired closing price · class-matched historical premium/discount",
+        "method": "Issuer-primary NAV/share history · issuer-paired share-class price · class-matched historical premium/discount",
     }
 
 
@@ -10246,7 +10482,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "final_target_premium_discount_pct": safe_float(justified_target_diag.get("final_target_pct")),
         "target_premium_discount_released": bool(justified_target_diag.get("released")),
         "holding_peer_evidence": peer_evidence,
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · NAV/share Semantic Adjacency & Report-Row Guard V84",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Quarterly NAV/Share-Price History Table Guard V85",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
@@ -58467,7 +58703,7 @@ if selected_symbol:
                             )
                             hist_diag_lines_h = [
                                 str(x) for x in (snap_h.get("diagnostics") or [])
-                                if "Historical NAV Calibration V71" in str(x)
+                                if "Historical NAV Calibration" in str(x)
                             ]
                             if hist_diag_lines_h:
                                 st.caption("Historik-Adapter: " + hist_diag_lines_h[-1])
