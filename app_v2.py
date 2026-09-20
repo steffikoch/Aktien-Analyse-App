@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.91"
+APP_BUILD_VERSION = "V2.21.92"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Holding Flat-PDF Report Table Recovery Guard V87"
+    f"Build {APP_BUILD_VERSION} · Universal Holding Report Concentration & Cost-Ratio Evidence Guard V88"
 )
 
 
@@ -46,6 +46,7 @@ st.caption(
 # V2.21.88: Listed Holding NAV/share Semantic Adjacency & Report-Row Guard V84. Fixes a false-positive exposed by Investor AB where a broad “per share” anchor could bind an unrelated consolidated profit figure (SEK 117,290m) to an earlier NAV label and silently convert it into 117.29 SEK/share. Narrative NAV/share evidence now requires the NAV label and per-share phrase to be locally adjacent without an intervening earnings/profit/loss/share-price metric, and numeric tokens cannot truncate thousands-formatted amounts into decimal-looking values. Linearized issuer-report rows such as “Adjusted NAV, SEK per share* 397 367 355” explicitly support footnote markers and infer the printed row currency; adjusted NAV receives a small semantic preference over reported/accounting NAV when both are presented for the same period. Current/historical isolation, future-date rejection, leverage, portfolio, cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged; no issuer values are hard-coded.
 
 # V2.21.91: Universal Holding Flat-PDF Report Table Recovery Guard V87. Extends the V85 historical calibration with an issuer-neutral multi-period report-table parser for quarterly/interim PDFs or report text that exposes explicit period-end columns together with NAV/share and the requested share-class price row. This lets a current report contribute prior-quarter NAV/price pairs when a website Key Figures table lags behind. Report-derived history remains historical-only and cannot overwrite the V84 live NAV snapshot. Diagnostics now count valid target-class pairs across all accepted historical routes rather than only standalone NAV-release probes. Current NAV, leverage, portfolio, holding-cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics are unchanged; no issuer/ticker values are hard-coded.
+# V2.21.92: Universal Holding Report Concentration & Cost-Ratio Evidence Guard V88. Adds two issuer-neutral report-evidence adapters on top of the now-stable V84/V87 NAV stack. First, flattened issuer reports that expose a Net Asset Value overview with an explicit Share of total assets (%) column can supply portfolio-company weights and Top-1/2/3/4 concentration without relying on CMS holding cards. Second, interim/annual reports can supply management-cost ratios only when the text explicitly binds recurring management cost to NAV/adjusted NAV; annual-report tail pages may be extracted in the holding-cost slot to recover multi-year key-ratio series without changing the generic document bridge for other models. Current NAV, leverage, historical NAV calibration, peer mathematics, Fair Value, zones, V80 signals and Reality Check are unchanged; no issuer/ticker values are hard-coded.
 # V2.21.89: Universal Holding Quarterly NAV/Share-Price History Table Guard V85. Adds an issuer-neutral historical calibration route for holdings that publish periodic NAV/share and share-class prices in Financials/Key Figures tables instead of dated standalone NAV press releases. The adapter binds quarter headers, an explicit NAV-per-share row and the requested listed share-class price row column-by-column, derives same-period premium/discount observations only from issuer-primary values, and merges them into the existing historical calibration without promoting table history into the live current-NAV snapshot. The existing dated-release archive path remains unchanged as fallback. Current NAV V84, leverage, portfolio, holding-cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics are unchanged; no issuer/ticker values are hard-coded.
 # V2.21.85: Universal Holding Primary Listing & Issuer-Root Evidence Hub Guard V81. Fixes two reuse failures exposed by validating Investor AB after Industrivärden. Security-name normalization now treats Swedish public-company marker “publ” as a legal-form token, preventing a German secondary listing from outranking the Nasdaq Stockholm home listing merely because its display name omits “(publ)”. Listed-holding primary discovery now tries the provider/root URL before guessed locale paths, recognizes Q1–Q4 report links as issuer evidence hubs, and parses current NAV/share from report/homepage content through the strict explicit-per-share extractor before the broader legacy NAV parser. Report pages may contribute current NAV and leverage in the same bounded evidence window. Historical calibration, management-cost requirements, peer guard, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged/fail-closed until their own evidence gates pass; no Investor ticker/domain/value is hard-coded.
 
@@ -8546,6 +8547,191 @@ def _holding_extract_management_cost_ratio(html, url):
     }
 
 
+
+def _holding_extract_management_cost_ratio_from_report_text(text, url):
+    """Parse explicit issuer-report management-cost ratios against NAV.
+
+    V88 accepts only two strong report shapes:
+    1) current/rolling narrative explicitly saying the management cost
+       corresponds to X percent of (adjusted) NAV; and
+    2) a multi-year key-ratio row explicitly labelled management cost as a
+       percentage of (adjusted) NAV/net asset value.
+    Generic management-cost amounts are never converted into a ratio here.
+    """
+    if not text:
+        return None
+    flat = _clean_text(str(text).replace("\u00a0", " "))
+    folded = _holding_fold_text(flat)
+    if "management cost" not in folded:
+        return None
+
+    observations = []
+    current = None
+
+    # Current/rolling explicit ratio, e.g. "As of June 30, 2026, rolling
+    # 12-month management cost ... corresponding to 0.07 percent of the
+    # adjusted net asset value".
+    current_patterns = [
+        r"(?:rolling\s+12[- ]month\s+)?management\s+cost.{0,260}?correspond(?:ing|ed)?\s+to\s+([0-9]{1,2}(?:[.,][0-9]{1,4})?)\s*(?:percent|%)\s+of\s+(?:the\s+)?(?:adjusted\s+)?(?:net\s+asset\s+value|nav)",
+        r"management\s+cost.{0,220}?([0-9]{1,2}(?:[.,][0-9]{1,4})?)\s*(?:percent|%)\s+of\s+(?:the\s+)?(?:adjusted\s+)?(?:net\s+asset\s+value|nav)",
+    ]
+    for pat in current_patterns:
+        m = re.search(pat, flat, flags=re.I)
+        if not m:
+            continue
+        try:
+            val = float(m.group(1).replace(",", "."))
+        except Exception:
+            continue
+        if not (0 <= val <= 5.0):
+            continue
+        local = flat[max(0, m.start() - 180): min(len(flat), m.end() + 80)]
+        dt = None
+        for dpat in [
+            r"(?:as\s+of|on|at)\s+([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
+            r"(?:as\s+of|on|at)\s+(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
+        ]:
+            dm = re.search(dpat, local, flags=re.I)
+            if dm:
+                dt = _holding_parse_date_text(dm.group(1))
+                if dt:
+                    break
+        yr = dt.year if dt else None
+        current = {"year": yr, "cost_pct": val, "as_of_date_obj": dt, "as_of_date": _holding_date_display(dt)}
+        observations.append({"year": yr, "cost_pct": val})
+        break
+
+    # Multi-year report row. The label itself must bind management cost to NAV.
+    label_match = re.search(
+        r"management\s+cost\s+as\s+a\s*%\s+of\s+(?:adjusted\s+)?(?:net\s+asset\s+value|nav)",
+        flat,
+        flags=re.I,
+    )
+    if label_match:
+        pre = flat[max(0, label_match.start() - 1800): label_match.start()]
+        post = flat[label_match.end(): min(len(flat), label_match.end() + 260)]
+        years = []
+        # Prefer an explicit issuer/group year header near the metric row.
+        header = None
+        for hm in re.finditer(r"(?:Investor\s+Group|Group|Key\s+figures?)\s+((?:20\d{2}\s+){2,8})", pre, flags=re.I):
+            header = hm
+        if header:
+            years = [int(y) for y in re.findall(r"20\d{2}", header.group(1))]
+        if len(years) < 3:
+            seen = []
+            for y in re.findall(r"\b20\d{2}\b", pre):
+                iy = int(y)
+                if iy not in seen:
+                    seen.append(iy)
+            years = seen[-8:]
+        vals = []
+        for raw in re.findall(r"(?<![0-9])([0-9]{1,2}(?:[.,][0-9]{1,4})?)(?![0-9])", post):
+            try:
+                v = float(raw.replace(",", "."))
+            except Exception:
+                continue
+            if 0 <= v <= 5.0:
+                vals.append(v)
+            if years and len(vals) >= len(years):
+                break
+        if len(years) >= 3 and len(vals) >= 3:
+            n = min(len(years), len(vals))
+            observations.extend({"year": years[i], "cost_pct": vals[i]} for i in range(n))
+
+    if not observations:
+        return None
+
+    by_year = {}
+    undated = []
+    for obs in observations:
+        val = safe_float(obs.get("cost_pct"))
+        if val is None:
+            continue
+        yr = obs.get("year")
+        if yr:
+            by_year[int(yr)] = val
+        else:
+            undated.append(val)
+    ordered = [{"year": y, "cost_pct": by_year[y]} for y in sorted(by_year, reverse=True)]
+    if not ordered and undated:
+        ordered = [{"year": None, "cost_pct": undated[0]}]
+    if not ordered:
+        return None
+
+    latest = current or ordered[0]
+    recent_vals = [safe_float(x.get("cost_pct")) for x in ordered[:5] if safe_float(x.get("cost_pct")) is not None]
+    if not recent_vals:
+        return None
+    ser = pd.Series(recent_vals, dtype="float64")
+    return {
+        "latest_cost_pct": safe_float(latest.get("cost_pct")),
+        "latest_year": latest.get("year"),
+        "latest_as_of_date_obj": latest.get("as_of_date_obj"),
+        "latest_as_of_date": latest.get("as_of_date"),
+        "median_5y_pct": float(ser.median()),
+        "min_5y_pct": float(ser.min()),
+        "max_5y_pct": float(ser.max()),
+        "observation_count": len(ordered),
+        "observations": ordered[:12],
+        "metric_label": "Management cost as % of adjusted NAV",
+        "semantic_guard": "explicit_report_management_cost_to_nav_ratio",
+        "source_shape": "issuer_report_ratio",
+        "source_url": url,
+        "quality": 4 if len(ordered) >= 5 else (3 if len(ordered) >= 3 else 1),
+    }
+
+
+def _holding_merge_management_cost_records(records):
+    """Merge fresh current ratio and multi-year issuer history without invention."""
+    rows = [r for r in (records or []) if r and safe_float(r.get("latest_cost_pct")) is not None]
+    if not rows:
+        return None
+
+    def _freshness(rec):
+        dt = rec.get("latest_as_of_date_obj")
+        return (
+            dt or datetime(int(rec.get("latest_year") or 1900), 1, 1).date(),
+            int(rec.get("quality") or 0),
+            int(rec.get("observation_count") or 0),
+        )
+
+    freshest = max(rows, key=_freshness)
+    by_year = {}
+    for rec in rows:
+        for obs in rec.get("observations") or []:
+            val = safe_float(obs.get("cost_pct"))
+            yr = obs.get("year")
+            if val is None or not yr:
+                continue
+            by_year[int(yr)] = val
+    ordered = [{"year": y, "cost_pct": by_year[y]} for y in sorted(by_year, reverse=True)]
+    if not ordered:
+        ordered = freshest.get("observations") or []
+
+    recent_vals = [safe_float(x.get("cost_pct")) for x in ordered[:5] if safe_float(x.get("cost_pct")) is not None]
+    if not recent_vals:
+        return freshest
+    ser = pd.Series(recent_vals, dtype="float64")
+    merged = dict(freshest)
+    merged.update({
+        "latest_cost_pct": safe_float(freshest.get("latest_cost_pct")),
+        "latest_year": freshest.get("latest_year"),
+        "median_5y_pct": float(ser.median()),
+        "min_5y_pct": float(ser.min()),
+        "max_5y_pct": float(ser.max()),
+        "observation_count": len(ordered),
+        "observations": ordered[:12],
+        "source_shape": "merged_issuer_management_cost_evidence" if len(rows) > 1 else freshest.get("source_shape"),
+        "quality": 4 if len(ordered) >= 5 else (3 if len(ordered) >= 3 else int(freshest.get("quality") or 1)),
+    })
+    history_sources = []
+    for rec in rows:
+        u = rec.get("source_url")
+        if u and u not in history_sources:
+            history_sources.append(u)
+    merged["supporting_source_urls"] = history_sources[:4]
+    return merged
+
 def _holding_extract_portfolio(html, url):
     if not html:
         return None
@@ -8792,57 +8978,154 @@ def _holding_extract_portfolio(html, url):
 
 
 def _holding_extract_portfolio_from_report_text(text, url):
-    """Recover portfolio weights from an issuer-primary report table."""
+    """Recover portfolio weights from an issuer-primary report table.
+
+    V88 additionally accepts flattened NAV-overview tables when the report
+    explicitly exposes a ``Share of total assets (%)`` column. This is a strong
+    semantic shape: company row + ownership ratio + total-asset weight. The
+    parser never infers weights from market values when an explicit asset-share
+    column is available.
+    """
     if not text:
         return None
     raw = str(text).replace("\u00a0", " ")
     lines = [_clean_text(x) for x in raw.splitlines() if _clean_text(x)]
-    joined = " ".join(lines)
+    joined = _clean_text(" ".join(lines) if lines else raw)
+
     total = None
     for pat in [r"Equities portfolio\s+([0-9]{2,3}(?:[ ,][0-9]{3})+)", r"Total\s+([0-9]{2,3}(?:[ ,][0-9]{3})+)"]:
         m = re.search(pat, joined, flags=re.I)
         if m:
-            try: total = float(re.sub(r"[ ,]", "", m.group(1)))
-            except Exception: total = None
-            if total: break
+            try:
+                total = float(re.sub(r"[ ,]", "", m.group(1)))
+            except Exception:
+                total = None
+            if total:
+                break
+
     values = {}
     in_perf = False
     for line in lines:
-        low=line.lower()
+        low = line.lower()
         if "performance of the equities portfolio" in low or ("market value" in low and "change in value" in low):
-            in_perf=True; continue
+            in_perf = True
+            continue
         if in_perf and (low.startswith("total ") or low.startswith("jan ") or low.startswith("investment activities")):
-            if values: break
+            if values:
+                break
         if not in_perf:
             continue
-        # Performance table rows: Company + market value + later columns.
-        m=re.match(r"^([A-ZÅÄÖ][A-Za-zÅÄÖåäö&.\- ]{1,35}?)\s+([0-9]{1,3}(?:,[0-9]{3})+)(?:\s|$)",line)
-        if not m: continue
-        name=_clean_text(m.group(1));
-        if name.lower() in {"total","other","market value","equities portfolio"}: continue
-        try: value=float(m.group(2).replace(",",""))
-        except Exception: continue
-        if value>0: values[name]=values.get(name,0.0)+value
-    # Fallback to the share-of-value table: explicit final percentage rows.
-    explicit={}
+        m = re.match(r"^([A-ZÅÄÖ][A-Za-zÅÄÖåäö&.\- ]{1,35}?)\s+([0-9]{1,3}(?:,[0-9]{3})+)(?:\s|$)", line)
+        if not m:
+            continue
+        name = _clean_text(m.group(1))
+        if name.lower() in {"total", "other", "market value", "equities portfolio"}:
+            continue
+        try:
+            value = float(m.group(2).replace(",", ""))
+        except Exception:
+            continue
+        if value > 0:
+            values[name] = values.get(name, 0.0) + value
+
+    # Existing line-oriented explicit percentage fallback.
+    explicit = {}
     for line in lines:
-        m=re.match(r"^([A-ZÅÄÖ][A-Za-zÅÄÖåäö&.\- ]{1,35}?)(?:\s+[ABC])?\s+(?:[0-9][0-9, .]*\s+){2,7}([0-9]{1,2}(?:[.,][0-9])?)$",line)
-        if not m: continue
-        name=re.sub(r"\s+[ABC]$","",_clean_text(m.group(1)),flags=re.I)
-        try: w=float(m.group(2).replace(",","."))
-        except Exception: continue
-        if 0<w<=70: explicit[name]=max(explicit.get(name,0.0),w)
-    holdings=[]
-    if total and len(values)>=2:
-        holdings=[{"name":n,"weight_pct":round(100.0*v/total,0)} for n,v in values.items() if 0.005 <= v/total <= 0.70]
-    elif len(explicit)>=2:
-        holdings=[{"name":n,"weight_pct":w} for n,w in explicit.items()]
-    holdings=sorted(holdings,key=lambda x:x["weight_pct"],reverse=True)[:12]
-    if len(holdings)<2: return None
-    weights=[x["weight_pct"] for x in holdings]
-    return {"holdings":holdings,"holding_count":len(holdings),"top1_pct":weights[0],
-            "top2_pct":sum(weights[:2]),"top3_pct":sum(weights[:3]),"top4_pct":sum(weights[:4]) if len(weights)>=4 else None,
-            "source_url":url,"source_kind":"issuer_report"}
+        m = re.match(r"^([A-ZÅÄÖ][A-Za-zÅÄÖåäö&.\- ]{1,35}?)(?:\s+[ABC])?\s+(?:[0-9][0-9, .]*\s+){2,7}([0-9]{1,2}(?:[.,][0-9])?)$", line)
+        if not m:
+            continue
+        name = re.sub(r"\s+[ABC]$", "", _clean_text(m.group(1)), flags=re.I)
+        try:
+            w = float(m.group(2).replace(",", "."))
+        except Exception:
+            continue
+        if 0 < w <= 70:
+            explicit[name] = max(explicit.get(name, 0.0), w)
+
+    # V88 flat-PDF NAV-overview recovery. The issuer must explicitly label the
+    # weight column as share of total assets. We then inspect only the bounded
+    # Listed Companies section because those rows have a stable ownership-ratio
+    # column immediately before the weight. Other business-area totals are not
+    # treated as individual portfolio companies.
+    flat_explicit = {}
+    folded_joined = _holding_fold_text(joined)
+    if "share of total assets" in folded_joined:
+        msec = re.search(r"\bListed Companies\b(.{40,12000}?)\bTotal Listed Companies\b", joined, flags=re.I)
+        segment = msec.group(1) if msec else ""
+        if segment:
+            row_pat = re.compile(
+                r"(?P<name>[A-ZÅÄÖ][A-Za-zÅÄÖåäö&.\- ]{1,45}?)(?:\d+\))?\s+"
+                r"(?P<shares>[0-9]{1,3}(?:[ ,][0-9]{3})+)\s+"
+                r"(?P<capital>[0-9]{1,3}(?:[.,][0-9])?)/(?P<votes>[0-9]{1,3}(?:[.,][0-9])?)\s+"
+                r"(?P<weight>[0-9]{1,2}(?:[.,][0-9])?)(?=\s+-?[0-9])",
+                flags=re.I,
+            )
+            reject_names = {"listed companies", "total listed companies", "adjusted values", "reported values"}
+            for m in row_pat.finditer(segment):
+                name = _clean_text(m.group("name"))
+                if _holding_fold_text(name) in reject_names:
+                    continue
+                try:
+                    w = float(m.group("weight").replace(",", "."))
+                except Exception:
+                    continue
+                if 0 < w <= 70:
+                    flat_explicit[name] = max(flat_explicit.get(name, 0.0), w)
+
+    holdings = []
+    source_shape = None
+    if len(flat_explicit) >= 2:
+        holdings = [{"name": n, "weight_pct": w} for n, w in flat_explicit.items()]
+        source_shape = "report_nav_overview_asset_share"
+    elif total and len(values) >= 2:
+        holdings = [{"name": n, "weight_pct": round(100.0 * v / total, 0)} for n, v in values.items() if 0.005 <= v / total <= 0.70]
+        source_shape = "report_market_value_derived"
+    elif len(explicit) >= 2:
+        holdings = [{"name": n, "weight_pct": w} for n, w in explicit.items()]
+        source_shape = "report_explicit_percentage_rows"
+
+    holdings = sorted(holdings, key=lambda x: x["weight_pct"], reverse=True)[:12]
+    if len(holdings) < 2:
+        return None
+    weights = [x["weight_pct"] for x in holdings]
+
+    # Bind the portfolio date to the same report, preferring explicit natural
+    # language dates and then common m/d yyyy report-table headers.
+    as_of = None
+    runtime_today = datetime.now().date()
+    date_candidates = []
+    for pat in [
+        r"([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
+        r"(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
+    ]:
+        for dm in re.finditer(pat, joined[:8000]):
+            dt = _holding_parse_date_text(dm.group(1))
+            if dt and dt <= runtime_today:
+                date_candidates.append(dt)
+    for mm, dd, yy in re.findall(r"\b(\d{1,2})/(\d{1,2})\s+(20\d{2})\b", joined[:8000]):
+        try:
+            dt = datetime(int(yy), int(mm), int(dd)).date()
+        except Exception:
+            dt = None
+        if dt and dt <= runtime_today:
+            date_candidates.append(dt)
+    if date_candidates:
+        as_of = max(date_candidates)
+
+    return {
+        "holdings": holdings,
+        "holding_count": len(holdings),
+        "top1_pct": weights[0],
+        "top2_pct": sum(weights[:2]),
+        "top3_pct": sum(weights[:3]) if len(weights) >= 3 else None,
+        "top4_pct": sum(weights[:4]) if len(weights) >= 4 else None,
+        "as_of_date_obj": as_of,
+        "as_of_date": _holding_date_display(as_of),
+        "date_binding": "issuer_report_metric_block",
+        "source_url": url,
+        "source_kind": "issuer_report",
+        "source_shape": source_shape,
+    }
 
 def _holding_link_rank(text):
     dt = _holding_parse_date_text(text)
@@ -9054,6 +9337,8 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     cost_fetch_attempts = 0
     cost_parse_success = 0
     cost_semantic_rejections = 0
+    cost_report_fetch_attempts = 0
+    cost_report_parse_success = 0
     cost_candidate_trace = []
 
     def _latest_debt_date(records):
@@ -9079,8 +9364,8 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         folded_label = _holding_fold_text(label)
         folded_url = _holding_fold_text(url)
         if any(term in folded_label for term in [
-            "interim report", "half year", "six months", "year end report",
-            "delarsrapport", "bokslutsrapport", "quarterly report", "quarter report",
+            "interim report", "half year", "six months", "year end report", "annual report",
+            "delarsrapport", "bokslutsrapport", "quarterly report", "quarter report", "arsredovisning",
         ]):
             return True
         # V81: IR hubs frequently label current reports only as “Q2 Report”.
@@ -9563,16 +9848,87 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 _record_cost_trace(url, label, "accept")
                 break
             collect_links(url, chtml)
-        if not holding_cost_records:
+        # V88: issuer reports are a first-class cost source when the report
+        # explicitly binds management cost to NAV. Current/interim reports are
+        # normally already cached from leverage/portfolio work, so try those
+        # before spending the remaining cost budget on web search. Annual
+        # reports may need a holding-only tail-page extraction for the five-year
+        # key-ratio summary.
+        report_cost_candidates = dedupe_sorted(report_links)[:6]
+        def _report_cost_priority(row):
+            url, label = row
+            hay = _holding_fold_text(" ".join([label or "", url or ""]))
+            is_annual = "annual report" in hay or "arsredovisning" in hay
+            is_current = bool(re.search(r"\bq[1-4]\b|interim|half year|six months", hay, flags=re.I))
+            return (2 if is_current else (1 if is_annual else 0), _dated_link_rank(url, label))
+        report_cost_candidates.sort(key=_report_cost_priority, reverse=True)
+        report_cost_seen = set()
+        current_report_cost_found = False
+        annual_report_cost_found = False
+        for url, label in report_cost_candidates:
+            if len(report_cost_seen) >= 4 or not _research_budget_ok(cost_slot_end, reserve=0.65):
+                break
+            hay = _holding_fold_text(" ".join([label or "", url or ""]))
+            is_annual = "annual report" in hay or "arsredovisning" in hay
+            is_current = bool(re.search(r"\bq[1-4]\b|interim|half year|six months", hay, flags=re.I))
+            if is_annual and annual_report_cost_found:
+                continue
+            if is_current and current_report_cost_found:
+                continue
+            if url in report_cost_seen:
+                continue
+            report_cost_seen.add(url)
+            rtext = fetched.get(url) or ""
+            if is_annual:
+                # Re-fetch with tail pages even if a head-only copy exists.
+                cost_report_fetch_attempts += 1
+                diag = []
+                try:
+                    doc = _bank_fetch_official_document(
+                        url, company_domain, deadline=cost_slot_end, timeout=4.2,
+                        diagnostics=diag, referer=canonical_url, include_tail=True,
+                    )
+                except Exception:
+                    doc = None
+                if doc and doc.get("text"):
+                    rtext = doc.get("text") or rtext
+            elif not rtext:
+                cost_report_fetch_attempts += 1
+                rtext = fetch(url, allow_pdf=True, referer=canonical_url, phase_deadline=cost_slot_end) or ""
+            if not rtext:
+                continue
+            crec = _holding_extract_management_cost_ratio_from_report_text(rtext, url)
+            if crec:
+                holding_cost_records.append(crec)
+                cost_report_parse_success += 1
+                _record_cost_trace(url, label, "accept-report")
+                if is_annual:
+                    annual_report_cost_found = True
+                if is_current:
+                    current_report_cost_found = True
+            elif is_annual or "report" in hay:
+                _record_cost_trace(url, label, "reject-report")
+            if current_report_cost_found and annual_report_cost_found:
+                break
+
+        # Search is now fallback-only after already discovered issuer reports.
+        merged_probe = _holding_merge_management_cost_records(holding_cost_records)
+        merged_obs = int((merged_probe or {}).get("observation_count") or 0)
+        if merged_obs < 3:
             _semantic_search_and_fetch("cost", cost_slot_end, query_offset=0, fetch_limit=2)
-        if not holding_cost_records and _research_budget_ok(cost_slot_end, reserve=2.10):
+            merged_probe = _holding_merge_management_cost_records(holding_cost_records)
+            merged_obs = int((merged_probe or {}).get("observation_count") or 0)
+        if merged_obs < 3 and _research_budget_ok(cost_slot_end, reserve=2.10):
             _semantic_search_and_fetch("cost", cost_slot_end, query_offset=1, fetch_limit=2)
-        if not holding_cost_records and _research_budget_ok(cost_slot_end, reserve=1.35):
+            merged_probe = _holding_merge_management_cost_records(holding_cost_records)
+            merged_obs = int((merged_probe or {}).get("observation_count") or 0)
+        if merged_obs < 3 and _research_budget_ok(cost_slot_end, reserve=1.35):
             _semantic_search_and_fetch("cost", cost_slot_end, query_offset=2, fetch_limit=1)
     _timed_bucket("cost", cost_started)
     result["holding_cost_adapter_diagnostic"] = (
-        f"Holding Management-Cost Adapter V73: Candidates={cost_candidate_count}, "
-        f"Fetch={cost_fetch_attempts}, Parsed={cost_parse_success}, SemanticReject={cost_semantic_rejections}, "
+        f"Holding Management-Cost Adapter V88: Candidates={cost_candidate_count}, "
+        f"HTMLFetch={cost_fetch_attempts}, HTMLParsed={cost_parse_success}, SemanticReject={cost_semantic_rejections}, "
+        f"ReportFetch={cost_report_fetch_attempts}, ReportParsed={cost_report_parse_success}, "
         f"Evidence={'yes' if holding_cost_records else 'no'}"
         + (("; CandidateTrace=" + " | ".join(cost_candidate_trace)) if cost_candidate_trace else "")
     )
@@ -10003,12 +10359,11 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         result["debt"] = debt_records[0]
     result["portfolio"] = portfolio_best
     if holding_cost_records:
-        holding_cost_records.sort(key=lambda r: (int(r.get("latest_year") or 0), int(r.get("quality") or 0)), reverse=True)
-        result["holding_cost"] = holding_cost_records[0]
-        c = result["holding_cost"]
+        result["holding_cost"] = _holding_merge_management_cost_records(holding_cost_records)
+        c = result["holding_cost"] or {}
         result["diagnostics"].append(
-            f"Holding Management-Cost Evidence V73: Latest={safe_float(c.get('latest_cost_pct')):.3f}% "
-            f"({c.get('latest_year') or '–'}), Median5Y={safe_float(c.get('median_5y_pct')):.3f}%, "
+            f"Holding Management-Cost Evidence V88: Latest={safe_float(c.get('latest_cost_pct')):.3f}% "
+            f"({c.get('latest_as_of_date') or c.get('latest_year') or '–'}), Median5Y={safe_float(c.get('median_5y_pct')):.3f}%, "
             f"Obs={int(c.get('observation_count') or 0)}, Source=issuer-primary."
         )
     result["available"] = bool(result.get("nav"))
@@ -10856,7 +11211,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "final_target_premium_discount_pct": safe_float(justified_target_diag.get("final_target_pct")),
         "target_premium_discount_released": bool(justified_target_diag.get("released")),
         "holding_peer_evidence": peer_evidence,
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Flat-PDF Report Table Recovery Guard V87",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Report Concentration & Cost-Ratio Evidence Guard V88",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
@@ -19670,13 +20025,22 @@ def _bank_activate_embedded_pypdf(diagnostics=None):
         return False
 
 
-def _bank_pdf_bytes_to_text(payload, diagnostics=None):
+def _bank_pdf_bytes_to_text(payload, diagnostics=None, include_tail=False):
     """Best-effort PDF text extraction across common pure-Python/runtime backends."""
     diag = diagnostics if isinstance(diagnostics, list) else None
     if not payload:
         if diag is not None:
             diag.append("Issuer-IR PDF: leere PDF-Antwort.")
         return ""
+
+    def _page_indices(total_pages):
+        total_pages = max(0, int(total_pages or 0))
+        indices = list(range(min(45, total_pages)))
+        if include_tail and total_pages > 60:
+            for idx in range(max(45, total_pages - 14), total_pages):
+                if idx not in indices:
+                    indices.append(idx)
+        return indices
 
     # 1) Modern pypdf; V2.21.14 can self-activate an embedded single-file runtime.
     try:
@@ -19685,9 +20049,9 @@ def _bank_pdf_bytes_to_text(payload, diagnostics=None):
         from pypdf import PdfReader
         reader = PdfReader(BytesIO(payload))
         parts = []
-        for page in reader.pages[:45]:
+        for idx in _page_indices(len(reader.pages)):
             try:
-                parts.append(page.extract_text() or "")
+                parts.append(reader.pages[idx].extract_text() or "")
             except Exception:
                 continue
         text = _clean_text(" ".join(parts))
@@ -19705,9 +20069,9 @@ def _bank_pdf_bytes_to_text(payload, diagnostics=None):
         from PyPDF2 import PdfReader
         reader = PdfReader(BytesIO(payload))
         parts = []
-        for page in reader.pages[:45]:
+        for idx in _page_indices(len(reader.pages)):
             try:
-                parts.append(page.extract_text() or "")
+                parts.append(reader.pages[idx].extract_text() or "")
             except Exception:
                 continue
         text = _clean_text(" ".join(parts))
@@ -19724,9 +20088,9 @@ def _bank_pdf_bytes_to_text(payload, diagnostics=None):
         import fitz
         doc = fitz.open(stream=payload, filetype="pdf")
         parts = []
-        for page in list(doc)[:45]:
+        for idx in _page_indices(len(doc)):
             try:
-                parts.append(page.get_text("text") or "")
+                parts.append(doc[idx].get_text("text") or "")
             except Exception:
                 continue
         text = _clean_text(" ".join(parts))
@@ -19778,9 +20142,9 @@ def _bank_pdf_bytes_to_text(payload, diagnostics=None):
         import pdfplumber
         parts = []
         with pdfplumber.open(BytesIO(payload)) as pdf:
-            for page in pdf.pages[:45]:
+            for idx in _page_indices(len(pdf.pages)):
                 try:
-                    parts.append(page.extract_text() or "")
+                    parts.append(pdf.pages[idx].extract_text() or "")
                 except Exception:
                     continue
         text = _clean_text(" ".join(parts))[:240_000]
@@ -19793,7 +20157,7 @@ def _bank_pdf_bytes_to_text(payload, diagnostics=None):
         return ""
 
 
-def _bank_fetch_official_document(url, company_domain, deadline=None, timeout=4.0, diagnostics=None, allow_q4_cdn=False, referer=None):
+def _bank_fetch_official_document(url, company_domain, deadline=None, timeout=4.0, diagnostics=None, allow_q4_cdn=False, referer=None, include_tail=False):
     """Fetch issuer/SEC documents with explicit PDF-signature and redirect trust guards.
 
     V2.21.33 keeps issuer-family trust as the default. For a URL that itself is an
@@ -19905,7 +20269,7 @@ def _bank_fetch_official_document(url, company_domain, deadline=None, timeout=4.
                             f"Issuer-IR Dokument: PDF-URL lieferte HTML statt PDF · Content-Type={ctype or '–'} · {final_url}."
                         )
                     return None
-            text = _bank_pdf_bytes_to_text(raw, diagnostics=diag)
+            text = _bank_pdf_bytes_to_text(raw, diagnostics=diag, include_tail=include_tail)
             doc_type = "pdf"
         elif any(x in ctype for x in ["html", "text", "xml"]) or not ctype:
             text = _html_to_text(response.text[:1_800_000])
@@ -59101,7 +59465,7 @@ if selected_symbol:
 
                         target_diag_h = snap_h.get("justified_nav_target_diagnostic") or {}
                         if target_diag_h.get("available"):
-                            st.write("**Justified NAV Premium/Discount – Kalibrierung & Peer-Guard V80:**")
+                            st.write("**Justified NAV Premium/Discount – Kalibrierung & Peer-Guard V88:**")
                             jt1, jt2, jt3 = st.columns(3)
                             with jt1:
                                 st.metric("Historischer Basisanker", f"{safe_float(target_diag_h.get('historical_anchor_pct')):+.1f} %")
