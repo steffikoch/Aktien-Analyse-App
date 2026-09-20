@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.08"
+APP_BUILD_VERSION = "V2.22.09"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Asset Management IR-Table Context & Current-Period Evidence Guard V104"
+    f"Build {APP_BUILD_VERSION} · Universal Asset Management Same-Basis Annual EPS History Adapter V105"
 )
 
 
@@ -57,7 +57,7 @@ st.caption(
 
 # V2.22.02: Universal Asset Management Same-Basis Earnings & Evidence-Backed Premium Corridor Guard V98. Fixes two cross-company valuation-consistency gaps exposed by BlackRock. First, if a specialist uses issuer-adjusted TTM EPS, the 3Y Through-Cycle component may no longer fall back to generic GAAP history; it must use explicit issuer-adjusted annual EPS history from the same earnings family or remain fail-closed. Second, the traditional 9–18x asset-manager corridor remains the base corridor, but a fully validated 5/5 Premium-Unlock with score >=80 and a 3Y historical forward-P/E median above 18x can add a smooth evidence-backed extension. The historical median is only a ceiling (capped at 24x), never an automatic target; extension rises gradually with quality from score 80 to 100. Negative-flow and Money-Market downside guards remain dominant. TROW and other non-premium managers retain their prior mathematics.
 # V2.22.07: Universal Asset Management Current-Results Ranking & Multilingual Evidence Guard V103. Hardens the generic issuer-primary adapter after Amundi proved that a current IR hub can expose generic corporate-report PDFs ahead of the actual financial-results article. Candidate ranking now prioritizes current-period financial/results/quarter/half-year semantics (including French IR vocabulary) and penalizes generic corporate/ESG/engagement publications. The current-report parser adds bilingual EN/FR evidence aliases for AUM/encours, net inflows/collecte nette, management fees/commissions de gestion, cost-income/coefficient d'exploitation, adjusted EPS/bénéfice par action ajusté, French publication dates and current AUM-history tables. Same-basis Through-Cycle earnings remain independently fail-closed; TROW/BLK valuation mathematics are unchanged and no Amundi ticker/value snapshot is hard-coded.
-# V2.22.08: Universal Asset Management IR-Table Context & Current-Period Evidence Guard V104. Fixes the remaining generic Asset-Manager discovery gap exposed by Amundi V103. Financial-results hubs can encode the report period only in table row/column context (for example row “Communiqué de Presse”, column “2026”, anchor “T2”), while the downloadable PDF URL itself is opaque. V104 propagates table row/column context into candidate ranking, recognizes Q/T/H/S period tokens, prefers later available periods within the current year, penalizes explicitly older columns, and expands same-scope H1/S1 flow parsing for French/English headline/table wording. Search fallback also gains French current-results semantics. Same-basis Through-Cycle earnings remain independently fail-closed; TROW/BLK valuation mathematics are unchanged and no Amundi ticker/value snapshot is hard-coded.
+# V2.22.09: Universal Asset Management Same-Basis Annual EPS History Adapter V105. Keeps the V104 current-report evidence adapter unchanged, then enriches only generic issuer-primary Asset-Manager snapshots with a bounded issuer-owned annual-results crawl. Q4/T4/full-year releases are ranked by IR-table year context, adjusted annual EPS is parsed from comparable annual income-statement tables, and current-period/prior-period adjusted EPS from the current H1 report is bridged to an issuer-adjusted TTM. Three consecutive adjusted annual EPS values are required before Through-Cycle earnings can release. Search remains discovery-only fallback; missing annual history stays fail-closed. TROW/BLK fixed snapshots and valuation mathematics remain unchanged; no Amundi ticker/value snapshot is hard-coded.
 # V2.22.06: Universal Asset Management Direct-IR Bootstrap & Same-Basis Fail-Closed Guard V102. Keeps V101 runtime isolation, but no longer relies on semantic web search as the first discovery route. The generic Asset-Manager adapter now crawls the provider-declared issuer site/root first, promotes current-year results/report links, follows one bounded issuer-owned second hop such as a Press Release PDF, and uses search only as fallback. Partial evidence/trace is retained for diagnostics. Generic discovered issuers are explicitly prevented from falling back to provider/GAAP Through-Cycle EPS until an issuer-adjusted same-basis TTM/3Y earnings bridge is available. Asset-Management special-event text is aligned with the fail-closed specialist state. TROW/BLK valuation mathematics remain unchanged; no Amundi ticker/value snapshot is hard-coded.
 # V2.22.01: Universal Asset Management BlackRock Primary-Snapshot & Fail-Closed UI Guard V97. Validates BlackRock as a second main-company Asset-Management path using issuer-primary Q2/H1 2026 AUM, same-scope Long-Term flows, adjusted operating margin, base-fee/Average-AUM fee-rate evidence and issuer-adjusted TTM EPS; BLK remains a premium-franchise reference but is no longer reference-only when selected as the target. Also hardens Step 3B so any unsupported asset manager with an empty snapshot renders a fail-closed diagnostic instead of crashing the whole stock page. TROW/FHI/BEN/IVZ score, multiple and Fair Value mathematics are unchanged.
 
@@ -30791,8 +30791,8 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V104"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22207_asset_manager_multilingual_current_results_v103"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V105"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22209_asset_manager_same_basis_annual_eps_v105"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -31271,7 +31271,7 @@ def _asset_manager_anchor_table_context(anchor):
 def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
     """Rank issuer-owned current financial-results links ahead of generic publications.
 
-    V104 is deliberately multilingual at the navigation layer (EN/FR first).
+    V105 keeps the multilingual navigation layer (EN/FR first) and adds annual-results history discovery.
     Compact IR tables are interpreted with row/column context so an anchor such
     as "T2" can inherit both document class (row) and year (column).
     Search/link labels remain discovery-only evidence.
@@ -31366,6 +31366,274 @@ def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
     rows.sort(key=lambda x: (x.get("score", 0), x.get("table_context") or "", x.get("label") or ""), reverse=True)
     return rows
 
+
+def _asset_manager_parse_adjusted_annual_eps_map(text):
+    """Return issuer-adjusted annual EPS keyed by fiscal year from an annual/Q4 results report.
+
+    The parser is deliberately table-first.  Many issuer releases present two
+    comparable fiscal years in one adjusted income-statement table; using that
+    table avoids mixing quarterly EPS with full-year EPS and also lets the most
+    recent report contribute the prior-year comparable value.
+    """
+    clean = _clean_text(text)
+    if len(clean) < 300:
+        return {}
+    result = {}
+    folded = unicodedata.normalize("NFKD", clean).encode("ascii", "ignore").decode("ascii")
+
+    anchor_patterns = [
+        r"adjusted\s+income\s+statement\d*\s+(?:for\s+)?(?:FY\s*)?(?P<y1>20\d{2})\s+(?:and|&)\s+(?P<y2>20\d{2})",
+        r"adjusted\s+income\s+statement\d*.{0,80}?(?P<y1>20\d{2}).{0,40}?(?P<y2>20\d{2})",
+        r"compte\s+de\s+resultat\s+ajuste\d*.{0,80}?(?P<y1>20\d{2}).{0,40}?(?P<y2>20\d{2})",
+    ]
+    for pat in anchor_patterns:
+        for am in re.finditer(pat, folded, re.I | re.S):
+            years = [int(am.group("y1")), int(am.group("y2"))]
+            window = folded[am.start():am.start() + 5200]
+            row_patterns = [
+                r"earnings\s+per\s+share\s*-\s*adjusted\s*(?:\([^)]*\))?\s*(?P<v1>[0-9]{1,2}[\.,][0-9]{1,3})\s+(?P<v2>[0-9]{1,2}[\.,][0-9]{1,3})",
+                r"adjusted\s+earnings\s+per\s+share\s*(?:\([^)]*\))?\s*(?P<v1>[0-9]{1,2}[\.,][0-9]{1,3})\s+(?P<v2>[0-9]{1,2}[\.,][0-9]{1,3})",
+                r"benefice\s+(?:net\s+)?par\s+action\s*-\s*ajuste\s*(?:\([^)]*\))?\s*(?P<v1>[0-9]{1,2}[\.,][0-9]{1,3})\s+(?P<v2>[0-9]{1,2}[\.,][0-9]{1,3})",
+            ]
+            for rpat in row_patterns:
+                rm = re.search(rpat, window, re.I | re.S)
+                if not rm:
+                    continue
+                vals = [safe_float(rm.group("v1").replace(",", ".")), safe_float(rm.group("v2").replace(",", "."))]
+                if all(v is not None and 0 < v < 1000 for v in vals):
+                    result[years[0]] = vals[0]
+                    result[years[1]] = vals[1]
+                    break
+
+    # Explicit full-year sentences are a fallback for issuers without a compact
+    # two-year table.  Require the fiscal year in the same sentence/window so a
+    # Q4 EPS cannot be mistaken for annual EPS.
+    current_year = datetime.now().year
+    for year in range(current_year - 6, current_year + 1):
+        if year in result:
+            continue
+        patterns = [
+            rf"adjusted\s+(?:net\s+)?earnings\s+per\s+share.{{0,100}}?(?:for\s+the\s+year\s+)?{year}.{{0,80}}?(?:reached|was|at|of)?\s*[€$£]?\s*(?P<v>[0-9]{{1,2}}[\.,][0-9]{{1,3}})",
+            rf"adjusted\s+(?:net\s+)?earnings\s+per\s+share.{{0,80}}?(?:reached|was|at|of)\s*[€$£]?\s*(?P<v>[0-9]{{1,2}}[\.,][0-9]{{1,3}}).{{0,60}}?(?:in|for)\s+{year}",
+            rf"benefice\s+(?:net\s+)?par\s+action\s+ajuste.{{0,100}}?{year}.{{0,80}}?(?:atteint|de|a)?\s*(?P<v>[0-9]{{1,2}}[\.,][0-9]{{1,3}})\s*€?",
+        ]
+        for pat in patterns:
+            m = re.search(pat, folded, re.I | re.S)
+            if m:
+                value = safe_float(m.group("v").replace(",", "."))
+                if value is not None and 0 < value < 1000:
+                    result[year] = value
+                    break
+    return result
+
+
+def _asset_manager_annual_candidate_score(row, target_year):
+    hay = " ".join([
+        str((row or {}).get("label") or ""),
+        str((row or {}).get("table_context") or ""),
+        str((row or {}).get("url") or ""),
+    ]).lower()
+    hay = unicodedata.normalize("NFKD", hay).encode("ascii", "ignore").decode("ascii")
+    score = safe_float((row or {}).get("score")) or 0.0
+    if re.search(rf"\b{int(target_year)}\b", hay):
+        score += 35.0
+    if any(term in hay for term in ["full year", "full-year", "annual results", "resultats annuels", "resultat annuel", "fy"]):
+        score += 90.0
+    if re.search(r"\b(?:q4|t4|h2|s2)\b", hay):
+        score += 75.0
+    if re.search(r"\b(?:q1|q2|q3|t1|t2|t3|h1|s1)\b", hay):
+        score -= 55.0
+    if any(term in hay for term in ["press release", "communique de presse"]):
+        score += 20.0
+    return score
+
+
+def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None, website=None):
+    """Add adjusted TTM + 3Y annual EPS history to a generic primary snapshot.
+
+    Only issuer-owned Q4/T4/full-year reports are accepted as annual EPS
+    evidence.  Search snippets may locate a URL but are never used as numbers.
+    The bridge releases only with three consecutive annual adjusted EPS values
+    plus current/prior same-period adjusted EPS from the current report.
+    """
+    snap = dict(snapshot or {})
+    if not snap.get("generic_primary_adapter"):
+        return snap
+    current_eps = safe_float(snap.get("current_period_adjusted_eps"))
+    prior_period_eps = safe_float(snap.get("prior_period_adjusted_eps"))
+    current_year = datetime.now().year
+    latest_fy = current_year - 1
+    trace = list(snap.get("same_basis_earnings_trace") or [])
+    if current_eps is None or prior_period_eps is None:
+        trace.append("current_period_adjusted_eps_pair:missing")
+        snap["same_basis_earnings_trace"] = trace[-18:]
+        return snap
+
+    raw_website = _clean_text(website)
+    source_url = _clean_text(snap.get("source_url"))
+    company_domain = _extract_company_domain(raw_website) or _normalize_host(source_url)
+    company_domain = _asset_manager_domain_family_root(company_domain)
+    if not company_domain:
+        trace.append("annual_history_domain:missing")
+        snap["same_basis_earnings_trace"] = trace[-18:]
+        return snap
+
+    deadline = time.monotonic() + 14.0
+    starts = []
+    for u in [raw_website, f"https://{company_domain}/"]:
+        if u and u not in starts and _host_belongs_to_company_family(u, company_domain):
+            starts.append(u)
+
+    hub_rows = []
+    seen_hubs = set()
+    for start in starts[:2]:
+        if not _research_budget_ok(deadline, reserve=8.0):
+            break
+        try:
+            html, final_url = _fetch_html(start, timeout=3.0, deadline=deadline)
+        except Exception as exc:
+            trace.append(f"annual_root:{start}:error:{type(exc).__name__}")
+            continue
+        if not html or not final_url or not _host_belongs_to_company_family(final_url, company_domain):
+            continue
+        for row in _asset_manager_report_link_candidates(html, final_url, company_domain, current_year):
+            url = row.get("url")
+            if not url or url in seen_hubs:
+                continue
+            hay = " ".join([str(row.get("label") or ""), str(row.get("table_context") or ""), url]).lower()
+            hay = unicodedata.normalize("NFKD", hay).encode("ascii", "ignore").decode("ascii")
+            if any(term in hay for term in ["financial results", "resultats financiers", "financial communication", "communication financiere"]):
+                seen_hubs.add(url)
+                hub_rows.append((100 + (safe_float(row.get("score")) or 0), url))
+            elif row.get("kind") == "hub":
+                seen_hubs.add(url)
+                hub_rows.append((safe_float(row.get("score")) or 0, url))
+
+    # Search fallback only locates the issuer's financial-results hub.
+    if not hub_rows and _research_budget_ok(deadline, reserve=6.0):
+        for query in [
+            f'site:{company_domain} "financial results"',
+            f'site:{company_domain} "resultats financiers"',
+        ]:
+            for row in _duckduckgo_html_search(query, max_results=4, deadline=deadline):
+                url = row.get("url")
+                if not url or url in seen_hubs or not _host_belongs_to_company_family(url, company_domain):
+                    continue
+                seen_hubs.add(url)
+                hub_rows.append((20.0, url))
+            if hub_rows:
+                break
+    hub_rows.sort(key=lambda x: x[0], reverse=True)
+
+    annual_map = {}
+    annual_sources = {}
+    fetched = set()
+    target_years = [latest_fy, latest_fy - 1, latest_fy - 2]
+    for _, hub_url in hub_rows[:3]:
+        if len(annual_map) >= 3 or not _research_budget_ok(deadline, reserve=2.5):
+            break
+        try:
+            hub_html, hub_final = _fetch_html(hub_url, timeout=3.0, deadline=deadline)
+        except Exception as exc:
+            trace.append(f"annual_hub:{hub_url}:error:{type(exc).__name__}")
+            continue
+        if not hub_html or not hub_final or not _host_belongs_to_company_family(hub_final, company_domain):
+            continue
+        trace.append(f"annual_hub:{hub_final}:ok")
+        for target_year in target_years:
+            if len(annual_map) >= 3:
+                break
+            # Even when target_year itself was recovered as the comparative
+            # column of a newer annual report, fetch that year's Q4 release if
+            # an older history year is still missing. Its two-year table often
+            # supplies the third required annual EPS observation.
+            rows = _asset_manager_report_link_candidates(hub_html, hub_final, company_domain, target_year)
+            rows.sort(key=lambda r: _asset_manager_annual_candidate_score(r, target_year), reverse=True)
+            for row in rows[:5]:
+                if not _research_budget_ok(deadline, reserve=1.0):
+                    break
+                url = row.get("url")
+                if not url or url in fetched:
+                    continue
+                if _asset_manager_annual_candidate_score(row, target_year) < 40:
+                    continue
+                fetched.add(url)
+                text, final_url, diag = _asset_manager_fetch_primary_text(url, company_domain, deadline=deadline)
+                eps_map = _asset_manager_parse_adjusted_annual_eps_map(text)
+                if eps_map:
+                    trace.append(f"annual_report:{target_year}:{final_url or url}:ok")
+                    for yy, vv in eps_map.items():
+                        if yy in target_years and vv is not None and 0 < vv < 1000:
+                            annual_map.setdefault(int(yy), float(vv))
+                            annual_sources.setdefault(int(yy), final_url or url)
+                else:
+                    trace.append(f"annual_report:{target_year}:{url}:no_eps")
+                if target_year in annual_map:
+                    break
+
+    # Direct annual-report search is a final bounded fallback.  Again, snippets
+    # only locate issuer-owned URLs; all EPS numbers must parse from fetched text.
+    for target_year in target_years:
+        if target_year in annual_map or not _research_budget_ok(deadline, reserve=0.5):
+            continue
+        queries = [
+            f'site:{company_domain} "{target_year}" "full-year" "adjusted earnings per share"',
+            f'site:{company_domain} "{target_year}" "annual results" "adjusted earnings per share"',
+            f'site:{company_domain} "{target_year}" "resultats annuels" "benefice par action ajuste"',
+        ]
+        found = False
+        for query in queries:
+            for row in _duckduckgo_html_search(query, max_results=4, deadline=deadline):
+                url = row.get("url")
+                if not url or url in fetched or not _host_belongs_to_company_family(url, company_domain):
+                    continue
+                fetched.add(url)
+                text, final_url, diag = _asset_manager_fetch_primary_text(url, company_domain, deadline=deadline)
+                eps_map = _asset_manager_parse_adjusted_annual_eps_map(text)
+                if target_year in eps_map:
+                    for yy, vv in eps_map.items():
+                        if yy in target_years and vv is not None and 0 < vv < 1000:
+                            annual_map.setdefault(int(yy), float(vv))
+                            annual_sources.setdefault(int(yy), final_url or url)
+                    trace.append(f"annual_search:{target_year}:{final_url or url}:ok")
+                    found = True
+                    break
+            if found or not _research_budget_ok(deadline, reserve=0.4):
+                break
+
+    ordered_years = [yy for yy in sorted(target_years) if yy in annual_map]
+    complete_years = ordered_years == sorted(target_years)
+    if not complete_years:
+        trace.append("annual_history:incomplete:" + ",".join(str(y) for y in ordered_years))
+        snap["same_basis_earnings_trace"] = trace[-18:]
+        snap["issuer_adjusted_eps_history_partial"] = [annual_map[y] for y in ordered_years]
+        snap["issuer_adjusted_eps_history_partial_years"] = ordered_years
+        return snap
+
+    latest_annual = safe_float(annual_map.get(latest_fy))
+    adjusted_ttm = None
+    if latest_annual is not None and latest_annual > 0 and current_eps > 0 and prior_period_eps > 0:
+        adjusted_ttm = latest_annual - prior_period_eps + current_eps
+    if adjusted_ttm is None or adjusted_ttm <= 0:
+        trace.append("adjusted_ttm_bridge:invalid")
+        snap["same_basis_earnings_trace"] = trace[-18:]
+        return snap
+
+    snap.update({
+        "issuer_adjusted_ttm_eps": adjusted_ttm,
+        "issuer_adjusted_eps_history": [annual_map[y] for y in ordered_years],
+        "issuer_adjusted_eps_history_years": ordered_years,
+        "issuer_adjusted_eps_history_sources": [annual_sources.get(y) for y in ordered_years],
+        "adjusted_ttm_bridge_latest_fy": latest_fy,
+        "adjusted_ttm_bridge_latest_fy_eps": latest_annual,
+        "adjusted_ttm_bridge_current_period_eps": current_eps,
+        "adjusted_ttm_bridge_prior_period_eps": prior_period_eps,
+        "same_basis_earnings_complete": True,
+        "same_basis_earnings_trace": trace[-18:] + [f"adjusted_ttm_bridge:{latest_annual:.4f}-{prior_period_eps:.4f}+{current_eps:.4f}={adjusted_ttm:.4f}"],
+    })
+    return snap
+
+
 def _asset_manager_partial_evidence_score(parsed):
     if not isinstance(parsed, dict):
         return 0
@@ -31399,7 +31667,7 @@ def _asset_manager_missing_current_evidence(parsed):
 def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=None, fundamental_info=None):
     """Bounded issuer-primary discovery for previously unknown asset managers.
 
-    V104 prefers direct issuer navigation over web search and current financial-results semantics: provider-declared
+    V105 prefers direct issuer navigation over web search and current financial-results semantics: provider-declared
     website/root -> current report/article -> one issuer-owned report/PDF hop.
     Search remains a bounded fallback and snippets never become evidence.
     """
@@ -31510,7 +31778,7 @@ def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=N
                 if child_url and child_url not in direct_seen:
                     direct_seen.add(child_url)
                     second_hop.append(child)
-            # V104: a current results article often links the actual financial
+            # V105: a current results article often links the actual financial
             # press-release PDF. Fetch the best child immediately so generic
             # corporate PDFs elsewhere on the root cannot consume the budget.
             for child in children[:2]:
@@ -32250,7 +32518,7 @@ def build_asset_management_specialist_model(company_type, fundamental_info, symb
     snapshot = get_verified_asset_manager_snapshot(symbol)
     evidence_discovery = None
     if not snapshot:
-        # V104: discovery may return a partial issuer-primary record for
+        # V105: discovery may return a partial issuer-primary record for
         # diagnostics. Only an explicitly complete current-evidence snapshot is
         # promoted into scoring; partial evidence remains fail-closed.
         try:
@@ -32281,6 +32549,19 @@ def build_asset_management_specialist_model(company_type, fundamental_info, symb
             "valuation_anchor_complete": False,
             "readiness": "Asset-Management-Spezialdaten unvollständig · Generic issuer-primary Evidence Adapter ohne vollständigen aktuellen Evidenzsatz · Fair Value fail-closed",
         }
+    if snapshot.get("generic_primary_adapter"):
+        try:
+            snapshot = enrich_generic_asset_manager_same_basis_earnings(
+                snapshot,
+                company_name=(fundamental_info or {}).get("longName") or (fundamental_info or {}).get("shortName") or symbol,
+                website=(fundamental_info or {}).get("website"),
+            )
+        except Exception as exc:
+            snapshot = dict(snapshot)
+            trace_eps = list(snapshot.get("same_basis_earnings_trace") or [])
+            trace_eps.append(f"annual_eps_adapter_error:{type(exc).__name__}")
+            snapshot["same_basis_earnings_trace"] = trace_eps[-18:]
+
     if snapshot.get("inactive_delisted"):
         return {
             "applicable": True,
@@ -37330,7 +37611,7 @@ def get_special_control(company_type, symbol):
                 "JHG/Take-private Delisting Guard",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · IR-Table Context & Current-Period Evidence Guard V104",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Same-Basis Annual EPS History Adapter V105",
             "note": (
                 "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
                 "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
@@ -61052,7 +61333,7 @@ if selected_symbol:
 
                 elif special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · IR-Table Context & Current-Period Evidence Guard V104")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Same-Basis Annual EPS History Adapter V105")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
@@ -61160,6 +61441,25 @@ if selected_symbol:
                                 st.caption(text_or_dash(earn_am.get("method")))
                                 if earn_am.get("through_cycle_eps_source"):
                                     st.caption("3Y-Glättungsanker: " + text_or_dash(earn_am.get("through_cycle_eps_source")))
+                                if snap_am.get("generic_primary_adapter") and snap_am.get("same_basis_earnings_complete"):
+                                    hist_years_ui = list(snap_am.get("issuer_adjusted_eps_history_years") or [])
+                                    hist_vals_ui = list(snap_am.get("issuer_adjusted_eps_history") or [])
+                                    hist_bits_ui = []
+                                    for yy, vv in zip(hist_years_ui, hist_vals_ui):
+                                        fv = safe_float(vv)
+                                        if fv is not None:
+                                            hist_bits_ui.append(f"{yy}: {fv:.2f}")
+                                    if hist_bits_ui:
+                                        st.caption("Issuer-adjusted Jahres-EPS: " + " · ".join(hist_bits_ui))
+                                    fy_eps_ui = safe_float(snap_am.get("adjusted_ttm_bridge_latest_fy_eps"))
+                                    prior_eps_ui = safe_float(snap_am.get("adjusted_ttm_bridge_prior_period_eps"))
+                                    current_eps_ui = safe_float(snap_am.get("adjusted_ttm_bridge_current_period_eps"))
+                                    ttm_eps_ui = safe_float(snap_am.get("issuer_adjusted_ttm_eps"))
+                                    if None not in [fy_eps_ui, prior_eps_ui, current_eps_ui, ttm_eps_ui]:
+                                        st.caption(
+                                            f"Adjusted-TTM-Brücke: FY {int(snap_am.get('adjusted_ttm_bridge_latest_fy'))} {fy_eps_ui:.2f} "
+                                            f"− Vorjahres-Vergleichsperiode {prior_eps_ui:.2f} + aktuelle Vergleichsperiode {current_eps_ui:.2f} = {ttm_eps_ui:.2f}"
+                                        )
                             elif earn_am.get("note"):
                                 st.warning(text_or_dash(earn_am.get("note")))
                             if val_am.get("available"):
