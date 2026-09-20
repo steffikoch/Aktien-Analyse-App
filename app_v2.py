@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.99"
+APP_BUILD_VERSION = "V2.22.00"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Holding Full-Report Publication-Cue Recovery Guard V95"
+    f"Build {APP_BUILD_VERSION} · Universal Asset Management AUM-Scope & Fee-Rate Evidence Guard V96"
 )
 
 
@@ -53,6 +53,7 @@ st.caption(
 # V2.21.97: Universal Holding Released-Family Text Consistency Guard V93. Text/status-only cleanup after Investor AB and Industrivärden regression validation. For released Listed Investment / Holding Company routes, explanatory UI copy now states that EPS, Yahoo-FCF, generic growth/profitability and industrial multiples are intentionally non-valuation diagnostics because the released specialist model uses issuer-primary NAV, leverage, concentration, costs and P/NAV evidence. No valuation, evidence, freshness, history, peer, zone or signal mathematics changed.
 # V2.21.98: Universal Holding Report Metadata & Financial-Calendar Provenance Guard V94. Metadata-only completion for released listed holdings. Issuer-primary report text may now recover a missing report publication date from bounded post-period date context and the next future reporting date from an explicit Financial Calendar/Calendar of Events section. Recovered dates are provenance/UI metadata only: they cannot change NAV freshness, target-P/NAV, historical calibration, overlays, peer evidence, Fair Value, zones or signals. No issuer/ticker/date constants are hard-coded.
 # V2.21.99: Universal Holding Full-Report Publication-Cue Recovery Guard V95. Fixes the remaining released-holding metadata gap exposed by Investor AB: publication/submission statements can sit in the middle of a long interim PDF rather than in the report head or tail, while the financial calendar on the same page was already recovered correctly. V95 first scans the full issuer-primary report text only for dates in explicit publication/submission context, then falls back to the prior bounded head/tail heuristic. The same post-period 60-day plausibility gate remains. Publication date and financial-calendar metadata remain UI/provenance only and cannot alter NAV freshness, target-P/NAV, history, overlays, peers, Fair Value, zones or signals. No issuer/ticker/date constants are hard-coded.
+# V2.22.00: Universal Asset Management AUM-Scope & Fee-Rate Evidence Guard V96. Corrects an evidence-taxonomy bug exposed by T. Rowe Price: issuer disclosure that combines Fixed Income including Money Market must not be converted into Money-Market AUM = 0 or Long-Term AUM = Total AUM. Flow rates are now labeled and calculated only against an explicitly matching issuer scope (e.g. Firmwide or Long-Term), with compatibility aliases retained for existing guards. TROW therefore keeps its verified H1 2026 annualized firmwide net-flow rate (~-2.28%) but no longer claims a separately disclosed Long-Term AUM or zero liquidity AUM. Effective fee-rate evidence is surfaced in Step 3B. Score, target P/E, Fair Value, zones and signals are unchanged unless scope evidence truly changes.
 
 # V2.21.89: Universal Holding Quarterly NAV/Share-Price History Table Guard V85. Adds an issuer-neutral historical calibration route for holdings that publish periodic NAV/share and share-class prices in Financials/Key Figures tables instead of dated standalone NAV press releases. The adapter binds quarter headers, an explicit NAV-per-share row and the requested listed share-class price row column-by-column, derives same-period premium/discount observations only from issuer-primary values, and merges them into the existing historical calibration without promoting table history into the live current-NAV snapshot. The existing dated-release archive path remains unchanged as fallback. Current NAV V84, leverage, portfolio, holding-cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics are unchanged; no issuer/ticker values are hard-coded.
 # V2.21.85: Universal Holding Primary Listing & Issuer-Root Evidence Hub Guard V81. Fixes two reuse failures exposed by validating Investor AB after Industrivärden. Security-name normalization now treats Swedish public-company marker “publ” as a legal-form token, preventing a German secondary listing from outranking the Nasdaq Stockholm home listing merely because its display name omits “(publ)”. Listed-holding primary discovery now tries the provider/root URL before guessed locale paths, recognizes Q1–Q4 report links as issuer evidence hubs, and parses current NAV/share from report/homepage content through the strict explicit-per-share extractor before the broader legacy NAV parser. Report pages may contribute current NAV and leverage in the same bounded evidence window. Historical calibration, management-cost requirements, peer guard, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged/fail-closed until their own evidence gates pass; no Investor ticker/domain/value is hard-coded.
@@ -30790,19 +30791,28 @@ def get_verified_asset_manager_snapshot(symbol):
             "source_url": "https://investors.troweprice.com/node/28726/html",
             "total_aum": 1.8934e12,
             "beginning_total_aum": 1.7756e12,
-            "long_term_aum": 1.8934e12,
-            "money_market_aum": 0.0,
-            "beginning_long_term_aum": 1.7758e12,
-            "ytd_long_term_net_flows": -20.2e9,
+            # TROW discloses Fixed income *including money market* and does not
+            # separately publish a Money-Market/Liquidity AUM split in this table.
+            # V96 therefore leaves both derived sub-scopes unknown rather than
+            # manufacturing Money-Market=0 and Long-Term=Total.
+            "long_term_aum": None,
+            "money_market_aum": None,
+            "liquidity_aum_disclosure": "not_separately_disclosed",
+            # H1 2026 flows are firmwide: total net cash flows -20.2bn against
+            # beginning total AUM 1,775.6bn. The matching scope is explicit.
+            "flow_scope_label": "Firmwide",
+            "flow_beginning_aum": 1.7756e12,
+            "period_net_flows": -20.2e9,
             "flow_period_fraction_year": 0.5,
             "flow_period_label": "H1 2026",
             "flow_scope_matches_denominator": True,
             "acquisition_effects_separately_disclosed": True,
-            "verified_long_term_flow_direction": "negative",
-            "q2_long_term_net_flows": -6.5e9,
+            "verified_flow_direction": "negative",
+            "q2_firmwide_net_flows": -6.5e9,
             "fee_revenue_growth_pct": 8.3,
             "effective_fee_rate_bps": 38.1,
             "effective_fee_rate_prior_year_bps": 39.6,
+            "effective_fee_rate_prior_quarter_bps": 38.4,
             "operating_margin_pct": 37.1,
             "issuer_adjusted_ttm_eps": 10.34,
             "through_cycle_eps": 9.33,
@@ -30813,7 +30823,7 @@ def get_verified_asset_manager_snapshot(symbol):
             "franchise_diversification_score": 4.0,
             "historical_forward_pe_3y_median": 11.90,
             "valuation_confidence_cap": "Mittel",
-            "note": "Sehr starke Bilanz und hohe Marge, aber anhaltende Long-Term-Nettoabflüsse und sinkende effektive Fee Rate begrenzen das Multiple.",
+            "note": "Sehr starke Bilanz und hohe Marge, aber anhaltende firmweite Nettoabflüsse und sinkende effektive Fee Rate begrenzen das Multiple. TROW weist Money-Market-AUM nicht separat aus; V96 setzt diesen Wert deshalb nicht künstlich auf null.",
         },
         "BEN": {
             "symbol": "BEN",
@@ -30903,24 +30913,28 @@ def get_verified_asset_manager_snapshot(symbol):
 
 
 def _asset_manager_flow_context(snapshot):
-    """Return a conservative, auditable Long-Term flow context.
+    """Return a conservative, auditable same-scope asset-manager flow context.
 
     A percentage rate is *verified* only when either the issuer explicitly
     provides the annualized organic rate or the app has a matching beginning
-    Long-Term AUM denominator, a matching-period Long-Term net-flow numerator,
-    a valid period fraction and explicit confirmation that acquisition AUM is
-    reported separately from flows.  When those ingredients are incomplete,
-    we retain only a verified direction/absolute-flow diagnostic and never
-    manufacture a precise percentage.
+    AUM denominator, a matching-period net-flow numerator, a valid period
+    fraction and explicit confirmation that acquisition AUM is reported
+    separately from flows. The scope may be Long-Term, Firmwide or another
+    issuer-defined scope; V96 never relabels firmwide data as Long-Term.
     """
     snap = snapshot if isinstance(snapshot, dict) else {}
     issuer_rate = safe_float(snap.get("issuer_annualized_organic_growth_pct"))
-    flows = safe_float(snap.get("ytd_long_term_net_flows"))
-    begin_lt = safe_float(snap.get("beginning_long_term_aum"))
+    flows = safe_float(snap.get("period_net_flows"))
+    if flows is None:
+        flows = safe_float(snap.get("ytd_long_term_net_flows"))
+    begin_scope = safe_float(snap.get("flow_beginning_aum"))
+    if begin_scope is None:
+        begin_scope = safe_float(snap.get("beginning_long_term_aum"))
     period = safe_float(snap.get("flow_period_fraction_year"))
     period_label = snap.get("flow_period_label")
+    scope_label = str(snap.get("flow_scope_label") or "Long-Term").strip() or "Long-Term"
 
-    direction_raw = str(snap.get("verified_long_term_flow_direction") or "").strip().lower()
+    direction_raw = str(snap.get("verified_flow_direction") or snap.get("verified_long_term_flow_direction") or "").strip().lower()
     direction = direction_raw if direction_raw in {"positive", "flat", "negative"} else None
 
     if issuer_rate is not None and bool(snap.get("issuer_flow_rate_verified")):
@@ -30937,21 +30951,22 @@ def _asset_manager_flow_context(snapshot):
             "net_flows": flows,
             "period_label": period_label,
             "mode": "issuer_verified_rate",
-            "method": "Issuer-verifizierte annualisierte Organic-/Long-Term-Flow-Rate",
+            "scope_label": scope_label,
+            "method": f"Issuer-verifizierte annualisierte Organic-Flow-Rate ({scope_label}-Scope)",
             "note": "Die Prozentzahl stammt aus einer explizit verifizierten Issuer-Angabe; keine eigene Nenner-Schätzung erforderlich.",
         }
 
     scope_ok = bool(snap.get("flow_scope_matches_denominator"))
     acquisition_sep = bool(snap.get("acquisition_effects_separately_disclosed"))
     calculable = bool(
-        begin_lt is not None and begin_lt > 0
+        begin_scope is not None and begin_scope > 0
         and flows is not None
         and period is not None and period > 0
         and scope_ok
         and acquisition_sep
     )
     if calculable:
-        rate = (flows / begin_lt) / period * 100.0
+        rate = (flows / begin_scope) / period * 100.0
         if rate > 0:
             direction = "positive"
         elif rate < 0:
@@ -30963,11 +30978,12 @@ def _asset_manager_flow_context(snapshot):
             "annualized_rate_pct": rate,
             "direction": direction,
             "net_flows": flows,
-            "beginning_long_term_aum": begin_lt,
+            "beginning_scope_aum": begin_scope,
             "period_fraction_year": period,
             "period_label": period_label,
+            "scope_label": scope_label,
             "mode": "verified_calculated_rate",
-            "method": "Long-Term Net Flows ÷ passendes Beginning Long-Term AUM ÷ Periodenanteil",
+            "method": f"{scope_label} Net Flows ÷ passendes Beginning-{scope_label}-AUM ÷ Periodenanteil",
             "note": "Nenner-Scope und Zeitraum stimmen überein; Akquisitions-AUM ist separat ausgewiesen und wird nicht als organischer Flow behandelt.",
         }
 
@@ -30978,8 +30994,9 @@ def _asset_manager_flow_context(snapshot):
             "direction": direction,
             "net_flows": flows,
             "period_label": period_label,
+            "scope_label": scope_label,
             "mode": "direction_only",
-            "method": "Verifizierte Flow-Richtung / absolute Net Flows; Prozent-Rate gesperrt",
+            "method": f"Verifizierte {scope_label}-Flow-Richtung / absolute Net Flows; Prozent-Rate gesperrt",
             "note": "Eine präzise annualisierte Flow-Rate ist mangels vollständig passender Nenner-/Perioden-/Akquisitionsbasis nicht sicher berechenbar. Der Score verwendet deshalb nur einen begrenzten Richtungswert.",
         }
 
@@ -30989,9 +31006,10 @@ def _asset_manager_flow_context(snapshot):
         "direction": None,
         "net_flows": flows,
         "period_label": period_label,
+        "scope_label": scope_label,
         "mode": "unavailable",
         "method": None,
-        "note": "Long-Term Flow-Rate und verifizierte Flow-Richtung sind unvollständig; Flow-Teilscore bleibt fail-closed.",
+        "note": f"{scope_label}-Flow-Rate und verifizierte Flow-Richtung sind unvollständig; Flow-Teilscore bleibt fail-closed.",
     }
 
 
@@ -31102,7 +31120,10 @@ def build_asset_management_specialist_score(snapshot):
         "score": score,
         "quality_level": _asset_manager_score_level(score),
         "components": components,
-        # Compatibility alias retained for existing guard/UI paths.
+        "annualized_flow_rate_pct": flow_rate,
+        "flow_scope_label": flow_ctx.get("scope_label") or "Long-Term",
+        "net_flows": safe_float(flow_ctx.get("net_flows")),
+        # Compatibility aliases retained for existing guard paths.
         "annualized_long_term_organic_flow_pct": flow_rate,
         "annualized_long_term_net_flow_pct": flow_rate,
         "flow_rate_verified": bool(flow_ctx.get("verified_rate")),
@@ -31118,7 +31139,7 @@ def build_asset_management_specialist_score(snapshot):
         "premium_unlocked": unlock_count >= 4,
         "note": (
             "Der Asset-Management Quality Score ersetzt den generischen Umsatz-/ROE-/Yahoo-FCF-/Net-Cash-Score. "
-            "Eine annualisierte Long-Term-Flow-Rate wird nur bei verifizierter Same-Scope-/Same-Period-Basis verwendet; "
+            "Eine annualisierte Flow-Rate wird nur bei verifizierter Same-Scope-/Same-Period-Basis verwendet; "
             "sonst erhält lediglich die verifizierte Flow-Richtung einen begrenzten Score und kann keinen Premium-Unlock auslösen. "
             "AUM-Anstieg durch Marktperformance wird nicht wie organisches Wachstum behandelt."
         ),
@@ -31212,7 +31233,9 @@ def build_asset_management_specialist_valuation(snapshot, specialist_score, earn
     raw_target = _asset_manager_target_pe_from_score(score)
     target = raw_target
     caps = []
-    flow_rate = safe_float(score_data.get("annualized_long_term_net_flow_pct"))
+    flow_rate = safe_float(score_data.get("annualized_flow_rate_pct"))
+    if flow_rate is None:
+        flow_rate = safe_float(score_data.get("annualized_long_term_net_flow_pct"))
     if flow_rate is None:
         flow_rate = safe_float(score_data.get("annualized_long_term_organic_flow_pct"))
     flow_rate_verified = bool(score_data.get("flow_rate_verified"))
@@ -36301,8 +36324,8 @@ def get_special_control(company_type, symbol):
             "control_key": "asset_management_specialist",
             "control_name": "Asset Management / AUM-, Flow-, Fee-Mix-, Margin- & Through-Cycle-Earnings-Kontrolle",
             "planned_checks": [
-                "Total AUM und Long-Term AUM aus Primärquelle",
-                "Long-Term Organic Net Flows getrennt von Marktperformance, FX und Akquisitionen",
+                "Total AUM sowie Long-Term-/Liquidity-AUM nur wenn vom Issuer separat ausgewiesen",
+                "Organic Net Flows mit explizitem Scope (z. B. Long-Term oder Firmwide) getrennt von Marktperformance, FX und Akquisitionen",
                 "Fee-Mix / Effective Fee Rate statt AUM-Menge allein",
                 "Core/Adjusted Operating Margin und Margentrend",
                 "30/50/20 Through-Cycle-EPS-Basis",
@@ -36313,7 +36336,7 @@ def get_special_control(company_type, symbol):
                 "JHG/Take-private Delisting Guard",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · EPS Confidence Isolation",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · AUM-Scope & Fee-Rate Evidence Guard V96",
             "note": (
                 "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
                 "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
@@ -45031,6 +45054,8 @@ def calculate_fair_value_v1(
             "raw_score_multiple": safe_float(sv.get("raw_score_multiple")),
             "multiple_corridor_low": safe_float(sv.get("corridor_low")),
             "multiple_corridor_high": safe_float(sv.get("corridor_high")),
+            "annualized_flow_rate_pct": safe_float(ss.get("annualized_flow_rate_pct")),
+            "flow_scope_label": ss.get("flow_scope_label"),
             "annualized_long_term_organic_flow_pct": safe_float(ss.get("annualized_long_term_organic_flow_pct")),
             "annualized_long_term_net_flow_pct": safe_float(ss.get("annualized_long_term_net_flow_pct")),
             "flow_rate_verified": bool(ss.get("flow_rate_verified")),
@@ -52304,12 +52329,15 @@ def load_stock(selected_symbol, cache_version):
         am_snap_event = asset_management_specialist_model.get("snapshot") or {}
         am_company_event = am_snap_event.get("company") or fundamental_info.get("longName") or "Asset Manager"
         am_score_event = asset_management_specialist_model.get("specialist_score") or {}
-        am_flow_event = safe_float(am_score_event.get("annualized_long_term_net_flow_pct"))
+        am_flow_event = safe_float(am_score_event.get("annualized_flow_rate_pct"))
+        if am_flow_event is None:
+            am_flow_event = safe_float(am_score_event.get("annualized_long_term_net_flow_pct"))
+        am_flow_scope_event = str(am_score_event.get("flow_scope_label") or "Long-Term").strip() or "Long-Term"
         am_flow_verified_event = bool(am_score_event.get("flow_rate_verified"))
         am_flow_direction_event = str(am_score_event.get("flow_direction") or "").strip().lower()
         am_margin_event = safe_float(am_snap_event.get("operating_margin_pct"))
         if am_flow_verified_event and am_flow_event is not None:
-            flow_text = f"verifizierte annualisierte Long-Term-Net-Flow-Rate {am_flow_event:+.2f} %"
+            flow_text = f"verifizierte annualisierte {am_flow_scope_event}-Net-Flow-Rate {am_flow_event:+.2f} %"
         elif am_flow_direction_event:
             direction_map = {"positive": "positiv", "flat": "nahezu flach", "negative": "negativ"}
             flow_text = f"verifizierte Flow-Richtung {direction_map.get(am_flow_direction_event, am_flow_direction_event)}; Prozent-Rate gesperrt"
@@ -52323,7 +52351,7 @@ def load_stock(selected_symbol, cache_version):
             "requires_research": False,
             "valuation_usable": True,
             "reason": (
-                f"Long-Term-Flows ({flow_text}) werden getrennt von Marktperformance, FX und Akquisitionen bewertet; "
+                f"Organic Flows ({flow_text}) werden mit ihrem issuer-verifizierten Scope getrennt von Marktperformance, FX und Akquisitionen bewertet; "
                 f"die Core/Adjusted Operating Margin liegt bei {margin_text}. Generisches Umsatz-/Gewinnwachstum, ROE, Yahoo-FCF-Marge und Net-Cash-Punkte bleiben Diagnosekontext."
             ),
             "action": (
@@ -60016,7 +60044,7 @@ if selected_symbol:
 
                 elif special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · EPS Confidence Isolation")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · AUM-Scope & Fee-Rate Evidence Guard V96")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
@@ -60037,27 +60065,51 @@ if selected_symbol:
                             a1, a2 = st.columns(2)
                             with a1:
                                 st.metric("Total AUM", format_money(snap_am.get("total_aum"), financial_currency))
-                                st.metric("Long-Term AUM", format_money(snap_am.get("long_term_aum"), financial_currency))
+                                if safe_float(snap_am.get("long_term_aum")) is not None:
+                                    st.metric("Long-Term AUM", format_money(snap_am.get("long_term_aum"), financial_currency))
+                                else:
+                                    st.metric("Long-Term AUM", "–")
+                                    st.caption("Vom Issuer nicht separat ausgewiesen; Total AUM wird nicht künstlich als Long-Term AUM umetikettiert.")
                                 if safe_float(snap_am.get("money_market_aum")) is not None:
                                     st.metric("Money-Market / Liquidity AUM", format_money(snap_am.get("money_market_aum"), financial_currency))
+                                elif snap_am.get("liquidity_aum_disclosure") == "not_separately_disclosed":
+                                    st.metric("Money-Market / Liquidity AUM", "–")
+                                    st.caption("Nicht separat ausgewiesen; Fixed Income kann Money-Market-AUM enthalten. Kein künstlicher 0-Wert.")
                             with a2:
                                 if score_am.get("available"):
-                                    flow_rate_ui = safe_float(score_am.get("annualized_long_term_net_flow_pct"))
+                                    flow_rate_ui = safe_float(score_am.get("annualized_flow_rate_pct"))
+                                    if flow_rate_ui is None:
+                                        flow_rate_ui = safe_float(score_am.get("annualized_long_term_net_flow_pct"))
+                                    flow_scope_ui = str(score_am.get("flow_scope_label") or "Long-Term").strip() or "Long-Term"
                                     if score_am.get("flow_rate_verified") and flow_rate_ui is not None:
-                                        st.metric("Annualisierte Long-Term Net-Flow-Rate", f"{flow_rate_ui:+.2f} %")
+                                        st.metric(f"Annualisierte {flow_scope_ui} Net-Flow-Rate", f"{flow_rate_ui:+.2f} %")
                                     else:
                                         flow_direction_ui = str(score_am.get("flow_direction") or "").strip().lower()
                                         direction_map_ui = {"positive": "Positiv", "flat": "Nahezu flach", "negative": "Negativ"}
-                                        st.metric("Long-Term Flow-Richtung", direction_map_ui.get(flow_direction_ui, "–"))
-                                        net_flows_ui = safe_float(score_am.get("long_term_net_flows"))
+                                        st.metric(f"{flow_scope_ui} Flow-Richtung", direction_map_ui.get(flow_direction_ui, "–"))
+                                        net_flows_ui = safe_float(score_am.get("net_flows"))
+                                        if net_flows_ui is None:
+                                            net_flows_ui = safe_float(score_am.get("long_term_net_flows"))
                                         period_ui = text_or_dash(score_am.get("flow_period_label"))
                                         if net_flows_ui is not None:
-                                            st.caption(f"{period_ui} Long-Term Net Flows: {format_money(net_flows_ui, financial_currency)}. Annualisierte Prozent-Rate nicht sicher berechenbar; Flow-Punkte sind begrenzt.")
+                                            st.caption(f"{period_ui} {flow_scope_ui} Net Flows: {format_money(net_flows_ui, financial_currency)}. Annualisierte Prozent-Rate nicht sicher berechenbar; Flow-Punkte sind begrenzt.")
                                     flow_ctx_ui = score_am.get("flow_context") or {}
                                     if flow_ctx_ui.get("method"):
                                         st.caption(f"Flow-Definition: {text_or_dash(flow_ctx_ui.get('method'))}")
                                     st.metric("Headline-AUM-Wachstum", f"{safe_float(score_am.get('headline_aum_growth_pct')):+.1f} %")
                                 st.metric("Core/Adjusted Operating Margin", f"{safe_float(snap_am.get('operating_margin_pct')):.1f} %")
+                                efr_ui = safe_float(snap_am.get("effective_fee_rate_bps"))
+                                if efr_ui is not None:
+                                    st.metric("Effective Fee Rate", f"{efr_ui:.1f} bp")
+                                    efr_py_ui = safe_float(snap_am.get("effective_fee_rate_prior_year_bps"))
+                                    efr_pq_ui = safe_float(snap_am.get("effective_fee_rate_prior_quarter_bps"))
+                                    comps_efr = []
+                                    if efr_py_ui is not None:
+                                        comps_efr.append(f"Vorjahr {efr_py_ui:.1f} bp")
+                                    if efr_pq_ui is not None:
+                                        comps_efr.append(f"Vorquartal {efr_pq_ui:.1f} bp")
+                                    if comps_efr:
+                                        st.caption("Effective-Fee-Rate-Provenienz: " + " · ".join(comps_efr))
                             if score_am.get("available"):
                                 st.metric("Asset Management Quality Score", f"{safe_float(score_am.get('score')):.0f}/100 · {text_or_dash(score_am.get('quality_level'))}")
                                 st.write("**Score-Komponenten:** " + " · ".join(f"{name} {safe_float(points):.0f}" for name, points in score_am.get("components", {}).items()))
