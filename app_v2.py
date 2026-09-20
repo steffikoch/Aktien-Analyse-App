@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.90"
+APP_BUILD_VERSION = "V2.21.91"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Holding Report-Table History Extension & Pair-Count Guard V86"
+    f"Build {APP_BUILD_VERSION} · Universal Holding Flat-PDF Report Table Recovery Guard V87"
 )
 
 
@@ -45,7 +45,7 @@ st.caption(
 # V2.21.87: Listed Holding Historical/Current NAV Isolation & Strict Promotion Guard V83. Fixes a cross-layer contamination bug exposed by Investor AB after V82: the historical release parser could append its broad historical NAV record back into the live current-NAV candidate pool, allowing a richer but non-current parse to outrank the strict current NAV by date. V83 physically separates historical calibration records from live current NAV evidence, permits promotion from a historical-release fetch only after that same document independently passes the strict current NAV/share extractor, and final-selects only records carrying the strict current-nav guard. Historical same-date share-price pairing remains available to the calibration layer but can no longer overwrite the live snapshot. Adds current-candidate source/guard trace diagnostics. Listing resolution, leverage, portfolio, cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged; no issuer values are hard-coded.
 # V2.21.88: Listed Holding NAV/share Semantic Adjacency & Report-Row Guard V84. Fixes a false-positive exposed by Investor AB where a broad “per share” anchor could bind an unrelated consolidated profit figure (SEK 117,290m) to an earlier NAV label and silently convert it into 117.29 SEK/share. Narrative NAV/share evidence now requires the NAV label and per-share phrase to be locally adjacent without an intervening earnings/profit/loss/share-price metric, and numeric tokens cannot truncate thousands-formatted amounts into decimal-looking values. Linearized issuer-report rows such as “Adjusted NAV, SEK per share* 397 367 355” explicitly support footnote markers and infer the printed row currency; adjusted NAV receives a small semantic preference over reported/accounting NAV when both are presented for the same period. Current/historical isolation, future-date rejection, leverage, portfolio, cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged; no issuer values are hard-coded.
 
-# V2.21.90: Universal Holding Report-Table History Extension & Pair-Count Guard V86. Extends the V85 historical calibration with an issuer-neutral multi-period report-table parser for quarterly/interim PDFs or report text that exposes explicit period-end columns together with NAV/share and the requested share-class price row. This lets a current report contribute prior-quarter NAV/price pairs when a website Key Figures table lags behind. Report-derived history remains historical-only and cannot overwrite the V84 live NAV snapshot. Diagnostics now count valid target-class pairs across all accepted historical routes rather than only standalone NAV-release probes. Current NAV, leverage, portfolio, holding-cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics are unchanged; no issuer/ticker values are hard-coded.
+# V2.21.91: Universal Holding Flat-PDF Report Table Recovery Guard V87. Extends the V85 historical calibration with an issuer-neutral multi-period report-table parser for quarterly/interim PDFs or report text that exposes explicit period-end columns together with NAV/share and the requested share-class price row. This lets a current report contribute prior-quarter NAV/price pairs when a website Key Figures table lags behind. Report-derived history remains historical-only and cannot overwrite the V84 live NAV snapshot. Diagnostics now count valid target-class pairs across all accepted historical routes rather than only standalone NAV-release probes. Current NAV, leverage, portfolio, holding-cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics are unchanged; no issuer/ticker values are hard-coded.
 # V2.21.89: Universal Holding Quarterly NAV/Share-Price History Table Guard V85. Adds an issuer-neutral historical calibration route for holdings that publish periodic NAV/share and share-class prices in Financials/Key Figures tables instead of dated standalone NAV press releases. The adapter binds quarter headers, an explicit NAV-per-share row and the requested listed share-class price row column-by-column, derives same-period premium/discount observations only from issuer-primary values, and merges them into the existing historical calibration without promoting table history into the live current-NAV snapshot. The existing dated-release archive path remains unchanged as fallback. Current NAV V84, leverage, portfolio, holding-cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics are unchanged; no issuer/ticker values are hard-coded.
 # V2.21.85: Universal Holding Primary Listing & Issuer-Root Evidence Hub Guard V81. Fixes two reuse failures exposed by validating Investor AB after Industrivärden. Security-name normalization now treats Swedish public-company marker “publ” as a legal-form token, preventing a German secondary listing from outranking the Nasdaq Stockholm home listing merely because its display name omits “(publ)”. Listed-holding primary discovery now tries the provider/root URL before guessed locale paths, recognizes Q1–Q4 report links as issuer evidence hubs, and parses current NAV/share from report/homepage content through the strict explicit-per-share extractor before the broader legacy NAV parser. Report pages may contribute current NAV and leverage in the same bounded evidence window. Historical calibration, management-cost requirements, peer guard, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged/fail-closed until their own evidence gates pass; no Investor ticker/domain/value is hard-coded.
 
@@ -7915,12 +7915,13 @@ def _holding_extract_quarterly_nav_price_history(html, url, target_class=None):
 
 
 def _holding_extract_report_nav_price_history(text, url, target_class=None):
-    """V86 parse multi-period NAV/share + share-price rows from issuer reports.
+    """V87 parse multi-period NAV/share + share-price rows from issuer reports.
 
-    Historical-only adapter.  It accepts a compact quarterly/interim report table
-    only when the same local block supplies explicit period-end columns, an
-    explicit NAV-per-share row and the requested share-class price row.  It never
-    supplies or replaces the live current NAV snapshot.
+    Historical-only adapter. It supports both preserved table rows and the
+    whitespace-flattened PDF text produced by the issuer-document bridge. A
+    report contributes history only when one local table block proves period
+    columns, an explicit NAV-per-share row and the requested share-class price
+    row. It never supplies or replaces the live current NAV snapshot.
     """
     if not text:
         return []
@@ -7932,10 +7933,9 @@ def _holding_extract_report_nav_price_history(text, url, target_class=None):
         raw = str(text)
     raw = unicodedata.normalize("NFKC", raw).replace("\u00a0", " ")
     raw = re.sub(r"[\u200b\u200c\u200d\u2060\ufeff\u00ad]", "", raw)
+    flat = _clean_text(raw)
     lines = [_clean_text(x) for x in raw.splitlines()]
     lines = [x for x in lines if x]
-    if len(lines) < 3:
-        return []
 
     target = str(target_class or "").upper().strip() or None
     runtime_today = datetime.now().date()
@@ -7952,7 +7952,7 @@ def _holding_extract_report_nav_price_history(text, url, target_class=None):
                 continue
             if dt <= runtime_today and dt not in seen:
                 seen.add(dt); out.append((m.start(), dt))
-        # Common issuer-report form: 6/30 2026 or 6/30/2026.  Ambiguous
+        # Common issuer-report form: 6/30 2026 or 6/30/2026. Ambiguous
         # day/month pairs (both <=12) are rejected rather than guessed.
         for m in re.finditer(r"\b(\d{1,2})[/.](\d{1,2})(?:[/.]|\s+)(20\d{2})\b", s):
             a, b, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
@@ -7982,12 +7982,9 @@ def _holding_extract_report_nav_price_history(text, url, target_class=None):
         return [dt for _, dt in sorted(out, key=lambda x: x[0])]
 
     def _values_after_label(s):
-        # Strip label-side year/date tokens before reading row values.  Values
-        # themselves are bounded per-share numbers, never total NAV amounts.
         vals = []
         for tok in re.findall(r"(?<![0-9])[-+]?\d{1,5}(?:[.,]\d{1,2})?(?![0-9])", s):
             t = tok.strip()
-            # Plain four-digit years are metadata, not per-share values.
             if re.fullmatch(r"20\d{2}", t):
                 continue
             if "," in t and "." not in t:
@@ -8034,73 +8031,214 @@ def _holding_extract_report_nav_price_history(text, url, target_class=None):
         return None
 
     out = []
-    for nav_i, nav_line in enumerate(lines):
-        nav_score = _nav_row_score(nav_line)
-        if nav_score < 0:
-            continue
-        # Period headers must be local to the NAV row.  This binds dates to the
-        # same report table instead of borrowing a remote publication/event date.
-        period_dates = []
-        for j in range(max(0, nav_i - 4), nav_i):
-            dts = _date_tokens(lines[j])
-            if len(dts) > len(period_dates):
-                period_dates = dts
-        if len(period_dates) < 2:
-            continue
 
-        nav_vals = _values_after_label(nav_line)
-        if len(nav_vals) < len(period_dates):
-            continue
-        nav_vals = nav_vals[-len(period_dates):]
-
-        # Currency is semantic row metadata and must be explicit.
-        currency = None
-        cm = re.search(r"\b(SEK|EUR|USD|GBP)\b", nav_line, flags=re.I)
-        if cm:
-            currency = cm.group(1).upper()
-        elif re.search(r"\bkr\b|kronor", nav_line, flags=re.I):
-            currency = "SEK"
-        if currency is None:
-            continue
-
-        candidates = []
-        for k in range(max(0, nav_i - 8), min(len(lines), nav_i + 18)):
-            cls = _price_row_class(lines[k])
-            if cls:
-                vals = _values_after_label(lines[k])
-                if len(vals) >= len(period_dates):
-                    candidates.append((k, cls, vals[-len(period_dates):], lines[k]))
-        if target:
-            candidates = [x for x in candidates if x[1] == target]
-        elif len({x[1] for x in candidates}) == 1:
-            pass
-        else:
-            continue
-        if not candidates:
-            continue
-        price_i, chosen_class, price_vals, _ = min(candidates, key=lambda x: abs(x[0] - nav_i))
-
-        for dt, nav, price in zip(period_dates, nav_vals, price_vals):
-            if nav <= 0 or price <= 0:
+    # Row-preserving path (HTML/text reports or PDF extractors that keep rows).
+    if len(lines) >= 3:
+        for nav_i, nav_line in enumerate(lines):
+            nav_score = _nav_row_score(nav_line)
+            if nav_score < 0:
                 continue
-            premium = (price / nav - 1.0) * 100.0
-            if premium < -60.0 or premium > 120.0:
+            period_dates = []
+            for j in range(max(0, nav_i - 4), nav_i):
+                dts = _date_tokens(lines[j])
+                if len(dts) > len(period_dates):
+                    period_dates = dts
+            if len(period_dates) < 2:
                 continue
-            out.append({
-                "nav_per_share": nav,
-                "currency": currency,
-                "as_of_date_obj": dt,
-                "as_of_date": _holding_date_display(dt),
-                "published_date_obj": None,
-                "published_date": None,
-                "source_url": url,
-                "source_title": "Quarterly/interim report NAV/share & share-price table",
-                "same_date_class_prices": {chosen_class: price},
-                "paired_price_date_obj": dt,
-                "paired_price_date": _holding_date_display(dt),
-                "quality": 15 + (2 if nav_score >= 15 else 0),
-                "history_source_kind": "issuer_report_multi_period_table_v86",
-            })
+
+            nav_vals = _values_after_label(nav_line)
+            if len(nav_vals) < len(period_dates):
+                continue
+            nav_vals = nav_vals[-len(period_dates):]
+
+            currency = None
+            cm = re.search(r"\b(SEK|EUR|USD|GBP)\b", nav_line, flags=re.I)
+            if cm:
+                currency = cm.group(1).upper()
+            elif re.search(r"\bkr\b|kronor", nav_line, flags=re.I):
+                currency = "SEK"
+            if currency is None:
+                continue
+
+            candidates = []
+            for k in range(max(0, nav_i - 8), min(len(lines), nav_i + 18)):
+                cls = _price_row_class(lines[k])
+                if cls:
+                    vals = _values_after_label(lines[k])
+                    if len(vals) >= len(period_dates):
+                        candidates.append((k, cls, vals[-len(period_dates):], lines[k]))
+            if target:
+                candidates = [x for x in candidates if x[1] == target]
+            elif len({x[1] for x in candidates}) == 1:
+                pass
+            else:
+                continue
+            if not candidates:
+                continue
+            _, chosen_class, price_vals, _ = min(candidates, key=lambda x: abs(x[0] - nav_i))
+
+            for dt, nav, price in zip(period_dates, nav_vals, price_vals):
+                if nav <= 0 or price <= 0:
+                    continue
+                premium = (price / nav - 1.0) * 100.0
+                if premium < -60.0 or premium > 120.0:
+                    continue
+                out.append({
+                    "nav_per_share": nav,
+                    "currency": currency,
+                    "as_of_date_obj": dt,
+                    "as_of_date": _holding_date_display(dt),
+                    "published_date_obj": None,
+                    "published_date": None,
+                    "source_url": url,
+                    "source_title": "Quarterly/interim report NAV/share & share-price table",
+                    "same_date_class_prices": {chosen_class: price},
+                    "paired_price_date_obj": dt,
+                    "paired_price_date": _holding_date_display(dt),
+                    "quality": 15 + (2 if nav_score >= 15 else 0),
+                    "history_source_kind": "issuer_report_multi_period_table_v86",
+                })
+
+    # V87 flat-PDF recovery. The generic issuer PDF bridge deliberately cleans
+    # extracted PDF text with _clean_text(), collapsing line breaks. Recover the
+    # same table semantically from one whitespace stream instead of assuming rows.
+    def _flat_period_cluster_before(pos):
+        start = max(0, pos - 1200)
+        prefix = flat[start:pos]
+        token_pat = re.compile(
+            r"\b(?:20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}|"
+            r"\d{1,2}[/.]\d{1,2}(?:[/.]|\s+)20\d{2}|Q[1-4]\s*20\d{2})\b",
+            flags=re.I,
+        )
+        toks = []
+        for m in token_pat.finditer(prefix):
+            dts = _date_tokens(m.group(0))
+            if dts:
+                toks.append((m.start(), m.end(), dts[0]))
+        if not toks:
+            return []
+        clusters = []
+        cur = []
+        prev_end = None
+        for item in toks:
+            if prev_end is None or item[0] - prev_end <= 32:
+                cur.append(item)
+            else:
+                if cur:
+                    clusters.append(cur)
+                cur = [item]
+            prev_end = item[1]
+        if cur:
+            clusters.append(cur)
+        eligible = [c for c in clusters if 2 <= len(c) <= 5]
+        if not eligible:
+            return []
+        # Nearest compact date cluster to the NAV row wins.
+        best = max(eligible, key=lambda c: c[-1][1])
+        dates = []
+        for _, _, dt in best:
+            if dt not in dates:
+                dates.append(dt)
+        return dates
+
+    def _flat_row_values(after_pos, stop_terms, needed):
+        segment = flat[after_pos: after_pos + 900]
+        cut = len(segment)
+        for pat in stop_terms:
+            m = re.search(pat, segment, flags=re.I)
+            if m and m.start() > 0:
+                cut = min(cut, m.start())
+        vals = _values_after_label(segment[:cut])
+        return vals[:needed] if len(vals) >= needed else []
+
+    if flat:
+        nav_pat = re.compile(
+            r"\b(?P<label>(?:(?:adjusted|reported)\s+)?(?:net\s+asset\s+value|nav|substansv[aä]rde)"
+            r"\s*,?\s*(?:SEK|EUR|USD|GBP|kr)?\s*(?:per\s+share|per\s+aktie|/\s*share|/\s*aktie)"
+            r"(?:\s*\*+)?(?:\s*\d+\))?)",
+            flags=re.I,
+        )
+        price_anchor_pat = re.compile(
+            r"\b(?:share\s+price|stock\s+price|closing\s+price|aktiekurs|st[aä]ngningskurs)\b",
+            flags=re.I,
+        )
+        for nm in nav_pat.finditer(flat):
+            nav_label = nm.group("label") or ""
+            nav_score = _nav_row_score(nav_label)
+            if nav_score < 0:
+                continue
+            period_dates = _flat_period_cluster_before(nm.start())
+            if len(period_dates) < 2:
+                continue
+            n = len(period_dates)
+            nav_vals = _flat_row_values(
+                nm.end(),
+                [
+                    r"\bReported\s+NAV\b", r"\bAdjusted\s+NAV\b",
+                    r"\bMarket\s+capitalization\b", r"\bShare\s+price\b",
+                    r"\bConsolidated\b", r"\bAdjusted\s+NAV\s*,?\s*sequential\b",
+                ],
+                n,
+            )
+            if len(nav_vals) < n:
+                continue
+
+            currency = None
+            cm = re.search(r"\b(SEK|EUR|USD|GBP)\b", nav_label, flags=re.I)
+            if cm:
+                currency = cm.group(1).upper()
+            elif re.search(r"\bkr\b|kronor", nav_label, flags=re.I):
+                currency = "SEK"
+            if currency is None:
+                continue
+
+            price_candidates = []
+            lo = max(0, nm.start() - 500)
+            hi = min(len(flat), nm.end() + 1800)
+            for pm in price_anchor_pat.finditer(flat, lo, hi):
+                snippet = flat[pm.start(): min(len(flat), pm.start() + 700)]
+                cls = _price_row_class(snippet)
+                if not cls:
+                    continue
+                vals = _flat_row_values(
+                    pm.end(),
+                    [
+                        r"\bAdjusted\s+NAV\s*,?\s*sequential\b", r"\bReported\s+NAV\s*,?\s*sequential\b",
+                        r"\bConsolidated\b", r"\bQ[1-4]\s+20\d{2}\b", r"\bH[12]\s+20\d{2}\b",
+                    ],
+                    n,
+                )
+                if len(vals) >= n:
+                    price_candidates.append((pm.start(), cls, vals))
+            if target:
+                price_candidates = [x for x in price_candidates if x[1] == target]
+            elif len({x[1] for x in price_candidates}) != 1:
+                continue
+            if not price_candidates:
+                continue
+            _, chosen_class, price_vals = min(price_candidates, key=lambda x: abs(x[0] - nm.start()))
+
+            for dt, nav, price in zip(period_dates, nav_vals, price_vals):
+                if nav <= 0 or price <= 0:
+                    continue
+                premium = (price / nav - 1.0) * 100.0
+                if premium < -60.0 or premium > 120.0:
+                    continue
+                out.append({
+                    "nav_per_share": nav,
+                    "currency": currency,
+                    "as_of_date_obj": dt,
+                    "as_of_date": _holding_date_display(dt),
+                    "published_date_obj": None,
+                    "published_date": None,
+                    "source_url": url,
+                    "source_title": "Quarterly/interim report NAV/share & share-price table (flat PDF recovery)",
+                    "same_date_class_prices": {chosen_class: price},
+                    "paired_price_date_obj": dt,
+                    "paired_price_date": _holding_date_display(dt),
+                    "quality": 16 + (2 if nav_score >= 15 else 0),
+                    "history_source_kind": "issuer_report_flat_pdf_table_v87",
+                })
 
     by_date = {}
     for rec in out:
@@ -8109,7 +8247,6 @@ def _holding_extract_report_nav_price_history(text, url, target_class=None):
         if prev is None or int(rec.get("quality") or 0) > int(prev.get("quality") or 0):
             by_date[dt] = rec
     return [by_date[k] for k in sorted(by_date.keys(), reverse=True)]
-
 def _holding_extract_current_nav_record(html, url):
     """V84 current-snapshot NAV/share extractor.
 
@@ -9837,7 +9974,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 rejection_counts[reason] = rejection_counts.get(reason, 0) + 1
         reject_summary = ",".join(f"{k}:{v}" for k, v in sorted(rejection_counts.items())) or "none"
         result["diagnostics"].append(
-            f"Holding Historical NAV Calibration V86: QuarterlyTableFetch={history_table_fetches}, QuarterlyTableRecords={history_table_records}, "
+            f"Holding Historical NAV Calibration V87: QuarterlyTableFetch={history_table_fetches}, QuarterlyTableRecords={history_table_records}, "
             f"ReportTableFetch={history_report_table_fetches}, ReportTableRecords={history_report_table_records}, ArchiveFetch={history_archive_fetches}, "
             f"Candidates={history_candidate_count}, UniqueDateCandidates={len(strict_candidates) if 'strict_candidates' in locals() else 0}, "
             f"ReleaseFetch={history_release_attempts}, Parsed={history_release_parsed}, DateAnchored={history_expected_date_matches}, "
@@ -9930,7 +10067,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22190_holding_report_table_history_v86"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22191_holding_flat_pdf_history_v87"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
@@ -10719,7 +10856,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "final_target_premium_discount_pct": safe_float(justified_target_diag.get("final_target_pct")),
         "target_premium_discount_released": bool(justified_target_diag.get("released")),
         "holding_peer_evidence": peer_evidence,
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Report-Table History Extension & Pair-Count Guard V86",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Flat-PDF Report Table Recovery Guard V87",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
