@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.02"
+APP_BUILD_VERSION = "V2.22.03"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Asset Management Same-Basis Earnings & Evidence-Backed Premium Corridor Guard V98"
+    f"Build {APP_BUILD_VERSION} · Universal Asset Management Two-Issuer Validation & Release-Readiness Guard V99"
 )
 
 
@@ -56,6 +56,7 @@ st.caption(
 # V2.22.00: Universal Asset Management AUM-Scope & Fee-Rate Evidence Guard V96. Corrects an evidence-taxonomy bug exposed by T. Rowe Price: issuer disclosure that combines Fixed Income including Money Market must not be converted into Money-Market AUM = 0 or Long-Term AUM = Total AUM. Flow rates are now labeled and calculated only against an explicitly matching issuer scope (e.g. Firmwide or Long-Term), with compatibility aliases retained for existing guards. TROW therefore keeps its verified H1 2026 annualized firmwide net-flow rate (~-2.28%) but no longer claims a separately disclosed Long-Term AUM or zero liquidity AUM. Effective fee-rate evidence is surfaced in Step 3B. Score, target P/E, Fair Value, zones and signals are unchanged unless scope evidence truly changes.
 
 # V2.22.02: Universal Asset Management Same-Basis Earnings & Evidence-Backed Premium Corridor Guard V98. Fixes two cross-company valuation-consistency gaps exposed by BlackRock. First, if a specialist uses issuer-adjusted TTM EPS, the 3Y Through-Cycle component may no longer fall back to generic GAAP history; it must use explicit issuer-adjusted annual EPS history from the same earnings family or remain fail-closed. Second, the traditional 9–18x asset-manager corridor remains the base corridor, but a fully validated 5/5 Premium-Unlock with score >=80 and a 3Y historical forward-P/E median above 18x can add a smooth evidence-backed extension. The historical median is only a ceiling (capped at 24x), never an automatic target; extension rises gradually with quality from score 80 to 100. Negative-flow and Money-Market downside guards remain dominant. TROW and other non-premium managers retain their prior mathematics.
+# V2.22.03: Universal Asset Management Two-Issuer Validation & Release-Readiness Guard V99. TROW and BLK have now passed end-to-end on materially different Asset-Management profiles without regression. This build changes no score, earnings, corridor, multiple, Fair-Value, zone or signal mathematics. It marks the existing Asset-Management specialist route as two-main-issuer validated but deliberately not yet globally released because primary AUM/flow/fee/margin evidence is still supplied by ticker-bound verified snapshots rather than a reusable issuer-primary discovery/parser stack. It also aligns UI text with the V98 premium corridor, makes the BlackRock peer-note target-aware, and fixes Reality-Check wording when model and consensus are on opposite sides of the current price without reaching the hard-conflict threshold.
 # V2.22.01: Universal Asset Management BlackRock Primary-Snapshot & Fail-Closed UI Guard V97. Validates BlackRock as a second main-company Asset-Management path using issuer-primary Q2/H1 2026 AUM, same-scope Long-Term flows, adjusted operating margin, base-fee/Average-AUM fee-rate evidence and issuer-adjusted TTM EPS; BLK remains a premium-franchise reference but is no longer reference-only when selected as the target. Also hardens Step 3B so any unsupported asset manager with an empty snapshot renders a fail-closed diagnostic instead of crashing the whole stock page. TROW/FHI/BEN/IVZ score, multiple and Fair Value mathematics are unchanged.
 
 # V2.21.89: Universal Holding Quarterly NAV/Share-Price History Table Guard V85. Adds an issuer-neutral historical calibration route for holdings that publish periodic NAV/share and share-class prices in Financials/Key Figures tables instead of dated standalone NAV press releases. The adapter binds quarter headers, an explicit NAV-per-share row and the requested listed share-class price row column-by-column, derives same-period premium/discount observations only from issuer-primary values, and merges them into the existing historical calibration without promoting table history into the live current-NAV snapshot. The existing dated-release archive path remains unchanged as fallback. Current NAV V84, leverage, portfolio, holding-cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics are unchanged; no issuer/ticker values are hard-coded.
@@ -6978,9 +6979,20 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
         out.setdefault("valuation_family", meta["label"])
         out.setdefault("family_router_source", "existing_specialist_route")
         out.setdefault("family_policy", meta["policy"])
-        out.setdefault("family_model_status", "existing_route")
-        out.setdefault("family_model_ready", True)
-        out.setdefault("universal_family_fail_closed", False)
+        if family_id == "asset_manager":
+            # V99: two independent main issuers (TROW + BLK) have passed end-to-end,
+            # but the family is not yet globally released because issuer-primary
+            # AUM/flow/fee/margin evidence still comes from ticker-bound verified
+            # snapshots rather than a reusable discovery/parser stack.
+            out["family_model_status"] = "validated_existing_route"
+            out["family_model_ready"] = True
+            out["family_model_released"] = False
+            out["family_validation_status"] = "two_main_issuers_passed"
+            out["universal_family_fail_closed"] = False
+        else:
+            out.setdefault("family_model_status", "existing_route")
+            out.setdefault("family_model_ready", True)
+            out.setdefault("universal_family_fail_closed", False)
         return out
 
     family_id, source = _infer_universal_family_from_metadata(
@@ -7088,6 +7100,15 @@ def is_released_listed_holding_family(company_type):
         is_listed_investment_holding_type(company_type)
         and (company_type or {}).get("family_model_status") == "released_specialist"
         and (company_type or {}).get("family_model_ready")
+    )
+
+
+def is_validated_asset_manager_existing_route(company_type):
+    return bool(
+        (company_type or {}).get("valuation_family_id") == "asset_manager"
+        and (company_type or {}).get("family_model_status") == "validated_existing_route"
+        and (company_type or {}).get("family_model_ready")
+        and (company_type or {}).get("family_validation_status") == "two_main_issuers_passed"
     )
 
 
@@ -35914,9 +35935,16 @@ def _calculate_asset_management_peer_reference(peer_group, fundamental_multiple,
     result["core_usable_count"] = len(core_values)
     if len(core_values) >= 3:
         result["peer_median"] = float(pd.Series(core_values).median())
+    target_symbol = str((peer_group or {}).get("target_symbol") or "").upper()
+    premium_note = (
+        "BlackRock ist selbst das Zielunternehmen; eine separate BlackRock-Premium-Referenz entfällt. "
+        if target_symbol == "BLK"
+        else "BlackRock ist Premium-Referenz und beeinflusst den Core-Median nicht. "
+    )
     result["note"] = (
         f"Asset-Management Peer Guard {APP_BUILD_VERSION}: Der Median wird nur bei mindestens drei aktiven traditionellen Core-Peers freigegeben. "
-        "BlackRock ist Premium-Referenz, Janus Henderson ist nach dem Take-private vom 30.06.2026 ausgeschlossen. "
+        + premium_note
+        + "Janus Henderson ist nach dem Take-private vom 30.06.2026 ausgeschlossen. "
         "Bei weniger als drei brauchbaren Core-Peers bleibt der Peer-Median gesperrt; der 3Y-Historical-Guard darf weiterhin downside-only prüfen. "
         "Der Peer-Median setzt keinen Fair Value; er dient zusammen mit dem 3Y-Historical-Median nur als Premium-Safety-Guard."
     )
@@ -36430,12 +36458,12 @@ def get_special_control(company_type, symbol):
                 "30/50/20 Through-Cycle-EPS-Basis",
                 "Bilanzqualität ohne generischen Net-Cash-15/15-Bonus",
                 "Netto-Buybacks / Dividenden / Kapitaldisziplin",
-                "9–18× nichtlinearer Asset-Manager-KGV-Korridor",
+                "9–18× nichtlinearer Asset-Manager-Basiskorridor; evidenzbasierte Premium-Erweiterung oberhalb 18× nur bei vollständig bestandenem Premium-Unlock",
                 "Organic-Flow-, Premium-, Peer- und 3Y-Historical-Multiple-Guards",
                 "JHG/Take-private Delisting Guard",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · AUM-Scope & Fee-Rate Evidence Guard V96",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Two-Issuer Validation & Release-Readiness Guard V99",
             "note": (
                 "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
                 "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
@@ -49498,7 +49526,12 @@ def build_external_reality_check(current_price, fair_value, analyst_consensus, t
         reason = "Die Bewertungsrichtung ist überwiegend kompatibel, die Größenordnung weicht jedoch merklich ab."
     else:
         agreement = "NIEDRIG"
-        reason = "Die Bewertungsrichtung ist nicht zwingend gegensätzlich, der Bewertungsabstand ist aber groß."
+        reason = (
+            "Eigene Bewertung und Analystenkonsens liegen auf unterschiedlichen Seiten des aktuellen Kurses; "
+            "der Abstand ist groß, erreicht nach den definierten Reality-Check-Schwellen aber noch keinen harten Konflikt."
+            if raw_sign_opposite
+            else "Die Bewertungsrichtung ist nicht zwingend gegensätzlich, der Bewertungsabstand ist aber groß."
+        )
 
     result.update({"agreement": agreement, "reason": reason})
     return result
@@ -51934,7 +51967,7 @@ def load_stock(selected_symbol, cache_version):
             "lower": safe_float(am_val.get("corridor_low")),
             "upper": safe_float(am_val.get("corridor_high")),
             "method": am_val.get("valuation_method_name") or "Asset Manager Through-Cycle P/E",
-            "note": f"{APP_BUILD_VERSION}: 9–18× Asset-Manager-Spezialkorridor; generische Standard-Scores sind gesperrt.",
+            "note": f"{APP_BUILD_VERSION}: 9–18× Asset-Manager-Basiskorridor; bei vollständig validiertem Premium-Unlock ist eine evidenzbegrenzte Erweiterung oberhalb 18× möglich. Generische Standard-Scores sind gesperrt.",
         }
         fundamental_multiple = {
             **fundamental_multiple,
@@ -53716,6 +53749,11 @@ if selected_symbol:
                         f"Universal Family Router {APP_BUILD_VERSION}: {len(UNIVERSAL_VALUATION_FAMILY_CATALOG)} Bewertungsfamilien · "
                         f"Quelle {_family_source} · Status {company_type.get('family_model_status') or '–'}"
                     )
+                    if is_validated_asset_manager_existing_route(company_type):
+                        st.info(
+                            "Asset-Management-Spezialpfad mit zwei unabhängigen Hauptunternehmen end-to-end validiert (TROW + BLK). "
+                            "Die globale Familienfreigabe bleibt bewusst offen, bis AUM-/Flow-/Fee-/Margin-Primärdaten über einen wiederverwendbaren issuer-primary Evidence-Adapter statt tickergebundener Snapshots gewonnen werden."
+                        )
                     if is_universal_family_fail_closed(company_type):
                         if is_released_listed_holding_family(company_type):
                             st.success(
@@ -60146,7 +60184,7 @@ if selected_symbol:
 
                 elif special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Same-Basis Earnings & Evidence-Backed Premium Corridor Guard V98")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Two-Issuer Validation & Release-Readiness Guard V99")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
