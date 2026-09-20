@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.98"
+APP_BUILD_VERSION = "V2.21.99"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Holding Report Metadata & Financial-Calendar Provenance Guard V94"
+    f"Build {APP_BUILD_VERSION} · Universal Holding Full-Report Publication-Cue Recovery Guard V95"
 )
 
 
@@ -52,6 +52,7 @@ st.caption(
 # V2.21.95: Universal Holding Holding Family Release & Standard-Path Isolation Guard V92. Keeps the six-observation/150-day historical calibration threshold unchanged and repairs only evidence recovery. Issuer HTML/report tables whose period header is split across a year row and a month/day row (for example 2026/2025/2025 above 30 June/30 June/31 Dec) are reconstructed into explicit period-end dates before NAV/share and target-share-class price pairing. Share-price labels that place the class letter immediately before the printed currency are recognized under the same strict table semantics. HTML report pages reuse the same parser before flat-report fallback. Holding snapshot and peer caches receive a new epoch and the peer research slice is modestly widened so a stale incomplete two-peer result cannot survive the release. Target-P/NAV mathematics, cost/leverage/concentration overlays, V78 Fair Value, V79 zones, V80 signals and all non-holding models remain unchanged; no issuer values are hard-coded.
 # V2.21.97: Universal Holding Released-Family Text Consistency Guard V93. Text/status-only cleanup after Investor AB and Industrivärden regression validation. For released Listed Investment / Holding Company routes, explanatory UI copy now states that EPS, Yahoo-FCF, generic growth/profitability and industrial multiples are intentionally non-valuation diagnostics because the released specialist model uses issuer-primary NAV, leverage, concentration, costs and P/NAV evidence. No valuation, evidence, freshness, history, peer, zone or signal mathematics changed.
 # V2.21.98: Universal Holding Report Metadata & Financial-Calendar Provenance Guard V94. Metadata-only completion for released listed holdings. Issuer-primary report text may now recover a missing report publication date from bounded post-period date context and the next future reporting date from an explicit Financial Calendar/Calendar of Events section. Recovered dates are provenance/UI metadata only: they cannot change NAV freshness, target-P/NAV, historical calibration, overlays, peer evidence, Fair Value, zones or signals. No issuer/ticker/date constants are hard-coded.
+# V2.21.99: Universal Holding Full-Report Publication-Cue Recovery Guard V95. Fixes the remaining released-holding metadata gap exposed by Investor AB: publication/submission statements can sit in the middle of a long interim PDF rather than in the report head or tail, while the financial calendar on the same page was already recovered correctly. V95 first scans the full issuer-primary report text only for dates in explicit publication/submission context, then falls back to the prior bounded head/tail heuristic. The same post-period 60-day plausibility gate remains. Publication date and financial-calendar metadata remain UI/provenance only and cannot alter NAV freshness, target-P/NAV, history, overlays, peers, Fair Value, zones or signals. No issuer/ticker/date constants are hard-coded.
 
 # V2.21.89: Universal Holding Quarterly NAV/Share-Price History Table Guard V85. Adds an issuer-neutral historical calibration route for holdings that publish periodic NAV/share and share-class prices in Financials/Key Figures tables instead of dated standalone NAV press releases. The adapter binds quarter headers, an explicit NAV-per-share row and the requested listed share-class price row column-by-column, derives same-period premium/discount observations only from issuer-primary values, and merges them into the existing historical calibration without promoting table history into the live current-NAV snapshot. The existing dated-release archive path remains unchanged as fallback. Current NAV V84, leverage, portfolio, holding-cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics are unchanged; no issuer/ticker values are hard-coded.
 # V2.21.85: Universal Holding Primary Listing & Issuer-Root Evidence Hub Guard V81. Fixes two reuse failures exposed by validating Investor AB after Industrivärden. Security-name normalization now treats Swedish public-company marker “publ” as a legal-form token, preventing a German secondary listing from outranking the Nasdaq Stockholm home listing merely because its display name omits “(publ)”. Listed-holding primary discovery now tries the provider/root URL before guessed locale paths, recognizes Q1–Q4 report links as issuer evidence hubs, and parses current NAV/share from report/homepage content through the strict explicit-per-share extractor before the broader legacy NAV parser. Report pages may contribute current NAV and leverage in the same bounded evidence window. Historical calibration, management-cost requirements, peer guard, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged/fail-closed until their own evidence gates pass; no Investor ticker/domain/value is hard-coded.
@@ -7231,7 +7232,7 @@ def _holding_publication_date_fallback(text, as_of_date=None):
 def _holding_extract_report_metadata(text, source_url=None, as_of_date=None):
     """Recover issuer-report publication/calendar metadata without valuation impact.
 
-    V94 is intentionally metadata-only. Publication recovery accepts only dates
+    V95 is intentionally metadata-only. Publication recovery accepts only dates
     after the report period and within 60 days, with preference for explicit
     publication/submission/location context. Future event recovery requires an
     explicit Financial Calendar / Calendar of Events section plus reporting
@@ -7254,12 +7255,19 @@ def _holding_extract_report_metadata(text, source_url=None, as_of_date=None):
         r"(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\.?\s+20\d{2})",
     ]
 
-    # Publication metadata. Scan report head and tail only; a date buried in a
-    # portfolio note cannot outrank explicit publication/submission context.
-    pub_material = raw[:14000] + "\n" + raw[-10000:]
-    pub_candidates = []
+    # Publication metadata. V95 first scans the full report, but only accepts
+    # dates that are locally bound to an explicit publication/submission cue.
+    # This covers long interim PDFs whose regulatory publication statement sits
+    # in a middle-page IR/calendar block. The broader heuristic remains bounded
+    # to report head/tail so ordinary operating-event dates cannot leak in.
+    explicit_pub_candidates = []
+    explicit_cues = [
+        "submitted for publication", "submitted for release",
+        "submitted for disclosure", "published on", "publication date",
+        "date of publication", "made public on", "released on",
+    ]
     for pat in date_pats:
-        for m in re.finditer(pat, pub_material, flags=re.I):
+        for m in re.finditer(pat, raw, flags=re.I):
             dt = _holding_parse_date_text(m.group(1))
             if not dt:
                 continue
@@ -7269,28 +7277,57 @@ def _holding_extract_report_metadata(text, source_url=None, as_of_date=None):
                     continue
             elif dt > today:
                 continue
-            left = max(0, m.start() - 150); right = min(len(pub_material), m.end() + 150)
-            ctx = _holding_fold_text(pub_material[left:right])
-            score = 0
-            if any(k in ctx for k in ["submitted for publication", "submitted for release", "published", "publication date", "date of publication"]):
-                score += 12
-            if any(k in ctx for k in ["stockholm", "london", "paris", "helsinki", "copenhagen", "oslo", "zurich", "amsterdam", "brussels"]):
-                score += 5
-            if m.start() < 3500:
-                score += 3
-            if any(k in ctx for k in ["financial calendar", "calendar of events", "finansiell kalender", "kalender"]):
-                score -= 12
-            if any(k in ctx for k in ["annual general meeting", "capital markets", "dividend", "ex dividend"]):
-                score -= 5
-            pub_candidates.append((score, dt, m.start()))
+            left = max(0, m.start() - 260); right = min(len(raw), m.end() + 260)
+            ctx = _holding_fold_text(raw[left:right])
+            if not any(cue in ctx for cue in explicit_cues):
+                continue
+            if any(k in ctx for k in ["annual general meeting", "capital markets update", "ex dividend"]):
+                continue
+            # Prefer the date whose local context contains the strongest
+            # disclosure wording; ties prefer the earliest post-period date.
+            cue_score = sum(1 for cue in explicit_cues if cue in ctx)
+            explicit_pub_candidates.append((cue_score, dt, m.start()))
+
     published = None
-    if pub_candidates:
-        pub_candidates.sort(key=lambda x: (-x[0], x[1], x[2]))
-        best = pub_candidates[0]
-        # With no explicit semantic cue, require the candidate to be near the
-        # front of the report. This keeps post-period operating-event dates out.
-        if best[0] >= 3:
-            published = best[1]
+    if explicit_pub_candidates:
+        explicit_pub_candidates.sort(key=lambda x: (-x[0], x[1], x[2]))
+        published = explicit_pub_candidates[0][1]
+
+    if published is None:
+        pub_material = raw[:14000] + "\n" + raw[-10000:]
+        pub_candidates = []
+        for pat in date_pats:
+            for m in re.finditer(pat, pub_material, flags=re.I):
+                dt = _holding_parse_date_text(m.group(1))
+                if not dt:
+                    continue
+                if as_of is not None:
+                    lag = (dt - as_of).days
+                    if lag <= 0 or lag > 60:
+                        continue
+                elif dt > today:
+                    continue
+                left = max(0, m.start() - 150); right = min(len(pub_material), m.end() + 150)
+                ctx = _holding_fold_text(pub_material[left:right])
+                score = 0
+                if any(k in ctx for k in ["submitted for publication", "submitted for release", "published", "publication date", "date of publication"]):
+                    score += 12
+                if any(k in ctx for k in ["stockholm", "london", "paris", "helsinki", "copenhagen", "oslo", "zurich", "amsterdam", "brussels"]):
+                    score += 5
+                if m.start() < 3500:
+                    score += 3
+                if any(k in ctx for k in ["financial calendar", "calendar of events", "finansiell kalender", "kalender"]):
+                    score -= 12
+                if any(k in ctx for k in ["annual general meeting", "capital markets", "dividend", "ex dividend"]):
+                    score -= 5
+                pub_candidates.append((score, dt, m.start()))
+        if pub_candidates:
+            pub_candidates.sort(key=lambda x: (-x[0], x[1], x[2]))
+            best = pub_candidates[0]
+            # With no explicit semantic cue, require the candidate to be near
+            # the front/head-tail material. This keeps operating dates out.
+            if best[0] >= 3:
+                published = best[1]
 
     # Future financial-calendar dates. Require an explicit calendar heading,
     # then reporting semantics adjacent to the date.
@@ -10554,7 +10591,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             reverse=True,
         )
         result["nav"] = strict_nav_records[0]
-        # V94: If the strict NAV parse is from a report whose PDF/text lacks
+        # V95: If the strict NAV parse is from a report whose PDF/text lacks
         # structured web metadata, recover publication provenance from the same
         # issuer-report text. This is metadata-only and cannot affect ranking.
         if not result["nav"].get("published_date_obj"):
@@ -10575,14 +10612,14 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                     result["nav"]["published_date"] = meta.get("published_date")
                     result["nav"]["publication_source_url"] = meta_url
                     result["diagnostics"].append(
-                        f"Holding Report Metadata V94: Publikationsdatum {meta.get('published_date') or '–'} aus issuer-primary Reporttext ergänzt."
+                        f"Holding Report Metadata V95: Publikationsdatum {meta.get('published_date') or '–'} aus issuer-primary Reporttext ergänzt."
                     )
                     break
     if holding_calendar_events:
         holding_calendar_events.sort(key=lambda x: x.get("date_obj") or datetime(2100,1,1).date())
         result["next_financial_event"] = holding_calendar_events[0]
         result["diagnostics"].append(
-            f"Holding Financial Calendar V94: nächster issuer-primary Berichtstermin {holding_calendar_events[0].get('date') or '–'} aus Reporttext erkannt."
+            f"Holding Financial Calendar V95: nächster issuer-primary Berichtstermin {holding_calendar_events[0].get('date') or '–'} aus Reporttext erkannt."
         )
     if debt_records:
         debt_records.sort(key=lambda r: (r.get("as_of_date_obj") or datetime(1900,1,1).date()), reverse=True)
@@ -10666,7 +10703,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22198_holding_report_metadata_calendar_v94"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22199_holding_fullreport_publication_cue_v95"):
     # V89: explicit cache epoch prevents V87/V88 snapshots from surviving a parser/evidence-layer release.
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
@@ -11391,7 +11428,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
     company_name = (fundamental_info or {}).get("longName") or (fundamental_info or {}).get("shortName") or symbol
     discovery = _discover_listed_holding_primary_snapshot_cached(
         website, company_name=company_name, symbol=symbol,
-        cache_epoch="v22198_holding_report_metadata_calendar_v94",
+        cache_epoch="v22199_holding_fullreport_publication_cue_v95",
     )
     nav = discovery.get("nav") or {}
     debt = discovery.get("debt") or {}
@@ -11516,7 +11553,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "final_target_premium_discount_pct": safe_float(justified_target_diag.get("final_target_pct")),
         "target_premium_discount_released": bool(justified_target_diag.get("released")),
         "holding_peer_evidence": peer_evidence,
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Report Metadata & Financial-Calendar Provenance Guard V94",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Full-Report Publication-Cue Recovery Guard V95",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
