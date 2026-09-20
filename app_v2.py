@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.94"
+APP_BUILD_VERSION = "V2.21.95"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Holding Cadence-Aware NAV Freshness & Release-Reason Guard V90"
+    f"Build {APP_BUILD_VERSION} · Universal Holding Split-Header History Recovery & Peer-Cache Refresh Guard V91"
 )
 
 
@@ -49,6 +49,7 @@ st.caption(
 # V2.21.92: Universal Holding Report Concentration & Cost-Ratio Evidence Guard V88. Adds two issuer-neutral report-evidence adapters on top of the now-stable V84/V87 NAV stack. First, flattened issuer reports that expose a Net Asset Value overview with an explicit Share of total assets (%) column can supply portfolio-company weights and Top-1/2/3/4 concentration without relying on CMS holding cards. Second, interim/annual reports can supply management-cost ratios only when the text explicitly binds recurring management cost to NAV/adjusted NAV; annual-report tail pages may be extracted in the holding-cost slot to recover multi-year key-ratio series without changing the generic document bridge for other models. Current NAV, leverage, historical NAV calibration, peer mathematics, Fair Value, zones, V80 signals and Reality Check are unchanged; no issuer/ticker values are hard-coded.
 # V2.21.93: Universal Holding Evidence Cache Invalidation & Report-First Precedence Guard V89. Invalidates the stale listed-holding primary-snapshot cache epoch that could return pre-V88 V73/V87 evidence despite a V88 build label, and makes already-discovered issuer reports the first management-cost evidence route before legacy Key-Figures/website candidates. Report concentration/cost evidence is merged before release-blocker evaluation; website/search adapters remain fallback-only. Adds visible concentration/cost adapter traces for regression testing. Current NAV, leverage, historical NAV calibration, peer mathematics, V78 Fair Value, V79 zones, V80 signals and Reality Check mathematics remain byte-identical; no issuer/ticker values are hard-coded.
 # V2.21.94: Universal Holding Cadence-Aware NAV Freshness & Release-Reason Guard V90. Replaces the fixed 62-day live-NAV freshness cutoff with an issuer-history-derived cadence window: when at least three issuer-primary NAV dates establish a stable reporting rhythm, the freshness allowance becomes median reporting interval + 35 days, bounded to 62–150 days; otherwise the conservative 62-day fallback remains. This prevents normal quarterly holdings from becoming mechanically stale before their next scheduled reporting cycle while keeping monthly reporters tighter and very old NAVs fail-closed. The same freshness state is propagated into Step 3B and Fair-Value blocker text so a stale NAV can no longer be mislabeled as an unreleased target premium/discount. Target-P/NAV calibration, V78 Fair Value mathematics, V79 zones, V80 signals, peer/cost/concentration rules and all non-holding models remain unchanged; no issuer/ticker values are hard-coded.
+# V2.21.95: Universal Holding Split-Header History Recovery & Peer-Cache Refresh Guard V91. Keeps the six-observation/150-day historical calibration threshold unchanged and repairs only evidence recovery. Issuer HTML/report tables whose period header is split across a year row and a month/day row (for example 2026/2025/2025 above 30 June/30 June/31 Dec) are reconstructed into explicit period-end dates before NAV/share and target-share-class price pairing. Share-price labels that place the class letter immediately before the printed currency are recognized under the same strict table semantics. HTML report pages reuse the same parser before flat-report fallback. Holding snapshot and peer caches receive a new epoch and the peer research slice is modestly widened so a stale incomplete two-peer result cannot survive the release. Target-P/NAV mathematics, cost/leverage/concentration overlays, V78 Fair Value, V79 zones, V80 signals and all non-holding models remain unchanged; no issuer values are hard-coded.
 # V2.21.89: Universal Holding Quarterly NAV/Share-Price History Table Guard V85. Adds an issuer-neutral historical calibration route for holdings that publish periodic NAV/share and share-class prices in Financials/Key Figures tables instead of dated standalone NAV press releases. The adapter binds quarter headers, an explicit NAV-per-share row and the requested listed share-class price row column-by-column, derives same-period premium/discount observations only from issuer-primary values, and merges them into the existing historical calibration without promoting table history into the live current-NAV snapshot. The existing dated-release archive path remains unchanged as fallback. Current NAV V84, leverage, portfolio, holding-cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics are unchanged; no issuer/ticker values are hard-coded.
 # V2.21.85: Universal Holding Primary Listing & Issuer-Root Evidence Hub Guard V81. Fixes two reuse failures exposed by validating Investor AB after Industrivärden. Security-name normalization now treats Swedish public-company marker “publ” as a legal-form token, preventing a German secondary listing from outranking the Nasdaq Stockholm home listing merely because its display name omits “(publ)”. Listed-holding primary discovery now tries the provider/root URL before guessed locale paths, recognizes Q1–Q4 report links as issuer evidence hubs, and parses current NAV/share from report/homepage content through the strict explicit-per-share extractor before the broader legacy NAV parser. Report pages may contribute current NAV and leverage in the same bounded evidence window. Historical calibration, management-cost requirements, peer guard, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged/fail-closed until their own evidence gates pass; no Investor ticker/domain/value is hard-coded.
 
@@ -7824,6 +7825,7 @@ def _holding_extract_quarterly_nav_price_history(html, url, target_class=None):
         for pat in [
             r"\bclass\s+([a-z])\b", r"\b([a-z])\s+shares?\b", r"\b([a-z])\s*[-–—]?\s*aktien\b",
             r"\baktie(?:n)?\s+([a-z])\b", r"\bserie\s+([a-z])\b",
+            r"\b([a-z])\s*,?\s*(?:sek|eur|usd|gbp|kr)\b",
         ]:
             m = re.search(pat, folded, flags=re.I)
             if m:
@@ -7848,6 +7850,39 @@ def _holding_extract_quarterly_nav_price_history(html, url, target_class=None):
             if len(local) > len(period_map):
                 period_map = local
         if len(period_map) < 3:
+            # V91: some issuer tables split the column date across two header
+            # rows, e.g. [2026, 2025, 2025] followed by
+            # [30 June, 30 June, 31 Dec]. Reconstruct the exact period end
+            # by column instead of discarding an otherwise explicit table.
+            split_map = {}
+            year_row_idx = None
+            year_by_col = {}
+            for ridx, cells in enumerate(rows[:10]):
+                local_years = {}
+                for cidx, cell in enumerate(cells):
+                    ym = re.fullmatch(r"\s*(20\d{2})\s*", _clean_text(cell))
+                    if ym:
+                        local_years[cidx] = int(ym.group(1))
+                if len(local_years) > len(year_by_col):
+                    year_row_idx = ridx
+                    year_by_col = local_years
+            if year_row_idx is not None and len(year_by_col) >= 2:
+                for cells in rows[year_row_idx + 1: min(len(rows), year_row_idx + 4)]:
+                    local = {}
+                    for cidx, year in year_by_col.items():
+                        if cidx >= len(cells):
+                            continue
+                        day_month = _clean_text(cells[cidx])
+                        if not day_month or re.search(r"20\d{2}", day_month):
+                            continue
+                        dt = _holding_parse_date_text(f"{day_month} {year}")
+                        if dt is not None and dt <= datetime.now().date():
+                            local[cidx] = dt
+                    if len(local) > len(split_map):
+                        split_map = local
+            if len(split_map) >= 2:
+                period_map = split_map
+        if len(period_map) < 2:
             continue
 
         nav_row = None; nav_score = -1
@@ -7928,9 +7963,14 @@ def _holding_extract_report_nav_price_history(text, url, target_class=None):
     """
     if not text:
         return []
+    html_table_history = []
     try:
         raw = str(text)
-        if "<" in raw[:500] and ">" in raw[:500]:
+        if "<" in raw[:1000] and ">" in raw[:1000]:
+            # V91: before flattening an issuer report/article, let the strict
+            # HTML table adapter recover split-header NAV/share + class-price
+            # history. These records remain historical-only.
+            html_table_history = _holding_extract_quarterly_nav_price_history(raw, url, target_class=target_class)
             raw = BeautifulSoup(raw, "html.parser").get_text("\n", strip=True)
     except Exception:
         raw = str(text)
@@ -8027,13 +8067,14 @@ def _holding_extract_report_nav_price_history(text, url, target_class=None):
         for pat in [
             r"\bclass\s+([a-z])\b", r"\b([a-z])\s*[-–—]?\s*share\b", r"\b([a-z])\s+shares?\b",
             r"\b([a-z])\s*[-–—]?\s*aktien\b", r"\baktie(?:n)?\s+([a-z])\b", r"\bserie\s+([a-z])\b",
+            r"\b([a-z])\s*,?\s*(?:sek|eur|usd|gbp|kr)\b",
         ]:
             m = re.search(pat, folded, flags=re.I)
             if m:
                 return m.group(1).upper()
         return None
 
-    out = []
+    out = list(html_table_history)
 
     # Row-preserving path (HTML/text reports or PDF extractors that keep rows).
     if len(lines) >= 3:
@@ -10448,7 +10489,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22193_holding_report_evidence_cache_v89"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22195_holding_split_header_history_v91"):
     # V89: explicit cache epoch prevents V87/V88 snapshots from surviving a parser/evidence-layer release.
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
@@ -10805,7 +10846,7 @@ def _holding_discover_peer_nav_record(peer, deadline):
     records.sort(key=lambda r: (bool(r.get("semantic_guard")), r.get("as_of_date_obj") or datetime(1900,1,1).date(), int(r.get("quality") or 0)), reverse=True)
     return records[0], "ok"
 
-def _holding_build_family_peer_guard(symbol, max_seconds=30.0):
+def _holding_build_family_peer_guard(symbol, max_seconds=36.0):
     peers = _holding_family_peer_universe(symbol)
     if not peers:
         return {"available": False, "ready": False, "observations": [], "status": "Kein freigegebener Holding-Peer-Cluster für diesen Markt.", "diagnostic": "Holding Peer NAV Guard V77: PeerUniverse=0"}
@@ -10816,7 +10857,7 @@ def _holding_build_family_peer_guard(symbol, max_seconds=30.0):
     # next one.  Fallback peers are not touched unless the preferred cluster
     # yields fewer than three valid observations.
     planned_slots = max(1, len(preferred) + min(2, len(fallback)))
-    per_peer_seconds = max(4.5, min(6.0, float(max_seconds or 30.0) / planned_slots))
+    per_peer_seconds = max(5.0, min(7.0, float(max_seconds or 36.0) / planned_slots))
     observations = []
     trace = []
     attempted = 0
@@ -10935,7 +10976,7 @@ def _holding_build_family_peer_guard(symbol, max_seconds=30.0):
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _holding_build_family_peer_guard_cached(symbol, cache_epoch="v22181_universal_holding_template_multisource_dynamic_peer_v77"):
+def _holding_build_family_peer_guard_cached(symbol, cache_epoch="v22195_holding_peer_cache_refresh_v91"):
     return _holding_build_family_peer_guard(symbol)
 
 
@@ -11173,7 +11214,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
     company_name = (fundamental_info or {}).get("longName") or (fundamental_info or {}).get("shortName") or symbol
     discovery = _discover_listed_holding_primary_snapshot_cached(
         website, company_name=company_name, symbol=symbol,
-        cache_epoch="v22193_holding_report_evidence_cache_v89",
+        cache_epoch="v22195_holding_split_header_history_v91",
     )
     nav = discovery.get("nav") or {}
     debt = discovery.get("debt") or {}
@@ -11293,7 +11334,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "final_target_premium_discount_pct": safe_float(justified_target_diag.get("final_target_pct")),
         "target_premium_discount_released": bool(justified_target_diag.get("released")),
         "holding_peer_evidence": peer_evidence,
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Cadence-Aware NAV Freshness & Release-Reason Guard V90",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Split-Header History Recovery & Peer-Cache Refresh Guard V91",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
