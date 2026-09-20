@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.86"
+APP_BUILD_VERSION = "V2.21.87"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Listed Holding Current NAV Strict-Only & Metric-Date Coherence Guard V82"
+    f"Build {APP_BUILD_VERSION} · Listed Holding Historical/Current NAV Isolation & Strict Promotion Guard V83"
 )
 
 
@@ -42,6 +42,7 @@ st.caption(
 # V2.21.83: Holding P/NAV Evidence-Calibrated Valuation Zone Guard V79. Releases only the valuation-zone layer for listed holdings after V78 Fair Value is available. Zones are calibrated in P/NAV premium/discount percentage-point space around the already released issuer-specific target rather than reusing the generic EPS/P-E confidence bands. The band width is derived from the wider of issuer historical IQR and fresh peer IQR, with conservative family floors/caps; no new target valuation assumption is introduced. Price thresholds are translated back through the same issuer-primary NAV/share and existing unit-safe Fair Value context. Buy/hold/sell signals remain explicitly locked for a later build.
 # V2.21.84: Holding Zone-to-Signal Translation & No-Generic-Fundamental Guard V80. Releases only the action-translation layer for listed holdings after the V78 NAV Fair Value and V79 P/NAV zone are available. The holding signal engine does not invent or reuse the generic 100-point industrial fundamental score: it translates only the already released evidence-calibrated P/NAV zone under the existing valuation-confidence cap. At medium confidence, strong undervaluation may release Kauf/Nachkaufen, ordinary undervaluation remains Beobachten/Halten, fair valuation maps to Abwarten/Halten, ordinary overvaluation blocks new buys without forcing a sale, and only strong overvaluation may release Reduzieren for an existing holding. The holding engine never emits Starker Kauf or automatic Verkaufen from valuation alone. External analyst consensus remains a brake-only Reality Check and cannot create or upgrade an action.
 # V2.21.86: Listed Holding Current NAV Strict-Only & Metric-Date Coherence Guard V82. Hardens the reusable holding template after Investor AB exposed a false current-NAV record. Current valuation snapshots now accept only the strict explicit NAV/share extractor; the broader legacy NAV parser remains historical-release-only and can no longer populate a live current NAV. Any NAV as-of date after the runtime date is rejected rather than allowed to outrank valid current-period evidence, and undated page-level fallback dates ignore future governance/event dates. Holding leverage dates are now bound locally to the accepted ratio occurrence (for example “Leverage was 1.9 percent as of June 30, 2026”) instead of taking the earliest date in a report that may describe a prior-year comparator. Primary listing, historical calibration, management-cost guard, peer calibration, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged/fail-closed until their own evidence gates pass; no issuer values are hard-coded.
+# V2.21.87: Listed Holding Historical/Current NAV Isolation & Strict Promotion Guard V83. Fixes a cross-layer contamination bug exposed by Investor AB after V82: the historical release parser could append its broad historical NAV record back into the live current-NAV candidate pool, allowing a richer but non-current parse to outrank the strict current NAV by date. V83 physically separates historical calibration records from live current NAV evidence, permits promotion from a historical-release fetch only after that same document independently passes the strict current NAV/share extractor, and final-selects only records carrying the strict current-nav guard. Historical same-date share-price pairing remains available to the calibration layer but can no longer overwrite the live snapshot. Adds current-candidate source/guard trace diagnostics. Listing resolution, leverage, portfolio, cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged; no issuer values are hard-coded.
 # V2.21.85: Universal Holding Primary Listing & Issuer-Root Evidence Hub Guard V81. Fixes two reuse failures exposed by validating Investor AB after Industrivärden. Security-name normalization now treats Swedish public-company marker “publ” as a legal-form token, preventing a German secondary listing from outranking the Nasdaq Stockholm home listing merely because its display name omits “(publ)”. Listed-holding primary discovery now tries the provider/root URL before guessed locale paths, recognizes Q1–Q4 report links as issuer evidence hubs, and parses current NAV/share from report/homepage content through the strict explicit-per-share extractor before the broader legacy NAV parser. Report pages may contribute current NAV and leverage in the same bounded evidence window. Historical calibration, management-cost requirements, peer guard, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged/fail-closed until their own evidence gates pass; no Investor ticker/domain/value is hard-coded.
 
 # V2.21.49: Nordic Home-Listing & Cboe Venue Guard V45. Extends only the Security Identity & Primary Listing Resolver. Verified Industrivärden name aliases resolve Class C to the issuer-declared Nasdaq Stockholm home line (Yahoo-style INDU-C.ST), while Cboe Europe .XD/DXE rows are treated as secondary venues for name searches. Exact ticker input still retains its exact-security priority, so an explicitly entered .XD ticker remains selectable as entered. No company-family routing, EPS normalization, specialist model, score, Fair Value, Reality Check or signal mathematics are changed.
@@ -7609,9 +7610,9 @@ def _holding_extract_peer_nav_record(html, url):
     for lm in re.finditer(per_share_label_re, text, flags=re.I | re.S):
         suffix = text[lm.end():min(len(text), lm.end() + 180)]
         local = []
-        for m in re.finditer(r"^\s*[,;:()\-–—]*\s*\b(SEK|EUR|USD|GBP|kr|kronor)\b[^0-9]{0,12}([0-9]{1,5}(?:[.,][0-9]{1,2})?)", suffix, flags=re.I):
+        for m in re.finditer(r"^\s*[,;:()\-–—]*\s*\b(SEK|EUR|USD|GBP|kr|kronor)\b[\s:(),;\-–—]{0,8}([0-9]{1,5}(?:[.,][0-9]{1,2})?)", suffix, flags=re.I):
             local.append((m.end(), _num(m.group(2)), _currency(m.group(1))))
-        for m in re.finditer(r"^\s*[,;:()\-–—]*\s*([0-9]{1,5}(?:[.,][0-9]{1,2})?)[^A-Za-z0-9]{0,12}\b(SEK|EUR|USD|GBP|kr|kronor)\b", suffix, flags=re.I):
+        for m in re.finditer(r"^\s*[,;:()\-–—]*\s*([0-9]{1,5}(?:[.,][0-9]{1,2})?)[\s:(),;\-–—]{0,8}\b(SEK|EUR|USD|GBP|kr|kronor)\b", suffix, flags=re.I):
             local.append((m.end(), _num(m.group(1)), _currency(m.group(2))))
         if not local:
             m = re.match(r"\s*[,;:()\-–—]*\s*([0-9]{1,5}(?:[.,][0-9]{1,2})?)\b", suffix, flags=re.I)
@@ -7708,7 +7709,7 @@ def _holding_extract_peer_nav_record(html, url):
 
 
 def _holding_extract_current_nav_record(html, url):
-    """V81 current-snapshot NAV/share extractor.
+    """V83 current-snapshot NAV/share extractor.
 
     Prefer the strict explicit-per-share semantic used by the universal peer
     adapter. This prevents a total NAV amount (for example SEK bn) from being
@@ -7743,9 +7744,9 @@ def _holding_extract_current_nav_record(html, url):
         rec.setdefault("paired_price_date_obj", None)
         rec.setdefault("paired_price_date", None)
         rec["quality"] = max(int(rec.get("quality") or 0), 11) + (1 if published else 0)
-        rec["current_nav_guard"] = "strict_explicit_per_share_nonfuture_v82"
+        rec["current_nav_guard"] = "strict_explicit_per_share_nonfuture_v83"
         return rec
-    # V82: the broad legacy NAV extractor is intentionally historical-only.
+    # V83: the broad legacy NAV extractor is intentionally historical-only.
     # A current valuation anchor must prove explicit per-share semantics.
     return None
 
@@ -9280,10 +9281,32 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 history_pair_probes.append(pair_probe)
                 seen_hist_urls.add(hist_url)
 
-                # A concrete issuer release is also a richer candidate for the
-                # current NAV provenance (publication date + paired class price)
-                # than a summary/homepage widget with the same NAV as-of date.
-                nav_records.append(hrec)
+                # V83: Historical calibration and the live current-NAV snapshot
+                # are physically isolated. The broad historical release parser
+                # may recover same-date class closes and legacy release layouts,
+                # but its record must NEVER be inserted directly into nav_records.
+                # If this same release is also useful as current evidence, it has
+                # to independently pass the strict explicit NAV/share extractor.
+                strict_release_rec = _holding_extract_current_nav_record(hhtml, hist_url)
+                if strict_release_rec:
+                    # Same-document historical close metadata can enrich a strict
+                    # current record only when NAV value/date agree. It cannot
+                    # change the strict NAV value or date.
+                    same_date = (
+                        strict_release_rec.get("as_of_date_obj") is not None
+                        and hrec.get("as_of_date_obj") is not None
+                        and strict_release_rec.get("as_of_date_obj") == hrec.get("as_of_date_obj")
+                    )
+                    same_nav = (
+                        safe_float(strict_release_rec.get("nav_per_share")) is not None
+                        and safe_float(hrec.get("nav_per_share")) is not None
+                        and abs(safe_float(strict_release_rec.get("nav_per_share")) - safe_float(hrec.get("nav_per_share"))) <= 1e-6
+                    )
+                    if same_date and same_nav:
+                        strict_release_rec["same_date_class_prices"] = dict(hrec.get("same_date_class_prices") or {})
+                        strict_release_rec["paired_price_date_obj"] = hrec.get("paired_price_date_obj")
+                        strict_release_rec["paired_price_date"] = hrec.get("paired_price_date")
+                    nav_records.append(strict_release_rec)
                 if hrec.get("as_of_date_obj") and (hrec.get("same_date_class_prices") or {}):
                     history_records.append(hrec)
                 unique_dates = {r.get("as_of_date_obj") for r in history_records if r.get("as_of_date_obj")}
@@ -9329,8 +9352,12 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             "publication date and paired trading-date close are provenance only and are not required to equal the NAV as-of date."
         )
 
-    if nav_records:
-        nav_records.sort(
+    # V83 final live-NAV gate: historical/broad records can never win current
+    # snapshot selection. Only candidates produced by the strict current NAV
+    # extractor carry current_nav_guard and are eligible here.
+    strict_nav_records = [r for r in nav_records if r.get("current_nav_guard")]
+    if strict_nav_records:
+        strict_nav_records.sort(
             key=lambda r: (
                 r.get("as_of_date_obj") or datetime(1900,1,1).date(),
                 int(r.get("quality") or 0),
@@ -9338,7 +9365,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             ),
             reverse=True,
         )
-        result["nav"] = nav_records[0]
+        result["nav"] = strict_nav_records[0]
     if debt_records:
         debt_records.sort(key=lambda r: (r.get("as_of_date_obj") or datetime(1900,1,1).date()), reverse=True)
         result["debt"] = debt_records[0]
@@ -9376,11 +9403,26 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         f"NAV={'ja' if result.get('nav') else 'nein'}, DebtRatio={'ja' if result.get('debt') else 'nein'}, "
         f"Portfolio={'ja' if result.get('portfolio') else 'nein'}, HistoryNAV={len(result.get('nav_history') or [])}, SafetyRest={safety_remaining:.2f}s."
     )
+    strict_trace = []
+    for _r in sorted(
+        [r for r in nav_records if r.get("current_nav_guard")],
+        key=lambda r: (r.get("as_of_date_obj") or datetime(1900,1,1).date(), int(r.get("quality") or 0)),
+        reverse=True,
+    )[:5]:
+        _path = urlparse(str(_r.get("source_url") or "")).path or "/"
+        _nv = safe_float(_r.get("nav_per_share"))
+        _strict_txt = f"{_nv:.2f}" if _nv is not None else "–"
+        strict_trace.append(
+            f"{_strict_txt} {_r.get('currency') or '–'}@{_r.get('as_of_date') or '–'}"
+            f"[{_r.get('semantic_guard') or _r.get('current_nav_guard') or 'strict'}:{_path}]"
+        )
     result["diagnostics"].append(
-        "Holding Current NAV / Metric-Date Coherence V82: "
+        "Holding Current/Historical NAV Isolation V83: "
         f"Canonical={canonical_url} · ReportLinks={len(dedupe_sorted(report_links))} · NAVLinks={len(dedupe_sorted(nav_links))} · "
-        f"CurrentNAVGuard={(result.get('nav') or {}).get('current_nav_guard') or 'strict-only/no-current-nav'} · "
-        "Current NAV is strict explicit-per-share only; future NAV dates are rejected; Q1-Q4 report hubs may supply NAV/share and locally date-bound leverage."
+        f"CurrentCandidates={len([r for r in nav_records if r.get('current_nav_guard')])} · "
+        f"SelectedGuard={(result.get('nav') or {}).get('current_nav_guard') or 'strict-only/no-current-nav'}"
+        + ((" · CurrentTrace=" + " | ".join(strict_trace)) if strict_trace else "")
+        + " · Historical broad-parser records are isolated and cannot overwrite the live snapshot; future NAV dates are rejected."
     )
     result["diagnostics"].append(
         "Holding Timing V65: "
@@ -9393,7 +9435,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22186_holding_currentnav_strict_metricdate_v82"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22187_holding_current_history_isolation_v83"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
@@ -10182,7 +10224,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "final_target_premium_discount_pct": safe_float(justified_target_diag.get("final_target_pct")),
         "target_premium_discount_released": bool(justified_target_diag.get("released")),
         "holding_peer_evidence": peer_evidence,
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Current NAV Strict-Only & Metric-Date Guard V82",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Current/Historical NAV Isolation & Strict Promotion Guard V83",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
@@ -11267,7 +11309,7 @@ def classify_company(name, symbol, sector, industry):
 # Aktiensuche / Security Identity & Primary Listing Resolver
 # =========================================================
 
-SEARCH_RESOLVER_CACHE_EPOCH = "v22186_security_resolver_publ_homevenue_v82"
+SEARCH_RESOLVER_CACHE_EPOCH = "v22187_security_resolver_publ_homevenue_v83"
 
 SEARCH_EXCHANGE_PRIORITY = {
     # US primary venues
