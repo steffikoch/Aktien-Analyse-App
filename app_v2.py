@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.01"
+APP_BUILD_VERSION = "V2.22.02"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Asset Management BlackRock Primary-Snapshot & Fail-Closed UI Guard V97"
+    f"Build {APP_BUILD_VERSION} · Universal Asset Management Same-Basis Earnings & Evidence-Backed Premium Corridor Guard V98"
 )
 
 
@@ -55,6 +55,7 @@ st.caption(
 # V2.21.99: Universal Holding Full-Report Publication-Cue Recovery Guard V95. Fixes the remaining released-holding metadata gap exposed by Investor AB: publication/submission statements can sit in the middle of a long interim PDF rather than in the report head or tail, while the financial calendar on the same page was already recovered correctly. V95 first scans the full issuer-primary report text only for dates in explicit publication/submission context, then falls back to the prior bounded head/tail heuristic. The same post-period 60-day plausibility gate remains. Publication date and financial-calendar metadata remain UI/provenance only and cannot alter NAV freshness, target-P/NAV, history, overlays, peers, Fair Value, zones or signals. No issuer/ticker/date constants are hard-coded.
 # V2.22.00: Universal Asset Management AUM-Scope & Fee-Rate Evidence Guard V96. Corrects an evidence-taxonomy bug exposed by T. Rowe Price: issuer disclosure that combines Fixed Income including Money Market must not be converted into Money-Market AUM = 0 or Long-Term AUM = Total AUM. Flow rates are now labeled and calculated only against an explicitly matching issuer scope (e.g. Firmwide or Long-Term), with compatibility aliases retained for existing guards. TROW therefore keeps its verified H1 2026 annualized firmwide net-flow rate (~-2.28%) but no longer claims a separately disclosed Long-Term AUM or zero liquidity AUM. Effective fee-rate evidence is surfaced in Step 3B. Score, target P/E, Fair Value, zones and signals are unchanged unless scope evidence truly changes.
 
+# V2.22.02: Universal Asset Management Same-Basis Earnings & Evidence-Backed Premium Corridor Guard V98. Fixes two cross-company valuation-consistency gaps exposed by BlackRock. First, if a specialist uses issuer-adjusted TTM EPS, the 3Y Through-Cycle component may no longer fall back to generic GAAP history; it must use explicit issuer-adjusted annual EPS history from the same earnings family or remain fail-closed. Second, the traditional 9–18x asset-manager corridor remains the base corridor, but a fully validated 5/5 Premium-Unlock with score >=80 and a 3Y historical forward-P/E median above 18x can add a smooth evidence-backed extension. The historical median is only a ceiling (capped at 24x), never an automatic target; extension rises gradually with quality from score 80 to 100. Negative-flow and Money-Market downside guards remain dominant. TROW and other non-premium managers retain their prior mathematics.
 # V2.22.01: Universal Asset Management BlackRock Primary-Snapshot & Fail-Closed UI Guard V97. Validates BlackRock as a second main-company Asset-Management path using issuer-primary Q2/H1 2026 AUM, same-scope Long-Term flows, adjusted operating margin, base-fee/Average-AUM fee-rate evidence and issuer-adjusted TTM EPS; BLK remains a premium-franchise reference but is no longer reference-only when selected as the target. Also hardens Step 3B so any unsupported asset manager with an empty snapshot renders a fail-closed diagnostic instead of crashing the whole stock page. TROW/FHI/BEN/IVZ score, multiple and Fair Value mathematics are unchanged.
 
 # V2.21.89: Universal Holding Quarterly NAV/Share-Price History Table Guard V85. Adds an issuer-neutral historical calibration route for holdings that publish periodic NAV/share and share-class prices in Financials/Key Figures tables instead of dated standalone NAV press releases. The adapter binds quarter headers, an explicit NAV-per-share row and the requested listed share-class price row column-by-column, derives same-period premium/discount observations only from issuer-primary values, and merges them into the existing historical calibration without promoting table history into the live current-NAV snapshot. The existing dated-release archive path remains unchanged as fallback. Current NAV V84, leverage, portfolio, holding-cost, peer, Fair Value, zones, V80 signals and Reality Check mathematics are unchanged; no issuer/ticker values are hard-coded.
@@ -30858,6 +30859,10 @@ def get_verified_asset_manager_snapshot(symbol):
             "operating_margin_change_bps": 260.0,
             # Issuer-adjusted TTM EPS = FY2025 adjusted EPS 48.09 - H1'25 23.35 + H1'26 26.44.
             "issuer_adjusted_ttm_eps": 51.18,
+            # Same-basis annual adjusted diluted EPS history; V98 uses this median
+            # instead of mixing issuer-adjusted TTM/current-FY with generic GAAP history.
+            "issuer_adjusted_eps_history": [37.77, 43.61, 48.09],
+            "issuer_adjusted_eps_history_years": [2023, 2024, 2025],
             "earnings_stability_score": 10.0,
             # 94% of Q2 base-fee/securities-lending revenue is tied to long-term AUM;
             # technology/subscription revenue adds a diversified fee stream.
@@ -31201,8 +31206,25 @@ def build_asset_management_earnings_basis(snapshot, trailing_eps, current_fy_eps
         ttm_source = "Provider/GAAP TTM"
     current_fy = safe_float(current_fy_eps)
     through_cycle = safe_float(snap.get("through_cycle_eps"))
+    through_cycle_source = "Snapshot Through-Cycle EPS" if through_cycle is not None else None
+    if through_cycle is None and issuer_adjusted_ttm is not None:
+        adjusted_history = [safe_float(v) for v in (snap.get("issuer_adjusted_eps_history") or [])]
+        adjusted_history = [v for v in adjusted_history if v is not None and v > 0]
+        if adjusted_history:
+            through_cycle = float(pd.Series(adjusted_history[-3:]).median())
+            through_cycle_source = "Issuer-adjusted 3Y annual EPS median"
+        else:
+            return {
+                "available": False,
+                "normalized_eps": None,
+                "confidence": "Niedrig",
+                "same_basis_consistency_available": False,
+                "same_basis_guard": "issuer_adjusted_history_missing",
+                "note": "Asset-Manager Earnings-Basis fail-closed: issuer-adjusted TTM vorhanden, aber keine issuer-adjustierte 3Y-EPS-Historie derselben Earnings-Familie.",
+            }
     if through_cycle is None:
         through_cycle = _asset_manager_history_median_eps(historical_eps)
+        through_cycle_source = "Provider/GAAP 3Y EPS median"
     if any(v is None or v <= 0 for v in [trailing, current_fy, through_cycle]):
         return {
             "available": False,
@@ -31234,6 +31256,7 @@ def build_asset_management_earnings_basis(snapshot, trailing_eps, current_fy_eps
         "ttm_eps": trailing,
         "current_fy_eps": current_fy,
         "through_cycle_eps": through_cycle,
+        "through_cycle_eps_source": through_cycle_source,
         "ttm_source": ttm_source,
         "earnings_basis_family": (
             "Issuer-adjusted / Current-FY / Through-Cycle"
@@ -31263,6 +31286,7 @@ def build_asset_management_specialist_valuation(snapshot, specialist_score, earn
         "valuation_method_name": "Asset Manager Through-Cycle EPS / Specialist P/E",
         "corridor_low": 9.0,
         "corridor_high": 18.0,
+        "base_corridor_high": 18.0,
         "target_multiple": None,
         "fair_value_financial": None,
         "note": None,
@@ -31275,9 +31299,27 @@ def build_asset_management_specialist_valuation(snapshot, specialist_score, earn
     if score is None or normalized_eps is None or normalized_eps <= 0:
         result["note"] = "Asset-Management-Spezialbewertung gesperrt: nicht positive Earnings- oder Score-Basis."
         return result
-    raw_target = _asset_manager_target_pe_from_score(score)
-    target = raw_target
+    base_raw_target = _asset_manager_target_pe_from_score(score)
+    raw_target = base_raw_target
     caps = []
+
+    # V98 evidence-backed premium extension. The 9–18x curve remains the
+    # traditional-manager base. Only a complete 5/5 structural Premium-Unlock
+    # may extend toward the company's own 3Y historical forward-P/E median.
+    # The historical median is a capped ceiling, never an automatic target.
+    historical_pe = safe_float(snap.get("historical_forward_pe_3y_median"))
+    premium_count = int(score_data.get("premium_unlock_count") or 0)
+    premium_full_unlock = bool(score_data.get("premium_unlocked") and premium_count >= 5)
+    premium_extension_cap = None
+    premium_extension_uplift = 0.0
+    premium_quality_progress = 0.0
+    if premium_full_unlock and score >= 80.0 and historical_pe is not None and historical_pe > 18.0:
+        premium_extension_cap = min(24.0, historical_pe)
+        premium_quality_progress = max(0.0, min(1.0, (score - 80.0) / 20.0))
+        premium_extension_uplift = max(0.0, premium_extension_cap - 18.0) * premium_quality_progress
+        raw_target = base_raw_target + premium_extension_uplift
+        result["corridor_high"] = premium_extension_cap
+    target = raw_target
     flow_rate = safe_float(score_data.get("annualized_flow_rate_pct"))
     if flow_rate is None:
         flow_rate = safe_float(score_data.get("annualized_long_term_net_flow_pct"))
@@ -31312,7 +31354,13 @@ def build_asset_management_specialist_valuation(snapshot, specialist_score, earn
         "earnings_basis": normalized_eps,
         "earnings_basis_detail": earnings,
         "score": score,
+        "base_raw_score_multiple": base_raw_target,
         "raw_score_multiple": raw_target,
+        "premium_extension_applied": bool(premium_extension_cap is not None and premium_extension_uplift > 0),
+        "premium_extension_cap": premium_extension_cap,
+        "premium_extension_uplift": premium_extension_uplift,
+        "premium_quality_progress": premium_quality_progress,
+        "premium_extension_reference": historical_pe,
         "target_multiple": target,
         "pre_peer_guard_multiple": target,
         "flow_cap_applied": flow_cap_applied,
@@ -31324,8 +31372,9 @@ def build_asset_management_specialist_valuation(snapshot, specialist_score, earn
         "caps": caps,
         "fair_value_financial": normalized_eps * target,
         "note": (
-            "Fair Value = geglättete Asset-Manager-Earnings × nichtlinear scoregesteuertes 9–18× Spezial-KGV. "
-            "Negative Organic Flows im issuer-verifizierten Scope und fehlender Premium-Unlock wirken ausschließlich downside-only; unvollständige Flow-Raten werden nicht künstlich präzisiert."
+            "Fair Value = geglättete Asset-Manager-Earnings × nichtlinear scoregesteuertes Spezial-KGV. "
+            "9–18× bleibt der traditionelle Basiskorridor; nur ein vollständiger 5/5 Premium-Unlock kann evidenzbegrenzt und stufenlos oberhalb 18× erweitern. "
+            "Der eigene 3Y-Historical-Median dient dabei ausschließlich als gedeckelte Obergrenze, nicht als Zielmultiple. Negative Organic Flows und Money-Market-Konzentration bleiben downside-only Guards."
         ),
     })
     return result
@@ -34417,8 +34466,13 @@ def get_peer_group(company_type, symbol, industry=None):
             "peer_model": "asset_management_reference_guard_v1",
             "note": (
                 f"Asset-Management Peer Guard {APP_BUILD_VERSION}: FHI, TROW, BEN und IVZ bilden den traditionellen öffentlichen Core-Cluster; "
-                "das Zielunternehmen wird ausgeschlossen. BlackRock bleibt Premium-Referenz und beeinflusst den Core-Median nicht. "
-                "Janus Henderson (JHG) ist seit dem Take-private vom 30.06.2026 delistet und wird ausdrücklich nicht mehr als aktueller Peer verwendet."
+                "das Zielunternehmen wird ausgeschlossen. "
+                + (
+                    "BlackRock ist selbst das Zielunternehmen; eine separate BlackRock-Premium-Referenz entfällt. "
+                    if own_symbol == "BLK"
+                    else "BlackRock bleibt Premium-Referenz und beeinflusst den Core-Median nicht. "
+                )
+                + "Janus Henderson (JHG) ist seit dem Take-private vom 30.06.2026 delistet und wird ausdrücklich nicht mehr als aktueller Peer verwendet."
             ),
         }
 
@@ -59360,10 +59414,13 @@ if selected_symbol:
 
                     if is_asset_management_peer_metric:
                         st.write(f"**Brauchbare aktive Core-Peers:** {peer_check.get('core_usable_count', 0)}")
-                        st.write(
-                            "**BlackRock Premium-Referenz:** "
-                            + (f"{safe_float(peer_check.get('premium_reference_pe')):.2f}×" if safe_float(peer_check.get('premium_reference_pe')) is not None else "–")
-                        )
+                        if str((peer_group or {}).get("target_symbol") or "").upper() == "BLK":
+                            st.write("**BlackRock Premium-Referenz:** Zielunternehmen selbst · separate Referenz entfällt")
+                        else:
+                            st.write(
+                                "**BlackRock Premium-Referenz:** "
+                                + (f"{safe_float(peer_check.get('premium_reference_pe')):.2f}×" if safe_float(peer_check.get('premium_reference_pe')) is not None else "–")
+                            )
                     else:
                         st.write(
                             ("**Brauchbare Referenz-Peer-Daten:** " if (is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric or is_kratos_peer_metric or is_bkr_peer_metric or is_medical_devices_peer_metric) else "**Brauchbare Peer-Daten:** ")
@@ -60089,7 +60146,7 @@ if selected_symbol:
 
                 elif special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · BlackRock Primary-Snapshot & Fail-Closed UI Guard V97")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Same-Basis Earnings & Evidence-Backed Premium Corridor Guard V98")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
@@ -60169,11 +60226,19 @@ if selected_symbol:
                             if earn_am.get("available"):
                                 st.metric("Through-Cycle Earnings-Basis", format_eps(earn_am.get("normalized_eps"), financial_currency))
                                 st.caption(text_or_dash(earn_am.get("method")))
+                                if earn_am.get("through_cycle_eps_source"):
+                                    st.caption("3Y-Glättungsanker: " + text_or_dash(earn_am.get("through_cycle_eps_source")))
                             if val_am.get("available"):
                                 st.write(
                                     f"**Asset-Manager-KGV-Korridor:** {safe_float(val_am.get('corridor_low')):.2f}× – {safe_float(val_am.get('corridor_high')):.2f}× · "
                                     f"**Ziel-KGV:** {safe_float(val_am.get('target_multiple')):.2f}×"
                                 )
+                                if val_am.get("premium_extension_applied"):
+                                    st.caption(
+                                        "Premium-Korridor V98: traditioneller 18×-Deckel evidenzbasiert erweitert bis "
+                                        f"{safe_float(val_am.get('premium_extension_cap')):.2f}×; qualitätsgewichteter Aufschlag "
+                                        f"+{safe_float(val_am.get('premium_extension_uplift')):.2f}×. 3Y-Historical-Median ist nur Obergrenze, nicht Ziel."
+                                    )
                                 guard_status = str(val_am.get("multiple_guard_status") or "none")
                                 if guard_status == "hard":
                                     if val_am.get("historical_peer_cap_applied"):
