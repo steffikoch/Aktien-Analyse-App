@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.10"
+APP_BUILD_VERSION = "V2.22.11"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Asset Management Full-Year Scope Integrity Guard V106"
+    f"Build {APP_BUILD_VERSION} · Universal Asset Management Business-Model Precedence Guard V107"
 )
 
 
@@ -58,6 +58,7 @@ st.caption(
 # V2.22.02: Universal Asset Management Same-Basis Earnings & Evidence-Backed Premium Corridor Guard V98. Fixes two cross-company valuation-consistency gaps exposed by BlackRock. First, if a specialist uses issuer-adjusted TTM EPS, the 3Y Through-Cycle component may no longer fall back to generic GAAP history; it must use explicit issuer-adjusted annual EPS history from the same earnings family or remain fail-closed. Second, the traditional 9–18x asset-manager corridor remains the base corridor, but a fully validated 5/5 Premium-Unlock with score >=80 and a 3Y historical forward-P/E median above 18x can add a smooth evidence-backed extension. The historical median is only a ceiling (capped at 24x), never an automatic target; extension rises gradually with quality from score 80 to 100. Negative-flow and Money-Market downside guards remain dominant. TROW and other non-premium managers retain their prior mathematics.
 # V2.22.07: Universal Asset Management Current-Results Ranking & Multilingual Evidence Guard V103. Hardens the generic issuer-primary adapter after Amundi proved that a current IR hub can expose generic corporate-report PDFs ahead of the actual financial-results article. Candidate ranking now prioritizes current-period financial/results/quarter/half-year semantics (including French IR vocabulary) and penalizes generic corporate/ESG/engagement publications. The current-report parser adds bilingual EN/FR evidence aliases for AUM/encours, net inflows/collecte nette, management fees/commissions de gestion, cost-income/coefficient d'exploitation, adjusted EPS/bénéfice par action ajusté, French publication dates and current AUM-history tables. Same-basis Through-Cycle earnings remain independently fail-closed; TROW/BLK valuation mathematics are unchanged and no Amundi ticker/value snapshot is hard-coded.
 # V2.22.10: Universal Asset Management Full-Year Scope Integrity Guard V106. Fixes the V105 annual-EPS parser so a later Q4/T4/quarter table can never overwrite issuer-adjusted full-year EPS from the annual table. Annual sections are bounded before subsequent quarter/interim sections, explicit quarter-scope headers are rejected, first valid full-year observations win, and sentence fallbacks require annual context while rejecting quarter-only context. Ambiguous annual history remains fail-closed. Current-report evidence, TROW/BLK fixed snapshots, score/multiple mathematics and peer guards are unchanged; no issuer-specific annual EPS values are hard-coded.
+# V2.22.11: Universal Asset Management Business-Model Precedence Guard V107. Fixes family routing when an operating asset manager also describes portfolio companies, minority/majority stakes or private-equity investments inside one client product strategy. Explicit fee/service/client-investor evidence such as asset-management services and retail/institutional investor service now takes precedence over principal-capital holding keywords, preventing a sub-strategy from reclassifying the whole issuer as a listed holding. Holding NAV math, Asset-Management score/multiple/Fair-Value math, evidence adapters and TROW/BLK/Amundi valuation inputs remain unchanged. No issuer/ticker exception is added.
 # V2.22.06: Universal Asset Management Direct-IR Bootstrap & Same-Basis Fail-Closed Guard V102. Keeps V101 runtime isolation, but no longer relies on semantic web search as the first discovery route. The generic Asset-Manager adapter now crawls the provider-declared issuer site/root first, promotes current-year results/report links, follows one bounded issuer-owned second hop such as a Press Release PDF, and uses search only as fallback. Partial evidence/trace is retained for diagnostics. Generic discovered issuers are explicitly prevented from falling back to provider/GAAP Through-Cycle EPS until an issuer-adjusted same-basis TTM/3Y earnings bridge is available. Asset-Management special-event text is aligned with the fail-closed specialist state. TROW/BLK valuation mathematics remain unchanged; no Amundi ticker/value snapshot is hard-coded.
 # V2.22.01: Universal Asset Management BlackRock Primary-Snapshot & Fail-Closed UI Guard V97. Validates BlackRock as a second main-company Asset-Management path using issuer-primary Q2/H1 2026 AUM, same-scope Long-Term flows, adjusted operating margin, base-fee/Average-AUM fee-rate evidence and issuer-adjusted TTM EPS; BLK remains a premium-franchise reference but is no longer reference-only when selected as the target. Also hardens Step 3B so any unsupported asset manager with an empty snapshot renders a fail-closed diagnostic instead of crashing the whole stock page. TROW/FHI/BEN/IVZ score, multiple and Fair Value mathematics are unchanged.
 
@@ -6796,10 +6797,13 @@ def _looks_like_listed_investment_holding(industry, business_summary):
     # Strong evidence of a fee/advisory business: keep Asset Management.
     client_manager_terms = [
         "assets under management", " aum ", "investment advisory", "advisory services",
-        "investment management services", "management fees", "advisory fees",
+        "asset management services", "investment management services", "management fees", "advisory fees",
         "provides its services to", "client focused", "client-focused", "for its clients",
         "manages separate", "separate accounts", "mutual funds", "institutional clients",
-        "retail clients", "fund management", "third-party capital", "third party capital",
+        "retail clients", "institutional investors", "retail investors",
+        "serves institutional investors", "serves retail investors",
+        "serves retail and institutional investors", "serves institutional and retail investors",
+        "fund management", "third-party capital", "third party capital",
     ]
     padded = f" {combined} "
     if any(term in padded for term in client_manager_terms):
@@ -30791,7 +30795,7 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V105"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V107"
 ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22210_asset_manager_full_year_scope_integrity_v106"
 
 
