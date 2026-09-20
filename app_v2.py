@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.80"
+APP_BUILD_VERSION = "V2.21.81"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,12 +31,13 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Listed-Holding Peer NAV Discovery & IR Second-Hop Guard V76"
+    f"Build {APP_BUILD_VERSION} · Universal Holding Template V1 · Multi-Source NAV Evidence & Dynamic Peer Fallback V77"
 )
 
 
 # V2.21.79: Universal Listed-Holding Peer NAV Adapter & Unit/Share-Class Trace Guard V75. Fixes the V74 peer layer without changing valuation mathematics. The peer-only extractor anchors on explicit NAV-per-share semantics so total NAV cannot masquerade as NAV/share, supports quarter-end provenance when issuer tables use Q1/Q2/Q3/Q4 labels, and records source/market share-class context, NAV currency/unit, NAV date, latest market-price date and computed P/NAV in a per-peer trace. The peer runner gives every configured peer its own bounded research slice instead of allowing early peers to consume the entire budget. The generic issuer NAV/history adapters remain unchanged. Fair Value, valuation zones and signals remain locked until the peer evidence layer passes. No peer NAV values are hard-coded.
 # V2.21.80: Universal Listed-Holding Peer NAV Discovery & IR Second-Hop Guard V76. Keeps V75 valuation mathematics frozen and repairs only peer primary-source discovery. Peer research now uses multilingual exact NAV/share queries (English + Swedish), can crawl one bounded issuer-owned IR/report/NAV index hop, and can parse issuer-owned PDF reports through the existing embedded primary-document bridge. This is family-level HOLDING_TEMPLATE logic: no peer NAV values are hard-coded. Three valid peers remain mandatory; Fair Value, zones and signals stay locked until the peer guard passes.
+# V2.21.81: Universal Holding Template V1 · Multi-Source NAV Evidence & Dynamic Peer Fallback V77. Converts the Stockholm holding peer layer from a fixed four-name fetch into a reusable preferred-plus-fallback family template. Preferred peers remain the closest large Stockholm investment holdings; issuer-primary Svolder and Creades are researched only when fewer than three preferred peers validate. The peer NAV adapter broadens issuer-owned IR/report/press navigation, accepts ISO NAV as-of dates, and keeps HTML, press release, quarterly-report and issuer-PDF evidence under the same strict NAV/share semantic guard. Search snippets never become valuation evidence, no NAV values are hard-coded, and peer evidence remains a plausibility guard only. Fair Value, zones and signals remain locked.
 # V2.21.49: Nordic Home-Listing & Cboe Venue Guard V45. Extends only the Security Identity & Primary Listing Resolver. Verified Industrivärden name aliases resolve Class C to the issuer-declared Nasdaq Stockholm home line (Yahoo-style INDU-C.ST), while Cboe Europe .XD/DXE rows are treated as secondary venues for name searches. Exact ticker input still retains its exact-security priority, so an explicitly entered .XD ticker remains selectable as entered. No company-family routing, EPS normalization, specialist model, score, Fair Value, Reality Check or signal mathematics are changed.
 # V2.21.50: Security Resolver Cache-Epoch Guard V46. Couples the cached security-search result to an explicit resolver epoch so primary-listing alias/venue changes cannot reuse stale Streamlit cache entries from an older build. Search ranking, verified Industrivärden Stockholm mapping, company-family routing, EPS normalization, specialist models, scores, Fair Value, Reality Check and signal mathematics are unchanged.
 # V2.21.51: Listed Investment Holding Family Router V47. Separates principal-capital listed investment/holding companies from fee-based Asset Management by business-model evidence. Client AUM/advisory/management-fee signals keep the existing Asset-Manager route; own-portfolio/active-ownership/listed-holding signals route to a new fail-closed NAV family. No NAV Fair Value is released in this build. Security search, bank model, all released specialist scores/multiples/Fair Values, Reality Check and signal mathematics are unchanged.
@@ -7077,7 +7078,7 @@ def _holding_parse_date_text(value):
             return datetime(int(iso.group(1)), int(iso.group(2)), int(iso.group(3))).date()
         except Exception:
             pass
-    m = re.search(r"\b([A-Za-zÅÄÖåäö]+)\s+(\d{1,2}),?\s+(20\d{2})\b", text)
+    m = re.search(r"\b([A-Za-zÅÄÖåäö]+\.?)\s+(\d{1,2}),?\s+(20\d{2})\b", text)
     if m:
         month = _HOLDING_MONTHS.get(m.group(1).lower().rstrip("."))
         if month:
@@ -7085,7 +7086,7 @@ def _holding_parse_date_text(value):
                 return datetime(int(m.group(3)), month, int(m.group(2))).date()
             except Exception:
                 pass
-    m = re.search(r"\b(\d{1,2})\s+([A-Za-zÅÄÖåäö]+)\s+(20\d{2})\b", text)
+    m = re.search(r"\b(\d{1,2})\s+([A-Za-zÅÄÖåäö]+\.?)\s+(20\d{2})\b", text)
     if m:
         month = _HOLDING_MONTHS.get(m.group(2).lower().rstrip("."))
         if month:
@@ -7166,8 +7167,8 @@ def _holding_publication_date_fallback(text, as_of_date=None):
     text = _clean_text(text) or ""
     dates = []
     patterns = [
-        r"([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
-        r"(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
+        r"([A-Za-zÅÄÖåäö]+\.?\s+\d{1,2},?\s+20\d{2})",
+        r"(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\.?\s+20\d{2})",
     ]
     for pat in patterns:
         for m in re.finditer(pat, text[:1800]):
@@ -7531,8 +7532,9 @@ def _holding_extract_peer_nav_record(html, url):
     def _exact_dates(fragment):
         hits = []
         for pat in [
-            r"([A-Za-zÅÄÖåäö]+\s+\d{1,2},?\s+20\d{2})",
-            r"(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\s+20\d{2})",
+            r"\b(20\d{2}[-/.]\d{1,2}[-/.]\d{1,2})\b",
+            r"([A-Za-zÅÄÖåäö]+\.?\s+\d{1,2},?\s+20\d{2})",
+            r"(\d{1,2}\s+[A-Za-zÅÄÖåäö]+\.?\s+20\d{2})",
         ]:
             for m in re.finditer(pat, fragment or "", flags=re.I):
                 dt = _holding_parse_date_text(m.group(1))
@@ -7593,7 +7595,37 @@ def _holding_extract_peer_nav_record(html, url):
             "semantic_guard": "explicit_per_share_nearest_value", "quality": 9 + (2 if as_of else 0),
         })
 
-    # 2) HTML table: explicit NAV/share row + period columns. This covers pages
+    # 2) Linearized report/text row: issuer PDFs and accessibility renderers may
+    # flatten a table into "Substansvärde per aktie 79 83 ...".  The label is
+    # still explicit per-share semantics; the first adjacent value is the current
+    # column, never a total NAV amount.  Swedish labels imply SEK only when the
+    # currency is not printed in the same local fragment.
+    for lm in re.finditer(per_share_label_re, text, flags=re.I | re.S):
+        suffix = text[lm.end():min(len(text), lm.end() + 180)]
+        local = []
+        for m in re.finditer(r"^\s*[,;:()\-–—]*\s*\b(SEK|EUR|USD|GBP|kr|kronor)\b[^0-9]{0,12}([0-9]{1,5}(?:[.,][0-9]{1,2})?)", suffix, flags=re.I):
+            local.append((m.end(), _num(m.group(2)), _currency(m.group(1))))
+        for m in re.finditer(r"^\s*[,;:()\-–—]*\s*([0-9]{1,5}(?:[.,][0-9]{1,2})?)[^A-Za-z0-9]{0,12}\b(SEK|EUR|USD|GBP|kr|kronor)\b", suffix, flags=re.I):
+            local.append((m.end(), _num(m.group(1)), _currency(m.group(2))))
+        if not local:
+            m = re.match(r"\s*[,;:()\-–—]*\s*([0-9]{1,5}(?:[.,][0-9]{1,2})?)\b", suffix, flags=re.I)
+            if m and re.search(r"substansv[aä]rd", lm.group(0), flags=re.I):
+                local.append((m.end(), _num(m.group(1)), "SEK"))
+        local = [x for x in local if x[1] is not None and 1.0 <= x[1] <= 10000.0]
+        if not local:
+            continue
+        _, nav, cur = min(local, key=lambda x: x[0])
+        ctx_start = max(0, lm.start() - 360)
+        ctx_end = min(len(text), lm.end() + 420)
+        ctx = text[ctx_start:ctx_end]
+        dates = _exact_dates(ctx)
+        as_of = max((d for _, d in dates), default=None)
+        candidates.append({
+            "nav_per_share": nav, "currency": cur, "as_of_date_obj": as_of,
+            "semantic_guard": "explicit_per_share_linearized_row", "quality": 10 + (2 if as_of else 0),
+        })
+
+    # 3) HTML table: explicit NAV/share row + period columns. This covers pages
     # such as Latour where Q2/2026 is the provenance rather than a release date.
     for table in soup.find_all("table"):
         rows = []
@@ -9335,16 +9367,25 @@ def _holding_build_historical_nav_calibration(nav_history, symbol):
 
 
 def _holding_family_peer_universe(symbol):
-    """Family-level identity/discovery metadata for Stockholm holdings."""
+    """Reusable Stockholm listed-holding peer template with bounded fallback.
+
+    V77 separates *preferred* peers from *fallback* peers.  The guard always
+    researches the preferred cluster first and only expands when fewer than
+    three valid issuer-primary NAV/share observations survive.  The metadata
+    contains identities and issuer roots only; no NAV or market values are
+    hard-coded.
+    """
     own = str(symbol or "").strip().upper()
     if not own.endswith(".ST"):
         return []
     universe = [
-        {"symbol": "INVE-B.ST", "name": "Investor AB", "website": "https://www.investorab.com/"},
-        {"symbol": "LUND-B.ST", "name": "L E Lundbergföretagen AB", "website": "https://www.lundbergforetagen.se/en/"},
-        {"symbol": "LATO-B.ST", "name": "Investment AB Latour", "website": "https://www.latour.se/en/"},
-        {"symbol": "BURE.ST", "name": "Bure Equity AB", "website": "https://www.bure.se/en/home-en"},
-        {"symbol": "INDU-C.ST", "name": "AB Industrivärden", "website": "https://www.industrivarden.se/en-gb/"},
+        {"symbol": "INVE-B.ST", "name": "Investor AB", "website": "https://www.investorab.com/", "tier": "preferred"},
+        {"symbol": "LUND-B.ST", "name": "L E Lundbergföretagen AB", "website": "https://www.lundbergforetagen.se/en/", "tier": "preferred"},
+        {"symbol": "LATO-B.ST", "name": "Investment AB Latour", "website": "https://www.latour.se/en/", "tier": "preferred"},
+        {"symbol": "BURE.ST", "name": "Bure Equity AB", "website": "https://www.bure.se/en/home-en", "tier": "preferred"},
+        {"symbol": "SVOL-B.ST", "name": "Svolder AB", "website": "https://svolder.se/", "tier": "fallback"},
+        {"symbol": "CRED-A.ST", "name": "Creades AB", "website": "https://www.creades.se/", "tier": "fallback"},
+        {"symbol": "INDU-C.ST", "name": "AB Industrivärden", "website": "https://www.industrivarden.se/en-gb/", "tier": "preferred"},
     ]
     return [row for row in universe if not _same_canonical_issuer_symbol(row.get("symbol"), own)]
 
@@ -9405,9 +9446,12 @@ def _holding_peer_last_price_snapshot(symbol):
 def _holding_discover_peer_nav_record(peer, deadline):
     """Discover a fresh issuer-primary peer NAV/share record.
 
-    V76 is deliberately a discovery repair, not a valuation change. It combines
-    strict V75 per-share semantics with multilingual exact search, one bounded
-    issuer-owned IR/index second hop and the existing issuer-primary PDF bridge.
+    V77 treats HTML fact pages, press releases, IR/report indexes and issuer PDFs
+    as standardized routes into the same strict NAV/share parser.  Search results
+    are discovery metadata only; a value is accepted only after the issuer-owned
+    destination itself is fetched and parsed.  Broader IR/press navigation is
+    intentionally generic so Investor/Bure-like site structures do not require
+    ticker-specific parser branches.
     """
     symbol = _clean_text((peer or {}).get("symbol"))
     name = _clean_text((peer or {}).get("name"))
@@ -9420,7 +9464,7 @@ def _holding_discover_peer_nav_record(peer, deadline):
     records = []
     discovery_seen = set()
 
-    def _consider(payload, resolved_url, label=""):
+    def _consider(payload, resolved_url, label="", route="html"):
         if not payload:
             return
         rec = _holding_extract_peer_nav_record(payload, resolved_url)
@@ -9428,22 +9472,34 @@ def _holding_discover_peer_nav_record(peer, deadline):
             return
         as_of = rec.get("as_of_date_obj")
         if not as_of:
+            # Some CMS pages place an ISO as-of date only in the release title or
+            # slug.  This remains issuer-primary because resolved_url/label belong
+            # to the fetched issuer page; no search snippet value is accepted.
+            as_of = _holding_nav_asof_hint_from_release(resolved_url, label)
+            if as_of is None:
+                as_of = _holding_parse_date_text(label) or _holding_parse_date_text(resolved_url)
+            if as_of is not None:
+                rec["as_of_date_obj"] = as_of
+                rec["as_of_date"] = _holding_date_display(as_of)
+                rec["quality"] = int(rec.get("quality") or 0) + 1
+        if not as_of:
             return
         try:
             age = (datetime.now().date() - as_of).days
         except Exception:
             age = 9999
-        # Peer NAV may be quarterly; allow up to ~5 months, but never an older
-        # stale annual value when fresher evidence should exist.
+        # Quarterly NAVs remain usable for family comparison for roughly five
+        # months; high-frequency NAV publishers naturally surface fresher facts.
         if -7 <= age <= 155:
             row = dict(rec)
             row["nav_age_days"] = age
             row["peer_symbol"] = symbol
             row["peer_name"] = name
             row["candidate_label"] = label
+            row["discovery_route"] = route
             records.append(row)
 
-    def _queue(url, label="", parent_url=None):
+    def _queue(url, label="", parent_url=None, route="link"):
         url = _clean_text(url)
         if not url or not _holding_same_issuer_url(url, domain):
             return
@@ -9451,18 +9507,21 @@ def _holding_discover_peer_nav_record(peer, deadline):
         if key in discovery_seen:
             return
         discovery_seen.add(key)
-        candidates.append((url, _clean_text(label), parent_url))
+        candidates.append((url, _clean_text(label), parent_url, route))
 
     def _rank(item):
-        url, label, parent_url = item
+        url, label, parent_url, route = item
         hay = _holding_fold_text(" ".join([label or "", url or ""]))
         score = 0
-        if any(x in hay for x in ["net asset value per share", "nav per share", "substansvarde per aktie", "substansvärde per aktie"]): score += 220
-        if any(x in hay for x in ["adjusted net asset value", "net asset value", "substansvarde", "substansvärde"]): score += 130
+        if any(x in hay for x in ["net asset value per share", "nav per share", "substansvarde per aktie", "substansvärde per aktie"]): score += 240
+        if any(x in hay for x in ["adjusted net asset value", "net asset value", "substansvarde", "substansvärde"]): score += 140
         if any(x in hay for x in ["2026", "q2", "second quarter", "half year", "six months", "january june", "jan jun", "januari juni"]): score += 75
-        if any(x in hay for x in ["interim report", "quarterly report", "half year report", "reports presentations", "delarsrapport", "delårsrapport", "rapport"]): score += 55
-        if str(url).lower().split("?", 1)[0].endswith(".pdf"): score += 25
-        if parent_url: score += 15
+        if any(x in hay for x in ["interim report", "quarterly report", "half year report", "reports presentations", "delarsrapport", "delårsrapport", "rapport"]): score += 60
+        if any(x in hay for x in ["investor relations", "investors media", "investors-media", "investors", "investor"]): score += 35
+        if any(x in hay for x in ["press release", "press releases", "pressreleaser", "news", "media"]): score += 20
+        if str(url).lower().split("?", 1)[0].endswith(".pdf"): score += 30
+        if parent_url: score += 12
+        if route == "search": score += 4
         return score
 
     def _enqueue_second_hop(html, resolved_url):
@@ -9480,12 +9539,14 @@ def _holding_discover_peer_nav_record(peer, deadline):
                 if not any(k in hay for k in [
                     "net asset value", "nav per share", "substansvarde", "substansvärde",
                     "interim report", "quarterly report", "half year", "six months",
-                    "delarsrapport", "delårsrapport", "q2", "2026", "reports", "rapport"
+                    "delarsrapport", "delårsrapport", "q1", "q2", "q3", "q4", "2026",
+                    "reports", "rapport", "investor relations", "investors", "investor",
+                    "press release", "pressreleaser", "press", "news", "media"
                 ]):
                     continue
-                child_rows.append((url, label, resolved_url))
-            for row in sorted(child_rows, key=_rank, reverse=True)[:10]:
-                _queue(row[0], row[1], row[2])
+                child_rows.append((url, label, resolved_url, "issuer-link"))
+            for row in sorted(child_rows, key=_rank, reverse=True)[:14]:
+                _queue(row[0], row[1], row[2], row[3])
         except Exception:
             pass
 
@@ -9505,12 +9566,12 @@ def _holding_discover_peer_nav_record(peer, deadline):
         except Exception:
             return "", url, str(url).lower().split("?", 1)[0].endswith(".pdf")
 
-    # 1) Issuer landing page. Besides direct NAV facts, collect IR/report/NAV
-    # index links for one bounded second hop.
-    if _research_budget_ok(deadline, reserve=1.2):
+    # 1) Start at the issuer root.  The broader navigation vocabulary is the
+    # main V77 repair for sites whose NAV lives behind Investors & Media -> 2026.
+    if _research_budget_ok(deadline, reserve=1.15):
         html, resolved, _ = _fetch_candidate(website)
         if html and _holding_same_issuer_url(resolved, domain):
-            _consider(html, resolved, "issuer homepage")
+            _consider(html, resolved, "issuer homepage", route="homepage")
             _enqueue_second_hop(html, resolved)
 
     strict_home = [r for r in records if r.get("semantic_guard")]
@@ -9518,21 +9579,23 @@ def _holding_discover_peer_nav_record(peer, deadline):
         strict_home.sort(key=lambda r: (r.get("as_of_date_obj") or datetime(1900,1,1).date(), int(r.get("quality") or 0)), reverse=True)
         return strict_home[0], "ok"
 
-    # 2) Exact multilingual domain-only searches. Domain-only wording is
-    # intentional: legal company names often differ from IR page titles.
+    # 2) Exact multilingual domain-only discovery.  Search snippets can only
+    # nominate URLs; values always come from the fetched issuer destination.
     search_queries = [
-        f'site:{domain} "net asset value" "per share"',
-        f'site:{domain} "adjusted net asset value" "per share"',
-        f'site:{domain} "substansvärde" "per aktie"',
-        f'site:{domain} "substansvarde" "per aktie"',
+        f'site:{domain} "net asset value" "per share" 2026',
+        f'site:{domain} "adjusted net asset value" "per share" 2026',
+        f'site:{domain} "substansvärde" "per aktie" 2026',
+        f'site:{domain} "substansvarde" "per aktie" 2026',
         f'site:{domain} "interim report" 2026 "net asset value"',
         f'site:{domain} "delårsrapport" 2026 "substansvärde"',
     ]
+    queries_run = 0
     for query in search_queries:
-        if not _research_budget_ok(deadline, reserve=1.25):
+        if not _research_budget_ok(deadline, reserve=1.15):
             break
+        queries_run += 1
         try:
-            for item in _duckduckgo_html_search(query, max_results=5, deadline=deadline):
+            for item in _duckduckgo_html_search(query, max_results=6, deadline=deadline):
                 url = _clean_text(item.get("url"))
                 if not url or not _holding_same_issuer_url(url, domain):
                     continue
@@ -9542,33 +9605,33 @@ def _holding_discover_peer_nav_record(peer, deadline):
                     "net asset value", "nav", "substansvarde", "substansvärde",
                     "interim report", "delarsrapport", "delårsrapport", "2026"
                 ]):
-                    _queue(url, label)
+                    _queue(url, label, route="search")
         except Exception:
             pass
-        # As soon as an exact per-share candidate exists, spend remaining time
-        # fetching rather than launching more searches.
-        if any(_rank(x) >= 200 for x in candidates):
+        # Run at least two complementary queries before yielding to fetches;
+        # this avoids a dynamic NAV chart page crowding out a static report.
+        if queries_run >= 2 and any(_rank(x) >= 220 for x in candidates):
             break
 
-    # 3) Existing semantic search remains a fallback, but it no longer carries
-    # the whole discovery burden.
-    if _research_budget_ok(deadline, reserve=1.4) and not candidates:
+    # 3) Existing family semantic search is a final URL-discovery fallback.
+    if _research_budget_ok(deadline, reserve=1.25) and not candidates:
         try:
             found = _holding_semantic_source_search(
                 domain, name, deadline=deadline, needed_kinds=["nav", "report"],
                 query_offset=0, max_queries_per_kind=1,
             )
             for url, label in (found.get("nav") or []) + (found.get("report") or []):
-                _queue(url, label)
+                _queue(url, label, route="semantic-search")
         except Exception:
             pass
 
-    # 4) Best-first bounded crawl. A fetched IR/index page may contribute one
-    # extra issuer-owned hop, allowing report archive -> Q2/half-year report.
+    # 4) Best-first issuer-owned crawl.  Each fetched HTML page may nominate a
+    # further issuer-owned IR/report/press child, but the per-peer deadline keeps
+    # the traversal bounded.
     fetched = set()
-    while candidates and _research_budget_ok(deadline, reserve=0.45):
+    while candidates and _research_budget_ok(deadline, reserve=0.35):
         candidates.sort(key=_rank, reverse=True)
-        url, label, parent_url = candidates.pop(0)
+        url, label, parent_url, route = candidates.pop(0)
         key = url.split("#", 1)[0]
         if key in fetched:
             continue
@@ -9576,7 +9639,7 @@ def _holding_discover_peer_nav_record(peer, deadline):
         payload, resolved, is_pdf = _fetch_candidate(url, parent_url=parent_url)
         if not payload:
             continue
-        _consider(payload, resolved, label)
+        _consider(payload, resolved, label, route=("issuer-pdf" if is_pdf else route))
         if records and any(r.get("semantic_guard") for r in records):
             break
         if not is_pdf:
@@ -9587,28 +9650,37 @@ def _holding_discover_peer_nav_record(peer, deadline):
     records.sort(key=lambda r: (bool(r.get("semantic_guard")), r.get("as_of_date_obj") or datetime(1900,1,1).date(), int(r.get("quality") or 0)), reverse=True)
     return records[0], "ok"
 
-def _holding_build_family_peer_guard(symbol, max_seconds=24.0):
+def _holding_build_family_peer_guard(symbol, max_seconds=30.0):
     peers = _holding_family_peer_universe(symbol)
     if not peers:
-        return {"available": False, "ready": False, "observations": [], "status": "Kein freigegebener Holding-Peer-Cluster für diesen Markt.", "diagnostic": "Holding Peer NAV Guard V76: PeerUniverse=0"}
+        return {"available": False, "ready": False, "observations": [], "status": "Kein freigegebener Holding-Peer-Cluster für diesen Markt.", "diagnostic": "Holding Peer NAV Guard V77: PeerUniverse=0"}
 
-    # V76: every configured peer receives an independent bounded slice. One slow
-    # issuer therefore cannot starve all later peers (the V74 Bure failure mode).
-    per_peer_seconds = max(4.0, float(max_seconds or 24.0) / max(1, len(peers)))
+    preferred = [p for p in peers if str(p.get("tier") or "preferred") == "preferred"]
+    fallback = [p for p in peers if str(p.get("tier") or "") == "fallback"]
+    # Research budget is per attempted peer so a slow issuer cannot starve the
+    # next one.  Fallback peers are not touched unless the preferred cluster
+    # yields fewer than three valid observations.
+    planned_slots = max(1, len(preferred) + min(2, len(fallback)))
+    per_peer_seconds = max(4.5, min(6.0, float(max_seconds or 30.0) / planned_slots))
     observations = []
     trace = []
+    attempted = 0
+    fallback_used = False
 
-    for peer in peers:
+    def _attempt(peer):
+        nonlocal attempted
+        attempted += 1
         peer_deadline = time.monotonic() + per_peer_seconds
         peer_symbol = peer.get("symbol")
+        tier = str(peer.get("tier") or "preferred")
         market_class = _holding_peer_symbol_share_class(peer_symbol)
         rec, reason = _holding_discover_peer_nav_record(peer, peer_deadline)
         if not rec:
             trace.append(
                 f"reject:{peer_symbol}:{reason}"
-                f"(class={market_class or 'unspecified'},nav=–,nav_date=–,price=–,price_date=–,pnav=–)"
+                f"(tier={tier},class={market_class or 'unspecified'},nav=–,nav_date=–,price=–,price_date=–,pnav=–)"
             )
-            continue
+            return False
 
         snap = _holding_peer_last_price_snapshot(peer_symbol)
         price = safe_float(snap.get("price"))
@@ -9618,36 +9690,35 @@ def _holding_build_family_peer_guard(symbol, max_seconds=24.0):
         nav_class = _clean_text(rec.get("share_class")) or None
         nav_date = rec.get("as_of_date") or _holding_date_display(rec.get("as_of_date_obj"))
         price_date = snap.get("price_date")
+        route = _clean_text(rec.get("discovery_route")) or "issuer-primary"
 
-        # Same-unit guard: P/NAV is valid only when both sides use the same
-        # currency unit. If market currency is unavailable, Stockholm-family
-        # peers may still proceed when the issuer NAV explicitly reports SEK.
         if nav_cur and price_cur and nav_cur != price_cur:
             trace.append(
                 f"reject:{peer_symbol}:currency_mismatch"
-                f"(class={market_class or 'unspecified'}/navclass={nav_class or 'all'},nav={format(nav, '.2f') if nav is not None else '–'} {nav_cur},nav_date={nav_date or '–'},price={format(price, '.2f') if price is not None else '–'} {price_cur},price_date={price_date or '–'},pnav=–)"
+                f"(tier={tier},route={route},class={market_class or 'unspecified'}/navclass={nav_class or 'all'},nav={format(nav, '.2f') if nav is not None else '–'} {nav_cur},nav_date={nav_date or '–'},price={format(price, '.2f') if price is not None else '–'} {price_cur},price_date={price_date or '–'},pnav=–)"
             )
-            continue
+            return False
 
         if price is None or nav is None or nav <= 0:
             trace.append(
                 f"reject:{peer_symbol}:price_or_nav_missing"
-                f"(class={market_class or 'unspecified'}/navclass={nav_class or 'all'},nav={nav if nav is not None else '–'},nav_date={nav_date or '–'},price={price if price is not None else '–'},price_date={price_date or '–'},pnav=–)"
+                f"(tier={tier},route={route},class={market_class or 'unspecified'}/navclass={nav_class or 'all'},nav={nav if nav is not None else '–'},nav_date={nav_date or '–'},price={price if price is not None else '–'},price_date={price_date or '–'},pnav=–)"
             )
-            continue
+            return False
 
         pnav = price / nav
         premium = (pnav - 1.0) * 100.0
         if premium < -60.0 or premium > 120.0:
             trace.append(
                 f"reject:{peer_symbol}:implausible_pnav"
-                f"(class={market_class or 'unspecified'}/navclass={nav_class or 'all'},nav={nav:.2f} {nav_cur or '–'},nav_date={nav_date or '–'},price={price:.2f} {price_cur or nav_cur or '–'},price_date={price_date or '–'},pnav={pnav:.3f}x,pd={premium:+.1f}%)"
+                f"(tier={tier},route={route},class={market_class or 'unspecified'}/navclass={nav_class or 'all'},nav={nav:.2f} {nav_cur or '–'},nav_date={nav_date or '–'},price={price:.2f} {price_cur or nav_cur or '–'},price_date={price_date or '–'},pnav={pnav:.3f}x,pd={premium:+.1f}%)"
             )
-            continue
+            return False
 
         observations.append({
             "symbol": peer_symbol,
             "name": peer.get("name"),
+            "peer_tier": tier,
             "share_class": market_class,
             "nav_share_class": nav_class,
             "nav_per_share": nav,
@@ -9655,6 +9726,7 @@ def _holding_build_family_peer_guard(symbol, max_seconds=24.0):
             "nav_age_days": rec.get("nav_age_days"),
             "nav_source_url": rec.get("source_url"),
             "nav_semantic_guard": rec.get("semantic_guard"),
+            "nav_discovery_route": route,
             "current_price": price,
             "price_date": price_date,
             "pnav": pnav,
@@ -9663,8 +9735,19 @@ def _holding_build_family_peer_guard(symbol, max_seconds=24.0):
         })
         trace.append(
             f"accept:{peer_symbol}"
-            f"(class={market_class or 'unspecified'}/navclass={nav_class or 'all'},nav={nav:.2f} {nav_cur or '–'},nav_date={nav_date or '–'},price={price:.2f} {price_cur or nav_cur or '–'},price_date={price_date or '–'},pnav={pnav:.3f}x,pd={premium:+.1f}%)"
+            f"(tier={tier},route={route},class={market_class or 'unspecified'}/navclass={nav_class or 'all'},nav={nav:.2f} {nav_cur or '–'},nav_date={nav_date or '–'},price={price:.2f} {price_cur or nav_cur or '–'},price_date={price_date or '–'},pnav={pnav:.3f}x,pd={premium:+.1f}%)"
         )
+        return True
+
+    for peer in preferred:
+        _attempt(peer)
+
+    if len(observations) < 3 and fallback:
+        fallback_used = True
+        for peer in fallback:
+            _attempt(peer)
+            if len(observations) >= 3:
+                break
 
     vals = [safe_float(x.get("premium_discount_pct")) for x in observations if safe_float(x.get("premium_discount_pct")) is not None]
     if vals:
@@ -9683,13 +9766,21 @@ def _holding_build_family_peer_guard(symbol, max_seconds=24.0):
         "q1_pct": q1,
         "q3_pct": q3,
         "observations": observations,
+        "preferred_peer_count": len(preferred),
+        "fallback_peer_count": len(fallback),
+        "fallback_used": fallback_used,
+        "attempted_peer_count": attempted,
         "status": (f"{len(vals)} frische issuer-primary Holding-Peers · Median {median:+.1f}%" if ready and median is not None else f"Nur {len(vals)} brauchbare Holding-Peers; mindestens 3 erforderlich."),
-        "diagnostic": f"Holding Peer NAV Guard V76: PeerUniverse={len(peers)}, AttemptedPeers={len(peers)}, ValidPeers={len(vals)}, Ready={'yes' if ready else 'no'}; PerPeerBudget={per_peer_seconds:.1f}s; Trace=" + " | ".join(trace[:12]),
+        "diagnostic": (
+            f"Holding Peer NAV Guard V77: PeerUniverse={len(peers)}, Preferred={len(preferred)}, FallbackUniverse={len(fallback)}, "
+            f"AttemptedPeers={attempted}, ValidPeers={len(vals)}, FallbackUsed={'yes' if fallback_used else 'no'}, Ready={'yes' if ready else 'no'}; "
+            f"PerPeerBudget={per_peer_seconds:.1f}s; Trace=" + " | ".join(trace[:14])
+        ),
     }
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _holding_build_family_peer_guard_cached(symbol, cache_epoch="v22180_universal_holding_peer_nav_discovery_secondhop_v76"):
+def _holding_build_family_peer_guard_cached(symbol, cache_epoch="v22181_universal_holding_template_multisource_dynamic_peer_v77"):
     return _holding_build_family_peer_guard(symbol)
 
 
@@ -9864,7 +9955,7 @@ def _holding_build_justified_nav_target_diagnostic(historical_calibration, debt_
         "release_blockers": blockers,
         "double_count_guard": (
             "Historischer Median enthält normale Holdingkosten und Struktur bereits teilweise. "
-            "V76 verwendet die issuer-primary Kostenquote deshalb nur als Abweichungs-Guard gegen die eigene Mehrjahresnorm. Der Holding-Peer-Median ist ebenfalls nur ein Plausibilitäts-Guard; "
+            "V77 verwendet die issuer-primary Kostenquote deshalb nur als Abweichungs-Guard gegen die eigene Mehrjahresnorm. Der Holding-Peer-Median ist ebenfalls nur ein Plausibilitäts-Guard; "
             "eine normale/niedrige Kostenquote erhält 0,00 pp und wird nicht nochmals kapitalisiert."
         ),
         "method": "Historical median + bounded current-risk overlays + issuer-primary own-history management-cost guard + family peer NAV plausibility guard",
@@ -9992,7 +10083,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
         "final_target_premium_discount_pct": safe_float(justified_target_diag.get("final_target_pct")),
         "target_premium_discount_released": bool(justified_target_diag.get("released")),
         "holding_peer_evidence": peer_evidence,
-        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Peer NAV Discovery & IR Second-Hop Guard V76",
+        "source_name": "Issuer Primary Source · Listed Investment Holding NAV / Capital Structure · Multi-Source NAV Evidence & Dynamic Peer Fallback V77",
         "diagnostics": discovery.get("diagnostics") or [],
     }
     return {
@@ -10030,7 +10121,7 @@ def build_listed_investment_holding_specialist_model(company_type, fundamental_i
             f"{APP_BUILD_VERSION} trennt aktuellen issuer-primary NAV, Kurs/NAV-Premium-Discount, Holding-Leverage und Portfoliokonzentration. "
             "Die historische Verteilung liefert den Basisanker; Leverage und Konzentration bleiben begrenzte diagnostische Overlays. "
             "Issuer-primary Holdingkosten/Strukturdrag werden gegen die eigene Mehrjahresnorm geprüft; ein markt-/familiengerechter Holding-Peer-Cluster dient nur als Plausibilitäts-Guard. "
-            "V76 kann den Ziel-Premium/Discount freigeben; Fair Value, Zonen und Signale bleiben trotzdem noch gesperrt."
+            "V77 kann den Ziel-Premium/Discount freigeben; Fair Value, Zonen und Signale bleiben trotzdem noch gesperrt."
         ),
     }
 
@@ -32529,11 +32620,11 @@ def get_peer_group(company_type, symbol, industry=None):
 
     if "listed investment / holding company" in type_name and own_symbol.endswith(".ST"):
         family_peers = _holding_family_peer_universe(own_symbol)
-        peers = [{"symbol": row.get("symbol"), "name": row.get("name"), "role": "core"} for row in family_peers]
+        peers = [{"symbol": row.get("symbol"), "name": row.get("name"), "role": ("fallback" if row.get("tier") == "fallback" else "core")} for row in family_peers]
         return {
             "available": bool(peers), "peers": peers, "count": len(peers), "target_symbol": own_symbol,
             "peer_model": "listed_holding_nav_reference_v1", "reference_only": True,
-            "note": (f"Listed-Holding NAV Peer Template {APP_BUILD_VERSION}: Stockholm-Peers werden über issuer-primary NAV/share und aktuellen Marktpreis geprüft. Mindestens 3 frische Peers sind Pflicht; Median/IQR sind nur Plausibilitäts-Guard und erzwingen keine automatische Anpassung des issuer-spezifischen Ziel-Premium/Discount."),
+            "note": (f"Listed-Holding NAV Peer Template {APP_BUILD_VERSION}: Zuerst werden bevorzugte Stockholm-Holdings über issuer-primary NAV/share und aktuellen Marktpreis geprüft; nur bei weniger als 3 validen Beobachtungen werden zusätzliche Family-Fallback-Peers nachgeladen. Mindestens 3 frische Peers sind Pflicht; Median/IQR sind nur Plausibilitäts-Guard und erzwingen keine automatische Anpassung des issuer-spezifischen Ziel-Premium/Discount."),
         }
 
     if own_symbol in {"RHM.DE", "RHM.F", "RNMBY", "RNMBF"} and "defense / stark wachsend" in type_name:
@@ -56881,9 +56972,10 @@ if selected_symbol:
                     )
 
                     for peer in peer_group["peers"]:
+                        peer_suffix_ui = " · Fallback" if peer.get("role") == "fallback" else ""
                         st.write(
                             f"• {peer['name']} "
-                            f"({peer['symbol']})"
+                            f"({peer['symbol']}){peer_suffix_ui}"
                         )
 
                     st.write(
@@ -57743,7 +57835,7 @@ if selected_symbol:
 
                         target_diag_h = snap_h.get("justified_nav_target_diagnostic") or {}
                         if target_diag_h.get("available"):
-                            st.write("**Justified NAV Premium/Discount – Kalibrierung & Peer-Guard V76:**")
+                            st.write("**Justified NAV Premium/Discount – Kalibrierung & Peer-Guard V77:**")
                             jt1, jt2, jt3 = st.columns(3)
                             with jt1:
                                 st.metric("Historischer Basisanker", f"{safe_float(target_diag_h.get('historical_anchor_pct')):+.1f} %")
@@ -57786,14 +57878,14 @@ if selected_symbol:
                                 st.caption("Peer-Adapter: " + text_or_dash(target_diag_h.get("peer_diagnostic")))
                             final_target_h = safe_float(target_diag_h.get("final_target_pct"))
                             if target_diag_h.get("released") and final_target_h is not None:
-                                st.success(f"Ziel-Premium/Discount V76 freigegeben: {final_target_h:+.1f} %. Fair Value bleibt in diesem Build noch separat gesperrt.")
+                                st.success(f"Ziel-Premium/Discount V77 freigegeben: {final_target_h:+.1f} %. Fair Value bleibt in diesem Build noch separat gesperrt.")
                             st.warning(text_or_dash(target_diag_h.get("double_count_guard")))
                             blockers_h = target_diag_h.get("release_blockers") or []
                             if blockers_h:
                                 st.caption("Freigabe-Blocker: " + " · ".join(str(x) for x in blockers_h))
                             st.info(
                                 "Der vorläufige Zielwert wird erst nach bestandenem Holding-Peer-Guard als Ziel-Premium/Discount freigegeben. "
-                                "Auch ein freigegebener Zielwert steuert in V76 noch **nicht** Fair Value, Bewertungszonen oder Signale."
+                                "Auch ein freigegebener Zielwert steuert in V77 noch **nicht** Fair Value, Bewertungszonen oder Signale."
                             )
 
                         st.success("Holding-NAV-Primärdatenmodell aktiv: NAV, aktueller Premium/Discount, historische Kalibrierung und diagnostische Ziel-Premium/Discount-Brücke sind getrennt vom EPS/KGV-Pfad verfügbar.")
