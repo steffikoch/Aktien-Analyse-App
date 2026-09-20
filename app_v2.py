@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.21.84"
+APP_BUILD_VERSION = "V2.21.85"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Holding Zone-to-Signal Translation & No-Generic-Fundamental Guard V80"
+    f"Build {APP_BUILD_VERSION} · Universal Holding Primary Listing & Issuer-Root Evidence Hub Guard V81"
 )
 
 
@@ -41,6 +41,7 @@ st.caption(
 # V2.21.82: Holding NAV Fair Value Release & Unit-Safe Translation Guard V78. Promotes only the already released listed-holding target premium/discount into a dedicated NAV-based Fair Value: issuer-primary NAV/share × (1 + released target premium/discount). The branch requires fresh primary NAV, released historical/cost/peer calibration, explicit quote/report currency alignment and any verified share-unit conversion. Generic EPS/KGV/FCF mathematics remain blocked. Valuation zones and buy/hold signals remain intentionally locked for a later build so Fair Value translation can be tested independently. No issuer values are hard-coded.
 # V2.21.83: Holding P/NAV Evidence-Calibrated Valuation Zone Guard V79. Releases only the valuation-zone layer for listed holdings after V78 Fair Value is available. Zones are calibrated in P/NAV premium/discount percentage-point space around the already released issuer-specific target rather than reusing the generic EPS/P-E confidence bands. The band width is derived from the wider of issuer historical IQR and fresh peer IQR, with conservative family floors/caps; no new target valuation assumption is introduced. Price thresholds are translated back through the same issuer-primary NAV/share and existing unit-safe Fair Value context. Buy/hold/sell signals remain explicitly locked for a later build.
 # V2.21.84: Holding Zone-to-Signal Translation & No-Generic-Fundamental Guard V80. Releases only the action-translation layer for listed holdings after the V78 NAV Fair Value and V79 P/NAV zone are available. The holding signal engine does not invent or reuse the generic 100-point industrial fundamental score: it translates only the already released evidence-calibrated P/NAV zone under the existing valuation-confidence cap. At medium confidence, strong undervaluation may release Kauf/Nachkaufen, ordinary undervaluation remains Beobachten/Halten, fair valuation maps to Abwarten/Halten, ordinary overvaluation blocks new buys without forcing a sale, and only strong overvaluation may release Reduzieren for an existing holding. The holding engine never emits Starker Kauf or automatic Verkaufen from valuation alone. External analyst consensus remains a brake-only Reality Check and cannot create or upgrade an action.
+# V2.21.85: Universal Holding Primary Listing & Issuer-Root Evidence Hub Guard V81. Fixes two reuse failures exposed by validating Investor AB after Industrivärden. Security-name normalization now treats Swedish public-company marker “publ” as a legal-form token, preventing a German secondary listing from outranking the Nasdaq Stockholm home listing merely because its display name omits “(publ)”. Listed-holding primary discovery now tries the provider/root URL before guessed locale paths, recognizes Q1–Q4 report links as issuer evidence hubs, and parses current NAV/share from report/homepage content through the strict explicit-per-share extractor before the broader legacy NAV parser. Report pages may contribute current NAV and leverage in the same bounded evidence window. Historical calibration, management-cost requirements, peer guard, Fair Value, zones, V80 signals and Reality Check mathematics remain unchanged/fail-closed until their own evidence gates pass; no Investor ticker/domain/value is hard-coded.
 
 # V2.21.49: Nordic Home-Listing & Cboe Venue Guard V45. Extends only the Security Identity & Primary Listing Resolver. Verified Industrivärden name aliases resolve Class C to the issuer-declared Nasdaq Stockholm home line (Yahoo-style INDU-C.ST), while Cboe Europe .XD/DXE rows are treated as secondary venues for name searches. Exact ticker input still retains its exact-security priority, so an explicitly entered .XD ticker remains selectable as entered. No company-family routing, EPS normalization, specialist model, score, Fair Value, Reality Check or signal mathematics are changed.
 # V2.21.50: Security Resolver Cache-Epoch Guard V46. Couples the cached security-search result to an explicit resolver epoch so primary-listing alias/venue changes cannot reuse stale Streamlit cache entries from an older build. Search ranking, verified Industrivärden Stockholm mapping, company-family routing, EPS normalization, specialist models, scores, Fair Value, Reality Check and signal mathematics are unchanged.
@@ -7694,6 +7695,44 @@ def _holding_extract_peer_nav_record(html, url):
         best["source_title"] = None
     return best
 
+
+def _holding_extract_current_nav_record(html, url):
+    """V81 current-snapshot NAV/share extractor.
+
+    Prefer the strict explicit-per-share semantic used by the universal peer
+    adapter. This prevents a total NAV amount (for example SEK bn) from being
+    mistaken for NAV/share when both appear in the same sentence. The broad
+    legacy issuer parser remains a fallback and is still used directly for
+    dated historical releases where share-class close provenance is required.
+    """
+    if not html:
+        return None
+    strict = _holding_extract_peer_nav_record(html, url)
+    if strict:
+        rec = dict(strict)
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+        except Exception:
+            soup = None
+        published = _holding_structured_publication_date(soup) if soup is not None else None
+        if published is None:
+            try:
+                txt = _clean_text(" ".join(_clean_text(x) for x in soup.stripped_strings)) if soup is not None else ""
+            except Exception:
+                txt = ""
+            published = _holding_publication_date_fallback(txt, rec.get("as_of_date_obj"))
+            if published is not None and rec.get("as_of_date_obj") is not None and published <= rec.get("as_of_date_obj"):
+                published = None
+        rec["published_date_obj"] = published
+        rec["published_date"] = _holding_date_display(published)
+        rec.setdefault("same_date_class_prices", {})
+        rec.setdefault("paired_price_date_obj", None)
+        rec.setdefault("paired_price_date", None)
+        rec["quality"] = max(int(rec.get("quality") or 0), 11) + (1 if published else 0)
+        rec["current_nav_guard"] = "strict_explicit_per_share_v81"
+        return rec
+    return _holding_extract_nav_record(html, url)
+
 def _holding_extract_debt_ratio(html, url):
     if not html:
         return None
@@ -7706,6 +7745,7 @@ def _holding_extract_debt_ratio(html, url):
         ("Debt-equities ratio", r"debt[- ]equities\s+ratio\s*[:|]?\s*([0-9]{1,2}(?:[.,][0-9])?)\s*%"),
         ("Debt/Equity ratio", r"debt\s*/\s*equity\s+ratio\s*[:|]?\s*([0-9]{1,2}(?:[.,][0-9])?)\s*%"),
         ("Gearing", r"\bgearing(?:\s+ratio)?\s*[:|]?\s*([0-9]{1,2}(?:[.,][0-9])?)\s*%"),
+        ("Leverage", r"\bleverage(?:\s+(?:was|is|stood\s+at|amounted\s+to))?\s*[:|]?\s*([0-9]{1,2}(?:[.,][0-9])?)\s*(?:%|percent)"),
         ("Skuldsättningsgrad", r"skulds[aä]ttningsgrad\s*[:|]?\s*([0-9]{1,2}(?:[.,][0-9])?)\s*%"),
     ]
     metric = None
@@ -8389,13 +8429,15 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     host = parsed.netloc or company_domain
     root = f"{scheme}://{host}".rstrip("/")
 
-    # Prefer one canonical provider/English page first. The remaining locale
-    # variants are true fallbacks and are intentionally deferred.
+    # V81: Trust the provider-owned URL/root before guessing locale paths.
+    # Some issuers (for example modern CMS/IR sites) expose all evidence from
+    # the root and return empty/404 content for synthetic /en-gb/ or /en/ paths.
+    # Explicit provider subpaths remain first when Yahoo already supplies one.
     path = (parsed.path or "/").strip()
     canonical_candidates = []
     if path and path != "/":
         canonical_candidates.append(raw_website)
-    for url in [root + "/en-gb/", root + "/en/", raw_website, root + "/"]:
+    for url in [raw_website, root + "/", root + "/en-gb/", root + "/en/"]:
         if url and url not in canonical_candidates and _holding_same_issuer_url(url, company_domain):
             canonical_candidates.append(url)
     canonical_url = canonical_candidates[0] if canonical_candidates else raw_website
@@ -8461,6 +8503,9 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
             "interim report", "half year", "six months", "year end report",
             "delarsrapport", "bokslutsrapport", "quarterly report", "quarter report",
         ]):
+            return True
+        # V81: IR hubs frequently label current reports only as “Q2 Report”.
+        if re.search(r"\bq[1-4]\s+(?:report|rapport|results?|presentation)\b", folded_label, flags=re.I):
             return True
         if any(term in folded_url for term in [
             "interim", "half year", "delarsrapport", "delarsrapporter",
@@ -8648,7 +8693,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 if not _research_budget_ok(active_deadline, reserve=0.55):
                     break
                 html = fetch(url, referer=referer, phase_deadline=active_deadline)
-                rec = _holding_extract_nav_record(html, url)
+                rec = _holding_extract_current_nav_record(html, url)
                 if rec:
                     nav_records.append(rec)
                 collect_links(url, html)
@@ -8664,6 +8709,12 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 rec = _holding_extract_debt_ratio(html, url)
                 if rec:
                     debt_records.append(rec)
+                # V81: a report landing page can be the issuer's primary NAV/share
+                # evidence hub as well. Parse it once with the strict current-NAV
+                # guard instead of forcing a separate semantic-search round trip.
+                nav_rec = _holding_extract_current_nav_record(html, url)
+                if nav_rec and not any((r.get("source_url") == url) for r in nav_records):
+                    nav_records.append(nav_rec)
                 # HTML reports can expose further issuer links; PDF text simply has none.
                 # V61 deliberately keeps evaluating the bounded priority set: the
                 # first valid ratio can belong to an older year-end report while a
@@ -8676,7 +8727,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
     homepage_deadline = _evidence_deadline(3.8)
     html = fetch(canonical_url, phase_deadline=homepage_deadline or overall_deadline)
     if html:
-        rec = _holding_extract_nav_record(html, canonical_url)
+        rec = _holding_extract_current_nav_record(html, canonical_url)
         if rec:
             nav_records.append(rec)
         collect_links(canonical_url, html)
@@ -8753,7 +8804,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                         marker_text = _holding_fold_text(BeautifulSoup(nhtml, "html.parser").get_text(" ", strip=True))
                         if any(term in marker_text for term in ["net asset value", "substansvarde", "nav per share"]):
                             nav_release_marker_pages += 1
-                    rec = _holding_extract_nav_record(nhtml, nav_url)
+                    rec = _holding_extract_current_nav_record(nhtml, nav_url)
                     if rec:
                         nav_records.append(rec)
                         break
@@ -8800,7 +8851,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 if time.monotonic() >= slot_end:
                     break
                 html = fetch(url, referer=canonical_url, phase_deadline=slot_end)
-                rec = _holding_extract_nav_record(html, url)
+                rec = _holding_extract_current_nav_record(html, url)
                 if rec:
                     nav_records.append(rec)
                     collect_links(url, html)
@@ -8962,7 +9013,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
                 html = fetch(url, phase_deadline=locale_phase_end)
                 if not html:
                     continue
-                rec = _holding_extract_nav_record(html, url)
+                rec = _holding_extract_current_nav_record(html, url)
                 if rec:
                     nav_records.append(rec)
                 collect_links(url, html)
@@ -9288,6 +9339,12 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
         f"Portfolio={'ja' if result.get('portfolio') else 'nein'}, HistoryNAV={len(result.get('nav_history') or [])}, SafetyRest={safety_remaining:.2f}s."
     )
     result["diagnostics"].append(
+        "Holding Issuer-Root Evidence Hub V81: "
+        f"Canonical={canonical_url} · ReportLinks={len(dedupe_sorted(report_links))} · NAVLinks={len(dedupe_sorted(nav_links))} · "
+        f"CurrentNAVGuard={(result.get('nav') or {}).get('current_nav_guard') or 'legacy/historical'} · "
+        "Provider/root URL precedes guessed locale fallbacks; Q1-Q4 report hubs may supply both NAV/share and leverage."
+    )
+    result["diagnostics"].append(
         "Holding Timing V65: "
         f"Bootstrap={timings['bootstrap']:.2f}s · Homepage={timings['homepage']:.2f}s · "
         f"Report={timings['report']:.2f}s · NAV={timings['nav']:.2f}s · "
@@ -9298,7 +9355,7 @@ def _discover_listed_holding_primary_snapshot(website, company_name=None, symbol
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22177_listed_holding_cost_source_ranking_v73"):
+def _discover_listed_holding_primary_snapshot_cached(website, company_name=None, symbol=None, cache_epoch="v22185_holding_root_reporthub_currentnav_v81"):
     return _discover_listed_holding_primary_snapshot(website, company_name=company_name, symbol=symbol)
 
 
@@ -11172,7 +11229,7 @@ def classify_company(name, symbol, sector, industry):
 # Aktiensuche / Security Identity & Primary Listing Resolver
 # =========================================================
 
-SEARCH_RESOLVER_CACHE_EPOCH = "v22150_security_resolver_cache_epoch_v46"
+SEARCH_RESOLVER_CACHE_EPOCH = "v22185_security_resolver_publ_homevenue_v81"
 
 SEARCH_EXCHANGE_PRIORITY = {
     # US primary venues
@@ -11195,7 +11252,7 @@ SEARCH_LEGAL_WORDS = {
     "THE", "INC", "INCORPORATED", "CORP", "CORPORATION", "COMPANY", "CO",
     "PLC", "LTD", "LIMITED", "SA", "SAS", "SE", "NV", "AG", "KGAA",
     "GMBH", "SPA", "BV", "HOLDING", "HOLDINGS", "GROUP", "GRUPPE",
-    "AKTIENGESELLSCHAFT", "SOCIETE", "SCA", "OYJ", "ASA", "AB",
+    "AKTIENGESELLSCHAFT", "SOCIETE", "SCA", "OYJ", "ASA", "AB", "PUBL",
 }
 
 PRIMARY_SEARCH_ALIASES = [
@@ -11528,9 +11585,13 @@ def _listing_candidate_score(item, query, query_type, identifier_rows=None):
     elif query_core and query_core in name_core:
         score += 400
 
-    if query_folded and name_folded == query_folded:
+    # V81: once legal-form-normalized issuer cores are identical, do not give
+    # an extra +1000 merely because one secondary venue omits “(publ)”, “plc”,
+    # “Inc.” etc. Home-venue priority must decide among same-issuer listings.
+    core_exact = bool(query_core and name_core == query_core)
+    if query_folded and name_folded == query_folded and not core_exact:
         score += 1000
-    elif query_folded and name_folded.startswith(query_folded):
+    elif query_folded and name_folded.startswith(query_folded) and not core_exact:
         score += 300
 
     query_words = [word for word in query_core.split() if len(word) >= 2]
