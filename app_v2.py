@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.31"
+APP_BUILD_VERSION = "V2.22.32"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Net-Cash Balance Independence from FCF Quality Gate V127"
+    f"Build {APP_BUILD_VERSION} · Development-Stage Mining Subprofile Router V128"
 )
 
 
@@ -51,6 +51,7 @@ st.caption(
 # V2.22.28: Exact-Ticker Collision Null-Default Selection Guard V124. Search-UI-only change. Replaces the synthetic collision placeholder from V123 with Streamlit's native null-default selectbox (index=None + placeholder) and a fresh V124 widget key, so cross-exchange exact-ticker collisions cannot inherit or auto-select the first real security. Explicit full-symbol inputs such as TLG.AX or TLG.TO remain directly selectable; unique ticker/name/WKN/ISIN searches keep the existing behavior. V122 collision discovery/ranking, V121 development-stage mining guard and all valuation mathematics remain unchanged; no ticker/issuer hard-coding is introduced.
 # V2.22.29: Exact-Ticker Collision Explicit Confirmation Gate V125. Search-UI-only hardening after runtime testing showed that the deployed Streamlit selectbox may still expose/return its first real option despite null-default or synthetic-placeholder attempts. Cross-exchange exact-ticker collisions therefore now require an explicit form submit before selected_symbol is released to the identity/load pipeline. The confirmed symbol is stored under a fresh query-scoped V125 session key so normal reruns preserve the user's explicit choice, while stale V123/V124 widget state cannot auto-load a security. Explicit full-symbol inputs and all resolver/ranking, family routing and valuation mathematics remain unchanged; no ticker/issuer hard-coding is introduced.
 # V2.22.31: Net-Cash Balance Independence from FCF Quality Gate V127. The standard balance layer now preserves the existing direct 15/15 net-cash result when debt minus cash is <= 0, even if the FCF Quality & Horizon-Proxy Gate marks the current FCF denominator unusable. The FCF-quality block remains fully active for positive net debt, where Net-Debt/FCF requires a reliable positive denominator. No Mining, LOM, Development-Stage, Fair-Value, corridor, signal, ticker-collision or specialist-model mathematics changed.
+# V2.22.32: Development-Stage Mining Subprofile Router V128. Keeps the V121 financial-stage guard and every valuation/fail-closed rule unchanged, but separates two reusable business-model subprofiles inside Development-Stage Mining / Materials: (1) Mineral Explorer / Mine Developer for drilling, resource-definition, metallurgy, PEA/PFS/DFS, permitting, infrastructure, project-capex and project-financing evidence; and (2) Battery Materials / Processing / Technology Developer for graphite/anode/cathode/high-purity-manganese and similar material-processing models with pilot/demo, scale-up, customer qualification/offtake, process/IP/licensing and commercialisation evidence. The route is evidence-based and contains no Cartier/Troilus/Talga/FRB/RNU ticker hardcoding. Standard score, FCF-margin, Net-Cash bonus, cycle P/E, operating-mine NAV and Fair Value remain blocked exactly as in V121 until a reusable project model is released. V127 balance logic and all released specialist mathematics remain unchanged.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
 # V2.22.12: Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108. Keeps the released Asset-Management scoring, 9–18x base corridor, Premium-Unlock, peer/historical guards and signal mathematics unchanged. V108 upgrades only the issuer-primary evidence layer: corporate/group/investor-IR domain-family escalation, financial-results/document-class prioritization, period-safe AUM/flow/fee/CIR/EPS table recovery, issuer-native Cost-Income-Ratio efficiency support without relabelling it as an operating margin, and same-basis reported-or-adjusted TTM/3Y EPS recovery. Sub-scopes remain explicit, search snippets remain discovery-only, period/scope mismatches fail closed, and evidence failures receive diagnostic reason codes. No issuer URLs, ticker-specific KPI values or DWS-specific constants are hard-coded.
@@ -7121,12 +7122,15 @@ def _legacy_classification_is_family_overrideable(current_type):
 
 
 def is_development_stage_mining_guard_type(company_type):
-    """True only for the V121 pre-revenue/development-stage mining sub-profile."""
+    """True only for the fail-closed Development-Stage Mining / Materials profile."""
     data = company_type or {}
     type_name = str(data.get("type") or "").lower()
     return bool(
         data.get("development_stage_mining_guard_active")
         or "early-stage mining" in type_name
+        or "mineral explorer" in type_name
+        or "mine developer" in type_name
+        or "battery materials / processing" in type_name
         or "battery materials / projektentwicklung" in type_name
     )
 
@@ -7141,8 +7145,8 @@ def apply_development_stage_mining_guard(
 ):
     """Fail closed when Mining / Materials is economically still pre-revenue/development stage.
 
-    V121 deliberately combines business-model evidence with commercial-revenue and cash-burn evidence.
-    It does not infer a project NAV or technology value and contains no issuer/ticker rule.
+    V121 supplies the financial-stage gate. V128 adds only a reusable business-model
+    subprofile router; it does not release any valuation path or infer project value.
     """
     out = dict(company_type or {})
     family_id = str(out.get("valuation_family_id") or "").strip().lower()
@@ -7169,10 +7173,25 @@ def apply_development_stage_mining_guard(
         "feasibility study", "pre-feasibility", "prefeasibility", "definitive feasibility",
         "scoping study", "project development",
     )
+    # Keep the V121 stage-detection vocabulary frozen. V128 uses a separate,
+    # richer vocabulary only after the guard has already fired.
     technology_materials_terms = (
         "battery materials", "cathode material", "cathode active material", "p-cam", "pcam",
         "high-purity manganese", "high purity manganese", "manganese sulphate", "manganese sulfate",
         "licensing", "equipment sales", "strategic jv", "strategic joint venture",
+    )
+    battery_material_core_terms = (
+        "battery materials", "battery material", "battery anode", "anode material", "anode active material",
+        "cathode material", "cathode active material", "p-cam", "pcam", "precursor cathode",
+        "graphite", "spherical graphite", "purified spherical graphite", "coated spherical graphite",
+        "graphene", "high-purity manganese", "high purity manganese", "manganese sulphate", "manganese sulfate",
+        "lithium hydroxide", "lithium carbonate", "battery-grade", "battery grade",
+    )
+    processing_technology_terms = (
+        "proprietary process", "process technology", "processing technology", "licensing", "license technology",
+        "equipment sales", "customer qualification", "customer sampling", "qualification program",
+        "pilot plant", "pilot facility", "demonstration plant", "demonstration facility",
+        "scale-up", "scale up", "commercialisation", "commercialization",
     )
     operating_producer_terms = (
         "owns and operates", "operates mines", "operating mines", "commercial production",
@@ -7181,14 +7200,15 @@ def apply_development_stage_mining_guard(
 
     has_stage_language = any(term in summary for term in stage_terms)
     has_technology_materials_language = any(term in summary for term in technology_materials_terms)
+    has_battery_material_language = any(term in summary for term in battery_material_core_terms)
+    has_processing_technology_language = any(term in summary for term in processing_technology_terms)
     has_operating_producer_language = any(term in summary for term in operating_producer_terms)
 
-    loss_or_no_profit = ni is None or ni <= 0
     cash_burn_or_unknown = fcf is None or fcf <= 0
 
     # Strong financial-stage signal: commercial revenue is economically negligible
-    # relative to the equity value.  V121 intentionally does NOT require reported
-    # net income to be negative: pre-revenue developers can show temporary accounting
+    # relative to the equity value. V121 intentionally does NOT require reported net
+    # income to be negative: pre-revenue developers can show temporary accounting
     # profit from interest, grants or other non-operating items while still consuming
     # cash and having no operating production/revenue base.
     ultra_low_revenue = bool(
@@ -7217,13 +7237,35 @@ def apply_development_stage_mining_guard(
     if not (stage_from_financials or stage_from_business_model):
         return out
 
+    # V128 subprofile routing. Explicit battery/material-product evidence is the
+    # strongest signal. Processing/technology language alone can select the profile
+    # only when it is part of an already-confirmed Development-Stage case.
+    battery_processing_profile = bool(
+        has_battery_material_language
+        or (
+            has_processing_technology_language
+            and any(term in summary for term in (
+                "product qualification", "customer qualification", "customer sampling",
+                "proprietary process", "process technology", "processing technology",
+                "licensing", "equipment sales", "commercialisation", "commercialization",
+            ))
+        )
+    )
+    development_stage_subprofile = (
+        "battery_processing_technology"
+        if battery_processing_profile
+        else "mineral_explorer_mine_developer"
+    )
+
     reason_bits = []
     if revenue_to_market_cap is not None:
         reason_bits.append(f"Revenue/Market-Cap {revenue_to_market_cap * 100:.3f}%")
     if has_stage_language:
         reason_bits.append("Development-/Pilot-/Exploration-Evidenz")
-    if has_technology_materials_language:
-        reason_bits.append("Battery-Materials/Technology-Kommerzialisierung")
+    if has_battery_material_language:
+        reason_bits.append("Battery-Materials-Evidenz")
+    elif has_processing_technology_language and battery_processing_profile:
+        reason_bits.append("Processing-/Technology-Kommerzialisierung")
     if no_revenue_visible:
         reason_bits.append("kein sichtbarer kommerzieller Umsatz")
     elif ultra_low_revenue:
@@ -7233,13 +7275,44 @@ def apply_development_stage_mining_guard(
     if ni is not None and ni > 0 and commercially_pre_revenue:
         reason_bits.append("positives Nettoergebnis ist kein Produktionsbeleg")
 
-    out.update({
-        "type": "Rohstoffe / Early-Stage Mining / Battery Materials / Projektentwicklung",
-        "method": (
-            "Projekt-/Technologie-/Asset- und Meilensteinbewertung; Finanzierungs-Runway, Ressourcen-/Feasibility-, "
-            "Pilot-/Demonstrations-, Customer-Qualification-/Offtake- und Kommerzialisierungs-Gates; "
+    if development_stage_subprofile == "battery_processing_technology":
+        profile_label = "Battery Materials / Processing / Technology Developer"
+        display_type = "Rohstoffe / Battery Materials / Processing / Technology Developer / Projektentwicklung"
+        method = (
+            "Projekt-/Technologie-/Asset- und Meilensteinbewertung; Finanzierungs-Runway, Resource/Feedstock-, "
+            "Pilot-/Demonstrations-, Scale-up-, Customer-Qualification-/Offtake- und Kommerzialisierungs-Gates; "
             "kein Standard-100-Punkte-Score, keine umsatzbasierte FCF-Marge und kein Standard-KGV"
-        ),
+        )
+        business_model = (
+            "Development-Stage Battery-Materials-/Processing-/Technology-Profil: Werttreiber liegen vor kommerzieller "
+            "Produktion in Resource/Feedstock-Sicherung, Prozessvalidierung, Scale-up, Produktqualifikation, Finanzierung "
+            "und Kommerzialisierung statt in aktuellen Margen."
+        )
+        focus_areas = (
+            "Cash Runway & Funding · Resource/Feedstock · Pilot/Demonstration & Scale-up · Product/Customer Qualification · "
+            "Offtake/Partnering · Process Yield/Quality · Technology/IP/Licensing · Commercialisation · Dilution/Capital Needs"
+        )
+    else:
+        profile_label = "Mineral Explorer / Mine Developer"
+        display_type = "Rohstoffe / Mineral Explorer / Mine Developer / Projektentwicklung"
+        method = (
+            "Projekt-/Asset- und Meilensteinbewertung; Cash-Runway, Bohr-/Resource-Definition, Metallurgie, "
+            "PEA/PFS/Feasibility, Permitting, Infrastruktur, Projekt-CapEx und Funding-Gates; kein Standard-100-Punkte-Score, "
+            "keine umsatzbasierte FCF-Marge und kein Standard-KGV"
+        )
+        business_model = (
+            "Development-Stage Mineral-Explorer-/Mine-Developer-Profil: Werttreiber liegen vor kommerzieller Produktion in "
+            "Bohrfortschritt, Ressourcendefinition, Metallurgie, technischer/wirtschaftlicher Projektreife, Genehmigungen und "
+            "Finanzierung statt in aktuellen Margen."
+        )
+        focus_areas = (
+            "Cash Runway & Funding · Drilling/Resource Definition · Metallurgy · PEA/PFS/DFS/Feasibility · "
+            "Permitting & Infrastructure · Project CapEx/Timeline · Project Financing · Dilution/Capital Needs"
+        )
+
+    out.update({
+        "type": display_type,
+        "method": method,
         "confidence_cap": "Niedrig",
         "family_model_status": "development_stage_guard",
         "family_model_ready": False,
@@ -7249,14 +7322,10 @@ def apply_development_stage_mining_guard(
         "development_stage_mining_guard_active": True,
         "development_stage_mining_guard_reason": " · ".join(reason_bits) or "Development-Stage-Evidenz",
         "development_stage_revenue_to_market_cap": revenue_to_market_cap,
-        "business_model": (
-            "Pre-Revenue-/Development-Stage-Rohstoff- bzw. Battery-Materials-Profil: Werttreiber liegen vor kommerzieller "
-            "Produktion in Projektfortschritt, Technologievalidierung, Finanzierung und Kommerzialisierung statt in aktuellen Margen."
-        ),
-        "focus_areas": (
-            "Cash Runway & Funding · Resource/Reserve & Feasibility · Permitting/Project Execution · Pilot/Demonstration · "
-            "Customer Qualification/Offtake · Technology/IP/Licensing · Commercialisation Milestones · Dilution/Capital Needs"
-        ),
+        "development_stage_subprofile": development_stage_subprofile,
+        "development_stage_subprofile_label": profile_label,
+        "business_model": business_model,
+        "focus_areas": focus_areas,
     })
     return out
 
@@ -12041,32 +12110,57 @@ def _universal_family_special_control(company_type):
     family_label = company_type.get("valuation_family") or company_type.get("type") or "Bewertungsfamilie"
     if is_development_stage_mining_guard_type(company_type):
         reason = company_type.get("development_stage_mining_guard_reason") or "Development-Stage-Evidenz"
+        subprofile = str(company_type.get("development_stage_subprofile") or "mineral_explorer_mine_developer")
+        if subprofile == "battery_processing_technology":
+            control_name = "Development-Stage Battery Materials / Processing / Technology Gate"
+            planned_checks = [
+                "Cash Runway, Finanzierungsbedarf und Verwässerungsrisiko statt Netto-Cash-15/15-Bonus",
+                "Resource/Feedstock-Sicherung und technische Materialbasis",
+                "Pilot-/Demonstrationsanlage, Scale-up, Recovery/Yield und Prozessvalidierung",
+                "Produkt-/Customer Qualification, Sampling, Offtake/Partnering und Nachfragebelege",
+                "Technology/IP/Licensing- bzw. Processing-Economics getrennt von klassischem Mine-NAV",
+                "Projekt-CapEx, Zeitplan und Funding-Gate vor jedem Asset-/Project-NAV",
+                "erst bei kommerzieller Produktion: Produktions-/Kosten-/Rohstoffzyklus-Metriken",
+                "Analystenziele ausschließlich Reality Check, nie Fair-Value-Anker",
+            ]
+            profile_note = (
+                "Das Unternehmen wird als Battery-Materials-/Processing-/Technology-Developer und nicht wie ein laufender "
+                "Bergbauproduzent bewertet. Umsatzbasierte FCF-Margen, Netto-Cash-Punkte, Zyklus-KGV und Operating-Mine-NAV "
+                "bleiben gesperrt, bis Resource/Feedstock-, Pilot/Scale-up-, Qualification-, Funding- und Kommerzialisierungsevidenz "
+                "ein eigenes Bewertungsmodell trägt."
+            )
+        else:
+            control_name = "Development-Stage Mineral Explorer / Mine Developer / Project Gate"
+            planned_checks = [
+                "Cash Runway, Finanzierungsbedarf und Verwässerungsrisiko statt Netto-Cash-15/15-Bonus",
+                "Bohrfortschritt, Resource/Reserve-Definition und Datenqualität",
+                "Metallurgie sowie PEA/PFS/DFS/Feasibility statt Zyklus-EPS",
+                "Permitting, Infrastruktur, Projektzeitplan und Execution-Risiken",
+                "Projekt-CapEx und Project-Financing-Gate vor jedem Project-NAV",
+                "Project-NAV erst mit belastbarer technischer/wirtschaftlicher Studie und vergleichbarer Primärdatenbasis",
+                "erst bei kommerzieller Produktion: Produktions-/Kosten-/Rohstoffzyklus-Metriken",
+                "Analystenziele ausschließlich Reality Check, nie Fair-Value-Anker",
+            ]
+            profile_note = (
+                "Das Unternehmen wird als Mineral Explorer / Mine Developer und nicht wie ein laufender Bergbauproduzent bewertet. "
+                "Umsatzbasierte FCF-Margen, Netto-Cash-Punkte, Zyklus-KGV und Operating-Mine-NAV bleiben gesperrt, bis Bohr-/Resource-, "
+                "Metallurgie-, Feasibility-, Permitting-, CapEx- und Funding-Evidenz ein eigenes Project-NAV-Modell trägt."
+            )
         return {
             "required": True,
             "implemented": False,
             "released": False,
             "control_key": "universal_family_model_gate",
-            "control_name": "Development-Stage Mining & Battery Materials / Projekt-, Funding- & Kommerzialisierungs-Gate",
-            "planned_checks": [
-                "Cash Runway, Finanzierungsbedarf und Verwässerungsrisiko statt Netto-Cash-15/15-Bonus",
-                "Ressource/Reserve, Feasibility/Engineering und Permitting statt Zyklus-EPS",
-                "Pilot-/Demonstrationsanlage, Scale-up und technische Validierung",
-                "Customer Qualification, Sampling, Offtake/Partnering und kommerzielle Nachfragebelege",
-                "Technology/IP/Licensing-Economics getrennt von klassischem Mine-NAV",
-                "Projekt-CapEx, Zeitplan und Funding-Gate vor jedem Asset-/Project-NAV",
-                "erst bei kommerzieller Produktion: Produktions-/Kosten-/Rohstoffzyklus-Metriken",
-                "Analystenziele ausschließlich Reality Check, nie Fair-Value-Anker",
-            ],
+            "control_name": control_name,
+            "planned_checks": planned_checks,
             "status": "Development-Stage Guard aktiv · Standard-Mining-Score und Operating-Mine-Bewertung gesperrt",
-            "router_status": "Development-Stage Mining Commercial-Revenue & Cash-Burn Guard V121 aktiv",
+            "router_status": "Development-Stage Mining Subprofile Router V128 aktiv · Financial-Stage Guard V121 aktiv",
             "confidence_cap": "Niedrig",
-            "note": (
-                f"{APP_BUILD_VERSION}: {reason}. Das Unternehmen wird nicht wie ein laufender Bergbauproduzent bewertet. "
-                "Umsatzbasierte FCF-Margen, Netto-Cash-Punkte, Zyklus-KGV und Operating-Mine-NAV bleiben gesperrt, "
-                "bis Projekt-, Funding-, Technologie- und Kommerzialisierungsevidenz ein eigenes Bewertungsmodell trägt."
-            ),
+            "note": f"{APP_BUILD_VERSION}: {reason}. {profile_note}",
             "router_note": (
-                f"{APP_BUILD_VERSION}: Development-Stage-Evidenz ({reason}) hat Vorrang vor dem normalen Mining-Zykluspfad."
+                f"{APP_BUILD_VERSION}: Development-Stage-Evidenz ({reason}) wird als "
+                f"{company_type.get('development_stage_subprofile_label') or 'Development-Stage Mining'} geroutet und hat Vorrang "
+                "vor dem normalen Mining-Zykluspfad."
             ),
         }
     return {
