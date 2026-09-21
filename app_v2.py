@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.19"
+APP_BUILD_VERSION = "V2.22.20"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Exact-Ticker Primary-Listing Precedence Guard V115"
+    f"Build {APP_BUILD_VERSION} · Professional-Services Business-Model Precedence over Capital-Markets Label Guard V116"
 )
 
 
@@ -40,6 +40,7 @@ st.caption(
 # V2.22.17: Professional Services Confidence Isolation & UI Consistency Cleanup V113. No valuation mathematics changed. Isolates the Professional & Business Services valuation-confidence stack from generic Provider/GAAP TTM-vs-Forward EPS divergence, adds an explicit specialist earnings-basis confidence component, suppresses stale generic FCF and Net-Cash scoring footers, renders the DSW Through-Cycle earnings anchor in precise GBP/GBp source units, and makes Peer/Step-3A copy consistent with the downside-only Small-Cap/Liquidity Guard. DSW score 76/100, 9–18x corridor, raw 14.5x score multiple, 14.0x liquidity cap and Fair Value mathematics remain unchanged.
 # V2.22.18: Professional Services Diagnostic Copy & Precision Cleanup V114. No valuation mathematics changed. Marks Yahoo/Cashflow-Statement FCF as diagnosis-only in the released Professional & Business Services path, renders the Step-3B earnings anchor in precise issuer GBP/GBp units instead of rounded display-currency EPS, and shows DSW net cash at the precision actually published by the issuer (GBP 0.1m) with only an approximate display-currency equivalent. Peer copy is version-aligned to V114. DSW score 76/100, 9–18x corridor, raw 14.5x score multiple, 14.0x liquidity cap and Fair Value mathematics remain unchanged.
 # V2.22.19: Universal Exact-Ticker Primary-Listing Precedence Guard V115. Search-only change. Treats an exchange-suffixed home symbol whose base ticker exactly equals a short ticker-like query (for example ABC.L for input ABC) as an exact ticker-family match instead of a weak prefix match. When the first Yahoo search contains neither an exact symbol nor an exact base-ticker candidate, the resolver performs a bounded set of exact home-listing suffix probes and accepts only literal symbol matches, preventing fuzzy prefix symbols such as ABCD from outranking an exact local ticker ABC.<home>. Existing exact full-ticker priority, verified company-name aliases, WKN/ISIN identity, same-issuer grouping, specialist routing and all valuation mathematics remain unchanged. No FRP- or issuer-specific search rule is introduced.
+# V2.22.20: Professional-Services Business-Model Precedence over Capital-Markets Label Guard V116. Router-only change. A broad provider industry label such as Capital Markets/Brokerage no longer automatically forces Investment Bank / Broker-Dealer when the issuer summary instead shows a diversified advisory/professional-services operating model (for example specialist business advisory plus restructuring, forensic, financial/debt advisory or corporate-finance service lines). Strong broker-dealer/trading/market-making/securities-underwriting evidence remains authoritative for the Investment Bank / Broker-Dealer family. The rule is reusable and business-model based; no FRP ticker/name override is introduced. DSW specialist score, 9–18x corridor, liquidity cap, DWS evidence recovery, exact-ticker search V115 and all released valuation mathematics remain unchanged.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
 # V2.22.12: Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108. Keeps the released Asset-Management scoring, 9–18x base corridor, Premium-Unlock, peer/historical guards and signal mathematics unchanged. V108 upgrades only the issuer-primary evidence layer: corporate/group/investor-IR domain-family escalation, financial-results/document-class prioritization, period-safe AUM/flow/fee/CIR/EPS table recovery, issuer-native Cost-Income-Ratio efficiency support without relabelling it as an operating margin, and same-basis reported-or-adjusted TTM/3Y EPS recovery. Sub-scopes remain explicit, search snippets remain discovery-only, period/scope mismatches fail closed, and evidence failures receive diagnostic reason codes. No issuer URLs, ticker-specific KPI values or DWS-specific constants are hard-coded.
@@ -6906,6 +6907,56 @@ def _looks_like_professional_business_services(industry, business_summary):
     return has_professional_evidence
 
 
+def _looks_like_advisory_professional_services_in_capital_markets(industry, business_summary):
+    """Detect advisory/professional-services economics behind a broad Capital Markets label.
+
+    V116 is deliberately conservative: a provider label such as ``Capital Markets``
+    is not sufficient evidence of broker-dealer economics.  Diversified advisory
+    firms route to Professional & Business Services only when the business summary
+    contains strong advisory/professional-services identity or several independent
+    advisory service lines, and no strong securities-trading/brokerage evidence.
+    """
+    industry_text = str(industry or "").lower()
+    summary_text = str(business_summary or "").lower()
+
+    if not any(token in industry_text for token in ("capital markets", "brokerage")):
+        return False
+
+    broker_dealer_terms = (
+        "broker-dealer", "broker dealer", "securities brokerage", "brokerage services",
+        "brokerage accounts", "market making", "market-maker", "market maker",
+        "securities trading", "institutional trading", "trading platform",
+        "trade execution", "execution services", "prime brokerage",
+        "equity underwriting", "debt underwriting", "securities underwriting",
+        "underwrites securities", "underwriting securities",
+    )
+    if any(term in summary_text for term in broker_dealer_terms):
+        return False
+
+    identity_terms = (
+        "specialist business advisory", "business advisory firm",
+        "professional services firm", "professional-services firm",
+        "business advisory group",
+    )
+    has_advisory_identity = any(term in summary_text for term in identity_terms)
+
+    # Count distinct service-line groups rather than raw keyword hits so one
+    # repeated phrase cannot alone reclassify a securities business.
+    service_line_groups = (
+        ("restructuring advisory", "restructuring", "turnaround", "insolvency"),
+        ("forensic services", "forensic advisory", "forensic accounting", "forensic"),
+        ("financial advisory", "financial advice"),
+        ("debt advisory", "debt advice"),
+        ("corporate finance advisory", "corporate finance"),
+        ("transaction services", "due diligence"),
+    )
+    service_line_count = sum(
+        1 for group in service_line_groups if any(term in summary_text for term in group)
+    )
+
+    return bool((has_advisory_identity and service_line_count >= 1) or service_line_count >= 3)
+
+
 def _infer_universal_family_from_metadata(symbol, sector, industry, business_summary):
     sym = str(symbol or "").upper().strip()
     sector_text = str(sector or "").lower()
@@ -6974,6 +7025,11 @@ def _infer_universal_family_from_metadata(symbol, sector, industry, business_sum
                 return "exchange_market_infrastructure", "business_summary_rule"
             if any(term in combined for term in asset_manager_terms):
                 return "asset_manager", "business_summary_rule"
+            # V116: provider industry labels are taxonomy hints, not business-model
+            # proof.  Diversified advisory/professional-services firms can sit in
+            # Yahoo's Capital Markets bucket without broker-dealer economics.
+            if _looks_like_advisory_professional_services_in_capital_markets(industry_text, summary_text):
+                return "professional_business_services", "business_model_precedence_rule"
             return "investment_bank_broker_dealer", "sector_industry_rule"
         if any(x in industry_text for x in ["mortgage finance", "financial conglomerates"]):
             return "financial_unresolved", "sector_industry_rule"
