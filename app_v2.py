@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.41"
+APP_BUILD_VERSION = "V2.22.42"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Manager Annual-History Candidate Merge V137"
+    f"Build {APP_BUILD_VERSION} · Asset-Manager Peer-Guard UI Consistency Cleanup V138"
 )
 
 
@@ -61,6 +61,7 @@ st.caption(
 
 # V2.22.40: Asset-Manager Historical-Year Discovery Isolation V136. Fixes a target-year/page-year coupling in the generic Asset-Manager IR link router. Historical same-basis EPS recovery asks for FY2025/FY2024/FY2023, but the multi-year table mapper must stay anchored to the page's actual latest calendar-year selector (normally the runtime current year), not restart the table sequence at each requested historical target. V116 now separates page structural-year binding from target-year ranking: repeated IR tables are mapped once against the actual page-year sequence, then each requested historical year is scored against that stable map. This prevents the first 2026 table from being relabelled as 2025 during annual EPS discovery. Current-period AUM/flow/fee/CIR extraction, XLSX/PDF parsing, specialist score weights, 9–18x corridor, peer/historical guards and signal thresholds are unchanged.
 
+# V2.22.42: Asset-Manager Peer-Guard UI Consistency Cleanup V138. No valuation mathematics changed. Separates the raw score-driven Asset-Manager P/E anchor from the downside-only Peer/Historical Safety Guard in Module 6, suppresses the stale pre-guard multiple in Step 2B, labels the actually used post-guard target multiple explicitly, uses issuer-native Cost-Income Ratio copy when no operating margin is reported, and omits an empty published-date placeholder. DWS score 76/100, Through-Cycle EPS 4.80 EUR, raw 13.47x score anchor, 12.54x downside cap, 60.18 EUR Fair Value and signal thresholds remain unchanged.
 # V2.22.41: Asset-Manager Annual-History Candidate Merge V137. Fixes a de-duplication/ranking defect in generic same-basis Asset-Manager EPS-history recovery. The same issuer-primary report can be discovered once for each requested target year; prior builds kept the first URL occurrence and therefore preserved the score from the first target year instead of the best score across all requested years. V117 now merges duplicate URLs by their strongest year-aware score, explicitly recognizes the discovered document_class even when the download URL/anchor is opaque, and prioritizes the latest completed-FY Financial Data Supplement/annual report because such reports often contain the full 3Y same-basis EPS series in one table. Current-period AUM/flow/fee/CIR evidence, specialist score weights, 9–18x corridor, peer/historical guards and signal thresholds are unchanged.
 # V2.22.37: Asset-Manager Structured XLSX Period Binding V133. Fixes wide issuer-primary financial supplements whose comparison headers (for example “Q2 2026 vs. Q1 2026 / Q2 2025”) precede the actual multi-period data-header row. XLSX extraction now preserves explicit worksheet-row boundaries, period detection ranks the real multi-period header row ahead of comparison captions, and KPI rows are parsed only within their own workbook row so comparison columns cannot shift AUM/flow/fee/CIR/EPS values onto the wrong period. Same-scope guards, same-basis earnings requirements, score weights, 9–18x corridor, peer/historical guards and signal thresholds remain unchanged; no issuer ticker, URL or KPI value is hard-coded.
 # V2.22.34: Development-Stage EPS Copy Isolation Cleanup V130. Copy/UI-only change. Keeps V128 subprofile routing and V121 financial-stage detection unchanged, but isolates Development-Stage Mining / Materials from the generic Universal-Family EPS wording: Standard TTM/Forward EPS remains diagnosis-only and is explicitly not a Fair-Value anchor; Mineral Explorer / Mine Developer points instead to a technical/economic project and Project-NAV basis, while Battery Materials / Processing / Technology points to resource/feedstock, process/pilot/scale-up, qualification/offtake, funding and commercialisation evidence. The terminal EPS caption is profile-aware for the same reason. All scores, corridors, guard states, V127 Net-Cash logic, LOM logic and valuation mathematics remain unchanged.
@@ -56557,6 +56558,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         am_flow_verified_event = bool(am_score_event.get("flow_rate_verified"))
         am_flow_direction_event = str(am_score_event.get("flow_direction") or "").strip().lower()
         am_margin_event = safe_float(am_snap_event.get("operating_margin_pct"))
+        am_cir_event = safe_float(am_snap_event.get("cost_income_ratio_pct"))
         if am_flow_verified_event and am_flow_event is not None:
             flow_text = f"verifizierte annualisierte {am_flow_scope_event}-Net-Flow-Rate {am_flow_event:+.2f} %"
         elif am_flow_direction_event:
@@ -56564,7 +56566,12 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             flow_text = f"verifizierte Flow-Richtung {direction_map.get(am_flow_direction_event, am_flow_direction_event)}; Prozent-Rate gesperrt"
         else:
             flow_text = "nicht belastbar verfügbar"
-        margin_text = f"{am_margin_event:.1f} %" if am_margin_event is not None else "nicht verfügbar"
+        if am_margin_event is not None:
+            profitability_text = f"Core/Adjusted Operating Margin {am_margin_event:.1f} %"
+        elif am_cir_event is not None:
+            profitability_text = f"issuer-native Cost-Income Ratio {am_cir_event:.1f} % (niedriger ist effizienter)"
+        else:
+            profitability_text = "Core/Adjusted Operating Margin bzw. issuer-native Cost-Income Ratio nicht verfügbar"
         special_event_warning = {
             "level": "Grün",
             "icon": "🟢",
@@ -56573,7 +56580,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "valuation_usable": True,
             "reason": (
                 f"Organic Flows ({flow_text}) werden mit ihrem issuer-verifizierten Scope getrennt von Marktperformance, FX und Akquisitionen bewertet; "
-                f"die Core/Adjusted Operating Margin liegt bei {margin_text}. Generisches Umsatz-/Gewinnwachstum, ROE, Yahoo-FCF-Marge und Net-Cash-Punkte bleiben Diagnosekontext."
+                f"als issuer-native Effizienzkennzahl wird {profitability_text} verwendet. Generisches Umsatz-/Gewinnwachstum, ROE, Yahoo-FCF-Marge und Net-Cash-Punkte bleiben Diagnosekontext."
             ),
             "action": (
                 f"{APP_BUILD_VERSION} verwendet den Asset-Management-Spezialpfad mit AUM/Organic Flows, Fee-Mix/Effective Fee Rate, Core/Adjusted Margin, "
@@ -63525,27 +63532,48 @@ if selected_symbol:
 
                     if multiple_result["available"]:
 
-                        st.metric(
-                            "Fundamental-Multiple",
-                            f"{multiple_result['multiple']:.2f}×"
-                        )
-
-                        if bool((data.get("regulated_utility_specialist_model") or {}).get("applicable")):
-                            util_val_step1 = (data.get("regulated_utility_specialist_model") or {}).get("utility_valuation") or {}
-                            if util_val_step1.get("risk_overlay_applied"):
+                        is_asset_management_m6 = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
+                        if is_asset_management_m6:
+                            am_val_step1 = (data.get("asset_management_specialist_model") or {}).get("specialist_valuation") or {}
+                            am_pre_guard = safe_float(am_val_step1.get("pre_peer_guard_multiple") or am_val_step1.get("raw_score_multiple"))
+                            am_used = safe_float(am_val_step1.get("target_multiple"))
+                            if am_pre_guard is not None:
+                                st.write(f"**Score-gesteuerter Asset-Manager-Anker vor Peer/Historical Safety Guard:** {am_pre_guard:.2f}×")
+                            st.metric(
+                                "Verwendetes Asset-Manager-Ziel-KGV nach Safety Guard",
+                                f"{(am_used if am_used is not None else multiple_result['multiple']):.2f}×"
+                            )
+                            if am_val_step1.get("historical_peer_cap_applied"):
                                 st.success(
-                                    "Utility-Multiple erfolgreich aus Quality Score und Basiskorridor abgeleitet; "
-                                    "das tatsächlich verwendete Multiple wurde anschließend durch den downside-only Risk Overlay begrenzt."
+                                    "Asset-Manager-Multiple aus Score und Basiskorridor abgeleitet; der tatsächlich verwendete Anker wurde anschließend "
+                                    "durch den downside-only Peer/Historical Safety Guard begrenzt."
                                 )
                             else:
                                 st.success(
-                                    "Utility-Multiple erfolgreich aus Quality Score und Basiskorridor berechnet."
+                                    "Asset-Manager-Multiple aus Score und Basiskorridor abgeleitet; der Peer/Historical Safety Guard verändert den Anker nicht."
                                 )
                         else:
-                            st.success(
-                                "Fundamental-Multiple erfolgreich "
-                                "aus Score und Korridor berechnet."
+                            st.metric(
+                                "Fundamental-Multiple",
+                                f"{multiple_result['multiple']:.2f}×"
                             )
+
+                            if bool((data.get("regulated_utility_specialist_model") or {}).get("applicable")):
+                                util_val_step1 = (data.get("regulated_utility_specialist_model") or {}).get("utility_valuation") or {}
+                                if util_val_step1.get("risk_overlay_applied"):
+                                    st.success(
+                                        "Utility-Multiple erfolgreich aus Quality Score und Basiskorridor abgeleitet; "
+                                        "das tatsächlich verwendete Multiple wurde anschließend durch den downside-only Risk Overlay begrenzt."
+                                    )
+                                else:
+                                    st.success(
+                                        "Utility-Multiple erfolgreich aus Quality Score und Basiskorridor berechnet."
+                                    )
+                            else:
+                                st.success(
+                                    "Fundamental-Multiple erfolgreich "
+                                    "aus Score und Korridor berechnet."
+                                )
 
                     else:
 
@@ -63941,29 +63969,35 @@ if selected_symbol:
 
                     else:
 
-                        if (
-                            data[
-                                "fundamental_multiple"
-                            ]["available"]
-                            and peer_check[
-                                "adjusted_multiple"
-                            ] is not None
-                            and not peer_check.get("reference_only")
-                        ):
-
-                            st.metric(
-                                "Multiple nach Peer-Prüfung",
-                                (
-                                    f"{peer_check['adjusted_multiple']:.2f}×"
-                                )
+                        if is_asset_management_peer_metric:
+                            st.info(
+                                "Keine direkte Peer-Anpassung in Schritt 2B. Der Core-Peer-Median wird erst in Schritt 3B zusammen mit einer verfügbaren "
+                                "3Y-Historical-Referenz als downside-only Premium-Safety-Guard gegen den rohen Asset-Manager-Score-Anker geprüft."
                             )
-
-                        if peer_check.get("reference_only"):
-                            st.info("Reference-only: Peer-KGVs verändern Ziel-Multiple und Fair Value nicht.")
                         else:
-                            st.warning(
-                                "Keine automatische Peer-Anpassung."
-                            )
+                            if (
+                                data[
+                                    "fundamental_multiple"
+                                ]["available"]
+                                and peer_check[
+                                    "adjusted_multiple"
+                                ] is not None
+                                and not peer_check.get("reference_only")
+                            ):
+
+                                st.metric(
+                                    "Multiple nach Peer-Prüfung",
+                                    (
+                                        f"{peer_check['adjusted_multiple']:.2f}×"
+                                    )
+                                )
+
+                            if peer_check.get("reference_only"):
+                                st.info("Reference-only: Peer-KGVs verändern Ziel-Multiple und Fair Value nicht.")
+                            else:
+                                st.warning(
+                                    "Keine automatische Peer-Anpassung."
+                                )
 
                     st.caption(
                         peer_check["note"]
@@ -64749,7 +64783,11 @@ if selected_symbol:
                                 "Kein laufender Fair Value und kein aktueller Peer-Status."
                             )
                         else:
-                            st.write(f"**Primärdatenstand:** {text_or_dash(snap_am.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_am.get('published_date'))})")
+                            am_published_ui = snap_am.get("published_date")
+                            st.write(
+                                f"**Primärdatenstand:** {text_or_dash(snap_am.get('as_of_date'))}"
+                                + (f" (veröffentlicht {text_or_dash(am_published_ui)})" if am_published_ui else "")
+                            )
                             st.caption(text_or_dash(snap_am.get("source_name")))
                             if snap_am.get("source_url"):
                                 st.markdown(f"[Primärquelle]({snap_am.get('source_url')})")
