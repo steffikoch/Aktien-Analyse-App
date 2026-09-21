@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.16"
+APP_BUILD_VERSION = "V2.22.17"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,12 +31,13 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Professional & Business Services Specialist Model V1 V112"
+    f"Build {APP_BUILD_VERSION} · Professional Services Confidence Isolation & UI Consistency Cleanup V113"
 )
 
 
 # V2.22.15: Universal Professional-Services Industry Precedence Guard V111. Adds a reusable Professional & Business Services valuation family and fixes an over-broad Industrials sector fallback that previously routed Specialty Business Services issuers into Industrials / Capital Goods. High-confidence professional-service industries now outrank the broad Industrials sector; broader service labels require corroborating business-model evidence such as professional/advisory/consulting, corporate-finance/due-diligence, legal/accounting/tax, restructuring/recovery, fee-earner/network, licence-fee or revenue-share economics. Capital-goods/manufacturing industries remain on the existing Industrials route. The new family is defined_unreleased and therefore fail-closed: no generic Standard score, Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV, Fair Value or signals are unlocked. V110 Asset-Management evidence recovery, GBp/GBP unit handling and all released valuation mathematics remain unchanged.
 # V2.22.16: Professional & Business Services Specialist Model V1 V112. First validated issuer: DSW Capital (DSW.L). Releases an issuer-primary Professional & Business Services specialist path for DSW while keeping the wider family globally unreleased until a second independent issuer is validated. The model scores platform/network growth and fee-earner productivity, adjusted EBITDA/PBT quality, issuer operating cash conversion, balance quality, licence/revenue-mix resilience, capital allocation/dilution and earnings stability. Valuation uses an issuer-adjusted two-year diluted-EPS anchor (FY26 weighted 80%, FY25 20%) with a 9–18x score corridor and a downside-only small-cap/liquidity cap. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the specialist Fair Value. GBp/GBP conversion stays explicit at 1 GBP = 100 GBp. V110 Asset-Management evidence recovery and all other released specialist mathematics remain unchanged.
+# V2.22.17: Professional Services Confidence Isolation & UI Consistency Cleanup V113. No valuation mathematics changed. Isolates the Professional & Business Services valuation-confidence stack from generic Provider/GAAP TTM-vs-Forward EPS divergence, adds an explicit specialist earnings-basis confidence component, suppresses stale generic FCF and Net-Cash scoring footers, renders the DSW Through-Cycle earnings anchor in precise GBP/GBp source units, and makes Peer/Step-3A copy consistent with the downside-only Small-Cap/Liquidity Guard. DSW score 76/100, 9–18x corridor, raw 14.5x score multiple, 14.0x liquidity cap and Fair Value mathematics remain unchanged.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
 # V2.22.12: Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108. Keeps the released Asset-Management scoring, 9–18x base corridor, Premium-Unlock, peer/historical guards and signal mathematics unchanged. V108 upgrades only the issuer-primary evidence layer: corporate/group/investor-IR domain-family escalation, financial-results/document-class prioritization, period-safe AUM/flow/fee/CIR/EPS table recovery, issuer-native Cost-Income-Ratio efficiency support without relabelling it as an operating margin, and same-basis reported-or-adjusted TTM/3Y EPS recovery. Sub-scopes remain explicit, search snippets remain discovery-only, period/scope mismatches fail closed, and evidence failures receive diagnostic reason codes. No issuer URLs, ticker-specific KPI values or DWS-specific constants are hard-coded.
@@ -36204,6 +36205,11 @@ def build_professional_business_services_specialist_valuation(snapshot, speciali
         "earnings_basis_raw": raw_basis,
         "earnings_basis_cap": earnings_cap,
         "earnings_basis_method": "80% FY26 issuer-adjusted diluted EPS + 20% FY25 adjusted diluted EPS; capped at 110% of FY26",
+        "earnings_basis_confidence": "Mittel",
+        "earnings_basis_confidence_note": (
+            "Issuer-adjusted FY26/FY25 diluted EPS are same-basis primary-source anchors; FY25 is explicitly treated as a super-normal comparison year, "
+            "so FY26 receives 80% weight and the blended basis is capped at 110% of FY26. Generic Provider/GAAP TTM-vs-Forward divergence is diagnosis-only."
+        ),
         "fy26_adjusted_diluted_eps": fy26,
         "fy25_adjusted_diluted_eps": fy25,
         "corridor_low": 9.0,
@@ -46413,6 +46419,7 @@ def calculate_valuation_confidence(
     is_oilfield_services_energy_tech_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "oilfield_services_energy_tech_adjusted_pe"
     is_integrated_oil_gas_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "integrated_oil_gas_through_cycle_pe"
     is_asset_management_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "asset_management_through_cycle_pe"
+    is_professional_services_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "professional_business_services_adjusted_pe"
     is_defense_high_growth_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "defense_high_growth_current_fy_pe"
     is_holding_nav_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "listed_holding_nav_target"
     if is_holding_nav_valuation:
@@ -46463,13 +46470,19 @@ def calculate_valuation_confidence(
         earnings_rank = _confidence_rank_value(earnings_level)
         if earnings_rank is not None:
             components["Asset-Manager Earnings-Basis"] = (earnings_rank, earnings_level)
+    elif is_professional_services_valuation:
+        ps_valuation = ((special_control or {}).get("checks") or {}).get("specialist_valuation") or {}
+        earnings_level = ps_valuation.get("earnings_basis_confidence") or fair_value.get("earnings_basis_confidence") or "Mittel"
+        earnings_rank = _confidence_rank_value(earnings_level)
+        if earnings_rank is not None:
+            components["Professional-Services Earnings-Basis"] = (earnings_rank, earnings_level)
     elif is_defense_high_growth_valuation:
         df_earnings = ((special_control or {}).get("checks") or {}).get("defense_earnings_basis") or {}
         earnings_level = df_earnings.get("confidence") or "Niedrig"
         earnings_rank = _confidence_rank_value(earnings_level)
         if earnings_rank is not None:
             components["Defense Current-FY Earnings-Basis"] = (earnings_rank, earnings_level)
-    elif not is_holding_nav_valuation and not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation and not is_branded_consumer_staples_valuation and not is_oilfield_services_energy_tech_valuation and not is_integrated_oil_gas_valuation and not is_defense_high_growth_valuation and not is_payment_network_valuation:
+    elif not is_holding_nav_valuation and not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation and not is_branded_consumer_staples_valuation and not is_oilfield_services_energy_tech_valuation and not is_integrated_oil_gas_valuation and not is_professional_services_valuation and not is_defense_high_growth_valuation and not is_payment_network_valuation:
         eps_level = (eps_normalization or {}).get("confidence")
         eps_rank = _confidence_rank_value(eps_level)
         if eps_rank is not None:
@@ -47853,6 +47866,10 @@ def calculate_fair_value_v1(
             "liquidity_guard_binding": bool(sv.get("liquidity_guard_binding")),
             "liquidity_guard_cap": safe_float(sv.get("liquidity_guard_cap")),
             "earnings_basis_method": sv.get("earnings_basis_method"),
+            "earnings_basis_confidence": sv.get("earnings_basis_confidence") or "Mittel",
+            "professional_services_earnings_basis_gbp": safe_float(sv.get("earnings_basis")),
+            "professional_services_fy26_eps_gbp": safe_float(sv.get("fy26_adjusted_diluted_eps")),
+            "professional_services_fy25_eps_gbp": safe_float(sv.get("fy25_adjusted_diluted_eps")),
             "professional_services_company": snap.get("company"),
             "unit_conversion_applied": bool(unit_notes),
             "unit_note": " ".join(unit_notes) if unit_notes else None,
@@ -57787,11 +57804,18 @@ if selected_symbol:
                                 f"{APP_BUILD_VERSION} verwendet für DSW eine issuer-adjustierte Through-Cycle-Basis aus FY2026 und FY2025 Adjusted Diluted EPS; "
                                 "der FY2025-Super-Normal-Effekt wird dabei gedämpft und GBp/GBP erst im Fair-Value/Kurs-Vergleich explizit angeglichen."
                             )
-                            st.write(
-                                "**Professional-Services Earnings-Basis:** " + format_eps(ps_eps_basis_ui.get("earnings_basis"), financial_currency) +
-                                " · FY2026 Adjusted Diluted EPS " + format_eps(ps_eps_basis_ui.get("fy26_adjusted_diluted_eps"), financial_currency) +
-                                " · FY2025 Adjusted Diluted EPS " + format_eps(ps_eps_basis_ui.get("fy25_adjusted_diluted_eps"), financial_currency)
-                            )
+                            ps_basis_gbp_ui = safe_float(ps_eps_basis_ui.get("earnings_basis"))
+                            ps_fy26_gbp_ui = safe_float(ps_eps_basis_ui.get("fy26_adjusted_diluted_eps"))
+                            ps_fy25_gbp_ui = safe_float(ps_eps_basis_ui.get("fy25_adjusted_diluted_eps"))
+                            if ps_basis_gbp_ui is not None and ps_fy26_gbp_ui is not None and ps_fy25_gbp_ui is not None:
+                                st.write(
+                                    f"**Professional-Services Earnings-Basis:** {ps_basis_gbp_ui * 100.0:.3f} GBp / {ps_basis_gbp_ui:.5f} GBP"
+                                    f" · FY2026 Adjusted Diluted EPS {ps_fy26_gbp_ui * 100.0:.3f} GBp"
+                                    f" · FY2025 Adjusted Diluted EPS {ps_fy25_gbp_ui * 100.0:.3f} GBp"
+                                )
+                                ps_basis_display_ui, ps_basis_display_ccy_ui = transform_value_for_display(ps_basis_gbp_ui, "GBP")
+                                if ps_basis_display_ui is not None and ps_basis_display_ccy_ui != "GBP":
+                                    st.caption(f"Anzeigeäquivalent der Through-Cycle-Earnings-Basis: {ps_basis_display_ui:.4f} {ps_basis_display_ccy_ui} je Aktie.")
                         else:
                             st.warning("Professional-Services Earnings-Basis unvollständig – Fair Value bleibt fail-closed.")
                     elif luxury_premium_eps_context_ui:
@@ -57894,6 +57918,18 @@ if selected_symbol:
                     else:
                         st.error("Defense Current-FY Earnings-Basis: **Niedrige Sicherheit**")
                     st.caption("Provider/GAAP-TTM-EPS und das generische EPS-Divergenz-Gate steuern weder Defense-Fair-Value noch Defense-Bewertungssicherheit.")
+                elif professional_services_eps_context_ui:
+                    ps_eps_conf_ui = ((data.get("professional_business_services_specialist_model") or {}).get("specialist_valuation") or {})
+                    ps_eps_level_ui = str(ps_eps_conf_ui.get("earnings_basis_confidence") or "Mittel")
+                    if ps_eps_level_ui == "Hoch":
+                        st.success("Professional-Services Earnings-Basis: **Hohe Sicherheit**")
+                    elif ps_eps_level_ui == "Mittel":
+                        st.warning("Professional-Services Earnings-Basis: **Mittlere Sicherheit**")
+                    else:
+                        st.error("Professional-Services Earnings-Basis: **Niedrige Sicherheit**")
+                    st.caption(
+                        "Provider/GAAP-TTM-EPS und das generische EPS-Divergenz-Gate bleiben Diagnosekontext und begrenzen weder Professional-Services-Fair-Value noch Bewertungssicherheit."
+                    )
                 elif asset_management_eps_context_ui:
                     am_eps_conf_ui = ((data.get("asset_management_specialist_model") or {}).get("earnings_basis") or {})
                     am_eps_level_ui = str(am_eps_conf_ui.get("confidence") or "Niedrig")
@@ -58037,6 +58073,12 @@ if selected_symbol:
                             "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
                             " Bei Rheinmetall steuert diese Provider/GAAP-TTM-/Current-FY-Divergenz weder den Defense-Spezial-Fair-Value noch dessen Bewertungssicherheit; maßgeblich ist der separate Current-FY-Earnings-Anker mit Primärquellen-Credibility-Gate."
                         )
+                    elif professional_services_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
+                            " Bei Professional & Business Services bleibt diese Provider/GAAP-Divergenz ausschließlich Diagnosekontext. "
+                            "Fair Value und Bewertungssicherheit verwenden die issuer-adjustierte FY26/FY25 Through-Cycle-Earnings-Basis des Spezialmodells."
+                        )
                     elif asset_management_eps_context_ui:
                         st.caption(
                             "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
@@ -58097,6 +58139,11 @@ if selected_symbol:
                         st.caption(
                             "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die UA/UAA-/OMC-Spezialbewertungssicherheit nicht. "
                             "Die Spezialmodell-Sicherheit stammt ausschließlich aus Primärquellen-Anker, Methode sowie Turnaround-/Integration-/Finanzierungsrisiken."
+                        )
+                    elif professional_services_eps_context_ui:
+                        st.caption(
+                            "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die Professional-&-Business-Services-Spezialbewertungssicherheit nicht. "
+                            "Die Specialist-Sicherheit stammt aus der issuer-adjustierten Through-Cycle-Earnings-Basis, Unternehmenstyp/Methode und Spezialkontrolle inklusive Liquidity Guard."
                         )
                     elif asset_management_eps_context_ui:
                         st.caption(
@@ -59722,6 +59769,7 @@ if selected_symbol:
                     and not bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
@@ -60081,6 +60129,7 @@ if selected_symbol:
                     and not bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("oilfield_services_energy_tech_specialist_model") or {}).get("applicable"))
@@ -62216,6 +62265,11 @@ if selected_symbol:
                         "Die Major-Peer-KGVs werden ausschließlich als reference-only Marktvergleich geladen; "
                         "es gibt keine automatische ±5-%-Anpassung, kein Peer-Gate und keinen Peer-bedingten Confidence-Abzug."
                     )
+                elif bool((data.get("professional_business_services_specialist_model") or {}).get("applicable")):
+                    st.caption(
+                        "Professional & Business Services V113: In V1 ist noch keine automatische Peer-Gruppe freigegeben. "
+                        "Score, 9–18×-Korridor, Liquidity Guard und Fair Value bleiben vollständig issuer-primary; es gibt keine ±5-%-Peer-Anpassung."
+                    )
                 else:
                     st.caption(
                         "Schritt 2A verändert weder Multiple Score "
@@ -62526,6 +62580,8 @@ if selected_symbol:
                     peer_explain = f"Oilfield Services & Energy Technology {APP_BUILD_VERSION}: SLB/HAL/FTI/BKR bleiben reference-only; Score, Same-Basis Adjusted-EPS-Bridge, Ziel-KGV und Fair Value bleiben issuer-/profil-spezifisch."
                 elif is_integrated_oil_gas_peer_metric:
                     peer_explain = f"Integrated Oil & Gas {APP_BUILD_VERSION}: Die anderen globalen Majors sind reine Markt-Referenzen. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Peer-Anpassung; Score, Through-Cycle-EPS, Ziel-KGV und Fair Value bleiben issuer-spezifisch."
+                elif bool((data.get("professional_business_services_specialist_model") or {}).get("applicable")):
+                    peer_explain = f"Professional & Business Services {APP_BUILD_VERSION}: Noch keine freigegebene Peer-Gruppe. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Peer-Anpassung; der V1-Fair-Value bleibt issuer-primary."
                 else:
                     peer_explain = "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
 
@@ -62686,6 +62742,14 @@ if selected_symbol:
                         st.caption(
                             "Fehlt bei einem Einzeltitel belastbare issuer-primary Evidenz für NAV, Historie, Leverage, Konzentration, Kosten, Peers oder Einheiten, "
                             "bleibt nur dieser Titel fail-closed; die Holding-Familie selbst bleibt freigegeben."
+                        )
+                    elif bool((data.get("professional_business_services_specialist_model") or {}).get("applicable")):
+                        st.caption(
+                            "Schritt 3A ist ausschließlich der Router. Die Professional-Services-Spezialprüfung erfolgt getrennt in Schritt 3B. "
+                            "Der Spezialscore bestimmt das rohe Ziel-KGV; der downside-only Small-Cap/Liquidity Guard darf dieses Ziel-KGV anschließend ausschließlich abwärts begrenzen."
+                        )
+                        st.caption(
+                            "Generischer Multiple Score, Standard-KGV und nicht freigegebene Peer-Overlays bleiben außerhalb der Bewertung."
                         )
                     else:
                         st.caption(
@@ -67547,6 +67611,22 @@ if selected_symbol:
                             f"Peer-Evidenz: {int(fair_value.get('peer_observation_count') or 0)} valide Holding-Peers. "
                             "Analystenziele, generisches EPS/KGV und Yahoo-FCF sind keine Fair-Value-Inputs."
                         )
+                    elif fair_value.get("valuation_method") == "professional_business_services_adjusted_pe":
+                        ps_basis_gbp_fv_ui = safe_float(fair_value.get("professional_services_earnings_basis_gbp"))
+                        st.write("**Bewertungsformel:** Issuer-adjustiertes Professional-Services Through-Cycle EPS × spezialisiertes Professional-Services-KGV")
+                        if ps_basis_gbp_fv_ui is not None:
+                            st.write(
+                                f"**Professional-Services Through-Cycle EPS:** {ps_basis_gbp_fv_ui * 100.0:.3f} GBp / {ps_basis_gbp_fv_ui:.5f} GBP"
+                            )
+                            ps_basis_display_fv_ui, ps_basis_display_ccy_fv_ui = transform_value_for_display(ps_basis_gbp_fv_ui, "GBP")
+                            if ps_basis_display_fv_ui is not None and ps_basis_display_ccy_fv_ui != "GBP":
+                                st.caption(f"Anzeigeäquivalent: {ps_basis_display_fv_ui:.4f} {ps_basis_display_ccy_fv_ui} je Aktie.")
+                        st.write(f"**Verwendetes Multiple:** {safe_float(fair_value.get('used_multiple')):.2f}×")
+                        st.write(f"**Multiple-Quelle:** {fair_value.get('multiple_source')}")
+                        if fair_value.get("liquidity_guard_binding"):
+                            st.caption(
+                                f"Small-Cap/Liquidity Guard bindend: Rohes Score-KGV {safe_float(fair_value.get('raw_score_multiple')):.2f}× → final {safe_float(fair_value.get('used_multiple')):.2f}×; ausschließlich downside-only."
+                            )
                     elif fair_value.get("valuation_method") == "reit_paffo":
                         st.write("**Bewertungsformel:** Offizieller AFFO-Guidance-Mittelwert × scoregesteuertes Ziel-P/AFFO")
                         st.write(f"**REIT-Score:** {fair_value.get('reit_score'):.0f}/100 · {fair_value.get('reit_quality_level')}")
@@ -67659,6 +67739,10 @@ if selected_symbol:
                             bcs_success_eps_ui = "Adjusted-EPS"
                         st.success(
                             f"{bcs_success_company_ui}-Fair-Value V1 wurde aus der Current-FY {bcs_success_eps_ui}-Guidance-Brücke und dem primärquellenbasierten Branded Consumer Staples Quality Score berechnet; Peers und externe Kursziele bleiben reference-only."
+                        )
+                    elif fair_value.get("valuation_method") == "professional_business_services_adjusted_pe":
+                        st.success(
+                            "Professional-&-Business-Services-Fair-Value V1 wurde aus der issuer-adjustierten FY26/FY25 Through-Cycle-Diluted-EPS-Basis und dem Professional-Services-Spezial-KGV berechnet; der Small-Cap/Liquidity Guard wirkt ausschließlich downside-only."
                         )
                     elif fair_value.get("valuation_method") == "gold_precious_metals_current_share_pe":
                         st.success(
@@ -67787,6 +67871,14 @@ if selected_symbol:
                                 "Integrated-Oil-Sicherheitsisolierung: Die generische Provider/GAAP-TTM-/Forward-Divergenz ist Diagnosekontext und begrenzt die Specialist-Sicherheit nicht separat. "
                                 "Maßgeblich sind Unternehmenstyp/Methode, issuer-primary CFFO/ROACE/Leverage und die Through-Cycle Adjusted-EPS-Brücke des Integrated-Oil-Specialist."
                             )
+                    elif fair_value.get("valuation_method") == "professional_business_services_adjusted_pe":
+                        ps_conf_val_ui = (((data.get("special_control") or {}).get("checks") or {}).get("specialist_valuation") or {})
+                        st.info(
+                            "Professional-Services-Sicherheitsisolierung: Die generische Provider/GAAP-TTM-/Forward-Divergenz ist kein Bestandteil der Bewertungssicherheit. "
+                            "Maßgeblich sind Unternehmenstyp/Methode, die issuer-adjustierte FY26/FY25 Through-Cycle-Earnings-Basis und die Professional-Services-Spezialkontrolle einschließlich downside-only Liquidity Guard."
+                        )
+                        if ps_conf_val_ui.get("earnings_basis_confidence_note"):
+                            st.caption(ps_conf_val_ui.get("earnings_basis_confidence_note"))
                     elif fair_value.get("valuation_method") == "asset_management_through_cycle_pe":
                         am_conf_basis_ui = (((data.get("special_control") or {}).get("checks") or {}).get("earnings_basis") or {})
                         st.info(
