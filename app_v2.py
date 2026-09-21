@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.38"
+APP_BUILD_VERSION = "V2.22.39"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Manager Extensionless XLSX Detection V134"
+    f"Build {APP_BUILD_VERSION} · Asset-Manager Multi-Year IR Table Year Binding V135"
 )
 
 
@@ -56,7 +56,9 @@ st.caption(
 # V2.22.35: Asset-Manager Current-Period Evidence Recovery V131. Fixes false fail-closed states for issuers whose IR result hub renders multiple years at once and whose document anchors are generic PDF/XLS labels. The generic Asset-Manager adapter now binds each document link to the nearest issuer-owned year context, prioritizes the latest published current-year Q/H period in primary-source discovery, and reports successfully fetched but still unmapped evidence as issuer_data_not_recovered instead of falsely claiming issuer_data_not_published. No issuer ticker, URL or KPI value is hard-coded; score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal thresholds remain unchanged.
 # V2.22.36: Asset-Manager Issuer-Primary XLSX Evidence Extraction V132. Extends V131 at the evidence-content layer: issuer-owned Office Open XML financial supplements are no longer decoded as HTML/binary text. A dependency-free XLSX reader flattens worksheet rows with shared-string, inline-string, formula-cache and percentage-style support, then feeds the unchanged period-safe AUM/Flow/Fee/CIR/EPS parser. This allows structured current-period supplements to serve as primary evidence while preserving period/scope guards, same-basis earnings requirements and fail-closed behavior. No issuer ticker, URL or KPI value is hard-coded; score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal thresholds remain unchanged.
 
-# V2.22.38: Asset-Manager Extensionless XLSX Detection V134. Detects issuer-primary OOXML workbooks by inspecting the ZIP package itself, so download endpoints without .xlsx filenames and with generic application/octet-stream content types are still routed through the structured XLSX parser. No valuation mathematics changed.\n\n# V2.22.37: Asset-Manager Structured XLSX Period Binding V133. Fixes wide issuer-primary financial supplements whose comparison headers (for example “Q2 2026 vs. Q1 2026 / Q2 2025”) precede the actual multi-period data-header row. XLSX extraction now preserves explicit worksheet-row boundaries, period detection ranks the real multi-period header row ahead of comparison captions, and KPI rows are parsed only within their own workbook row so comparison columns cannot shift AUM/flow/fee/CIR/EPS values onto the wrong period. Same-scope guards, same-basis earnings requirements, score weights, 9–18x corridor, peer/historical guards and signal thresholds remain unchanged; no issuer ticker, URL or KPI value is hard-coded.
+# V2.22.38: Asset-Manager Extensionless XLSX Detection V134. Detects issuer-primary OOXML workbooks by inspecting the ZIP package itself, so download endpoints without .xlsx filenames and with generic application/octet-stream content types are still routed through the structured XLSX parser. No valuation mathematics changed.
+# V2.22.39: Asset-Manager Multi-Year IR Table Year Binding V135. Fixes repeated multi-year investor-relations result hubs where generic PDF/XLS anchors are reused under year tabs and nearest-heading heuristics can attach an older document to the current year. The evidence adapter now derives a conservative table-to-year map only when the page exposes an ordered consecutive year selector and a matching sequence of repeated quarterly-results tables; that structural year overrides ambiguous nearby text and old-year documents are down-ranked before fetching. No issuer/ticker/URL/KPI value is hard-coded; XLSX/PDF parsers, specialist score weights, 9–18x corridor, peer/historical guards and signal thresholds remain unchanged.
+# V2.22.37: Asset-Manager Structured XLSX Period Binding V133. Fixes wide issuer-primary financial supplements whose comparison headers (for example “Q2 2026 vs. Q1 2026 / Q2 2025”) precede the actual multi-period data-header row. XLSX extraction now preserves explicit worksheet-row boundaries, period detection ranks the real multi-period header row ahead of comparison captions, and KPI rows are parsed only within their own workbook row so comparison columns cannot shift AUM/flow/fee/CIR/EPS values onto the wrong period. Same-scope guards, same-basis earnings requirements, score weights, 9–18x corridor, peer/historical guards and signal thresholds remain unchanged; no issuer ticker, URL or KPI value is hard-coded.
 # V2.22.34: Development-Stage EPS Copy Isolation Cleanup V130. Copy/UI-only change. Keeps V128 subprofile routing and V121 financial-stage detection unchanged, but isolates Development-Stage Mining / Materials from the generic Universal-Family EPS wording: Standard TTM/Forward EPS remains diagnosis-only and is explicitly not a Fair-Value anchor; Mineral Explorer / Mine Developer points instead to a technical/economic project and Project-NAV basis, while Battery Materials / Processing / Technology points to resource/feedstock, process/pilot/scale-up, qualification/offtake, funding and commercialisation evidence. The terminal EPS caption is profile-aware for the same reason. All scores, corridors, guard states, V127 Net-Cash logic, LOM logic and valuation mathematics remain unchanged.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
@@ -31383,8 +31385,8 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V114"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22238_asset_manager_extensionless_xlsx_v134"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V115"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22239_asset_manager_multi_year_ir_table_year_binding_v135"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -32029,6 +32031,82 @@ def _asset_manager_anchor_table_context(anchor):
     except Exception:
         return ""
     return _clean_text(" ".join(parts))
+
+
+
+
+def _asset_manager_structural_table_year_map(soup, current_year=None):
+    """Conservatively bind repeated quarterly-results tables to ordered year selectors.
+
+    Some IR hubs render one nearly identical results table per year while every
+    document anchor is only labelled PDF/XLS.  In that layout, nearest-heading
+    heuristics can accidentally inherit a year from another hidden tab.  We only
+    infer table years when the page itself exposes a consecutive descending year
+    selector and at least two repeated result tables in matching order.
+    """
+    if soup is None:
+        return {}
+    preferred = int(current_year or datetime.now().year)
+
+    # Collect exact standalone year controls in document order.  Restrict to
+    # compact navigation-like nodes so report-body dates cannot become routing
+    # evidence.
+    years = []
+    try:
+        for node in soup.find_all(["a", "button", "li", "span", "option"]):
+            txt = _clean_text(node.get_text(" ", strip=True))
+            m = re.fullmatch(r"(?:year\s*)?(20\d{2})", txt, re.I)
+            if not m:
+                continue
+            yy = int(m.group(1))
+            if yy > preferred + 2 or yy < 2000:
+                continue
+            if yy not in years:
+                years.append(yy)
+    except Exception:
+        return {}
+
+    if preferred not in years:
+        return {}
+    start = years.index(preferred)
+    years = years[start:]
+    if len(years) < 2:
+        return {}
+
+    # Require a clean descending consecutive run beginning with the current
+    # year.  This makes the inference fail closed on ambiguous archive pages.
+    run = [years[0]]
+    for yy in years[1:]:
+        if run[-1] - yy == 1:
+            run.append(yy)
+        else:
+            break
+    if len(run) < 2:
+        return {}
+
+    result_tables = []
+    try:
+        for table in soup.find_all("table"):
+            folded = _asset_manager_v108_fold(table.get_text(" ", strip=True))
+            quarter_hits = len(re.findall(r"\bq[1-4]\b", folded))
+            has_result_columns = any(term in folded for term in [
+                "financial data supplement", "quarterly statement", "interim report",
+                "presentation", "webcast", "transcript",
+            ])
+            if quarter_hits >= 2 and has_result_columns:
+                result_tables.append(table)
+    except Exception:
+        return {}
+
+    if len(result_tables) < 2:
+        return {}
+
+    # Only bind the aligned prefix.  Extra unrelated tables later on the page
+    # are intentionally ignored rather than guessed.
+    bind_count = min(len(run), len(result_tables))
+    if bind_count < 2:
+        return {}
+    return {id(result_tables[i]): run[i] for i in range(bind_count)}
 
 
 def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
@@ -34137,6 +34215,7 @@ def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
     except Exception:
         return []
     rows, seen = [], set()
+    structural_year_map = _asset_manager_structural_table_year_map(soup, current_year=year)
     base_hay = _asset_manager_v108_fold(base_url)
     base_period_match = re.search(r"(?:^|[/_-])(?:q|t)([1-4])(?:[/_-]|$)|(?:^|[/_-])(?:h|s)([12])(?:[/_-]|$)", base_hay)
     base_current_context = bool(str(year) in base_hay and base_period_match)
@@ -34147,7 +34226,9 @@ def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
         seen.add(href)
         label = _clean_text(a.get_text(" ", strip=True))
         ctx = _asset_manager_anchor_table_context(a)
-        nearest_year = _asset_manager_anchor_nearest_year(a, current_year=year)
+        parent_table = a.find_parent("table")
+        structural_year = structural_year_map.get(id(parent_table)) if parent_table is not None else None
+        nearest_year = structural_year if structural_year is not None else _asset_manager_anchor_nearest_year(a, current_year=year)
         if nearest_year is not None and str(nearest_year) not in ctx:
             ctx = _clean_text(f"{ctx} {nearest_year}")
         hay = _asset_manager_v108_fold(f"{label} {href} {ctx}")
@@ -34216,7 +34297,8 @@ def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
             score -= 80
         rows.append({"score": score, "url": href, "label": label, "table_context": ctx,
                      "kind": "report" if document_class else "hub", "document_class": document_class,
-                     "opaque_download": opaque_download, "inherited_period": inherited_period})
+                     "opaque_download": opaque_download, "inherited_period": inherited_period,
+                     "structural_year": structural_year})
     rows.sort(key=lambda x: (x.get("score", 0), x.get("table_context") or "", x.get("label") or ""), reverse=True)
     return rows
 
@@ -34363,7 +34445,7 @@ def _asset_manager_v108_failure_reason(best_partial, trace):
 
 
 def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=None, fundamental_info=None):
-    """V113 corporate-IR + structured-XLSX period-safe issuer-primary recovery."""
+    """V115 corporate-IR + structured-XLSX + multi-year-table issuer-primary recovery."""
     deadline = time.monotonic() + 38.0
     year = datetime.now().year
     company_label = _clean_text(company_name) or _clean_text(symbol)
@@ -40134,7 +40216,7 @@ def get_special_control(company_type, symbol):
                 "JHG/Take-private Delisting Guard",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Extensionless XLSX Detection Guard V114",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Multi-Year IR Table Year Binding Guard V115",
             "note": (
                 "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
                 "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
@@ -64579,7 +64661,7 @@ if selected_symbol:
 
                 elif special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Extensionless XLSX Detection Guard V114")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Multi-Year IR Table Year Binding Guard V115")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
@@ -64598,7 +64680,7 @@ if selected_symbol:
                                     st.caption("Noch fehlende aktuelle Primärdaten: " + " · ".join(str(x) for x in missing_am))
                                 failure_reason_am = discovery_am.get("evidence_failure_reason")
                                 if failure_reason_am:
-                                    st.caption("Evidence-Status V114: " + str(failure_reason_am))
+                                    st.caption("Evidence-Status V115: " + str(failure_reason_am))
                                 partial_bits = []
                                 for key, label in [
                                     ("total_aum", "Total AUM"),
