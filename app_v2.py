@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.25"
+APP_BUILD_VERSION = "V2.22.26"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Development-Stage Mining Commercial-Revenue & Cash-Burn Guard V121"
+    f"Build {APP_BUILD_VERSION} · Cross-Exchange Exact-Ticker Collision Guard V122"
 )
 
 
@@ -46,6 +46,7 @@ st.caption(
 # V2.22.23: Multi-Issuer Profile-Aware UI & Cashflow Consistency Cleanup V119. No valuation mathematics changed. Makes Professional & Business Services UI/copy profile-aware for DSW Network/Licence Platform versus FRP Partner-led Advisory Firm. FRP Yahoo/statement FCF divergence is diagnosis-only and the specialist cash-quality text now points to issuer-primary audited Operating Cash Flow versus Adjusted PBT/EBITDA plus Working Capital; DSW keeps issuer Operating Cash Conversion. Growth, profitability, balance/liquidity, special-event, peer, Fair-Value and confidence copy now reflect the active profile and FRP FY26/FY25/FY24 Adjusted Total EPS basis. DSW 76/100, 14.5x raw/14.0x final and FRP 91/100, 16.8x, 11.356p/190.78p remain unchanged.
 # V2.22.24: Universal Development-Stage Mining & Battery-Materials Guard V120. Adds a reusable financial-stage guard inside Mining / Materials for pre-revenue, exploration/development, pilot/demonstration and technology-commercialisation issuers. A mining/materials company with de-minimis revenue relative to market value plus loss/cash-burn evidence, or corroborating development-stage business-model language, is routed to a fail-closed Early-Stage Mining / Battery Materials / Project Development profile. Generic 100-point growth/profitability/FCF/balance scoring, revenue-based FCF margins, cycle P/E corridors and operating-mine valuation paths are suppressed until a project/technology/asset milestone, funding, feasibility/resource and commercialisation model is calibrated. The guard is business-model/financial-stage based and contains no FRB ticker override. Established producing miners remain on the existing Mining V2.20 path. Professional & Business Services V119 mathematics and all other released specialist models remain unchanged.
 # V2.22.25: Development-Stage Mining Commercial-Revenue & Cash-Burn Guard V121. Fixes the RNU false negative without issuer hardcoding. Within Mining / Materials, zero/de-minimis commercial revenue plus negative/unknown free cash flow and no established-producer language is now sufficient financial-stage evidence for the Development-Stage Guard even when reported net income is temporarily positive from interest, grants or other non-operating items. Corroborating exploration/development/feasibility/pilot/demonstration/customer-qualification language continues to strengthen the route. Established producers remain protected by explicit operating/production language. No Development-Stage Fair Value is introduced; Standard score, FCF margin, Net-Cash bonus, cycle P/E and operating-mine NAV remain fail-closed. Professional & Business Services V119 and all released valuation mathematics remain unchanged.
+# V2.22.26: Cross-Exchange Exact-Ticker Collision Guard V122. Search-only change. For a short exact base-ticker query without an explicit exchange suffix, the resolver now probes the bounded home-listing suffix set even when Yahoo already returned one exact/base candidate. If two or more distinct issuer identities legitimately use that same exact base ticker on different primary exchanges, none is labelled as the unique Hauptlisting: every colliding exact-ticker issuer is surfaced at the top as an explicit selection-required result with its own canonical identity. Explicit full-symbol input such as TLG.AX or TLG.TO remains unambiguous and retains exact-security priority. Same-issuer cross-listings do not trigger the collision state. V115 exact-base recovery, all family routers, V121 development-stage guard and all valuation mathematics remain unchanged; no TLG/Talga/Troilus hard-coding is introduced.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
 # V2.22.12: Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108. Keeps the released Asset-Management scoring, 9–18x base corridor, Premium-Unlock, peer/historical guards and signal mathematics unchanged. V108 upgrades only the issuer-primary evidence layer: corporate/group/investor-IR domain-family escalation, financial-results/document-class prioritization, period-safe AUM/flow/fee/CIR/EPS table recovery, issuer-native Cost-Income-Ratio efficiency support without relabelling it as an operating margin, and same-basis reported-or-adjusted TTM/3Y EPS recovery. Sub-scopes remain explicit, search snippets remain discovery-only, period/scope mismatches fail closed, and evidence failures receive diagnostic reason codes. No issuer URLs, ticker-specific KPI values or DWS-specific constants are hard-coded.
@@ -13043,7 +13044,7 @@ def classify_company(name, symbol, sector, industry):
 # Aktiensuche / Security Identity & Primary Listing Resolver
 # =========================================================
 
-SEARCH_RESOLVER_CACHE_EPOCH = "v22219_exact_base_ticker_homeprobe_v115"
+SEARCH_RESOLVER_CACHE_EPOCH = "v22226_cross_exchange_exact_ticker_collision_v122"
 
 SEARCH_EXCHANGE_PRIORITY = {
     # US primary venues
@@ -13622,25 +13623,25 @@ def search_stock_suggestions(search_text, cache_epoch):
     for term in search_terms[:4]:
         append_yahoo_results(term)
 
-    # V115 – exact base-ticker home-listing recovery. Yahoo can rank a fuzzy
-    # US prefix symbol ahead of an exact non-US ticker (e.g. ABCD before
-    # ABC.L). Probe a bounded set of common home suffixes only when the query
-    # is a short ticker-like token, no verified alias was injected, and the
-    # first search supplied neither an exact full symbol nor an exact base
-    # ticker. Each probe is fail-soft and contributes a row only when Yahoo
-    # literally returns the probed EQUITY symbol; fuzzy probe hits are ignored.
+    # V122 – exact base-ticker home-listing recovery + cross-exchange collision scan.
+    # Yahoo can rank a fuzzy prefix ahead of an exact non-US ticker (V115), and
+    # it can also return only one of several legitimate exchange-specific issuers
+    # that share the same short base ticker (for example ABC.TO vs ABC.AX).
+    # Therefore a short ticker-like query probes the bounded home-suffix set even
+    # when one exact/base candidate already exists. Only literal EQUITY symbols are
+    # accepted. A later issuer-identity check decides whether this is a genuine
+    # cross-exchange collision or merely another listing of the same issuer.
     query_upper = query.upper()
     short_ticker_query = bool(
         query_type == "ticker_or_name"
         and re.fullmatch(r"[A-Z0-9\-]{1,5}", query_upper)
     )
     has_primary_alias = any(item.get("_source") == "primary_alias" for item in suggestions)
-    has_exact_or_base = any(
-        str(item.get("symbol", "")).upper().strip() == query_upper
-        or _is_exact_base_ticker_match(item.get("symbol"), query, query_type)
-        for item in suggestions
-    )
-    if short_ticker_query and not has_primary_alias and not has_exact_or_base:
+    # V122: an explicit verified company alias already resolves issuer identity,
+    # but a raw short ticker must be collision-scanned even if Yahoo supplied one
+    # exact/base result. This is what distinguishes a true unique ticker from the
+    # same base ticker being used by unrelated issuers on different exchanges.
+    if short_ticker_query and not has_primary_alias:
         for suffix in SEARCH_HOME_TICKER_SUFFIX_PROBES:
             probe_symbol = f"{query_upper}{suffix}"
             probe_rows = _safe_yahoo_search(probe_symbol, max_results=5)
@@ -13700,6 +13701,30 @@ def search_stock_suggestions(search_text, cache_epoch):
     if not ranked:
         return []
 
+    # V122 – genuine exact-base ticker collision detection. A collision requires
+    # at least two distinct issuer identities among literal exact/base matches.
+    # Multiple listings of the same legal issuer do not count. Explicit full
+    # ticker input (contains a Yahoo exchange suffix) never enters this branch.
+    exact_family_candidates = []
+    if short_ticker_query:
+        for item in ranked:
+            symbol = str(item.get("symbol", "")).upper().strip()
+            if symbol == query_upper or _is_exact_base_ticker_match(symbol, query, query_type):
+                exact_family_candidates.append(item)
+
+    exact_issuer_cores = []
+    for item in exact_family_candidates:
+        candidate_name = item.get("longname") or item.get("shortname") or item.get("symbol")
+        core = _company_core_name(candidate_name)
+        if core and core not in exact_issuer_cores:
+            exact_issuer_cores.append(core)
+
+    ticker_collision = bool(short_ticker_query and len(exact_issuer_cores) >= 2)
+    collision_symbols = {
+        str(item.get("symbol", "")).upper().strip()
+        for item in exact_family_candidates
+    } if ticker_collision else set()
+
     top = ranked[0]
     top_score = _listing_candidate_score(top, query, query_type, identifier_rows)
     top_symbol = str(top.get("symbol", "")).upper()
@@ -13737,13 +13762,28 @@ def search_stock_suggestions(search_text, cache_epoch):
     )
 
     # Keep the dropdown useful on mobile. Ordinary exchange listings get more
-    # room than wrappers/OTC instruments or similarly named issuers.
-    ordered_ranked = (
-        [top]
-        + same_issuer_alternatives[:6]
-        + same_issuer_other_instruments[:3]
-        + other_issuers[:3]
-    )[:13]
+    # room than wrappers/OTC instruments or similarly named issuers. In a V122
+    # collision, every exact/base-ticker issuer is deliberately surfaced first
+    # before ordinary alternatives so the user can resolve issuer + exchange.
+    if ticker_collision:
+        collision_rows = [
+            item for item in ranked
+            if str(item.get("symbol", "")).upper().strip() in collision_symbols
+        ]
+        collision_rows.sort(
+            key=lambda item: _listing_candidate_score(item, query, query_type, identifier_rows),
+            reverse=True,
+        )
+        collision_ids = {id(item) for item in collision_rows}
+        remainder = [item for item in ranked if id(item) not in collision_ids]
+        ordered_ranked = (collision_rows + remainder)[:13]
+    else:
+        ordered_ranked = (
+            [top]
+            + same_issuer_alternatives[:6]
+            + same_issuer_other_instruments[:3]
+            + other_issuers[:3]
+        )[:13]
 
     clean_results = []
     for idx, item in enumerate(ordered_ranked):
@@ -13752,7 +13792,16 @@ def search_stock_suggestions(search_text, cache_epoch):
         exchange = item.get("exchDisp") or item.get("exchange") or "–"
         score = _listing_candidate_score(item, query, query_type, identifier_rows)
 
-        if idx == 0:
+        if ticker_collision and symbol in collision_symbols:
+            role = "ticker_collision"
+            role_label = "⚠ Exakter Ticker – Auswahl nötig"
+            match_reason = "Börsenübergreifend mehrdeutiger exakter Basisticker; Emittent/Börse auswählen"
+            # Each colliding ticker belongs to a different issuer. Never inherit
+            # canonical identity or primary-listing metadata from the first row.
+            canonical_name = name
+            primary_symbol = symbol
+            primary_exchange = str(exchange)
+        elif idx == 0:
             role = "primary"
             role_label = "✓ Hauptlisting"
             if item.get("_identifier_verified"):
@@ -13810,7 +13859,10 @@ def search_stock_suggestions(search_text, cache_epoch):
             "canonical_name": canonical_name,
             "primary_symbol": primary_symbol,
             "primary_exchange": primary_exchange,
-            "primary_score": top_score if role != "other_issuer" else score,
+            "primary_score": score if role in {"other_issuer", "ticker_collision"} else top_score,
+            "ticker_collision": bool(ticker_collision),
+            "ticker_collision_count": len(exact_issuer_cores) if ticker_collision else 0,
+            "ticker_collision_query": query_upper if ticker_collision else None,
             # V109: preserve provider search taxonomy across the explicit
             # selection boundary. Yahoo Search often still carries these
             # identity labels while quoteSummary/info is temporarily sparse.
@@ -13832,6 +13884,7 @@ def _compact_suggestion_label(item):
         "alternative": "↳ Weitere Notierung",
         "other_instrument": "◇ Anderes Instrument",
         "other_issuer": "• Anderes Unternehmen",
+        "ticker_collision": "⚠ Exakter Ticker",
     }.get(role, "• Treffer")
 
     core = [
@@ -13844,7 +13897,7 @@ def _compact_suggestion_label(item):
     # Repeating the same long issuer name on every alternative wastes the most
     # valuable mobile width. Keep it only for the main listing and other issuers.
     label = role_prefix + " · " + " · ".join(core)
-    if role in {"primary", "other_issuer"}:
+    if role in {"primary", "other_issuer", "ticker_collision"}:
         label += " — " + str(item.get("name") or "Unbekannt")
     return label
 
@@ -56881,16 +56934,26 @@ if search_text:
             )
 
             top_hit = suggestions[0]
-            st.caption(
-                f"{top_hit.get('listing_role_label', '✓ Hauptlisting')}: "
-                f"{top_hit['symbol']} · {top_hit['exchange']}"
-                + (f" · {top_hit['currency']}" if top_hit.get('currency') else "")
-                + f" — {top_hit['name']}. "
-                  "Danach folgen weitere Börsennotierungen desselben Emittenten, "
-                  "offensichtliche ADR/OTC/Local-Wrapper separat als andere Instrumente "
-                  "und erst anschließend ähnlich benannte andere Unternehmen. "
-                  "Die vollständigen Finanzdaten werden weiterhin erst nach deiner Auswahl geladen."
-            )
+            if top_hit.get("ticker_collision"):
+                collision_count = int(top_hit.get("ticker_collision_count") or 0)
+                collision_query = str(top_hit.get("ticker_collision_query") or search_text).upper()
+                st.warning(
+                    f"Exakter Ticker {collision_query} ist börsenübergreifend mehrdeutig: "
+                    f"{collision_count} verschiedene Emittenten verwenden diesen Basisticker. "
+                    "Bitte Emittent und Börse ausdrücklich auswählen. Die vollständigen "
+                    "Finanzdaten werden erst nach deiner Auswahl geladen."
+                )
+            else:
+                st.caption(
+                    f"{top_hit.get('listing_role_label', '✓ Hauptlisting')}: "
+                    f"{top_hit['symbol']} · {top_hit['exchange']}"
+                    + (f" · {top_hit['currency']}" if top_hit.get('currency') else "")
+                    + f" — {top_hit['name']}. "
+                      "Danach folgen weitere Börsennotierungen desselben Emittenten, "
+                      "offensichtliche ADR/OTC/Local-Wrapper separat als andere Instrumente "
+                      "und erst anschließend ähnlich benannte andere Unternehmen. "
+                      "Die vollständigen Finanzdaten werden weiterhin erst nach deiner Auswahl geladen."
+                )
 
             if top_hit.get("query_type") in {"wkn", "isin"}:
                 if top_hit.get("identifier_verified"):
