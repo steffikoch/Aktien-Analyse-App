@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.15"
+APP_BUILD_VERSION = "V2.22.16"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,11 +31,12 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Professional-Services Industry Precedence Guard V111"
+    f"Build {APP_BUILD_VERSION} · Professional & Business Services Specialist Model V1 V112"
 )
 
 
 # V2.22.15: Universal Professional-Services Industry Precedence Guard V111. Adds a reusable Professional & Business Services valuation family and fixes an over-broad Industrials sector fallback that previously routed Specialty Business Services issuers into Industrials / Capital Goods. High-confidence professional-service industries now outrank the broad Industrials sector; broader service labels require corroborating business-model evidence such as professional/advisory/consulting, corporate-finance/due-diligence, legal/accounting/tax, restructuring/recovery, fee-earner/network, licence-fee or revenue-share economics. Capital-goods/manufacturing industries remain on the existing Industrials route. The new family is defined_unreleased and therefore fail-closed: no generic Standard score, Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV, Fair Value or signals are unlocked. V110 Asset-Management evidence recovery, GBp/GBP unit handling and all released valuation mathematics remain unchanged.
+# V2.22.16: Professional & Business Services Specialist Model V1 V112. First validated issuer: DSW Capital (DSW.L). Releases an issuer-primary Professional & Business Services specialist path for DSW while keeping the wider family globally unreleased until a second independent issuer is validated. The model scores platform/network growth and fee-earner productivity, adjusted EBITDA/PBT quality, issuer operating cash conversion, balance quality, licence/revenue-mix resilience, capital allocation/dilution and earnings stability. Valuation uses an issuer-adjusted two-year diluted-EPS anchor (FY26 weighted 80%, FY25 20%) with a 9–18x score corridor and a downside-only small-cap/liquidity cap. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the specialist Fair Value. GBp/GBP conversion stays explicit at 1 GBP = 100 GBp. V110 Asset-Management evidence recovery and all other released specialist mathematics remain unchanged.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
 # V2.22.12: Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108. Keeps the released Asset-Management scoring, 9–18x base corridor, Premium-Unlock, peer/historical guards and signal mathematics unchanged. V108 upgrades only the issuer-primary evidence layer: corporate/group/investor-IR domain-family escalation, financial-results/document-class prioritization, period-safe AUM/flow/fee/CIR/EPS table recovery, issuer-native Cost-Income-Ratio efficiency support without relabelling it as an operating margin, and same-basis reported-or-adjusted TTM/3Y EPS recovery. Sub-scopes remain explicit, search snippets remain discovery-only, period/scope mismatches fail closed, and evidence failures receive diagnostic reason codes. No issuer URLs, ticker-specific KPI values or DWS-specific constants are hard-coded.
@@ -7098,6 +7099,36 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
     out["valuation_family"] = meta["label"]
     out["family_router_source"] = source
     out["family_policy"] = meta["policy"]
+
+    # V2.22.16 / V112 – first validated Professional & Business Services issuer.
+    # The family remains globally unreleased; only DSW.L receives the complete
+    # issuer-primary specialist route in this build.
+    _canonical_family_symbol = str(symbol or "").upper().strip()
+    if family_id == "professional_business_services" and _canonical_family_symbol == "DSW.L":
+        out["type"] = meta["label"]
+        out["method"] = (
+            "Issuer-primary Network/Platform Revenue + Fee-Earner/Productivity + Effective-Licence-Fee/Revenue-Mix + "
+            "Adjusted EBITDA/PBT + Operating Cash Conversion + adjusted diluted Through-Cycle EPS + Kapitalallokation + "
+            "Professional-Services-KGV; generischer Standard-Korridor gesperrt"
+        )
+        out["confidence_cap"] = "Mittel"
+        out["family_model_status"] = "validated_first_issuer_route"
+        out["family_model_ready"] = True
+        out["family_model_released"] = False
+        out["family_validation_status"] = "first_main_issuer_passed"
+        out["universal_family_fail_closed"] = False
+        out["business_model"] = (
+            "Kapitalarmes Professional-Services-/Advisory-Plattformmodell mit Lizenz-/Revenue-Share-Economics, "
+            "Fee-Earner-Skalierung und zusätzlichem Legal-Services-Anteil"
+        )
+        out["core_segments"] = (
+            "Business Advisory · Corporate Finance · Due Diligence/Recovery · Legal Services · Lizenz-/Plattformgeschäft"
+        )
+        out["focus_areas"] = (
+            "Network/Platform Revenue · Fee Earners & Revenue per Fee Earner · Effective Licence Fee · Adjusted EBITDA/PBT Margin · "
+            "Operating Cash Conversion · Revenue-Mix/Diversifikation · Adjusted Diluted EPS · Kapitalallokation/Dilution"
+        )
+        return out
 
     # V2.21.1: Family priority is authoritative over generic/unresolved legacy
     # placeholders. Only an explicit released specialist route is allowed to
@@ -35957,6 +35988,287 @@ def build_integrated_oil_gas_special_control(control, specialist_model):
 
 
 # =========================================================
+# V2.22.16 – Professional & Business Services Specialist Model V1
+# First validated issuer: DSW Capital (DSW.L)
+# =========================================================
+
+def is_professional_business_services_specialist_type(company_type, symbol=None):
+    sym = str(symbol or "").upper().strip()
+    family = str((company_type or {}).get("valuation_family") or "").lower()
+    type_name = normalized_company_type_name(company_type)
+    return sym == "DSW.L" or "professional & business services" in family or "professional & business services" in type_name
+
+
+def get_verified_dsw_professional_services_snapshot(symbol):
+    """Issuer-primary FY26 snapshot for the first Professional Services validation issuer.
+
+    Monetary amounts are GBP unless explicitly marked as pence/share. The
+    snapshot deliberately uses the issuer's own APM definitions instead of
+    Yahoo growth/FCF proxies. FY25 was described by the issuer as containing
+    'super normal' profits, therefore FY26 receives the higher earnings weight.
+    """
+    if str(symbol or "").upper().strip() != "DSW.L":
+        return None
+    return {
+        "company": "DSW Capital plc",
+        "symbol": "DSW.L",
+        "specialist_profile": "Professional-Services Platform / Licence & Legal Services",
+        "reporting_currency": "GBP",
+        "as_of_date": "31.03.2026",
+        "published_date": "28.07.2026",
+        "source_name": "DSW Capital FY26 Annual Report + FY26 Results Presentation + DSW Investor Relations",
+        "annual_report_url": "https://dswcapital.com/app/uploads/2026/08/274111-DSW-Annual-Report-FY26-WEB.pdf",
+        "presentation_url": "https://dswcapital.com/app/uploads/2026/07/Investor-Presentation-FY26-Final.pdf",
+        "investor_results_url": "https://dswcapital.com/investors/results-reports-presentations-and-circulars/",
+        "network_revenue": 22.776e6,
+        "network_revenue_prior": 25.844e6,
+        "network_revenue_growth_pct": -11.9,
+        "group_revenue": 6.172e6,
+        "group_revenue_prior": 4.854e6,
+        "group_revenue_growth_pct": 27.1,
+        "total_income_growth_pct": 26.0,
+        "adjusted_ebitda": 1.667e6,
+        "adjusted_ebitda_prior": 1.787e6,
+        "adjusted_ebitda_margin_pct": 27.0,
+        "adjusted_ebitda_margin_prior_pct": 36.8,
+        "normalized_margin_reference_pct": 27.0,
+        "fy25_supernormal_profit_flag": True,
+        "adjusted_operating_profit": 1.451e6,
+        "adjusted_pbt": 1.306e6,
+        "adjusted_pbt_prior": 1.572e6,
+        "operating_cash_conversion_pct": 109.0,
+        "cash_generated_operations": 1.8e6,
+        "net_cash": 0.1e6,
+        "fee_earners": 135.0,
+        "fee_earners_prior": 136.0,
+        "revenue_per_fee_earner": 163000.0,
+        "revenue_per_fee_earner_prior": 214000.0,
+        "effective_licence_fee_pct": 14.5,
+        "effective_licence_fee_prior_pct": 14.5,
+        "partners": 45.0,
+        "service_lines": 9.0,
+        "offices": 12.0,
+        "legal_revenue_mix_pct": 57.0,
+        "ma_licence_revenue_mix_pct": 31.0,
+        "other_licence_revenue_mix_pct": 11.0,
+        "adjusted_earnings": 1.068e6,
+        "adjusted_earnings_prior": 1.255e6,
+        "diluted_shares": 25.362316e6,
+        "diluted_shares_prior": 23.098969e6,
+        "dividend_per_share_pence": 3.2,
+        "dividend_per_share_prior_pence": 3.0,
+        "shares_not_public_pct": 55.20,
+        "public_float_pct": 44.80,
+        "liquidity_guard_market_cap_gbp": 50e6,
+        "liquidity_guard_multiple_cap": 14.0,
+        "valuation_confidence_cap": "Mittel",
+        "note": (
+            "FY26 is used as the dominant earnings year because DSW explicitly described FY25 as containing super-normal profits. "
+            "Network revenue declined after that exceptional comparison year, while reported Group revenue/total income benefited from the full-year DR Solicitors contribution. "
+            "The model therefore separates network activity, fee-earner productivity, licence economics, direct legal-services mix, margin normalization and cash conversion."
+        ),
+    }
+
+
+def build_professional_business_services_specialist_score(snapshot):
+    snap = snapshot or {}
+    if not snap:
+        return {"available": False, "score": None, "components": {}, "quality_level": "Nicht verfügbar"}
+
+    def growth_pct(cur, prev):
+        cur = safe_float(cur); prev = safe_float(prev)
+        if cur is None or prev is None or abs(prev) < 1e-12:
+            return None
+        return (cur / prev - 1.0) * 100.0
+
+    income_g = safe_float(snap.get("total_income_growth_pct"))
+    network_g = safe_float(snap.get("network_revenue_growth_pct"))
+    fe_g = growth_pct(snap.get("fee_earners"), snap.get("fee_earners_prior"))
+    rev_fe_g = growth_pct(snap.get("revenue_per_fee_earner"), snap.get("revenue_per_fee_earner_prior"))
+    income_pts = 6 if income_g is not None and income_g >= 15 else 5 if income_g is not None and income_g >= 8 else 3 if income_g is not None and income_g >= 0 else 1 if income_g is not None and income_g >= -10 else 0
+    network_pts = 5 if network_g is not None and network_g >= 10 else 4 if network_g is not None and network_g >= 3 else 3 if network_g is not None and network_g >= 0 else 2 if network_g is not None and network_g >= -15 else 0
+    fe_pts = 4 if fe_g is not None and fe_g >= 10 else 3 if fe_g is not None and fe_g >= 3 else 2 if fe_g is not None and fe_g >= -2 else 1 if fe_g is not None and fe_g >= -10 else 0
+    rev_fe_pts = 5 if rev_fe_g is not None and rev_fe_g >= 10 else 4 if rev_fe_g is not None and rev_fe_g >= 3 else 3 if rev_fe_g is not None and rev_fe_g >= 0 else 1 if rev_fe_g is not None and rev_fe_g >= -25 else 0
+    platform_pts = income_pts + network_pts + fe_pts + rev_fe_pts
+
+    margin = safe_float(snap.get("adjusted_ebitda_margin_pct"))
+    pbt_g = growth_pct(snap.get("adjusted_pbt"), snap.get("adjusted_pbt_prior"))
+    margin_pts = 12 if margin is not None and margin >= 32 else 10 if margin is not None and margin >= 25 else 8 if margin is not None and margin >= 20 else 5 if margin is not None and margin >= 15 else 2 if margin is not None and margin > 0 else 0
+    pbt_pts = 5 if pbt_g is not None and pbt_g >= 10 else 4 if pbt_g is not None and pbt_g >= 0 else 2 if pbt_g is not None and pbt_g >= -20 else 0
+    ref_margin = safe_float(snap.get("normalized_margin_reference_pct"))
+    normalization_pts = 3 if margin is not None and ref_margin is not None and abs(margin - ref_margin) <= 2.0 and snap.get("fy25_supernormal_profit_flag") else 1
+    earnings_pts = margin_pts + pbt_pts + normalization_pts
+
+    occ = safe_float(snap.get("operating_cash_conversion_pct"))
+    cash_pts = 15 if occ is not None and occ >= 100 else 13 if occ is not None and occ >= 90 else 10 if occ is not None and occ >= 75 else 6 if occ is not None and occ >= 60 else 2 if occ is not None and occ > 0 else 0
+
+    net_cash = safe_float(snap.get("net_cash"))
+    balance_pts = 8 if net_cash is not None and net_cash > 0 else 6 if net_cash is not None and net_cash >= -0.5e6 else 3 if net_cash is not None and net_cash >= -2.0e6 else 0
+
+    licence = safe_float(snap.get("effective_licence_fee_pct"))
+    licence_prior = safe_float(snap.get("effective_licence_fee_prior_pct"))
+    licence_pts = 4 if licence is not None and licence_prior is not None and abs(licence - licence_prior) <= 1.0 else 3 if licence is not None and licence >= 12 else 1 if licence is not None and licence > 0 else 0
+    legal_mix = safe_float(snap.get("legal_revenue_mix_pct"))
+    ma_mix = safe_float(snap.get("ma_licence_revenue_mix_pct"))
+    mix_pts = 5 if legal_mix is not None and ma_mix is not None and legal_mix >= 30 and ma_mix <= 45 else 3 if ma_mix is not None and ma_mix <= 60 else 1
+    service_lines = safe_float(snap.get("service_lines")); offices = safe_float(snap.get("offices"))
+    breadth_pts = 5 if service_lines is not None and service_lines >= 8 and offices is not None and offices >= 10 else 3 if service_lines is not None and service_lines >= 5 else 1
+    mix_total_pts = licence_pts + mix_pts + breadth_pts
+
+    div = safe_float(snap.get("dividend_per_share_pence")); div_prev = safe_float(snap.get("dividend_per_share_prior_pence"))
+    div_g = growth_pct(div, div_prev)
+    dividend_pts = 4 if div_g is not None and div_g > 0 else 3 if div_g is not None and div_g >= 0 else 1
+    dilution_g = growth_pct(snap.get("diluted_shares"), snap.get("diluted_shares_prior"))
+    dilution_pts = 4 if dilution_g is not None and dilution_g <= 2 else 3 if dilution_g is not None and dilution_g <= 5 else 1 if dilution_g is not None and dilution_g <= 15 else 0
+    adj_earn = safe_float(snap.get("adjusted_earnings")); dil_sh = safe_float(snap.get("diluted_shares"))
+    fy26_eps = adj_earn / dil_sh if adj_earn is not None and dil_sh is not None and dil_sh > 0 else None
+    payout = (div / 100.0) / fy26_eps * 100.0 if div is not None and fy26_eps is not None and fy26_eps > 0 else None
+    payout_pts = 2 if payout is not None and 25 <= payout <= 70 else 1 if payout is not None and payout <= 90 else 0
+    capital_pts = dividend_pts + dilution_pts + payout_pts
+
+    adj_earn_prev = safe_float(snap.get("adjusted_earnings_prior")); dil_sh_prev = safe_float(snap.get("diluted_shares_prior"))
+    fy25_eps = adj_earn_prev / dil_sh_prev if adj_earn_prev is not None and dil_sh_prev is not None and dil_sh_prev > 0 else None
+    eps_g = growth_pct(fy26_eps, fy25_eps)
+    eps_pts = 5 if eps_g is not None and eps_g >= 5 else 4 if eps_g is not None and eps_g >= 0 else 2 if eps_g is not None and eps_g >= -25 else 0
+    structure_pts = 4 if margin is not None and margin >= 25 and occ is not None and occ >= 90 else 3 if margin is not None and margin >= 20 else 1
+    public_float = safe_float(snap.get("public_float_pct"))
+    float_pts = 1 if public_float is not None and public_float >= 40 else 0
+    stability_pts = eps_pts + structure_pts + float_pts
+
+    components = {
+        "platform_growth_productivity": {"score": platform_pts, "max": 20, "total_income_growth_pct": income_g, "network_revenue_growth_pct": network_g, "fee_earner_growth_pct": fe_g, "revenue_per_fee_earner_growth_pct": rev_fe_g},
+        "margin_earnings_quality": {"score": earnings_pts, "max": 20, "adjusted_ebitda_margin_pct": margin, "adjusted_pbt_growth_pct": pbt_g},
+        "operating_cash_conversion": {"score": cash_pts, "max": 15, "operating_cash_conversion_pct": occ},
+        "balance_funding": {"score": balance_pts, "max": 10, "net_cash": net_cash},
+        "licence_mix_diversification": {"score": mix_total_pts, "max": 15, "effective_licence_fee_pct": licence, "legal_revenue_mix_pct": legal_mix, "ma_licence_revenue_mix_pct": ma_mix},
+        "capital_allocation_dilution": {"score": capital_pts, "max": 10, "dividend_growth_pct": div_g, "diluted_share_growth_pct": dilution_g, "adjusted_payout_pct": payout},
+        "earnings_stability_structure": {"score": stability_pts, "max": 10, "adjusted_eps_growth_pct": eps_g, "public_float_pct": public_float},
+    }
+    score = sum(int(v.get("score") or 0) for v in components.values())
+    quality = "Sehr gut" if score >= 85 else "Gut" if score >= 70 else "Ausreichend" if score >= 50 else "Schwach"
+    return {
+        "available": True,
+        "score": score,
+        "max_score": 100,
+        "quality_level": quality,
+        "components": components,
+        "fy26_adjusted_diluted_eps": fy26_eps,
+        "fy25_adjusted_diluted_eps": fy25_eps,
+        "note": "Professional-Services-Score: Plattform-/Produktivitätsqualität, issuer-adjustierte Ertragskraft, Cash Conversion, Bilanz, Revenue-Mix, Kapitalallokation und Earnings-Stabilität; generische Yahoo-Punkte werden nicht verwendet.",
+    }
+
+
+def _professional_services_score_to_multiple(score):
+    score = safe_float(score)
+    if score is None:
+        return None
+    score = max(0.0, min(100.0, score))
+    if score < 50:
+        return 9.0 + (score / 50.0) * 2.0
+    if score < 70:
+        return 11.0 + ((score - 50.0) / 20.0) * 2.5
+    if score < 85:
+        return 13.5 + ((score - 70.0) / 15.0) * 2.5
+    return 16.0 + ((score - 85.0) / 15.0) * 2.0
+
+
+def build_professional_business_services_specialist_valuation(snapshot, specialist_score, fundamental_info=None):
+    snap = snapshot or {}
+    ss = specialist_score or {}
+    fy26 = safe_float(ss.get("fy26_adjusted_diluted_eps"))
+    fy25 = safe_float(ss.get("fy25_adjusted_diluted_eps"))
+    score = safe_float(ss.get("score"))
+    if fy26 is None or fy26 <= 0 or fy25 is None or fy25 <= 0 or score is None:
+        return {"available": False, "fair_value_financial": None, "target_multiple": None, "earnings_basis": None}
+
+    raw_basis = 0.80 * fy26 + 0.20 * fy25
+    earnings_cap = fy26 * 1.10
+    earnings_basis = min(raw_basis, earnings_cap)
+    raw_multiple = _professional_services_score_to_multiple(score)
+    target_multiple = raw_multiple
+    guard_reasons = []
+
+    mcap = safe_float((fundamental_info or {}).get("marketCap"))
+    public_float = safe_float(snap.get("public_float_pct"))
+    mcap_limit = safe_float(snap.get("liquidity_guard_market_cap_gbp")) or 50e6
+    liq_cap = safe_float(snap.get("liquidity_guard_multiple_cap")) or 14.0
+    liquidity_guard_binding = bool(mcap is not None and mcap > 0 and mcap < mcap_limit and public_float is not None and public_float < 50.0)
+    if liquidity_guard_binding and target_multiple is not None and target_multiple > liq_cap:
+        target_multiple = liq_cap
+        guard_reasons.append(f"Small-Cap/Liquidity Guard: market cap < £{mcap_limit/1e6:.0f}m and public float < 50%; target P/E capped at {liq_cap:.1f}x")
+
+    fair_value = earnings_basis * target_multiple if target_multiple is not None else None
+    return {
+        "available": bool(fair_value is not None and fair_value > 0),
+        "earnings_basis": earnings_basis,
+        "earnings_basis_raw": raw_basis,
+        "earnings_basis_cap": earnings_cap,
+        "earnings_basis_method": "80% FY26 issuer-adjusted diluted EPS + 20% FY25 adjusted diluted EPS; capped at 110% of FY26",
+        "fy26_adjusted_diluted_eps": fy26,
+        "fy25_adjusted_diluted_eps": fy25,
+        "corridor_low": 9.0,
+        "corridor_high": 18.0,
+        "raw_score_multiple": raw_multiple,
+        "target_multiple": target_multiple,
+        "liquidity_guard_binding": liquidity_guard_binding,
+        "liquidity_guard_cap": liq_cap if liquidity_guard_binding else None,
+        "guard_reasons": guard_reasons,
+        "fair_value_financial": fair_value,
+        "note": "Professional & Business Services Fair Value = issuer-adjusted through-cycle diluted EPS × scoregesteuertes Professional-Services-KGV; small-cap/liquidity risk can only cap the multiple downward.",
+    }
+
+
+def build_professional_business_services_specialist_model(company_type, fundamental_info, symbol):
+    if not is_professional_business_services_specialist_type(company_type, symbol):
+        return {"applicable": False}
+    snap = get_verified_dsw_professional_services_snapshot(symbol)
+    if not snap:
+        return {
+            "applicable": True,
+            "issuer_supported": False,
+            "primary_source_complete": False,
+            "valuation_anchor_complete": False,
+            "readiness": "Professional & Business Services family recognized; issuer-specific primary snapshot not yet calibrated",
+        }
+    score = build_professional_business_services_specialist_score(snap)
+    valuation = build_professional_business_services_specialist_valuation(snap, score, fundamental_info=fundamental_info)
+    released = bool(score.get("available") and valuation.get("available"))
+    return {
+        "applicable": True,
+        "issuer_supported": True,
+        "primary_source_complete": True,
+        "valuation_anchor_complete": released,
+        "snapshot": snap,
+        "specialist_score": score,
+        "specialist_valuation": valuation,
+        "readiness": "Professional-Services-Spezialbewertung vollständig" if released else "Professional-Services-Spezialanker unvollständig",
+        "note": f"{APP_BUILD_VERSION} trennt Professional & Business Services vom generischen Industrials-/Yahoo-FCF-/ROE-Pfad. DSW wird aus FY26 issuer-primary Plattform-, Fee-Earner-, Margin-, Cash-Conversion-, Mix-, Bilanz- und Adjusted-Earnings-Daten bewertet.",
+    }
+
+
+def build_professional_business_services_special_control(control, specialist_model):
+    if not isinstance(control, dict) or control.get("control_key") != "professional_business_services_specialist":
+        return control
+    model = specialist_model if isinstance(specialist_model, dict) else {}
+    snap = model.get("snapshot") or {}
+    score = model.get("specialist_score") or {}
+    valuation = model.get("specialist_valuation") or {}
+    released = bool(model.get("valuation_anchor_complete") and valuation.get("available"))
+    out = dict(control)
+    out.update({
+        "implemented": True,
+        "released": released,
+        "confidence_cap": snap.get("valuation_confidence_cap") or "Mittel",
+        "router_status": "Schritt 3B freigegeben" if released else "Schritt 3B nicht freigegeben",
+        "step3b_status": model.get("readiness"),
+        "snapshot": snap,
+        "checks": {"specialist_score": score, "specialist_valuation": valuation},
+        "note": model.get("note"),
+    })
+    return out
+
+
+# =========================================================
 # V2.20.96 – Corteva Separation Detection & SOTP Pre-Gate
 # =========================================================
 
@@ -38945,6 +39257,31 @@ def get_special_control(company_type, symbol):
             "note": (
                 f"TOYO wird nicht in den generischen High-Growth-/Yahoo-EPS-Pfad gedrückt. {APP_BUILD_VERSION} verwendet aktuelle Q2/H1-Primärdaten, "
                 "eine konservative current-share Earnings-Referenz und explizite downside-only Policy-/Financing-Caps."
+            ),
+        }
+
+    if is_professional_business_services_specialist_type(company_type, symbol_text):
+        return {
+            "required": True,
+            "control_key": "professional_business_services_specialist",
+            "control_name": "Professional & Business Services / Platform-, Fee-Earner-, Margin-, Cash-Conversion- & Adjusted-Earnings-Kontrolle",
+            "planned_checks": [
+                "Network/Platform Revenue getrennt von akquisitions-/mixgetriebenem Group Revenue",
+                "Fee Earners und Revenue per Fee Earner / Produktivität",
+                "Effective Licence Fee / Revenue-Mix / Service-Line-Diversifikation",
+                "Adjusted EBITDA Margin und Adjusted PBT statt generischer Nettomarge/ROE-Punkte",
+                "Issuer Operating Cash Conversion statt Yahoo-FCF-Margen-Score",
+                "Net Cash/Funding ohne generischen 15/15-Net-Cash-Bonus",
+                "Adjusted diluted FY25/FY26 EPS mit Super-Normal-Year Guard",
+                "Dividend / Dilution / Kapitalallokation",
+                "9–18× scoregesteuerter Professional-Services-Korridor",
+                "Small-Cap/Liquidity Guard downside-only",
+                "Analystenziele ausschließlich Reality Check",
+            ],
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Professional & Business Services Specialist Model V1",
+            "note": (
+                "Professional & Business Services wird nicht über den generischen Industrials-/Capital-Goods-Score bewertet. "
+                "DSW ist der erste end-to-end validierte Emittent; weitere Familienmitglieder bleiben bis zur zweiten unabhängigen Validierung fail-closed."
             ),
         }
 
@@ -47451,6 +47788,81 @@ def calculate_fair_value_v1(
             })
             return result
 
+    # V2.22.16 – Professional & Business Services specialist valuation.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "professional_business_services_specialist"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        sv = checks.get("specialist_valuation") or {}
+        ss = checks.get("specialist_score") or {}
+        snap = special_control.get("snapshot") or {}
+        fv = safe_float(sv.get("fair_value_financial"))
+        if not sv.get("available") or fv is None or fv <= 0:
+            result["note"] = "Fair Value V1 gesperrt: Professional-Services-Spezialanker nicht vollständig verfügbar."
+            return result
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der Professional-Services-Bewertung sind nicht eindeutig."
+            return result
+        share_context = context.get("share_unit_context") or {}
+        share_ratio = 1.0
+        unit_notes = []
+        if share_context.get("conversion_required"):
+            if not share_context.get("conversion_available"):
+                result["note"] = "Fair Value V1 gesperrt: abweichende Handelseinheit ohne verifizierte Aktien-/ADR-Umrechnung."
+                return result
+            share_ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
+            if share_ratio is None or share_ratio <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Aktien-/ADR-Verhältnis ist nicht belastbar."
+                return result
+        fvq = fv * share_ratio
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Währungs-/Einheitenumrechnung der Professional-Services-Bewertung nicht belastbar verfügbar."
+                return result
+            fvq *= factor
+            if context.get("conversion_kind") == "gbp_pence":
+                unit_notes.append("Währungseinheit ausdrücklich angeglichen: 1 GBP = 100 GBp.")
+            else:
+                unit_notes.append(f"Währungsangleichung: {financial_currency} → {quote_currency} mit Faktor {factor:.6f}.")
+        elif quote_currency != financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+        cp = safe_float(current_price)
+        potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+        result.update({
+            "available": True,
+            "valuation_method": "professional_business_services_adjusted_pe",
+            "normalized_eps": safe_float(sv.get("earnings_basis")),
+            "used_multiple": safe_float(sv.get("target_multiple")),
+            "multiple_source": f"{APP_BUILD_VERSION} Professional & Business Services Specialist P/E",
+            "fair_value_financial": fv,
+            "fair_value_quote": fvq,
+            "potential_pct": potential,
+            "specialist_score": safe_float(ss.get("score")),
+            "specialist_quality_level": ss.get("quality_level"),
+            "specialist_components": ss.get("components") or {},
+            "target_multiple": safe_float(sv.get("target_multiple")),
+            "raw_score_multiple": safe_float(sv.get("raw_score_multiple")),
+            "multiple_corridor_low": safe_float(sv.get("corridor_low")),
+            "multiple_corridor_high": safe_float(sv.get("corridor_high")),
+            "liquidity_guard_binding": bool(sv.get("liquidity_guard_binding")),
+            "liquidity_guard_cap": safe_float(sv.get("liquidity_guard_cap")),
+            "earnings_basis_method": sv.get("earnings_basis_method"),
+            "professional_services_company": snap.get("company"),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "Professional & Business Services Fair Value V1 = issuer-adjustierte Through-Cycle Diluted EPS × spezialisiertes Professional-Services-KGV. "
+                "Generisches Yahoo-Wachstum, ROE, FCF-/Net-Debt-Score und Analystenziele fließen nicht direkt in den Fair Value ein."
+            ),
+        })
+        return result
+
     # V2.20.109 – Asset Management specialist valuation.
     if (
         isinstance(special_control, dict)
@@ -53367,6 +53779,26 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             ),
         }
 
+    if is_professional_business_services_specialist_type(company_type, fundamental_symbol):
+        growth_score = {
+            **growth_score,
+            "context_score": growth_score.get("score"),
+            "score": None,
+            "note": (
+                f"Professional & Business Services {APP_BUILD_VERSION}: Generisches Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext. "
+                "Der Spezialpfad bewertet Network/Platform Revenue, Fee-Earner-Entwicklung, Produktivität und Revenue-Mix aus Primärquellen."
+            ),
+        }
+        profitability_score = {
+            **profitability_score,
+            "context_score": profitability_score.get("score"),
+            "score": None,
+            "brake_text": (
+                f"Professional & Business Services {APP_BUILD_VERSION}: Nettomarge und ROE erhalten keine generischen Punkte. "
+                "Maßgeblich sind Adjusted EBITDA/PBT, Cash Conversion, Licence/Service-Mix und issuer-adjustierte Earnings."
+            ),
+        }
+
     if is_oilfield_services_energy_tech_specialist_type(company_type, fundamental_symbol):
         growth_score = {
             **growth_score,
@@ -53583,6 +54015,22 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "score": None,
             "note": (balance_score.get("note") or "") +
                 f" {APP_BUILD_VERSION}: Generische Net-Cash-/Net-Debt-to-FCF-Punkte sind gesperrt; Bilanzqualität wird im Asset-Management-Spezialscore separat bewertet.",
+        }
+
+    if is_professional_business_services_specialist_type(company_type, fundamental_symbol):
+        fcf_score = {
+            **fcf_score,
+            "context_score": fcf_score.get("score"),
+            "score": None,
+            "note": (fcf_score.get("note") or "") +
+                f" {APP_BUILD_VERSION}: Yahoo-/Cashflow-Statement-FCF bleibt Diagnosekontext; issuer Operating Cash Conversion steuert den Professional-Services-Spezialscore.",
+        }
+        balance_score = {
+            **balance_score,
+            "context_score": balance_score.get("score"),
+            "score": None,
+            "note": (balance_score.get("note") or "") +
+                f" {APP_BUILD_VERSION}: Generische Net-Cash-/Net-Debt-to-FCF-Punkte sind gesperrt; Net Cash/Funding und Dilution werden im Spezialscore separat bewertet.",
         }
 
     if is_integrated_oil_gas_specialist_type(company_type, fundamental_symbol):
@@ -53807,6 +54255,12 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         historical.get("eps", [])
     )
 
+    professional_business_services_specialist_model = build_professional_business_services_specialist_model(
+        company_type,
+        fundamental_info,
+        fundamental_symbol,
+    )
+
     listed_investment_holding_specialist_model = build_listed_investment_holding_specialist_model(
         company_type,
         fundamental_info,
@@ -53852,6 +54306,28 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         balance_score,
         eps_normalization
     )
+
+    if professional_business_services_specialist_model.get("applicable"):
+        pbs_score_fm = professional_business_services_specialist_model.get("specialist_score") or {}
+        pbs_val_fm = professional_business_services_specialist_model.get("specialist_valuation") or {}
+        fundamental_multiple = {
+            **fundamental_multiple,
+            "score": safe_float(pbs_score_fm.get("score")),
+            "multiple": safe_float(pbs_val_fm.get("target_multiple")),
+            "available": bool(pbs_val_fm.get("available") and professional_business_services_specialist_model.get("valuation_anchor_complete")),
+            "earnings_basis_usable": bool(pbs_val_fm.get("available")),
+            "corridor": {
+                "available": True,
+                "lower": safe_float(pbs_val_fm.get("corridor_low")),
+                "upper": safe_float(pbs_val_fm.get("corridor_high")),
+                "method": "Professional & Business Services Specialist P/E",
+                "note": "Issuer-primary Professional-Services-Score; Small-Cap/Liquidity Guard wirkt ausschließlich downside-only.",
+            },
+            "note": (
+                f"{APP_BUILD_VERSION} Professional & Business Services: Der Spezialscore bestimmt das Fundamental-Multiple. "
+                "Generischer 100-Punkte-Standardscore, Yahoo-FCF/Net-Debt-to-FCF und Analystenziele werden nicht verwendet."
+            ),
+        }
 
     if str(fundamental_symbol or "").upper() == "KTOS":
         diagnostic_corridor = fundamental_multiple.get("corridor")
@@ -54590,6 +55066,11 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         asset_management_specialist_model
     )
 
+    special_control = build_professional_business_services_special_control(
+        special_control,
+        professional_business_services_specialist_model
+    )
+
     special_control = build_listed_investment_holding_special_control(
         special_control,
         listed_investment_holding_specialist_model
@@ -54684,6 +55165,28 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         insurance_special_model=insurance_special_model,
         asset_management_specialist_model=asset_management_specialist_model,
     )
+
+    if professional_business_services_specialist_model.get("applicable"):
+        if professional_business_services_specialist_model.get("valuation_anchor_complete"):
+            special_event_warning = {
+                "level": "Grün",
+                "icon": "🟢",
+                "title": "Kein separates Sonderereignis – Professional-Services-Spezialpfad aktiv",
+                "requires_research": False,
+                "valuation_usable": True,
+                "reason": "Die generische TTM-/Forward-EPS-Divergenz ist für diesen Spezialpfad nur Diagnosekontext; die Bewertung verwendet issuer-adjustierte FY25/FY26-Earnings und Primär-KPIs.",
+                "action": "Keine Standard-EPS-Sonderrecherche erforderlich; Professional-Services-Spezialscore und dessen Earnings-/Liquidity-Guards bleiben maßgeblich.",
+            }
+        else:
+            special_event_warning = {
+                "level": "Gelb",
+                "icon": "🟡",
+                "title": "Professional-Services-Spezialdaten unvollständig – Bewertung fail-closed",
+                "requires_research": False,
+                "valuation_usable": False,
+                "reason": "Der Bewertungsstopp entsteht durch fehlende issuer-primary Professional-Services-Evidenz, nicht durch einen generischen EPS-Sonderfall.",
+                "action": "Nicht auf den Standardpfad ausweichen; Fair Value bleibt bis zur vollständigen Spezialbasis gesperrt.",
+            }
 
     if is_universal_family_fail_closed(company_type):
         _family_label = company_type.get("valuation_family") or company_type.get("type") or "Bewertungsfamilie"
@@ -55662,6 +56165,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         "integrated_oil_gas_specialist_model": integrated_oil_gas_specialist_model,
         "branded_consumer_staples_specialist_model": branded_consumer_staples_specialist_model,
         "asset_management_specialist_model": asset_management_specialist_model,
+        "professional_business_services_specialist_model": professional_business_services_specialist_model,
         "listed_investment_holding_specialist_model": listed_investment_holding_specialist_model,
         "defense_high_growth_specialist_model": defense_high_growth_specialist_model,
         "ctva_separation_pre_gate_model": ctva_separation_pre_gate_model,
@@ -56129,6 +56633,12 @@ if selected_symbol:
                         st.info(
                             "Asset-Management-Spezialpfad mit zwei unabhängigen Hauptunternehmen end-to-end validiert (TROW + BLK). "
                             "Die globale Familienfreigabe bleibt bewusst offen, bis AUM-/Flow-/Fee-/Margin-Primärdaten über einen wiederverwendbaren issuer-primary Evidence-Adapter statt tickergebundener Snapshots gewonnen werden."
+                        )
+                    if (company_type.get("family_model_status") == "validated_first_issuer_route"
+                            and company_type.get("valuation_family") == "Professional & Business Services"):
+                        st.info(
+                            "Professional & Business Services Specialist Model V1: DSW ist als erster Hauptemittent end-to-end validiert. "
+                            "Der DSW-Spezialpfad ist aktiv; die globale Familienfreigabe bleibt bis zur Validierung eines zweiten unabhängigen Emittenten bewusst offen."
                         )
                     if is_universal_family_fail_closed(company_type):
                         if is_released_listed_holding_family(company_type):
@@ -56966,6 +57476,7 @@ if selected_symbol:
                 integrated_oil_gas_eps_context_ui = bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                 branded_consumer_staples_eps_context_ui = bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                 asset_management_eps_context_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
+                professional_services_eps_context_ui = bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
                 defense_high_growth_eps_context_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                 ctva_eps_context_ui = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 universal_family_eps_context_ui = is_universal_family_fail_closed(company_type)
@@ -56985,7 +57496,7 @@ if selected_symbol:
                     )
                 else:
                     normalized_eps = eps_result["normalized_eps"]
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (bank_eps_context_ui or universal_family_eps_context_ui or is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (bank_eps_context_ui or universal_family_eps_context_ui or is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or professional_services_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -57267,6 +57778,22 @@ if selected_symbol:
                             )
                         else:
                             st.warning("Asset-Management Through-Cycle-Earnings-Basis unvollständig – Fair Value bleibt fail-closed.")
+                    elif professional_services_eps_context_ui:
+                        ps_eps_model_ui = data.get("professional_business_services_specialist_model") or {}
+                        ps_eps_basis_ui = ps_eps_model_ui.get("specialist_valuation") or {}
+                        if ps_eps_basis_ui.get("available"):
+                            st.info(
+                                "Professional & Business Services: Provider-TTM/Forward-EPS bleibt ausschließlich Diagnosekontext. "
+                                f"{APP_BUILD_VERSION} verwendet für DSW eine issuer-adjustierte Through-Cycle-Basis aus FY2026 und FY2025 Adjusted Diluted EPS; "
+                                "der FY2025-Super-Normal-Effekt wird dabei gedämpft und GBp/GBP erst im Fair-Value/Kurs-Vergleich explizit angeglichen."
+                            )
+                            st.write(
+                                "**Professional-Services Earnings-Basis:** " + format_eps(ps_eps_basis_ui.get("earnings_basis"), financial_currency) +
+                                " · FY2026 Adjusted Diluted EPS " + format_eps(ps_eps_basis_ui.get("fy26_adjusted_diluted_eps"), financial_currency) +
+                                " · FY2025 Adjusted Diluted EPS " + format_eps(ps_eps_basis_ui.get("fy25_adjusted_diluted_eps"), financial_currency)
+                            )
+                        else:
+                            st.warning("Professional-Services Earnings-Basis unvollständig – Fair Value bleibt fail-closed.")
                     elif luxury_premium_eps_context_ui:
                         lx_eps_snap_ui = (data.get("luxury_premium_specialist_model") or {}).get("snapshot") or {}
                         lx_company_ui = lx_eps_snap_ui.get("company") or "Luxury-Unternehmen"
@@ -58346,6 +58873,7 @@ if selected_symbol:
                 is_integrated_oil_gas_score_ui = bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                 is_branded_consumer_staples_score_ui = bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                 is_asset_management_score_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
+                is_professional_services_score_ui = bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
                 is_defense_high_growth_score_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                 is_kratos_score_ui = str(selected_symbol or "").upper() == "KTOS"
                 is_bkr_score_ui = str(selected_symbol or "").upper() == "BKR"
@@ -58416,6 +58944,9 @@ if selected_symbol:
                 elif is_defense_high_growth_score_ui:
                     st.info("ℹ️ Im Defense-High-Growth-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
                     st.caption("Rheinmetall wird über Backlog/Fixed Orders, organische FY26-Wachstums-Guidance, Operating-Result-Wachstum und Revenue Visibility aus Primärquellen bewertet. Yahoo-Gewinnwachstum bleibt Diagnosekontext.")
+                elif is_professional_services_score_ui:
+                    st.info("ℹ️ Im Professional-&-Business-Services-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
+                    st.caption("Wachstum wird über Network/Platform Revenue, Fee Earners, Revenue per Fee Earner, Licence Economics und Revenue-Mix aus issuer-primary FY26-Daten bewertet.")
                 elif is_asset_management_score_ui:
                     st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
                     st.caption("AUM-Anstieg wird von Organic Net Flows im issuer-verifizierten Scope getrennt; Marktperformance, FX und Akquisitionen erzeugen keine Growth-Punkte wie bei einem Industrieunternehmen.")
@@ -58575,7 +59106,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_universal_family_score_ui and not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_payment_network_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_oilfield_services_score_ui and not is_integrated_oil_gas_score_ui and not is_branded_consumer_staples_score_ui and not is_asset_management_score_ui and not is_defense_high_growth_score_ui:
+                if not is_universal_family_score_ui and not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_payment_network_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_oilfield_services_score_ui and not is_integrated_oil_gas_score_ui and not is_branded_consumer_staples_score_ui and not is_asset_management_score_ui and not is_professional_services_score_ui and not is_defense_high_growth_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -58612,6 +59143,7 @@ if selected_symbol:
                 is_integrated_oil_gas_profitability_ui = bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                 is_branded_consumer_staples_profitability_ui = bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                 is_asset_management_profitability_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
+                is_professional_services_profitability_ui = bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
                 is_defense_high_growth_profitability_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                 is_bkr_profitability_ui = is_baker_hughes_energy_tech_company_type(company_type)
                 is_universal_family_profitability_ui = is_universal_family_fail_closed(company_type)
@@ -58698,6 +59230,9 @@ if selected_symbol:
                 elif is_defense_high_growth_profitability_ui:
                     st.info("ℹ️ Im Defense-High-Growth-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption("Bewertet werden H1/Q2 Operating Margin, FY26-Margenguidance, Operating-Result-Wachstum und Same-Basis Adjusted-EPS-Trajectory. Yahoo-Nettomarge und ROE bleiben Diagnosekontext.")
+                elif is_professional_services_profitability_ui:
+                    st.info("ℹ️ Im Professional-&-Business-Services-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
+                    st.caption("Maßgeblich sind Adjusted EBITDA Margin, Adjusted PBT, normalisierte Earnings-Qualität und Operating Cash Conversion.")
                 elif is_asset_management_profitability_ui:
                     st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption("Hoher ROE ist bei kapitalarmen Asset Managern strukturell leichter erreichbar. Bewertet werden stattdessen Core/Adjusted Operating Margin, Margentrend und Earnings-Stabilität.")
@@ -58864,6 +59399,7 @@ if selected_symbol:
                     and not is_integrated_oil_gas_profitability_ui
                     and not is_branded_consumer_staples_profitability_ui
                     and not is_asset_management_profitability_ui
+                    and not is_professional_services_profitability_ui
                     and not is_defense_high_growth_profitability_ui
                     and not is_universal_family_profitability_ui
                 ):
@@ -59001,6 +59537,7 @@ if selected_symbol:
                     is_integrated_oil_gas_fcf_ui = bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                     is_branded_consumer_staples_fcf_ui = bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                     is_asset_management_fcf_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
+                    is_professional_services_fcf_ui = bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
                     is_defense_high_growth_fcf_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                     is_bkr_model_ui = is_baker_hughes_energy_tech_company_type(company_type)
                     is_universal_family_fcf_ui = is_universal_family_fail_closed(company_type)
@@ -59057,6 +59594,9 @@ if selected_symbol:
                     elif is_defense_high_growth_fcf_ui:
                         st.info("ℹ️ Im Defense-High-Growth-Spezialmodell berücksichtigt: Der generische Yahoo-/TTM-FCF-Margen-Score wird nicht verwendet.")
                         st.caption("Rheinmetalls H1 Operating FCF, Working-Capital-/Kapazitätsaufbau und FY26 Cash-Conversion-Guidance werden separat bewertet. Negativer H1-OFCF löst einen downside-only Multiple-Cap aus; er wird nicht mechanisch in Net-Debt/FCF übersetzt.")
+                    elif is_professional_services_fcf_ui:
+                        st.info("ℹ️ Im Professional-&-Business-Services-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Margen-Score wird nicht verwendet.")
+                        st.caption("Issuer Operating Cash Conversion ist die maßgebliche Cash-Qualitätsmetrik; Yahoo-TTM-FCF bleibt Diagnosekontext.")
                     elif is_asset_management_fcf_ui:
                         st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Margen-Score wird nicht verwendet.")
                         st.caption("Asset-light Cash Conversion bleibt Diagnose- und Kapitalallokationskontext; sie rechtfertigt allein kein Premium-KGV. Maßgeblich sind Net Flows, Fee-Qualität, Core-Marge und Through-Cycle-Earnings.")
@@ -59319,6 +59859,7 @@ if selected_symbol:
                     is_integrated_oil_gas_balance_ui = bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                     is_branded_consumer_staples_balance_ui = bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                     is_asset_management_balance_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
+                    is_professional_services_balance_ui = bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
                     is_defense_high_growth_balance_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                     is_bkr_balance_ui = is_baker_hughes_energy_tech_company_type(company_type)
                     is_universal_family_balance_ui = is_universal_family_fail_closed(company_type)
@@ -59385,6 +59926,9 @@ if selected_symbol:
                     elif is_defense_high_growth_balance_ui:
                         st.info("ℹ️ Im Defense-High-Growth-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("Rheinmetall bewertet Net Financial Debt relativ zum Eigenkapital und den Finanzierungs-/Kapazitätsaufbau separat. Ein temporär schwacher TTM-/H1-Cashflow darf die Bilanz nicht mechanisch über Net-Debt/FCF auf 0/15 drücken.")
+                    elif is_professional_services_balance_ui:
+                        st.info("ℹ️ Im Professional-&-Business-Services-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF- bzw. Netto-Cash-15/15-Logik wird nicht verwendet.")
+                        st.caption("Net Cash/Funding, Share Dilution, Dividendendeckung und die konzentrierte Aktionärs-/Liquiditätsstruktur werden separat im Spezialscore bzw. downside-only Liquidity Guard bewertet.")
                     elif is_asset_management_balance_ui:
                         st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("Net Cash oder geringe Verschuldung sind positiv, geben aber nicht automatisch 15/15 Punkte. Seed Capital, Akquisitionen, Buybacks und echte Netto-Aktienzahlentwicklung werden im Spezialscore separat bewertet.")
@@ -62173,6 +62717,77 @@ if selected_symbol:
                         "Nach Freigabe eines Familienmodells greifen sie automatisch über Family Router + Primärdaten-/Comparability-Gate; "
                         "issuer-spezifische Overrides bleiben nur für echte Sonderfälle."
                     )
+
+                if special_control.get("control_key") == "professional_business_services_specialist":
+                    st.divider()
+                    st.subheader("💼 Modul 6 – Schritt 3B: Professional & Business Services Specialist Model V1")
+                    if special_control.get("implemented"):
+                        checks_ps = special_control.get("checks") or {}
+                        snap_ps = special_control.get("snapshot") or {}
+                        score_ps = checks_ps.get("specialist_score") or {}
+                        val_ps = checks_ps.get("specialist_valuation") or {}
+                        ps_ccy = snap_ps.get("reporting_currency") or financial_currency
+                        st.write(f"**Unternehmen / Profil:** {text_or_dash(snap_ps.get('company'))} · {text_or_dash(snap_ps.get('specialist_profile'))}")
+                        st.write(f"**Primärdatenstand:** {text_or_dash(snap_ps.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_ps.get('published_date'))})")
+                        st.caption(text_or_dash(snap_ps.get("source_name")))
+                        ps_links = []
+                        if snap_ps.get("annual_report_url"):
+                            ps_links.append(f"[FY26 Annual Report]({snap_ps.get('annual_report_url')})")
+                        if snap_ps.get("presentation_url"):
+                            ps_links.append(f"[FY26 Results Presentation]({snap_ps.get('presentation_url')})")
+                        if ps_links:
+                            st.markdown(" · ".join(ps_links))
+                        c1, c2, c3 = st.columns(3)
+                        with c1:
+                            st.metric("Network Revenue FY26", format_money(snap_ps.get("network_revenue"), ps_ccy), f"{safe_float(snap_ps.get('network_revenue_growth_pct')):.1f} %")
+                            st.metric("Fee Earners", f"{int(safe_float(snap_ps.get('fee_earners')) or 0)}")
+                        with c2:
+                            st.metric("Adjusted EBITDA Margin", f"{safe_float(snap_ps.get('adjusted_ebitda_margin_pct')):.1f} %")
+                            st.metric("Operating Cash Conversion", f"{safe_float(snap_ps.get('operating_cash_conversion_pct')):.0f} %")
+                        with c3:
+                            st.metric("Effective Licence Fee", f"{safe_float(snap_ps.get('effective_licence_fee_pct')):.1f} %")
+                            st.metric("Net Cash", format_money(snap_ps.get("net_cash"), ps_ccy))
+                        st.write(
+                            f"**Revenue-Mix FY26:** Legal {safe_float(snap_ps.get('legal_revenue_mix_pct')):.0f} % · "
+                            f"M&A-Licence {safe_float(snap_ps.get('ma_licence_revenue_mix_pct')):.0f} % · "
+                            f"Other Licence {safe_float(snap_ps.get('other_licence_revenue_mix_pct')):.0f} %"
+                        )
+                        st.write(f"**Professional-Services-Score:** {int(safe_float(score_ps.get('score')) or 0)}/100 · {text_or_dash(score_ps.get('quality_level'))}")
+                        ps_components = score_ps.get("components") or {}
+                        if ps_components:
+                            ps_component_labels = {
+                                "platform_growth_productivity": "Plattformwachstum & Produktivität",
+                                "margin_earnings_quality": "Marge & Earnings Quality",
+                                "operating_cash_conversion": "Operating Cash Conversion",
+                                "balance_funding": "Bilanz & Funding",
+                                "licence_mix_diversification": "Licence/Mix & Diversifikation",
+                                "capital_allocation_dilution": "Kapitalallokation & Dilution",
+                                "earnings_stability_structure": "Earnings-Stabilität & Struktur",
+                            }
+                            for ps_key, ps_label in ps_component_labels.items():
+                                ps_item = ps_components.get(ps_key) or {}
+                                if ps_item:
+                                    st.caption(f"{ps_label}: {int(safe_float(ps_item.get('score')) or 0)}/{int(safe_float(ps_item.get('max')) or 0)}")
+                        st.write(
+                            f"**Earnings-Basis:** {format_eps(val_ps.get('earnings_basis'), ps_ccy)} · "
+                            f"FY26 adjusted diluted EPS {format_eps(val_ps.get('fy26_adjusted_diluted_eps'), ps_ccy)} · "
+                            f"FY25 {format_eps(val_ps.get('fy25_adjusted_diluted_eps'), ps_ccy)}"
+                        )
+                        st.caption(text_or_dash(val_ps.get("earnings_basis_method")))
+                        if val_ps.get("available"):
+                            st.write(
+                                f"**Professional-Services-KGV:** Roh aus Score {safe_float(val_ps.get('raw_score_multiple')):.2f}× · "
+                                f"final {safe_float(val_ps.get('target_multiple')):.2f}× · Basiskorridor {safe_float(val_ps.get('corridor_low')):.0f}–{safe_float(val_ps.get('corridor_high')):.0f}×"
+                            )
+                            if val_ps.get("liquidity_guard_binding"):
+                                st.warning(
+                                    f"Small-Cap/Liquidity Guard bindend: Ziel-KGV downside-only auf {safe_float(val_ps.get('liquidity_guard_cap')):.1f}× gedeckelt. "
+                                    "Die konzentrierte Aktionärsstruktur und geringe Marktkapitalisierung dürfen kein Bewertungs-Premium erzeugen."
+                                )
+                            st.success("Professional-&-Business-Services-Spezialanker vollständig – Fair Value freigegeben.")
+                        else:
+                            st.warning("Professional-&-Business-Services-Spezialanker unvollständig – Fair Value bleibt gesperrt.")
+                        st.caption(text_or_dash(special_control.get("note")))
 
                 if special_control.get("control_key") == "oilfield_services_energy_technology":
                     st.divider()
