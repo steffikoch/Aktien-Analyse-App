@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.35"
+APP_BUILD_VERSION = "V2.22.36"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Manager Current-Period Evidence Recovery V131"
+    f"Build {APP_BUILD_VERSION} · Asset-Manager Issuer-Primary XLSX Evidence Extraction V132"
 )
 
 
@@ -54,6 +54,7 @@ st.caption(
 # V2.22.32: Development-Stage Mining Subprofile Router V128. Keeps the V121 financial-stage guard and every valuation/fail-closed rule unchanged, but separates two reusable business-model subprofiles inside Development-Stage Mining / Materials: (1) Mineral Explorer / Mine Developer for drilling, resource-definition, metallurgy, PEA/PFS/DFS, permitting, infrastructure, project-capex and project-financing evidence; and (2) Battery Materials / Processing / Technology Developer for graphite/anode/cathode/high-purity-manganese and similar material-processing models with pilot/demo, scale-up, customer qualification/offtake, process/IP/licensing and commercialisation evidence. The route is evidence-based and contains no Cartier/Troilus/Talga/FRB/RNU ticker hardcoding. Standard score, FCF-margin, Net-Cash bonus, cycle P/E, operating-mine NAV and Fair Value remain blocked exactly as in V121 until a reusable project model is released. V127 balance logic and all released specialist mathematics remain unchanged.
 # V2.22.33: Development-Stage Subprofile Copy Consistency Cleanup V129. Copy/UI-only change. Keeps the V128 subprofile-selection conditions and V121 financial-stage detection conditions unchanged, but removes three shared-path wording remnants: Mineral Explorer / Mine Developer evidence now says Exploration-/Resource-/Development rather than Pilot; the green special-event next-step is profile-aware (Resource/Metallurgy/Feasibility/Permitting for explorers, Resource/Feedstock/Pilot/Qualification/Commercialisation for battery/processing developers); and the unreleased Fair-Value gate uses a technical/economic Project-NAV basis for explorer/developers versus a resource/process/qualification/commercialisation primary-data basis for battery/processing developers. All scores, corridors, guard release states, LOM logic, V127 Net-Cash logic and valuation mathematics remain unchanged.
 # V2.22.35: Asset-Manager Current-Period Evidence Recovery V131. Fixes false fail-closed states for issuers whose IR result hub renders multiple years at once and whose document anchors are generic PDF/XLS labels. The generic Asset-Manager adapter now binds each document link to the nearest issuer-owned year context, prioritizes the latest published current-year Q/H period in primary-source discovery, and reports successfully fetched but still unmapped evidence as issuer_data_not_recovered instead of falsely claiming issuer_data_not_published. No issuer ticker, URL or KPI value is hard-coded; score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal thresholds remain unchanged.
+# V2.22.36: Asset-Manager Issuer-Primary XLSX Evidence Extraction V132. Extends V131 at the evidence-content layer: issuer-owned Office Open XML financial supplements are no longer decoded as HTML/binary text. A dependency-free XLSX reader flattens worksheet rows with shared-string, inline-string, formula-cache and percentage-style support, then feeds the unchanged period-safe AUM/Flow/Fee/CIR/EPS parser. This allows structured current-period supplements to serve as primary evidence while preserving period/scope guards, same-basis earnings requirements and fail-closed behavior. No issuer ticker, URL or KPI value is hard-coded; score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal thresholds remain unchanged.
 # V2.22.34: Development-Stage EPS Copy Isolation Cleanup V130. Copy/UI-only change. Keeps V128 subprofile routing and V121 financial-stage detection unchanged, but isolates Development-Stage Mining / Materials from the generic Universal-Family EPS wording: Standard TTM/Forward EPS remains diagnosis-only and is explicitly not a Fair-Value anchor; Mineral Explorer / Mine Developer points instead to a technical/economic project and Project-NAV basis, while Battery Materials / Processing / Technology points to resource/feedstock, process/pilot/scale-up, qualification/offtake, funding and commercialisation evidence. The terminal EPS caption is profile-aware for the same reason. All scores, corridors, guard states, V127 Net-Cash logic, LOM logic and valuation mathematics remain unchanged.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
@@ -31380,8 +31381,8 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V111"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22212_asset_manager_corporate_ir_period_safe_v108"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V112"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22236_asset_manager_xlsx_evidence_v132"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -31713,6 +31714,143 @@ def _asset_manager_parse_generic_primary_report(text, source_url, company_name, 
     return out
 
 
+def _asset_manager_xlsx_bytes_to_text(payload, diagnostics=None):
+    """Flatten issuer-owned XLSX financial supplements into period-safe row text.
+
+    Uses only stdlib zip/XML support so the deployed app does not depend on an
+    optional Excel package. Shared strings, inline strings, cached formula
+    values and percentage number formats are preserved closely enough for the
+    existing Asset-Manager table parser. The workbook is evidence only; no KPI
+    name/value is hard-coded here.
+    """
+    diag = diagnostics if isinstance(diagnostics, list) else None
+    if not payload or payload[:2] != b"PK":
+        return ""
+    try:
+        from io import BytesIO
+        import zipfile
+        with zipfile.ZipFile(BytesIO(payload)) as zf:
+            names = set(zf.namelist())
+            if "xl/workbook.xml" not in names:
+                return ""
+
+            def local(tag):
+                return str(tag or "").rsplit("}", 1)[-1]
+
+            shared = []
+            if "xl/sharedStrings.xml" in names:
+                try:
+                    root_ss = ET.fromstring(zf.read("xl/sharedStrings.xml"))
+                    for si in root_ss.iter():
+                        if local(si.tag) != "si":
+                            continue
+                        txt = "".join((node.text or "") for node in si.iter() if local(node.tag) == "t")
+                        shared.append(_clean_text(txt))
+                except Exception:
+                    shared = []
+
+            # Style index -> whether the stored numeric value is a percentage.
+            pct_style = {}
+            if "xl/styles.xml" in names:
+                try:
+                    styles = ET.fromstring(zf.read("xl/styles.xml"))
+                    custom_numfmts = {}
+                    for node in styles.iter():
+                        if local(node.tag) == "numFmt":
+                            try:
+                                custom_numfmts[int(node.attrib.get("numFmtId"))] = str(node.attrib.get("formatCode") or "")
+                            except Exception:
+                                pass
+                    xfs = next((node for node in styles.iter() if local(node.tag) == "cellXfs"), None)
+                    if xfs is not None:
+                        for pos, xf in enumerate(list(xfs)):
+                            try:
+                                fmt_id = int(xf.attrib.get("numFmtId") or 0)
+                            except Exception:
+                                fmt_id = 0
+                            fmt = custom_numfmts.get(fmt_id, "")
+                            pct_style[pos] = fmt_id in {9, 10} or "%" in fmt
+                except Exception:
+                    pct_style = {}
+
+            def cell_text(cell):
+                ctype = str(cell.attrib.get("t") or "")
+                style = None
+                try:
+                    style = int(cell.attrib.get("s")) if cell.attrib.get("s") is not None else None
+                except Exception:
+                    style = None
+                if ctype == "inlineStr":
+                    return _clean_text("".join((node.text or "") for node in cell.iter() if local(node.tag) == "t"))
+                vnode = next((node for node in cell if local(node.tag) == "v"), None)
+                raw = (vnode.text or "").strip() if vnode is not None and vnode.text is not None else ""
+                if ctype == "s":
+                    try:
+                        pos = int(float(raw))
+                        return shared[pos] if 0 <= pos < len(shared) else ""
+                    except Exception:
+                        return ""
+                if ctype in {"str", "e"}:
+                    return _clean_text(raw)
+                if ctype == "b":
+                    return "TRUE" if raw == "1" else "FALSE"
+                if not raw:
+                    # Some formula/string cells store rich text without <v>.
+                    txt = "".join((node.text or "") for node in cell.iter() if local(node.tag) == "t")
+                    return _clean_text(txt)
+                if style is not None and pct_style.get(style):
+                    try:
+                        return f"{float(raw) * 100.0:.10g} %"
+                    except Exception:
+                        pass
+                try:
+                    value = float(raw)
+                    if value.is_integer():
+                        return str(int(value))
+                    return f"{value:.15g}"
+                except Exception:
+                    return _clean_text(raw)
+
+            def sheet_num(name):
+                m = re.search(r"sheet(\d+)\.xml$", name)
+                return int(m.group(1)) if m else 9999
+
+            sheet_names = sorted(
+                [name for name in names if re.fullmatch(r"xl/worksheets/sheet\d+\.xml", name)],
+                key=sheet_num,
+            )
+            rows_out = []
+            for sheet_name in sheet_names[:40]:
+                try:
+                    sheet = ET.fromstring(zf.read(sheet_name))
+                except Exception:
+                    continue
+                for row in sheet.iter():
+                    if local(row.tag) != "row":
+                        continue
+                    vals = []
+                    for cell in list(row):
+                        if local(cell.tag) != "c":
+                            continue
+                        val = cell_text(cell)
+                        if val:
+                            vals.append(val)
+                    if vals:
+                        rows_out.append(_clean_text(" ".join(vals)))
+                    if sum(len(x) + 1 for x in rows_out) > 260_000:
+                        break
+                if sum(len(x) + 1 for x in rows_out) > 260_000:
+                    break
+            text = _clean_text(" \n ".join(rows_out))[:240_000]
+            if text and diag is not None:
+                diag.append(f"Asset-Manager XLSX: issuer-primary workbook erfolgreich extrahiert ({len(text)} Zeichen; {len(sheet_names)} Worksheets erkannt).")
+            return text
+    except Exception as exc:
+        if diag is not None:
+            diag.append(f"Asset-Manager XLSX: Extraktion fehlgeschlagen ({type(exc).__name__}).")
+        return ""
+
+
 def _asset_manager_fetch_primary_text(url, company_domain, deadline=None):
     if not url or not _host_belongs_to_company_family(url, company_domain):
         return "", None, []
@@ -31724,6 +31862,19 @@ def _asset_manager_fetch_primary_text(url, company_domain, deadline=None):
         final_url = response.url or url
         content = response.content or b""
         ctype = str(response.headers.get("Content-Type") or "").lower()
+        url_fold = str(final_url or url).lower()
+        is_xlsx = (
+            "spreadsheetml" in ctype
+            or "application/vnd.ms-excel" in ctype
+            or bool(re.search(r"\.xlsx?(?:$|[?#])", url_fold, re.I))
+            or (content[:2] == b"PK" and b"xl/workbook.xml" in content[:250000])
+        )
+        if is_xlsx:
+            text = _asset_manager_xlsx_bytes_to_text(content, diagnostics=diagnostics)
+            if text:
+                return text, final_url, diagnostics
+            diagnostics.append("Asset-Manager XLSX: erkannter Spreadsheet-Download blieb ohne extrahierbaren Workbook-Text.")
+            return "", final_url, diagnostics
         if content[:5] == b"%PDF-" or "application/pdf" in ctype:
             text = _bank_pdf_bytes_to_text(content, diagnostics=diagnostics, include_tail=False)
             return text, final_url, diagnostics
@@ -34116,7 +34267,7 @@ def _asset_manager_v108_failure_reason(best_partial, trace):
 
 
 def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=None, fundamental_info=None):
-    """V111 corporate-IR escalation + current-period/period-safe issuer-primary recovery."""
+    """V112 corporate-IR + XLSX current-period/period-safe issuer-primary recovery."""
     deadline = time.monotonic() + 38.0
     year = datetime.now().year
     company_label = _clean_text(company_name) or _clean_text(symbol)
@@ -34172,7 +34323,7 @@ def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=N
             if url and url not in seen:
                 seen.add(url); queue.append((row, 0))
 
-    # V111 current-period recovery: multi-year IR hubs can expose identical
+    # V112 current-period recovery: multi-year IR hubs can expose identical
     # generic PDF/XLS anchors for every year. Search remains discovery-only;
     # every accepted KPI still has to be parsed from an issuer-owned document.
     month = datetime.now().month
@@ -39887,7 +40038,7 @@ def get_special_control(company_type, symbol):
                 "JHG/Take-private Delisting Guard",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Current-Period Evidence Recovery Guard V111",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Issuer-Primary XLSX Evidence Recovery Guard V112",
             "note": (
                 "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
                 "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
@@ -64332,7 +64483,7 @@ if selected_symbol:
 
                 elif special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Current-Period Evidence Recovery Guard V111")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Issuer-Primary XLSX Evidence Recovery Guard V112")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
@@ -64351,7 +64502,7 @@ if selected_symbol:
                                     st.caption("Noch fehlende aktuelle Primärdaten: " + " · ".join(str(x) for x in missing_am))
                                 failure_reason_am = discovery_am.get("evidence_failure_reason")
                                 if failure_reason_am:
-                                    st.caption("Evidence-Status V111: " + str(failure_reason_am))
+                                    st.caption("Evidence-Status V112: " + str(failure_reason_am))
                                 partial_bits = []
                                 for key, label in [
                                     ("total_aum", "Total AUM"),
