@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.11"
+APP_BUILD_VERSION = "V2.22.12"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Asset Management Business-Model Precedence Guard V107"
+    f"Build {APP_BUILD_VERSION} · Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108"
 )
 
 
+# V2.22.12: Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108. Keeps the released Asset-Management scoring, 9–18x base corridor, Premium-Unlock, peer/historical guards and signal mathematics unchanged. V108 upgrades only the issuer-primary evidence layer: corporate/group/investor-IR domain-family escalation, financial-results/document-class prioritization, period-safe AUM/flow/fee/CIR/EPS table recovery, issuer-native Cost-Income-Ratio efficiency support without relabelling it as an operating margin, and same-basis reported-or-adjusted TTM/3Y EPS recovery. Sub-scopes remain explicit, search snippets remain discovery-only, period/scope mismatches fail closed, and evidence failures receive diagnostic reason codes. No issuer URLs, ticker-specific KPI values or DWS-specific constants are hard-coded.
 # V2.21.79: Universal Listed-Holding Peer NAV Adapter & Unit/Share-Class Trace Guard V75. Fixes the V74 peer layer without changing valuation mathematics. The peer-only extractor anchors on explicit NAV-per-share semantics so total NAV cannot masquerade as NAV/share, supports quarter-end provenance when issuer tables use Q1/Q2/Q3/Q4 labels, and records source/market share-class context, NAV currency/unit, NAV date, latest market-price date and computed P/NAV in a per-peer trace. The peer runner gives every configured peer its own bounded research slice instead of allowing early peers to consume the entire budget. The generic issuer NAV/history adapters remain unchanged. Fair Value, valuation zones and signals remain locked until the peer evidence layer passes. No peer NAV values are hard-coded.
 # V2.21.80: Universal Listed-Holding Peer NAV Discovery & IR Second-Hop Guard V76. Keeps V75 valuation mathematics frozen and repairs only peer primary-source discovery. Peer research now uses multilingual exact NAV/share queries (English + Swedish), can crawl one bounded issuer-owned IR/report/NAV index hop, and can parse issuer-owned PDF reports through the existing embedded primary-document bridge. This is family-level HOLDING_TEMPLATE logic: no peer NAV values are hard-coded. Three valid peers remain mandatory; Fair Value, zones and signals stay locked until the peer guard passes.
 # V2.21.81: Universal Holding Template V1 · Multi-Source NAV Evidence & Dynamic Peer Fallback V77. Converts the Stockholm holding peer layer from a fixed four-name fetch into a reusable preferred-plus-fallback family template. Preferred peers remain the closest large Stockholm investment holdings; issuer-primary Svolder and Creades are researched only when fewer than three preferred peers validate. The peer NAV adapter broadens issuer-owned IR/report/press navigation, accepts ISO NAV as-of dates, and keeps HTML, press release, quarterly-report and issuer-PDF evidence under the same strict NAV/share semantic guard. Search snippets never become valuation evidence, no NAV values are hard-coded, and peer evidence remains a plausibility guard only. Fair Value, zones and signals remain locked.
@@ -30795,8 +30796,8 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V107"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22210_asset_manager_full_year_scope_integrity_v106"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V108"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22212_asset_manager_corporate_ir_period_safe_v108"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -32717,6 +32718,900 @@ def build_asset_management_special_control(control, specialist_model):
         ),
     })
     return out
+
+
+
+# =========================================================
+# V2.22.12 / V108 – Universal Asset-Management Evidence Adapter overrides
+# =========================================================
+# These overrides deliberately sit after the validated V107 model.  Python's
+# runtime global lookup means the existing build_asset_management_specialist_model
+# automatically uses them, while the released score weights / valuation math stay
+# intact.  The old functions are retained as fallbacks for already validated
+# issuer prose formats.
+
+_v107_asset_manager_parse_generic_primary_report = _asset_manager_parse_generic_primary_report
+_v107_asset_manager_report_link_candidates = _asset_manager_report_link_candidates
+_v107_asset_manager_partial_evidence_score = _asset_manager_partial_evidence_score
+_v107_asset_manager_missing_current_evidence = _asset_manager_missing_current_evidence
+_v107_enrich_generic_asset_manager_same_basis_earnings = enrich_generic_asset_manager_same_basis_earnings
+_v107_build_asset_management_specialist_score = build_asset_management_specialist_score
+_v107_build_asset_management_earnings_basis = build_asset_management_earnings_basis
+
+
+def _asset_manager_v108_fold(value):
+    return unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii").lower()
+
+
+def _asset_manager_v108_parse_number(token):
+    raw = str(token or "").strip().replace("\u202f", " ").replace("\xa0", " ")
+    if not raw:
+        return None
+    neg = raw.startswith("(") and raw.endswith(")")
+    raw = raw.strip("() %bpBP€$£")
+    raw = raw.replace(" ", "")
+    if not raw or not re.search(r"\d", raw):
+        return None
+    # European decimal comma vs thousands comma.  A single comma followed by
+    # exactly three digits is treated as a thousands separator; otherwise it is
+    # a decimal separator when no dot exists.
+    if "," in raw and "." not in raw:
+        if re.fullmatch(r"[-+]?\d{1,3}(?:,\d{3})+", raw):
+            raw = raw.replace(",", "")
+        else:
+            raw = raw.replace(",", ".")
+    elif "," in raw and "." in raw:
+        # Last separator is decimal; the other is grouping.
+        if raw.rfind(",") > raw.rfind("."):
+            raw = raw.replace(".", "").replace(",", ".")
+        else:
+            raw = raw.replace(",", "")
+    try:
+        value = float(raw)
+        return -value if neg else value
+    except Exception:
+        return None
+
+
+def _asset_manager_v108_period_headers(text):
+    clean = _clean_text(text)
+    matches = list(re.finditer(r"\b(?P<kind>FY|Q[1-4]|T[1-4]|H[12]|S[12])\s*(?P<year>20\d{2})\b", clean, re.I))
+    if not matches:
+        return [], None, None
+    groups = []
+    cur = []
+    for m in matches:
+        if cur and m.start() - cur[-1].end() > 90:
+            if len(cur) >= 3:
+                groups.append(cur)
+            cur = []
+        cur.append(m)
+    if len(cur) >= 3:
+        groups.append(cur)
+    if not groups:
+        return [], None, None
+    now_year = datetime.now().year
+    def _gscore(g):
+        labels = [(m.group("kind").upper(), int(m.group("year"))) for m in g]
+        return (sum(1 for _, y in labels if y == now_year) * 25 + len(g) * 3 + sum(1 for k, _ in labels if k in {"FY", "H1", "H2"}) * 2)
+    group = max(groups, key=_gscore)
+    # A page/title can repeat the current quarter immediately before the real
+    # table header (e.g. "Q2 2026 ... FY 2024 Q1 2025 ..."). Keep the
+    # longest contiguous non-decreasing fiscal-year run so that title periods
+    # cannot inflate the expected table-column count.
+    best_run, run = [], []
+    last_year = None
+    for m in group:
+        yy = int(m.group("year"))
+        if last_year is not None and yy < last_year:
+            if len(run) > len(best_run):
+                best_run = run
+            run = []
+        run.append(m)
+        last_year = yy
+    if len(run) > len(best_run):
+        best_run = run
+    if len(best_run) >= 3:
+        group = best_run
+    headers = []
+    for m in group:
+        kind = m.group("kind").upper().replace("T", "Q").replace("S", "H")
+        headers.append(f"{kind} {int(m.group('year'))}")
+    return headers, group[0].start(), group[-1].end()
+
+
+def _asset_manager_v108_row_values(text, header_count, header_end, label_patterns, reject_label_patterns=None):
+    clean = _clean_text(text)
+    search_start = max(0, int(header_end or 0))
+    tail = clean[search_start:]
+    candidates = []
+    for pat in label_patterns:
+        for m in re.finditer(pat, tail, re.I):
+            label = m.group(0)
+            reject_context = _asset_manager_v108_fold(tail[max(0, m.start() - 48):min(len(tail), m.end() + 48)])
+            if reject_label_patterns and any(re.search(rp, reject_context, re.I) for rp in reject_label_patterns):
+                continue
+            window = tail[m.end():m.end() + max(650, header_count * 42)]
+            # Keep tokens compact; years inside the *next* row are beyond the
+            # first N values and therefore cannot contaminate the selected row.
+            toks = re.findall(r"(?<![A-Za-z0-9])[-+]?\(?(?:\d{1,3}(?:[,\.]\d{3})+|\d+(?:[,\.]\d+)?)\)?%?(?![A-Za-z0-9])", window)
+            vals = []
+            for tok in toks:
+                val = _asset_manager_v108_parse_number(tok)
+                if val is None:
+                    continue
+                vals.append(val)
+                if len(vals) >= header_count:
+                    break
+            if len(vals) >= header_count:
+                candidates.append((m.start(), vals[:header_count], label))
+    if not candidates:
+        return None, None
+    # Prefer the earliest complete row after the selected period header.
+    candidates.sort(key=lambda x: x[0])
+    return candidates[0][1], candidates[0][2]
+
+
+def _asset_manager_v108_period_table_snapshot(text, source_url, company_name, fundamental_info=None):
+    clean = _clean_text(text)
+    headers, header_start, header_end = _asset_manager_v108_period_headers(clean)
+    out = {"available": False, "period_table_recovered": False}
+    if len(headers) < 4 or header_end is None:
+        return out
+    idx = {label: i for i, label in enumerate(headers)}
+    current_year = datetime.now().year
+    prior_year = current_year - 1
+
+    # Prefer a cumulative first-half column because it pairs exactly with prior
+    # FY beginning AUM.  Otherwise use the latest quarter with the immediately
+    # preceding same-scope AUM denominator.
+    if f"H1 {current_year}" in idx:
+        current_label = f"H1 {current_year}"
+        beginning_label = f"FY {prior_year}"
+        fraction = 0.5
+    else:
+        qs = [q for q in range(1, 5) if f"Q{q} {current_year}" in idx]
+        if not qs:
+            return out
+        q = max(qs)
+        current_label = f"Q{q} {current_year}"
+        beginning_label = f"FY {prior_year}" if q == 1 else f"Q{q-1} {current_year}"
+        fraction = 0.25
+    if current_label not in idx or beginning_label not in idx:
+        out["period_scope_mismatch"] = True
+        return out
+
+    n = len(headers)
+    total_aum_row, _ = _asset_manager_v108_row_values(
+        clean, n, header_end,
+        [r"\bassets\s+under\s+management\b", r"\btotal\s+AUM\b", r"\bencours\s+sous\s+gestion\b"],
+        reject_label_patterns=[r"long[- ]term", r"money", r"liquidity", r"treasury"],
+    )
+    lt_aum_row, _ = _asset_manager_v108_row_values(
+        clean, n, header_end,
+        [r"\blong[- ]term\s+(?:assets\s+under\s+management|AUM)\b", r"\bmedium[- ]to[- ]long[- ]term\s+(?:assets|AUM)\b"],
+    )
+    liquidity_row, _ = _asset_manager_v108_row_values(
+        clean, n, header_end,
+        [r"\b(?:money[- ]market|liquidity|treasury\s+products)\s+(?:assets\s+under\s+management|AUM)\b"],
+    )
+    net_flow_row, _ = _asset_manager_v108_row_values(
+        clean, n, header_end,
+        [r"\bnet\s+(?:cash\s+)?flows?\b", r"\bnet\s+inflows?\b"],
+        reject_label_patterns=[r"long[- ]term"],
+    )
+    lt_flow_row, _ = _asset_manager_v108_row_values(
+        clean, n, header_end,
+        [r"\blong[- ]term\s+net\s+(?:cash\s+)?flows?\b", r"\blong[- ]term\s+net\s+inflows?\b"],
+    )
+    fee_row, _ = _asset_manager_v108_row_values(
+        clean, n, header_end,
+        [r"\bmanagement\s+fees\s+and\s+other\s+recurring\s+revenues\b", r"\bnet\s+management\s+fees\b", r"\bmanagement\s+fees\b"],
+    )
+    fee_margin_row, _ = _asset_manager_v108_row_values(
+        clean, n, header_end,
+        [r"\bmanagement\s+fee\s+margin(?:\s*\(bps?\))?\b", r"\beffective\s+fee\s+rate(?:\s*\(bps?\))?\b"],
+    )
+    cir_row, _ = _asset_manager_v108_row_values(
+        clean, n, header_end,
+        [r"\bcost[- /]?income\s+ratio(?:\s*-\s*adjusted)?\b", r"\bcoefficient\s+d.?exploitation(?:\s*-\s*ajuste)?\b"],
+    )
+    adjusted_eps_row, _ = _asset_manager_v108_row_values(
+        clean, n, header_end,
+        [r"\bearnings\s+per\s+share\s*-\s*adjusted\b", r"\badjusted\s+earnings\s+per\s+share\b"],
+    )
+    reported_eps_row, _ = _asset_manager_v108_row_values(
+        clean, n, header_end,
+        [r"\bearnings\s+per\s+share\b"],
+        reject_label_patterns=[r"adjusted"],
+    )
+
+    def v(row, label):
+        return safe_float(row[idx[label]]) if row is not None and label in idx and idx[label] < len(row) else None
+
+    total_aum = v(total_aum_row, current_label)
+    beginning_total_aum = v(total_aum_row, beginning_label)
+    long_term_aum = v(lt_aum_row, current_label)
+    beginning_long_term_aum = v(lt_aum_row, beginning_label)
+    money_market_aum = v(liquidity_row, current_label)
+    firmwide_flows = v(net_flow_row, current_label)
+    long_term_flows = v(lt_flow_row, current_label)
+
+    # Period values in issuer AUM tables are conventionally reported in bn;
+    # keep scope explicit and never substitute a missing sub-scope.
+    def bn(x):
+        return x * 1e9 if x is not None else None
+    total_aum = bn(total_aum)
+    beginning_total_aum = bn(beginning_total_aum)
+    long_term_aum = bn(long_term_aum)
+    beginning_long_term_aum = bn(beginning_long_term_aum)
+    money_market_aum = bn(money_market_aum)
+    firmwide_flows = bn(firmwide_flows)
+    long_term_flows = bn(long_term_flows)
+
+    # Same-period comparison column for fee/CIR/EPS trend evidence.
+    cur_kind = current_label.split()[0]
+    prior_comp_label = f"{cur_kind} {prior_year}"
+    fee_cur = v(fee_row, current_label)
+    fee_prior = v(fee_row, prior_comp_label)
+    fee_growth = ((fee_cur / fee_prior) - 1.0) * 100.0 if fee_cur is not None and fee_prior not in (None, 0) else None
+    fee_margin = v(fee_margin_row, current_label)
+    fee_margin_prior = v(fee_margin_row, prior_comp_label)
+    cir = v(cir_row, current_label)
+    cir_prior = v(cir_row, prior_comp_label)
+    cir_change_bps = (cir - cir_prior) * 100.0 if cir is not None and cir_prior is not None else None
+
+    eps_basis = None
+    eps_row = None
+    if adjusted_eps_row is not None:
+        eps_basis, eps_row = "adjusted", adjusted_eps_row
+    elif reported_eps_row is not None:
+        eps_basis, eps_row = "reported", reported_eps_row
+    eps_cur = v(eps_row, current_label)
+    eps_prior = v(eps_row, prior_comp_label)
+    annual_eps_map = {}
+    if eps_row is not None:
+        for label, pos in idx.items():
+            if label.startswith("FY ") and pos < len(eps_row):
+                yy = int(label.split()[1])
+                ev = safe_float(eps_row[pos])
+                if ev is not None and 0 < ev < 1000:
+                    annual_eps_map[yy] = ev
+
+    folded = _asset_manager_v108_fold(clean)
+    driver_bridge = bool(
+        ("change in aum by driver" in folded or "change in assets under management by driver" in folded or "aum by driver" in folded)
+        and ("markets" in folded or "market performance" in folded)
+        and ("fx" in folded or "foreign exchange" in folded)
+        and ("net flow" in folded or "net inflow" in folded)
+    )
+    acquisition_separated = bool(driver_bridge or any(term in folded for term in ["acquisition effect", "acquisitions", "scope effect", "first consolidation", "other aum movement"]))
+
+    if long_term_flows is not None and beginning_long_term_aum is not None and long_term_aum is not None:
+        flow_scope = "Long-Term"
+        flow_begin = beginning_long_term_aum
+        period_flows = long_term_flows
+    else:
+        flow_scope = "Firmwide"
+        flow_begin = beginning_total_aum
+        period_flows = firmwide_flows
+
+    # Conservative non-valuation context scores; V108 changes evidence recovery,
+    # not the released score weights.
+    has_perf = "performance fees" in folded or "performance fee" in folded
+    has_tech = any(t in folded for t in ["technology revenue", "subscription revenue", "platform revenue"])
+    fee_mix_score = 12.0 if has_perf and has_tech else 10.0 if has_perf else 8.0
+    eps_stability = 8.0
+    if eps_cur is not None and eps_prior is not None and eps_cur > 0 and eps_prior > 0:
+        growth = eps_cur / eps_prior - 1.0
+        eps_stability = 10.0 if -0.35 <= growth <= 0.60 else 8.0
+    fi = fundamental_info if isinstance(fundamental_info, dict) else {}
+    cash, debt = safe_float(fi.get("totalCash")), safe_float(fi.get("totalDebt"))
+    if cash is not None and debt is not None:
+        balance_score = 9.0 if cash >= debt else 8.0 if debt <= max(cash, 1.0) * 1.5 else 7.0 if debt <= max(cash, 1.0) * 3.0 else 5.0
+    else:
+        balance_score = 7.0
+    has_buyback = any(t in folded for t in ["share buyback", "share repurchase", "buyback programme", "buyback program", "rachat d actions"])
+    has_dividend = "dividend" in folded or "dividende" in folded
+    capital_score = 10.0 if has_buyback and has_dividend else 9.0 if has_buyback else 7.0
+    diversity_count = sum(1 for t in ["active management", "etf", "index", "private", "alternative", "institutional", "retail"] if t in folded)
+    franchise_score = 5.0 if diversity_count >= 5 else 4.0 if diversity_count >= 3 else 3.0
+
+    complete = all(x is not None for x in [total_aum, beginning_total_aum, period_flows, fee_growth]) and (cir is not None)
+    if current_label.startswith("H1 ") or current_label.startswith("Q2 "):
+        as_of_date = f"30.06.{current_year}"
+    elif current_label.startswith("Q1 "):
+        as_of_date = f"31.03.{current_year}"
+    elif current_label.startswith("Q3 "):
+        as_of_date = f"30.09.{current_year}"
+    else:
+        as_of_date = f"31.12.{current_year}"
+    out.update({
+        "available": bool(complete),
+        "period_table_recovered": True,
+        "as_of_date": as_of_date,
+        "period_header_labels": headers,
+        "period_basis_label": current_label,
+        "period_beginning_label": beginning_label,
+        "source_url": source_url,
+        "source_name": f"{company_name} issuer-primary period table · Generic Asset-Manager Evidence Adapter {ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION}",
+        "company": company_name,
+        "generic_primary_adapter": True,
+        "total_aum": total_aum,
+        "beginning_total_aum": beginning_total_aum,
+        "long_term_aum": long_term_aum,
+        "beginning_long_term_aum": beginning_long_term_aum,
+        "money_market_aum": money_market_aum,
+        "liquidity_aum_disclosure": "issuer_explicit" if money_market_aum is not None else "not_separately_disclosed",
+        "firmwide_period_net_flows": firmwide_flows,
+        "firmwide_flow_beginning_aum": beginning_total_aum,
+        "long_term_period_net_flows": long_term_flows,
+        "flow_scope_label": flow_scope,
+        "flow_beginning_aum": flow_begin,
+        "period_net_flows": period_flows,
+        "flow_period_fraction_year": fraction,
+        "flow_period_label": current_label,
+        "flow_scope_matches_denominator": bool(flow_begin is not None and period_flows is not None),
+        "acquisition_effects_separately_disclosed": acquisition_separated,
+        "aum_change_driver_bridge_disclosed": driver_bridge,
+        "verified_flow_direction": "positive" if period_flows is not None and period_flows > 0 else "negative" if period_flows is not None and period_flows < 0 else "flat" if period_flows == 0 else None,
+        "fee_revenue_growth_pct": fee_growth,
+        "management_fees_current_period": fee_cur,
+        "management_fees_prior_same_period": fee_prior,
+        "effective_fee_rate_bps": fee_margin,
+        "effective_fee_rate_prior_year_bps": fee_margin_prior,
+        "cost_income_ratio_pct": cir,
+        "cost_income_ratio_prior_year_pct": cir_prior,
+        "cost_income_ratio_change_bps": cir_change_bps,
+        # V108 intentionally does NOT relabel 100-CIR as an operating margin.
+        "operating_margin_pct": None,
+        "issuer_profitability_metric": "cost_income_ratio" if cir is not None else None,
+        "issuer_eps_basis": eps_basis,
+        "current_period_issuer_eps": eps_cur,
+        "prior_period_issuer_eps": eps_prior,
+        "same_document_annual_eps_map": annual_eps_map,
+        "earnings_stability_score": eps_stability,
+        "fee_mix_score": fee_mix_score,
+        "balance_quality_score": balance_score,
+        "capital_allocation_score": capital_score,
+        "franchise_diversification_score": franchise_score,
+        "historical_forward_pe_3y_median": None,
+        "valuation_confidence_cap": "Mittel",
+        "note": (
+            "Issuer-primary period-safe table adapter: AUM, same-scope flows, fee growth, issuer-native fee margin/CIR and EPS are bound to one explicit period header. "
+            "Long-Term, Liquidity and Firmwide scopes remain separate; 100-CIR is used only internally for score equivalence and is never displayed as an operating margin."
+        ),
+    })
+    if eps_basis == "adjusted":
+        out["current_period_adjusted_eps"] = eps_cur
+        out["prior_period_adjusted_eps"] = eps_prior
+    return out
+
+
+def _asset_manager_ir_root_candidates(website, company_domain):
+    family = _asset_manager_domain_family_root(company_domain)
+    if not family:
+        return []
+    rows = []
+    raw = _clean_text(website)
+    if raw:
+        if "://" not in raw:
+            raw = "https://" + raw
+        rows.append(raw.rstrip("/") + "/")
+    # Generic issuer-family escalation only.  No company/ticker-specific host is
+    # embedded here; failed candidates are harmless navigation probes.
+    for host in [f"group.{family}", f"investors.{family}", f"ir.{family}", f"corporate.{family}", family]:
+        for path in ["/ir/", "/investor-relations/", "/investors/", "/"]:
+            rows.append(f"https://{host}{path}")
+    out, seen = [], set()
+    for u in rows:
+        if u in seen or not _host_belongs_to_company_family(u, family):
+            continue
+        seen.add(u)
+        out.append(u)
+    return out
+
+
+def _asset_manager_anchor_table_context(anchor):
+    """V108: retain document-class, quarter/half and year header context."""
+    if anchor is None:
+        return ""
+    parts = []
+    try:
+        cell = anchor.find_parent(["td", "th"])
+        row = cell.find_parent("tr") if cell is not None else None
+        table = row.find_parent("table") if row is not None else None
+        if cell is None or row is None or table is None:
+            return ""
+        row_cells = row.find_all(["td", "th"], recursive=False)
+        cursor, target_col = 0, None
+        for rc in row_cells:
+            try: span = max(1, int(rc.get("colspan") or 1))
+            except Exception: span = 1
+            if rc is cell:
+                target_col = cursor
+                break
+            cursor += span
+        if row_cells:
+            row_label = _clean_text(row_cells[0].get_text(" ", strip=True))
+            if row_label:
+                parts.append(row_label)
+        if target_col is not None:
+            all_rows = table.find_all("tr")
+            try: row_pos = all_rows.index(row)
+            except Exception: row_pos = len(all_rows)
+            # Keep up to three covering headers, not just a year cell. This is
+            # what binds e.g. document class + Q2 + 2026 in compact IR tables.
+            captured = []
+            for prev in reversed(all_rows[:row_pos]):
+                pcursor = 0
+                matched = None
+                for pc in prev.find_all(["td", "th"], recursive=False):
+                    try: span = max(1, int(pc.get("colspan") or 1))
+                    except Exception: span = 1
+                    if pcursor <= target_col < pcursor + span:
+                        matched = _clean_text(pc.get_text(" ", strip=True))
+                        break
+                    pcursor += span
+                if matched and matched not in captured:
+                    captured.append(matched)
+                if len(captured) >= 3:
+                    break
+            parts.extend(reversed(captured))
+    except Exception:
+        return ""
+    return _clean_text(" ".join(parts))
+
+
+def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
+    if not html or not base_url or not company_domain:
+        return []
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:
+        return []
+    rows, seen = [], set()
+    for a in soup.find_all("a", href=True):
+        href = urljoin(base_url, a.get("href"))
+        if not href or href in seen or not _host_belongs_to_company_family(href, company_domain):
+            continue
+        seen.add(href)
+        label = _clean_text(a.get_text(" ", strip=True))
+        ctx = _asset_manager_anchor_table_context(a)
+        hay = _asset_manager_v108_fold(f"{label} {href} {ctx}")
+        doc_classes = {
+            "financial_data_supplement": ["financial data supplement", "financial supplement", "data supplement", "xls", "xlsx"],
+            "quarterly_statement": ["quarterly statement", "quarterly report", "quartalsmitteilung", "quartalsbericht"],
+            "interim_report": ["interim report", "half-year report", "halbjahresbericht", "zwischenbericht"],
+            "annual_report": ["annual report", "geschaftsbericht", "rapport annuel"],
+            "presentation": ["presentation", "results presentation", "prasentation"],
+            "press_release": ["press release", "media release", "communique de presse"],
+        }
+        document_class = None
+        for cls, terms in doc_classes.items():
+            if any(t in hay for t in terms):
+                document_class = cls
+                break
+        hub_terms = [
+            "investor relations", "financial results", "quarterly results", "financial reports", "reports and events",
+            "berichte und events", "finanzberichte", "resultats financiers", "financial communication", "publications",
+        ]
+        is_hub = any(t in hay for t in hub_terms)
+        period = re.search(r"\b(?:q[1-4]|t[1-4]|h[12]|s[12])\b", hay)
+        if not document_class and not is_hub and not period:
+            continue
+        score = 0.0
+        years = {int(v) for v in re.findall(r"\b(20\d{2})\b", ctx or "")}
+        if year in years: score += 60
+        elif years and year not in years: score -= 25
+        elif str(year) in hay: score += 35
+        class_bonus = {
+            "financial_data_supplement": 115,
+            "quarterly_statement": 90,
+            "interim_report": 86,
+            "annual_report": 75,
+            "presentation": 60,
+            "press_release": 48,
+        }
+        score += class_bonus.get(document_class, 0)
+        if is_hub: score += 35
+        if period:
+            token = period.group(0).lower().replace("t", "q").replace("s", "h")
+            score += 24
+            mq = re.match(r"q([1-4])", token)
+            if mq: score += int(mq.group(1)) * 5
+            elif token == "h1": score += 14
+            elif token == "h2": score += 22
+        if any(t in hay for t in ["sustainability", "esg", "stewardship", "climate"]):
+            score -= 80
+        rows.append({"score": score, "url": href, "label": label, "table_context": ctx,
+                     "kind": "report" if document_class else "hub", "document_class": document_class})
+    rows.sort(key=lambda x: (x.get("score", 0), x.get("table_context") or "", x.get("label") or ""), reverse=True)
+    return rows
+
+
+def _asset_manager_parse_generic_primary_report(text, source_url, company_name, fundamental_info=None):
+    # First keep V107 prose formats intact, then let the V108 period-table layer
+    # overwrite only explicitly recovered same-period evidence.
+    base = _v107_asset_manager_parse_generic_primary_report(text, source_url, company_name, fundamental_info=fundamental_info)
+    table = _asset_manager_v108_period_table_snapshot(text, source_url, company_name, fundamental_info=fundamental_info)
+    if not table.get("period_table_recovered"):
+        return base
+    merged = dict(base or {})
+    for key, value in table.items():
+        # When a period table carries issuer-native CIR, suppress V107's old
+        # synthetic 100-CIR operating-margin label. If no CIR was recovered,
+        # preserve any genuine operating margin parsed by the legacy adapter.
+        if key == "operating_margin_pct" and value is None and safe_float(table.get("cost_income_ratio_pct")) is None:
+            continue
+        if value is not None or key in {"operating_margin_pct"}:
+            merged[key] = value
+    merged["adapter_version"] = ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION
+    merged["generic_primary_adapter"] = True
+    merged["available"] = bool(
+        safe_float(merged.get("total_aum")) is not None
+        and safe_float(merged.get("flow_beginning_aum")) is not None
+        and safe_float(merged.get("period_net_flows")) is not None
+        and safe_float(merged.get("fee_revenue_growth_pct")) is not None
+        and (safe_float(merged.get("operating_margin_pct")) is not None or safe_float(merged.get("cost_income_ratio_pct")) is not None)
+    )
+    return merged
+
+
+def _asset_manager_partial_evidence_score(parsed):
+    if not isinstance(parsed, dict):
+        return 0
+    fields = [
+        "total_aum", "beginning_total_aum", "period_net_flows", "fee_revenue_growth_pct",
+        "operating_margin_pct", "cost_income_ratio_pct", "effective_fee_rate_bps",
+        "current_period_adjusted_eps", "current_period_issuer_eps",
+    ]
+    score = sum(1 for key in fields if safe_float(parsed.get(key)) is not None)
+    if parsed.get("source_url"): score += 1
+    if parsed.get("period_table_recovered"): score += 2
+    if parsed.get("flow_scope_matches_denominator"): score += 1
+    return score
+
+
+def _asset_manager_missing_current_evidence(parsed):
+    p = parsed if isinstance(parsed, dict) else {}
+    missing = []
+    if safe_float(p.get("total_aum")) is None: missing.append("Total AUM")
+    if safe_float(p.get("flow_beginning_aum")) is None: missing.append("Beginning same-scope AUM")
+    if safe_float(p.get("period_net_flows")) is None: missing.append("same-scope Net Flows")
+    if safe_float(p.get("fee_revenue_growth_pct")) is None: missing.append("Fee growth")
+    if safe_float(p.get("operating_margin_pct")) is None and safe_float(p.get("cost_income_ratio_pct")) is None:
+        missing.append("Adjusted operating margin / issuer-native cost-income ratio")
+    return missing
+
+
+def _asset_manager_v108_failure_reason(best_partial, trace):
+    p = best_partial if isinstance(best_partial, dict) else {}
+    if p.get("period_scope_mismatch"):
+        return "period_scope_mismatch"
+    if _asset_manager_partial_evidence_score(p) >= 3:
+        return "issuer_data_found_but_unmapped"
+    successful_docs = [x for x in (trace or []) if ("direct_link:" in x or "ir_crawl:" in x or "search_fetch:" in x) and x.endswith(":ok")]
+    if successful_docs:
+        return "issuer_data_not_published"
+    return "retrieval_failed"
+
+
+def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=None, fundamental_info=None):
+    """V108 corporate-IR escalation + period-safe issuer-primary recovery."""
+    deadline = time.monotonic() + 28.0
+    year = datetime.now().year
+    company_label = _clean_text(company_name) or _clean_text(symbol)
+    raw_website = _clean_text(website)
+    company_domain = _extract_company_domain(raw_website)
+    trace = []
+    if not company_domain:
+        company_domain, bootstrap_rows = _asset_manager_bootstrap_company_domain(company_label, deadline=deadline)
+        trace.append(f"domain_bootstrap:{company_domain or 'none'}:{len(bootstrap_rows)}")
+        if not company_domain:
+            return {"available": False, "generic_primary_adapter": True, "company": company_label,
+                    "discovery_trace": trace, "missing_current_evidence": ["issuer domain"],
+                    "evidence_failure_reason": "retrieval_failed"}
+        raw_website = f"https://{company_domain}/"
+    company_domain = _asset_manager_domain_family_root(company_domain)
+
+    best_partial, best_score = None, -1
+    def consider(parsed, label):
+        nonlocal best_partial, best_score
+        trace.append(label)
+        if not isinstance(parsed, dict):
+            return None
+        parsed.setdefault("generic_primary_adapter", True)
+        parsed.setdefault("company", company_label)
+        parsed["missing_current_evidence"] = _asset_manager_missing_current_evidence(parsed)
+        if parsed.get("available"):
+            parsed["discovery_trace"] = list(trace[-24:])
+            parsed["evidence_failure_reason"] = None
+            return parsed
+        sc = _asset_manager_partial_evidence_score(parsed)
+        if sc > best_score:
+            best_score, best_partial = sc, dict(parsed)
+        return None
+
+    queue, seen = [], set()
+    # Corporate/group/investor roots are tried early so a provider marketing
+    # website cannot monopolize the evidence budget.
+    for root_url in _asset_manager_ir_root_candidates(raw_website, company_domain)[:12]:
+        if not _research_budget_ok(deadline, reserve=12.0):
+            break
+        try:
+            html, final_url = _fetch_html(root_url, timeout=2.6, deadline=deadline)
+        except Exception as exc:
+            trace.append(f"direct_root:{root_url}:error:{type(exc).__name__}")
+            continue
+        if not html or not final_url or not _host_belongs_to_company_family(final_url, company_domain):
+            continue
+        trace.append(f"direct_root:{final_url}:ok")
+        hit = consider(_asset_manager_parse_generic_primary_report(_html_to_text(html), final_url, company_label, fundamental_info), f"root_parse:{final_url}:ok")
+        if hit: return hit
+        for row in _asset_manager_report_link_candidates(html, final_url, company_domain, year)[:18]:
+            url = row.get("url")
+            if url and url not in seen:
+                seen.add(url); queue.append((row, 0))
+
+    # Early semantic hub discovery is still discovery-only. This is deliberately
+    # before the deep crawl so a marketing homepage does not exhaust the budget.
+    for query in [
+        f'site:{company_domain} "financial results" "{year}"',
+        f'site:{company_domain} "financial data supplement" "{year}"',
+        f'site:{company_domain} "quarterly results" "{year}"',
+        f'site:{company_domain} "investor relations" "financial reports"',
+    ]:
+        if not _research_budget_ok(deadline, reserve=8.0): break
+        for row0 in _duckduckgo_html_search(query, max_results=5, deadline=deadline):
+            url = row0.get("url")
+            if not url or url in seen or not _host_belongs_to_company_family(url, company_domain): continue
+            seen.add(url)
+            hay = _asset_manager_v108_fold(f"{row0.get('title','')} {row0.get('snippet','')} {url}")
+            score = 120 if "financial data supplement" in hay else 90 if "financial results" in hay else 60
+            queue.append(({"url": url, "score": score, "kind": "hub" if "results" in hay or "investor" in hay else "report", "label": row0.get("title") or ""}, 0))
+
+    queue.sort(key=lambda item: safe_float(item[0].get("score")) or 0, reverse=True)
+    processed = 0
+    while queue and processed < 18 and _research_budget_ok(deadline, reserve=1.2):
+        row, depth = queue.pop(0)
+        url = row.get("url")
+        if not url: continue
+        processed += 1
+        text, final_url, diag = _asset_manager_fetch_primary_text(url, company_domain, deadline=deadline)
+        label = f"ir_crawl:{url}:{'ok' if text else 'empty'}"
+        hit = consider(_asset_manager_parse_generic_primary_report(text, final_url or url, company_label, fundamental_info), label)
+        if hit: return hit
+        if depth >= 2 or not _research_budget_ok(deadline, reserve=3.0):
+            continue
+        # Only navigation-like pages receive another crawl hop; PDF/download
+        # documents have already been parsed above.
+        likely_doc = bool(row.get("document_class") or re.search(r"\.(?:pdf|xls|xlsx)(?:$|\?)", url, re.I))
+        if likely_doc and row.get("kind") != "hub":
+            continue
+        try:
+            html2, final2 = _fetch_html(url, timeout=2.6, deadline=deadline)
+        except Exception:
+            html2, final2 = None, None
+        if html2 and final2 and _host_belongs_to_company_family(final2, company_domain):
+            children = _asset_manager_report_link_candidates(html2, final2, company_domain, year)
+            for child in children[:14]:
+                cu = child.get("url")
+                if cu and cu not in seen:
+                    seen.add(cu); queue.append((child, depth + 1))
+            queue.sort(key=lambda item: safe_float(item[0].get("score")) or 0, reverse=True)
+
+    if best_partial is not None:
+        best_partial["available"] = False
+        best_partial["discovery_trace"] = list(trace[-24:])
+        best_partial["missing_current_evidence"] = _asset_manager_missing_current_evidence(best_partial)
+        best_partial["evidence_failure_reason"] = _asset_manager_v108_failure_reason(best_partial, trace)
+        return best_partial
+    return {"available": False, "generic_primary_adapter": True, "company": company_label,
+            "discovery_trace": list(trace[-24:]), "missing_current_evidence": ["current issuer-primary report not recovered"],
+            "evidence_failure_reason": _asset_manager_v108_failure_reason(None, trace)}
+
+
+def _asset_manager_v108_parse_annual_eps_map(text, basis="reported"):
+    clean = _clean_text(text)
+    headers, _, header_end = _asset_manager_v108_period_headers(clean)
+    if not headers or header_end is None:
+        return {}
+    if basis == "adjusted":
+        row, _ = _asset_manager_v108_row_values(clean, len(headers), header_end,
+            [r"\bearnings\s+per\s+share\s*-\s*adjusted\b", r"\badjusted\s+earnings\s+per\s+share\b"])
+    else:
+        row, _ = _asset_manager_v108_row_values(clean, len(headers), header_end,
+            [r"\bearnings\s+per\s+share\b"], reject_label_patterns=[r"adjusted"])
+    if row is None:
+        return {}
+    result = {}
+    for i, label in enumerate(headers):
+        if not label.startswith("FY ") or i >= len(row): continue
+        val = safe_float(row[i])
+        if val is not None and 0 < val < 1000:
+            result[int(label.split()[1])] = val
+    return result
+
+
+def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None, website=None):
+    snap = dict(snapshot or {})
+    if not snap.get("generic_primary_adapter"):
+        return snap
+    # Preserve the already validated V107 adjusted path when it is complete.
+    if safe_float(snap.get("current_period_adjusted_eps")) is not None and safe_float(snap.get("prior_period_adjusted_eps")) is not None:
+        legacy = _v107_enrich_generic_asset_manager_same_basis_earnings(snap, company_name=company_name, website=website)
+        if legacy.get("same_basis_earnings_complete"):
+            legacy.setdefault("issuer_eps_basis", "adjusted")
+            legacy.setdefault("issuer_same_basis_ttm_eps", legacy.get("issuer_adjusted_ttm_eps"))
+            legacy.setdefault("issuer_same_basis_eps_history", legacy.get("issuer_adjusted_eps_history"))
+            legacy.setdefault("issuer_same_basis_eps_history_years", legacy.get("issuer_adjusted_eps_history_years"))
+            legacy.setdefault("same_basis_ttm_bridge_latest_fy", legacy.get("adjusted_ttm_bridge_latest_fy"))
+            legacy.setdefault("same_basis_ttm_bridge_latest_fy_eps", legacy.get("adjusted_ttm_bridge_latest_fy_eps"))
+            legacy.setdefault("same_basis_ttm_bridge_current_period_eps", legacy.get("adjusted_ttm_bridge_current_period_eps"))
+            legacy.setdefault("same_basis_ttm_bridge_prior_period_eps", legacy.get("adjusted_ttm_bridge_prior_period_eps"))
+            return legacy
+
+    current_eps = safe_float(snap.get("current_period_issuer_eps"))
+    prior_eps = safe_float(snap.get("prior_period_issuer_eps"))
+    basis = str(snap.get("issuer_eps_basis") or "reported").lower()
+    trace = list(snap.get("same_basis_earnings_trace") or [])
+    if current_eps is None or prior_eps is None:
+        trace.append("current_period_same_basis_eps_pair:missing")
+        snap["same_basis_earnings_trace"] = trace[-24:]
+        return snap
+    current_year = datetime.now().year
+    latest_fy = current_year - 1
+    target_years = [latest_fy - 2, latest_fy - 1, latest_fy]
+    annual_map = {int(k): float(v) for k, v in (snap.get("same_document_annual_eps_map") or {}).items()
+                  if int(k) in target_years and safe_float(v) is not None and safe_float(v) > 0}
+    annual_sources = {int(k): snap.get("source_url") for k in annual_map}
+
+    raw_website = _clean_text(website)
+    company_domain = _extract_company_domain(raw_website) or _normalize_host(snap.get("source_url"))
+    company_domain = _asset_manager_domain_family_root(company_domain)
+    if not company_domain:
+        snap["same_basis_earnings_trace"] = (trace + ["annual_history_domain:missing"])[-24:]
+        return snap
+    deadline = time.monotonic() + 18.0
+    fetched, candidate_rows = set(), []
+    for start in _asset_manager_ir_root_candidates(raw_website, company_domain)[:10]:
+        if len(annual_map) >= 3 or not _research_budget_ok(deadline, reserve=8.0): break
+        try: html, final = _fetch_html(start, timeout=2.6, deadline=deadline)
+        except Exception: html, final = None, None
+        if not html or not final or not _host_belongs_to_company_family(final, company_domain): continue
+        for yy in target_years:
+            candidate_rows.extend(_asset_manager_report_link_candidates(html, final, company_domain, yy)[:10])
+    # Direct financial-results hub search can recover older annual/Q4 supplements.
+    for yy in target_years:
+        if len(annual_map) >= 3 or not _research_budget_ok(deadline, reserve=5.0): break
+        terms = "adjusted earnings per share" if basis == "adjusted" else "earnings per share"
+        for query in [
+            f'site:{company_domain} "{yy}" "financial data supplement" "{terms}"',
+            f'site:{company_domain} "{yy}" "annual report" "{terms}"',
+            f'site:{company_domain} "{yy}" "financial results" "{terms}"',
+        ]:
+            for row0 in _duckduckgo_html_search(query, max_results=4, deadline=deadline):
+                url = row0.get("url")
+                if url and _host_belongs_to_company_family(url, company_domain):
+                    candidate_rows.append({"url": url, "score": 80, "kind": "report", "label": row0.get("title") or ""})
+            if not _research_budget_ok(deadline, reserve=3.0): break
+
+    # De-duplicate and prioritize supplements / annual reports / Q4 results.
+    ranked = []
+    seen_urls = set()
+    for row in candidate_rows:
+        url = row.get("url")
+        if not url or url in seen_urls: continue
+        seen_urls.add(url)
+        hay = _asset_manager_v108_fold(f"{row.get('label','')} {row.get('table_context','')} {url}")
+        bonus = 100 if "financial data supplement" in hay else 75 if "annual report" in hay else 45
+        if re.search(r"\b(?:q4|t4|fy)\b", hay): bonus += 30
+        ranked.append(((safe_float(row.get("score")) or 0) + bonus, row))
+    ranked.sort(key=lambda x: x[0], reverse=True)
+
+    for _, row in ranked[:16]:
+        if len(annual_map) >= 3 or not _research_budget_ok(deadline, reserve=0.8): break
+        url = row.get("url")
+        if not url or url in fetched: continue
+        fetched.add(url)
+        text, final_url, diag = _asset_manager_fetch_primary_text(url, company_domain, deadline=deadline)
+        eps_map = _asset_manager_v108_parse_annual_eps_map(text, basis=basis)
+        if not eps_map and basis == "adjusted":
+            eps_map = _asset_manager_parse_adjusted_annual_eps_map(text)
+        if eps_map:
+            trace.append(f"annual_same_basis:{final_url or url}:ok")
+            for yy, vv in eps_map.items():
+                if yy in target_years and vv is not None and vv > 0:
+                    annual_map.setdefault(int(yy), float(vv)); annual_sources.setdefault(int(yy), final_url or url)
+        # Crawl one hub hop if this was a financial-results index.
+        if len(annual_map) < 3 and row.get("kind") == "hub" and _research_budget_ok(deadline, reserve=2.0):
+            try: html2, final2 = _fetch_html(url, timeout=2.4, deadline=deadline)
+            except Exception: html2, final2 = None, None
+            if html2 and final2:
+                for yy in target_years:
+                    for child in _asset_manager_report_link_candidates(html2, final2, company_domain, yy)[:6]:
+                        cu = child.get("url")
+                        if not cu or cu in fetched: continue
+                        fetched.add(cu)
+                        ctext, cfinal, _ = _asset_manager_fetch_primary_text(cu, company_domain, deadline=deadline)
+                        cmap = _asset_manager_v108_parse_annual_eps_map(ctext, basis=basis)
+                        if not cmap and basis == "adjusted": cmap = _asset_manager_parse_adjusted_annual_eps_map(ctext)
+                        for y2, v2 in cmap.items():
+                            if y2 in target_years and v2 is not None and v2 > 0:
+                                annual_map.setdefault(int(y2), float(v2)); annual_sources.setdefault(int(y2), cfinal or cu)
+                        if len(annual_map) >= 3: break
+                    if len(annual_map) >= 3: break
+
+    ordered = sorted(y for y in target_years if y in annual_map)
+    if ordered != sorted(target_years):
+        snap["issuer_same_basis_eps_history_partial_years"] = ordered
+        snap["issuer_same_basis_eps_history_partial"] = [annual_map[y] for y in ordered]
+        snap["same_basis_earnings_trace"] = (trace + ["annual_history:incomplete:" + ",".join(map(str, ordered))])[-24:]
+        return snap
+    latest_annual = safe_float(annual_map.get(latest_fy))
+    ttm = latest_annual - prior_eps + current_eps if latest_annual is not None else None
+    if ttm is None or ttm <= 0:
+        snap["same_basis_earnings_trace"] = (trace + ["same_basis_ttm_bridge:invalid"])[-24:]
+        return snap
+    snap.update({
+        "issuer_same_basis_ttm_eps": ttm,
+        "issuer_same_basis_eps_history": [annual_map[y] for y in ordered],
+        "issuer_same_basis_eps_history_years": ordered,
+        "issuer_same_basis_eps_history_sources": [annual_sources.get(y) for y in ordered],
+        "same_basis_ttm_bridge_latest_fy": latest_fy,
+        "same_basis_ttm_bridge_latest_fy_eps": latest_annual,
+        "same_basis_ttm_bridge_current_period_eps": current_eps,
+        "same_basis_ttm_bridge_prior_period_eps": prior_eps,
+        "same_basis_earnings_complete": True,
+        "issuer_eps_basis": basis,
+        "same_basis_earnings_trace": (trace + [f"same_basis_ttm_bridge:{latest_annual:.4f}-{prior_eps:.4f}+{current_eps:.4f}={ttm:.4f}"])[-24:],
+    })
+    return snap
+
+
+def build_asset_management_specialist_score(snapshot):
+    # Preserve V107 score weights.  CIR is converted only inside a private score
+    # copy to the mathematically equivalent efficiency complement; the issuer
+    # snapshot/UI keeps the native CIR label and never calls it an op margin.
+    snap = dict(snapshot or {})
+    metric = "operating_margin"
+    if safe_float(snap.get("operating_margin_pct")) is None and safe_float(snap.get("cost_income_ratio_pct")) is not None:
+        cir = safe_float(snap.get("cost_income_ratio_pct"))
+        cir_change = safe_float(snap.get("cost_income_ratio_change_bps"))
+        snap["operating_margin_pct"] = 100.0 - cir
+        snap["operating_margin_change_bps"] = -cir_change if cir_change is not None else None
+        metric = "cost_income_ratio"
+    result = _v107_build_asset_management_specialist_score(snap)
+    if isinstance(result, dict) and result.get("available"):
+        result["profitability_metric"] = metric
+        comps = dict(result.get("components") or {})
+        if metric == "cost_income_ratio":
+            for key in list(comps):
+                if "Operating Margin" in key or "Margin" in key:
+                    val = comps.pop(key)
+                    comps["Issuer-native Cost-Income-Effizienz"] = val
+                    break
+            result["components"] = comps
+    return result
+
+
+def build_asset_management_earnings_basis(snapshot, trailing_eps, current_fy_eps, historical_eps):
+    snap = dict(snapshot or {})
+    same_ttm = safe_float(snap.get("issuer_same_basis_ttm_eps"))
+    if same_ttm is not None:
+        # Compatibility bridge into the already validated V107 30/50/20 math.
+        snap["issuer_adjusted_ttm_eps"] = same_ttm
+        snap["issuer_adjusted_eps_history"] = list(snap.get("issuer_same_basis_eps_history") or [])
+    result = _v107_build_asset_management_earnings_basis(snap, trailing_eps, current_fy_eps, historical_eps)
+    if same_ttm is not None and isinstance(result, dict) and result.get("available"):
+        basis = str(snapshot.get("issuer_eps_basis") or "issuer-reported").lower()
+        pretty = "Issuer-adjusted" if basis == "adjusted" else "Issuer-reported same-basis"
+        result["ttm_source"] = pretty + " TTM"
+        result["through_cycle_eps_source"] = pretty + " 3Y annual EPS median"
+        result["earnings_basis_family"] = pretty + " / Current-FY / Through-Cycle"
+        result["same_basis_guard"] = "passed"
+    return result
 
 
 # =========================================================
@@ -37651,7 +38546,7 @@ def get_special_control(company_type, symbol):
                 "Total AUM sowie Long-Term-/Liquidity-AUM nur wenn vom Issuer separat ausgewiesen",
                 "Organic Net Flows mit explizitem Scope (z. B. Long-Term oder Firmwide) getrennt von Marktperformance, FX und Akquisitionen",
                 "Fee-Mix / Effective Fee Rate statt AUM-Menge allein",
-                "Core/Adjusted Operating Margin und Margentrend",
+                "Core/Adjusted Operating Margin oder issuer-native Cost-Income Ratio samt Trend",
                 "30/50/20 Through-Cycle-EPS-Basis",
                 "Bilanzqualität ohne generischen Net-Cash-15/15-Bonus",
                 "Netto-Buybacks / Dividenden / Kapitaldisziplin",
@@ -37660,7 +38555,7 @@ def get_special_control(company_type, symbol):
                 "JHG/Take-private Delisting Guard",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Full-Year Scope Integrity Guard V106",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Corporate-IR & Period-Safe Evidence Guard V108",
             "note": (
                 "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
                 "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
@@ -61382,7 +62277,7 @@ if selected_symbol:
 
                 elif special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Full-Year Scope Integrity Guard V106")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Corporate-IR & Period-Safe Evidence Guard V108")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
@@ -61399,6 +62294,9 @@ if selected_symbol:
                                 missing_am = discovery_am.get("missing_current_evidence") or []
                                 if missing_am:
                                     st.caption("Noch fehlende aktuelle Primärdaten: " + " · ".join(str(x) for x in missing_am))
+                                failure_reason_am = discovery_am.get("evidence_failure_reason")
+                                if failure_reason_am:
+                                    st.caption("Evidence-Status V108: " + str(failure_reason_am))
                                 partial_bits = []
                                 for key, label in [
                                     ("total_aum", "Total AUM"),
@@ -61406,6 +62304,7 @@ if selected_symbol:
                                     ("period_net_flows", "Net Flows"),
                                     ("fee_revenue_growth_pct", "Fee growth"),
                                     ("operating_margin_pct", "Operating Margin"),
+                                    ("cost_income_ratio_pct", "Cost-Income Ratio"),
                                 ]:
                                     value = safe_float(discovery_am.get(key))
                                     if value is not None:
@@ -61466,7 +62365,15 @@ if selected_symbol:
                                     if flow_ctx_ui.get("method"):
                                         st.caption(f"Flow-Definition: {text_or_dash(flow_ctx_ui.get('method'))}")
                                     st.metric("Headline-AUM-Wachstum", f"{safe_float(score_am.get('headline_aum_growth_pct')):+.1f} %")
-                                st.metric("Core/Adjusted Operating Margin", f"{safe_float(snap_am.get('operating_margin_pct')):.1f} %")
+                                am_op_margin_ui = safe_float(snap_am.get("operating_margin_pct"))
+                                am_cir_ui = safe_float(snap_am.get("cost_income_ratio_pct"))
+                                if am_op_margin_ui is not None:
+                                    st.metric("Core/Adjusted Operating Margin", f"{am_op_margin_ui:.1f} %")
+                                elif am_cir_ui is not None:
+                                    st.metric("Cost-Income Ratio (issuer-native)", f"{am_cir_ui:.1f} %")
+                                    cir_prior_ui = safe_float(snap_am.get("cost_income_ratio_prior_year_pct"))
+                                    if cir_prior_ui is not None:
+                                        st.caption(f"Vorjahres-Vergleichsperiode {cir_prior_ui:.1f} %; niedriger ist effizienter. Keine künstliche Umbenennung in Operating Margin.")
                                 efr_ui = safe_float(snap_am.get("effective_fee_rate_bps"))
                                 if efr_ui is not None:
                                     st.metric("Effective Fee Rate", f"{efr_ui:.1f} bp")
@@ -61491,22 +62398,28 @@ if selected_symbol:
                                 if earn_am.get("through_cycle_eps_source"):
                                     st.caption("3Y-Glättungsanker: " + text_or_dash(earn_am.get("through_cycle_eps_source")))
                                 if snap_am.get("generic_primary_adapter") and snap_am.get("same_basis_earnings_complete"):
-                                    hist_years_ui = list(snap_am.get("issuer_adjusted_eps_history_years") or [])
-                                    hist_vals_ui = list(snap_am.get("issuer_adjusted_eps_history") or [])
+                                    hist_years_ui = list(snap_am.get("issuer_same_basis_eps_history_years") or snap_am.get("issuer_adjusted_eps_history_years") or [])
+                                    hist_vals_ui = list(snap_am.get("issuer_same_basis_eps_history") or snap_am.get("issuer_adjusted_eps_history") or [])
                                     hist_bits_ui = []
                                     for yy, vv in zip(hist_years_ui, hist_vals_ui):
                                         fv = safe_float(vv)
                                         if fv is not None:
                                             hist_bits_ui.append(f"{yy}: {fv:.2f}")
                                     if hist_bits_ui:
-                                        st.caption("Issuer-adjusted Jahres-EPS: " + " · ".join(hist_bits_ui))
-                                    fy_eps_ui = safe_float(snap_am.get("adjusted_ttm_bridge_latest_fy_eps"))
-                                    prior_eps_ui = safe_float(snap_am.get("adjusted_ttm_bridge_prior_period_eps"))
-                                    current_eps_ui = safe_float(snap_am.get("adjusted_ttm_bridge_current_period_eps"))
-                                    ttm_eps_ui = safe_float(snap_am.get("issuer_adjusted_ttm_eps"))
+                                        eps_basis_ui = str(snap_am.get("issuer_eps_basis") or "adjusted").lower()
+                                        eps_label_ui = "Issuer-adjusted Jahres-EPS" if eps_basis_ui == "adjusted" else "Issuer-reported Same-Basis Jahres-EPS"
+                                        st.caption(eps_label_ui + ": " + " · ".join(hist_bits_ui))
+                                    fy_eps_ui = safe_float(snap_am.get("same_basis_ttm_bridge_latest_fy_eps"))
+                                    if fy_eps_ui is None: fy_eps_ui = safe_float(snap_am.get("adjusted_ttm_bridge_latest_fy_eps"))
+                                    prior_eps_ui = safe_float(snap_am.get("same_basis_ttm_bridge_prior_period_eps"))
+                                    if prior_eps_ui is None: prior_eps_ui = safe_float(snap_am.get("adjusted_ttm_bridge_prior_period_eps"))
+                                    current_eps_ui = safe_float(snap_am.get("same_basis_ttm_bridge_current_period_eps"))
+                                    if current_eps_ui is None: current_eps_ui = safe_float(snap_am.get("adjusted_ttm_bridge_current_period_eps"))
+                                    ttm_eps_ui = safe_float(snap_am.get("issuer_same_basis_ttm_eps"))
+                                    if ttm_eps_ui is None: ttm_eps_ui = safe_float(snap_am.get("issuer_adjusted_ttm_eps"))
                                     if None not in [fy_eps_ui, prior_eps_ui, current_eps_ui, ttm_eps_ui]:
                                         st.caption(
-                                            f"Adjusted-TTM-Brücke: FY {int(snap_am.get('adjusted_ttm_bridge_latest_fy'))} {fy_eps_ui:.2f} "
+                                            f"Same-Basis-TTM-Brücke: FY {int(snap_am.get('same_basis_ttm_bridge_latest_fy') or snap_am.get('adjusted_ttm_bridge_latest_fy'))} {fy_eps_ui:.2f} "
                                             f"− Vorjahres-Vergleichsperiode {prior_eps_ui:.2f} + aktuelle Vergleichsperiode {current_eps_ui:.2f} = {ttm_eps_ui:.2f}"
                                         )
                             elif earn_am.get("note"):
