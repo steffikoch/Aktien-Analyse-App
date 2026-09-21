@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.20"
+APP_BUILD_VERSION = "V2.22.21"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Professional-Services Business-Model Precedence over Capital-Markets Label Guard V116"
+    f"Build {APP_BUILD_VERSION} · Professional Services Unsupported-Issuer Fail-Closed Integration Guard V117"
 )
 
 
@@ -41,6 +41,7 @@ st.caption(
 # V2.22.18: Professional Services Diagnostic Copy & Precision Cleanup V114. No valuation mathematics changed. Marks Yahoo/Cashflow-Statement FCF as diagnosis-only in the released Professional & Business Services path, renders the Step-3B earnings anchor in precise issuer GBP/GBp units instead of rounded display-currency EPS, and shows DSW net cash at the precision actually published by the issuer (GBP 0.1m) with only an approximate display-currency equivalent. Peer copy is version-aligned to V114. DSW score 76/100, 9–18x corridor, raw 14.5x score multiple, 14.0x liquidity cap and Fair Value mathematics remain unchanged.
 # V2.22.19: Universal Exact-Ticker Primary-Listing Precedence Guard V115. Search-only change. Treats an exchange-suffixed home symbol whose base ticker exactly equals a short ticker-like query (for example ABC.L for input ABC) as an exact ticker-family match instead of a weak prefix match. When the first Yahoo search contains neither an exact symbol nor an exact base-ticker candidate, the resolver performs a bounded set of exact home-listing suffix probes and accepts only literal symbol matches, preventing fuzzy prefix symbols such as ABCD from outranking an exact local ticker ABC.<home>. Existing exact full-ticker priority, verified company-name aliases, WKN/ISIN identity, same-issuer grouping, specialist routing and all valuation mathematics remain unchanged. No FRP- or issuer-specific search rule is introduced.
 # V2.22.20: Professional-Services Business-Model Precedence over Capital-Markets Label Guard V116. Router-only change. A broad provider industry label such as Capital Markets/Brokerage no longer automatically forces Investment Bank / Broker-Dealer when the issuer summary instead shows a diversified advisory/professional-services operating model (for example specialist business advisory plus restructuring, forensic, financial/debt advisory or corporate-finance service lines). Strong broker-dealer/trading/market-making/securities-underwriting evidence remains authoritative for the Investment Bank / Broker-Dealer family. The rule is reusable and business-model based; no FRP ticker/name override is introduced. DSW specialist score, 9–18x corridor, liquidity cap, DWS evidence recovery, exact-ticker search V115 and all released valuation mathematics remain unchanged.
+# V2.22.21: Professional Services Unsupported-Issuer Fail-Closed Integration Guard V117. Fixes the multi-issuer handoff exposed by FRP Advisory after V116. A Professional & Business Services family match no longer promotes the DSW specialist corridor into Module 6 unless an issuer-specific primary snapshot, specialist score and valuation anchor are actually complete. Unsupported family issuers retain the Universal Family fail-closed corridor (available=False, no score/multiple/Fair Value) instead of exposing None corridor bounds to the UI. Professional-services FCF/peer copy is now issuer-support aware so unreleased issuers are described as diagnosis-only rather than as DSW-valued. DSW score 76/100, 9–18x corridor, raw 14.5x score multiple, 14.0x liquidity cap and Fair Value mathematics remain unchanged; V115 search and V116 routing remain unchanged.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
 # V2.22.12: Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108. Keeps the released Asset-Management scoring, 9–18x base corridor, Premium-Unlock, peer/historical guards and signal mathematics unchanged. V108 upgrades only the issuer-primary evidence layer: corporate/group/investor-IR domain-family escalation, financial-results/document-class prioritization, period-safe AUM/flow/fee/CIR/EPS table recovery, issuer-native Cost-Income-Ratio efficiency support without relabelling it as an operating margin, and same-basis reported-or-adjusted TTM/3Y EPS recovery. Sub-scopes remain explicit, search snippets remain discovery-only, period/scope mismatches fail closed, and evidence failures receive diagnostic reason codes. No issuer URLs, ticker-specific KPI values or DWS-specific constants are hard-coded.
@@ -54458,24 +54459,58 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     if professional_business_services_specialist_model.get("applicable"):
         pbs_score_fm = professional_business_services_specialist_model.get("specialist_score") or {}
         pbs_val_fm = professional_business_services_specialist_model.get("specialist_valuation") or {}
-        fundamental_multiple = {
-            **fundamental_multiple,
-            "score": safe_float(pbs_score_fm.get("score")),
-            "multiple": safe_float(pbs_val_fm.get("target_multiple")),
-            "available": bool(pbs_val_fm.get("available") and professional_business_services_specialist_model.get("valuation_anchor_complete")),
-            "earnings_basis_usable": bool(pbs_val_fm.get("available")),
-            "corridor": {
+        pbs_anchor_complete_fm = bool(
+            professional_business_services_specialist_model.get("issuer_supported")
+            and professional_business_services_specialist_model.get("primary_source_complete")
+            and professional_business_services_specialist_model.get("valuation_anchor_complete")
+            and pbs_score_fm.get("available")
+            and pbs_val_fm.get("available")
+        )
+        if pbs_anchor_complete_fm:
+            fundamental_multiple = {
+                **fundamental_multiple,
+                "score": safe_float(pbs_score_fm.get("score")),
+                "multiple": safe_float(pbs_val_fm.get("target_multiple")),
                 "available": True,
-                "lower": safe_float(pbs_val_fm.get("corridor_low")),
-                "upper": safe_float(pbs_val_fm.get("corridor_high")),
-                "method": "Professional & Business Services Specialist P/E",
-                "note": "Issuer-primary Professional-Services-Score; Small-Cap/Liquidity Guard wirkt ausschließlich downside-only.",
-            },
-            "note": (
-                f"{APP_BUILD_VERSION} Professional & Business Services: Der Spezialscore bestimmt das Fundamental-Multiple. "
-                "Generischer 100-Punkte-Standardscore, Yahoo-FCF/Net-Debt-to-FCF und Analystenziele werden nicht verwendet."
-            ),
-        }
+                "earnings_basis_usable": True,
+                "corridor": {
+                    "available": True,
+                    "lower": safe_float(pbs_val_fm.get("corridor_low")),
+                    "upper": safe_float(pbs_val_fm.get("corridor_high")),
+                    "method": "Professional & Business Services Specialist P/E",
+                    "note": "Issuer-primary Professional-Services-Score; Small-Cap/Liquidity Guard wirkt ausschließlich downside-only.",
+                },
+                "note": (
+                    f"{APP_BUILD_VERSION} Professional & Business Services: Der Spezialscore bestimmt das Fundamental-Multiple. "
+                    "Generischer 100-Punkte-Standardscore, Yahoo-FCF/Net-Debt-to-FCF und Analystenziele werden nicht verwendet."
+                ),
+            }
+        else:
+            # V117: family recognition alone must never expose the released DSW corridor.
+            # Keep the Universal Family route explicitly fail-closed until this issuer has
+            # its own primary snapshot, specialist score and valuation anchor.
+            fundamental_multiple = {
+                **fundamental_multiple,
+                "score": None,
+                "multiple": None,
+                "available": False,
+                "earnings_basis_usable": False,
+                "corridor": {
+                    "available": False,
+                    "lower": None,
+                    "upper": None,
+                    "method": None,
+                    "note": (
+                        f"{APP_BUILD_VERSION} Professional & Business Services: Bewertungsfamilie erkannt, "
+                        "aber für diesen Emittenten liegt noch kein vollständiger issuer-primary Spezial-Snapshot vor. "
+                        "Der DSW-Korridor wird nicht übertragen; Standard-KGV und Fair Value bleiben fail-closed."
+                    ),
+                },
+                "note": (
+                    f"{APP_BUILD_VERSION} Professional & Business Services: issuer-spezifische Primärdaten-/Earnings-Basis noch nicht kalibriert. "
+                    "Kein Spezialscore, kein Ziel-KGV und kein Fair Value werden aus dem DSW-Modell abgeleitet."
+                ),
+            }
 
     if str(fundamental_symbol or "").upper() == "KTOS":
         diagnostic_corridor = fundamental_multiple.get("corridor")
@@ -57237,11 +57272,19 @@ if selected_symbol:
                             "Er steuert weder den Turnaround-P/S- noch den Post-Merger-Adjusted-P/E-Fair-Value; Cashflow-/Finanzierungsqualität wird ausschließlich in den jeweiligen Primärquellen-Komponenten des Spezial-Scores berücksichtigt."
                         )
                     elif is_professional_services_fcf_context:
-                        st.caption(
-                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
-                            f"Bei Professional & Business Services bleibt dieser Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. {APP_BUILD_VERSION} verwendet für DSW die issuer-ausgewiesene Operating Cash Conversion sowie die Professional-Services-Primärdaten; "
-                            "Yahoo-FCF steuert weder FCF-Score noch Net-Debt/FCF, Ziel-KGV, Liquidity Guard oder Fair Value."
-                        )
+                        ps_fcf_model_ui = data.get("professional_business_services_specialist_model") or {}
+                        if ps_fcf_model_ui.get("valuation_anchor_complete"):
+                            st.caption(
+                                "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                                f"Bei Professional & Business Services bleibt dieser Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. {APP_BUILD_VERSION} verwendet für den freigegebenen Emittenten die issuer-ausgewiesene Operating Cash Conversion sowie die Professional-Services-Primärdaten; "
+                                "Yahoo-FCF steuert weder FCF-Score noch Net-Debt/FCF, Ziel-KGV, Liquidity Guard oder Fair Value."
+                            )
+                        else:
+                            st.caption(
+                                "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                                f"Bei Professional & Business Services bleibt dieser Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. {APP_BUILD_VERSION}: Für diesen Emittenten ist noch kein issuer-primary Professional-Services-Snapshot freigegeben; "
+                                "Yahoo-FCF steuert daher weder Family Score noch Net-Debt/FCF, Ziel-KGV, Liquidity Guard oder Fair Value."
+                            )
                     elif is_universal_family_fcf_context:
                         if is_released_listed_holding_family(company_type):
                             st.caption(
@@ -62404,10 +62447,17 @@ if selected_symbol:
                         "es gibt keine automatische ±5-%-Anpassung, kein Peer-Gate und keinen Peer-bedingten Confidence-Abzug."
                     )
                 elif bool((data.get("professional_business_services_specialist_model") or {}).get("applicable")):
-                    st.caption(
-                        "Professional & Business Services V114: In V1 ist noch keine automatische Peer-Gruppe freigegeben. "
-                        "Score, 9–18×-Korridor, Liquidity Guard und Fair Value bleiben vollständig issuer-primary; es gibt keine ±5-%-Peer-Anpassung."
-                    )
+                    ps_peer_model_ui = data.get("professional_business_services_specialist_model") or {}
+                    if ps_peer_model_ui.get("valuation_anchor_complete"):
+                        st.caption(
+                            f"Professional & Business Services {APP_BUILD_VERSION}: In V1 ist noch keine automatische Peer-Gruppe freigegeben. "
+                            "Score, 9–18×-Korridor, Liquidity Guard und Fair Value bleiben vollständig issuer-primary; es gibt keine ±5-%-Peer-Anpassung."
+                        )
+                    else:
+                        st.caption(
+                            f"Professional & Business Services {APP_BUILD_VERSION}: Für diesen Emittenten ist noch kein issuer-primary Spezial-Snapshot freigegeben. "
+                            "Es gibt weder Peer-Gate noch übertragenen DSW-Korridor; Spezialscore, Ziel-KGV und Fair Value bleiben fail-closed."
+                        )
                 else:
                     st.caption(
                         "Schritt 2A verändert weder Multiple Score "
@@ -62719,7 +62769,11 @@ if selected_symbol:
                 elif is_integrated_oil_gas_peer_metric:
                     peer_explain = f"Integrated Oil & Gas {APP_BUILD_VERSION}: Die anderen globalen Majors sind reine Markt-Referenzen. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Peer-Anpassung; Score, Through-Cycle-EPS, Ziel-KGV und Fair Value bleiben issuer-spezifisch."
                 elif bool((data.get("professional_business_services_specialist_model") or {}).get("applicable")):
-                    peer_explain = f"Professional & Business Services {APP_BUILD_VERSION}: Noch keine freigegebene Peer-Gruppe. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Peer-Anpassung; der V1-Fair-Value bleibt issuer-primary."
+                    ps_peer_model_b_ui = data.get("professional_business_services_specialist_model") or {}
+                    if ps_peer_model_b_ui.get("valuation_anchor_complete"):
+                        peer_explain = f"Professional & Business Services {APP_BUILD_VERSION}: Noch keine freigegebene Peer-Gruppe. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Peer-Anpassung; der freigegebene V1-Fair-Value bleibt issuer-primary."
+                    else:
+                        peer_explain = f"Professional & Business Services {APP_BUILD_VERSION}: Noch keine freigegebene Peer-Gruppe und noch kein issuer-primary Spezialanker für diesen Emittenten. Peer-Daten können die fehlende Spezialbasis nicht ersetzen; Fair Value bleibt fail-closed."
                 else:
                     peer_explain = "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
 
