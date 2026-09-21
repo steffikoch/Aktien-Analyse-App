@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.14"
+APP_BUILD_VERSION = "V2.22.15"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110"
+    f"Build {APP_BUILD_VERSION} · Universal Professional-Services Industry Precedence Guard V111"
 )
 
 
+# V2.22.15: Universal Professional-Services Industry Precedence Guard V111. Adds a reusable Professional & Business Services valuation family and fixes an over-broad Industrials sector fallback that previously routed Specialty Business Services issuers into Industrials / Capital Goods. High-confidence professional-service industries now outrank the broad Industrials sector; broader service labels require corroborating business-model evidence such as professional/advisory/consulting, corporate-finance/due-diligence, legal/accounting/tax, restructuring/recovery, fee-earner/network, licence-fee or revenue-share economics. Capital-goods/manufacturing industries remain on the existing Industrials route. The new family is defined_unreleased and therefore fail-closed: no generic Standard score, Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV, Fair Value or signals are unlocked. V110 Asset-Management evidence recovery, GBp/GBP unit handling and all released valuation mathematics remain unchanged.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
 # V2.22.12: Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108. Keeps the released Asset-Management scoring, 9–18x base corridor, Premium-Unlock, peer/historical guards and signal mathematics unchanged. V108 upgrades only the issuer-primary evidence layer: corporate/group/investor-IR domain-family escalation, financial-results/document-class prioritization, period-safe AUM/flow/fee/CIR/EPS table recovery, issuer-native Cost-Income-Ratio efficiency support without relabelling it as an operating margin, and same-basis reported-or-adjusted TTM/3Y EPS recovery. Sub-scopes remain explicit, search snippets remain discovery-only, period/scope mismatches fail closed, and evidence failures receive diagnostic reason codes. No issuer URLs, ticker-specific KPI values or DWS-specific constants are hard-coded.
@@ -6693,6 +6694,7 @@ UNIVERSAL_VALUATION_FAMILY_CATALOG = {
     "automotive": {"label": "Automotive", "policy": "specialist"},
     "aerospace_defense": {"label": "Aerospace & Defense", "policy": "specialist"},
     "industrials": {"label": "Industrials / Capital Goods", "policy": "specialist"},
+    "professional_business_services": {"label": "Professional & Business Services", "policy": "specialist"},
     "transport_logistics": {"label": "Transportation / Logistics", "policy": "generic_compatible"},
     "media_internet": {"label": "Media / Internet / Platforms", "policy": "generic_compatible"},
     "advertising": {"label": "Advertising / Marketing Services", "policy": "specialist"},
@@ -6777,6 +6779,8 @@ def _infer_universal_family_from_existing_type(company_type, name_text=""):
         ("aerospace", "aerospace_defense"),
         ("versorger", "regulated_utility"),
         ("advertising", "advertising"),
+        ("professional & business services", "professional_business_services"),
+        ("professional services", "professional_business_services"),
         ("industrie", "industrials"),
     ]
     for token, family_id in checks:
@@ -6839,6 +6843,63 @@ def _looks_like_listed_investment_holding(industry, business_summary):
             return True
 
     return False
+
+
+def _looks_like_professional_business_services(industry, business_summary):
+    """Conservative Professional/Business-Services classifier.
+
+    V111 prevents the broad Yahoo ``Industrials`` sector label from forcing
+    capital-light advisory/service networks into Capital Goods.  Exact
+    high-confidence provider industries may route directly; broader service
+    labels require corroborating business-model evidence.  This is a reusable
+    family rule and contains no issuer/ticker exception.
+    """
+    industry_text = str(industry or "").strip().lower()
+    summary_text = str(business_summary or "").lower()
+    combined = f" {industry_text} {summary_text} "
+
+    # These provider industry labels are already economically incompatible
+    # with a machinery/capital-goods default.  Route them to a fail-closed
+    # professional-services family even if the summary is temporarily absent.
+    high_confidence_industries = (
+        "specialty business services",
+        "consulting services",
+    )
+    if any(token in industry_text for token in high_confidence_industries):
+        return True
+
+    # Broader industry labels are accepted only with business-model evidence.
+    broad_service_industries = (
+        "business services",
+        "professional services",
+        "staffing & employment services",
+        "staffing and employment services",
+    )
+    if not any(token in industry_text for token in broad_service_industries):
+        return False
+
+    professional_terms = (
+        "professional services", "advisory services", "advisory firm", "consulting",
+        "corporate finance", "due diligence", "business recovery", "restructuring",
+        "legal services", "accounting services", "accountancy", "tax advisory",
+        "audit services", "fee earners", "member firms", "partner firms",
+        "professional network", "licence fee", "license fee", "licensing fee",
+        "revenue share", "revenue-sharing", "revenue sharing",
+    )
+    has_professional_evidence = any(term in combined for term in professional_terms)
+
+    # Strong industrial-product evidence keeps the issuer out of this family
+    # unless the provider explicitly classifies it in one of the high-confidence
+    # professional-service industries above.
+    capital_goods_terms = (
+        "manufactures", "manufacturing", "industrial machinery", "heavy machinery",
+        "construction machinery", "electrical equipment", "industrial equipment",
+        "aerospace products", "industrial components",
+    )
+    if any(term in summary_text for term in capital_goods_terms):
+        return False
+
+    return has_professional_evidence
 
 
 def _infer_universal_family_from_metadata(symbol, sector, industry, business_summary):
@@ -6941,6 +7002,8 @@ def _infer_universal_family_from_metadata(symbol, sector, industry, business_sum
         return "regulated_utility", "sector_rule"
     if "telecom" in combined or "telecommunication" in combined:
         return "telecom", "metadata_rule"
+    if _looks_like_professional_business_services(industry_text, summary_text):
+        return "professional_business_services", "industry_business_model_rule"
     if "aerospace & defense" in industry_text or "aerospace and defense" in industry_text:
         return "aerospace_defense", "industry_rule"
     if "industrials" in sector_text:
@@ -56048,6 +56111,7 @@ if selected_symbol:
                         "business_summary_rule": "Geschäftsmodell-Regel",
                         "sector_industry_rule": "Sektor-/Branchenregel",
                         "industry_rule": "Branchenregel",
+                        "industry_business_model_rule": "Branche + Geschäftsmodell-Regel",
                         "sector_rule": "Sektorregel",
                         "metadata_rule": "Metadatenregel",
                         "existing_specialist_route": "bestehender Spezialpfad",
