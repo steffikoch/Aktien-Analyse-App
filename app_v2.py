@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.28"
+APP_BUILD_VERSION = "V2.22.29"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Exact-Ticker Collision Null-Default Selection Guard V124"
+    f"Build {APP_BUILD_VERSION} · Exact-Ticker Collision Explicit Confirmation Gate V125"
 )
 
 
@@ -49,6 +49,7 @@ st.caption(
 # V2.22.26: Cross-Exchange Exact-Ticker Collision Guard V122. Search-only change. For a short exact base-ticker query without an explicit exchange suffix, the resolver now probes the bounded home-listing suffix set even when Yahoo already returned one exact/base candidate. If two or more distinct issuer identities legitimately use that same exact base ticker on different primary exchanges, none is labelled as the unique Hauptlisting: every colliding exact-ticker issuer is surfaced at the top as an explicit selection-required result with its own canonical identity. Explicit full-symbol input such as TLG.AX or TLG.TO remains unambiguous and retains exact-security priority. Same-issuer cross-listings do not trigger the collision state. V115 exact-base recovery, all family routers, V121 development-stage guard and all valuation mathematics remain unchanged; no TLG/Talga/Troilus hard-coding is introduced.
 # V2.22.27: Exact-Ticker Collision Explicit Selection Gate V123. Search-UI-only change. When V122 identifies two or more distinct issuers sharing the same exact base ticker across exchanges, the result selector starts on a non-security placeholder and is intended to require an explicit issuer/listing choice before any financial-data load. Explicit full-symbol inputs such as TLG.AX or TLG.TO remain directly selectable; unique ticker/name/WKN/ISIN searches keep the existing behavior. V122 collision discovery/ranking, V121 development-stage mining guard and all valuation mathematics remain unchanged; no ticker/issuer hard-coding is introduced.
 # V2.22.28: Exact-Ticker Collision Null-Default Selection Guard V124. Search-UI-only change. Replaces the synthetic collision placeholder from V123 with Streamlit's native null-default selectbox (index=None + placeholder) and a fresh V124 widget key, so cross-exchange exact-ticker collisions cannot inherit or auto-select the first real security. Explicit full-symbol inputs such as TLG.AX or TLG.TO remain directly selectable; unique ticker/name/WKN/ISIN searches keep the existing behavior. V122 collision discovery/ranking, V121 development-stage mining guard and all valuation mathematics remain unchanged; no ticker/issuer hard-coding is introduced.
+# V2.22.29: Exact-Ticker Collision Explicit Confirmation Gate V125. Search-UI-only hardening after runtime testing showed that the deployed Streamlit selectbox may still expose/return its first real option despite null-default or synthetic-placeholder attempts. Cross-exchange exact-ticker collisions therefore now require an explicit form submit before selected_symbol is released to the identity/load pipeline. The confirmed symbol is stored under a fresh query-scoped V125 session key so normal reruns preserve the user's explicit choice, while stale V123/V124 widget state cannot auto-load a security. Explicit full-symbol inputs and all resolver/ranking, family routing and valuation mathematics remain unchanged; no ticker/issuer hard-coding is introduced.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
 # V2.22.12: Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108. Keeps the released Asset-Management scoring, 9–18x base corridor, Premium-Unlock, peer/historical guards and signal mathematics unchanged. V108 upgrades only the issuer-primary evidence layer: corporate/group/investor-IR domain-family escalation, financial-results/document-class prioritization, period-safe AUM/flow/fee/CIR/EPS table recovery, issuer-native Cost-Income-Ratio efficiency support without relabelling it as an operating margin, and same-basis reported-or-adjusted TTM/3Y EPS recovery. Sub-scopes remain explicit, search snippets remain discovery-only, period/scope mismatches fail closed, and evidence failures receive diagnostic reason codes. No issuer URLs, ticker-specific KPI values or DWS-specific constants are hard-coded.
@@ -56931,18 +56932,53 @@ if search_text:
                 return _compact_suggestion_label(suggestion_map[symbol])
 
             if collision_selection_required:
-                # V124: use Streamlit's native null-default state instead of a
-                # synthetic option. No real security is selected until the user
-                # explicitly chooses one. A fresh widget key prevents any stale
-                # collision selection from an earlier build being inherited.
-                selected_symbol = st.selectbox(
-                    "Treffer auswählen",
-                    options=list(suggestion_map.keys()),
-                    index=None,
-                    placeholder="Bitte Emittent / Börse auswählen …",
-                    format_func=suggestion_label,
-                    key=f"exact_ticker_collision_select_v124_{str(search_text).strip().upper()}",
+                # V125: a genuine cross-exchange exact-ticker collision is never
+                # released to load_stock merely because the runtime selectbox
+                # exposes or returns a first option. The candidate becomes active
+                # only after an explicit form submit. A query-scoped confirmation
+                # key persists that deliberate choice across later reruns while a
+                # fresh V125 namespace prevents stale V123/V124 widget state from
+                # auto-loading a security.
+                collision_query_key = str(search_text).strip().upper()
+                collision_confirm_key = (
+                    f"exact_ticker_collision_confirmed_v125_{collision_query_key}"
                 )
+                with st.form(
+                    key=f"exact_ticker_collision_form_v125_{collision_query_key}"
+                ):
+                    collision_candidate = st.selectbox(
+                        "Treffer auswählen",
+                        options=list(suggestion_map.keys()),
+                        index=0,
+                        format_func=suggestion_label,
+                        key=f"exact_ticker_collision_select_v125_{collision_query_key}",
+                    )
+                    collision_confirmed_now = st.form_submit_button(
+                        "Auswahl bestätigen"
+                    )
+
+                if collision_confirmed_now and collision_candidate in suggestion_map:
+                    st.session_state[collision_confirm_key] = collision_candidate
+
+                confirmed_collision_symbol = st.session_state.get(
+                    collision_confirm_key
+                )
+                if confirmed_collision_symbol not in suggestion_map:
+                    confirmed_collision_symbol = None
+                    st.session_state.pop(collision_confirm_key, None)
+
+                selected_symbol = confirmed_collision_symbol
+
+                if selected_symbol:
+                    st.caption(
+                        "✓ Ticker-Kollision ausdrücklich bestätigt: "
+                        f"{suggestion_label(selected_symbol)}"
+                    )
+                else:
+                    st.info(
+                        "Noch keine Aktie geladen. Bitte Emittent/Börse wählen und "
+                        "mit „Auswahl bestätigen“ freigeben."
+                    )
             else:
                 selected_symbol = st.selectbox(
                     "Treffer auswählen",
