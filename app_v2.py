@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.17"
+APP_BUILD_VERSION = "V2.22.18"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,13 +31,14 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Professional Services Confidence Isolation & UI Consistency Cleanup V113"
+    f"Build {APP_BUILD_VERSION} · Professional Services Diagnostic Copy & Precision Cleanup V114"
 )
 
 
 # V2.22.15: Universal Professional-Services Industry Precedence Guard V111. Adds a reusable Professional & Business Services valuation family and fixes an over-broad Industrials sector fallback that previously routed Specialty Business Services issuers into Industrials / Capital Goods. High-confidence professional-service industries now outrank the broad Industrials sector; broader service labels require corroborating business-model evidence such as professional/advisory/consulting, corporate-finance/due-diligence, legal/accounting/tax, restructuring/recovery, fee-earner/network, licence-fee or revenue-share economics. Capital-goods/manufacturing industries remain on the existing Industrials route. The new family is defined_unreleased and therefore fail-closed: no generic Standard score, Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV, Fair Value or signals are unlocked. V110 Asset-Management evidence recovery, GBp/GBP unit handling and all released valuation mathematics remain unchanged.
 # V2.22.16: Professional & Business Services Specialist Model V1 V112. First validated issuer: DSW Capital (DSW.L). Releases an issuer-primary Professional & Business Services specialist path for DSW while keeping the wider family globally unreleased until a second independent issuer is validated. The model scores platform/network growth and fee-earner productivity, adjusted EBITDA/PBT quality, issuer operating cash conversion, balance quality, licence/revenue-mix resilience, capital allocation/dilution and earnings stability. Valuation uses an issuer-adjusted two-year diluted-EPS anchor (FY26 weighted 80%, FY25 20%) with a 9–18x score corridor and a downside-only small-cap/liquidity cap. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the specialist Fair Value. GBp/GBP conversion stays explicit at 1 GBP = 100 GBp. V110 Asset-Management evidence recovery and all other released specialist mathematics remain unchanged.
 # V2.22.17: Professional Services Confidence Isolation & UI Consistency Cleanup V113. No valuation mathematics changed. Isolates the Professional & Business Services valuation-confidence stack from generic Provider/GAAP TTM-vs-Forward EPS divergence, adds an explicit specialist earnings-basis confidence component, suppresses stale generic FCF and Net-Cash scoring footers, renders the DSW Through-Cycle earnings anchor in precise GBP/GBp source units, and makes Peer/Step-3A copy consistent with the downside-only Small-Cap/Liquidity Guard. DSW score 76/100, 9–18x corridor, raw 14.5x score multiple, 14.0x liquidity cap and Fair Value mathematics remain unchanged.
+# V2.22.18: Professional Services Diagnostic Copy & Precision Cleanup V114. No valuation mathematics changed. Marks Yahoo/Cashflow-Statement FCF as diagnosis-only in the released Professional & Business Services path, renders the Step-3B earnings anchor in precise issuer GBP/GBp units instead of rounded display-currency EPS, and shows DSW net cash at the precision actually published by the issuer (GBP 0.1m) with only an approximate display-currency equivalent. Peer copy is version-aligned to V114. DSW score 76/100, 9–18x corridor, raw 14.5x score multiple, 14.0x liquidity cap and Fair Value mathematics remain unchanged.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
 # V2.22.12: Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108. Keeps the released Asset-Management scoring, 9–18x base corridor, Premium-Unlock, peer/historical guards and signal mathematics unchanged. V108 upgrades only the issuer-primary evidence layer: corporate/group/investor-IR domain-family escalation, financial-results/document-class prioritization, period-safe AUM/flow/fee/CIR/EPS table recovery, issuer-native Cost-Income-Ratio efficiency support without relabelling it as an operating margin, and same-basis reported-or-adjusted TTM/3Y EPS recovery. Sub-scopes remain explicit, search snippets remain discovery-only, period/scope mismatches fail closed, and evidence failures receive diagnostic reason codes. No issuer URLs, ticker-specific KPI values or DWS-specific constants are hard-coded.
@@ -56977,6 +56978,7 @@ if selected_symbol:
                 is_integrated_oil_gas_fcf_context = bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                 is_branded_consumer_staples_fcf_context = bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                 is_ctva_fcf_context = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
+                is_professional_services_fcf_context = bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
                 is_universal_family_fcf_context = is_universal_family_fail_closed(company_type)
                 if fcf_ctx.get("score_eligible"):
                     source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
@@ -57103,6 +57105,12 @@ if selected_symbol:
                             "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
                             "Im UA/UAA-Turnaround- und OMC-Post-Merger-Spezialmodell bleibt dieser Yahoo-/Cashflow-Statement-FCF ausschließlich Diagnosekontext. "
                             "Er steuert weder den Turnaround-P/S- noch den Post-Merger-Adjusted-P/E-Fair-Value; Cashflow-/Finanzierungsqualität wird ausschließlich in den jeweiligen Primärquellen-Komponenten des Spezial-Scores berücksichtigt."
+                        )
+                    elif is_professional_services_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            f"Bei Professional & Business Services bleibt dieser Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. {APP_BUILD_VERSION} verwendet für DSW die issuer-ausgewiesene Operating Cash Conversion sowie die Professional-Services-Primärdaten; "
+                            "Yahoo-FCF steuert weder FCF-Score noch Net-Debt/FCF, Ziel-KGV, Liquidity Guard oder Fair Value."
                         )
                     elif is_universal_family_fcf_context:
                         if is_released_listed_holding_family(company_type):
@@ -62267,7 +62275,7 @@ if selected_symbol:
                     )
                 elif bool((data.get("professional_business_services_specialist_model") or {}).get("applicable")):
                     st.caption(
-                        "Professional & Business Services V113: In V1 ist noch keine automatische Peer-Gruppe freigegeben. "
+                        "Professional & Business Services V114: In V1 ist noch keine automatische Peer-Gruppe freigegeben. "
                         "Score, 9–18×-Korridor, Liquidity Guard und Fair Value bleiben vollständig issuer-primary; es gibt keine ±5-%-Peer-Anpassung."
                     )
                 else:
@@ -62810,7 +62818,14 @@ if selected_symbol:
                             st.metric("Operating Cash Conversion", f"{safe_float(snap_ps.get('operating_cash_conversion_pct')):.0f} %")
                         with c3:
                             st.metric("Effective Licence Fee", f"{safe_float(snap_ps.get('effective_licence_fee_pct')):.1f} %")
-                            st.metric("Net Cash", format_money(snap_ps.get("net_cash"), ps_ccy))
+                            ps_net_cash_gbp = safe_float(snap_ps.get("net_cash"))
+                            if ps_net_cash_gbp is not None:
+                                st.metric("Net Cash (Issuer, gerundet)", f"{ps_net_cash_gbp / 1_000_000.0:.1f} Mio. GBP")
+                                ps_net_cash_display, ps_net_cash_display_ccy = transform_value_for_display(ps_net_cash_gbp, "GBP")
+                                if ps_net_cash_display is not None and ps_net_cash_display_ccy != "GBP":
+                                    st.caption(f"Anzeigeäquivalent: ca. {ps_net_cash_display / 1_000_000.0:.2f} Mio. {ps_net_cash_display_ccy}.")
+                            else:
+                                st.metric("Net Cash (Issuer, gerundet)", "–")
                         st.write(
                             f"**Revenue-Mix FY26:** Legal {safe_float(snap_ps.get('legal_revenue_mix_pct')):.0f} % · "
                             f"M&A-Licence {safe_float(snap_ps.get('ma_licence_revenue_mix_pct')):.0f} % · "
@@ -62832,11 +62847,20 @@ if selected_symbol:
                                 ps_item = ps_components.get(ps_key) or {}
                                 if ps_item:
                                     st.caption(f"{ps_label}: {int(safe_float(ps_item.get('score')) or 0)}/{int(safe_float(ps_item.get('max')) or 0)}")
-                        st.write(
-                            f"**Earnings-Basis:** {format_eps(val_ps.get('earnings_basis'), ps_ccy)} · "
-                            f"FY26 adjusted diluted EPS {format_eps(val_ps.get('fy26_adjusted_diluted_eps'), ps_ccy)} · "
-                            f"FY25 {format_eps(val_ps.get('fy25_adjusted_diluted_eps'), ps_ccy)}"
-                        )
+                        ps_basis_gbp = safe_float(val_ps.get("earnings_basis"))
+                        ps_fy26_eps_gbp = safe_float(val_ps.get("fy26_adjusted_diluted_eps"))
+                        ps_fy25_eps_gbp = safe_float(val_ps.get("fy25_adjusted_diluted_eps"))
+                        if ps_basis_gbp is not None and ps_fy26_eps_gbp is not None and ps_fy25_eps_gbp is not None:
+                            st.write(
+                                f"**Earnings-Basis (Issuer-Einheit):** {ps_basis_gbp * 100.0:.3f} GBp / {ps_basis_gbp:.5f} GBP · "
+                                f"FY26 adjusted diluted EPS {ps_fy26_eps_gbp * 100.0:.3f} GBp · "
+                                f"FY25 {ps_fy25_eps_gbp * 100.0:.3f} GBp"
+                            )
+                            ps_basis_display, ps_basis_display_ccy = transform_value_for_display(ps_basis_gbp, "GBP")
+                            if ps_basis_display is not None and ps_basis_display_ccy != "GBP":
+                                st.caption(f"Anzeigeäquivalent der Through-Cycle-Earnings-Basis: {ps_basis_display:.4f} {ps_basis_display_ccy} je Aktie.")
+                        else:
+                            st.write("**Earnings-Basis (Issuer-Einheit):** –")
                         st.caption(text_or_dash(val_ps.get("earnings_basis_method")))
                         if val_ps.get("available"):
                             st.write(
