@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.36"
+APP_BUILD_VERSION = "V2.22.37"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Manager Issuer-Primary XLSX Evidence Extraction V132"
+    f"Build {APP_BUILD_VERSION} · Asset-Manager Structured XLSX Period Binding V133"
 )
 
 
@@ -55,6 +55,8 @@ st.caption(
 # V2.22.33: Development-Stage Subprofile Copy Consistency Cleanup V129. Copy/UI-only change. Keeps the V128 subprofile-selection conditions and V121 financial-stage detection conditions unchanged, but removes three shared-path wording remnants: Mineral Explorer / Mine Developer evidence now says Exploration-/Resource-/Development rather than Pilot; the green special-event next-step is profile-aware (Resource/Metallurgy/Feasibility/Permitting for explorers, Resource/Feedstock/Pilot/Qualification/Commercialisation for battery/processing developers); and the unreleased Fair-Value gate uses a technical/economic Project-NAV basis for explorer/developers versus a resource/process/qualification/commercialisation primary-data basis for battery/processing developers. All scores, corridors, guard release states, LOM logic, V127 Net-Cash logic and valuation mathematics remain unchanged.
 # V2.22.35: Asset-Manager Current-Period Evidence Recovery V131. Fixes false fail-closed states for issuers whose IR result hub renders multiple years at once and whose document anchors are generic PDF/XLS labels. The generic Asset-Manager adapter now binds each document link to the nearest issuer-owned year context, prioritizes the latest published current-year Q/H period in primary-source discovery, and reports successfully fetched but still unmapped evidence as issuer_data_not_recovered instead of falsely claiming issuer_data_not_published. No issuer ticker, URL or KPI value is hard-coded; score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal thresholds remain unchanged.
 # V2.22.36: Asset-Manager Issuer-Primary XLSX Evidence Extraction V132. Extends V131 at the evidence-content layer: issuer-owned Office Open XML financial supplements are no longer decoded as HTML/binary text. A dependency-free XLSX reader flattens worksheet rows with shared-string, inline-string, formula-cache and percentage-style support, then feeds the unchanged period-safe AUM/Flow/Fee/CIR/EPS parser. This allows structured current-period supplements to serve as primary evidence while preserving period/scope guards, same-basis earnings requirements and fail-closed behavior. No issuer ticker, URL or KPI value is hard-coded; score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal thresholds remain unchanged.
+
+# V2.22.37: Asset-Manager Structured XLSX Period Binding V133. Fixes wide issuer-primary financial supplements whose comparison headers (for example “Q2 2026 vs. Q1 2026 / Q2 2025”) precede the actual multi-period data-header row. XLSX extraction now preserves explicit worksheet-row boundaries, period detection ranks the real multi-period header row ahead of comparison captions, and KPI rows are parsed only within their own workbook row so comparison columns cannot shift AUM/flow/fee/CIR/EPS values onto the wrong period. Same-scope guards, same-basis earnings requirements, score weights, 9–18x corridor, peer/historical guards and signal thresholds remain unchanged; no issuer ticker, URL or KPI value is hard-coded.
 # V2.22.34: Development-Stage EPS Copy Isolation Cleanup V130. Copy/UI-only change. Keeps V128 subprofile routing and V121 financial-stage detection unchanged, but isolates Development-Stage Mining / Materials from the generic Universal-Family EPS wording: Standard TTM/Forward EPS remains diagnosis-only and is explicitly not a Fair-Value anchor; Mineral Explorer / Mine Developer points instead to a technical/economic project and Project-NAV basis, while Battery Materials / Processing / Technology points to resource/feedstock, process/pilot/scale-up, qualification/offtake, funding and commercialisation evidence. The terminal EPS caption is profile-aware for the same reason. All scores, corridors, guard states, V127 Net-Cash logic, LOM logic and valuation mathematics remain unchanged.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
@@ -31381,7 +31383,7 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V112"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V113"
 ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22236_asset_manager_xlsx_evidence_v132"
 
 
@@ -31841,9 +31843,13 @@ def _asset_manager_xlsx_bytes_to_text(payload, diagnostics=None):
                         break
                 if sum(len(x) + 1 for x in rows_out) > 260_000:
                     break
-            text = _clean_text(" \n ".join(rows_out))[:240_000]
+            # Preserve physical workbook rows with a non-whitespace sentinel.
+            # _clean_text() may collapse spaces/newlines later, but this marker
+            # survives and lets the KPI parser distinguish comparison captions
+            # from the actual multi-period data header and metric rows.
+            text = _clean_text(" [[XLSX_ROW]] ".join(rows_out))[:240_000]
             if text and diag is not None:
-                diag.append(f"Asset-Manager XLSX: issuer-primary workbook erfolgreich extrahiert ({len(text)} Zeichen; {len(sheet_names)} Worksheets erkannt).")
+                diag.append(f"Asset-Manager XLSX: issuer-primary workbook strukturiert extrahiert ({len(text)} Zeichen; {len(sheet_names)} Worksheets erkannt; Zeilengrenzen erhalten).")
             return text
     except Exception as exc:
         if diag is not None:
@@ -33509,28 +33515,72 @@ def _asset_manager_v108_parse_number(token):
 
 
 def _asset_manager_v108_period_headers(text):
-    clean = _clean_text(text)
-    # Many issuer KPI tables append comparison headers such as "Q2 2026 vs.
-    # Q1 2026" after the actual period columns.  They are not data columns.
-    # Restrict header detection to the prefix before the first explicit
-    # comparison marker when that prefix already contains a table-like number
-    # of period tokens.
+    raw = str(text or "")
+    clean = _clean_text(raw)
+    period_re = re.compile(r"\b(?P<kind>FY|Q[1-4]|T[1-4]|H[12]|S[12])\s*(?P<year>20\d{2})\b", re.I)
+
+    # V113: XLSX evidence carries explicit row sentinels.  Prefer the physical
+    # worksheet row with the richest true period series.  Comparison captions
+    # such as "Q2 2026 vs. Q1 2026" may precede the data header and must never
+    # define the metric-column mapping.
+    if "[[XLSX_ROW]]" in clean:
+        row_candidates = []
+        cursor = 0
+        for row_raw in clean.split("[[XLSX_ROW]]"):
+            row = _clean_text(row_raw)
+            if not row:
+                cursor += len(row_raw) + len("[[XLSX_ROW]]")
+                continue
+            matches = list(period_re.finditer(row))
+            if len(matches) >= 3:
+                labels = []
+                years = []
+                for m in matches:
+                    kind = m.group("kind").upper().replace("T", "Q").replace("S", "H")
+                    yy = int(m.group("year"))
+                    labels.append(f"{kind} {yy}")
+                    years.append(yy)
+                # Remove exact duplicate labels while preserving physical order.
+                dedup = []
+                for lab in labels:
+                    if lab not in dedup:
+                        dedup.append(lab)
+                if len(dedup) < 3:
+                    continue
+                folded_row = _asset_manager_v108_fold(row)
+                score = len(dedup) * 30.0
+                if " vs " in f" {folded_row} " or " versus " in f" {folded_row} ":
+                    score -= 95.0
+                # A real data-header row is usually a multi-period history with
+                # several years and often FY plus quarter/half-year labels.
+                score += len(set(years)) * 8.0
+                if any(l.startswith("FY ") for l in dedup): score += 18.0
+                if any(l.startswith(("Q", "H")) for l in dedup): score += 10.0
+                nondecreasing = all(years[i] <= years[i+1] for i in range(len(years)-1))
+                if nondecreasing: score += 20.0
+                if datetime.now().year in years: score += 15.0
+                pos = clean.find(row, max(0, cursor - 8))
+                if pos < 0: pos = clean.find(row)
+                row_candidates.append((score, len(dedup), dedup, pos, pos + len(row)))
+            cursor += len(row_raw) + len("[[XLSX_ROW]]")
+        if row_candidates:
+            score, _, headers, start_pos, end_pos = max(row_candidates, key=lambda x: (x[0], x[1]))
+            if start_pos is not None and start_pos >= 0:
+                return headers, start_pos, end_pos
+
+    # Legacy/PDF/HTML path.  Many issuer KPI tables append comparison headers
+    # such as "Q2 2026 vs. Q1 2026" after the actual period columns. They are
+    # not data columns.
     header_zone = clean
     cmp = re.search(r"\b(?:FY|Q[1-4]|T[1-4]|H[12]|S[12])\s*20\d{2}\s+vs\.?\s+", clean, re.I)
     if cmp:
         prefix = clean[:cmp.start()]
-        if len(re.findall(r"\b(?:FY|Q[1-4]|T[1-4]|H[12]|S[12])\s*20\d{2}\b", prefix, re.I)) >= 4:
+        if len(period_re.findall(prefix)) >= 4:
             header_zone = prefix
-    matches = list(re.finditer(r"\b(?P<kind>FY|Q[1-4]|T[1-4]|H[12]|S[12])\s*(?P<year>20\d{2})\b", header_zone, re.I))
+    matches = list(period_re.finditer(header_zone))
     if not matches:
         return [], None, None
 
-    # V110: compact quarterly appendices often order columns as
-    # Q2-current, Q1-current, H1-current, H1-prior.  This is intentionally
-    # not year-monotonic.  Detect a dense 4–6 token window containing an
-    # explicit same-period current/prior comparator before the generic
-    # historical-table heuristic runs; this excludes nearby narrative Q4/FY
-    # references that otherwise inflate the row-column count.
     now_year = datetime.now().year
     prior_year = now_year - 1
     compact_candidates = []
@@ -33564,15 +33614,10 @@ def _asset_manager_v108_period_headers(text):
         groups.append(cur)
     if not groups:
         return [], None, None
-    now_year = datetime.now().year
     def _gscore(g):
         labels = [(m.group("kind").upper(), int(m.group("year"))) for m in g]
         return (sum(1 for _, y in labels if y == now_year) * 25 + len(g) * 3 + sum(1 for k, _ in labels if k in {"FY", "H1", "H2"}) * 2)
     group = max(groups, key=_gscore)
-    # A page/title can repeat the current quarter immediately before the real
-    # table header (e.g. "Q2 2026 ... FY 2024 Q1 2025 ..."). Keep the
-    # longest contiguous non-decreasing fiscal-year run so that title periods
-    # cannot inflate the expected table-column count.
     best_run, run = [], []
     last_year = None
     for m in group:
@@ -33596,22 +33641,49 @@ def _asset_manager_v108_period_headers(text):
 
 def _asset_manager_v108_row_values(text, header_count, header_end, label_patterns, reject_label_patterns=None):
     clean = _clean_text(text)
+
+    # V113 XLSX row-safe path: parse numeric cells only from the same physical
+    # workbook row as the KPI label. This prevents comparison percentages or the
+    # next KPI row from shifting values across period columns.
+    if "[[XLSX_ROW]]" in clean:
+        candidates = []
+        for row_no, row_raw in enumerate(clean.split("[[XLSX_ROW]]")):
+            row = _clean_text(row_raw)
+            if not row:
+                continue
+            for pat in label_patterns:
+                for m in re.finditer(pat, row, re.I):
+                    reject_context = _asset_manager_v108_fold(row[max(0, m.start() - 64):m.end()])
+                    if reject_label_patterns and any(re.search(rp, reject_context, re.I) for rp in reject_label_patterns):
+                        continue
+                    tail = row[m.end():]
+                    toks = re.findall(r"(?<![A-Za-z0-9])[-+]?\(?(?:\d{1,3}(?:[,\.]\d{3})+|\d+(?:[,\.]\d+)?)\)?%?(?![A-Za-z0-9])", tail)
+                    vals = []
+                    for tok in toks:
+                        val = _asset_manager_v108_parse_number(tok)
+                        if val is None:
+                            continue
+                        vals.append(val)
+                        if len(vals) >= header_count:
+                            break
+                    if len(vals) >= header_count:
+                        candidates.append((row_no, vals[:header_count], m.group(0)))
+        if candidates:
+            candidates.sort(key=lambda x: x[0])
+            return candidates[0][1], candidates[0][2]
+        return None, None
+
+    # Legacy PDF/HTML flattened-text path.
     search_start = max(0, int(header_end or 0))
     tail = clean[search_start:]
     candidates = []
     for pat in label_patterns:
         for m in re.finditer(pat, tail, re.I):
             label = m.group(0)
-            # V110: reject scope modifiers attached to the matched label itself
-            # (e.g. "Long-term Assets under Management") but do not inspect
-            # the following row, which can legitimately begin within a few
-            # characters in flattened PDF text.
             reject_context = _asset_manager_v108_fold(tail[max(0, m.start() - 48):m.end()])
             if reject_label_patterns and any(re.search(rp, reject_context, re.I) for rp in reject_label_patterns):
                 continue
             window = tail[m.end():m.end() + max(650, header_count * 42)]
-            # Keep tokens compact; years inside the *next* row are beyond the
-            # first N values and therefore cannot contaminate the selected row.
             toks = re.findall(r"(?<![A-Za-z0-9])[-+]?\(?(?:\d{1,3}(?:[,\.]\d{3})+|\d+(?:[,\.]\d+)?)\)?%?(?![A-Za-z0-9])", window)
             vals = []
             for tok in toks:
@@ -33625,7 +33697,6 @@ def _asset_manager_v108_row_values(text, header_count, header_end, label_pattern
                 candidates.append((m.start(), vals[:header_count], label))
     if not candidates:
         return None, None
-    # Prefer the earliest complete row after the selected period header.
     candidates.sort(key=lambda x: x[0])
     return candidates[0][1], candidates[0][2]
 
@@ -33744,6 +33815,14 @@ def _asset_manager_v108_period_table_snapshot(text, source_url, company_name, fu
     fee_margin_prior = v(fee_margin_row, prior_comp_label)
     cir = v(cir_row, current_label)
     cir_prior = v(cir_row, prior_comp_label)
+    # XLSX percentage styles normally arrive as percentage points (e.g. 57.2),
+    # but some issuer workbooks store raw fractions without a usable style map.
+    # Normalize only ratio-like values in the [0, 1.5] range; genuine percentage
+    # points such as 57.2 remain unchanged.
+    if cir is not None and abs(cir) <= 1.5:
+        cir *= 100.0
+    if cir_prior is not None and abs(cir_prior) <= 1.5:
+        cir_prior *= 100.0
     cir_change_bps = (cir - cir_prior) * 100.0 if cir is not None and cir_prior is not None else None
 
     eps_basis = None
@@ -34267,7 +34346,7 @@ def _asset_manager_v108_failure_reason(best_partial, trace):
 
 
 def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=None, fundamental_info=None):
-    """V112 corporate-IR + XLSX current-period/period-safe issuer-primary recovery."""
+    """V113 corporate-IR + structured-XLSX period-safe issuer-primary recovery."""
     deadline = time.monotonic() + 38.0
     year = datetime.now().year
     company_label = _clean_text(company_name) or _clean_text(symbol)
@@ -40038,7 +40117,7 @@ def get_special_control(company_type, symbol):
                 "JHG/Take-private Delisting Guard",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Issuer-Primary XLSX Evidence Recovery Guard V112",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Structured XLSX Period Binding Guard V113",
             "note": (
                 "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
                 "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
@@ -64483,7 +64562,7 @@ if selected_symbol:
 
                 elif special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Issuer-Primary XLSX Evidence Recovery Guard V112")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Structured XLSX Period Binding Guard V113")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
