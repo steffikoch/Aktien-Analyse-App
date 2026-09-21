@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.30"
+APP_BUILD_VERSION = "V2.22.31"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Mining AISC Sign & LOM Label Consistency Cleanup V126"
+    f"Build {APP_BUILD_VERSION} · Net-Cash Balance Independence from FCF Quality Gate V127"
 )
 
 
@@ -50,7 +50,7 @@ st.caption(
 # V2.22.27: Exact-Ticker Collision Explicit Selection Gate V123. Search-UI-only change. When V122 identifies two or more distinct issuers sharing the same exact base ticker across exchanges, the result selector starts on a non-security placeholder and is intended to require an explicit issuer/listing choice before any financial-data load. Explicit full-symbol inputs such as TLG.AX or TLG.TO remain directly selectable; unique ticker/name/WKN/ISIN searches keep the existing behavior. V122 collision discovery/ranking, V121 development-stage mining guard and all valuation mathematics remain unchanged; no ticker/issuer hard-coding is introduced.
 # V2.22.28: Exact-Ticker Collision Null-Default Selection Guard V124. Search-UI-only change. Replaces the synthetic collision placeholder from V123 with Streamlit's native null-default selectbox (index=None + placeholder) and a fresh V124 widget key, so cross-exchange exact-ticker collisions cannot inherit or auto-select the first real security. Explicit full-symbol inputs such as TLG.AX or TLG.TO remain directly selectable; unique ticker/name/WKN/ISIN searches keep the existing behavior. V122 collision discovery/ranking, V121 development-stage mining guard and all valuation mathematics remain unchanged; no ticker/issuer hard-coding is introduced.
 # V2.22.29: Exact-Ticker Collision Explicit Confirmation Gate V125. Search-UI-only hardening after runtime testing showed that the deployed Streamlit selectbox may still expose/return its first real option despite null-default or synthetic-placeholder attempts. Cross-exchange exact-ticker collisions therefore now require an explicit form submit before selected_symbol is released to the identity/load pipeline. The confirmed symbol is stored under a fresh query-scoped V125 session key so normal reruns preserve the user's explicit choice, while stale V123/V124 widget state cannot auto-load a security. Explicit full-symbol inputs and all resolver/ranking, family routing and valuation mathematics remain unchanged; no ticker/issuer hard-coding is introduced.
-# V2.22.30: Mining AISC Sign & LOM Label Consistency Cleanup V126. No valuation mathematics changed. The Mining operating-snapshot UI now displays AISC guidance movement with the economic change sign rather than the internally stored improvement magnitude, so a lower AISC midpoint is shown as a negative cost change (for example -16.8%) while the existing improvement/status logic remains untouched. The reserve-life control label is renamed from the ambiguous "Mine-spezifische LOM-Abdeckung" to "Reserve-/Minenlebensdauer-Abdeckung" so it cannot be confused with the separate formal LOM release coverage gate. V125 ticker-collision confirmation, V121 development-stage mining guard, all Mining gates and all other specialist valuation mathematics remain unchanged.
+# V2.22.31: Net-Cash Balance Independence from FCF Quality Gate V127. The standard balance layer now preserves the existing direct 15/15 net-cash result when debt minus cash is <= 0, even if the FCF Quality & Horizon-Proxy Gate marks the current FCF denominator unusable. The FCF-quality block remains fully active for positive net debt, where Net-Debt/FCF requires a reliable positive denominator. No Mining, LOM, Development-Stage, Fair-Value, corridor, signal, ticker-collision or specialist-model mathematics changed.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
 # V2.22.12: Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108. Keeps the released Asset-Management scoring, 9–18x base corridor, Premium-Unlock, peer/historical guards and signal mathematics unchanged. V108 upgrades only the issuer-primary evidence layer: corporate/group/investor-IR domain-family escalation, financial-results/document-class prioritization, period-safe AUM/flow/fee/CIR/EPS table recovery, issuer-native Cost-Income-Ratio efficiency support without relabelling it as an operating margin, and same-basis reported-or-adjusted TTM/3Y EPS recovery. Sub-scopes remain explicit, search snippets remain discovery-only, period/scope mismatches fail closed, and evidence failures receive diagnostic reason codes. No issuer URLs, ticker-specific KPI values or DWS-specific constants are hard-coded.
@@ -54567,6 +54567,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     if (
         not is_special_balance_model(company_type)
         and not fcf_score.get("balance_denominator_usable", True)
+        and safe_float(balance_score.get("net_debt")) is not None
+        and safe_float(balance_score.get("net_debt")) > 0
     ):
         balance_score.update({
             "score": None,
