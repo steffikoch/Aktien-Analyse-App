@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.13"
+APP_BUILD_VERSION = "V2.22.14"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109"
+    f"Build {APP_BUILD_VERSION} · Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110"
 )
 
 
+# V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
 # V2.22.12: Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108. Keeps the released Asset-Management scoring, 9–18x base corridor, Premium-Unlock, peer/historical guards and signal mathematics unchanged. V108 upgrades only the issuer-primary evidence layer: corporate/group/investor-IR domain-family escalation, financial-results/document-class prioritization, period-safe AUM/flow/fee/CIR/EPS table recovery, issuer-native Cost-Income-Ratio efficiency support without relabelling it as an operating margin, and same-basis reported-or-adjusted TTM/3Y EPS recovery. Sub-scopes remain explicit, search snippets remain discovery-only, period/scope mismatches fail closed, and evidence failures receive diagnostic reason codes. No issuer URLs, ticker-specific KPI values or DWS-specific constants are hard-coded.
 # V2.21.79: Universal Listed-Holding Peer NAV Adapter & Unit/Share-Class Trace Guard V75. Fixes the V74 peer layer without changing valuation mathematics. The peer-only extractor anchors on explicit NAV-per-share semantics so total NAV cannot masquerade as NAV/share, supports quarter-end provenance when issuer tables use Q1/Q2/Q3/Q4 labels, and records source/market share-class context, NAV currency/unit, NAV date, latest market-price date and computed P/NAV in a per-peer trace. The peer runner gives every configured peer its own bounded research slice instead of allowing early peers to consume the entire budget. The generic issuer NAV/history adapters remain unchanged. Fair Value, valuation zones and signals remain locked until the peer evidence layer passes. No peer NAV values are hard-coded.
@@ -30805,7 +30806,7 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V108"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V110"
 ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22212_asset_manager_corporate_ir_period_safe_v108"
 
 
@@ -32784,9 +32785,48 @@ def _asset_manager_v108_parse_number(token):
 
 def _asset_manager_v108_period_headers(text):
     clean = _clean_text(text)
-    matches = list(re.finditer(r"\b(?P<kind>FY|Q[1-4]|T[1-4]|H[12]|S[12])\s*(?P<year>20\d{2})\b", clean, re.I))
+    # Many issuer KPI tables append comparison headers such as "Q2 2026 vs.
+    # Q1 2026" after the actual period columns.  They are not data columns.
+    # Restrict header detection to the prefix before the first explicit
+    # comparison marker when that prefix already contains a table-like number
+    # of period tokens.
+    header_zone = clean
+    cmp = re.search(r"\b(?:FY|Q[1-4]|T[1-4]|H[12]|S[12])\s*20\d{2}\s+vs\.?\s+", clean, re.I)
+    if cmp:
+        prefix = clean[:cmp.start()]
+        if len(re.findall(r"\b(?:FY|Q[1-4]|T[1-4]|H[12]|S[12])\s*20\d{2}\b", prefix, re.I)) >= 4:
+            header_zone = prefix
+    matches = list(re.finditer(r"\b(?P<kind>FY|Q[1-4]|T[1-4]|H[12]|S[12])\s*(?P<year>20\d{2})\b", header_zone, re.I))
     if not matches:
         return [], None, None
+
+    # V110: compact quarterly appendices often order columns as
+    # Q2-current, Q1-current, H1-current, H1-prior.  This is intentionally
+    # not year-monotonic.  Detect a dense 4–6 token window containing an
+    # explicit same-period current/prior comparator before the generic
+    # historical-table heuristic runs; this excludes nearby narrative Q4/FY
+    # references that otherwise inflate the row-column count.
+    now_year = datetime.now().year
+    prior_year = now_year - 1
+    compact_candidates = []
+    for width in range(4, 7):
+        for i in range(0, max(0, len(matches) - width + 1)):
+            g = matches[i:i + width]
+            if g[-1].end() - g[0].start() > 125:
+                continue
+            labels = [(m.group("kind").upper().replace("T", "Q").replace("S", "H"), int(m.group("year"))) for m in g]
+            same_period_pair = any((k, now_year) in labels and (k, prior_year) in labels for k in ["Q1", "Q2", "Q3", "Q4", "H1", "H2"])
+            current_count = sum(1 for _, y in labels if y == now_year)
+            if same_period_pair and current_count >= 2:
+                density = 1000 - (g[-1].end() - g[0].start()) - (width - 4) * 180
+                compact_candidates.append((density, g))
+    if compact_candidates:
+        _, group = max(compact_candidates, key=lambda x: x[0])
+        headers = []
+        for m in group:
+            kind = m.group("kind").upper().replace("T", "Q").replace("S", "H")
+            headers.append(f"{kind} {int(m.group('year'))}")
+        return headers, group[0].start(), group[-1].end()
     groups = []
     cur = []
     for m in matches:
@@ -32837,7 +32877,11 @@ def _asset_manager_v108_row_values(text, header_count, header_end, label_pattern
     for pat in label_patterns:
         for m in re.finditer(pat, tail, re.I):
             label = m.group(0)
-            reject_context = _asset_manager_v108_fold(tail[max(0, m.start() - 48):min(len(tail), m.end() + 48)])
+            # V110: reject scope modifiers attached to the matched label itself
+            # (e.g. "Long-term Assets under Management") but do not inspect
+            # the following row, which can legitimately begin within a few
+            # characters in flattened PDF text.
+            reject_context = _asset_manager_v108_fold(tail[max(0, m.start() - 48):m.end()])
             if reject_label_patterns and any(re.search(rp, reject_context, re.I) for rp in reject_label_patterns):
                 continue
             window = tail[m.end():m.end() + max(650, header_count * 42)]
@@ -32886,9 +32930,16 @@ def _asset_manager_v108_period_table_snapshot(text, source_url, company_name, fu
         current_label = f"Q{q} {current_year}"
         beginning_label = f"FY {prior_year}" if q == 1 else f"Q{q-1} {current_year}"
         fraction = 0.25
-    if current_label not in idx or beginning_label not in idx:
+    if current_label not in idx:
         out["period_scope_mismatch"] = True
         return out
+    beginning_in_table = beginning_label in idx
+    if not beginning_in_table:
+        # V110: do not discard a valid current/prior-period KPI table merely
+        # because the prior-FY beginning AUM is disclosed in issuer prose.
+        # The merge layer may supply that denominator later, but no mismatched
+        # scope is ever substituted.
+        out["period_scope_mismatch"] = True
 
     n = len(headers)
     total_aum_row, _ = _asset_manager_v108_row_values(
@@ -33098,23 +33149,39 @@ def _asset_manager_v108_period_table_snapshot(text, source_url, company_name, fu
 
 
 def _asset_manager_ir_root_candidates(website, company_domain):
+    """V110: prioritize likely corporate/result hubs without issuer hard-coding.
+
+    A provider website can be a product/marketing domain.  If the supplied URL is
+    already an IR/results URL it keeps first priority; otherwise generic group,
+    investors, ir and corporate result routes are tried before the marketing
+    root.  Failed probes are harmless and bounded by the existing deadline.
+    """
     family = _asset_manager_domain_family_root(company_domain)
     if not family:
         return []
-    rows = []
     raw = _clean_text(website)
-    if raw:
-        if "://" not in raw:
-            raw = "https://" + raw
-        rows.append(raw.rstrip("/") + "/")
-    # Generic issuer-family escalation only.  No company/ticker-specific host is
-    # embedded here; failed candidates are harmless navigation probes.
-    for host in [f"group.{family}", f"investors.{family}", f"ir.{family}", f"corporate.{family}", family]:
-        for path in ["/ir/", "/investor-relations/", "/investors/", "/"]:
-            rows.append(f"https://{host}{path}")
+    if raw and "://" not in raw:
+        raw = "https://" + raw
+    raw = raw.rstrip("/") + "/" if raw else None
+    raw_fold = _asset_manager_v108_fold(raw or "")
+    raw_is_ir = any(t in raw_fold for t in ["/ir/", "investor", "financial-result", "quarterly-result", "financial-report"])
+
+    focused = []
+    host_paths = [
+        (f"group.{family}", ["/ir/reports-and-events/financial-results/", "/ir/financial-results/", "/ir/"]),
+        (f"investors.{family}", ["/financial-results/", "/reports-and-events/financial-results/", "/"]),
+        (f"ir.{family}", ["/financial-results/", "/reports-and-events/financial-results/", "/"]),
+        (f"corporate.{family}", ["/investor-relations/financial-results/", "/investor-relations/", "/ir/"]),
+        (family, ["/investor-relations/financial-results/", "/investor-relations/", "/ir/", "/"]),
+    ]
+    for host, paths in host_paths:
+        for path in paths:
+            focused.append(f"https://{host}{path}")
+
+    rows = ([raw] if raw and raw_is_ir else []) + focused + ([raw] if raw and not raw_is_ir else [])
     out, seen = [], set()
     for u in rows:
-        if u in seen or not _host_belongs_to_company_family(u, family):
+        if not u or u in seen or not _host_belongs_to_company_family(u, family):
             continue
         seen.add(u)
         out.append(u)
@@ -33173,6 +33240,13 @@ def _asset_manager_anchor_table_context(anchor):
 
 
 def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
+    """V110: rank named IR documents and issuer-owned opaque downloads.
+
+    Some issuers expose PDFs/XLS through extensionless asset endpoints whose
+    anchor text is merely "Download".  Such a link is accepted only when the
+    *issuer-owned parent page itself* carries a current-period/year results
+    context; this keeps discovery generic while avoiding arbitrary downloads.
+    """
     if not html or not base_url or not company_domain:
         return []
     try:
@@ -33180,6 +33254,9 @@ def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
     except Exception:
         return []
     rows, seen = [], set()
+    base_hay = _asset_manager_v108_fold(base_url)
+    base_period_match = re.search(r"(?:^|[/_-])(?:q|t)([1-4])(?:[/_-]|$)|(?:^|[/_-])(?:h|s)([12])(?:[/_-]|$)", base_hay)
+    base_current_context = bool(str(year) in base_hay and base_period_match)
     for a in soup.find_all("a", href=True):
         href = urljoin(base_url, a.get("href"))
         if not href or href in seen or not _host_belongs_to_company_family(href, company_domain):
@@ -33188,6 +33265,11 @@ def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
         label = _clean_text(a.get_text(" ", strip=True))
         ctx = _asset_manager_anchor_table_context(a)
         hay = _asset_manager_v108_fold(f"{label} {href} {ctx}")
+        href_host = _normalize_host(href)
+        opaque_download = bool(
+            re.search(r"/(?:download|downloads)/(?:asset|document|file)(?:/|\?|$)", href, re.I)
+            or (href_host and href_host.startswith("download.") and any(t in hay for t in ["download", "pdf", "xls", "xlsx"]))
+        )
         doc_classes = {
             "financial_data_supplement": ["financial data supplement", "financial supplement", "data supplement", "xls", "xlsx"],
             "quarterly_statement": ["quarterly statement", "quarterly report", "quartalsmitteilung", "quartalsbericht"],
@@ -33201,12 +33283,19 @@ def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
             if any(t in hay for t in terms):
                 document_class = cls
                 break
+        if document_class is None and opaque_download and base_current_context:
+            document_class = "current_period_download"
         hub_terms = [
             "investor relations", "financial results", "quarterly results", "financial reports", "reports and events",
             "berichte und events", "finanzberichte", "resultats financiers", "financial communication", "publications",
         ]
         is_hub = any(t in hay for t in hub_terms)
         period = re.search(r"\b(?:q[1-4]|t[1-4]|h[12]|s[12])\b", hay)
+        inherited_period = None
+        if period is None and opaque_download and base_current_context:
+            q = re.search(r"(?:^|[/_-])(?:q|t)([1-4])(?:[/_-]|$)", base_hay)
+            h = re.search(r"(?:^|[/_-])(?:h|s)([12])(?:[/_-]|$)", base_hay)
+            inherited_period = f"q{q.group(1)}" if q else f"h{h.group(1)}" if h else None
         if not document_class and not is_hub and not period:
             continue
         score = 0.0
@@ -33214,8 +33303,10 @@ def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
         if year in years: score += 60
         elif years and year not in years: score -= 25
         elif str(year) in hay: score += 35
+        elif opaque_download and base_current_context: score += 45
         class_bonus = {
             "financial_data_supplement": 115,
+            "current_period_download": 105,
             "quarterly_statement": 90,
             "interim_report": 86,
             "annual_report": 75,
@@ -33224,8 +33315,12 @@ def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
         }
         score += class_bonus.get(document_class, 0)
         if is_hub: score += 35
+        token = None
         if period:
             token = period.group(0).lower().replace("t", "q").replace("s", "h")
+        elif inherited_period:
+            token = inherited_period
+        if token:
             score += 24
             mq = re.match(r"q([1-4])", token)
             if mq: score += int(mq.group(1)) * 5
@@ -33234,35 +33329,106 @@ def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
         if any(t in hay for t in ["sustainability", "esg", "stewardship", "climate"]):
             score -= 80
         rows.append({"score": score, "url": href, "label": label, "table_context": ctx,
-                     "kind": "report" if document_class else "hub", "document_class": document_class})
+                     "kind": "report" if document_class else "hub", "document_class": document_class,
+                     "opaque_download": opaque_download, "inherited_period": inherited_period})
     rows.sort(key=lambda x: (x.get("score", 0), x.get("table_context") or "", x.get("label") or ""), reverse=True)
     return rows
 
 
+def _asset_manager_v110_prior_fy_aum_from_prose(text, scope="firmwide"):
+    clean = _clean_text(text)
+    year = datetime.now().year - 1
+    if scope == "long_term":
+        labels = [r"long[- ]term\s+assets\s+under\s+management", r"long[- ]term\s+AUM"]
+    else:
+        labels = [r"(?:total\s+)?assets\s+under\s+management", r"total\s+AUM"]
+    unit = r"(?P<unit>tn|trillion|bn|billion|mrd\.?|md\.?|milliards?|million|mn|mio\.?)"
+    value = r"(?P<value>[0-9][0-9,\.\s]*)"
+    for label in labels:
+        # Prefer a Q4/FY comparator in the same local metric sentence/paragraph.
+        for pat in [
+            rf"{label}.{{0,360}}?(?:Q4|T4|FY)\s*{year}\s*[:=]?\s*(?:EUR|USD|GBP|€|\$|£)?\s*{value}\s*{unit}",
+            rf"{label}.{{0,360}}?(?:year[- ]end|year end|end of {year}).{{0,80}}?(?:EUR|USD|GBP|€|\$|£)?\s*{value}\s*{unit}",
+        ]:
+            m = re.search(pat, clean, re.I | re.S)
+            if m:
+                amount = _asset_manager_primary_amount(m.group("value"), m.group("unit"))
+                if amount is not None and amount > 0:
+                    return amount
+    return None
+
+
 def _asset_manager_parse_generic_primary_report(text, source_url, company_name, fundamental_info=None):
-    # First keep V107 prose formats intact, then let the V108 period-table layer
-    # overwrite only explicitly recovered same-period evidence.
+    # Keep the validated V107 prose formats, then overlay V110's period-safe
+    # table evidence.  A prior-FY AUM denominator may be merged from explicit
+    # Q4/FY prose only when the table's flow scope matches that denominator.
     base = _v107_asset_manager_parse_generic_primary_report(text, source_url, company_name, fundamental_info=fundamental_info)
+    base = dict(base or {})
+    folded = _asset_manager_v108_fold(text)
+    evidence_terms = sum(1 for term in [
+        "assets under management", "net flows", "net inflows", "management fees",
+        "cost-income ratio", "earnings per share",
+    ] if term in folded)
+    base["evidence_terms_seen"] = evidence_terms
+
+    if safe_float(base.get("beginning_total_aum")) is None:
+        prior = _asset_manager_v110_prior_fy_aum_from_prose(text, scope="firmwide")
+        if prior is not None:
+            base["beginning_total_aum"] = prior
+            if str(base.get("flow_scope_label") or "Firmwide").lower() == "firmwide":
+                base["flow_beginning_aum"] = prior
+                base["flow_scope_matches_denominator"] = safe_float(base.get("period_net_flows")) is not None
+    if safe_float(base.get("beginning_long_term_aum")) is None:
+        prior_lt = _asset_manager_v110_prior_fy_aum_from_prose(text, scope="long_term")
+        if prior_lt is not None:
+            base["beginning_long_term_aum"] = prior_lt
+
     table = _asset_manager_v108_period_table_snapshot(text, source_url, company_name, fundamental_info=fundamental_info)
     if not table.get("period_table_recovered"):
+        base["adapter_version"] = ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION
         return base
-    merged = dict(base or {})
+
+    merged = dict(base)
     for key, value in table.items():
-        # When a period table carries issuer-native CIR, suppress V107's old
-        # synthetic 100-CIR operating-margin label. If no CIR was recovered,
-        # preserve any genuine operating margin parsed by the legacy adapter.
         if key == "operating_margin_pct" and value is None and safe_float(table.get("cost_income_ratio_pct")) is None:
+            continue
+        # Preserve a prose-recovered beginning denominator when the current
+        # table does not contain FY/Q4 beginning AUM.
+        if key in {"beginning_total_aum", "beginning_long_term_aum", "flow_beginning_aum"} and value is None and safe_float(merged.get(key)) is not None:
             continue
         if value is not None or key in {"operating_margin_pct"}:
             merged[key] = value
+
+    # Re-bind firmwide flow denominator after the partial-table merge. Long-term
+    # flows may only be selected when a long-term beginning denominator exists.
+    lt_begin = safe_float(merged.get("beginning_long_term_aum"))
+    lt_flow = safe_float(merged.get("long_term_period_net_flows"))
+    total_begin = safe_float(merged.get("beginning_total_aum"))
+    firm_flow = safe_float(merged.get("firmwide_period_net_flows"))
+    if lt_begin is not None and lt_flow is not None:
+        merged["flow_scope_label"] = "Long-Term"
+        merged["flow_beginning_aum"] = lt_begin
+        merged["period_net_flows"] = lt_flow
+    elif total_begin is not None and firm_flow is not None:
+        merged["flow_scope_label"] = "Firmwide"
+        merged["flow_beginning_aum"] = total_begin
+        merged["period_net_flows"] = firm_flow
+    merged["flow_scope_matches_denominator"] = bool(
+        safe_float(merged.get("flow_beginning_aum")) is not None and safe_float(merged.get("period_net_flows")) is not None
+    )
+    if merged["flow_scope_matches_denominator"]:
+        merged.pop("period_scope_mismatch", None)
+
     merged["adapter_version"] = ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION
     merged["generic_primary_adapter"] = True
+    merged["evidence_terms_seen"] = max(int(merged.get("evidence_terms_seen") or 0), evidence_terms)
     merged["available"] = bool(
         safe_float(merged.get("total_aum")) is not None
         and safe_float(merged.get("flow_beginning_aum")) is not None
         and safe_float(merged.get("period_net_flows")) is not None
         and safe_float(merged.get("fee_revenue_growth_pct")) is not None
         and (safe_float(merged.get("operating_margin_pct")) is not None or safe_float(merged.get("cost_income_ratio_pct")) is not None)
+        and merged.get("flow_scope_matches_denominator")
     )
     return merged
 
@@ -33298,7 +33464,7 @@ def _asset_manager_v108_failure_reason(best_partial, trace):
     p = best_partial if isinstance(best_partial, dict) else {}
     if p.get("period_scope_mismatch"):
         return "period_scope_mismatch"
-    if _asset_manager_partial_evidence_score(p) >= 3:
+    if _asset_manager_partial_evidence_score(p) >= 3 or int(p.get("evidence_terms_seen") or 0) >= 3:
         return "issuer_data_found_but_unmapped"
     successful_docs = [x for x in (trace or []) if ("direct_link:" in x or "ir_crawl:" in x or "search_fetch:" in x) and x.endswith(":ok")]
     if successful_docs:
