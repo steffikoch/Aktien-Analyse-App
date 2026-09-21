@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.40"
+APP_BUILD_VERSION = "V2.22.41"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Manager Historical-Year Discovery Isolation V136"
+    f"Build {APP_BUILD_VERSION} · Asset-Manager Annual-History Candidate Merge V137"
 )
 
 
@@ -60,6 +60,8 @@ st.caption(
 # V2.22.39: Asset-Manager Multi-Year IR Table Year Binding V135. Fixes repeated multi-year investor-relations result hubs where generic PDF/XLS anchors are reused under year tabs and nearest-heading heuristics can attach an older document to the current year. The evidence adapter now derives a conservative table-to-year map only when the page exposes an ordered consecutive year selector and a matching sequence of repeated quarterly-results tables; that structural year overrides ambiguous nearby text and old-year documents are down-ranked before fetching. No issuer/ticker/URL/KPI value is hard-coded; XLSX/PDF parsers, specialist score weights, 9–18x corridor, peer/historical guards and signal thresholds remain unchanged.
 
 # V2.22.40: Asset-Manager Historical-Year Discovery Isolation V136. Fixes a target-year/page-year coupling in the generic Asset-Manager IR link router. Historical same-basis EPS recovery asks for FY2025/FY2024/FY2023, but the multi-year table mapper must stay anchored to the page's actual latest calendar-year selector (normally the runtime current year), not restart the table sequence at each requested historical target. V116 now separates page structural-year binding from target-year ranking: repeated IR tables are mapped once against the actual page-year sequence, then each requested historical year is scored against that stable map. This prevents the first 2026 table from being relabelled as 2025 during annual EPS discovery. Current-period AUM/flow/fee/CIR extraction, XLSX/PDF parsing, specialist score weights, 9–18x corridor, peer/historical guards and signal thresholds are unchanged.
+
+# V2.22.41: Asset-Manager Annual-History Candidate Merge V137. Fixes a de-duplication/ranking defect in generic same-basis Asset-Manager EPS-history recovery. The same issuer-primary report can be discovered once for each requested target year; prior builds kept the first URL occurrence and therefore preserved the score from the first target year instead of the best score across all requested years. V117 now merges duplicate URLs by their strongest year-aware score, explicitly recognizes the discovered document_class even when the download URL/anchor is opaque, and prioritizes the latest completed-FY Financial Data Supplement/annual report because such reports often contain the full 3Y same-basis EPS series in one table. Current-period AUM/flow/fee/CIR evidence, specialist score weights, 9–18x corridor, peer/historical guards and signal thresholds are unchanged.
 # V2.22.37: Asset-Manager Structured XLSX Period Binding V133. Fixes wide issuer-primary financial supplements whose comparison headers (for example “Q2 2026 vs. Q1 2026 / Q2 2025”) precede the actual multi-period data-header row. XLSX extraction now preserves explicit worksheet-row boundaries, period detection ranks the real multi-period header row ahead of comparison captions, and KPI rows are parsed only within their own workbook row so comparison columns cannot shift AUM/flow/fee/CIR/EPS values onto the wrong period. Same-scope guards, same-basis earnings requirements, score weights, 9–18x corridor, peer/historical guards and signal thresholds remain unchanged; no issuer ticker, URL or KPI value is hard-coded.
 # V2.22.34: Development-Stage EPS Copy Isolation Cleanup V130. Copy/UI-only change. Keeps V128 subprofile routing and V121 financial-stage detection unchanged, but isolates Development-Stage Mining / Materials from the generic Universal-Family EPS wording: Standard TTM/Forward EPS remains diagnosis-only and is explicitly not a Fair-Value anchor; Mineral Explorer / Mine Developer points instead to a technical/economic project and Project-NAV basis, while Battery Materials / Processing / Technology points to resource/feedstock, process/pilot/scale-up, qualification/offtake, funding and commercialisation evidence. The terminal EPS caption is profile-aware for the same reason. All scores, corridors, guard states, V127 Net-Cash logic, LOM logic and valuation mathematics remain unchanged.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
@@ -31387,7 +31389,7 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V116"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V117"
 ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22240_asset_manager_historical_year_discovery_isolation_v136"
 
 
@@ -34689,18 +34691,47 @@ def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None
                     candidate_rows.append({"url": url, "score": 80, "kind": "report", "label": row0.get("title") or ""})
             if not _research_budget_ok(deadline, reserve=3.0): break
 
-    # De-duplicate and prioritize supplements / annual reports / Q4 results.
-    ranked = []
-    seen_urls = set()
+    # V117: the same IR document can be discovered once for every requested
+    # historical target year.  Keep the strongest year-aware occurrence per
+    # URL instead of whichever target-year loop happened to see it first.
+    # Opaque issuer downloads also retain their explicit document_class so a
+    # Financial Data Supplement does not lose priority merely because its URL
+    # and anchor text do not contain those words.
+    best_by_url = {}
     for row in candidate_rows:
         url = row.get("url")
-        if not url or url in seen_urls: continue
-        seen_urls.add(url)
+        if not url:
+            continue
         hay = _asset_manager_v108_fold(f"{row.get('label','')} {row.get('table_context','')} {url}")
-        bonus = 100 if "financial data supplement" in hay else 75 if "annual report" in hay else 45
-        if re.search(r"\b(?:q4|t4|fy)\b", hay): bonus += 30
-        ranked.append(((safe_float(row.get("score")) or 0) + bonus, row))
-    ranked.sort(key=lambda x: x[0], reverse=True)
+        doc_class = str(row.get("document_class") or "").lower()
+        if doc_class == "financial_data_supplement" or "financial data supplement" in hay:
+            bonus = 125
+        elif doc_class == "annual_report" or "annual report" in hay:
+            bonus = 90
+        elif doc_class in {"quarterly_statement", "interim_report"}:
+            bonus = 65
+        else:
+            bonus = 45
+        if re.search(r"\b(?:q4|t4|fy)\b", hay):
+            bonus += 30
+        structural_year = row.get("structural_year")
+        try:
+            structural_year = int(structural_year) if structural_year is not None else None
+        except Exception:
+            structural_year = None
+        # The latest completed-FY supplement is the highest-yield generic
+        # source for a three-year annual EPS series because it commonly carries
+        # FY-2/FY-1/FY columns in one same-basis table. This is a ranking hint
+        # only; accepted EPS values still have to be parsed from issuer content.
+        if structural_year == latest_fy:
+            bonus += 95 if doc_class == "financial_data_supplement" else 55
+        elif structural_year in target_years:
+            bonus += 20
+        merged_score = (safe_float(row.get("score")) or 0) + bonus
+        prev = best_by_url.get(url)
+        if prev is None or merged_score > prev[0]:
+            best_by_url[url] = (merged_score, row)
+    ranked = sorted(best_by_url.values(), key=lambda x: x[0], reverse=True)
 
     for _, row in ranked[:16]:
         if len(annual_map) >= 3 or not _research_budget_ok(deadline, reserve=0.8): break
@@ -40224,7 +40255,7 @@ def get_special_control(company_type, symbol):
                 "JHG/Take-private Delisting Guard",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Historical-Year Discovery Isolation Guard V116",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Annual-History Candidate Merge Guard V117",
             "note": (
                 "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
                 "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
@@ -64669,7 +64700,7 @@ if selected_symbol:
 
                 elif special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Historical-Year Discovery Isolation Guard V116")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Annual-History Candidate Merge Guard V117")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
@@ -64688,7 +64719,7 @@ if selected_symbol:
                                     st.caption("Noch fehlende aktuelle Primärdaten: " + " · ".join(str(x) for x in missing_am))
                                 failure_reason_am = discovery_am.get("evidence_failure_reason")
                                 if failure_reason_am:
-                                    st.caption("Evidence-Status V116: " + str(failure_reason_am))
+                                    st.caption("Evidence-Status V117: " + str(failure_reason_am))
                                 partial_bits = []
                                 for key, label in [
                                     ("total_aum", "Total AUM"),
