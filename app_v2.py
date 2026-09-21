@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.12"
+APP_BUILD_VERSION = "V2.22.13"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,10 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108"
+    f"Build {APP_BUILD_VERSION} · Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109"
 )
 
 
+# V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
 # V2.22.12: Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108. Keeps the released Asset-Management scoring, 9–18x base corridor, Premium-Unlock, peer/historical guards and signal mathematics unchanged. V108 upgrades only the issuer-primary evidence layer: corporate/group/investor-IR domain-family escalation, financial-results/document-class prioritization, period-safe AUM/flow/fee/CIR/EPS table recovery, issuer-native Cost-Income-Ratio efficiency support without relabelling it as an operating margin, and same-basis reported-or-adjusted TTM/3Y EPS recovery. Sub-scopes remain explicit, search snippets remain discovery-only, period/scope mismatches fail closed, and evidence failures receive diagnostic reason codes. No issuer URLs, ticker-specific KPI values or DWS-specific constants are hard-coded.
 # V2.21.79: Universal Listed-Holding Peer NAV Adapter & Unit/Share-Class Trace Guard V75. Fixes the V74 peer layer without changing valuation mathematics. The peer-only extractor anchors on explicit NAV-per-share semantics so total NAV cannot masquerade as NAV/share, supports quarter-end provenance when issuer tables use Q1/Q2/Q3/Q4 labels, and records source/market share-class context, NAV currency/unit, NAV date, latest market-price date and computed P/NAV in a per-peer trace. The peer runner gives every configured peer its own bounded research slice instead of allowing early peers to consume the entire budget. The generic issuer NAV/history adapters remain unchanged. Fair Value, valuation zones and signals remain locked until the peer evidence layer passes. No peer NAV values are hard-coded.
 # V2.21.80: Universal Listed-Holding Peer NAV Discovery & IR Second-Hop Guard V76. Keeps V75 valuation mathematics frozen and repairs only peer primary-source discovery. Peer research now uses multilingual exact NAV/share queries (English + Swedish), can crawl one bounded issuer-owned IR/report/NAV index hop, and can parse issuer-owned PDF reports through the existing embedded primary-document bridge. This is family-level HOLDING_TEMPLATE logic: no peer NAV values are hard-coded. Three valid peers remain mandatory; Fair Value, zones and signals stay locked until the peer guard passes.
@@ -13392,6 +13393,14 @@ def search_stock_suggestions(search_text, cache_epoch):
             "primary_symbol": primary_symbol,
             "primary_exchange": primary_exchange,
             "primary_score": top_score if role != "other_issuer" else score,
+            # V109: preserve provider search taxonomy across the explicit
+            # selection boundary. Yahoo Search often still carries these
+            # identity labels while quoteSummary/info is temporarily sparse.
+            "quoteType": item.get("quoteType"),
+            "sector": item.get("sector"),
+            "sectorDisp": item.get("sectorDisp"),
+            "industry": item.get("industry"),
+            "industryDisp": item.get("industryDisp"),
         })
 
     return clean_results
@@ -52473,13 +52482,15 @@ def _format_fx_timestamp(value):
 # Bereits ausgewählten Ticker direkt übernehmen
 # =========================================================
 
-def build_selected_stock_result(selected_symbol):
-    """Return a minimal validated result for an explicitly selected ticker.
+def build_selected_stock_result(selected_symbol, security_identity=None):
+    """Return the validated selected ticker plus non-valuation search identity.
 
-    The UI suggestion list is already the ambiguity-resolution step. Re-running
-    Yahoo Search for the selected symbol adds no safety and can fail transiently,
-    causing a valid selection to be rejected. Full quote/fundamental validation
-    still happens through yfinance.Ticker immediately afterwards.
+    V109 keeps the ambiguity-resolved search identity available as a *fallback*
+    when Yahoo quoteSummary/info is temporarily sparse.  These labels are not
+    estimates and never overwrite fresher quote/fundamental fields.  Carrying
+    canonical name/exchange/currency/sector/industry across the selection/load
+    boundary prevents a transient metadata outage from silently changing the
+    valuation family.
     """
     symbol = str(selected_symbol or "").strip().upper()
     if not symbol:
@@ -52490,11 +52501,37 @@ def build_selected_stock_result(selected_symbol):
     if not re.fullmatch(r"[A-Z0-9][A-Z0-9.\-^=]{0,24}", symbol):
         return None
 
-    return {
+    result = {
         "symbol": symbol,
         "quoteType": "EQUITY",
         "_selected_explicitly": True,
     }
+
+    identity = security_identity if isinstance(security_identity, dict) else {}
+    identity_symbol = str(identity.get("selected_symbol") or "").strip().upper()
+    if identity_symbol == symbol:
+        canonical_name = identity.get("canonical_name") or identity.get("search_name")
+        if canonical_name:
+            result["longname"] = canonical_name
+        if identity.get("search_name"):
+            result["shortname"] = identity.get("search_name")
+        if identity.get("selected_exchange_code"):
+            result["exchange"] = identity.get("selected_exchange_code")
+        if identity.get("selected_exchange"):
+            result["exchDisp"] = identity.get("selected_exchange")
+        if identity.get("selected_currency"):
+            result["currency"] = identity.get("selected_currency")
+        if identity.get("sector"):
+            result["sector"] = identity.get("sector")
+        if identity.get("sector_disp"):
+            result["sectorDisp"] = identity.get("sector_disp")
+        if identity.get("industry"):
+            result["industry"] = identity.get("industry")
+        if identity.get("industry_disp"):
+            result["industryDisp"] = identity.get("industry_disp")
+        result["_identity_metadata_fallback"] = True
+
+    return result
 
 
 # =========================================================
@@ -52507,14 +52544,14 @@ CACHE_VERSION = f"analysis_{APP_BUILD_VERSION.replace('.', '_')}_20260913"
     ttl=900,
     show_spinner=False
 )
-def load_stock(selected_symbol, cache_version):
+def load_stock(selected_symbol, cache_version, security_identity=None):
 
     _ = cache_version
 
     # The UI selectbox already resolved ambiguity. Do not perform a second
     # Yahoo Search request for the same symbol; transient search failures must
     # not invalidate an explicit selection.
-    result = build_selected_stock_result(selected_symbol)
+    result = build_selected_stock_result(selected_symbol, security_identity)
 
     if not result:
         return None
@@ -52548,7 +52585,7 @@ def load_stock(selected_symbol, cache_version):
         or quote_info.get("previousClose")
     )
 
-    quote_currency = quote_info.get("currency")
+    quote_currency = quote_info.get("currency") or result.get("currency")
 
     # -----------------------------------------------------
     # 2. Fundamental source: verified primary route only.
@@ -55287,6 +55324,15 @@ def load_stock(selected_symbol, cache_version):
             fundamental_info.get("website")
             or quote_info.get("website")
         ),
+        "identity_metadata_fallback_used": bool(
+            result.get("_identity_metadata_fallback")
+            and (
+                not quote_info.get("longName")
+                or not quote_info.get("sector")
+                or not quote_info.get("industry")
+                or not quote_info.get("exchange")
+            )
+        ),
 
         "market_cap": fundamental_info.get("marketCap"),
         "market_cap_currency": market_cap_currency,
@@ -55550,7 +55596,13 @@ if search_text:
                     "query_type": selected_search_item.get("query_type"),
                     "selected_symbol": selected_symbol,
                     "selected_exchange": selected_search_item.get("exchange"),
+                    "selected_exchange_code": selected_search_item.get("exchange_code"),
+                    "search_name": selected_search_item.get("name"),
                     "canonical_name": selected_search_item.get("canonical_name"),
+                    "sector": selected_search_item.get("sector"),
+                    "sector_disp": selected_search_item.get("sectorDisp"),
+                    "industry": selected_search_item.get("industry"),
+                    "industry_disp": selected_search_item.get("industryDisp"),
                     "primary_symbol": selected_search_item.get("primary_symbol"),
                     "primary_exchange": selected_search_item.get("primary_exchange"),
                     "listing_role": selected_search_item.get("listing_role"),
@@ -55585,7 +55637,8 @@ if selected_symbol:
 
             data = load_stock(
                 selected_symbol,
-                CACHE_VERSION
+                CACHE_VERSION,
+                st.session_state.get("security_identity_v1"),
             )
 
             if not data:
