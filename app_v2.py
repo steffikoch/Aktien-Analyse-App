@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.32"
+APP_BUILD_VERSION = "V2.22.33"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Development-Stage Mining Subprofile Router V128"
+    f"Build {APP_BUILD_VERSION} · Development-Stage Subprofile Copy Consistency Cleanup V129"
 )
 
 
@@ -52,6 +52,7 @@ st.caption(
 # V2.22.29: Exact-Ticker Collision Explicit Confirmation Gate V125. Search-UI-only hardening after runtime testing showed that the deployed Streamlit selectbox may still expose/return its first real option despite null-default or synthetic-placeholder attempts. Cross-exchange exact-ticker collisions therefore now require an explicit form submit before selected_symbol is released to the identity/load pipeline. The confirmed symbol is stored under a fresh query-scoped V125 session key so normal reruns preserve the user's explicit choice, while stale V123/V124 widget state cannot auto-load a security. Explicit full-symbol inputs and all resolver/ranking, family routing and valuation mathematics remain unchanged; no ticker/issuer hard-coding is introduced.
 # V2.22.31: Net-Cash Balance Independence from FCF Quality Gate V127. The standard balance layer now preserves the existing direct 15/15 net-cash result when debt minus cash is <= 0, even if the FCF Quality & Horizon-Proxy Gate marks the current FCF denominator unusable. The FCF-quality block remains fully active for positive net debt, where Net-Debt/FCF requires a reliable positive denominator. No Mining, LOM, Development-Stage, Fair-Value, corridor, signal, ticker-collision or specialist-model mathematics changed.
 # V2.22.32: Development-Stage Mining Subprofile Router V128. Keeps the V121 financial-stage guard and every valuation/fail-closed rule unchanged, but separates two reusable business-model subprofiles inside Development-Stage Mining / Materials: (1) Mineral Explorer / Mine Developer for drilling, resource-definition, metallurgy, PEA/PFS/DFS, permitting, infrastructure, project-capex and project-financing evidence; and (2) Battery Materials / Processing / Technology Developer for graphite/anode/cathode/high-purity-manganese and similar material-processing models with pilot/demo, scale-up, customer qualification/offtake, process/IP/licensing and commercialisation evidence. The route is evidence-based and contains no Cartier/Troilus/Talga/FRB/RNU ticker hardcoding. Standard score, FCF-margin, Net-Cash bonus, cycle P/E, operating-mine NAV and Fair Value remain blocked exactly as in V121 until a reusable project model is released. V127 balance logic and all released specialist mathematics remain unchanged.
+# V2.22.33: Development-Stage Subprofile Copy Consistency Cleanup V129. Copy/UI-only change. Keeps the V128 subprofile-selection conditions and V121 financial-stage detection conditions unchanged, but removes three shared-path wording remnants: Mineral Explorer / Mine Developer evidence now says Exploration-/Resource-/Development rather than Pilot; the green special-event next-step is profile-aware (Resource/Metallurgy/Feasibility/Permitting for explorers, Resource/Feedstock/Pilot/Qualification/Commercialisation for battery/processing developers); and the unreleased Fair-Value gate uses a technical/economic Project-NAV basis for explorer/developers versus a resource/process/qualification/commercialisation primary-data basis for battery/processing developers. All scores, corridors, guard release states, LOM logic, V127 Net-Cash logic and valuation mathematics remain unchanged.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
 # V2.22.12: Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108. Keeps the released Asset-Management scoring, 9–18x base corridor, Premium-Unlock, peer/historical guards and signal mathematics unchanged. V108 upgrades only the issuer-primary evidence layer: corporate/group/investor-IR domain-family escalation, financial-results/document-class prioritization, period-safe AUM/flow/fee/CIR/EPS table recovery, issuer-native Cost-Income-Ratio efficiency support without relabelling it as an operating margin, and same-basis reported-or-adjusted TTM/3Y EPS recovery. Sub-scopes remain explicit, search snippets remain discovery-only, period/scope mismatches fail closed, and evidence failures receive diagnostic reason codes. No issuer URLs, ticker-specific KPI values or DWS-specific constants are hard-coded.
@@ -7261,7 +7262,10 @@ def apply_development_stage_mining_guard(
     if revenue_to_market_cap is not None:
         reason_bits.append(f"Revenue/Market-Cap {revenue_to_market_cap * 100:.3f}%")
     if has_stage_language:
-        reason_bits.append("Development-/Pilot-/Exploration-Evidenz")
+        if development_stage_subprofile == "battery_processing_technology":
+            reason_bits.append("Development-/Pilot-/Processing-Evidenz")
+        else:
+            reason_bits.append("Exploration-/Resource-/Development-Evidenz")
     if has_battery_material_language:
         reason_bits.append("Battery-Materials-Evidenz")
     elif has_processing_technology_language and battery_processing_profile:
@@ -12154,7 +12158,7 @@ def _universal_family_special_control(company_type):
             "control_name": control_name,
             "planned_checks": planned_checks,
             "status": "Development-Stage Guard aktiv · Standard-Mining-Score und Operating-Mine-Bewertung gesperrt",
-            "router_status": "Development-Stage Mining Subprofile Router V128 aktiv · Financial-Stage Guard V121 aktiv",
+            "router_status": "Development-Stage Mining Subprofile Router V128 aktiv · Copy Consistency V129 aktiv · Financial-Stage Guard V121 aktiv",
             "confidence_cap": "Niedrig",
             "note": f"{APP_BUILD_VERSION}: {reason}. {profile_note}",
             "router_note": (
@@ -50065,10 +50069,22 @@ def calculate_fair_value_v1(
             "control_name"
         ) or "Spezialkontrolle"
 
+        if control_name == "Development-Stage Mineral Explorer / Mine Developer / Project Gate":
+            release_basis_text = (
+                "belastbare technische/wirtschaftliche Primärdaten- und Project-NAV-Basis"
+            )
+        elif control_name == "Development-Stage Battery Materials / Processing / Technology Gate":
+            release_basis_text = (
+                "belastbare Resource/Feedstock-, Prozess-/Pilot-, Qualification-, Funding- und "
+                "Kommerzialisierungs-Primärdatenbasis"
+            )
+        else:
+            release_basis_text = "belastbare Primärdaten-/Earnings-Basis"
+
         result["note"] = (
             "Fair Value V1 gesperrt: Für diesen Unternehmenstyp ist die "
             f"Spezialkontrolle „{control_name}“ erforderlich. Solange die für "
-            "diese Spezialkontrolle notwendige belastbare Primärdaten-/Earnings-Basis "
+            f"diese Spezialkontrolle notwendige {release_basis_text} "
             "nicht vollständig vorliegt oder die Freigabe nicht erteilt ist, wird kein Fair Value erzeugt."
         )
         return result
@@ -59699,10 +59715,21 @@ if selected_symbol:
                             "Für den Fair Value bleiben issuer-definierter Cashflow, Adjusted EBITDA, Verschuldung und Backlog maßgeblich."
                         )
                     elif is_development_stage_mining_guard_type(company_type):
+                        development_subprofile_ui = str(
+                            company_type.get("development_stage_subprofile") or "mineral_explorer_mine_developer"
+                        )
+                        if development_subprofile_ui == "battery_processing_technology":
+                            development_next_data = (
+                                "Resource-/Feedstock-/Pilot-/Scale-up-/Qualification-/Funding-/Kommerzialisierungsdaten"
+                            )
+                        else:
+                            development_next_data = (
+                                "Projekt-/Funding-/Resource-/Metallurgie-/Feasibility-/Permitting-Daten"
+                            )
                         event_action = (
                             "Keine Standard-EPS-Sonderrecherche starten. Der Development-Stage Guard sperrt bewusst "
                             "Zyklus-EPS, umsatzbasierte FCF-Marge, Netto-Cash-Punkte und Operating-Mine-KGV/NAV. "
-                            "Nächster Bewertungsbaustein wären Projekt-/Funding-/Feasibility-/Pilot-/Kommerzialisierungsdaten."
+                            f"Nächster Bewertungsbaustein wären {development_next_data}."
                         )
                     elif "autohersteller" in normalized_company_type_name(company_type) and event_level == "Grün":
                         event_action = (
