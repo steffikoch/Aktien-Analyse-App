@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.22"
+APP_BUILD_VERSION = "V2.22.23"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Professional & Business Services Multi-Issuer Specialist V2 · FRP Advisory Expansion V118"
+    f"Build {APP_BUILD_VERSION} · Multi-Issuer Profile-Aware UI & Cashflow Consistency Cleanup V119"
 )
 
 
@@ -43,6 +43,7 @@ st.caption(
 # V2.22.20: Professional-Services Business-Model Precedence over Capital-Markets Label Guard V116. Router-only change. A broad provider industry label such as Capital Markets/Brokerage no longer automatically forces Investment Bank / Broker-Dealer when the issuer summary instead shows a diversified advisory/professional-services operating model (for example specialist business advisory plus restructuring, forensic, financial/debt advisory or corporate-finance service lines). Strong broker-dealer/trading/market-making/securities-underwriting evidence remains authoritative for the Investment Bank / Broker-Dealer family. The rule is reusable and business-model based; no FRP ticker/name override is introduced. DSW specialist score, 9–18x corridor, liquidity cap, DWS evidence recovery, exact-ticker search V115 and all released valuation mathematics remain unchanged.
 # V2.22.21: Professional Services Unsupported-Issuer Fail-Closed Integration Guard V117. Fixes the multi-issuer handoff exposed by FRP Advisory after V116. A Professional & Business Services family match no longer promotes the DSW specialist corridor into Module 6 unless an issuer-specific primary snapshot, specialist score and valuation anchor are actually complete. Unsupported family issuers retain the Universal Family fail-closed corridor (available=False, no score/multiple/Fair Value) instead of exposing None corridor bounds to the UI. Professional-services FCF/peer copy is now issuer-support aware so unreleased issuers are described as diagnosis-only rather than as DSW-valued. DSW score 76/100, 9–18x corridor, raw 14.5x score multiple, 14.0x liquidity cap and Fair Value mathematics remain unchanged; V115 search and V116 routing remain unchanged.
 # V2.22.22: Professional & Business Services Multi-Issuer Specialist V2 · FRP Advisory Expansion V118. Adds FRP Advisory Group (FRP.L) as a second independent issuer-primary validation profile without changing the released DSW profile or its mathematics. The family now supports two profile types under the same 100-point architecture: DSW Network/Licence Platform and FRP Partner-led Advisory Firm. FRP uses issuer-primary organic revenue growth, fee-earner growth, revenue per Partner, utilisation, adjusted underlying EBITDA/PBT, operating-cashflow/working-capital quality, net cash/funding, service-pillar diversification, dividend/share-dilution discipline and same-basis Adjusted Total EPS. FRP valuation uses a 60/30/10 FY26/FY25/FY24 Adjusted Total EPS through-cycle anchor and the unchanged 9–18x family score corridor; the small-cap/liquidity guard remains downside-only and does not bind when market-cap/public-float evidence is sufficient. Yahoo growth/ROE/FCF/Net-Debt-to-FCF and analyst targets remain outside Fair Value. DSW score 76/100, 14.5x raw P/E and 14.0x liquidity cap remain unchanged. The family is multi-issuer validated but remains globally evidence-gated for unsupported issuers until a reusable issuer-primary adapter exists.
+# V2.22.23: Multi-Issuer Profile-Aware UI & Cashflow Consistency Cleanup V119. No valuation mathematics changed. Makes Professional & Business Services UI/copy profile-aware for DSW Network/Licence Platform versus FRP Partner-led Advisory Firm. FRP Yahoo/statement FCF divergence is diagnosis-only and the specialist cash-quality text now points to issuer-primary audited Operating Cash Flow versus Adjusted PBT/EBITDA plus Working Capital; DSW keeps issuer Operating Cash Conversion. Growth, profitability, balance/liquidity, special-event, peer, Fair-Value and confidence copy now reflect the active profile and FRP FY26/FY25/FY24 Adjusted Total EPS basis. DSW 76/100, 14.5x raw/14.0x final and FRP 91/100, 16.8x, 11.356p/190.78p remain unchanged.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
 # V2.22.12: Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108. Keeps the released Asset-Management scoring, 9–18x base corridor, Premium-Unlock, peer/historical guards and signal mathematics unchanged. V108 upgrades only the issuer-primary evidence layer: corporate/group/investor-IR domain-family escalation, financial-results/document-class prioritization, period-safe AUM/flow/fee/CIR/EPS table recovery, issuer-native Cost-Income-Ratio efficiency support without relabelling it as an operating margin, and same-basis reported-or-adjusted TTM/3Y EPS recovery. Sub-scopes remain explicit, search snippets remain discovery-only, period/scope mismatches fail closed, and evidence failures receive diagnostic reason codes. No issuer URLs, ticker-specific KPI values or DWS-specific constants are hard-coded.
@@ -48208,6 +48209,8 @@ def calculate_fair_value_v1(
             "professional_services_earnings_basis_gbp": safe_float(sv.get("earnings_basis")),
             "professional_services_fy26_eps_gbp": safe_float(sv.get("fy26_adjusted_diluted_eps")),
             "professional_services_fy25_eps_gbp": safe_float(sv.get("fy25_adjusted_diluted_eps")),
+            "professional_services_fy24_eps_gbp": safe_float(sv.get("fy24_adjusted_eps")),
+            "professional_services_profile_key": snap.get("specialist_profile_key") or "network_licence_platform",
             "professional_services_company": snap.get("company"),
             "unit_conversion_applied": bool(unit_notes),
             "unit_note": " ".join(unit_notes) if unit_notes else None,
@@ -55557,13 +55560,20 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
 
     if professional_business_services_specialist_model.get("applicable"):
         if professional_business_services_specialist_model.get("valuation_anchor_complete"):
+            ps_event_snap = professional_business_services_specialist_model.get("snapshot") or {}
+            ps_event_profile = ps_event_snap.get("specialist_profile_key") or "network_licence_platform"
+            ps_event_earnings = (
+                "issuer-adjustierte FY26/FY25/FY24 Adjusted-Total-EPS und Primär-KPIs"
+                if ps_event_profile == "partner_led_advisory"
+                else "issuer-adjustierte FY26/FY25 Adjusted-Diluted-EPS und Primär-KPIs"
+            )
             special_event_warning = {
                 "level": "Grün",
                 "icon": "🟢",
                 "title": "Kein separates Sonderereignis – Professional-Services-Spezialpfad aktiv",
                 "requires_research": False,
                 "valuation_usable": True,
-                "reason": "Die generische TTM-/Forward-EPS-Divergenz ist für diesen Spezialpfad nur Diagnosekontext; die Bewertung verwendet issuer-adjustierte FY25/FY26-Earnings und Primär-KPIs.",
+                "reason": f"Die generische TTM-/Forward-EPS-Divergenz ist für diesen Spezialpfad nur Diagnosekontext; die Bewertung verwendet {ps_event_earnings}.",
                 "action": "Keine Standard-EPS-Sonderrecherche erforderlich; Professional-Services-Spezialscore und dessen Earnings-/Liquidity-Guards bleiben maßgeblich.",
             }
         else:
@@ -57613,6 +57623,32 @@ if selected_symbol:
                                 "Für den Specialist-Pfad zählt ausschließlich der freigegebene issuer-spezifische FCF-/Cash-Conversion-Anker; "
                                 "bei noch nicht kalibriertem Profil bleibt dieser Anker gesperrt."
                             )
+                        elif is_professional_services_fcf_context:
+                            ps_fcf_div_model_ui = data.get("professional_business_services_specialist_model") or {}
+                            ps_fcf_div_snap_ui = ps_fcf_div_model_ui.get("snapshot") or {}
+                            ps_fcf_div_profile_ui = ps_fcf_div_snap_ui.get("specialist_profile_key") or "network_licence_platform"
+                            if ps_fcf_div_model_ui.get("valuation_anchor_complete") and ps_fcf_div_profile_ui == "partner_led_advisory":
+                                st.info(
+                                    "ℹ️ FCF-Quellenabweichung im Professional-Services-Kontext: Yahoo quoteSummary/info zeigt "
+                                    f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
+                                    f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
+                                    f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Provider-/Statement-FCF-Werte bleiben Diagnose-/Rohdaten. "
+                                    "FRP bewertet Cash-Qualität ausschließlich über issuer-primary audited Operating Cash Flow relativ zu Adjusted PBT/EBITDA plus Working-Capital-Kontext; "
+                                    "die FCF-Abweichung steuert weder Score, Ziel-KGV noch Fair Value."
+                                )
+                            elif ps_fcf_div_model_ui.get("valuation_anchor_complete"):
+                                st.info(
+                                    "ℹ️ FCF-Quellenabweichung im Professional-Services-Kontext: Yahoo quoteSummary/info zeigt "
+                                    f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
+                                    f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
+                                    f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Werte bleiben Diagnose-/Rohdaten; "
+                                    "DSW bewertet Cash-Qualität über issuer Operating Cash Conversion. Die FCF-Abweichung steuert weder Score, Ziel-KGV noch Fair Value."
+                                )
+                            else:
+                                st.info(
+                                    "ℹ️ FCF-Quellenabweichung im Professional-Services-Family-Gate: Beide FCF-Werte bleiben Diagnose-/Rohdaten; "
+                                    "ohne freigegebenen issuer-primary Spezialanker beeinflussen sie weder Family Score, Multiple noch Fair Value."
+                                )
                         elif is_universal_family_fcf_context:
                             if is_released_listed_holding_family(company_type):
                                 st.info(
@@ -59395,8 +59431,14 @@ if selected_symbol:
                     st.info("ℹ️ Im Defense-High-Growth-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
                     st.caption("Rheinmetall wird über Backlog/Fixed Orders, organische FY26-Wachstums-Guidance, Operating-Result-Wachstum und Revenue Visibility aus Primärquellen bewertet. Yahoo-Gewinnwachstum bleibt Diagnosekontext.")
                 elif is_professional_services_score_ui:
+                    ps_growth_model_ui = data.get("professional_business_services_specialist_model") or {}
+                    ps_growth_snap_ui = ps_growth_model_ui.get("snapshot") or {}
+                    ps_growth_profile_ui = ps_growth_snap_ui.get("specialist_profile_key") or "network_licence_platform"
                     st.info("ℹ️ Im Professional-&-Business-Services-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
-                    st.caption("Wachstum wird über Network/Platform Revenue, Fee Earners, Revenue per Fee Earner, Licence Economics und Revenue-Mix aus issuer-primary FY26-Daten bewertet.")
+                    if ps_growth_profile_ui == "partner_led_advisory":
+                        st.caption("Wachstum und Produktivität werden über Organic Revenue Growth, Fee Earners, Revenue per Partner, Utilisation und Service-Pillar-Diversifikation aus issuer-primary FY26-Daten bewertet.")
+                    else:
+                        st.caption("Wachstum wird über Network/Platform Revenue, Fee Earners, Revenue per Fee Earner, Licence Economics und Revenue-Mix aus issuer-primary FY26-Daten bewertet.")
                 elif is_asset_management_score_ui:
                     st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet.")
                     st.caption("AUM-Anstieg wird von Organic Net Flows im issuer-verifizierten Scope getrennt; Marktperformance, FX und Akquisitionen erzeugen keine Growth-Punkte wie bei einem Industrieunternehmen.")
@@ -59681,8 +59723,13 @@ if selected_symbol:
                     st.info("ℹ️ Im Defense-High-Growth-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption("Bewertet werden H1/Q2 Operating Margin, FY26-Margenguidance, Operating-Result-Wachstum und Same-Basis Adjusted-EPS-Trajectory. Yahoo-Nettomarge und ROE bleiben Diagnosekontext.")
                 elif is_professional_services_profitability_ui:
+                    ps_profit_snap_ui = (data.get("professional_business_services_specialist_model") or {}).get("snapshot") or {}
+                    ps_profit_profile_ui = ps_profit_snap_ui.get("specialist_profile_key") or "network_licence_platform"
                     st.info("ℹ️ Im Professional-&-Business-Services-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
-                    st.caption("Maßgeblich sind Adjusted EBITDA Margin, Adjusted PBT, normalisierte Earnings-Qualität und Operating Cash Conversion.")
+                    if ps_profit_profile_ui == "partner_led_advisory":
+                        st.caption("Maßgeblich sind Adjusted EBITDA Margin, Adjusted PBT, same-basis Adjusted Total EPS sowie Operating-Cashflow-/Working-Capital-Qualität; Yahoo-Nettomarge und ROE bleiben Diagnosekontext.")
+                    else:
+                        st.caption("Maßgeblich sind Adjusted EBITDA Margin, Adjusted PBT, normalisierte Earnings-Qualität und Operating Cash Conversion.")
                 elif is_asset_management_profitability_ui:
                     st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet.")
                     st.caption("Hoher ROE ist bei kapitalarmen Asset Managern strukturell leichter erreichbar. Bewertet werden stattdessen Core/Adjusted Operating Margin, Margentrend und Earnings-Stabilität.")
@@ -60045,8 +60092,13 @@ if selected_symbol:
                         st.info("ℹ️ Im Defense-High-Growth-Spezialmodell berücksichtigt: Der generische Yahoo-/TTM-FCF-Margen-Score wird nicht verwendet.")
                         st.caption("Rheinmetalls H1 Operating FCF, Working-Capital-/Kapazitätsaufbau und FY26 Cash-Conversion-Guidance werden separat bewertet. Negativer H1-OFCF löst einen downside-only Multiple-Cap aus; er wird nicht mechanisch in Net-Debt/FCF übersetzt.")
                     elif is_professional_services_fcf_ui:
+                        ps_fcf_score_snap_ui = (data.get("professional_business_services_specialist_model") or {}).get("snapshot") or {}
+                        ps_fcf_score_profile_ui = ps_fcf_score_snap_ui.get("specialist_profile_key") or "network_licence_platform"
                         st.info("ℹ️ Im Professional-&-Business-Services-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Margen-Score wird nicht verwendet.")
-                        st.caption("Issuer Operating Cash Conversion ist die maßgebliche Cash-Qualitätsmetrik; Yahoo-TTM-FCF bleibt Diagnosekontext.")
+                        if ps_fcf_score_profile_ui == "partner_led_advisory":
+                            st.caption("FRP bewertet Cash-Qualität über issuer-primary audited Operating Cash Flow relativ zu Adjusted PBT/EBITDA plus Working-Capital-Kontext. Yahoo-/Statement-TTM-FCF bleibt Diagnosekontext und ist kein Fair-Value-Anker.")
+                        else:
+                            st.caption("Issuer Operating Cash Conversion ist die maßgebliche Cash-Qualitätsmetrik; Yahoo-TTM-FCF bleibt Diagnosekontext.")
                     elif is_asset_management_fcf_ui:
                         st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Der generische Yahoo-FCF-Margen-Score wird nicht verwendet.")
                         st.caption("Asset-light Cash Conversion bleibt Diagnose- und Kapitalallokationskontext; sie rechtfertigt allein kein Premium-KGV. Maßgeblich sind Net Flows, Fee-Qualität, Core-Marge und Through-Cycle-Earnings.")
@@ -60378,8 +60430,13 @@ if selected_symbol:
                         st.info("ℹ️ Im Defense-High-Growth-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("Rheinmetall bewertet Net Financial Debt relativ zum Eigenkapital und den Finanzierungs-/Kapazitätsaufbau separat. Ein temporär schwacher TTM-/H1-Cashflow darf die Bilanz nicht mechanisch über Net-Debt/FCF auf 0/15 drücken.")
                     elif is_professional_services_balance_ui:
+                        ps_balance_snap_ui = (data.get("professional_business_services_specialist_model") or {}).get("snapshot") or {}
+                        ps_balance_profile_ui = ps_balance_snap_ui.get("specialist_profile_key") or "network_licence_platform"
                         st.info("ℹ️ Im Professional-&-Business-Services-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF- bzw. Netto-Cash-15/15-Logik wird nicht verwendet.")
-                        st.caption("Net Cash/Funding, Share Dilution, Dividendendeckung und die konzentrierte Aktionärs-/Liquiditätsstruktur werden separat im Spezialscore bzw. downside-only Liquidity Guard bewertet.")
+                        if ps_balance_profile_ui == "partner_led_advisory":
+                            st.caption("Net Cash/Funding, Share Dilution, Dividendendeckung und Public Float/Liquidität werden separat im Spezialscore bzw. downside-only Liquidity Guard bewertet. Ein hoher Public Float erzeugt kein zusätzliches Bewertungs-Premium; er verhindert lediglich einen unbegründeten Microcap-/Konzentrationsabschlag.")
+                        else:
+                            st.caption("Net Cash/Funding, Share Dilution, Dividendendeckung und die konzentrierte Aktionärs-/Liquiditätsstruktur werden separat im Spezialscore bzw. downside-only Liquidity Guard bewertet.")
                     elif is_asset_management_balance_ui:
                         st.info("ℹ️ Im Asset-Management-Spezialmodell berücksichtigt: Die generische Netto-Schulden/FCF-Logik wird nicht verwendet.")
                         st.caption("Net Cash oder geringe Verschuldung sind positiv, geben aber nicht automatisch 15/15 Punkte. Seed Capital, Akquisitionen, Buybacks und echte Netto-Aktienzahlentwicklung werden im Spezialscore separat bewertet.")
@@ -62671,9 +62728,12 @@ if selected_symbol:
                 elif bool((data.get("professional_business_services_specialist_model") or {}).get("applicable")):
                     ps_peer_model_ui = data.get("professional_business_services_specialist_model") or {}
                     if ps_peer_model_ui.get("valuation_anchor_complete"):
+                        ps_peer_snap_ui = ps_peer_model_ui.get("snapshot") or {}
+                        ps_peer_profile_ui = ps_peer_snap_ui.get("specialist_profile_key") or "network_licence_platform"
                         st.caption(
-                            f"Professional & Business Services {APP_BUILD_VERSION}: In V1 ist noch keine automatische Peer-Gruppe freigegeben. "
-                            "Score, 9–18×-Korridor, Liquidity Guard und Fair Value bleiben vollständig issuer-primary; es gibt keine ±5-%-Peer-Anpassung."
+                            f"Professional & Business Services {APP_BUILD_VERSION}: Im Multi-Issuer Specialist V2 ist noch keine automatische Peer-Gruppe freigegeben. "
+                            "Score, 9–18×-Korridor, Liquidity Guard und Fair Value bleiben vollständig issuer-primary; es gibt keine ±5-%-Peer-Anpassung. "
+                            + ("FRP verwendet sein eigenes Partner-led-Advisory-Profil; DSW-Lizenz-/Plattformmetriken werden nicht übertragen." if ps_peer_profile_ui == "partner_led_advisory" else "DSW verwendet sein eigenes Network/Licence-Platform-Profil.")
                         )
                     else:
                         st.caption(
@@ -62993,7 +63053,7 @@ if selected_symbol:
                 elif bool((data.get("professional_business_services_specialist_model") or {}).get("applicable")):
                     ps_peer_model_b_ui = data.get("professional_business_services_specialist_model") or {}
                     if ps_peer_model_b_ui.get("valuation_anchor_complete"):
-                        peer_explain = f"Professional & Business Services {APP_BUILD_VERSION}: Noch keine freigegebene Peer-Gruppe. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Peer-Anpassung; der freigegebene V1-Fair-Value bleibt issuer-primary."
+                        peer_explain = f"Professional & Business Services {APP_BUILD_VERSION}: Noch keine freigegebene Peer-Gruppe. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Peer-Anpassung; der freigegebene Fair Value bleibt issuer-primary."
                     else:
                         peer_explain = f"Professional & Business Services {APP_BUILD_VERSION}: Noch keine freigegebene Peer-Gruppe und noch kein issuer-primary Spezialanker für diesen Emittenten. Peer-Daten können die fehlende Spezialbasis nicht ersetzen; Fair Value bleibt fail-closed."
                 else:
@@ -68199,9 +68259,15 @@ if selected_symbol:
                             f"{bcs_success_company_ui}-Fair-Value V1 wurde aus der Current-FY {bcs_success_eps_ui}-Guidance-Brücke und dem primärquellenbasierten Branded Consumer Staples Quality Score berechnet; Peers und externe Kursziele bleiben reference-only."
                         )
                     elif fair_value.get("valuation_method") == "professional_business_services_adjusted_pe":
-                        st.success(
-                            "Professional-&-Business-Services-Fair-Value V1 wurde aus der issuer-adjustierten FY26/FY25 Through-Cycle-Diluted-EPS-Basis und dem Professional-Services-Spezial-KGV berechnet; der Small-Cap/Liquidity Guard wirkt ausschließlich downside-only."
-                        )
+                        ps_fv_success_profile = fair_value.get("professional_services_profile_key") or "network_licence_platform"
+                        if ps_fv_success_profile == "partner_led_advisory":
+                            st.success(
+                                "Professional-&-Business-Services-Fair-Value V1 wurde aus der issuer-adjustierten FY26/FY25/FY24 Adjusted-Total-EPS Through-Cycle-Basis und dem Professional-Services-Spezial-KGV berechnet; der Small-Cap/Liquidity Guard wirkt ausschließlich downside-only."
+                            )
+                        else:
+                            st.success(
+                                "Professional-&-Business-Services-Fair-Value V1 wurde aus der issuer-adjustierten FY26/FY25 Adjusted-Diluted-EPS Through-Cycle-Basis und dem Professional-Services-Spezial-KGV berechnet; der Small-Cap/Liquidity Guard wirkt ausschließlich downside-only."
+                            )
                     elif fair_value.get("valuation_method") == "gold_precious_metals_current_share_pe":
                         st.success(
                             "GOLD-Fair-Value V1 wurde aus der bereinigten FY2026 Current-Share-Earnings-Basis (Depreciation nicht addiert) und dem primärquellenbasierten Precious-Metals Quality Score berechnet."
@@ -68331,10 +68397,17 @@ if selected_symbol:
                             )
                     elif fair_value.get("valuation_method") == "professional_business_services_adjusted_pe":
                         ps_conf_val_ui = (((data.get("special_control") or {}).get("checks") or {}).get("specialist_valuation") or {})
-                        st.info(
-                            "Professional-Services-Sicherheitsisolierung: Die generische Provider/GAAP-TTM-/Forward-Divergenz ist kein Bestandteil der Bewertungssicherheit. "
-                            "Maßgeblich sind Unternehmenstyp/Methode, die issuer-adjustierte FY26/FY25 Through-Cycle-Earnings-Basis und die Professional-Services-Spezialkontrolle einschließlich downside-only Liquidity Guard."
-                        )
+                        ps_conf_profile_ui = fair_value.get("professional_services_profile_key") or ps_conf_val_ui.get("profile_key") or "network_licence_platform"
+                        if ps_conf_profile_ui == "partner_led_advisory":
+                            st.info(
+                                "Professional-Services-Sicherheitsisolierung: Die generische Provider/GAAP-TTM-/Forward-Divergenz ist kein Bestandteil der Bewertungssicherheit. "
+                                "Maßgeblich sind Unternehmenstyp/Methode, die issuer-adjustierte FY26/FY25/FY24 Adjusted-Total-EPS Through-Cycle-Basis und die Professional-Services-Spezialkontrolle einschließlich Cash-/Working-Capital- und downside-only Liquidity Guard."
+                            )
+                        else:
+                            st.info(
+                                "Professional-Services-Sicherheitsisolierung: Die generische Provider/GAAP-TTM-/Forward-Divergenz ist kein Bestandteil der Bewertungssicherheit. "
+                                "Maßgeblich sind Unternehmenstyp/Methode, die issuer-adjustierte FY26/FY25 Adjusted-Diluted-EPS Through-Cycle-Basis und die Professional-Services-Spezialkontrolle einschließlich downside-only Liquidity Guard."
+                            )
                         if ps_conf_val_ui.get("earnings_basis_confidence_note"):
                             st.caption(ps_conf_val_ui.get("earnings_basis_confidence_note"))
                     elif fair_value.get("valuation_method") == "asset_management_through_cycle_pe":
