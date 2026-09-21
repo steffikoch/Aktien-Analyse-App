@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.42"
+APP_BUILD_VERSION = "V2.22.43"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Manager Peer-Guard UI Consistency Cleanup V138"
+    f"Build {APP_BUILD_VERSION} · Asset-Manager Reference-State Copy Consistency V139"
 )
 
 
@@ -62,6 +62,7 @@ st.caption(
 # V2.22.40: Asset-Manager Historical-Year Discovery Isolation V136. Fixes a target-year/page-year coupling in the generic Asset-Manager IR link router. Historical same-basis EPS recovery asks for FY2025/FY2024/FY2023, but the multi-year table mapper must stay anchored to the page's actual latest calendar-year selector (normally the runtime current year), not restart the table sequence at each requested historical target. V116 now separates page structural-year binding from target-year ranking: repeated IR tables are mapped once against the actual page-year sequence, then each requested historical year is scored against that stable map. This prevents the first 2026 table from being relabelled as 2025 during annual EPS discovery. Current-period AUM/flow/fee/CIR extraction, XLSX/PDF parsing, specialist score weights, 9–18x corridor, peer/historical guards and signal thresholds are unchanged.
 
 # V2.22.42: Asset-Manager Peer-Guard UI Consistency Cleanup V138. No valuation mathematics changed. Separates the raw score-driven Asset-Manager P/E anchor from the downside-only Peer/Historical Safety Guard in Module 6, suppresses the stale pre-guard multiple in Step 2B, labels the actually used post-guard target multiple explicitly, uses issuer-native Cost-Income Ratio copy when no operating margin is reported, and omits an empty published-date placeholder. DWS score 76/100, Through-Cycle EPS 4.80 EUR, raw 13.47x score anchor, 12.54x downside cap, 60.18 EUR Fair Value and signal thresholds remain unchanged.
+# V2.22.43: Asset-Manager Reference-State Copy Consistency V139. No valuation mathematics changed. Promotes the reusable Asset-Manager issuer-primary adapter display version to V118 after DWS completed end-to-end recovery, updates the global-family status copy to state that the generic adapter now requires a second independent issuer validation rather than claiming no reusable adapter exists, and makes Multiple-Guard copy conditional so missing 3Y historical P/E evidence is not described as present. DWS score, Through-Cycle EPS, peer cap, Fair Value and signals remain unchanged.
 # V2.22.41: Asset-Manager Annual-History Candidate Merge V137. Fixes a de-duplication/ranking defect in generic same-basis Asset-Manager EPS-history recovery. The same issuer-primary report can be discovered once for each requested target year; prior builds kept the first URL occurrence and therefore preserved the score from the first target year instead of the best score across all requested years. V117 now merges duplicate URLs by their strongest year-aware score, explicitly recognizes the discovered document_class even when the download URL/anchor is opaque, and prioritizes the latest completed-FY Financial Data Supplement/annual report because such reports often contain the full 3Y same-basis EPS series in one table. Current-period AUM/flow/fee/CIR evidence, specialist score weights, 9–18x corridor, peer/historical guards and signal thresholds are unchanged.
 # V2.22.37: Asset-Manager Structured XLSX Period Binding V133. Fixes wide issuer-primary financial supplements whose comparison headers (for example “Q2 2026 vs. Q1 2026 / Q2 2025”) precede the actual multi-period data-header row. XLSX extraction now preserves explicit worksheet-row boundaries, period detection ranks the real multi-period header row ahead of comparison captions, and KPI rows are parsed only within their own workbook row so comparison columns cannot shift AUM/flow/fee/CIR/EPS values onto the wrong period. Same-scope guards, same-basis earnings requirements, score weights, 9–18x corridor, peer/historical guards and signal thresholds remain unchanged; no issuer ticker, URL or KPI value is hard-coded.
 # V2.22.34: Development-Stage EPS Copy Isolation Cleanup V130. Copy/UI-only change. Keeps V128 subprofile routing and V121 financial-stage detection unchanged, but isolates Development-Stage Mining / Materials from the generic Universal-Family EPS wording: Standard TTM/Forward EPS remains diagnosis-only and is explicitly not a Fair-Value anchor; Mineral Explorer / Mine Developer points instead to a technical/economic project and Project-NAV basis, while Battery Materials / Processing / Technology points to resource/feedstock, process/pilot/scale-up, qualification/offtake, funding and commercialisation evidence. The terminal EPS caption is profile-aware for the same reason. All scores, corridors, guard states, V127 Net-Cash logic, LOM logic and valuation mathematics remain unchanged.
@@ -31390,7 +31391,7 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V117"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V118"
 ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22240_asset_manager_historical_year_discovery_isolation_v136"
 
 
@@ -40256,7 +40257,7 @@ def get_special_control(company_type, symbol):
                 "JHG/Take-private Delisting Guard",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Annual-History Candidate Merge Guard V117",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Reference-State Copy Consistency Guard V118",
             "note": (
                 "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
                 "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
@@ -57927,8 +57928,8 @@ if selected_symbol:
                     )
                     if is_validated_asset_manager_existing_route(company_type):
                         st.info(
-                            "Asset-Management-Spezialpfad mit zwei unabhängigen Hauptunternehmen end-to-end validiert (TROW + BLK). "
-                            "Die globale Familienfreigabe bleibt bewusst offen, bis AUM-/Flow-/Fee-/Margin-Primärdaten über einen wiederverwendbaren issuer-primary Evidence-Adapter statt tickergebundener Snapshots gewonnen werden."
+                            "Asset-Management-Spezialpfad ist end-to-end validiert. TROW + BLK bleiben bestehende Referenzfälle; DWS wurde zusätzlich über den wiederverwendbaren issuer-primary Evidence-Adapter vollständig bis Fair Value und Signal bewertet. "
+                            "Die globale Familienfreigabe bleibt bewusst offen, bis derselbe generische Evidence-Adapter an mindestens einem weiteren unabhängigen Asset Manager end-to-end bestätigt ist."
                         )
                     if (company_type.get("family_model_status") == "validated_multi_issuer_route"
                             and company_type.get("valuation_family") == "Professional & Business Services"):
@@ -64734,7 +64735,7 @@ if selected_symbol:
 
                 elif special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Annual-History Candidate Merge Guard V117")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Reference-State Copy Consistency Guard V118")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
@@ -64753,7 +64754,7 @@ if selected_symbol:
                                     st.caption("Noch fehlende aktuelle Primärdaten: " + " · ".join(str(x) for x in missing_am))
                                 failure_reason_am = discovery_am.get("evidence_failure_reason")
                                 if failure_reason_am:
-                                    st.caption("Evidence-Status V117: " + str(failure_reason_am))
+                                    st.caption("Evidence-Status V118: " + str(failure_reason_am))
                                 partial_bits = []
                                 for key, label in [
                                     ("total_aum", "Total AUM"),
@@ -64910,18 +64911,26 @@ if selected_symbol:
                                         f"+{safe_float(val_am.get('premium_extension_uplift')):.2f}×. 3Y-Historical-Median ist nur Obergrenze, nicht Ziel."
                                     )
                                 guard_status = str(val_am.get("multiple_guard_status") or "none")
+                                _peer_ref_am = safe_float(val_am.get("peer_reference_median_pe"))
+                                _hist_ref_am = safe_float(val_am.get("historical_forward_pe_3y_median"))
+                                _guard_ref_label_am = (
+                                    "Peer- und 3Y-Historical-Referenz" if (_peer_ref_am is not None and _hist_ref_am is not None)
+                                    else "Core-Peer-Referenz" if _peer_ref_am is not None
+                                    else "3Y-Historical-Referenz" if _hist_ref_am is not None
+                                    else "verfügbare Bewertungsreferenz"
+                                )
                                 if guard_status == "hard":
                                     if val_am.get("historical_peer_cap_applied"):
-                                        st.warning("🔴 Asset Manager Multiple Guard: Zielmultiple liegt deutlich über Peer-/3Y-Historical-Referenz. Downside-Cap angewendet.")
+                                        st.warning(f"🔴 Asset Manager Multiple Guard: Zielmultiple liegt deutlich über {_guard_ref_label_am}. Downside-Cap angewendet.")
                                     else:
-                                        st.warning("🟡 Asset Manager Multiple Guard: Zielmultiple liegt deutlich über Peer-/3Y-Historical-Referenz. Premium-Unlock rechtfertigt die höhere Bewertung; Guard bleibt sichtbar.")
+                                        st.warning(f"🟡 Asset Manager Multiple Guard: Zielmultiple liegt deutlich über {_guard_ref_label_am}. Premium-Unlock rechtfertigt die höhere Bewertung; Guard bleibt sichtbar.")
                                 elif guard_status == "soft":
-                                    st.info("🟡 Asset Manager Multiple Guard: moderates Premium gegenüber Peer-/3Y-Historical-Referenz; keine automatische Änderung.")
+                                    st.info(f"🟡 Asset Manager Multiple Guard: moderates Premium gegenüber {_guard_ref_label_am}; keine automatische Änderung.")
                                 st.write(
                                     "**Peer-/Historical-Referenz:** Core-Peer-Median " +
-                                    (f"{safe_float(val_am.get('peer_reference_median_pe')):.2f}×" if safe_float(val_am.get('peer_reference_median_pe')) is not None else "–") +
+                                    (f"{_peer_ref_am:.2f}×" if _peer_ref_am is not None else "–") +
                                     " · 3Y Historical Median " +
-                                    (f"{safe_float(val_am.get('historical_forward_pe_3y_median')):.2f}×" if safe_float(val_am.get('historical_forward_pe_3y_median')) is not None else "–")
+                                    (f"{_hist_ref_am:.2f}×" if _hist_ref_am is not None else "–")
                                 )
                                 st.metric(f"{text_or_dash(snap_am.get('company'))} Fair Value – Fundamentalwährung", format_currency_value(val_am.get("fair_value_financial"), financial_currency, 2))
                             st.caption(text_or_dash(snap_am.get("note")))
