@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.18"
+APP_BUILD_VERSION = "V2.22.19"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Professional Services Diagnostic Copy & Precision Cleanup V114"
+    f"Build {APP_BUILD_VERSION} · Universal Exact-Ticker Primary-Listing Precedence Guard V115"
 )
 
 
@@ -39,6 +39,7 @@ st.caption(
 # V2.22.16: Professional & Business Services Specialist Model V1 V112. First validated issuer: DSW Capital (DSW.L). Releases an issuer-primary Professional & Business Services specialist path for DSW while keeping the wider family globally unreleased until a second independent issuer is validated. The model scores platform/network growth and fee-earner productivity, adjusted EBITDA/PBT quality, issuer operating cash conversion, balance quality, licence/revenue-mix resilience, capital allocation/dilution and earnings stability. Valuation uses an issuer-adjusted two-year diluted-EPS anchor (FY26 weighted 80%, FY25 20%) with a 9–18x score corridor and a downside-only small-cap/liquidity cap. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the specialist Fair Value. GBp/GBP conversion stays explicit at 1 GBP = 100 GBp. V110 Asset-Management evidence recovery and all other released specialist mathematics remain unchanged.
 # V2.22.17: Professional Services Confidence Isolation & UI Consistency Cleanup V113. No valuation mathematics changed. Isolates the Professional & Business Services valuation-confidence stack from generic Provider/GAAP TTM-vs-Forward EPS divergence, adds an explicit specialist earnings-basis confidence component, suppresses stale generic FCF and Net-Cash scoring footers, renders the DSW Through-Cycle earnings anchor in precise GBP/GBp source units, and makes Peer/Step-3A copy consistent with the downside-only Small-Cap/Liquidity Guard. DSW score 76/100, 9–18x corridor, raw 14.5x score multiple, 14.0x liquidity cap and Fair Value mathematics remain unchanged.
 # V2.22.18: Professional Services Diagnostic Copy & Precision Cleanup V114. No valuation mathematics changed. Marks Yahoo/Cashflow-Statement FCF as diagnosis-only in the released Professional & Business Services path, renders the Step-3B earnings anchor in precise issuer GBP/GBp units instead of rounded display-currency EPS, and shows DSW net cash at the precision actually published by the issuer (GBP 0.1m) with only an approximate display-currency equivalent. Peer copy is version-aligned to V114. DSW score 76/100, 9–18x corridor, raw 14.5x score multiple, 14.0x liquidity cap and Fair Value mathematics remain unchanged.
+# V2.22.19: Universal Exact-Ticker Primary-Listing Precedence Guard V115. Search-only change. Treats an exchange-suffixed home symbol whose base ticker exactly equals a short ticker-like query (for example ABC.L for input ABC) as an exact ticker-family match instead of a weak prefix match. When the first Yahoo search contains neither an exact symbol nor an exact base-ticker candidate, the resolver performs a bounded set of exact home-listing suffix probes and accepts only literal symbol matches, preventing fuzzy prefix symbols such as ABCD from outranking an exact local ticker ABC.<home>. Existing exact full-ticker priority, verified company-name aliases, WKN/ISIN identity, same-issuer grouping, specialist routing and all valuation mathematics remain unchanged. No FRP- or issuer-specific search rule is introduced.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
 # V2.22.12: Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108. Keeps the released Asset-Management scoring, 9–18x base corridor, Premium-Unlock, peer/historical guards and signal mathematics unchanged. V108 upgrades only the issuer-primary evidence layer: corporate/group/investor-IR domain-family escalation, financial-results/document-class prioritization, period-safe AUM/flow/fee/CIR/EPS table recovery, issuer-native Cost-Income-Ratio efficiency support without relabelling it as an operating margin, and same-basis reported-or-adjusted TTM/3Y EPS recovery. Sub-scopes remain explicit, search snippets remain discovery-only, period/scope mismatches fail closed, and evidence failures receive diagnostic reason codes. No issuer URLs, ticker-specific KPI values or DWS-specific constants are hard-coded.
@@ -12795,7 +12796,7 @@ def classify_company(name, symbol, sector, industry):
 # Aktiensuche / Security Identity & Primary Listing Resolver
 # =========================================================
 
-SEARCH_RESOLVER_CACHE_EPOCH = "v22187_security_resolver_publ_homevenue_v83"
+SEARCH_RESOLVER_CACHE_EPOCH = "v22219_exact_base_ticker_homeprobe_v115"
 
 SEARCH_EXCHANGE_PRIORITY = {
     # US primary venues
@@ -12812,6 +12813,14 @@ SEARCH_EXCHANGE_PRIORITY = {
 
 SEARCH_SECONDARY_SUFFIXES = (
     ".F", ".BE", ".MU", ".DU", ".HM", ".HA", ".SG", ".VI", ".MX", ".SA", ".XD"
+)
+
+# V115: bounded exact-symbol probes for short ticker-like inputs when Yahoo
+# returns only fuzzy/prefix matches. Results are accepted only if Yahoo returns
+# the literal probed symbol as an EQUITY; no fuzzy probe result is admitted.
+SEARCH_HOME_TICKER_SUFFIX_PROBES = (
+    ".L", ".DE", ".PA", ".AS", ".ST", ".SW", ".MI",
+    ".CO", ".OL", ".HE", ".TO", ".AX", ".HK", ".TW", ".T", ".WA",
 )
 
 SEARCH_LEGAL_WORDS = {
@@ -13101,6 +13110,31 @@ def _identifier_name_matches(candidate_core, identifier_keys):
     return False
 
 
+def _symbol_base_ticker(symbol):
+    """Return the Yahoo base ticker before an exchange suffix (V115 search only)."""
+    value = str(symbol or "").upper().strip()
+    if not value:
+        return ""
+    return value.split(".", 1)[0]
+
+
+def _is_exact_base_ticker_match(symbol, query, query_type):
+    """A local Yahoo symbol ABC.L is an exact ticker-family match for input ABC.
+
+    Only short ticker-like inputs without an explicit exchange suffix qualify.
+    Company-name searches with spaces/punctuation therefore cannot accidentally
+    gain this precedence. An explicit full ticker (ABC.L) is still handled by
+    the stronger exact-symbol branch.
+    """
+    if query_type != "ticker_or_name":
+        return False
+    q = str(query or "").upper().strip()
+    if not re.fullmatch(r"[A-Z0-9\-]{1,5}", q):
+        return False
+    sym = str(symbol or "").upper().strip()
+    return bool(sym and sym != q and _symbol_base_ticker(sym) == q and "." in sym)
+
+
 def _listing_candidate_score(item, query, query_type, identifier_rows=None):
     query_upper = str(query or "").strip().upper()
     query_folded = _fold_search_text(query)
@@ -13119,10 +13153,14 @@ def _listing_candidate_score(item, query, query_type, identifier_rows=None):
     # correctly prefer KO through the issuer-name match below.
     if symbol == query_upper:
         score += 5000
+    elif _is_exact_base_ticker_match(symbol, query, query_type):
+        # V115: FRP.L for input FRP is an exact ticker-family match, not a
+        # fuzzy prefix. Full-symbol input remains stronger at +5000.
+        score += 4700
+        item["_exact_base_ticker"] = True
     elif query_upper and symbol.startswith(query_upper):
-        # V2.20.121: a shared symbol prefix is only a weak hint.  In V2.20.120
-        # KO.BA/KOD.BA could otherwise outrank major secondary venues such as
-        # XETRA simply because they start with "KO".
+        # Shared symbol prefixes remain only a weak hint. A longer symbol such
+        # as FRPH must never outrank an exact local base ticker such as FRP.L.
         score += 20
 
     if item.get("_preferred"):
@@ -13337,15 +13375,49 @@ def search_stock_suggestions(search_text, cache_epoch):
     for term in search_terms[:4]:
         append_yahoo_results(term)
 
+    # V115 – exact base-ticker home-listing recovery. Yahoo can rank a fuzzy
+    # US prefix symbol ahead of an exact non-US ticker (e.g. ABCD before
+    # ABC.L). Probe a bounded set of common home suffixes only when the query
+    # is a short ticker-like token, no verified alias was injected, and the
+    # first search supplied neither an exact full symbol nor an exact base
+    # ticker. Each probe is fail-soft and contributes a row only when Yahoo
+    # literally returns the probed EQUITY symbol; fuzzy probe hits are ignored.
+    query_upper = query.upper()
+    short_ticker_query = bool(
+        query_type == "ticker_or_name"
+        and re.fullmatch(r"[A-Z0-9\-]{1,5}", query_upper)
+    )
+    has_primary_alias = any(item.get("_source") == "primary_alias" for item in suggestions)
+    has_exact_or_base = any(
+        str(item.get("symbol", "")).upper().strip() == query_upper
+        or _is_exact_base_ticker_match(item.get("symbol"), query, query_type)
+        for item in suggestions
+    )
+    if short_ticker_query and not has_primary_alias and not has_exact_or_base:
+        for suffix in SEARCH_HOME_TICKER_SUFFIX_PROBES:
+            probe_symbol = f"{query_upper}{suffix}"
+            probe_rows = _safe_yahoo_search(probe_symbol, max_results=5)
+            for item in probe_rows:
+                symbol = str(item.get("symbol", "")).upper().strip()
+                if symbol != probe_symbol or str(item.get("quoteType", "")).upper() != "EQUITY":
+                    continue
+                row = dict(item)
+                row.setdefault("_preferred", False)
+                row["_yahoo_rank"] = global_rank
+                row["_source"] = "exact_base_home_probe"
+                row["_exact_base_ticker"] = True
+                suggestions.append(row)
+                global_rank += 1
+
     # V2.20.120 – ticker consistency enrichment.
     # Yahoo often returns only the exact ticker for queries such as KO or
     # RHM.DE. Once that exact security has identified the issuer, search the
     # issuer name as a second phase so alternative listings can be shown below
     # the exact ticker without weakening the exact-ticker priority.
-    query_upper = query.upper()
     exact_ticker_candidates = [
         item for item in suggestions
         if str(item.get("symbol", "")).upper().strip() == query_upper
+        or _is_exact_base_ticker_match(item.get("symbol"), query, query_type)
     ]
     if query_type == "ticker_or_name" and exact_ticker_candidates:
         exact_item = max(
@@ -13440,6 +13512,8 @@ def search_stock_suggestions(search_text, cache_epoch):
                 match_reason = "WKN/ISIN bestätigt"
             elif symbol == query_upper:
                 match_reason = "Exakter Ticker"
+            elif _is_exact_base_ticker_match(symbol, query, query_type):
+                match_reason = "Exakter Basisticker / Hauptlisting"
             elif item.get("_preferred"):
                 match_reason = "Bevorzugter Emittent"
             else:
