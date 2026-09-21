@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.26"
+APP_BUILD_VERSION = "V2.22.27"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Cross-Exchange Exact-Ticker Collision Guard V122"
+    f"Build {APP_BUILD_VERSION} · Exact-Ticker Collision Explicit Selection Gate V123"
 )
 
 
@@ -47,6 +47,7 @@ st.caption(
 # V2.22.24: Universal Development-Stage Mining & Battery-Materials Guard V120. Adds a reusable financial-stage guard inside Mining / Materials for pre-revenue, exploration/development, pilot/demonstration and technology-commercialisation issuers. A mining/materials company with de-minimis revenue relative to market value plus loss/cash-burn evidence, or corroborating development-stage business-model language, is routed to a fail-closed Early-Stage Mining / Battery Materials / Project Development profile. Generic 100-point growth/profitability/FCF/balance scoring, revenue-based FCF margins, cycle P/E corridors and operating-mine valuation paths are suppressed until a project/technology/asset milestone, funding, feasibility/resource and commercialisation model is calibrated. The guard is business-model/financial-stage based and contains no FRB ticker override. Established producing miners remain on the existing Mining V2.20 path. Professional & Business Services V119 mathematics and all other released specialist models remain unchanged.
 # V2.22.25: Development-Stage Mining Commercial-Revenue & Cash-Burn Guard V121. Fixes the RNU false negative without issuer hardcoding. Within Mining / Materials, zero/de-minimis commercial revenue plus negative/unknown free cash flow and no established-producer language is now sufficient financial-stage evidence for the Development-Stage Guard even when reported net income is temporarily positive from interest, grants or other non-operating items. Corroborating exploration/development/feasibility/pilot/demonstration/customer-qualification language continues to strengthen the route. Established producers remain protected by explicit operating/production language. No Development-Stage Fair Value is introduced; Standard score, FCF margin, Net-Cash bonus, cycle P/E and operating-mine NAV remain fail-closed. Professional & Business Services V119 and all released valuation mathematics remain unchanged.
 # V2.22.26: Cross-Exchange Exact-Ticker Collision Guard V122. Search-only change. For a short exact base-ticker query without an explicit exchange suffix, the resolver now probes the bounded home-listing suffix set even when Yahoo already returned one exact/base candidate. If two or more distinct issuer identities legitimately use that same exact base ticker on different primary exchanges, none is labelled as the unique Hauptlisting: every colliding exact-ticker issuer is surfaced at the top as an explicit selection-required result with its own canonical identity. Explicit full-symbol input such as TLG.AX or TLG.TO remains unambiguous and retains exact-security priority. Same-issuer cross-listings do not trigger the collision state. V115 exact-base recovery, all family routers, V121 development-stage guard and all valuation mathematics remain unchanged; no TLG/Talga/Troilus hard-coding is introduced.
+# V2.22.27: Exact-Ticker Collision Explicit Selection Gate V123. Search-UI-only change. When V122 identifies two or more distinct issuers sharing the same exact base ticker across exchanges, the result selector now starts on a non-security placeholder and cannot load financial data until the user explicitly chooses an issuer/listing. The placeholder is not stored as security identity and never reaches load_stock. Explicit full-symbol inputs such as TLG.AX or TLG.TO remain directly selectable; unique ticker/name/WKN/ISIN searches keep the existing behavior. V122 collision discovery/ranking, V121 development-stage mining guard and all valuation mathematics remain unchanged; no ticker/issuer hard-coding is introduced.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
 # V2.22.12: Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108. Keeps the released Asset-Management scoring, 9–18x base corridor, Premium-Unlock, peer/historical guards and signal mathematics unchanged. V108 upgrades only the issuer-primary evidence layer: corporate/group/investor-IR domain-family escalation, financial-results/document-class prioritization, period-safe AUM/flow/fee/CIR/EPS table recovery, issuer-native Cost-Income-Ratio efficiency support without relabelling it as an operating margin, and same-basis reported-or-adjusted TTM/3Y EPS recovery. Sub-scopes remain explicit, search snippets remain discovery-only, period/scope mismatches fail closed, and evidence failures receive diagnostic reason codes. No issuer URLs, ticker-specific KPI values or DWS-specific constants are hard-coded.
@@ -56922,18 +56923,41 @@ if search_text:
                 for item in suggestions
             }
 
+            top_hit = suggestions[0]
+            collision_selection_required = bool(top_hit.get("ticker_collision"))
+            collision_placeholder_value = "__EXACT_TICKER_COLLISION_SELECT_REQUIRED__"
+
             def suggestion_label(symbol):
+                if symbol == collision_placeholder_value:
+                    return "— Bitte Emittent / Börse auswählen … —"
                 return _compact_suggestion_label(suggestion_map[symbol])
 
-            selected_symbol = st.selectbox(
-                "Treffer auswählen",
-                options=list(suggestion_map.keys()),
-                index=None,
-                placeholder="Aktie auswählen …",
-                format_func=suggestion_label
-            )
+            if collision_selection_required:
+                # V123: a real cross-exchange exact-ticker collision must never
+                # inherit Streamlit's first-option/default behavior.  A literal
+                # non-security placeholder is the initial selection and is
+                # converted back to None before any identity/load path.
+                selected_symbol_raw = st.selectbox(
+                    "Treffer auswählen",
+                    options=[collision_placeholder_value] + list(suggestion_map.keys()),
+                    index=0,
+                    format_func=suggestion_label,
+                    key=f"exact_ticker_collision_select_v123_{str(search_text).strip().upper()}",
+                )
+                selected_symbol = (
+                    None
+                    if selected_symbol_raw == collision_placeholder_value
+                    else selected_symbol_raw
+                )
+            else:
+                selected_symbol = st.selectbox(
+                    "Treffer auswählen",
+                    options=list(suggestion_map.keys()),
+                    index=None,
+                    placeholder="Aktie auswählen …",
+                    format_func=suggestion_label
+                )
 
-            top_hit = suggestions[0]
             if top_hit.get("ticker_collision"):
                 collision_count = int(top_hit.get("ticker_collision_count") or 0)
                 collision_query = str(top_hit.get("ticker_collision_query") or search_text).upper()
