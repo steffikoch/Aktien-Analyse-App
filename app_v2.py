@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.34"
+APP_BUILD_VERSION = "V2.22.35"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Development-Stage EPS Copy Isolation Cleanup V130"
+    f"Build {APP_BUILD_VERSION} · Asset-Manager Current-Period Evidence Recovery V131"
 )
 
 
@@ -53,6 +53,7 @@ st.caption(
 # V2.22.31: Net-Cash Balance Independence from FCF Quality Gate V127. The standard balance layer now preserves the existing direct 15/15 net-cash result when debt minus cash is <= 0, even if the FCF Quality & Horizon-Proxy Gate marks the current FCF denominator unusable. The FCF-quality block remains fully active for positive net debt, where Net-Debt/FCF requires a reliable positive denominator. No Mining, LOM, Development-Stage, Fair-Value, corridor, signal, ticker-collision or specialist-model mathematics changed.
 # V2.22.32: Development-Stage Mining Subprofile Router V128. Keeps the V121 financial-stage guard and every valuation/fail-closed rule unchanged, but separates two reusable business-model subprofiles inside Development-Stage Mining / Materials: (1) Mineral Explorer / Mine Developer for drilling, resource-definition, metallurgy, PEA/PFS/DFS, permitting, infrastructure, project-capex and project-financing evidence; and (2) Battery Materials / Processing / Technology Developer for graphite/anode/cathode/high-purity-manganese and similar material-processing models with pilot/demo, scale-up, customer qualification/offtake, process/IP/licensing and commercialisation evidence. The route is evidence-based and contains no Cartier/Troilus/Talga/FRB/RNU ticker hardcoding. Standard score, FCF-margin, Net-Cash bonus, cycle P/E, operating-mine NAV and Fair Value remain blocked exactly as in V121 until a reusable project model is released. V127 balance logic and all released specialist mathematics remain unchanged.
 # V2.22.33: Development-Stage Subprofile Copy Consistency Cleanup V129. Copy/UI-only change. Keeps the V128 subprofile-selection conditions and V121 financial-stage detection conditions unchanged, but removes three shared-path wording remnants: Mineral Explorer / Mine Developer evidence now says Exploration-/Resource-/Development rather than Pilot; the green special-event next-step is profile-aware (Resource/Metallurgy/Feasibility/Permitting for explorers, Resource/Feedstock/Pilot/Qualification/Commercialisation for battery/processing developers); and the unreleased Fair-Value gate uses a technical/economic Project-NAV basis for explorer/developers versus a resource/process/qualification/commercialisation primary-data basis for battery/processing developers. All scores, corridors, guard release states, LOM logic, V127 Net-Cash logic and valuation mathematics remain unchanged.
+# V2.22.35: Asset-Manager Current-Period Evidence Recovery V131. Fixes false fail-closed states for issuers whose IR result hub renders multiple years at once and whose document anchors are generic PDF/XLS labels. The generic Asset-Manager adapter now binds each document link to the nearest issuer-owned year context, prioritizes the latest published current-year Q/H period in primary-source discovery, and reports successfully fetched but still unmapped evidence as issuer_data_not_recovered instead of falsely claiming issuer_data_not_published. No issuer ticker, URL or KPI value is hard-coded; score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal thresholds remain unchanged.
 # V2.22.34: Development-Stage EPS Copy Isolation Cleanup V130. Copy/UI-only change. Keeps V128 subprofile routing and V121 financial-stage detection unchanged, but isolates Development-Stage Mining / Materials from the generic Universal-Family EPS wording: Standard TTM/Forward EPS remains diagnosis-only and is explicitly not a Fair-Value anchor; Mineral Explorer / Mine Developer points instead to a technical/economic project and Project-NAV basis, while Battery Materials / Processing / Technology points to resource/feedstock, process/pilot/scale-up, qualification/offtake, funding and commercialisation evidence. The terminal EPS caption is profile-aware for the same reason. All scores, corridors, guard states, V127 Net-Cash logic, LOM logic and valuation mathematics remain unchanged.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
@@ -31379,7 +31380,7 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V110"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V111"
 ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22212_asset_manager_corporate_ir_period_safe_v108"
 
 
@@ -33761,6 +33762,68 @@ def _asset_manager_ir_root_candidates(website, company_domain):
     return out
 
 
+def _asset_manager_anchor_nearest_year(anchor, current_year=None):
+    """Recover the nearest IR-section year for a generic PDF/XLS anchor.
+
+    Multi-year result hubs often repeat identical Q1/Q2/Q3/Q4 tables under
+    year tabs/headings while individual anchors contain only ``PDF`` or ``XLS``.
+    Table-column context alone can therefore identify Q2 but lose 2026 vs 2025.
+    This helper uses only issuer-page DOM context (ancestors + nearby preceding
+    year headings/tabs); it never accepts KPI values from navigation text.
+    """
+    if anchor is None:
+        return None
+    year_re = re.compile(r"\b(20\d{2})\b")
+    preferred = int(current_year or datetime.now().year)
+
+    def years_from(value):
+        vals = []
+        for raw in year_re.findall(_clean_text(value)):
+            try:
+                yy = int(raw)
+            except Exception:
+                continue
+            if 2000 <= yy <= preferred + 2:
+                vals.append(yy)
+        return vals
+
+    fallback = None
+    try:
+        nodes = [anchor] + list(anchor.parents)[:10]
+        for node in nodes:
+            bits = []
+            attrs = getattr(node, "attrs", {}) or {}
+            for key in ["id", "class", "data-year", "data-period", "data-target", "aria-controls", "aria-label"]:
+                val = attrs.get(key)
+                if isinstance(val, (list, tuple)):
+                    bits.extend(str(x) for x in val)
+                elif val is not None:
+                    bits.append(str(val))
+            local_years = years_from(" ".join(bits))
+            if preferred in local_years:
+                return preferred
+            if fallback is None and local_years:
+                fallback = local_years[0]
+
+        # Year tabs/headings are normally immediately before their section.
+        # Restrict to compact navigation/header nodes so KPI/body years cannot
+        # accidentally become document-classification evidence.
+        for prev in anchor.find_all_previous(["h1", "h2", "h3", "h4", "h5", "h6", "button", "a", "span"], limit=120):
+            txt = _clean_text(prev.get_text(" ", strip=True))
+            if not txt or len(txt) > 80:
+                continue
+            ys = years_from(txt)
+            if not ys:
+                continue
+            if re.fullmatch(r"(?:20\d{2}|(?:year|jahr|annee|année)\s*20\d{2})", txt, re.I):
+                return ys[0]
+            if fallback is None:
+                fallback = ys[0]
+    except Exception:
+        return fallback
+    return fallback
+
+
 def _asset_manager_anchor_table_context(anchor):
     """V108: retain document-class, quarter/half and year header context."""
     if anchor is None:
@@ -33837,6 +33900,9 @@ def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
         seen.add(href)
         label = _clean_text(a.get_text(" ", strip=True))
         ctx = _asset_manager_anchor_table_context(a)
+        nearest_year = _asset_manager_anchor_nearest_year(a, current_year=year)
+        if nearest_year is not None and str(nearest_year) not in ctx:
+            ctx = _clean_text(f"{ctx} {nearest_year}")
         hay = _asset_manager_v108_fold(f"{label} {href} {ctx}")
         href_host = _normalize_host(href)
         opaque_download = bool(
@@ -34041,13 +34107,17 @@ def _asset_manager_v108_failure_reason(best_partial, trace):
         return "issuer_data_found_but_unmapped"
     successful_docs = [x for x in (trace or []) if ("direct_link:" in x or "ir_crawl:" in x or "search_fetch:" in x) and x.endswith(":ok")]
     if successful_docs:
-        return "issuer_data_not_published"
+        # A fetched issuer document that our adapter could not map is a
+        # recovery/parser limitation, not proof that the issuer failed to
+        # publish the metric. Keep "not published" for explicit disclosure
+        # evidence only; generic discovery must remain epistemically honest.
+        return "issuer_data_not_recovered"
     return "retrieval_failed"
 
 
 def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=None, fundamental_info=None):
-    """V108 corporate-IR escalation + period-safe issuer-primary recovery."""
-    deadline = time.monotonic() + 28.0
+    """V111 corporate-IR escalation + current-period/period-safe issuer-primary recovery."""
+    deadline = time.monotonic() + 38.0
     year = datetime.now().year
     company_label = _clean_text(company_name) or _clean_text(symbol)
     raw_website = _clean_text(website)
@@ -34102,6 +34172,43 @@ def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=N
             if url and url not in seen:
                 seen.add(url); queue.append((row, 0))
 
+    # V111 current-period recovery: multi-year IR hubs can expose identical
+    # generic PDF/XLS anchors for every year. Search remains discovery-only;
+    # every accepted KPI still has to be parsed from an issuer-owned document.
+    month = datetime.now().month
+    if month >= 11:
+        expected_periods = ["Q3", "9M", "Q2"]
+    elif month >= 8:
+        expected_periods = ["Q2", "H1", "Q1"]
+    elif month >= 5:
+        expected_periods = ["Q1", "FY"]
+    else:
+        expected_periods = ["FY", "Q4"]
+    current_queries = []
+    for period in expected_periods[:3]:
+        current_queries.extend([
+            f'site:{company_domain} "{period} {year}" "financial data supplement"',
+            f'site:{company_domain} "{period} {year}" "assets under management" "net flows"',
+        ])
+    for query in current_queries[:6]:
+        if not _research_budget_ok(deadline, reserve=18.0):
+            break
+        for row0 in _duckduckgo_html_search(query, max_results=5, deadline=deadline):
+            url = row0.get("url")
+            if not url or url in seen or not _host_belongs_to_company_family(url, company_domain):
+                continue
+            seen.add(url)
+            hay = _asset_manager_v108_fold(f"{row0.get('title','')} {row0.get('snippet','')} {url}")
+            period_match = any(_asset_manager_v108_fold(f"{p} {year}") in hay for p in expected_periods)
+            score = 175 if "financial data supplement" in hay and period_match else 145 if period_match else 105
+            queue.append(({
+                "url": url,
+                "score": score,
+                "kind": "report",
+                "document_class": "current_period_search",
+                "label": row0.get("title") or "",
+            }, 0))
+
     # Early semantic hub discovery is still discovery-only. This is deliberately
     # before the deep crawl so a marketing homepage does not exhaust the budget.
     for query in [
@@ -34121,7 +34228,7 @@ def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=N
 
     queue.sort(key=lambda item: safe_float(item[0].get("score")) or 0, reverse=True)
     processed = 0
-    while queue and processed < 18 and _research_budget_ok(deadline, reserve=1.2):
+    while queue and processed < 24 and _research_budget_ok(deadline, reserve=1.2):
         row, depth = queue.pop(0)
         url = row.get("url")
         if not url: continue
@@ -39780,7 +39887,7 @@ def get_special_control(company_type, symbol):
                 "JHG/Take-private Delisting Guard",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Corporate-IR & Period-Safe Evidence Guard V108",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Current-Period Evidence Recovery Guard V111",
             "note": (
                 "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
                 "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
@@ -64225,7 +64332,7 @@ if selected_symbol:
 
                 elif special_control.get("control_key") == "asset_management_specialist":
                     st.divider()
-                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Corporate-IR & Period-Safe Evidence Guard V108")
+                    st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Current-Period Evidence Recovery Guard V111")
                     if special_control.get("implemented"):
                         checks_am = special_control.get("checks") or {}
                         snap_am = special_control.get("snapshot") or {}
@@ -64244,7 +64351,7 @@ if selected_symbol:
                                     st.caption("Noch fehlende aktuelle Primärdaten: " + " · ".join(str(x) for x in missing_am))
                                 failure_reason_am = discovery_am.get("evidence_failure_reason")
                                 if failure_reason_am:
-                                    st.caption("Evidence-Status V108: " + str(failure_reason_am))
+                                    st.caption("Evidence-Status V111: " + str(failure_reason_am))
                                 partial_bits = []
                                 for key, label in [
                                     ("total_aum", "Total AUM"),
