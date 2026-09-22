@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.45"
+APP_BUILD_VERSION = "V2.22.46"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Industrials / Capital Goods Siemens Primary-Source & Spin-off Gate V141"
+    f"Build {APP_BUILD_VERSION} · Siemens Specialist Copy & Fair-Value Gate Cleanup V142"
 )
 
 
@@ -64,7 +64,7 @@ st.caption(
 # V2.22.42: Asset-Manager Peer-Guard UI Consistency Cleanup V138. No valuation mathematics changed. Separates the raw score-driven Asset-Manager P/E anchor from the downside-only Peer/Historical Safety Guard in Module 6, suppresses the stale pre-guard multiple in Step 2B, labels the actually used post-guard target multiple explicitly, uses issuer-native Cost-Income Ratio copy when no operating margin is reported, and omits an empty published-date placeholder. DWS score 76/100, Through-Cycle EPS 4.80 EUR, raw 13.47x score anchor, 12.54x downside cap, 60.18 EUR Fair Value and signal thresholds remain unchanged.
 # V2.22.44: Asset-Manager Guard Display Order Cleanup V140. No valuation mathematics changed. Step 1 now displays only the raw score-derived Asset-Manager multiple and explicitly defers the final guarded target multiple to Step 3B after peer/historical evidence has been shown. Step 3B labels the actually available guard reference conditionally, so a missing 3Y historical median is no longer rendered under a combined Peer/Historical label. DWS score, Through-Cycle EPS, peer cap, Fair Value and signals remain unchanged.
 
-# V2.22.45: Industrials / Capital Goods Siemens Primary-Source & Spin-off Gate V141. Adds the first issuer-primary Capital-Goods validation profile for Siemens AG (SIE.DE) without globally releasing the family. The specialist layer uses issuer-native orders/book-to-bill, comparable revenue growth, Industrial-Business margin, ROCE, Group cash conversion and Industrial net debt/EBITDA (explicitly excluding Siemens Financial Services debt) instead of generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF points. A 100-point operational-quality diagnostic is calculated from these primary metrics but is deliberately NOT converted into a target P/E. Siemens' planned direct spin-off of 30% of Siemens Healthineers shares, with shareholder vote targeted for February 2027, is treated as a structural valuation break: current consolidated EPS, the Healthineers stake/distribution entitlement and post-spin core-Siemens earnings are not mixed into a pseudo-precise single-multiple Fair Value. Fair Value, valuation zones and signals therefore remain fail-closed until a reusable Capital-Goods SOTP/ownership bridge is implemented and a second independent Industrials issuer validates the family. All V140 Asset-Manager mathematics remain unchanged.
+# V2.22.46: Siemens Specialist Copy & Fair-Value Gate Cleanup V142. No valuation mathematics changed. Clarifies that the 100-point Siemens Capital-Goods score measures operating quality / primary-data quality rather than valuation readiness; removes the duplicated English specialist-method caption from Step 3B; preserves the concise German router note in Step 3A; and replaces the generic Fair-Value lock text with the actual Siemens blockers (Healthineers distribution/retained-stake SOTP bridge plus second independent family validation). V141 issuer-primary metrics, 93/100 operating score and all fail-closed behavior remain unchanged.
 # V2.22.41: Asset-Manager Annual-History Candidate Merge V137. Fixes a de-duplication/ranking defect in generic same-basis Asset-Manager EPS-history recovery. The same issuer-primary report can be discovered once for each requested target year; prior builds kept the first URL occurrence and therefore preserved the score from the first target year instead of the best score across all requested years. V117 now merges duplicate URLs by their strongest year-aware score, explicitly recognizes the discovered document_class even when the download URL/anchor is opaque, and prioritizes the latest completed-FY Financial Data Supplement/annual report because such reports often contain the full 3Y same-basis EPS series in one table. Current-period AUM/flow/fee/CIR evidence, specialist score weights, 9–18x corridor, peer/historical guards and signal thresholds are unchanged.
 # V2.22.37: Asset-Manager Structured XLSX Period Binding V133. Fixes wide issuer-primary financial supplements whose comparison headers (for example “Q2 2026 vs. Q1 2026 / Q2 2025”) precede the actual multi-period data-header row. XLSX extraction now preserves explicit worksheet-row boundaries, period detection ranks the real multi-period header row ahead of comparison captions, and KPI rows are parsed only within their own workbook row so comparison columns cannot shift AUM/flow/fee/CIR/EPS values onto the wrong period. Same-scope guards, same-basis earnings requirements, score weights, 9–18x corridor, peer/historical guards and signal thresholds remain unchanged; no issuer ticker, URL or KPI value is hard-coded.
 # V2.22.34: Development-Stage EPS Copy Isolation Cleanup V130. Copy/UI-only change. Keeps V128 subprofile routing and V121 financial-stage detection unchanged, but isolates Development-Stage Mining / Materials from the generic Universal-Family EPS wording: Standard TTM/Forward EPS remains diagnosis-only and is explicitly not a Fair-Value anchor; Mineral Explorer / Mine Developer points instead to a technical/economic project and Project-NAV basis, while Battery Materials / Processing / Technology points to resource/feedstock, process/pilot/scale-up, qualification/offtake, funding and commercialisation evidence. The terminal EPS caption is profile-aware for the same reason. All scores, corridors, guard states, V127 Net-Cash logic, LOM logic and valuation mathematics remain unchanged.
@@ -37417,7 +37417,8 @@ def build_professional_business_services_special_control(control, specialist_mod
         "step3b_status": model.get("readiness"),
         "snapshot": snap,
         "checks": {"specialist_score": score, "specialist_valuation": valuation},
-        "note": model.get("note"),
+        "method_note": model.get("note"),
+        "note": control.get("note"),
     })
     return out
 
@@ -50808,6 +50809,15 @@ def calculate_fair_value_v1(
         control_name = special_control.get(
             "control_name"
         ) or "Spezialkontrolle"
+
+        if special_control.get("control_key") == "industrials_capital_goods_specialist":
+            result["note"] = (
+                "Fair Value V1 gesperrt: Siemens verfügt über eine validierte operative Primärdatenbasis, "
+                "aber der angekündigte Healthineers-Spin-off erzeugt einen Structural Break. Vor einer Fair-Value-Freigabe "
+                "fehlen die Core-Siemens + Healthineers Distribution/Retained-Stake SOTP-Bridge sowie die zweite unabhängige "
+                "Capital-Goods-Family-Validierung. Deshalb wird weder ein Ziel-KGV noch ein Fair Value erzeugt."
+            )
+            return result
 
         if control_name == "Development-Stage Mineral Explorer / Mine Developer / Project Gate":
             release_basis_text = (
@@ -64566,7 +64576,7 @@ if selected_symbol:
                             f"Industrial leverage uses issuer-defined Industrial net debt. Siemens Financial Services debt ({format_money(snap_ind.get('fy2025_sfs_debt'), ind_ccy)}) is explicitly excluded rather than being mixed into a generic Net-Debt/FCF ratio."
                         )
                         st.write(f"**Operationaler Capital-Goods-Qualitätsscore:** {int(safe_float(score_ind.get('score')) or 0)}/100 · {text_or_dash(score_ind.get('quality_level'))}")
-                        st.caption("Dieser Score beschreibt operative Qualität und Bewertungsreife; er ist ausdrücklich kein KGV-/Multiple-Score.")
+                        st.caption("Dieser Score beschreibt operative Qualität und die Qualität der Primärdatenbasis; die Bewertungsreife wird separat durch SOTP-/Comparability-Gates bestimmt. Er ist ausdrücklich kein KGV-/Multiple-Score.")
                         ind_components = score_ind.get("components") or {}
                         ind_labels = {
                             "orders_visibility": "Orders & Visibility",
@@ -64592,7 +64602,6 @@ if selected_symbol:
                                 for item in missing_ind:
                                     st.write(f"• {item}")
                             st.error("Fair Value bleibt fail-closed: erst Core-Siemens + Healthineers Distribution/Retained-Stake SOTP-Bridge und zweite unabhängige Family-Validierung.")
-                        st.caption(text_or_dash(special_control.get("note")))
 
                 if special_control.get("control_key") == "professional_business_services_specialist":
                     st.divider()
