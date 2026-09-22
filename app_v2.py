@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.49"
+APP_BUILD_VERSION = "V2.22.50"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Capital-Goods Family Multiple Corridor V145"
+    f"Build {APP_BUILD_VERSION} · Capital-Goods UI Consistency & Peer-Ceiling Cleanup V146"
 )
 
 
@@ -69,6 +69,7 @@ st.caption(
 # V2.22.48: Capital-Goods Earnings Bridge & Peer Calibration V144. Releases the reusable Current-FY issuer-adjusted earnings-bridge layer for the two validated Capital-Goods profiles without releasing a Fair Value. Siemens uses the midpoint of issuer FY2026 EPS pre-PPA guidance; Schneider uses the issuer-published 11-Aug-2026 post-H1 sell-side consensus Adjusted EPS for FY2026, with provider current-FY EPS shown only as a diagnostic cross-check. Adds a three-name external calibration set (Eaton, Rockwell Automation, Emerson) using issuer-published FY2026 Adjusted-EPS guidance plus live same-currency market prices to form a current-FY adjusted-P/E reference median. The peer layer is calibration-only and cannot set or adjust a target multiple; the family P/E/EV corridor remains fail-closed pending review of the live median/range and business-mix/portfolio-event comparability. Siemens also remains blocked by the Healthineers SOTP structural break; Schneider retains the Cognite leverage guard. Adds Schneider official 29-Oct-2026 Q3-revenue calendar fallback. No generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF or Standard-KGV path is released.
 
 # V2.22.49: Capital-Goods Family Multiple Corridor V145. Promotes the Siemens + Schneider multi-issuer validation into a released corridor only for the two issuer-primary validated profiles while keeping unsupported Industrials / Capital Goods members evidence-gated. The reusable current-FY Adjusted/pre-PPA P/E corridor is fixed at 22–32x after V144 live calibration against Emerson (low-20s) and premium electrification/automation references Eaton/Rockwell (low-30s); the current peer median remains a downside-only ceiling/reference and can never lift the score-derived target. The 100-point operational Capital-Goods score positions the target linearly inside the corridor from 50→22x to 100→32x. Schneider (90/100) therefore receives a 30.0x target on the released FY2026 Adjusted-EPS bridge; Cognite remains a confidence/leverage guard and is not double-counted as a second P/E penalty. Siemens receives the same family corridor as context but no target P/E/Fair Value because the Healthineers spin-off still requires a Core-Siemens + distributed/retained Healthineers SOTP bridge. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the specialist Fair Value.
+# V2.22.50: Capital-Goods UI Consistency & Peer-Ceiling Cleanup V146. No valuation mathematics changed. Restores strict specialist-context rendering after the V145 family release: provider Current-FY EPS and standard EPS normalization are labelled diagnosis-only; Yahoo/statement FCF and provider net debt no longer render as Capital-Goods valuation inputs; stale generic growth/profitability/FCF/balance footers are suppressed. Step 2B now describes the live peer median consistently as a run-level data gate plus downside-only ceiling that can cap, but never lift, the score-derived target multiple. Schneider remains 90/100, 30.0x and 311.70 EUR Fair Value; Siemens remains 93/100 and SOTP-blocked.
 # V2.22.41: Asset-Manager Annual-History Candidate Merge V137. Fixes a de-duplication/ranking defect in generic same-basis Asset-Manager EPS-history recovery. The same issuer-primary report can be discovered once for each requested target year; prior builds kept the first URL occurrence and therefore preserved the score from the first target year instead of the best score across all requested years. V117 now merges duplicate URLs by their strongest year-aware score, explicitly recognizes the discovered document_class even when the download URL/anchor is opaque, and prioritizes the latest completed-FY Financial Data Supplement/annual report because such reports often contain the full 3Y same-basis EPS series in one table. Current-period AUM/flow/fee/CIR evidence, specialist score weights, 9–18x corridor, peer/historical guards and signal thresholds are unchanged.
 # V2.22.37: Asset-Manager Structured XLSX Period Binding V133. Fixes wide issuer-primary financial supplements whose comparison headers (for example “Q2 2026 vs. Q1 2026 / Q2 2025”) precede the actual multi-period data-header row. XLSX extraction now preserves explicit worksheet-row boundaries, period detection ranks the real multi-period header row ahead of comparison captions, and KPI rows are parsed only within their own workbook row so comparison columns cannot shift AUM/flow/fee/CIR/EPS values onto the wrong period. Same-scope guards, same-basis earnings requirements, score weights, 9–18x corridor, peer/historical guards and signal thresholds remain unchanged; no issuer ticker, URL or KPI value is hard-coded.
 # V2.22.34: Development-Stage EPS Copy Isolation Cleanup V130. Copy/UI-only change. Keeps V128 subprofile routing and V121 financial-stage detection unchanged, but isolates Development-Stage Mining / Materials from the generic Universal-Family EPS wording: Standard TTM/Forward EPS remains diagnosis-only and is explicitly not a Fair-Value anchor; Mineral Explorer / Mine Developer points instead to a technical/economic project and Project-NAV basis, while Battery Materials / Processing / Technology points to resource/feedstock, process/pilot/scale-up, qualification/offtake, funding and commercialisation evidence. The terminal EPS caption is profile-aware for the same reason. All scores, corridors, guard states, V127 Net-Cash logic, LOM logic and valuation mathematics remain unchanged.
@@ -37816,14 +37817,14 @@ def _calculate_capital_goods_peer_calibration(peer_group, fundamental_multiple, 
         result["comparability_gate_passed"] = True
     result["note"] = (
         f"Capital-Goods Peer Calibration {APP_BUILD_VERSION}: Eaton, Rockwell Automation und Emerson use issuer-published FY2026 Adjusted-EPS guidance with live same-currency prices. "
-        "At least three valid observations release the calibration median. In V145 the stable 22–32x family corridor is released for the two validated issuer profiles; "
+        "At least three valid observations release the calibration median. The stable 22–32x family corridor is released for the two validated issuer profiles; "
         "the live peer median remains reference-only/downside-only and can cap but never lift a score-derived target multiple."
     )
     return result
 
 
 def build_capital_goods_family_valuation(snapshot, operational_score, earnings_bridge, peer_check):
-    """V145 reusable Capital-Goods Current-FY Adjusted/pre-PPA P/E corridor.
+    """Reusable Capital-Goods Current-FY Adjusted/pre-PPA P/E corridor.
 
     The corridor is deliberately stable rather than re-fit to every live quote.  V144
     calibrated a conservative 22–32x envelope around a slower-growth automation
@@ -38958,7 +38959,7 @@ def get_peer_group(company_type, symbol, industry=None):
             "note": (
                 f"Capital-Goods Peer Calibration {APP_BUILD_VERSION}: Eaton, Rockwell Automation und Emerson bilden den ersten externen Current-FY Adjusted-EPS calibration set. "
                 "Die Earnings-Denominatoren stammen aus issuer-published FY2026 Adjusted-EPS guidance; Live-Preise werden nur same-currency gebunden. "
-                "In V145 ist der stabile 22–32× Family-Korridor kalibriert. Der Live-Median bleibt reference/downside-only: er kann ein score-basiertes Ziel begrenzen, aber niemals anheben."
+                "Der stabile 22–32× Family-Korridor ist kalibriert. Der Live-Median bleibt downside-only: er kann ein score-basiertes Ziel begrenzen, aber niemals anheben."
             ),
         }
 
@@ -59075,8 +59076,9 @@ if selected_symbol:
                             )
                         )
 
+                    capital_goods_provider_eps_ui = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
                     st.metric(
-                        "EPS Bewertungsbasis (aktuelles FY)",
+                        "EPS Provider-0Y/current-FY (Diagnosekontext)" if capital_goods_provider_eps_ui else "EPS Bewertungsbasis (aktuelles FY)",
                         format_eps(
                             data.get("valuation_forward_eps"),
                             financial_currency
@@ -59314,6 +59316,7 @@ if selected_symbol:
                 is_branded_consumer_staples_fcf_context = bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                 is_ctva_fcf_context = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 is_professional_services_fcf_context = bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
+                is_capital_goods_fcf_context = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
                 is_universal_family_fcf_context = is_universal_family_fail_closed(company_type)
                 if fcf_ctx.get("score_eligible"):
                     source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
@@ -59455,6 +59458,12 @@ if selected_symbol:
                                 f"Bei Professional & Business Services bleibt dieser Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. {APP_BUILD_VERSION}: Für diesen Emittenten ist noch kein issuer-primary Professional-Services-Snapshot freigegeben; "
                                 "Yahoo-FCF steuert daher weder Family Score noch Net-Debt/FCF, Ziel-KGV, Liquidity Guard oder Fair Value."
                             )
+                    elif is_capital_goods_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            f"Bei Industrials / Capital Goods bleibt dieser Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. {APP_BUILD_VERSION} verwendet im Specialist-Modell issuer-native Cash-Conversion-/FCF-Evidenz; "
+                            "der Provider-FCF steuert weder den Operational Score noch Balance/Leverage, Ziel-KGV oder Fair Value."
+                        )
                     elif is_universal_family_fcf_context:
                         if is_released_listed_holding_family(company_type):
                             st.caption(
@@ -59602,6 +59611,14 @@ if selected_symbol:
                                     "ℹ️ FCF-Quellenabweichung im Professional-Services-Family-Gate: Beide FCF-Werte bleiben Diagnose-/Rohdaten; "
                                     "ohne freigegebenen issuer-primary Spezialanker beeinflussen sie weder Family Score, Multiple noch Fair Value."
                                 )
+                        elif is_capital_goods_fcf_context:
+                            st.info(
+                                "ℹ️ FCF-Quellenabweichung im Capital-Goods-Spezialkontext: Yahoo quoteSummary/info zeigt "
+                                f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
+                                f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
+                                f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Provider-Werte bleiben Diagnose-/Rohdaten; "
+                                "maßgeblich sind ausschließlich die issuer-native Cash-Conversion-/FCF- und Leverage-Kennzahlen des Capital-Goods-Spezialmodells."
+                            )
                         elif is_universal_family_fcf_context:
                             if is_released_listed_holding_family(company_type):
                                 st.info(
@@ -59659,6 +59676,11 @@ if selected_symbol:
                         st.caption(
                             "FCF-Kontext/Rohdaten: Nur Yahoo Levered Free Cash Flow verfügbar. "
                             "Im UA/UAA-/OMC-Spezialmodell bleibt auch dieser Wert reine Diagnoseinformation und ist kein Fair-Value- oder Sicherheitsanker."
+                        )
+                    elif is_capital_goods_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: Nur Yahoo Levered Free Cash Flow verfügbar. "
+                            "Bei Industrials / Capital Goods bleibt auch dieser Wert reine Diagnoseinformation; issuer-native Cash-Conversion-/FCF- und Leverage-Evidenz ist maßgeblich."
                         )
                     elif is_universal_family_fcf_context:
                         st.caption(
@@ -59873,6 +59895,7 @@ if selected_symbol:
                 professional_services_eps_context_ui = bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
                 defense_high_growth_eps_context_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                 ctva_eps_context_ui = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
+                capital_goods_eps_context_ui = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
                 universal_family_eps_context_ui = is_universal_family_fail_closed(company_type)
                 if bank_core_eps_active:
                     normalized_eps = safe_float(
@@ -59890,7 +59913,7 @@ if selected_symbol:
                     )
                 else:
                     normalized_eps = eps_result["normalized_eps"]
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (bank_eps_context_ui or universal_family_eps_context_ui or is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or professional_services_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (bank_eps_context_ui or capital_goods_eps_context_ui or universal_family_eps_context_ui or is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or professional_services_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -59980,6 +60003,19 @@ if selected_symbol:
                             "NVIDIA/Fabless-AI: Diese Standard-Normalisierung bleibt in V2.20.67 ausschließlich Kontext. "
                             "Das Earnings-Horizon-Alignment verwendet eine separate operative FY27-Proxy-Basis; das Standard-EPS bleibt für NVIDIA nicht freigegeben."
                         )
+                    elif capital_goods_eps_context_ui:
+                        cg_eps_model_ui = data.get("industrials_capital_goods_specialist_model") or {}
+                        cg_eps_bridge_ui = cg_eps_model_ui.get("earnings_bridge") or {}
+                        st.info(
+                            f"Industrials / Capital Goods: Diese Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. {APP_BUILD_VERSION} verwendet für die Spezialbewertung ausschließlich die freigegebene issuer-adjusted Current-FY Adjusted/pre-PPA Earnings Bridge; "
+                            "die Standard-Normalisierung wird weder mit ihr gemischt noch als Fair-Value-Anker verwendet."
+                        )
+                        if cg_eps_bridge_ui.get("available"):
+                            st.caption(
+                                "Specialist Earnings Bridge: "
+                                + format_eps(cg_eps_bridge_ui.get("earnings_per_share"), financial_currency)
+                                + " · Provider-0Y bleibt Diagnosekontext."
+                            )
                     elif universal_family_eps_context_ui:
                         if is_released_listed_holding_family(company_type):
                             st.info(
@@ -60394,6 +60430,19 @@ if selected_symbol:
                     st.info(
                         f"Standard-EPS-Diagnosequalität: **{of_diag_label_ui}** · nur Kontext. "
                         f"Oilfield/Energy-Tech Specialist-Earnings-Basis: **{of_special_conf_ui}**."
+                    )
+                elif capital_goods_eps_context_ui:
+                    cg_diag_label_ui = {
+                        "Hoch": "hoch",
+                        "Mittel": "mittel",
+                        "Niedrig": "niedrig",
+                    }.get(str(confidence or ""), "nicht bestimmt")
+                    cg_eps_bridge_conf_ui = (((data.get("industrials_capital_goods_specialist_model") or {}).get("specialist_valuation") or {}).get("earnings_basis_confidence")
+                                             or ((data.get("industrials_capital_goods_specialist_model") or {}).get("earnings_bridge") or {}).get("confidence")
+                                             or "Mittel")
+                    st.info(
+                        f"Standard-EPS-Diagnosequalität: **{cg_diag_label_ui}** · keine Bewertungsfreigabe. "
+                        f"Capital-Goods Specialist-Earnings-Basis: **{cg_eps_bridge_conf_ui}**."
                     )
                 elif integrated_oil_gas_eps_context_ui:
                     oil_diag_label_ui = {
@@ -61370,6 +61419,7 @@ if selected_symbol:
                 is_defense_high_growth_score_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                 is_kratos_score_ui = str(selected_symbol or "").upper() == "KTOS"
                 is_bkr_score_ui = str(selected_symbol or "").upper() == "BKR"
+                is_capital_goods_score_ui = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
                 is_universal_family_score_ui = is_universal_family_fail_closed(company_type)
 
                 if is_bkr_score_ui:
@@ -61384,7 +61434,14 @@ if selected_symbol:
                         "Sie bestimmen weder eine Kratos-Earnings-Basis noch ein Fundamental-Multiple oder einen Fair Value. Maßgeblich ist zunächst das primärquellenbasierte Growth-/Backlog-/Owner-Operating-Earnings-Gate."
                     )
 
-                if is_universal_family_score_ui:
+                if is_capital_goods_score_ui:
+                    st.info(
+                        "Capital-Goods-Spezialmodell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet."
+                    )
+                    st.caption(
+                        "Provider-Wachstum bleibt Diagnosekontext; Demand/Visibility sowie comparable/organic growth werden im issuer-primary Operational Score bewertet."
+                    )
+                elif is_universal_family_score_ui:
                     st.info(
                         f"Universal Family Router {APP_BUILD_VERSION}: Der generische Umsatz-/Gewinnwachstums-Score wird für "
                         f"{company_type.get('valuation_family') or company_type.get('type')} nicht verwendet."
@@ -61605,7 +61662,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_universal_family_score_ui and not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_payment_network_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_oilfield_services_score_ui and not is_integrated_oil_gas_score_ui and not is_branded_consumer_staples_score_ui and not is_asset_management_score_ui and not is_professional_services_score_ui and not is_defense_high_growth_score_ui:
+                if not is_capital_goods_score_ui and not is_universal_family_score_ui and not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_payment_network_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_oilfield_services_score_ui and not is_integrated_oil_gas_score_ui and not is_branded_consumer_staples_score_ui and not is_asset_management_score_ui and not is_professional_services_score_ui and not is_defense_high_growth_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -61645,9 +61702,17 @@ if selected_symbol:
                 is_professional_services_profitability_ui = bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
                 is_defense_high_growth_profitability_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                 is_bkr_profitability_ui = is_baker_hughes_energy_tech_company_type(company_type)
+                is_capital_goods_profitability_ui = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
                 is_universal_family_profitability_ui = is_universal_family_fail_closed(company_type)
 
-                if is_universal_family_profitability_ui:
+                if is_capital_goods_profitability_ui:
+                    st.info(
+                        "Capital-Goods-Spezialmodell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet."
+                    )
+                    st.caption(
+                        "Profitabilität wird über issuer-native Adjusted/Industrial Margin und ROCE im Operational Score bewertet; Provider-Nettomarge und ROE bleiben Diagnosekontext."
+                    )
+                elif is_universal_family_profitability_ui:
                     st.info(
                         f"Universal Family Router {APP_BUILD_VERSION}: Die generische Nettomargen-/ROE-Punktelogik wird für "
                         f"{company_type.get('valuation_family') or company_type.get('type')} nicht verwendet."
@@ -61906,6 +61971,7 @@ if selected_symbol:
                     and not is_professional_services_profitability_ui
                     and not is_defense_high_growth_profitability_ui
                     and not is_universal_family_profitability_ui
+                    and not is_capital_goods_profitability_ui
                 ):
                     st.caption(
                         "Die Profitabilität basiert derzeit auf "
@@ -62044,9 +62110,17 @@ if selected_symbol:
                     is_professional_services_fcf_ui = bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
                     is_defense_high_growth_fcf_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                     is_bkr_model_ui = is_baker_hughes_energy_tech_company_type(company_type)
+                    is_capital_goods_fcf_ui = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
                     is_universal_family_fcf_ui = is_universal_family_fail_closed(company_type)
 
-                    if is_universal_family_fcf_ui:
+                    if is_capital_goods_fcf_ui:
+                        st.info(
+                            "Capital-Goods-Spezialmodell: Der generische Yahoo-/Cashflow-Statement-FCF-Margen-Score wird nicht verwendet."
+                        )
+                        st.caption(
+                            "Cashflow-Qualität wird über issuer-native Cash Conversion/Free Cash Flow im Operational Score bewertet; Provider-TTM-FCF bleibt Diagnosekontext."
+                        )
+                    elif is_universal_family_fcf_ui:
                         st.info(
                             f"Universal Family Router {APP_BUILD_VERSION}: Der generische Yahoo-/Cashflow-Statement-FCF-Margen-Score ist für "
                             f"{company_type.get('valuation_family') or company_type.get('type')} gesperrt."
@@ -62235,6 +62309,7 @@ if selected_symbol:
                     and not bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
+                    and not bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
                 ):
                     st.caption(
                         "Die FCF-Punkte basieren auf der aktuellen "
@@ -62372,9 +62447,30 @@ if selected_symbol:
                     is_professional_services_balance_ui = bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
                     is_defense_high_growth_balance_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                     is_bkr_balance_ui = is_baker_hughes_energy_tech_company_type(company_type)
+                    is_capital_goods_balance_ui = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
                     is_universal_family_balance_ui = is_universal_family_fail_closed(company_type)
 
-                    if is_universal_family_balance_ui:
+                    if is_capital_goods_balance_ui:
+                        cg_balance_model_ui = data.get("industrials_capital_goods_specialist_model") or {}
+                        cg_balance_snap_ui = cg_balance_model_ui.get("snapshot") or {}
+                        st.info(
+                            "Capital-Goods-Spezialmodell: Die generische Netto-Schulden/FCF- bzw. Netto-Cash-Punktelogik wird nicht verwendet."
+                        )
+                        if safe_float(cg_balance_snap_ui.get("fy2025_net_debt")) is not None:
+                            st.caption(
+                                "Issuer-native Net Debt: " + format_money(cg_balance_snap_ui.get("fy2025_net_debt"), cg_balance_snap_ui.get("reporting_currency") or financial_currency)
+                                + ". Bilanz-/Kapitalqualität wird zusammen mit Credit-Evidenz und Capital Allocation im Operational Score bewertet."
+                            )
+                        elif safe_float(cg_balance_snap_ui.get("industrial_net_debt_to_ebitda")) is not None:
+                            st.caption(
+                                f"Issuer-defined Industrial Net Debt / EBITDA: {safe_float(cg_balance_snap_ui.get('industrial_net_debt_to_ebitda')):.1f}×. "
+                                "Captive-Finance-Schulden werden nicht in einen generischen Net-Debt/FCF-Score gemischt."
+                            )
+                        else:
+                            st.caption(
+                                "Bilanz-/Kapitalqualität wird ausschließlich über issuer-native Industrial/Net-Debt-, Credit- und Capital-Allocation-Evidenz bewertet; Provider-Net-Debt/FCF bleibt Diagnosekontext."
+                            )
+                    elif is_universal_family_balance_ui:
                         st.info(
                             f"Universal Family Router {APP_BUILD_VERSION}: Die generische Netto-Schulden/FCF- bzw. Netto-Cash-Logik ist für "
                             f"{company_type.get('valuation_family') or company_type.get('type')} gesperrt."
@@ -62602,6 +62698,7 @@ if selected_symbol:
                     and not bool((data.get("oilfield_services_energy_tech_specialist_model") or {}).get("applicable"))
                     and not is_baker_hughes_energy_tech_company_type(company_type)
                     and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
+                    and not bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
                 ):
                     st.caption(
                         "Bilanzpunkte: Netto-Cash 15/15; "
@@ -65069,7 +65166,25 @@ if selected_symbol:
                                 )
 
                             if peer_check.get("reference_only"):
-                                st.info("Reference-only: Peer-KGVs verändern Ziel-Multiple und Fair Value nicht.")
+                                if is_capital_goods_peer_metric:
+                                    cg_peer_median_ui = safe_float(peer_check.get("peer_median"))
+                                    cg_fundamental_ui = safe_float((data.get("fundamental_multiple") or {}).get("multiple"))
+                                    if cg_peer_median_ui is None:
+                                        st.warning(
+                                            "Capital-Goods Peer Data Gate nicht bestanden: Es liegt kein belastbarer 3-Peer-Median vor. Der Schneider-Fair-Value bleibt in diesem Lauf gesperrt."
+                                        )
+                                    else:
+                                        cg_peer_ceiling_ui = min(32.0, cg_peer_median_ui)
+                                        if cg_fundamental_ui is not None and cg_fundamental_ui > cg_peer_ceiling_ui:
+                                            st.warning(
+                                                f"Downside-only Peer Ceiling bindet: score-basiertes Ziel {cg_fundamental_ui:.2f}× wird auf {cg_peer_ceiling_ui:.2f}× begrenzt. Der Peer-Median kann das Ziel niemals anheben."
+                                            )
+                                        else:
+                                            st.info(
+                                                f"Downside-only Peer Ceiling nicht bindend: Referenzmedian {cg_peer_median_ui:.2f}× liegt nicht unter dem score-basierten Ziel. Der Peer-Median kann das Ziel niemals anheben."
+                                            )
+                                else:
+                                    st.info("Reference-only: Peer-KGVs verändern Ziel-Multiple und Fair Value nicht.")
                             else:
                                 st.warning(
                                     "Keine automatische Peer-Anpassung."
@@ -65113,18 +65228,30 @@ if selected_symbol:
                     peer_explain = "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
 
                 if peer_check.get("reference_only"):
-                    st.caption(
-                        "Der Peer-Check ist eine reine Markt-Referenz. Er verändert weder Spezialscore noch Ziel-Multiple oder Fair Value; "
-                        "fehlende/zu wenige Peer-Daten blockieren die Spezialbewertung nicht und begrenzen nicht die Bewertungssicherheit. " + peer_explain
-                    )
+                    if is_capital_goods_peer_metric:
+                        st.caption(
+                            f"Capital-Goods Peer-Layer {APP_BUILD_VERSION}: Drei same-horizon issuer-adjusted Beobachtungen sind das Run-Level-Daten-Gate. "
+                            "Der Median erzeugt selbst kein Premium und verändert den Operational Score nicht; er darf das score-basierte Ziel-KGV ausschließlich nach unten begrenzen, niemals anheben."
+                        )
+                    else:
+                        st.caption(
+                            "Der Peer-Check ist eine reine Markt-Referenz. Er verändert weder Spezialscore noch Ziel-Multiple oder Fair Value; "
+                            "fehlende/zu wenige Peer-Daten blockieren die Spezialbewertung nicht und begrenzen nicht die Bewertungssicherheit. " + peer_explain
+                        )
                 else:
                     st.caption("Der Peer-Check ist nur ein externer Realitätscheck. Er verändert den 100-Punkte-Multiple-Score nicht. " + peer_explain)
 
                 if peer_check.get("reference_only"):
-                    st.caption(
-                        "Der Spezial-Fair-Value wird unabhängig von der Verfügbarkeit dieser Referenz-Peers berechnet; "
-                        "die Peer-Schicht erzeugt selbst keinen Fair Value."
-                    )
+                    if is_capital_goods_peer_metric:
+                        st.caption(
+                            "Die Peer-Schicht erzeugt selbst keinen Fair Value. Für den freigegebenen Schneider-Pfad müssen jedoch mindestens drei gültige Current-FY-Peer-Beobachtungen verfügbar sein; erst danach kann der stabile Family-Korridor angewendet werden. "
+                            "Der Median wirkt anschließend nur als downside-only Ceiling."
+                        )
+                    else:
+                        st.caption(
+                            "Der Spezial-Fair-Value wird unabhängig von der Verfügbarkeit dieser Referenz-Peers berechnet; "
+                            "die Peer-Schicht erzeugt selbst keinen Fair Value."
+                        )
                 else:
                     st.caption(
                         "Der Peer-Check erzeugt selbst noch keinen Fair Value. "
