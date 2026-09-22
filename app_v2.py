@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.58"
+APP_BUILD_VERSION = "V2.22.59"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Exchange Dual-Anchor Corridor · Nasdaq Valuation V154"
+    f"Build {APP_BUILD_VERSION} · Exchange Peer Load-Order Runtime Fix V155"
 )
 
 
@@ -43,6 +43,7 @@ st.caption(
 
 # V2.22.57: Exchange Earnings Bridge & Run-Rate Peer Calibration V153. Releases a reusable Current-FY earnings-bridge definition for the two validated Exchange / Market Infrastructure profiles while keeping the family multiple and Fair Value fail-closed. Nasdaq uses the issuer-hosted FY2026 analyst mean Non-GAAP EPS of USD 4.13 (17 estimates). Deutsche Börse uses a transparent mechanical FY2026 Cash-EPS proxy: issuer-hosted FY2026 reported-EPS consensus EUR 12.37 plus an annualized H1 PPA addback of EUR 0.98 derived from Q1/Q2 reported-vs-Cash EPS, yielding EUR 13.35; this proxy is explicitly medium-confidence and is not company guidance. Adds CME, ICE and Cboe as reference-only exchange peers using issuer-primary H1 2026 adjusted EPS annualized run-rates plus live same-currency prices. The run-rate median is calibration evidence only: its Current-FY horizon comparability gate remains false and it cannot set a target multiple, corridor, Fair Value or signal. Deutsche Börse retains the Allfunds transaction/leverage guard; Nasdaq retains the no-current-structural-break profile. Capital-Goods V148 mathematics and all other released specialist models are unchanged.
 # V2.22.58: Exchange Dual-Anchor Family Corridor & Nasdaq Valuation V154. Promotes the two validated Exchange / Market Infrastructure adapters into a released 18–26x Current-FY Adjusted/Cash-EPS family corridor for Nasdaq only, while Deutsche Börse remains transaction-gated by the pending Allfunds perimeter/capital-structure change. Corridor calibration deliberately combines two primary-source peer anchors instead of pretending H1 annualization is FY2026 guidance: current prices versus verified FY2025 Adjusted EPS (CME 11.20, ICE 6.95, Cboe 10.67) provide the full-year trailing anchor, while Q1+Q2 2026 Adjusted-EPS annualization remains a current run-rate/cycle check. The 100-point Exchange operating score positions the raw target linearly from 50→18x to 100→26x; the live FY2025 trailing-adjusted peer median is downside-only and may cap but never lift the target. Nasdaq (94/100) is eligible for one-multiple Fair Value on the released FY2026 Non-GAAP-EPS bridge; Deutsche Börse receives the same corridor only as context and no target P/E/Fair Value until the Allfunds pro-forma capital structure and post-transaction earnings perimeter are sufficiently evidenced. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the Exchange specialist Fair Value. Capital-Goods V148 mathematics and all other released specialist models remain unchanged.
+# V2.22.59: Exchange Peer Load-Order Runtime Fix V155. No valuation mathematics changed. Moves the Exchange / Market Infrastructure peer-calibration application behind calculate_peer_check(), preventing an uninitialized peer_check reference that caused NDAQ/DB1.DE to abort immediately after selection in V154. The 18–26x Exchange corridor, dual-anchor CME/ICE/Cboe calibration, Nasdaq 94/100 score and Deutsche-Börse Allfunds transaction gate remain unchanged.
 
 # V2.22.15: Universal Professional-Services Industry Precedence Guard V111. Adds a reusable Professional & Business Services valuation family and fixes an over-broad Industrials sector fallback that previously routed Specialty Business Services issuers into Industrials / Capital Goods. High-confidence professional-service industries now outrank the broad Industrials sector; broader service labels require corroborating business-model evidence such as professional/advisory/consulting, corporate-finance/due-diligence, legal/accounting/tax, restructuring/recovery, fee-earner/network, licence-fee or revenue-share economics. Capital-goods/manufacturing industries remain on the existing Industrials route. The new family is defined_unreleased and therefore fail-closed: no generic Standard score, Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV, Fair Value or signals are unlocked. V110 Asset-Management evidence recovery, GBp/GBP unit handling and all released valuation mathematics remain unchanged.
 # V2.22.16: Professional & Business Services Specialist Model V1 V112. First validated issuer: DSW Capital (DSW.L). Releases an issuer-primary Professional & Business Services specialist path for DSW while keeping the wider family globally unreleased until a second independent issuer is validated. The model scores platform/network growth and fee-earner productivity, adjusted EBITDA/PBT quality, issuer operating cash conversion, balance quality, licence/revenue-mix resilience, capital allocation/dilution and earnings stability. Valuation uses an issuer-adjusted two-year diluted-EPS anchor (FY26 weighted 80%, FY25 20%) with a 9–18x score corridor and a downside-only small-cap/liquidity cap. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the specialist Fair Value. GBp/GBP conversion stays explicit at 1 GBP = 100 GBp. V110 Asset-Management evidence recovery and all other released specialist mathematics remain unchanged.
@@ -57785,52 +57786,6 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             ),
         }
 
-    if exchange_market_infrastructure_specialist_model.get("applicable"):
-        exchange_market_infrastructure_specialist_model = apply_exchange_market_infrastructure_peer_calibration(
-            exchange_market_infrastructure_specialist_model, peer_check
-        )
-        ex_score_fm = exchange_market_infrastructure_specialist_model.get("operational_score") or {}
-        ex_val_fm = exchange_market_infrastructure_specialist_model.get("specialist_valuation") or {}
-        ex_snap_fm = exchange_market_infrastructure_specialist_model.get("snapshot") or {}
-        if exchange_market_infrastructure_specialist_model.get("valuation_anchor_complete") and ex_val_fm.get("available"):
-            fundamental_multiple = {
-                **fundamental_multiple,
-                "score": safe_float(ex_score_fm.get("score")),
-                "multiple": safe_float(ex_val_fm.get("target_multiple")),
-                "available": True,
-                "earnings_basis_usable": True,
-                "corridor": {
-                    "available": True,
-                    "lower": safe_float(ex_val_fm.get("corridor_low")),
-                    "upper": safe_float(ex_val_fm.get("corridor_high")),
-                    "method": ex_val_fm.get("valuation_method_name") or "Exchange Current-FY Adjusted/Cash-EPS P/E",
-                    "note": f"{APP_BUILD_VERSION}: 18–26× Exchange-Family-Korridor; Operational Score positioniert das Ziel, verifizierter FY2025 Adjusted-EPS Peer-Median ist ausschließlich downside-only Ceiling; H1-Run-Rate bleibt Cycle/Reality-Check.",
-                },
-                "note": (
-                    f"{APP_BUILD_VERSION} Exchange Specialist: Structural Growth, Operating Leverage, Mix/Resilience, Revenue Quality/Normalization, Earnings Quality, Capital Allocation und Structure bestimmen den 100-Punkte-Qualitätsscore. "
-                    "Der Score positioniert das Ziel-KGV im 18–26× Family-Korridor; Yahoo-FCF/Net-Debt-to-FCF und Analystenziele bleiben außen vor."
-                ),
-            }
-        else:
-            fundamental_multiple = {
-                **fundamental_multiple,
-                "score": safe_float(ex_score_fm.get("score")),
-                "multiple": None,
-                "available": False,
-                "earnings_basis_usable": False,
-                "corridor": {
-                    "available": bool(ex_val_fm.get("corridor_released")),
-                    "lower": safe_float(ex_val_fm.get("corridor_low")),
-                    "upper": safe_float(ex_val_fm.get("corridor_high")),
-                    "method": "Exchange Family P/E – context only" if ex_val_fm.get("corridor_released") else None,
-                    "note": "Family corridor is available as context, but issuer-specific transaction/evidence gates block a target multiple." if ex_val_fm.get("corridor_released") else None,
-                },
-                "note": (
-                    f"{APP_BUILD_VERSION} Exchange Specialist remains fail-closed for {ex_snap_fm.get('company') or fundamental_symbol}: "
-                    + str(ex_val_fm.get("note") or "valuation anchor incomplete")
-                ),
-            }
-
     if oilfield_services_energy_tech_specialist_model.get("applicable"):
         of_score = oilfield_services_energy_tech_specialist_model.get("specialist_score") or {}
         of_val = oilfield_services_energy_tech_specialist_model.get("specialist_valuation") or {}
@@ -57981,6 +57936,55 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             False
         )
     )
+
+    # V2.22.59 / V155 – Exchange peer calibration is a post-peer step.
+    # V154 referenced peer_check before calculate_peer_check() had run, which caused
+    # NDAQ/DB1.DE to fail during stock load with the generic UI error.
+    if exchange_market_infrastructure_specialist_model.get("applicable"):
+        exchange_market_infrastructure_specialist_model = apply_exchange_market_infrastructure_peer_calibration(
+            exchange_market_infrastructure_specialist_model, peer_check
+        )
+        ex_score_fm = exchange_market_infrastructure_specialist_model.get("operational_score") or {}
+        ex_val_fm = exchange_market_infrastructure_specialist_model.get("specialist_valuation") or {}
+        ex_snap_fm = exchange_market_infrastructure_specialist_model.get("snapshot") or {}
+        if exchange_market_infrastructure_specialist_model.get("valuation_anchor_complete") and ex_val_fm.get("available"):
+            fundamental_multiple = {
+                **fundamental_multiple,
+                "score": safe_float(ex_score_fm.get("score")),
+                "multiple": safe_float(ex_val_fm.get("target_multiple")),
+                "available": True,
+                "earnings_basis_usable": True,
+                "corridor": {
+                    "available": True,
+                    "lower": safe_float(ex_val_fm.get("corridor_low")),
+                    "upper": safe_float(ex_val_fm.get("corridor_high")),
+                    "method": ex_val_fm.get("valuation_method_name") or "Exchange Current-FY Adjusted/Cash-EPS P/E",
+                    "note": f"{APP_BUILD_VERSION}: 18–26× Exchange-Family-Korridor; Operational Score positioniert das Ziel, verifizierter FY2025 Adjusted-EPS Peer-Median ist ausschließlich downside-only Ceiling; H1-Run-Rate bleibt Cycle/Reality-Check.",
+                },
+                "note": (
+                    f"{APP_BUILD_VERSION} Exchange Specialist: Structural Growth, Operating Leverage, Mix/Resilience, Revenue Quality/Normalization, Earnings Quality, Capital Allocation und Structure bestimmen den 100-Punkte-Qualitätsscore. "
+                    "Der Score positioniert das Ziel-KGV im 18–26× Family-Korridor; Yahoo-FCF/Net-Debt-to-FCF und Analystenziele bleiben außen vor."
+                ),
+            }
+        else:
+            fundamental_multiple = {
+                **fundamental_multiple,
+                "score": safe_float(ex_score_fm.get("score")),
+                "multiple": None,
+                "available": False,
+                "earnings_basis_usable": False,
+                "corridor": {
+                    "available": bool(ex_val_fm.get("corridor_released")),
+                    "lower": safe_float(ex_val_fm.get("corridor_low")),
+                    "upper": safe_float(ex_val_fm.get("corridor_high")),
+                    "method": "Exchange Family P/E – context only" if ex_val_fm.get("corridor_released") else None,
+                    "note": "Family corridor is available as context, but issuer-specific transaction/evidence gates block a target multiple." if ex_val_fm.get("corridor_released") else None,
+                },
+                "note": (
+                    f"{APP_BUILD_VERSION} Exchange Specialist remains fail-closed for {ex_snap_fm.get('company') or fundamental_symbol}: "
+                    + str(ex_val_fm.get("note") or "valuation anchor incomplete")
+                ),
+            }
 
     if industrials_capital_goods_specialist_model.get("applicable"):
         industrials_capital_goods_specialist_model = apply_industrials_capital_goods_peer_calibration(
