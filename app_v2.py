@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.48"
+APP_BUILD_VERSION = "V2.22.49"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Capital-Goods Earnings Bridge & Peer Calibration V144"
+    f"Build {APP_BUILD_VERSION} · Capital-Goods Family Multiple Corridor V145"
 )
 
 
@@ -67,6 +67,8 @@ st.caption(
 # V2.22.46: Siemens Specialist Copy & Fair-Value Gate Cleanup V142. No valuation mathematics changed. Clarifies that the 100-point Siemens Capital-Goods score measures operating quality / primary-data quality rather than valuation readiness; removes the duplicated English specialist-method caption from Step 3B; preserves the concise German router note in Step 3A; and replaces the generic Fair-Value lock text with the actual Siemens blockers (Healthineers distribution/retained-stake SOTP bridge plus second independent family validation). V141 issuer-primary metrics, 93/100 operating score and all fail-closed behavior remain unchanged.
 # V2.22.47: Capital-Goods Multi-Issuer Adapter · Schneider Validation V143. Adds Schneider Electric (SU.PA) as the second independent issuer-primary Industrials / Capital Goods validation profile. The family now supports issuer-native demand/visibility adapters rather than forcing Siemens Orders/Book-to-Bill onto every capital-goods issuer: Siemens keeps Orders/Book-to-Bill, while Schneider uses record backlog, broad-based end-market demand and upgraded organic-growth guidance. Schneider uses H1-2026 organic revenue growth, Adjusted EBITA margin, FY2025 ROCE/cash conversion/net debt, A-grade balance evidence, progressive dividend and the pending Cognite acquisition as a capital-allocation/leverage guard. The operating-quality architecture remains 100 points and is still explicitly not a valuation-multiple score. Both Siemens and Schneider remain valuation fail-closed until the reusable cross-issuer earnings basis, family multiple corridor and peer comparability layer are calibrated; Siemens additionally retains its Healthineers SOTP structural-break gate. No generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF or Standard-KGV path is released.
 # V2.22.48: Capital-Goods Earnings Bridge & Peer Calibration V144. Releases the reusable Current-FY issuer-adjusted earnings-bridge layer for the two validated Capital-Goods profiles without releasing a Fair Value. Siemens uses the midpoint of issuer FY2026 EPS pre-PPA guidance; Schneider uses the issuer-published 11-Aug-2026 post-H1 sell-side consensus Adjusted EPS for FY2026, with provider current-FY EPS shown only as a diagnostic cross-check. Adds a three-name external calibration set (Eaton, Rockwell Automation, Emerson) using issuer-published FY2026 Adjusted-EPS guidance plus live same-currency market prices to form a current-FY adjusted-P/E reference median. The peer layer is calibration-only and cannot set or adjust a target multiple; the family P/E/EV corridor remains fail-closed pending review of the live median/range and business-mix/portfolio-event comparability. Siemens also remains blocked by the Healthineers SOTP structural break; Schneider retains the Cognite leverage guard. Adds Schneider official 29-Oct-2026 Q3-revenue calendar fallback. No generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF or Standard-KGV path is released.
+
+# V2.22.49: Capital-Goods Family Multiple Corridor V145. Promotes the Siemens + Schneider multi-issuer validation into a released corridor only for the two issuer-primary validated profiles while keeping unsupported Industrials / Capital Goods members evidence-gated. The reusable current-FY Adjusted/pre-PPA P/E corridor is fixed at 22–32x after V144 live calibration against Emerson (low-20s) and premium electrification/automation references Eaton/Rockwell (low-30s); the current peer median remains a downside-only ceiling/reference and can never lift the score-derived target. The 100-point operational Capital-Goods score positions the target linearly inside the corridor from 50→22x to 100→32x. Schneider (90/100) therefore receives a 30.0x target on the released FY2026 Adjusted-EPS bridge; Cognite remains a confidence/leverage guard and is not double-counted as a second P/E penalty. Siemens receives the same family corridor as context but no target P/E/Fair Value because the Healthineers spin-off still requires a Core-Siemens + distributed/retained Healthineers SOTP bridge. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the specialist Fair Value.
 # V2.22.41: Asset-Manager Annual-History Candidate Merge V137. Fixes a de-duplication/ranking defect in generic same-basis Asset-Manager EPS-history recovery. The same issuer-primary report can be discovered once for each requested target year; prior builds kept the first URL occurrence and therefore preserved the score from the first target year instead of the best score across all requested years. V117 now merges duplicate URLs by their strongest year-aware score, explicitly recognizes the discovered document_class even when the download URL/anchor is opaque, and prioritizes the latest completed-FY Financial Data Supplement/annual report because such reports often contain the full 3Y same-basis EPS series in one table. Current-period AUM/flow/fee/CIR evidence, specialist score weights, 9–18x corridor, peer/historical guards and signal thresholds are unchanged.
 # V2.22.37: Asset-Manager Structured XLSX Period Binding V133. Fixes wide issuer-primary financial supplements whose comparison headers (for example “Q2 2026 vs. Q1 2026 / Q2 2025”) precede the actual multi-period data-header row. XLSX extraction now preserves explicit worksheet-row boundaries, period detection ranks the real multi-period header row ahead of comparison captions, and KPI rows are parsed only within their own workbook row so comparison columns cannot shift AUM/flow/fee/CIR/EPS values onto the wrong period. Same-scope guards, same-basis earnings requirements, score weights, 9–18x corridor, peer/historical guards and signal thresholds remain unchanged; no issuer ticker, URL or KPI value is hard-coded.
 # V2.22.34: Development-Stage EPS Copy Isolation Cleanup V130. Copy/UI-only change. Keeps V128 subprofile routing and V121 financial-stage detection unchanged, but isolates Development-Stage Mining / Materials from the generic Universal-Family EPS wording: Standard TTM/Forward EPS remains diagnosis-only and is explicitly not a Fair-Value anchor; Mineral Explorer / Mine Developer points instead to a technical/economic project and Project-NAV basis, while Battery Materials / Processing / Technology points to resource/feedstock, process/pilot/scale-up, qualification/offtake, funding and commercialisation evidence. The terminal EPS caption is profile-aware for the same reason. All scores, corridors, guard states, V127 Net-Cash logic, LOM logic and valuation mathematics remain unchanged.
@@ -7407,7 +7409,7 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
     _canonical_family_symbol = str(symbol or "").upper().strip()
     if family_id == "professional_business_services" and _canonical_family_symbol in {"DSW.L", "FRP.L"}:
         out["type"] = meta["label"]
-        out["confidence_cap"] = "Mittel"
+        out["confidence_cap"] = "Niedrig bis Mittel" if _canonical_family_symbol == "SIE.DE" else "Mittel"
         out["family_model_status"] = "validated_multi_issuer_route"
         out["family_model_ready"] = True
         out["family_model_released"] = False
@@ -7443,6 +7445,32 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
                 "Organic Revenue Growth · Fee Earners · Revenue per Partner · Utilisation · Adjusted EBITDA/PBT Margin · "
                 "Operating Cashflow & Working Capital · Service-Pillar Diversifikation · Adjusted Total EPS · Kapitalallokation/Dilution"
             )
+        return out
+
+    # V2.22.49 / V145 – two independently validated Capital-Goods profiles.
+    # The family corridor is released only for SIE.DE and SU.PA/SCHN.PA; unsupported
+    # Industrials family members remain issuer-primary evidence-gated.
+    if family_id == "industrials" and _canonical_family_symbol in {"SIE.DE", "SU.PA", "SCHN.PA"}:
+        out["type"] = meta["label"]
+        out["confidence_cap"] = "Mittel"
+        out["family_model_status"] = "validated_multi_issuer_route"
+        out["family_model_ready"] = True
+        out["family_model_released"] = False
+        out["family_validation_status"] = "two_main_issuers_passed_corridor_released"
+        out["universal_family_fail_closed"] = False
+        out["method"] = (
+            "Issuer-primary Capital-Goods KPI adapter + Current-FY Adjusted/pre-PPA Earnings Bridge + "
+            "22–32× Family P/E corridor + downside-only peer ceiling; generischer Standard-Score, Yahoo-FCF/Net-Debt-to-FCF "
+            "und Standard-KGV bleiben gesperrt. Siemens bleibt zusätzlich SOTP-geblockt."
+        )
+        if _canonical_family_symbol == "SIE.DE":
+            out["business_model"] = "Diversified Capital Goods / Industrial Technology Platform mit separater captive-finance Kapitalstruktur"
+            out["core_segments"] = "Digital Industries · Smart Infrastructure · Mobility · Siemens Financial Services · Healthineers-Beteiligung"
+            out["focus_areas"] = "Orders/Book-to-Bill · Comparable Growth · Industrial Business Margin/ROCE · Cash Conversion · Industrial Leverage · Healthineers SOTP"
+        else:
+            out["business_model"] = "Energy Technology / Electrification & Automation Platform"
+            out["core_segments"] = "Energy Management · Industrial Automation · Digital / Energy & Industrial Intelligence"
+            out["focus_areas"] = "Record Backlog/Demand · Organic Growth · Adjusted EBITA Margin/ROCE · Cash Conversion · Net Debt · Capital Allocation/Cognite"
         return out
 
     # V2.21.1: Family priority is authoritative over generic/unresolved legacy
@@ -37585,7 +37613,7 @@ def get_verified_schneider_industrials_snapshot(symbol):
         "cognite_transaction_value_usd": 3.1e9,
         "cognite_transaction_pending": True,
         "structural_break": False,
-        "valuation_confidence_cap": "Niedrig bis Mittel",
+        "valuation_confidence_cap": "Mittel",
         "note": (
             "Schneider is assessed with issuer-native Capital-Goods metrics rather than Siemens-style Orders/Book-to-Bill. "
             "Record backlog, broad-based end-market demand, organic growth, Adjusted EBITA, ROCE and cash conversion form the operating evidence. "
@@ -37788,10 +37816,128 @@ def _calculate_capital_goods_peer_calibration(peer_group, fundamental_multiple, 
         result["comparability_gate_passed"] = True
     result["note"] = (
         f"Capital-Goods Peer Calibration {APP_BUILD_VERSION}: Eaton, Rockwell Automation und Emerson use issuer-published FY2026 Adjusted-EPS guidance with live same-currency prices. "
-        "At least three valid observations release a calibration median, but the median is reference-only in V144: business-mix differences and Eaton's announced Mobility separation are not yet translated into a reusable family corridor. "
-        "No peer value can set or adjust a target multiple or Fair Value in this build."
+        "At least three valid observations release the calibration median. In V145 the stable 22–32x family corridor is released for the two validated issuer profiles; "
+        "the live peer median remains reference-only/downside-only and can cap but never lift a score-derived target multiple."
     )
     return result
+
+
+def build_capital_goods_family_valuation(snapshot, operational_score, earnings_bridge, peer_check):
+    """V145 reusable Capital-Goods Current-FY Adjusted/pre-PPA P/E corridor.
+
+    The corridor is deliberately stable rather than re-fit to every live quote.  V144
+    calibrated a conservative 22–32x envelope around a slower-growth automation
+    reference in the low-20s and premium electrification/automation references in
+    the low-30s.  The operating score positions the target inside that corridor;
+    the live peer median is downside-only and can never lift the target.
+    """
+    snap = snapshot or {}
+    score_obj = operational_score or {}
+    bridge = earnings_bridge or {}
+    peer = peer_check or {}
+    profile = snap.get("specialist_profile_key")
+    score = safe_float(score_obj.get("score"))
+    eps = safe_float(bridge.get("earnings_per_share"))
+    peer_median = safe_float(peer.get("peer_median"))
+    peer_count = int(peer.get("usable_count") or 0)
+    corridor_low, corridor_high = 22.0, 32.0
+    out = {
+        "available": False,
+        "corridor_released": False,
+        "valuation_method_name": "Capital Goods Current-FY Adjusted/pre-PPA P/E",
+        "corridor_low": corridor_low,
+        "corridor_high": corridor_high,
+        "score": score,
+        "earnings_basis": eps,
+        "earnings_basis_method": bridge.get("source_type"),
+        "earnings_basis_confidence": "Mittel" if profile == "energy_technology_automation" else "Hoch",
+        "raw_score_multiple": None,
+        "target_multiple": None,
+        "peer_reference_median_pe": peer_median,
+        "peer_reference_count": peer_count,
+        "peer_ceiling_applied": False,
+        "peer_ceiling": None,
+        "transaction_confidence_guard": bool(snap.get("cognite_transaction_pending")),
+        "fair_value_financial": None,
+        "note": None,
+    }
+    if not bridge.get("available") or eps is None or eps <= 0 or score is None:
+        out["note"] = "Capital-Goods Earnings Bridge oder Operational Score unvollständig."
+        return out
+    if not peer.get("comparability_gate_passed") or peer_count < 3 or peer_median is None or peer_median <= 0:
+        out["note"] = "Capital-Goods Peer Calibration Gate benötigt mindestens drei same-horizon issuer-adjusted Beobachtungen."
+        return out
+
+    # Quality position: 50/100 maps to 22x; 100/100 maps to 32x.
+    score_clamped = min(100.0, max(50.0, score))
+    raw = corridor_low + ((score_clamped - 50.0) / 50.0) * (corridor_high - corridor_low)
+    # Peers are a safety ceiling only. They never pull the specialist target upward.
+    peer_ceiling = min(corridor_high, peer_median)
+    target = min(raw, peer_ceiling)
+    out.update({
+        "corridor_released": True,
+        "raw_score_multiple": raw,
+        "target_multiple": target,
+        "peer_ceiling": peer_ceiling,
+        "peer_ceiling_applied": bool(target < raw - 1e-9),
+    })
+
+    if profile == "diversified_industrial_technology" and snap.get("healthineers_structural_break"):
+        out["note"] = (
+            "Family corridor released as context, but Siemens target P/E/Fair Value remains blocked: the Healthineers spin-off changes the ownership and earnings perimeter and requires an explicit SOTP bridge."
+        )
+        return out
+    if profile != "energy_technology_automation":
+        out["note"] = "Validated family corridor available, but this issuer profile is not released for one-multiple Fair Value."
+        return out
+
+    fv = eps * target
+    out.update({
+        "available": True,
+        "fair_value_financial": fv,
+        "note": (
+            "Schneider Fair Value uses the released FY2026 Adjusted-EPS bridge and the score-positioned 22–32x Capital-Goods corridor. "
+            "The external peer median is downside-only and cannot lift the target. Cognite is already reflected in balance/capital-allocation quality and therefore acts as a confidence/leverage guard rather than a second P/E penalty."
+        ),
+    })
+    return out
+
+
+def apply_industrials_capital_goods_peer_calibration(model, peer_check):
+    out = dict(model or {})
+    if not out.get("issuer_supported"):
+        return out
+    snap = out.get("snapshot") or {}
+    valuation = build_capital_goods_family_valuation(
+        snap, out.get("operational_score") or {}, out.get("earnings_bridge") or {}, peer_check or {}
+    )
+    out["specialist_valuation"] = valuation
+    out["family_corridor_released"] = bool(valuation.get("corridor_released"))
+    profile = snap.get("specialist_profile_key")
+    if profile == "energy_technology_automation" and valuation.get("available"):
+        out["valuation_anchor_complete"] = True
+        out["readiness"] = "Schneider Primärdaten + Current-FY Earnings Bridge + 22–32× Family-Corridor vollständig · Fair Value freigegeben · Cognite Confidence/Leverage Guard aktiv"
+        out["missing_valuation_inputs"] = [
+            "post-Cognite pro-forma leverage / capital-allocation refresh when closing data become available (confidence refresh; current Fair Value remains usable)",
+            "reusable issuer-primary discovery adapter before unsupported Capital-Goods family members can be auto-released",
+        ]
+        out["note"] = (
+            f"{APP_BUILD_VERSION} releases the Capital-Goods one-multiple valuation for Schneider only after two issuer adapters, a common Current-FY Adjusted-EPS bridge and three same-horizon issuer-adjusted peer observations. "
+            "The stable family corridor is 22–32x; the operating score sets the target and the live peer median is downside-only. Cognite limits confidence until pro-forma leverage is available but is not double-counted as a second multiple penalty."
+        )
+    elif profile == "diversified_industrial_technology":
+        out["valuation_anchor_complete"] = False
+        out["readiness"] = "Siemens Primärdaten + Current-FY Earnings Bridge + Family-Corridor verfügbar · Healthineers SOTP Structural-Break Gate bindend"
+        out["missing_valuation_inputs"] = [
+            "post-spin Core-Siemens earnings / capital structure on a comparable basis",
+            "value bridge for the direct 30% Healthineers share distribution to Siemens shareholders",
+            "treatment/value of Siemens' retained Healthineers minority stake after deconsolidation",
+        ]
+        out["note"] = (
+            f"{APP_BUILD_VERSION} releases the 22–32x Capital-Goods family corridor as comparability context for Siemens, but does not create a Siemens target P/E or Fair Value. "
+            "The Healthineers spin-off changes the ownership/earnings perimeter and keeps the explicit SOTP gate binding."
+        )
+    return out
 
 
 def build_schneider_capital_goods_operational_score(snap):
@@ -37960,16 +38106,15 @@ def build_industrials_capital_goods_specialist_model(company_type, fundamental_i
     profile_key = snap.get("specialist_profile_key")
     structural_break = bool(snap.get("healthineers_structural_break") or snap.get("structural_break"))
     if profile_key == "energy_technology_automation":
-        readiness = "Schneider Primärdatenprofil + Current-FY Adjusted-EPS bridge vollständig · Peer-Calibration Layer aktiv · Family-Corridor noch gesperrt"
+        readiness = "Schneider Primärdatenprofil + Current-FY Adjusted-EPS bridge vollständig · wartet auf Live-Peer-Data-Gate für den freigegebenen 22–32× Family-Corridor"
         missing = [
-            "release rule for the reusable Capital-Goods P/E / EV-based corridor after live peer-calibration review",
-            "business-mix / portfolio-event comparability treatment for the external peer median",
-            "post-Cognite pro-forma leverage / capital-allocation check when closing data become available",
+            "live same-horizon peer-data gate before the already calibrated 22–32x corridor can be applied in this run",
+            "post-Cognite pro-forma leverage / capital-allocation refresh when closing data become available",
         ]
         note = (
             f"{APP_BUILD_VERSION} validates Schneider as the second independent Capital-Goods issuer using a profile-aware adapter: record backlog / broad demand, "
             "organic revenue growth, Adjusted EBITA margin, ROCE, cash conversion, issuer net debt and capital allocation. "
-            "The Cognite acquisition is a leverage/capital-allocation guard, not a structural earnings break. The reusable Current-FY Adjusted-EPS bridge is released, while the family multiple corridor remains locked pending live peer-calibration review."
+            "The reusable Current-FY Adjusted-EPS bridge and the 22–32x family corridor are defined; each run still requires the live three-peer data gate before Fair Value can be released."
         )
     else:
         readiness = "Siemens Primärdatenprofil vollständig · Healthineers-Spin-off Structural-Break/SOTP-Gate aktiv · Fair Value gesperrt"
@@ -37977,7 +38122,7 @@ def build_industrials_capital_goods_specialist_model(company_type, fundamental_i
             "post-spin Core-Siemens earnings / capital structure on a comparable basis",
             "value bridge for the direct 30% Healthineers share distribution to Siemens shareholders",
             "treatment/value of Siemens' retained Healthineers minority stake after deconsolidation",
-            "family multiple-corridor calibration using the released Current-FY earnings bridge and external peer reference layer",
+            "Healthineers SOTP bridge before the released family corridor can be used as a Siemens valuation anchor",
         ]
         note = (
             f"{APP_BUILD_VERSION} uses Siemens issuer-primary orders, book-to-bill, Industrial-Business margin, ROCE, cash conversion and Industrial net debt/EBITDA. "
@@ -37996,6 +38141,7 @@ def build_industrials_capital_goods_specialist_model(company_type, fundamental_i
         "snapshot": snap,
         "operational_score": op_score,
         "earnings_bridge": earnings_bridge,
+        "specialist_valuation": {"available": False, "corridor_released": False},
         "reusable_earnings_basis_complete": bool(earnings_bridge.get("available") and earnings_bridge.get("family_method_released")),
         "readiness": readiness,
         "missing_valuation_inputs": missing,
@@ -38010,13 +38156,18 @@ def build_industrials_capital_goods_special_control(control, specialist_model):
     snap = model.get("snapshot") or {}
     profile_key = snap.get("specialist_profile_key")
     if profile_key == "energy_technology_automation":
-        router_status = "Schritt 3B aktiv – Schneider Primärdaten validiert, zweiter Family-Adapter bestätigt; Valuation Calibration Gate bindend"
+        router_status = (
+            "Schritt 3B aktiv – Schneider Primärdaten + Earnings Bridge + 22–32× Family-Corridor freigegeben; Cognite Confidence/Leverage Guard aktiv"
+            if model.get("valuation_anchor_complete") else
+            "Schritt 3B aktiv – Schneider Primärdaten validiert; Family-Corridor/Peer-Gate noch unvollständig"
+        )
     else:
         router_status = "Schritt 3B aktiv – Siemens Primärdaten validiert, Structural-Break/SOTP-Gate bindend"
     out = dict(control)
+    valuation = model.get("specialist_valuation") or {}
     out.update({
         "implemented": True,
-        "released": False,
+        "released": bool(model.get("valuation_anchor_complete") and valuation.get("available")),
         "confidence_cap": snap.get("valuation_confidence_cap") or "Niedrig bis Mittel",
         "router_status": router_status,
         "step3b_status": model.get("readiness"),
@@ -38024,6 +38175,8 @@ def build_industrials_capital_goods_special_control(control, specialist_model):
         "checks": {
             "operational_score": model.get("operational_score") or {},
             "earnings_bridge": model.get("earnings_bridge") or {},
+            "specialist_valuation": valuation,
+            "family_corridor_released": bool(model.get("family_corridor_released")),
             "reusable_earnings_basis_complete": bool(model.get("reusable_earnings_basis_complete")),
             "structural_break_active": bool(model.get("structural_break_active")),
             "sotp_required": bool(model.get("sotp_required")),
@@ -38805,7 +38958,7 @@ def get_peer_group(company_type, symbol, industry=None):
             "note": (
                 f"Capital-Goods Peer Calibration {APP_BUILD_VERSION}: Eaton, Rockwell Automation und Emerson bilden den ersten externen Current-FY Adjusted-EPS calibration set. "
                 "Die Earnings-Denominatoren stammen aus issuer-published FY2026 Adjusted-EPS guidance; Live-Preise werden nur same-currency gebunden. "
-                "Der Median ist in V144 reine Kalibrierungsevidenz und kann noch kein Ziel-Multiple oder Fair Value setzen."
+                "In V145 ist der stabile 22–32× Family-Korridor kalibriert. Der Live-Median bleibt reference/downside-only: er kann ein score-basiertes Ziel begrenzen, aber niemals anheben."
             ),
         }
 
@@ -40802,14 +40955,14 @@ def get_special_control(company_type, symbol):
                     "Issuer Free Cash Flow / Cash Conversion statt Yahoo-FCF-Margen-Score",
                     "Issuer Net Debt + A-grade credit evidence; kein generischer Net-Debt/FCF-Score",
                     "Cognite acquisition als Capital-Allocation/Leverage-Guard, nicht als Structural Break",
-                    "Current-FY issuer-adjusted earnings basis released; family multiple corridor still to calibrate",
-                    "mindestens 3 same-basis Peers vor Peer-Median-Reality-Check",
+                    "Current-FY issuer-adjusted earnings basis + 22–32× Family-Multiple-Corridor",
+                    "mindestens 3 same-basis Peers; Median ausschließlich downside-only Ceiling/Reality-Check",
                     "Analystenziele ausschließlich Reality Check",
                 ],
-                "status": f"Router aktiv – {APP_BUILD_VERSION} Industrials / Capital Goods Earnings Bridge + Peer Calibration V1",
+                "status": f"Router aktiv – {APP_BUILD_VERSION} Industrials / Capital Goods Family Multiple Corridor V1",
                 "note": (
                     "Schneider Electric ist der zweite unabhängige Capital-Goods-Validierungstitel. Der Adapter verwendet issuer-native Backlog/Demand-, organische Wachstums-, Adjusted-EBITA-, ROCE- und Cash-Conversion-KPIs, "
-                    "statt Siemens-spezifische Orders/Book-to-Bill zu erzwingen. Fair Value bleibt bis zur Cross-Issuer-Earnings-/Multiple-Kalibrierung gesperrt."
+                    "statt Siemens-spezifische Orders/Book-to-Bill zu erzwingen. Für den validierten Schneider-Pfad ist die 22–32× Family-Corridor-Logik nach bestandenem Peer-Data-Gate freigegeben; Cognite bleibt Confidence/Leverage Guard."
                 ),
             }
         return {
@@ -40824,13 +40977,13 @@ def get_special_control(company_type, symbol):
                 "Industrial net debt/EBITDA mit explizitem Ausschluss von Siemens Financial Services debt",
                 "Current-FY EPS pre PPA nur als Earnings-Kontext, nicht als alleiniger Fair-Value-Anker",
                 "Healthineers 30%-Direktabspaltung / retained stake / post-spin Core-Siemens SOTP-Bridge",
-                "Schneider als zweite unabhängige Family-Validierung; Cross-Issuer-Multiple-Kalibrierung folgt",
+                "Schneider als zweite unabhängige Family-Validierung; 22–32× Cross-Issuer-Family-Corridor freigegeben",
                 "Analystenziele ausschließlich Reality Check",
             ],
             "status": f"Router aktiv – {APP_BUILD_VERSION} Industrials / Capital Goods Siemens Primary-Source & Spin-off Gate V1",
             "note": (
                 "Siemens bleibt der erste Capital-Goods-Validierungstitel mit issuer-primary Betriebsqualitätsprofil. "
-                "Der Healthineers-Spin-off ist ein bestätigter Structural Break; Schneider liefert nun den zweiten unabhängigen Family-Adapter, aber Ziel-KGV/Fair Value bleiben bis zur Cross-Issuer-Kalibrierung gesperrt."
+                "Der Healthineers-Spin-off ist ein bestätigter Structural Break; der 22–32× Family-Corridor ist inzwischen kalibriert, darf für Siemens aber ohne Core-Siemens + Healthineers-SOTP-Bridge keinen Ziel-KGV/Fair Value erzeugen."
             ),
         }
 
@@ -48258,6 +48411,7 @@ def calculate_valuation_confidence(
     is_integrated_oil_gas_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "integrated_oil_gas_through_cycle_pe"
     is_asset_management_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "asset_management_through_cycle_pe"
     is_professional_services_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "professional_business_services_adjusted_pe"
+    is_capital_goods_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "capital_goods_current_fy_adjusted_pe"
     is_defense_high_growth_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "defense_high_growth_current_fy_pe"
     is_holding_nav_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "listed_holding_nav_target"
     if is_holding_nav_valuation:
@@ -48314,13 +48468,17 @@ def calculate_valuation_confidence(
         earnings_rank = _confidence_rank_value(earnings_level)
         if earnings_rank is not None:
             components["Professional-Services Earnings-Basis"] = (earnings_rank, earnings_level)
+    elif is_capital_goods_valuation:
+        cg_val_conf = ((special_control or {}).get("checks") or {}).get("specialist_valuation") or {}
+        cg_level = cg_val_conf.get("earnings_basis_confidence") or fair_value.get("earnings_basis_confidence") or "Mittel"
+        components["Capital-Goods Current-FY Earnings Bridge"] = (_confidence_rank_value(cg_level), cg_level)
     elif is_defense_high_growth_valuation:
         df_earnings = ((special_control or {}).get("checks") or {}).get("defense_earnings_basis") or {}
         earnings_level = df_earnings.get("confidence") or "Niedrig"
         earnings_rank = _confidence_rank_value(earnings_level)
         if earnings_rank is not None:
             components["Defense Current-FY Earnings-Basis"] = (earnings_rank, earnings_level)
-    elif not is_holding_nav_valuation and not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation and not is_branded_consumer_staples_valuation and not is_oilfield_services_energy_tech_valuation and not is_integrated_oil_gas_valuation and not is_professional_services_valuation and not is_defense_high_growth_valuation and not is_payment_network_valuation:
+    elif not is_holding_nav_valuation and not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation and not is_branded_consumer_staples_valuation and not is_oilfield_services_energy_tech_valuation and not is_integrated_oil_gas_valuation and not is_professional_services_valuation and not is_capital_goods_valuation and not is_defense_high_growth_valuation and not is_payment_network_valuation:
         eps_level = (eps_normalization or {}).get("confidence")
         eps_rank = _confidence_rank_value(eps_level)
         if eps_rank is not None:
@@ -51229,6 +51387,83 @@ def calculate_fair_value_v1(
         result.update({"available":True,"valuation_method":"reit_paffo","normalized_eps":safe_float(rv.get("affo_basis")),"used_multiple":safe_float(rv.get("target_paffo")),"multiple_source":"REIT Quality Score → P/AFFO","fair_value_financial":fv,"fair_value_quote":fvq,"potential_pct":potential,"reit_score":safe_float(rs.get("score")),"reit_quality_level":rs.get("quality_level"),"affo_basis":safe_float(rv.get("affo_basis")),"target_paffo":safe_float(rv.get("target_paffo")),"paffo_corridor_low":safe_float(rv.get("corridor_low")),"paffo_corridor_high":safe_float(rv.get("corridor_high")),"current_paffo":safe_float(rv.get("current_paffo")),"unit_conversion_applied":bool(unit_notes),"unit_note":" ".join(unit_notes) if unit_notes else None,"note":"REIT-Fair-Value V1 = offizieller AFFO-Guidance-Mittelwert × scoregesteuertes Ziel-P/AFFO. NAV ist nicht Bestandteil dieses Fair Values und bleibt ohne belastbare Primärquelle gesperrt."})
         return result
 
+    # V2.22.49 – Capital-Goods Current-FY Adjusted/pre-PPA specialist Fair Value.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "industrials_capital_goods_specialist"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}
+        sv = checks.get("specialist_valuation") or {}
+        ss = checks.get("operational_score") or {}
+        eb = checks.get("earnings_bridge") or {}
+        snap = special_control.get("snapshot") or {}
+        fv = safe_float(sv.get("fair_value_financial"))
+        if not sv.get("available") or fv is None or fv <= 0:
+            result["note"] = "Fair Value V1 gesperrt: Capital-Goods-Spezialanker nicht vollständig verfügbar."
+            return result
+        quote_currency = str(context.get("quote_currency") or "").strip()
+        financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Währungseinheiten der Capital-Goods-Bewertung sind nicht eindeutig."
+            return result
+        share_context = context.get("share_unit_context") or {}
+        share_ratio = 1.0
+        unit_notes = []
+        if share_context.get("conversion_required"):
+            if not share_context.get("conversion_available"):
+                result["note"] = "Fair Value V1 gesperrt: abweichende Handelseinheit ohne verifizierte Aktien-/ADR-Umrechnung."
+                return result
+            share_ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
+            if share_ratio is None or share_ratio <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Aktien-/ADR-Verhältnis ist nicht belastbar."
+                return result
+        fvq = fv * share_ratio
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Währungsumrechnung der Capital-Goods-Bewertung nicht belastbar verfügbar."
+                return result
+            fvq *= factor
+            unit_notes.append(f"Währungsangleichung: {financial_currency} → {quote_currency} mit Faktor {factor:.6f}.")
+        elif quote_currency != financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+        cp = safe_float(current_price)
+        potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+        result.update({
+            "available": True,
+            "valuation_method": "capital_goods_current_fy_adjusted_pe",
+            "normalized_eps": safe_float(sv.get("earnings_basis")),
+            "used_multiple": safe_float(sv.get("target_multiple")),
+            "multiple_source": f"{APP_BUILD_VERSION} Capital-Goods Operational Score → 22–32× Family P/E → downside-only Peer Ceiling",
+            "fair_value_financial": fv,
+            "fair_value_quote": fvq,
+            "potential_pct": potential,
+            "specialist_score": safe_float(ss.get("score")),
+            "specialist_quality_level": ss.get("quality_level"),
+            "specialist_components": ss.get("components") or {},
+            "target_multiple": safe_float(sv.get("target_multiple")),
+            "raw_score_multiple": safe_float(sv.get("raw_score_multiple")),
+            "multiple_corridor_low": safe_float(sv.get("corridor_low")),
+            "multiple_corridor_high": safe_float(sv.get("corridor_high")),
+            "peer_reference_median_pe": safe_float(sv.get("peer_reference_median_pe")),
+            "peer_ceiling": safe_float(sv.get("peer_ceiling")),
+            "peer_ceiling_applied": bool(sv.get("peer_ceiling_applied")),
+            "transaction_confidence_guard": bool(sv.get("transaction_confidence_guard")),
+            "earnings_basis_method": eb.get("source_type"),
+            "earnings_basis_confidence": sv.get("earnings_basis_confidence") or "Mittel",
+            "capital_goods_company": snap.get("company"),
+            "capital_goods_profile_key": snap.get("specialist_profile_key"),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": (
+                "Capital-Goods Fair Value V1 = issuer-adjusted Current-FY EPS × score-positioniertes Spezial-KGV im stabilen 22–32× Family-Korridor. "
+                "Der Live-Peer-Median kann das Ziel nur nach unten begrenzen, niemals erhöhen. Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV und Analystenziele fließen nicht direkt in den Fair Value ein."
+            ),
+        })
+        return result
+
     if (
         isinstance(special_control, dict)
         and special_control.get("required")
@@ -51242,15 +51477,13 @@ def calculate_fair_value_v1(
             _ind_fv_snap = (special_control.get("snapshot") or {}) if isinstance(special_control, dict) else {}
             if _ind_fv_snap.get("specialist_profile_key") == "energy_technology_automation":
                 result["note"] = (
-                    "Fair Value V1 gesperrt: Schneider Electric verfügt über eine validierte operative Primärdatenbasis und eine freigegebene Current-FY Adjusted-EPS Bridge. "
-                    "Der externe issuer-adjusted Peer-Layer dient in V144 zunächst nur zur Kalibrierung; der familiengerechte Multiple-Korridor ist noch nicht freigegeben. "
-                    "Zusätzlich bleibt die angekündigte Cognite-Übernahme ein Capital-Allocation/Leverage-Guard. Deshalb wird noch kein Ziel-Multiple und kein Fair Value erzeugt."
+                    "Fair Value V1 gesperrt: Schneider Electric hat den freigegebenen 22–32× Family-Korridor nicht vollständig durchlaufen. Current-FY Earnings Bridge, Peer-Data-Gate oder Specialist-Valuation-Release sind unvollständig; es wird nicht auf den Standardpfad ausgewichen."
                 )
             else:
                 result["note"] = (
                     "Fair Value V1 gesperrt: Siemens verfügt über eine validierte operative Primärdatenbasis, aber der angekündigte Healthineers-Spin-off erzeugt einen Structural Break. "
-                    "Die wiederverwendbare Current-FY Adjusted-EPS Bridge und der externe Peer-Calibration-Layer sind inzwischen verfügbar; vor einer Siemens-Fair-Value-Freigabe fehlen dennoch die Core-Siemens + "
-                    "Healthineers Distribution/Retained-Stake SOTP-Bridge sowie die Freigabe des familiengerechten Multiple-Korridors. Deshalb wird weder ein Ziel-KGV noch ein Fair Value erzeugt."
+                    "Current-FY Earnings Bridge, Peer-Calibration-Layer und 22–32× Family-Korridor sind inzwischen verfügbar; vor einer Siemens-Fair-Value-Freigabe fehlt dennoch die Core-Siemens + "
+                    "Healthineers Distribution/Retained-Stake SOTP-Bridge. Der Family-Korridor darf den Structural Break nicht umgehen; deshalb wird weder ein Siemens-Ziel-KGV noch ein Fair Value erzeugt."
                 )
             return result
 
@@ -56200,6 +56433,12 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         fcf_score = {**fcf_score, "context_score": fcf_score.get("score"), "score": None, "note": "AXP Closed-Loop-Spezialmodell: Yahoo-/Statement-FCF ist Diagnosekontext und kein Multiple-Baustein; Einlagen, Card Balances, Reserven und Kapitalquoten sind maßgeblich."}
         balance_score = {**balance_score, "context_score": balance_score.get("score"), "score": None, "note": "AXP Closed-Loop-Spezialmodell: Net-Debt/FCF ist für das finanzielle Funding-Modell gesperrt; CET1/SLR, Deposits, Debt und Reservequalität werden separat bewertet."}
 
+    if industrials_capital_goods_specialist_model.get("applicable"):
+        growth_score = {**growth_score, "context_score": growth_score.get("score"), "score": None, "note": "Capital-Goods-Spezialmodell: Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext; issuer-native Demand/Visibility und comparable/organic growth sind maßgeblich."}
+        profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None, "brake_text": "Capital-Goods-Spezialmodell: generische Nettomarge/ROE-Punkte sind gesperrt; Adjusted/Industrial Margin + ROCE werden im Spezialscore bewertet."}
+        fcf_score = {**fcf_score, "context_score": fcf_score.get("score"), "score": None, "note": "Capital-Goods-Spezialmodell: Yahoo-/Statement-FCF ist Diagnosekontext; issuer Cash Conversion/FCF-Qualität ist maßgeblich."}
+        balance_score = {**balance_score, "context_score": balance_score.get("score"), "score": None, "note": "Capital-Goods-Spezialmodell: generischer Net-Debt/FCF-Score ist gesperrt; issuer-native Industrial/Net-Debt- und Credit-Evidenz wird separat bewertet."}
+
     fundamental_multiple = calculate_fundamental_multiple(
         company_type,
         growth_score,
@@ -56793,6 +57032,52 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         )
     )
 
+    if industrials_capital_goods_specialist_model.get("applicable"):
+        industrials_capital_goods_specialist_model = apply_industrials_capital_goods_peer_calibration(
+            industrials_capital_goods_specialist_model, peer_check
+        )
+        cg_score_fm = industrials_capital_goods_specialist_model.get("operational_score") or {}
+        cg_val_fm = industrials_capital_goods_specialist_model.get("specialist_valuation") or {}
+        cg_snap_fm = industrials_capital_goods_specialist_model.get("snapshot") or {}
+        if industrials_capital_goods_specialist_model.get("valuation_anchor_complete") and cg_val_fm.get("available"):
+            fundamental_multiple = {
+                **fundamental_multiple,
+                "score": safe_float(cg_score_fm.get("score")),
+                "multiple": safe_float(cg_val_fm.get("target_multiple")),
+                "available": True,
+                "earnings_basis_usable": True,
+                "corridor": {
+                    "available": True,
+                    "lower": safe_float(cg_val_fm.get("corridor_low")),
+                    "upper": safe_float(cg_val_fm.get("corridor_high")),
+                    "method": cg_val_fm.get("valuation_method_name") or "Capital Goods Current-FY Adjusted/pre-PPA P/E",
+                    "note": f"{APP_BUILD_VERSION}: 22–32× Capital-Goods Family-Korridor; Operational Score positioniert das Ziel, Peer-Median ist ausschließlich downside-only Ceiling/Reality-Check.",
+                },
+                "note": (
+                    f"{APP_BUILD_VERSION} Capital-Goods Specialist: issuer-native Demand/Visibility, Growth, Margin/ROCE, Cash Conversion, Balance, Capital Allocation und Earnings/Structure bestimmen den 100-Punkte-Qualitätsscore. "
+                    "Der Score positioniert das Ziel-KGV im 22–32× Family-Korridor; Yahoo-FCF/Net-Debt-to-FCF und Analystenziele bleiben außen vor."
+                ),
+            }
+        else:
+            fundamental_multiple = {
+                **fundamental_multiple,
+                "score": safe_float(cg_score_fm.get("score")),
+                "multiple": None,
+                "available": False,
+                "earnings_basis_usable": False,
+                "corridor": {
+                    "available": bool(cg_val_fm.get("corridor_released")),
+                    "lower": safe_float(cg_val_fm.get("corridor_low")),
+                    "upper": safe_float(cg_val_fm.get("corridor_high")),
+                    "method": "Capital Goods Family P/E – context only" if cg_val_fm.get("corridor_released") else None,
+                    "note": "Family corridor is available as context, but issuer-specific structural/evidence gates block a target multiple." if cg_val_fm.get("corridor_released") else None,
+                },
+                "note": (
+                    f"{APP_BUILD_VERSION} Capital-Goods Specialist remains fail-closed for {cg_snap_fm.get('company') or fundamental_symbol}: "
+                    + str(cg_val_fm.get("note") or "valuation anchor incomplete")
+                ),
+            }
+
     if oilfield_services_energy_tech_specialist_model.get("applicable"):
         of_val_peer = dict(oilfield_services_energy_tech_specialist_model.get("specialist_valuation") or {})
         of_val_peer["peer_reference_median_pe"] = safe_float((peer_check or {}).get("peer_median"))
@@ -57217,7 +57502,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                     "Damit sind heutige Konzern-EPS, künftige Core-Siemens-Earnings und der Wert der ausgeschütteten/retained Healthineers-Beteiligung nicht auf einer stabilen Ein-Multiple-Basis vergleichbar."
                 ),
                 "action": (
-                    "Keine Standard-EPS-Sonderrecherche und kein generisches KGV verwenden. Die Current-FY Earnings Bridge ist verfügbar; Siemens benötigt weiterhin die Core-Siemens + Healthineers Distribution/Retained-Stake SOTP-Bridge sowie den noch nicht freigegebenen Family-Multiple-Korridor."
+                    "Keine Standard-EPS-Sonderrecherche und kein generisches KGV verwenden. Current-FY Earnings Bridge und 22–32× Family-Korridor sind verfügbar; Siemens benötigt weiterhin die Core-Siemens + Healthineers Distribution/Retained-Stake SOTP-Bridge. Der Family-Korridor darf den Structural Break nicht umgehen."
                 ),
                 "family_model_gate": True,
                 "structural_break_gate": True,
@@ -57228,13 +57513,13 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "icon": "🟢",
                 "title": "Kein Structural Break – zweiter Capital-Goods-Family-Adapter aktiv",
                 "requires_research": False,
-                "valuation_usable": False,
+                "valuation_usable": bool(_ind_model.get("valuation_anchor_complete")),
                 "reason": (
-                    "Schneider Electric bestätigt den zweiten unabhängigen issuer-primary Capital-Goods-KPI-Adapter. Die angekündigte Cognite-Übernahme wird als Capital-Allocation/Leverage-Guard behandelt, "
-                    "nicht als EPS-Sonderereignis. Die Current-FY Adjusted-EPS Bridge ist nun freigegeben; der Bewertungsstopp entsteht durch den noch nicht freigegebenen Family-Multiple-Korridor und die Peer-Comparability-Kalibrierung."
+                    "Schneider Electric bestätigt den zweiten unabhängigen issuer-primary Capital-Goods-KPI-Adapter. Current-FY Adjusted-EPS Bridge, drei same-horizon Peer-Beobachtungen und der 22–32× Family-Korridor sind freigegeben. "
+                    "Die angekündigte Cognite-Übernahme bleibt ein Capital-Allocation/Leverage- und Confidence-Guard, nicht ein EPS-Structural-Break."
                 ),
                 "action": (
-                    "Keine Standard-EPS-Sonderrecherche und kein generisches KGV verwenden. Nächster Schritt ist die Prüfung des issuer-adjusted Current-FY Peer-Medians und daraus erst anschließend die Freigaberegel für den Capital-Goods-Multiple-Korridor."
+                    "Kein generisches KGV verwenden. Der Schneider-Fair-Value darf ausschließlich aus issuer-adjusted FY2026 EPS × score-positioniertem Family-KGV entstehen; der Peer-Median darf nur downside-only begrenzen und Analystenziele bleiben Reality Check."
                 ),
                 "family_model_gate": True,
                 "second_issuer_validation": True,
@@ -58700,6 +58985,13 @@ if selected_symbol:
                         st.info(
                             "Professional & Business Services Multi-Issuer Specialist V2: DSW (Network/Licence Platform) und FRP Advisory (Partner-led Advisory Firm) "
                             "sind als zwei unabhängige Hauptemittenten end-to-end validiert. Weitere Familienmitglieder bleiben issuer-primary evidence-gated, bis ein wiederverwendbarer Evidence-Adapter statt issuergebundener Snapshots verfügbar ist."
+                        )
+                    if (company_type.get("family_model_status") == "validated_multi_issuer_route"
+                            and company_type.get("valuation_family") == "Industrials / Capital Goods"):
+                        st.info(
+                            "Industrials / Capital Goods Multi-Issuer Specialist V145: Siemens und Schneider Electric validieren zwei unterschiedliche issuer-native KPI-Adapter unter derselben Qualitätsarchitektur. "
+                            "Die Current-FY Earnings Bridge und der 22–32× Family-Korridor sind für diese validierten Profile freigegeben; weitere Familienmitglieder bleiben issuer-primary evidence-gated. "
+                            "Siemens bleibt wegen des Healthineers-Structural-Breaks separat SOTP-geblockt."
                         )
                     if is_universal_family_fail_closed(company_type):
                         if is_released_listed_holding_family(company_type):
@@ -64451,8 +64743,8 @@ if selected_symbol:
                     )
                 elif peer_group.get("peer_model") == "capital_goods_adjusted_eps_reference_v1":
                     st.caption(
-                        "Schritt 2A lädt drei externe FY2026-Adjusted-EPS-Kalibrierungs-Peers. Der Median ist zunächst reine Evidenz; "
-                        "kein Ziel-Multiple und kein Fair Value werden daraus automatisch freigegeben."
+                        "Schritt 2A lädt drei externe FY2026-Adjusted-EPS-Kalibrierungs-Peers. Der 22–32× Family-Korridor ist bereits kalibriert; "
+                        "der Live-Median dient ausschließlich als downside-only Ceiling/Reality-Check und kann kein Premium-Multiple erzeugen."
                     )
                 elif peer_group.get("peer_model") == "integrated_oil_gas_major_reference_v1":
                     st.caption(
@@ -64461,7 +64753,7 @@ if selected_symbol:
                         "es gibt keine automatische ±5-%-Anpassung, kein Peer-Gate und keinen Peer-bedingten Confidence-Abzug."
                     )
                 elif is_capital_goods_peer_metric:
-                    peer_explain = f"Capital Goods {APP_BUILD_VERSION}: Eaton/ROK/Emerson use issuer-published FY2026 Adjusted EPS and live same-currency prices. Three observations release only a calibration median; V144 does not let that median set/adjust a target multiple or Fair Value until business-mix and portfolio-event treatment is calibrated."
+                    peer_explain = f"Capital Goods {APP_BUILD_VERSION}: Eaton/ROK/Emerson use issuer-published FY2026 Adjusted EPS and live same-currency prices. Three valid observations unlock the run-level peer data gate; the stable 22–32× family corridor is score-driven, while the live median is downside-only and can never lift the target."
                 elif bool((data.get("professional_business_services_specialist_model") or {}).get("applicable")):
                     ps_peer_model_ui = data.get("professional_business_services_specialist_model") or {}
                     if ps_peer_model_ui.get("valuation_anchor_complete"):
@@ -64659,7 +64951,7 @@ if selected_symbol:
                     if is_capital_goods_peer_metric:
                         st.write(f"**Same-Horizon/Same-Basis Current-FY Beobachtungen:** {peer_check.get('usable_count', 0)}/3")
                         if peer_check.get("comparability_gate_passed"):
-                            st.success("Capital-Goods Peer Data Gate bestanden: drei issuer-adjusted FY2026 P/E-Beobachtungen sind live verfügbar. Der Family-Multiple-Korridor bleibt dennoch bis zur Business-Mix-/Portfolio-Event-Kalibrierung gesperrt.")
+                            st.success("Capital-Goods Peer Data Gate bestanden: drei issuer-adjusted FY2026 P/E-Beobachtungen sind live verfügbar. Der 22–32× Family-Multiple-Korridor ist für die zwei validierten Profile freigegeben; der Live-Median bleibt ausschließlich Reference/Downside-Ceiling.")
                         else:
                             st.warning("Capital-Goods Peer Data Gate nicht bestanden: weniger als drei live same-currency issuer-adjusted FY2026 P/E-Beobachtungen verfügbar.")
 
@@ -65102,6 +65394,28 @@ if selected_symbol:
                             if earnings_ind.get("source_url"):
                                 st.markdown(f"[Earnings-Bridge Primärquelle]({earnings_ind.get('source_url')})")
 
+                        cg_val_ind = checks_ind.get("specialist_valuation") or {}
+                        if cg_val_ind.get("corridor_released"):
+                            st.write("**Capital-Goods Family Multiple Corridor V1:**")
+                            st.write(
+                                f"**Family-KGV-Korridor:** {safe_float(cg_val_ind.get('corridor_low')):.1f}× – {safe_float(cg_val_ind.get('corridor_high')):.1f}×"
+                            )
+                            if cg_val_ind.get("available"):
+                                st.write(
+                                    f"**Score-positioniertes Roh-KGV:** {safe_float(cg_val_ind.get('raw_score_multiple')):.2f}× · "
+                                    f"**verwendetes Ziel-KGV:** {safe_float(cg_val_ind.get('target_multiple')):.2f}×"
+                                )
+                                if safe_float(cg_val_ind.get("peer_reference_median_pe")) is not None:
+                                    st.write(
+                                        f"**Issuer-adjusted Peer-Referenzmedian:** {safe_float(cg_val_ind.get('peer_reference_median_pe')):.2f}× · "
+                                        + ("Downside-Ceiling bindend" if cg_val_ind.get("peer_ceiling_applied") else "nur Reality-/Ceiling-Check, nicht bindend")
+                                    )
+                                if cg_val_ind.get("transaction_confidence_guard"):
+                                    st.info("Cognite Transaction Guard: kein zweiter P/E-Abschlag. Das Transaktions-/Leverage-Risiko ist bereits in Balance/Capital Allocation reflektiert und begrenzt bis zu pro-forma Closing-Daten die Bewertungssicherheit auf Mittel.")
+                            else:
+                                st.warning("Family-Korridor ist als Vergleichsrahmen freigegeben, aber für diesen Emittenten kein Ziel-KGV/Fair Value: ein issuer-spezifischer Structural-/SOTP-Guard bleibt bindend.")
+                            st.caption(text_or_dash(cg_val_ind.get("note")))
+
                         st.write(f"**Operationaler Capital-Goods-Qualitätsscore:** {int(safe_float(score_ind.get('score')) or 0)}/100 · {text_or_dash(score_ind.get('quality_level'))}")
                         st.caption("Dieser Score beschreibt operative Qualität und die Qualität der Primärdatenbasis; die Bewertungsreife wird separat durch SOTP-/Transaction-/Comparability-Gates bestimmt. Er ist ausdrücklich kein KGV-/Multiple-Score.")
                         ind_components = score_ind.get("components") or {}
@@ -65129,17 +65443,23 @@ if selected_symbol:
                                 st.write("**Für die spätere SOTP-/Family-Freigabe fehlen noch:**")
                                 for item in missing_ind:
                                     st.write(f"• {item}")
-                            st.error("Fair Value bleibt fail-closed: Current-FY Earnings Bridge ist verfügbar; Core-Siemens + Healthineers Distribution/Retained-Stake SOTP-Bridge und der freigegebene Family-Multiple-Korridor fehlen weiterhin.")
+                            st.error("Fair Value bleibt fail-closed: Earnings Bridge und 22–32× Family-Korridor sind verfügbar; Core-Siemens + Healthineers Distribution/Retained-Stake SOTP-Bridge fehlt weiterhin.")
                         elif ind_profile_key == "energy_technology_automation":
                             if checks_ind.get("transaction_guard_active"):
                                 st.warning(
                                     f"Cognite Transaction Guard: Schneider hat die Übernahme von Cognite angekündigt (Transaktionswert rund USD {safe_float(snap_ind.get('cognite_transaction_value_usd'))/1e9:.1f} Mrd.). Das ist kein Structural Break, kann aber die pro-forma Verschuldung/Kapitalallokation verändern und bleibt deshalb als Leverage-Guard aktiv."
                                 )
                             if missing_ind:
-                                st.write("**Für die Freigabe des Family-Multiple-Korridors fehlen noch:**")
+                                st.write("**Offene Follow-up-/Refresh-Punkte:**")
                                 for item in missing_ind:
                                     st.write(f"• {item}")
-                            st.error("Fair Value bleibt fail-closed: Current-FY Earnings Bridge ist validiert; der Capital-Goods-Multiple-Korridor und seine Business-Mix/Peer-Comparability-Freigabe sind noch nicht abgeschlossen.")
+                            if special_control.get("released"):
+                                st.success(
+                                    f"Schneider-Fair-Value freigegeben: FY2026 Adjusted EPS × {safe_float((checks_ind.get('specialist_valuation') or {}).get('target_multiple')):.2f}× Family-KGV. "
+                                    "Cognite bleibt Confidence/Leverage Guard und wird nicht als zweiter Multiple-Abschlag doppelt gezählt."
+                                )
+                            else:
+                                st.error("Fair Value bleibt fail-closed: Earnings Bridge, Family-Corridor oder Peer-Data-Gate sind noch nicht vollständig freigegeben.")
 
                 if special_control.get("control_key") == "professional_business_services_specialist":
                     st.divider()
@@ -69861,6 +70181,19 @@ if selected_symbol:
                             f"Yahoo-TTM-FCF/Net-Debt-to-FCF, generischer ROE und Analysten-Kursziele sind kein Bestandteil des "
                             f"{text_or_dash(fair_value.get('issuer_name') or 'Payment-Network')}-Fair-Values."
                         )
+                    elif fair_value.get("valuation_method") == "capital_goods_current_fy_adjusted_pe":
+                        st.write("**Bewertungsformel:** issuer-adjustiertes Current-FY EPS × score-positioniertes Capital-Goods-Family-KGV; Live-Peer-Median nur downside-only Ceiling")
+                        st.write(f"**Capital-Goods Operational Score:** {safe_float(fair_value.get('specialist_score')):.0f}/100 · {text_or_dash(fair_value.get('specialist_quality_level'))}")
+                        st.write("**Current-FY Earnings-Basis:** " + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"]))
+                        st.write(f"**Family-KGV-Korridor:** {safe_float(fair_value.get('multiple_corridor_low')):.1f}× – {safe_float(fair_value.get('multiple_corridor_high')):.1f}×")
+                        st.write(f"**Score-positioniertes Roh-KGV:** {safe_float(fair_value.get('raw_score_multiple')):.2f}×")
+                        st.write(f"**Verwendetes Ziel-KGV:** {safe_float(fair_value.get('target_multiple')):.2f}×")
+                        if safe_float(fair_value.get("peer_reference_median_pe")) is not None:
+                            st.write(f"**Issuer-adjusted Peer-Referenzmedian:** {safe_float(fair_value.get('peer_reference_median_pe')):.2f}×")
+                            st.caption("Der Peer-Median kann das Ziel ausschließlich nach unten begrenzen; er kann niemals einen Premium-Multiple hochziehen.")
+                        if fair_value.get("transaction_confidence_guard"):
+                            st.info("Cognite-Leverage/Capital-Allocation Guard aktiv: kein zusätzlicher P/E-Abschlag; Bewertungssicherheit bis zu belastbaren pro-forma Closing-Daten auf Mittel begrenzt.")
+                        st.caption("Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV und Analystenziele sind kein Bestandteil des Capital-Goods-Fair-Values.")
                     elif fair_value.get("valuation_method") == "regulated_utility_core_eps_pe":
                         st.write("**Bewertungsformel:** Current-FY Core/Adjusted EPS Guidance × Utility Quality-P/E; danach downside-only Regulatory/Transaction Risk Overlay")
                         st.write(
@@ -70048,6 +70381,11 @@ if selected_symbol:
                         st.caption(
                             f"Peer-Evidenz: {int(fair_value.get('peer_observation_count') or 0)} valide Holding-Peers. "
                             "Analystenziele, generisches EPS/KGV und Yahoo-FCF sind keine Fair-Value-Inputs."
+                        )
+                    elif fair_value.get("valuation_method") == "capital_goods_current_fy_adjusted_pe":
+                        st.info(
+                            "Capital-Goods-Sicherheitsisolierung: Provider/GAAP-TTM-/Forward-Divergenz, Yahoo-FCF und generischer Net-Debt/FCF-Score begrenzen die Specialist-Sicherheit nicht separat. "
+                            "Maßgeblich sind Current-FY issuer-adjusted Earnings Bridge, Capital-Goods-Spezialkontrolle und der Cognite Confidence/Leverage Guard; der Peer-Layer bleibt reference/downside-only."
                         )
                     elif fair_value.get("valuation_method") == "professional_business_services_adjusted_pe":
                         ps_basis_gbp_fv_ui = safe_float(fair_value.get("professional_services_earnings_basis_gbp"))
