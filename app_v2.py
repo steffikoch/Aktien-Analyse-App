@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.71"
+APP_BUILD_VERSION = "V2.22.72"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Payments Processor Three-Issuer Family Score Calibration V167"
+    f"Build {APP_BUILD_VERSION} · Payments Processor Family Score Copy & Regression Cleanup V168"
 )
 
 
@@ -45,6 +45,7 @@ st.caption(
 # V2.22.70: Payments Processor Fiserv Third-Issuer Comparability Foundation V166. Adds current Nasdaq-listed Fiserv, Inc. (FISV; legacy NYSE ticker FI retained only as an identity alias) as the third issuer-primary stress-test profile under Payments Processor / Merchant Acquirer, classified as Diversified Merchant Acquirer / Banking Technology / Clover. Uses official Q2/H1 2026 adjusted revenue and organic growth, Clover GPV, adjusted operating margin/EPS, issuer-defined FCF/FCF conversion and CapEx plus the August 2026 guidance reset. The guidance-reset guard explicitly records the move from 1–3% organic growth / $8.00–8.30 adjusted EPS / ~34% adjusted margin to (1%)–0% / $7.20–7.40 / 31–31.5%, while ~90% FCF conversion remains. The three-issuer abstract KPI contract is now structurally populated across PayPal, Adyen and Fiserv, but Family Score, earnings anchor, P/E corridor, Fair Value and signals remain fail-closed until the live Fiserv regression confirms routing, display and gate behavior. Adds a verified Fiserv -> FISV/Nasdaq primary-listing lock. Visa/Mastercard V163 mathematics remain unchanged.
 
 # V2.22.71: Payments Processor Three-Issuer Family Score Calibration V167. Promotes the successfully live-regressed PayPal, Adyen and Fiserv processor foundation into a transparent 100-point family quality score while keeping valuation fail-closed. The score uses five abstract blocks across all three subprofiles: Economics/Revenue Conversion (25), Margin Quality/Trend (20), Cash Conversion/Capital Intensity (20), Earnings/Guidance/Execution (20), and Capital/Structure Context (15). Payment volume remains diagnostic only and contributes at most through a small conversion-discipline subcomponent; issuer-native economics remain TM$ ex interest for PayPal, constant-currency Net Revenue for Adyen and Organic Revenue for Fiserv. No common EPS anchor, P/E corridor, Fair Value, valuation zone or signal is released. Fixes the Fiserv guidance copy backtick artifact and the "Fiserv One transformation expenses" wording. Visa/Mastercard V163 mathematics remain unchanged.
+# V2.22.72: Payments Processor Family Score Copy & Regression Cleanup V168. Copy/status-only cleanup after the successful Fiserv V167 live score regression; no Payments-Processor score mathematics or valuation mathematics changed. Replaces Markdown-sensitive dollar-sign guidance copy with render-safe USD wording, removes stale pre-regression language from Fiserv and Adyen earnings-reference text, and aligns visible V168 diagnostics with the already released three-issuer Family Quality Score. Earnings anchor, P/E corridor, peer adjustment, Fair Value, valuation zones and signals remain fail-closed pending separate valuation calibration. PayPal/Adyen/Fiserv score inputs and Visa/Mastercard V163 mathematics remain unchanged.
 
 
 # V2.22.54: Deutsche Börse Primary-Listing Search Guard V150. Search-only hotfix after the first V149 live test showed that the Exchange / Market Infrastructure specialist route existed but the security resolver had no verified Deutsche-Börse name alias, so a literal "Deutsche Börse" query could return no selectable equity before DB1.DE ever reached the valuation router. Adds verified aliases for Deutsche Börse/Deutsche Boerse/DB1/DB1.DE that resolve to the XETRA home listing DB1.DE (EUR), and bumps the resolver cache epoch so stale empty search results cannot survive the fix. Exchange V149 score/gates, Capital-Goods V148 mathematics and all other valuation logic are unchanged.
@@ -30570,7 +30571,7 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
             "clover_q2_gpv_growth_ex_gateway_pct": 11.0,
             "clover_gateway_conversion_comparability_note": (
                 "Clover GPV wuchs Q2 reported um 9%; auf vergleichbarer Basis ohne Volumen der zuvor offengelegten Gateway-Konversion um 11%. "
-                "V167 zeigt beide Raten und verwendet die 11% nicht als alleinigen Qualitätsanker."
+                "V168 zeigt beide Raten und verwendet die 11% nicht als alleinigen Qualitätsanker."
             ),
             "q2_adjusted_operating_income": 1.580e9,
             "q2_adjusted_operating_margin_pct": 31.8,
@@ -30613,7 +30614,7 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
             "guidance_reset_active": True,
             "guidance_reset_note": (
                 "Q2 2026 Guidance-Reset: Organic Revenue 1–3% -> (1%)–0%; Adjusted Revenue 1–3% -> (1.5%)–(0.5%); "
-                "Adjusted Operating Margin ~34% -> 31–31.5%; Adjusted EPS $8.00–8.30 -> $7.20–7.40. "
+                "Adjusted Operating Margin ~34% → 31–31.5%; Adjusted EPS USD 8.00–8.30 → USD 7.20–7.40. "
                 "FCF Conversion bleibt bei ~90%. Das wird als Execution/Trend-Guard behandelt, nicht als Sonderereignis-EPS-Ersatz."
             ),
             "one_fiserv_transformation_active": True,
@@ -30621,7 +30622,7 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
             "student_loan_servicing_divestiture_expected_q3_2026": True,
             "structure_note": (
                 "Fiserv One transformation expenses beeinflussen GAAP-Comparability; zusätzlich wurde die MoneyPass Group JV im August abgeschlossen "
-                "und die Student-Loan-Servicing-Veräußerung für Q3 erwartet. V167 hält deshalb GAAP-Margen und rohe Provider-Trends außerhalb der Family-Score-Logik."
+                "und die Student-Loan-Servicing-Veräußerung für Q3 erwartet. V168 hält deshalb GAAP-Margen und rohe Provider-Trends außerhalb der Family-Score-Logik."
             ),
             "volume_economics_note": (
                 "Clover GPV wächst vergleichbar +11%, während Total-Company Organic Revenue Q2 -5% und Adjusted Revenue -4% beträgt. "
@@ -30629,7 +30630,7 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
             ),
             "earnings_reference_status": (
                 "FY2026 Company Adjusted EPS Guidance $7.20–7.40 ist issuer-primary same-basis Kontext. "
-                "V167 verwendet sie noch nicht als Fair-Value-Anker; die Family-Earnings-Definition bleibt bis zum bestandenen Live-Regressionslauf gesperrt."
+                "V168 verwendet sie noch nicht als Fair-Value-Anker; die Family-Earnings-Definition bleibt bis zur separaten Bewertungs-Kalibrierung gesperrt."
             ),
         }
 
@@ -30673,8 +30674,8 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
             "long_term_ebitda_margin_target_year": 2028,
             "company_eps_guidance_available": False,
             "earnings_reference_status": (
-                "Keine Company-EPS-Guidance: V167 erzwingt deshalb keinen PayPal-artigen EPS-Guidance-Anker. "
-                "Eine familienweite Earnings-Definition bleibt bis zum bestandenen Fiserv-Live-Regressionslauf gesperrt."
+                "Keine Company-EPS-Guidance: V168 erzwingt deshalb keinen PayPal-artigen EPS-Guidance-Anker. "
+                "Eine familienweite Earnings-Definition bleibt bis zur separaten Bewertungs-Kalibrierung gesperrt."
             ),
             "talon_one_orb_closed_date": "01.07.2026",
             "h1_includes_talon_one_orb": False,
@@ -30688,7 +30689,7 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
             "volume_economics_cc_spread_pct_points": 21.0 - 24.0,
             "volume_monetization_note": (
                 "H1 Processed Volume +24% versus Net Revenue +19% reported bzw. +21% constant currency. "
-                "Volumen wächst damit schneller als die Net-Revenue-Ökonomie; in V167 ist das Diagnoseevidenz, kein Score-Abzug."
+                "Volumen wächst damit schneller als die Net-Revenue-Ökonomie; in V168 ist das Diagnoseevidenz, kein Score-Abzug."
             ),
         }
 
@@ -30769,7 +30770,7 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
         "volume_monetization_spread_pct_points": 3.0 - 10.0,
         "volume_monetization_note": (
             "Q2 TPV +10% versus TM$ ex Interest +3%: starkes Volumenwachstum übersetzt sich nicht proportional "
-            "in die isolierte operative Zahlungsökonomie. Das ist in V167 Diagnoseevidenz, noch kein Score-Abzug."
+            "in die isolierte operative Zahlungsökonomie. Das ist in V168 Diagnoseevidenz, noch kein Score-Abzug."
         ),
     }
 
@@ -31013,7 +31014,7 @@ def build_payments_processor_family_score(snapshot):
 
     return {
         "available": available,
-        "score_version": "Payments Processor Family Quality Score V1 · V167",
+        "score_version": "Payments Processor Family Quality Score V1 · V167 math / V168 copy cleanup",
         "total_points": total,
         "max_points": 100,
         "quality_label": quality_label,
@@ -31093,7 +31094,7 @@ def build_payments_processor_foundation_model(company_type, fundamental_info, sy
             "family_multiple_released": False,
             "fair_value_released": False,
             "note": (
-                "Payments Processor / Merchant Acquirer erkannt, aber für diesen Emittenten ist in V167 noch kein "
+                "Payments Processor / Merchant Acquirer erkannt, aber für diesen Emittenten ist in V168 noch kein "
                 "issuer-primary Foundation Snapshot hinterlegt. PayPal, Adyen und Fiserv sind Foundation-Referenzen; "
                 "Standard-Score und Fair Value bleiben fail-closed."
             ),
@@ -31156,7 +31157,7 @@ def build_payments_processor_foundation_model(company_type, fundamental_info, sy
             if score_released else f"{issuer_name} Family Score gesperrt – Primärdaten unvollständig oder veraltet"
         ),
         "note": (
-            "V167 bewertet PayPal, Adyen und Fiserv als drei wirtschaftlich unterschiedliche issuer-primary Subprofile unter derselben "
+            "V168 bewertet PayPal, Adyen und Fiserv als drei wirtschaftlich unterschiedliche issuer-primary Subprofile unter derselben "
             "Payments-Processor-Familie. Der gemeinsame 100-Punkte-Family-Quality-Score ist nach bestandenem Fiserv-Live-Regressionslauf freigegeben. "
             "Payment Volume bleibt Diagnosekontext; issuer-native Economics, Margin, Cash Conversion, Execution und Capital/Structure werden in gemeinsame "
             "Score-Blöcke übersetzt. Der Score ist ausdrücklich noch kein Bewertungs-Multiple. Earnings-Anker, Multiple-Korridor, Fair Value und Signale bleiben gesperrt."
@@ -67784,7 +67785,7 @@ if selected_symbol:
                             st.caption(text_or_dash(pp_snap.get("structure_note")))
 
                         st.warning(
-                            "V167 Valuation Gate: Der 100-Punkte-Family-Quality-Score ist nach PayPal-, Adyen- und Fiserv-Live-Validierung freigegeben. "
+                            "V168 Valuation Gate: Der 100-Punkte-Family-Quality-Score ist nach PayPal-, Adyen- und Fiserv-Live-Validierung freigegeben. "
                             "Er ist ausdrücklich noch kein Bewertungs-Multiple. Gemeinsamer Earnings-Anker, Payments-Processor-KGV-Korridor, Peer-Adjustment, "
                             "Fair Value, Bewertungszonen und Handlungssignale bleiben gesperrt. Yahoo-FCF, generisches Net-Debt/FCF, Standard-KGV und "
                             "Analystenziele dürfen dieses Gate nicht umgehen."
