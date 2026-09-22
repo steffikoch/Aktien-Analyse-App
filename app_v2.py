@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.44"
+APP_BUILD_VERSION = "V2.22.45"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Manager Guard Display Order Cleanup V140"
+    f"Build {APP_BUILD_VERSION} · Industrials / Capital Goods Siemens Primary-Source & Spin-off Gate V141"
 )
 
 
@@ -63,6 +63,8 @@ st.caption(
 
 # V2.22.42: Asset-Manager Peer-Guard UI Consistency Cleanup V138. No valuation mathematics changed. Separates the raw score-driven Asset-Manager P/E anchor from the downside-only Peer/Historical Safety Guard in Module 6, suppresses the stale pre-guard multiple in Step 2B, labels the actually used post-guard target multiple explicitly, uses issuer-native Cost-Income Ratio copy when no operating margin is reported, and omits an empty published-date placeholder. DWS score 76/100, Through-Cycle EPS 4.80 EUR, raw 13.47x score anchor, 12.54x downside cap, 60.18 EUR Fair Value and signal thresholds remain unchanged.
 # V2.22.44: Asset-Manager Guard Display Order Cleanup V140. No valuation mathematics changed. Step 1 now displays only the raw score-derived Asset-Manager multiple and explicitly defers the final guarded target multiple to Step 3B after peer/historical evidence has been shown. Step 3B labels the actually available guard reference conditionally, so a missing 3Y historical median is no longer rendered under a combined Peer/Historical label. DWS score, Through-Cycle EPS, peer cap, Fair Value and signals remain unchanged.
+
+# V2.22.45: Industrials / Capital Goods Siemens Primary-Source & Spin-off Gate V141. Adds the first issuer-primary Capital-Goods validation profile for Siemens AG (SIE.DE) without globally releasing the family. The specialist layer uses issuer-native orders/book-to-bill, comparable revenue growth, Industrial-Business margin, ROCE, Group cash conversion and Industrial net debt/EBITDA (explicitly excluding Siemens Financial Services debt) instead of generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF points. A 100-point operational-quality diagnostic is calculated from these primary metrics but is deliberately NOT converted into a target P/E. Siemens' planned direct spin-off of 30% of Siemens Healthineers shares, with shareholder vote targeted for February 2027, is treated as a structural valuation break: current consolidated EPS, the Healthineers stake/distribution entitlement and post-spin core-Siemens earnings are not mixed into a pseudo-precise single-multiple Fair Value. Fair Value, valuation zones and signals therefore remain fail-closed until a reusable Capital-Goods SOTP/ownership bridge is implemented and a second independent Industrials issuer validates the family. All V140 Asset-Manager mathematics remain unchanged.
 # V2.22.41: Asset-Manager Annual-History Candidate Merge V137. Fixes a de-duplication/ranking defect in generic same-basis Asset-Manager EPS-history recovery. The same issuer-primary report can be discovered once for each requested target year; prior builds kept the first URL occurrence and therefore preserved the score from the first target year instead of the best score across all requested years. V117 now merges duplicate URLs by their strongest year-aware score, explicitly recognizes the discovered document_class even when the download URL/anchor is opaque, and prioritizes the latest completed-FY Financial Data Supplement/annual report because such reports often contain the full 3Y same-basis EPS series in one table. Current-period AUM/flow/fee/CIR evidence, specialist score weights, 9–18x corridor, peer/historical guards and signal thresholds are unchanged.
 # V2.22.37: Asset-Manager Structured XLSX Period Binding V133. Fixes wide issuer-primary financial supplements whose comparison headers (for example “Q2 2026 vs. Q1 2026 / Q2 2025”) precede the actual multi-period data-header row. XLSX extraction now preserves explicit worksheet-row boundaries, period detection ranks the real multi-period header row ahead of comparison captions, and KPI rows are parsed only within their own workbook row so comparison columns cannot shift AUM/flow/fee/CIR/EPS values onto the wrong period. Same-scope guards, same-basis earnings requirements, score weights, 9–18x corridor, peer/historical guards and signal thresholds remain unchanged; no issuer ticker, URL or KPI value is hard-coded.
 # V2.22.34: Development-Stage EPS Copy Isolation Cleanup V130. Copy/UI-only change. Keeps V128 subprofile routing and V121 financial-stage detection unchanged, but isolates Development-Stage Mining / Materials from the generic Universal-Family EPS wording: Standard TTM/Forward EPS remains diagnosis-only and is explicitly not a Fair-Value anchor; Mineral Explorer / Mine Developer points instead to a technical/economic project and Project-NAV basis, while Battery Materials / Processing / Technology points to resource/feedstock, process/pilot/scale-up, qualification/offtake, funding and commercialisation evidence. The terminal EPS caption is profile-aware for the same reason. All scores, corridors, guard states, V127 Net-Cash logic, LOM logic and valuation mathematics remain unchanged.
@@ -37420,6 +37422,237 @@ def build_professional_business_services_special_control(control, specialist_mod
     return out
 
 
+
+# =========================================================
+# V2.22.45 – Industrials / Capital Goods Specialist V1
+# First issuer-primary validation profile: Siemens AG (SIE.DE)
+# =========================================================
+
+def is_industrials_capital_goods_specialist_type(company_type, symbol=None):
+    family_id = str((company_type or {}).get("valuation_family_id") or "").strip().lower()
+    family = str((company_type or {}).get("valuation_family") or "").strip().lower()
+    type_name = normalized_company_type_name(company_type)
+    sym = str(symbol or "").upper().strip()
+    return sym == "SIE.DE" or family_id == "industrials" or "industrials / capital goods" in family or "industrials / capital goods" in type_name
+
+
+def get_verified_siemens_industrials_snapshot(symbol):
+    """Issuer-primary Siemens snapshot for Capital-Goods family validation.
+
+    The snapshot intentionally separates Siemens Financial Services funding from
+    industrial leverage and treats the planned Siemens Healthineers spin-off as a
+    structural valuation break. Monetary amounts are EUR unless otherwise noted.
+    """
+    if str(symbol or "").upper().strip() != "SIE.DE":
+        return None
+    return {
+        "company": "Siemens Aktiengesellschaft",
+        "symbol": "SIE.DE",
+        "specialist_profile": "Diversified Capital Goods / Industrial Technology Platform",
+        "specialist_profile_key": "diversified_industrial_technology",
+        "reporting_currency": "EUR",
+        "as_of_date": "30.06.2026",
+        "published_date": "06.08.2026",
+        "source_name": "Siemens Q3 FY2026 Earnings Release + Siemens Annual Report FY2025 + Siemens Healthineers spin-off timeline",
+        "q3_results_url": "https://press.siemens.com/global/en/pressrelease/earnings-release-and-financial-results-q3-fy-2026",
+        "fy2025_report_url": "https://assets.new.siemens.com/siemens/assets/api/uuid:428ea18a-e7ab-4f93-a160-33908f1c3540/Siemens-Annual-Report-2025.pdf",
+        "spin_off_url": "https://press.siemens.com/global/de/pressemitteilung/siemens-konkretisiert-den-zeitplan-fuer-die-abspaltung-von-siemens-healthineers",
+        # Q3 FY2026 current operating evidence
+        "q3_orders": 27.9e9,
+        "q3_orders_comparable_growth_pct": 14.0,
+        "q3_revenue": 20.8e9,
+        "q3_revenue_comparable_growth_pct": 8.0,
+        "q3_book_to_bill": 1.34,
+        "q3_industrial_business_profit": 3.5e9,
+        "q3_industrial_business_profit_growth_pct": 25.0,
+        "q3_industrial_business_margin_pct": 17.3,
+        "q3_industrial_business_margin_prior_pct": 14.9,
+        "q3_group_free_cash_flow": 4.1e9,
+        "q3_net_income": 2.6e9,
+        "q3_eps_pre_ppa": 3.14,
+        "fy2026_eps_pre_ppa_guidance_low": 11.20,
+        "fy2026_eps_pre_ppa_guidance_high": 11.50,
+        "fy2026_group_comparable_revenue_growth_low_pct": 6.0,
+        "fy2026_group_comparable_revenue_growth_high_pct": 8.0,
+        "fy2026_group_book_to_bill_guidance_above": 1.0,
+        "nine_month_digital_revenue_growth_pct": 18.0,
+        "fy2026_double_digit_fcf_return_target": True,
+        # FY2025 same-basis audited framework evidence
+        "fy2025_orders": 88.366e9,
+        "fy2025_revenue": 78.914e9,
+        "fy2025_book_to_bill": 1.12,
+        "fy2025_industrial_business_profit": 11.766e9,
+        "fy2025_industrial_business_margin_pct": 15.4,
+        "fy2025_industrial_business_margin_prior_pct": 15.5,
+        "fy2025_group_fcf_cont_and_disc": 10.8e9,
+        "fy2025_cash_conversion_rate": 1.04,
+        "fy2025_roce_pct": 17.8,
+        "roce_target_low_pct": 15.0,
+        "roce_target_high_pct": 20.0,
+        "fy2025_industrial_net_debt": 12.160e9,
+        "fy2025_industrial_net_debt_to_ebitda": 0.9,
+        "industrial_net_debt_to_ebitda_target_max": 1.5,
+        "fy2025_sfs_debt": 28.898e9,
+        "sfs_debt_excluded_from_industrial_net_debt": True,
+        "fy2025_long_term_rating_moodys": "Aa3",
+        "fy2025_long_term_rating_sp": "AA-",
+        "fy2025_dividend_per_share": 5.35,
+        # Structural break: Healthineers direct spin-off/deconsolidation
+        "healthineers_current_stake_pct": 67.0,
+        "healthineers_direct_spin_off_pct": 30.0,
+        "healthineers_spin_off_vote_target": "Februar 2027",
+        "healthineers_spin_off_tax_clarity_obtained": True,
+        "healthineers_structural_break": True,
+        "valuation_confidence_cap": "Niedrig bis Mittel",
+        "note": (
+            "Siemens is operationally assessed with issuer-native Capital-Goods metrics. Industrial leverage explicitly removes Siemens Financial Services debt. "
+            "The planned direct spin-off of 30% of Siemens Healthineers shares creates a structural ownership/earnings break, so current consolidated EPS is not multiplied by a normal Capital-Goods P/E to manufacture a Fair Value."
+        ),
+    }
+
+
+def build_industrials_capital_goods_operational_score(snapshot):
+    """100-point operational diagnostic; explicitly not a valuation-multiple score."""
+    snap = snapshot or {}
+    if not snap:
+        return {"available": False, "score": None, "max_score": 100, "components": {}, "quality_level": "Nicht verfügbar"}
+
+    orders_g = safe_float(snap.get("q3_orders_comparable_growth_pct"))
+    btb = safe_float(snap.get("q3_book_to_bill"))
+    fy25_btb = safe_float(snap.get("fy2025_book_to_bill"))
+    orders_pts = 8 if orders_g is not None and orders_g >= 10 else 6 if orders_g is not None and orders_g >= 5 else 4 if orders_g is not None and orders_g >= 0 else 1
+    btb_pts = 8 if btb is not None and btb >= 1.20 else 6 if btb is not None and btb >= 1.10 else 4 if btb is not None and btb > 1.0 else 1
+    fy_btb_pts = 4 if fy25_btb is not None and fy25_btb >= 1.10 else 3 if fy25_btb is not None and fy25_btb > 1.0 else 1
+    visibility_pts = orders_pts + btb_pts + fy_btb_pts
+
+    rev_g = safe_float(snap.get("q3_revenue_comparable_growth_pct"))
+    guide_mid = None
+    gl = safe_float(snap.get("fy2026_group_comparable_revenue_growth_low_pct")); gh = safe_float(snap.get("fy2026_group_comparable_revenue_growth_high_pct"))
+    if gl is not None and gh is not None: guide_mid = (gl + gh) / 2.0
+    digital_g = safe_float(snap.get("nine_month_digital_revenue_growth_pct"))
+    rev_pts = 7 if rev_g is not None and rev_g >= 8 else 6 if rev_g is not None and rev_g >= 6 else 4 if rev_g is not None and rev_g >= 3 else 2
+    guide_pts = 5 if guide_mid is not None and guide_mid >= 6 else 4 if guide_mid is not None and guide_mid >= 4 else 2
+    digital_pts = 3 if digital_g is not None and digital_g >= 15 else 2 if digital_g is not None and digital_g >= 8 else 1
+    growth_pts = rev_pts + guide_pts + digital_pts
+
+    margin = safe_float(snap.get("q3_industrial_business_margin_pct")); margin_prev = safe_float(snap.get("q3_industrial_business_margin_prior_pct"))
+    fy_margin = safe_float(snap.get("fy2025_industrial_business_margin_pct")); fy_margin_prev = safe_float(snap.get("fy2025_industrial_business_margin_prior_pct"))
+    roce = safe_float(snap.get("fy2025_roce_pct"))
+    margin_pts = 8 if margin is not None and margin >= 17 and margin_prev is not None and margin >= margin_prev + 1.0 else 7 if margin is not None and margin >= 15 else 4
+    fy_margin_pts = 6 if fy_margin is not None and fy_margin >= 15 and fy_margin_prev is not None and fy_margin >= fy_margin_prev - 0.5 else 4 if fy_margin is not None and fy_margin >= 12 else 2
+    roce_pts = 6 if roce is not None and 15 <= roce <= 25 else 4 if roce is not None and roce >= 10 else 2
+    profitability_pts = margin_pts + fy_margin_pts + roce_pts
+
+    ccr = safe_float(snap.get("fy2025_cash_conversion_rate"))
+    q3_fcf = safe_float(snap.get("q3_group_free_cash_flow")); q3_ni = safe_float(snap.get("q3_net_income"))
+    q3_ccr = q3_fcf / q3_ni if q3_fcf is not None and q3_ni is not None and q3_ni > 0 else None
+    ccr_pts = 8 if ccr is not None and ccr >= 1.0 else 6 if ccr is not None and ccr >= 0.8 else 4 if ccr is not None and ccr >= 0.6 else 2
+    q3_cash_pts = 5 if q3_ccr is not None and q3_ccr >= 1.2 else 4 if q3_ccr is not None and q3_ccr >= 0.9 else 2
+    target_pts = 2 if snap.get("fy2026_double_digit_fcf_return_target") else 0
+    cash_pts = ccr_pts + q3_cash_pts + target_pts
+
+    leverage = safe_float(snap.get("fy2025_industrial_net_debt_to_ebitda")); leverage_target = safe_float(snap.get("industrial_net_debt_to_ebitda_target_max"))
+    leverage_pts = 8 if leverage is not None and leverage <= 1.0 else 6 if leverage is not None and leverage_target is not None and leverage <= leverage_target else 3
+    rating_pts = 2 if snap.get("fy2025_long_term_rating_moodys") and snap.get("fy2025_long_term_rating_sp") else 0
+    balance_pts = leverage_pts + rating_pts
+
+    eps_lo = safe_float(snap.get("fy2026_eps_pre_ppa_guidance_low")); eps_hi = safe_float(snap.get("fy2026_eps_pre_ppa_guidance_high"))
+    earnings_pts = 6 if eps_lo is not None and eps_hi is not None and eps_lo >= 11.0 else 4 if eps_lo is not None and eps_hi is not None else 0
+    # Structural event is not punished as operating weakness, but it prevents the
+    # remaining structure/valuation points from being awarded.
+    structure_pts = 0 if snap.get("healthineers_structural_break") else 4
+    structure_total = earnings_pts + structure_pts
+
+    capital_pts = 7 if safe_float(snap.get("fy2025_dividend_per_share")) is not None else 4
+    if snap.get("healthineers_structural_break"):
+        capital_note = "Shareholder returns remain positive, but the Healthineers spin-off keeps portfolio/capital-allocation comparability open."
+    else:
+        capital_note = "Capital allocation evidence complete."
+
+    components = {
+        "orders_visibility": {"score": visibility_pts, "max": 20, "q3_orders_growth_pct": orders_g, "q3_book_to_bill": btb, "fy2025_book_to_bill": fy25_btb},
+        "comparable_growth": {"score": growth_pts, "max": 15, "q3_revenue_growth_pct": rev_g, "fy2026_guidance_mid_pct": guide_mid, "digital_growth_pct": digital_g},
+        "margin_roce_quality": {"score": profitability_pts, "max": 20, "q3_industrial_margin_pct": margin, "q3_margin_prior_pct": margin_prev, "fy2025_margin_pct": fy_margin, "fy2025_roce_pct": roce},
+        "cash_conversion": {"score": cash_pts, "max": 15, "fy2025_cash_conversion_rate": ccr, "q3_fcf_to_net_income": q3_ccr},
+        "industrial_balance": {"score": balance_pts, "max": 10, "industrial_net_debt_to_ebitda": leverage, "target_max": leverage_target, "sfs_debt_excluded": bool(snap.get("sfs_debt_excluded_from_industrial_net_debt"))},
+        "capital_allocation": {"score": capital_pts, "max": 10, "dividend_per_share": safe_float(snap.get("fy2025_dividend_per_share")), "note": capital_note},
+        "earnings_structure": {"score": structure_total, "max": 10, "fy2026_eps_pre_ppa_guidance_low": eps_lo, "fy2026_eps_pre_ppa_guidance_high": eps_hi, "structural_break": bool(snap.get("healthineers_structural_break"))},
+    }
+    score = sum(int(v.get("score") or 0) for v in components.values())
+    quality = "Sehr gut" if score >= 85 else "Gut" if score >= 70 else "Ausreichend" if score >= 50 else "Schwach"
+    return {
+        "available": True,
+        "score": score,
+        "max_score": 100,
+        "quality_level": quality,
+        "components": components,
+        "valuation_score": False,
+        "note": "Operationaler Capital-Goods-Qualitätsscore aus issuer-primary KPIs; ausdrücklich kein Multiple-Score und kein Fair-Value-Anker.",
+    }
+
+
+def build_industrials_capital_goods_specialist_model(company_type, fundamental_info, symbol):
+    if not is_industrials_capital_goods_specialist_type(company_type, symbol):
+        return {"applicable": False}
+    snap = get_verified_siemens_industrials_snapshot(symbol)
+    if not snap:
+        return {
+            "applicable": True,
+            "issuer_supported": False,
+            "primary_source_complete": False,
+            "valuation_anchor_complete": False,
+            "structural_break_active": False,
+            "readiness": "Industrials / Capital Goods family recognized; issuer-primary family adapter not yet calibrated",
+        }
+    op_score = build_industrials_capital_goods_operational_score(snap)
+    structural_break = bool(snap.get("healthineers_structural_break"))
+    return {
+        "applicable": True,
+        "issuer_supported": True,
+        "primary_source_complete": True,
+        "valuation_anchor_complete": False,
+        "structural_break_active": structural_break,
+        "sotp_required": structural_break,
+        "snapshot": snap,
+        "operational_score": op_score,
+        "readiness": "Siemens Primärdatenprofil vollständig · Healthineers-Spin-off Structural-Break/SOTP-Gate aktiv · Fair Value gesperrt",
+        "missing_valuation_inputs": [
+            "post-spin Core-Siemens earnings / capital structure on a comparable basis",
+            "value bridge for the direct 30% Healthineers share distribution to Siemens shareholders",
+            "treatment/value of Siemens' retained Healthineers minority stake after deconsolidation",
+            "second independent Capital-Goods issuer validation for reusable family multiple calibration",
+        ],
+        "note": (
+            f"{APP_BUILD_VERSION} uses Siemens issuer-primary orders, book-to-bill, Industrial-Business margin, ROCE, cash conversion and Industrial net debt/EBITDA. "
+            "Because Siemens Financial Services is a captive finance business, its debt is explicitly excluded from industrial leverage. "
+            "The announced Healthineers spin-off changes ownership and earnings comparability, therefore no target P/E/Fair Value is released yet."
+        ),
+    }
+
+
+def build_industrials_capital_goods_special_control(control, specialist_model):
+    if not isinstance(control, dict) or control.get("control_key") != "industrials_capital_goods_specialist":
+        return control
+    model = specialist_model if isinstance(specialist_model, dict) else {}
+    snap = model.get("snapshot") or {}
+    out = dict(control)
+    out.update({
+        "implemented": True,
+        "released": False,
+        "confidence_cap": snap.get("valuation_confidence_cap") or "Niedrig bis Mittel",
+        "router_status": "Schritt 3B aktiv – Siemens Primärdaten validiert, Structural-Break/SOTP-Gate bindend",
+        "step3b_status": model.get("readiness"),
+        "snapshot": snap,
+        "checks": {
+            "operational_score": model.get("operational_score") or {},
+            "structural_break_active": bool(model.get("structural_break_active")),
+            "sotp_required": bool(model.get("sotp_required")),
+            "missing_valuation_inputs": list(model.get("missing_valuation_inputs") or []),
+        },
+        "note": model.get("note"),
+    })
+    return out
+
 # =========================================================
 # V2.20.96 – Corteva Separation Detection & SOTP Pre-Gate
 # =========================================================
@@ -40142,6 +40375,35 @@ def get_special_control(company_type, symbol):
     symbol_text = str(
         symbol or ""
     ).upper()
+
+    # V2.22.45: a validated issuer-primary Industrials pre-gate may replace the
+    # generic family-gate copy while remaining valuation fail-closed. This does
+    # not release the family or allow legacy/generic valuation math.
+    if (
+        str((company_type or {}).get("valuation_family_id") or "").strip().lower() == "industrials"
+        and symbol_text == "SIE.DE"
+    ):
+        return {
+            "required": True,
+            "control_key": "industrials_capital_goods_specialist",
+            "control_name": "Siemens / Industrials & Capital Goods Primary-Source-, Industrial-Leverage- & Healthineers-SOTP-Kontrolle",
+            "planned_checks": [
+                "Comparable Orders + Book-to-Bill als Nachfrage-/Visibility-Kern",
+                "Comparable Revenue Growth und Digital-Growth statt nominalem Yahoo-Wachstum allein",
+                "Industrial-Business Profit Margin + ROCE statt generischer Nettomarge/ROE-Punkte",
+                "Issuer Cash Conversion / Free Cash Flow statt Yahoo-FCF-Margen-Score",
+                "Industrial net debt/EBITDA mit explizitem Ausschluss von Siemens Financial Services debt",
+                "Current-FY EPS pre PPA nur als Earnings-Kontext, nicht als alleiniger Fair-Value-Anker",
+                "Healthineers 30%-Direktabspaltung / retained stake / post-spin Core-Siemens SOTP-Bridge",
+                "zweiter unabhängiger Capital-Goods-Emittent vor globaler Familienfreigabe",
+                "Analystenziele ausschließlich Reality Check",
+            ],
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Industrials / Capital Goods Siemens Primary-Source & Spin-off Gate V1",
+            "note": (
+                "Siemens erhält als erster Capital-Goods-Validierungstitel ein issuer-primary Betriebsqualitätsprofil. "
+                "Der Healthineers-Spin-off ist ein bestätigter Structural Break; deshalb bleiben Ziel-KGV, Fair Value, Zonen und Signale gesperrt."
+            ),
+        }
 
     # V2.21.3: Universal family readiness has absolute priority over all legacy
     # specialist routers. No legacy substring/type match may take over while
@@ -55449,6 +55711,12 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         fundamental_symbol,
     )
 
+    industrials_capital_goods_specialist_model = build_industrials_capital_goods_specialist_model(
+        company_type,
+        fundamental_info,
+        fundamental_symbol,
+    )
+
     listed_investment_holding_specialist_model = build_listed_investment_holding_specialist_model(
         company_type,
         fundamental_info,
@@ -56293,6 +56561,11 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         professional_business_services_specialist_model
     )
 
+    special_control = build_industrials_capital_goods_special_control(
+        special_control,
+        industrials_capital_goods_specialist_model
+    )
+
     special_control = build_listed_investment_holding_special_control(
         special_control,
         listed_investment_holding_specialist_model
@@ -56373,7 +56646,12 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     # decision later in the chain. Released family/specialist routes never enter
     # this branch, so their frozen controls and mathematics are unchanged.
     if is_universal_family_fail_closed(company_type):
-        if (listed_investment_holding_specialist_model or {}).get("applicable"):
+        if (industrials_capital_goods_specialist_model or {}).get("issuer_supported"):
+            special_control = build_industrials_capital_goods_special_control(
+                get_special_control(company_type, fundamental_symbol),
+                industrials_capital_goods_specialist_model,
+            )
+        elif (listed_investment_holding_specialist_model or {}).get("applicable"):
             special_control = build_listed_investment_holding_special_control(
                 _universal_family_special_control(company_type),
                 listed_investment_holding_specialist_model,
@@ -56475,6 +56753,28 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "family_model_gate": True,
                 "diagnostic_original_level": _diagnostic_level or None,
                 "diagnostic_original_reason": _diagnostic_reason or None,
+            }
+
+    if (industrials_capital_goods_specialist_model or {}).get("issuer_supported"):
+        _ind_model = industrials_capital_goods_specialist_model or {}
+        _ind_snap = _ind_model.get("snapshot") or {}
+        if _ind_model.get("structural_break_active"):
+            special_event_warning = {
+                "level": "Gelb",
+                "icon": "🟡",
+                "title": "Siemens Healthineers Spin-off – Structural-Break/SOTP-Gate aktiv",
+                "requires_research": False,
+                "valuation_usable": False,
+                "reason": (
+                    f"Siemens plant die direkte Abspaltung von {_ind_snap.get('healthineers_direct_spin_off_pct'):.0f}% der Siemens-Healthineers-Aktien; "
+                    f"die Aktionärsabstimmung ist für {_ind_snap.get('healthineers_spin_off_vote_target')} vorgesehen. "
+                    "Damit sind heutige Konzern-EPS, künftige Core-Siemens-Earnings und der Wert der ausgeschütteten/retained Healthineers-Beteiligung nicht auf einer stabilen Ein-Multiple-Basis vergleichbar."
+                ),
+                "action": (
+                    "Keine Standard-EPS-Sonderrecherche und kein generisches KGV verwenden. Erst eine explizite Core-Siemens + Healthineers Distribution/Retained-Stake SOTP-Bridge darf den Fair Value wieder freigeben."
+                ),
+                "family_model_gate": True,
+                "structural_break_gate": True,
             }
 
     # V2.20.123 – Family calibration is not a special event.  Keep a
@@ -57401,6 +57701,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         "branded_consumer_staples_specialist_model": branded_consumer_staples_specialist_model,
         "asset_management_specialist_model": asset_management_specialist_model,
         "professional_business_services_specialist_model": professional_business_services_specialist_model,
+        "industrials_capital_goods_specialist_model": industrials_capital_goods_specialist_model,
         "listed_investment_holding_specialist_model": listed_investment_holding_specialist_model,
         "defense_high_growth_specialist_model": defense_high_growth_specialist_model,
         "ctva_separation_pre_gate_model": ctva_separation_pre_gate_model,
@@ -64227,6 +64528,71 @@ if selected_symbol:
                         "Nach Freigabe eines Familienmodells greifen sie automatisch über Family Router + Primärdaten-/Comparability-Gate; "
                         "issuer-spezifische Overrides bleiben nur für echte Sonderfälle."
                     )
+
+                if special_control.get("control_key") == "industrials_capital_goods_specialist":
+                    st.divider()
+                    st.subheader("🏭 Modul 6 – Schritt 3B: Industrials / Capital Goods Specialist V1 · Siemens")
+                    if special_control.get("implemented"):
+                        checks_ind = special_control.get("checks") or {}
+                        snap_ind = special_control.get("snapshot") or {}
+                        score_ind = checks_ind.get("operational_score") or {}
+                        ind_ccy = snap_ind.get("reporting_currency") or financial_currency
+                        st.write(f"**Unternehmen / Profil:** {text_or_dash(snap_ind.get('company'))} · {text_or_dash(snap_ind.get('specialist_profile'))}")
+                        st.write(f"**Primärdatenstand:** {text_or_dash(snap_ind.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_ind.get('published_date'))})")
+                        st.caption(text_or_dash(snap_ind.get("source_name")))
+                        ind_links = []
+                        if snap_ind.get("q3_results_url"):
+                            ind_links.append(f"[Q3 FY2026]({snap_ind.get('q3_results_url')})")
+                        if snap_ind.get("fy2025_report_url"):
+                            ind_links.append(f"[FY2025 Annual Report]({snap_ind.get('fy2025_report_url')})")
+                        if snap_ind.get("spin_off_url"):
+                            ind_links.append(f"[Healthineers Spin-off Timeline]({snap_ind.get('spin_off_url')})")
+                        if ind_links:
+                            st.markdown(" · ".join(ind_links))
+                        c1, c2, c3 = st.columns(3)
+                        with c1:
+                            st.metric("Q3 Orders", format_money(snap_ind.get("q3_orders"), ind_ccy), f"+{safe_float(snap_ind.get('q3_orders_comparable_growth_pct')):.1f}% vergleichbar")
+                            st.metric("Q3 Book-to-Bill", f"{safe_float(snap_ind.get('q3_book_to_bill')):.2f}×")
+                            st.metric("Q3 Revenue", format_money(snap_ind.get("q3_revenue"), ind_ccy), f"+{safe_float(snap_ind.get('q3_revenue_comparable_growth_pct')):.1f}% vergleichbar")
+                        with c2:
+                            st.metric("Industrial Business Margin Q3", f"{safe_float(snap_ind.get('q3_industrial_business_margin_pct')):.1f}%", f"Vorjahr {safe_float(snap_ind.get('q3_industrial_business_margin_prior_pct')):.1f}%")
+                            st.metric("FY2025 ROCE", f"{safe_float(snap_ind.get('fy2025_roce_pct')):.1f}%")
+                            st.metric("FY2025 Cash Conversion", f"{safe_float(snap_ind.get('fy2025_cash_conversion_rate')):.2f}×")
+                        with c3:
+                            st.metric("Industrial Net Debt / EBITDA", f"{safe_float(snap_ind.get('fy2025_industrial_net_debt_to_ebitda')):.1f}×", f"Ziel ≤ {safe_float(snap_ind.get('industrial_net_debt_to_ebitda_target_max')):.1f}×")
+                            st.metric("FY2026 EPS pre PPA Guidance", f"{safe_float(snap_ind.get('fy2026_eps_pre_ppa_guidance_low')):.2f}–{safe_float(snap_ind.get('fy2026_eps_pre_ppa_guidance_high')):.2f} EUR")
+                            st.metric("9M Digital Revenue Growth", f"+{safe_float(snap_ind.get('nine_month_digital_revenue_growth_pct')):.0f}%")
+                        st.caption(
+                            f"Industrial leverage uses issuer-defined Industrial net debt. Siemens Financial Services debt ({format_money(snap_ind.get('fy2025_sfs_debt'), ind_ccy)}) is explicitly excluded rather than being mixed into a generic Net-Debt/FCF ratio."
+                        )
+                        st.write(f"**Operationaler Capital-Goods-Qualitätsscore:** {int(safe_float(score_ind.get('score')) or 0)}/100 · {text_or_dash(score_ind.get('quality_level'))}")
+                        st.caption("Dieser Score beschreibt operative Qualität und Bewertungsreife; er ist ausdrücklich kein KGV-/Multiple-Score.")
+                        ind_components = score_ind.get("components") or {}
+                        ind_labels = {
+                            "orders_visibility": "Orders & Visibility",
+                            "comparable_growth": "Comparable Growth",
+                            "margin_roce_quality": "Margin & ROCE Quality",
+                            "cash_conversion": "Cash Conversion",
+                            "industrial_balance": "Industrial Balance",
+                            "capital_allocation": "Capital Allocation",
+                            "earnings_structure": "Earnings & Structure",
+                        }
+                        for ind_key, ind_label in ind_labels.items():
+                            ind_item = ind_components.get(ind_key) or {}
+                            if ind_item:
+                                st.caption(f"{ind_label}: {int(safe_float(ind_item.get('score')) or 0)}/{int(safe_float(ind_item.get('max')) or 0)}")
+                        if checks_ind.get("structural_break_active"):
+                            st.warning(
+                                f"Healthineers Structural Break: Siemens plant eine direkte Abspaltung von {safe_float(snap_ind.get('healthineers_direct_spin_off_pct')):.0f}% der Healthineers-Aktien; Abstimmung geplant für {text_or_dash(snap_ind.get('healthineers_spin_off_vote_target'))}. "
+                                "Ein einfacher Current-FY-EPS × KGV-Fair-Value würde Core-Siemens, die Aktionärsdistribution und die verbleibende Healthineers-Beteiligung vermischen."
+                            )
+                            missing_ind = checks_ind.get("missing_valuation_inputs") or []
+                            if missing_ind:
+                                st.write("**Für die spätere SOTP-Freigabe fehlen noch:**")
+                                for item in missing_ind:
+                                    st.write(f"• {item}")
+                            st.error("Fair Value bleibt fail-closed: erst Core-Siemens + Healthineers Distribution/Retained-Stake SOTP-Bridge und zweite unabhängige Family-Validierung.")
+                        st.caption(text_or_dash(special_control.get("note")))
 
                 if special_control.get("control_key") == "professional_business_services_specialist":
                     st.divider()
