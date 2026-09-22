@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.68"
+APP_BUILD_VERSION = "V2.22.69"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Payments Processor PayPal Primary-Data & Subprofile Foundation V164"
+    f"Build {APP_BUILD_VERSION} · Payments Processor Adyen Multi-Issuer Comparability Foundation V165"
 )
 
 
@@ -41,6 +41,7 @@ st.caption(
 # V2.22.66: Payment-Network Visa UI Consistency Cleanup V162. UI/copy-only cleanup after the first successful Visa/NYSE regression under the promoted Universal Family route; no Payment-Network valuation mathematics changed. Provider 0Y/current-FY EPS is now explicitly diagnosis/horizon context in the data card and Earnings-Horizon banner for V/MA, Yahoo/statement FCF is labeled diagnosis-only in the data card, the terminal Standard-EPS caption now states that only the issuer-primary Payment-Network earnings bridge is the valuation earnings basis, and the stale generic Nettomarge/ROE profitability footer is suppressed. Step-1 wording also distinguishes the score-derived Quality P/E from the downside-only Regulatory/Litigation overlay so the visible 30.0x Visa multiple cannot be mistaken for an unadjusted score-only result. Visa remains 93/100 with 31.30x pre-overlay Quality P/E, 30.0x used P/E and unchanged Fair Value mathematics; Mastercard, Exchange V158 and Capital-Goods V148 mathematics remain unchanged.
 # V2.22.67: Payment-Network Mastercard Earnings-Bridge Copy Finalization V163. UI/copy-only finalization after the successful MA/NYSE regression; no Payment-Network valuation mathematics changed. Mastercard's earnings basis label is normalized from the redundant "Issuer-primary Adjusted TTM EPS" wording to "Adjusted TTM EPS Bridge (Q3'25–Q2'26)", so generic issuer-primary prefixes no longer render as "issuer-primary Issuer-primary" in the EPS-context and Fair-Value copy. Visa remains 93/100 with 31.30x pre-overlay Quality P/E and 30.0x used P/E; Mastercard remains 91/100 with 31.10x pre-overlay Quality P/E, 30.50x used P/E and unchanged Fair Value mathematics.
 # V2.22.68: Payments Processor PayPal Primary-Data & Subprofile Foundation V164. Starts the unreleased Payments Processor / Merchant Acquirer family with PayPal as the first issuer-primary foundation profile, explicitly classified as Wallet / Branded Checkout / PSP. Adds verified Q2 2026 TPV, payment transactions, active accounts, Transaction Margin Dollars (including ex-interest-on-customer-balances), non-GAAP operating margin/EPS, adjusted FCF, liquidity/debt, buybacks/SBC and FY2026 non-GAAP EPS guidance as diagnostic family evidence. TPV is explicitly not treated as a stand-alone quality/profitability anchor. The provisional earnings guidance is context only: no 100-point family score, P/E corridor, Fair Value, valuation zone or signal is released in V164. Yahoo FCF, generic Net-Debt/FCF, standard KGV and analyst targets remain excluded from valuation. Visa/Mastercard V163 mathematics are unchanged.
+# V2.22.69: Payments Processor Adyen Multi-Issuer Comparability Foundation V165. Adds Adyen N.V. (ADYEN.AS) as the second independent issuer-primary foundation profile under Payments Processor / Merchant Acquirer, classified as Integrated Merchant Acquirer / Unified Commerce / Platforms. Uses official H1 2026 Processed Volume, Net Revenue/constant-currency growth, EBITDA/margin, FCF conversion and CapEx, plus FY2026 net-revenue/margin/CapEx objectives and a post-H1 Talon.One/Orb acquisition comparability guard. The cross-issuer contract is intentionally abstract: PayPal TM$ ex Interest and company EPS guidance remain issuer-native adapters, while Adyen maps economics through Net Revenue/EBITDA/FCF conversion and has no company EPS guidance requirement. No 100-point family score, earnings anchor, P/E corridor, Fair Value, valuation zone or signal is released; Fiserv remains the third validation gate. Adds a verified Adyen primary-listing alias and official 28-Oct-2026 Q3 Business Update fallback. Visa/Mastercard V163 mathematics remain unchanged.
 
 
 # V2.22.54: Deutsche Börse Primary-Listing Search Guard V150. Search-only hotfix after the first V149 live test showed that the Exchange / Market Infrastructure specialist route existed but the security resolver had no verified Deutsche-Börse name alias, so a literal "Deutsche Börse" query could return no selectable equity before DB1.DE ever reached the valuation router. Adds verified aliases for Deutsche Börse/Deutsche Boerse/DB1/DB1.DE that resolve to the XETRA home listing DB1.DE (EUR), and bumps the resolver cache epoch so stale empty search results cannot survive the fix. Exchange V149 score/gates, Capital-Goods V148 mathematics and all other valuation logic are unchanged.
@@ -7541,36 +7542,49 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
             out["focus_areas"] = "Structural Net Revenue ex Treasury · EBITDA/Operating Leverage · Diversifikation · Cash/Cash-EPS · Allfunds Financing/Leverage"
         return out
 
-    # V2.22.68 / V164 – PayPal first-issuer foundation for the still-unreleased
-    # Payments Processor / Merchant Acquirer family.  This intentionally does
-    # NOT release the family: it only establishes the issuer-primary KPI and
-    # subprofile contract that Adyen/Fiserv must later validate.
-    if family_id == "payments_processor" and _canonical_family_symbol == "PYPL":
+    # V2.22.69 / V165 – two independent issuer-primary foundation adapters for
+    # Payments Processor / Merchant Acquirer. PayPal and Adyen validate the KPI
+    # abstraction layer, but the reusable family score/multiple remains closed
+    # until the third Fiserv validation gate is completed.
+    if family_id == "payments_processor" and _canonical_family_symbol in {"PYPL", "ADYEN.AS"}:
         out["type"] = meta["label"]
         out["confidence_cap"] = "Niedrig bis Mittel"
-        out["family_model_status"] = "foundation_primary_data_validated"
+        out["family_model_status"] = "multi_issuer_foundation_validated"
         out["family_model_ready"] = False
         out["family_model_released"] = False
-        out["family_validation_status"] = "first_issuer_primary_foundation_only"
+        out["family_validation_status"] = "paypal_adyen_primary_foundations_validated_fiserv_pending"
         out["universal_family_fail_closed"] = True
-        out["payments_processor_subprofile"] = "wallet_branded_checkout_psp"
-        out["payments_processor_subprofile_label"] = "Wallet / Branded Checkout / PSP"
         out["method"] = (
-            "Issuer-primary Payments-Processor KPI Foundation: TPV nur als Volumen-/Effizienzkontext; "
-            "Transaction Margin Dollars ex Interest, Operating Margin, Adjusted FCF, Company Adjusted-EPS-Guidance "
-            "und Kapitalallokation werden separat geprüft. Familien-Score, Multiple-Korridor und Fair Value bleiben bis "
-            "zur unabhängigen Multi-Issuer-Validierung gesperrt."
+            "Issuer-primary Payments-Processor Multi-Issuer Foundation: Payment Volume nur als Volumen-/Effizienzkontext; "
+            "issuer-native Economics/Margin/Cash-Conversion-Kennzahlen werden auf gemeinsame abstrakte Family-Felder gemappt. "
+            "Familien-Score, Earnings-Anker, Multiple-Korridor und Fair Value bleiben bis zum Fiserv-Gegencheck gesperrt."
         )
-        out["business_model"] = (
-            "Wallet / Branded Checkout / PSP mit PayPal/Venmo-Consumer-Ökosystem, branded checkout und "
-            "Braintree/unbranded merchant processing; keine reine Visa/Mastercard-Netzwerkökonomie."
-        )
-        out["core_segments"] = "Branded Checkout · Venmo/Wallet · Braintree/PSP · Merchant Services · Financial Services"
-        out["focus_areas"] = (
-            "TPV vs. Transaction-Margin-Dollar-Konversion · TM$ ex Interest on Customer Balances · "
-            "Operating Margin · Adjusted FCF · Adjusted EPS Guidance · Active Accounts/Engagement · "
-            "Buybacks/Dilution · Cash/Debt; Analystenziele nur Reality Check"
-        )
+        if _canonical_family_symbol == "PYPL":
+            out["payments_processor_subprofile"] = "wallet_branded_checkout_psp"
+            out["payments_processor_subprofile_label"] = "Wallet / Branded Checkout / PSP"
+            out["business_model"] = (
+                "Wallet / Branded Checkout / PSP mit PayPal/Venmo-Consumer-Ökosystem, branded checkout und "
+                "Braintree/unbranded merchant processing; keine reine Visa/Mastercard-Netzwerkökonomie."
+            )
+            out["core_segments"] = "Branded Checkout · Venmo/Wallet · Braintree/PSP · Merchant Services · Financial Services"
+            out["focus_areas"] = (
+                "TPV vs. Transaction-Margin-Dollar-Konversion · TM$ ex Interest on Customer Balances · "
+                "Operating Margin · Adjusted FCF · Adjusted EPS Guidance · Active Accounts/Engagement · "
+                "Buybacks/Dilution · Cash/Debt; Analystenziele nur Reality Check"
+            )
+        else:
+            out["payments_processor_subprofile"] = "integrated_merchant_acquirer_unified_commerce_platforms"
+            out["payments_processor_subprofile_label"] = "Integrated Merchant Acquirer / Unified Commerce / Platforms"
+            out["business_model"] = (
+                "Single-platform Merchant Acquiring / Processing mit Digital, Unified Commerce und Platforms sowie "
+                "erweiterter Financial-Technology-Infrastruktur; keine Consumer-Wallet- oder Card-Network-Ökonomie."
+            )
+            out["core_segments"] = "Digital · Unified Commerce · Platforms · Merchant Acquiring/Processing · Financial Products"
+            out["focus_areas"] = (
+                "Processed Volume vs. Net-Revenue-Konversion · Constant-Currency Net Revenue · EBITDA-Marge · "
+                "FCF Conversion · CapEx-Intensität · organische vs. akquisitionsbedingte Guidance · "
+                "Talon.One/Orb-Comparability; Analystenziele nur Reality Check"
+            )
         return out
 
     # V2.21.1: Family priority is authoritative over generic/unresolved legacy
@@ -13304,7 +13318,7 @@ def classify_company(name, symbol, sector, industry):
 # Aktiensuche / Security Identity & Primary Listing Resolver
 # =========================================================
 
-SEARCH_RESOLVER_CACHE_EPOCH = "v22265_payment_network_primary_lock_v161"
+SEARCH_RESOLVER_CACHE_EPOCH = "v22269_adyen_primary_listing_v165"
 
 SEARCH_EXCHANGE_PRIORITY = {
     # US primary venues
@@ -13352,6 +13366,13 @@ PRIMARY_SEARCH_ALIASES = [
         "primary_lock": True,
         "symbol": "MA", "quoteType": "EQUITY", "longname": "Mastercard Incorporated",
         "exchange": "NYQ", "exchDisp": "NYSE", "currency": "USD",
+    },
+    {
+        "aliases": ["ADYEN", "ADYEN N.V.", "ADYEN NV", "ADYEN.AS"],
+        "exact_aliases": True,
+        "primary_lock": True,
+        "symbol": "ADYEN.AS", "quoteType": "EQUITY", "longname": "Adyen N.V.",
+        "exchange": "AMS", "exchDisp": "Amsterdam", "currency": "EUR",
     },
     {
         "aliases": [
@@ -30470,23 +30491,82 @@ def build_payment_network_special_control(control, payment_model):
 
 
 # =========================================================
-# V2.22.68 – Payments Processor / Merchant Acquirer Foundation V1
-# PayPal first issuer: primary-data + subprofile only, valuation remains closed.
+# V2.22.69 – Payments Processor / Merchant Acquirer Foundation V1
+# PayPal + Adyen multi-issuer primary-data comparability; valuation remains closed.
 # =========================================================
 
-PAYMENTS_PROCESSOR_FOUNDATION_VERSION = "v22268_paypal_primary_data_subprofile_foundation_v164"
+PAYMENTS_PROCESSOR_FOUNDATION_VERSION = "v22269_paypal_adyen_multi_issuer_foundation_v165"
 
 
 def get_verified_payments_processor_foundation_snapshot(symbol):
     """Curated issuer-primary foundation data for the unreleased processor family.
 
-    V164 deliberately carries no score weights, target multiple, peer adjustment or
-    Fair Value.  The purpose is to freeze a clean issuer-primary KPI contract before
-    Adyen/Fiserv are used to decide which fields are truly family-comparable.
+    V165 deliberately carries no score weights, target multiple, peer adjustment or
+    Fair Value. PayPal and Adyen validate two materially different issuer-native KPI
+    adapters before Fiserv decides which fields can be released family-wide.
     """
     sym = str(symbol or "").upper().strip()
-    if sym != "PYPL":
+    if sym not in {"PYPL", "ADYEN.AS"}:
         return None
+
+    if sym == "ADYEN.AS":
+        return {
+            "symbol": "ADYEN.AS",
+            "company": "Adyen N.V.",
+            "reporting_currency": "EUR",
+            "specialist_profile_key": "integrated_merchant_acquirer_unified_commerce_platforms",
+            "specialist_profile": "Integrated Merchant Acquirer / Unified Commerce / Platforms",
+            "as_of_date": "30.06.2026",
+            "published_date": "13.08.2026",
+            "valid_until": "28.10.2026",
+            "integration_version": PAYMENTS_PROCESSOR_FOUNDATION_VERSION,
+            "source_name": "Adyen H1 2026 Financial Results / Investor Relations",
+            "source_url": "https://www.adyen.com/press-and-media/adyen-publishes-h1-2026-financial-results-3wjne",
+            "business_model_note": (
+                "Adyen ist ein integrierter Merchant Acquirer/Processor mit Digital, Unified Commerce und Platforms. "
+                "Deshalb werden PayPal-spezifische TM$- und Wallet-Metriken nicht erzwungen; Processed Volume bleibt Kontext, "
+                "während Net Revenue, EBITDA-Marge und FCF Conversion die issuer-native Economics-Schicht bilden."
+            ),
+            "h1_processed_volume": 803.8e9,
+            "h1_processed_volume_growth_pct": 24.0,
+            "h1_net_revenue": 1.3029e9,
+            "h1_net_revenue_growth_pct": 19.0,
+            "h1_net_revenue_cc_growth_pct": 21.0,
+            "h1_ebitda": 641.5e6,
+            "h1_ebitda_margin_pct": 49.0,
+            "h1_underlying_ebitda_margin_pct": 50.0,
+            "h1_underlying_ebitda_margin_note": "50% exklusive einmaliger Transaktionskosten",
+            "h1_fcf_conversion_pct": 86.0,
+            "h1_capex_pct_net_revenue": 5.0,
+            "fy2026_net_revenue_growth_guidance_cc_low_pct": 21.0,
+            "fy2026_net_revenue_growth_guidance_cc_high_pct": 23.0,
+            "fy2026_ebitda_margin_guidance_note": (
+                "Underlying EBITDA margin 2026 in line with 2025; including Talon.One and Orb approximately one percentage point below 2025."
+            ),
+            "fy2025_ebitda_margin_pct": 53.0,
+            "fy2026_capex_pct_net_revenue_guidance": 7.0,
+            "long_term_ebitda_margin_target_pct": 55.0,
+            "long_term_ebitda_margin_target_year": 2028,
+            "company_eps_guidance_available": False,
+            "earnings_reference_status": (
+                "Keine Company-EPS-Guidance: V165 erzwingt deshalb keinen PayPal-artigen EPS-Guidance-Anker. "
+                "Eine familienweite Earnings-Definition bleibt bis Fiserv gesperrt."
+            ),
+            "talon_one_orb_closed_date": "01.07.2026",
+            "h1_includes_talon_one_orb": False,
+            "fy2026_guidance_includes_talon_one_orb": True,
+            "comparability_guard_note": (
+                "Talon.One und Orb wurden erst nach dem H1-Stichtag am 1. Juli 2026 geschlossen. H1 enthält die Akquisitionen nicht, "
+                "die aktualisierte FY2026 Net-Revenue-/Margin-Guidance berücksichtigt ihren Beitrag ab H2. Historische H1-Istwerte und FY-Guidance "
+                "dürfen daher nicht als vollständig organisch vergleichbar behandelt werden."
+            ),
+            "volume_economics_spread_pct_points": 19.0 - 24.0,
+            "volume_economics_cc_spread_pct_points": 21.0 - 24.0,
+            "volume_monetization_note": (
+                "H1 Processed Volume +24% versus Net Revenue +19% reported bzw. +21% constant currency. "
+                "Volumen wächst damit schneller als die Net-Revenue-Ökonomie; in V165 ist das Diagnoseevidenz, kein Score-Abzug."
+            ),
+        }
 
     net_revenue = 8.682e9
     tpv = 486.448e9
@@ -30565,7 +30645,7 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
         "volume_monetization_spread_pct_points": 3.0 - 10.0,
         "volume_monetization_note": (
             "Q2 TPV +10% versus TM$ ex Interest +3%: starkes Volumenwachstum übersetzt sich nicht proportional "
-            "in die isolierte operative Zahlungsökonomie. Das ist in V164 Diagnoseevidenz, noch kein Score-Abzug."
+            "in die isolierte operative Zahlungsökonomie. Das ist in V165 Diagnoseevidenz, noch kein Score-Abzug."
         ),
     }
 
@@ -30588,8 +30668,9 @@ def build_payments_processor_foundation_model(company_type, fundamental_info, sy
             "family_multiple_released": False,
             "fair_value_released": False,
             "note": (
-                "Payments Processor / Merchant Acquirer erkannt, aber für diesen Emittenten ist in V164 noch kein "
-                "issuer-primary Foundation Snapshot hinterlegt. Standard-Score und Fair Value bleiben fail-closed."
+                "Payments Processor / Merchant Acquirer erkannt, aber für diesen Emittenten ist in V165 noch kein "
+                "issuer-primary Foundation Snapshot hinterlegt. PayPal und Adyen sind Foundation-Referenzen; "
+                "Standard-Score und Fair Value bleiben fail-closed."
             ),
         }
 
@@ -30602,12 +30683,25 @@ def build_payments_processor_foundation_model(company_type, fundamental_info, sy
     except Exception:
         fresh = False
 
-    required = [
-        "q2_tpv", "q2_tpv_growth_pct", "q2_transaction_margin_dollars_ex_interest",
-        "q2_transaction_margin_dollars_ex_interest_growth_pct", "q2_non_gaap_operating_margin_pct",
-        "q2_adjusted_free_cash_flow", "cash_and_investments", "debt", "fy2026_non_gaap_eps_guidance",
-    ]
-    complete = bool(fresh and all(safe_float(snap.get(k)) is not None for k in required))
+    profile = snap.get("specialist_profile_key")
+    if profile == "wallet_branded_checkout_psp":
+        required = [
+            "q2_tpv", "q2_tpv_growth_pct", "q2_transaction_margin_dollars_ex_interest",
+            "q2_transaction_margin_dollars_ex_interest_growth_pct", "q2_non_gaap_operating_margin_pct",
+            "q2_adjusted_free_cash_flow", "cash_and_investments", "debt", "fy2026_non_gaap_eps_guidance",
+        ]
+    elif profile == "integrated_merchant_acquirer_unified_commerce_platforms":
+        required = [
+            "h1_processed_volume", "h1_processed_volume_growth_pct", "h1_net_revenue",
+            "h1_net_revenue_cc_growth_pct", "h1_ebitda", "h1_ebitda_margin_pct",
+            "h1_fcf_conversion_pct", "h1_capex_pct_net_revenue",
+            "fy2026_net_revenue_growth_guidance_cc_low_pct", "fy2026_net_revenue_growth_guidance_cc_high_pct",
+        ]
+    else:
+        required = []
+
+    complete = bool(fresh and required and all(safe_float(snap.get(k)) is not None for k in required))
+    issuer_name = "PayPal" if sym == "PYPL" else "Adyen"
     return {
         "applicable": True,
         "symbol": sym,
@@ -30615,21 +30709,22 @@ def build_payments_processor_foundation_model(company_type, fundamental_info, sy
         "primary_source_complete": complete,
         "snapshot_fresh": fresh,
         "snapshot": snap,
-        "subprofile": snap.get("specialist_profile_key"),
+        "subprofile": profile,
         "subprofile_label": snap.get("specialist_profile"),
         "family_score_released": False,
         "family_multiple_released": False,
         "valuation_anchor_complete": False,
         "fair_value_released": False,
         "readiness": (
-            "PayPal Primärdaten-/Subprofil-Foundation validiert · Multi-Issuer-Comparability noch offen"
-            if complete else "PayPal Foundation gesperrt – Primärdaten unvollständig oder veraltet"
+            f"{issuer_name} Primärdaten-/Subprofil-Foundation validiert · PayPal+Adyen Multi-Issuer-Comparability bestanden · Fiserv-Gate offen"
+            if complete else f"{issuer_name} Foundation gesperrt – Primärdaten unvollständig oder veraltet"
         ),
         "note": (
-            "V164 validiert nur die PayPal-Primärdaten- und Subprofil-Schicht. TPV, TM$ ex Interest, Operating Margin, "
-            "Adjusted FCF, FY2026 Company Non-GAAP EPS Guidance sowie Kapitalallokation werden sichtbar, aber noch nicht "
-            "zu einem Familien-Score oder Fair Value verdichtet. Erst ein unabhängiger Adyen/Fiserv-Gegencheck darf die "
-            "familienweiten Score-Gewichte, Earnings-Definition und den Multiple-Korridor freigeben."
+            "V165 validiert PayPal und Adyen als zwei wirtschaftlich unterschiedliche issuer-primary Subprofile unter derselben "
+            "Payments-Processor-Familie. Gemeinsame abstrakte Felder sind Payment Volume, Economics/Revenue Conversion, Margin Quality, "
+            "Cash Conversion/Capital Intensity und Structure/Capital Context; issuer-native Kennzahlen bleiben als Adapter erhalten. "
+            "Es gibt weiterhin keinen Family Score, keinen Earnings-Anker, keinen Multiple-Korridor und keinen Fair Value. "
+            "Fiserv ist der dritte Freigabe-Gegencheck."
         ),
     }
 
@@ -60276,13 +60371,13 @@ if selected_symbol:
                             "Der bestehende 22–32× Family-KGV-Korridor, issuer-adjustierte Earnings-Anker und downside-only Regulatory/Litigation Caps bleiben unverändert; "
                             "weitere Payment-Network-Emittenten bleiben issuer-primary evidence-gated."
                         )
-                    if (company_type.get("family_model_status") == "foundation_primary_data_validated"
+                    if (company_type.get("family_model_status") == "multi_issuer_foundation_validated"
                             and company_type.get("valuation_family_id") == "payments_processor"):
                         st.info(
-                            "Payments Processor / Merchant Acquirer Foundation V1: PayPal ist als erster issuer-primary "
-                            "Wallet / Branded Checkout / PSP-Fall strukturiert. Primärdaten und Subprofil sind validiert; "
-                            "familienweiter Score, Earnings-Anker, Multiple-Korridor und Fair Value bleiben bis zum unabhängigen "
-                            "Adyen/Fiserv-Comparability-Test gesperrt."
+                            "Payments Processor / Merchant Acquirer Foundation V1: PayPal (Wallet / Branded Checkout / PSP) und "
+                            "Adyen (Integrated Merchant Acquirer / Unified Commerce / Platforms) sind als zwei unabhängige issuer-primary "
+                            "Subprofile strukturiert. Der gemeinsame KPI-Vertrag ist auf abstrakter Ebene validiert; Family Score, "
+                            "Earnings-Anker, Multiple-Korridor und Fair Value bleiben bis zum Fiserv-Gegencheck gesperrt."
                         )
                     if is_universal_family_fail_closed(company_type):
                         if is_released_listed_holding_family(company_type):
@@ -66997,82 +67092,148 @@ if selected_symbol:
                     pp_foundation_ui = data.get("payments_processor_foundation_model") or {}
                     if pp_foundation_ui.get("applicable") and pp_foundation_ui.get("issuer_supported"):
                         pp_snap = pp_foundation_ui.get("snapshot") or {}
+                        pp_profile = pp_foundation_ui.get("subprofile")
+                        pp_short = "PayPal" if pp_snap.get("symbol") == "PYPL" else "Adyen"
+                        pp_ccy = pp_snap.get("reporting_currency") or currency
                         st.divider()
-                        st.subheader("💳 Payments Processor Foundation V1 · PayPal")
+                        st.subheader(f"💳 Payments Processor Foundation V1 · {pp_short}")
                         st.write(
                             f"**Subprofil:** {text_or_dash(pp_foundation_ui.get('subprofile_label'))} · "
                             f"**Primärdatenstand:** {text_or_dash(pp_snap.get('as_of_date'))} "
                             f"(veröffentlicht {text_or_dash(pp_snap.get('published_date'))})"
                         )
                         if pp_snap.get("source_url"):
-                            st.markdown(f"[PayPal Q2 2026 Results / SEC]({pp_snap.get('source_url')})")
+                            st.markdown(f"[{text_or_dash(pp_snap.get('source_name'))}]({pp_snap.get('source_url')})")
                         st.caption(text_or_dash(pp_snap.get("business_model_note")))
 
-                        pp_c1, pp_c2, pp_c3 = st.columns(3)
-                        with pp_c1:
-                            st.metric(
-                                "Q2 TPV",
-                                format_money(pp_snap.get("q2_tpv"), "USD"),
-                                delta=f"+{safe_float(pp_snap.get('q2_tpv_growth_pct')):.1f}% YoY",
-                            )
-                            st.metric(
-                                "Q2 Net Revenue",
-                                format_money(pp_snap.get("q2_net_revenue"), "USD"),
-                                delta=f"+{safe_float(pp_snap.get('q2_net_revenue_growth_pct')):.1f}% YoY",
-                            )
-                            st.metric("Active Accounts", f"{safe_float(pp_snap.get('active_accounts'))/1e6:.0f} Mio.")
-                        with pp_c2:
-                            st.metric(
-                                "TM$ ex Interest",
-                                format_money(pp_snap.get("q2_transaction_margin_dollars_ex_interest"), "USD"),
-                                delta=f"+{safe_float(pp_snap.get('q2_transaction_margin_dollars_ex_interest_growth_pct')):.1f}% YoY",
-                            )
-                            st.metric(
-                                "Non-GAAP Operating Margin",
-                                f"{safe_float(pp_snap.get('q2_non_gaap_operating_margin_pct')):.1f}%",
-                                delta=f"{safe_float(pp_snap.get('q2_non_gaap_operating_margin_change_bps')):.0f} bps YoY",
-                            )
-                            st.metric(
-                                "Q2 Non-GAAP EPS",
-                                f"{safe_float(pp_snap.get('q2_non_gaap_eps')):.2f} USD",
-                                delta=f"{safe_float(pp_snap.get('q2_non_gaap_eps_growth_pct')):+.1f}% YoY",
-                            )
-                        with pp_c3:
-                            st.metric("Q2 Adjusted FCF", format_money(pp_snap.get("q2_adjusted_free_cash_flow"), "USD"))
-                            st.metric("Cash + Investments", format_money(pp_snap.get("cash_and_investments"), "USD"))
-                            st.metric("Debt", format_money(pp_snap.get("debt"), "USD"))
+                        if pp_profile == "wallet_branded_checkout_psp":
+                            pp_c1, pp_c2, pp_c3 = st.columns(3)
+                            with pp_c1:
+                                st.metric(
+                                    "Q2 TPV",
+                                    format_money(pp_snap.get("q2_tpv"), pp_ccy),
+                                    delta=f"+{safe_float(pp_snap.get('q2_tpv_growth_pct')):.1f}% YoY",
+                                )
+                                st.metric(
+                                    "Q2 Net Revenue",
+                                    format_money(pp_snap.get("q2_net_revenue"), pp_ccy),
+                                    delta=f"+{safe_float(pp_snap.get('q2_net_revenue_growth_pct')):.1f}% YoY",
+                                )
+                                st.metric("Active Accounts", f"{safe_float(pp_snap.get('active_accounts'))/1e6:.0f} Mio.")
+                            with pp_c2:
+                                st.metric(
+                                    "TM$ ex Interest",
+                                    format_money(pp_snap.get("q2_transaction_margin_dollars_ex_interest"), pp_ccy),
+                                    delta=f"+{safe_float(pp_snap.get('q2_transaction_margin_dollars_ex_interest_growth_pct')):.1f}% YoY",
+                                )
+                                st.metric(
+                                    "Non-GAAP Operating Margin",
+                                    f"{safe_float(pp_snap.get('q2_non_gaap_operating_margin_pct')):.1f}%",
+                                    delta=f"{safe_float(pp_snap.get('q2_non_gaap_operating_margin_change_bps')):.0f} bps YoY",
+                                )
+                                st.metric(
+                                    "Q2 Non-GAAP EPS",
+                                    f"{safe_float(pp_snap.get('q2_non_gaap_eps')):.2f} USD",
+                                    delta=f"{safe_float(pp_snap.get('q2_non_gaap_eps_growth_pct')):+.1f}% YoY",
+                                )
+                            with pp_c3:
+                                st.metric("Q2 Adjusted FCF", format_money(pp_snap.get("q2_adjusted_free_cash_flow"), pp_ccy))
+                                st.metric("Cash + Investments", format_money(pp_snap.get("cash_and_investments"), pp_ccy))
+                                st.metric("Debt", format_money(pp_snap.get("debt"), pp_ccy))
 
-                        st.markdown("**Volume → Economics Diagnostic**")
-                        st.write(
-                            f"TPV wächst {safe_float(pp_snap.get('q2_tpv_growth_pct')):.1f}%, TM$ ex Interest aber nur "
-                            f"{safe_float(pp_snap.get('q2_transaction_margin_dollars_ex_interest_growth_pct')):.1f}%. "
-                            "TPV wird deshalb in V164 ausdrücklich nicht als alleiniger Qualitäts- oder Gewinnwachstumsanker verwendet."
-                        )
-                        st.caption(text_or_dash(pp_snap.get("volume_monetization_note")))
+                            st.markdown("**Volume → Economics Diagnostic**")
+                            st.write(
+                                f"TPV wächst {safe_float(pp_snap.get('q2_tpv_growth_pct')):.1f}%, TM$ ex Interest aber nur "
+                                f"{safe_float(pp_snap.get('q2_transaction_margin_dollars_ex_interest_growth_pct')):.1f}%. "
+                                "Payment Volume wird deshalb nicht als alleiniger Qualitäts- oder Gewinnwachstumsanker verwendet."
+                            )
+                            st.caption(text_or_dash(pp_snap.get("volume_monetization_note")))
 
-                        st.markdown("**Provisorische Earnings-/Cashflow-Basis – noch kein Bewertungsanker**")
-                        st.write(
-                            f"**FY2026 Company Non-GAAP EPS Guidance:** ≈ {safe_float(pp_snap.get('fy2026_non_gaap_eps_guidance')):.2f} USD "
-                            f"· FY2025 Non-GAAP EPS {safe_float(pp_snap.get('fy2025_non_gaap_eps')):.2f} USD"
-                        )
-                        st.write(
-                            f"**Adjusted FCF Q2:** {format_money(pp_snap.get('q2_adjusted_free_cash_flow'), 'USD')} · "
-                            f"Operating Cash Flow {format_money(pp_snap.get('q2_operating_cash_flow'), 'USD')}"
-                        )
-                        st.caption(text_or_dash(pp_snap.get("adjusted_fcf_definition_note")))
+                            st.markdown("**Issuer-native Earnings-/Cashflow-Basis – noch kein Family-Bewertungsanker**")
+                            st.write(
+                                f"**FY2026 Company Non-GAAP EPS Guidance:** ≈ {safe_float(pp_snap.get('fy2026_non_gaap_eps_guidance')):.2f} USD "
+                                f"· FY2025 Non-GAAP EPS {safe_float(pp_snap.get('fy2025_non_gaap_eps')):.2f} USD"
+                            )
+                            st.write(
+                                f"**Adjusted FCF Q2:** {format_money(pp_snap.get('q2_adjusted_free_cash_flow'), pp_ccy)} · "
+                                f"Operating Cash Flow {format_money(pp_snap.get('q2_operating_cash_flow'), pp_ccy)}"
+                            )
+                            st.caption(text_or_dash(pp_snap.get("adjusted_fcf_definition_note")))
 
-                        st.markdown("**Kapitalallokation / Verwässerungskontext**")
-                        st.write(
-                            f"Cash + Investments {format_money(pp_snap.get('cash_and_investments'), 'USD')} · "
-                            f"Debt {format_money(pp_snap.get('debt'), 'USD')} · "
-                            f"Q2 Buybacks {format_money(pp_snap.get('q2_share_repurchases'), 'USD')} · "
-                            f"TTM Buybacks {format_money(pp_snap.get('ttm_share_repurchases'), 'USD')} · "
-                            f"H1 SBC {format_money(pp_snap.get('h1_stock_based_compensation'), 'USD')}"
-                        )
+                            st.markdown("**Kapitalallokation / Verwässerungskontext**")
+                            st.write(
+                                f"Cash + Investments {format_money(pp_snap.get('cash_and_investments'), pp_ccy)} · "
+                                f"Debt {format_money(pp_snap.get('debt'), pp_ccy)} · "
+                                f"Q2 Buybacks {format_money(pp_snap.get('q2_share_repurchases'), pp_ccy)} · "
+                                f"TTM Buybacks {format_money(pp_snap.get('ttm_share_repurchases'), pp_ccy)} · "
+                                f"H1 SBC {format_money(pp_snap.get('h1_stock_based_compensation'), pp_ccy)}"
+                            )
+
+                        elif pp_profile == "integrated_merchant_acquirer_unified_commerce_platforms":
+                            pp_c1, pp_c2, pp_c3 = st.columns(3)
+                            with pp_c1:
+                                st.metric(
+                                    "H1 Processed Volume",
+                                    format_money(pp_snap.get("h1_processed_volume"), pp_ccy),
+                                    delta=f"+{safe_float(pp_snap.get('h1_processed_volume_growth_pct')):.1f}% YoY",
+                                )
+                                st.metric(
+                                    "H1 Net Revenue",
+                                    format_money(pp_snap.get("h1_net_revenue"), pp_ccy),
+                                    delta=f"+{safe_float(pp_snap.get('h1_net_revenue_growth_pct')):.1f}% YoY",
+                                )
+                                st.metric(
+                                    "Net Revenue · constant currency",
+                                    f"+{safe_float(pp_snap.get('h1_net_revenue_cc_growth_pct')):.1f}% YoY",
+                                )
+                            with pp_c2:
+                                st.metric("H1 EBITDA", format_money(pp_snap.get("h1_ebitda"), pp_ccy))
+                                st.metric(
+                                    "EBITDA Margin",
+                                    f"{safe_float(pp_snap.get('h1_ebitda_margin_pct')):.1f}%",
+                                    delta=f"{safe_float(pp_snap.get('h1_underlying_ebitda_margin_pct')):.1f}% ex one-time costs",
+                                )
+                                st.metric("FCF Conversion", f"{safe_float(pp_snap.get('h1_fcf_conversion_pct')):.0f}%")
+                            with pp_c3:
+                                st.metric("H1 CapEx / Net Revenue", f"{safe_float(pp_snap.get('h1_capex_pct_net_revenue')):.0f}%")
+                                st.metric(
+                                    "FY2026 Net Revenue Guidance · CC",
+                                    f"{safe_float(pp_snap.get('fy2026_net_revenue_growth_guidance_cc_low_pct')):.0f}–{safe_float(pp_snap.get('fy2026_net_revenue_growth_guidance_cc_high_pct')):.0f}%",
+                                )
+                                st.metric("FY2026 CapEx / Net Revenue", f"≈ {safe_float(pp_snap.get('fy2026_capex_pct_net_revenue_guidance')):.0f}%")
+
+                            st.markdown("**Volume → Economics Diagnostic**")
+                            st.write(
+                                f"Processed Volume wächst {safe_float(pp_snap.get('h1_processed_volume_growth_pct')):.1f}%, Net Revenue "
+                                f"{safe_float(pp_snap.get('h1_net_revenue_growth_pct')):.1f}% reported bzw. "
+                                f"{safe_float(pp_snap.get('h1_net_revenue_cc_growth_pct')):.1f}% constant currency. "
+                                "Auch hier bleibt Payment Volume ein Effizienz-/Mix-Kontext und kein alleiniger Qualitätsanker."
+                            )
+                            st.caption(text_or_dash(pp_snap.get("volume_monetization_note")))
+
+                            st.markdown("**Issuer-native Profitabilitäts-/Cash-Conversion-Basis – noch kein Family-Bewertungsanker**")
+                            st.write(
+                                f"EBITDA-Marge H1 {safe_float(pp_snap.get('h1_ebitda_margin_pct')):.1f}% · underlying "
+                                f"{safe_float(pp_snap.get('h1_underlying_ebitda_margin_pct')):.1f}% · "
+                                f"FCF Conversion {safe_float(pp_snap.get('h1_fcf_conversion_pct')):.0f}% · "
+                                f"CapEx {safe_float(pp_snap.get('h1_capex_pct_net_revenue')):.0f}% des Net Revenue."
+                            )
+                            st.info(text_or_dash(pp_snap.get("earnings_reference_status")))
+
+                            st.markdown("**Structure / Guidance Comparability Gate**")
+                            st.write(
+                                f"Talon.One + Orb geschlossen: **{text_or_dash(pp_snap.get('talon_one_orb_closed_date'))}** · "
+                                f"H1 enthält Akquisitionen: **{'Ja' if pp_snap.get('h1_includes_talon_one_orb') else 'Nein'}** · "
+                                f"FY2026 Guidance enthält H2-Beitrag: **{'Ja' if pp_snap.get('fy2026_guidance_includes_talon_one_orb') else 'Nein'}**"
+                            )
+                            st.caption(text_or_dash(pp_snap.get("comparability_guard_note")))
+                            st.write(f"**2026 EBITDA-Margin-Ziel:** {text_or_dash(pp_snap.get('fy2026_ebitda_margin_guidance_note'))}")
+
                         st.warning(
-                            "V164 Foundation Gate: PayPal-Primärdaten sind strukturiert, aber noch kein 100-Punkte-Family-Score, "
-                            "kein Payments-Processor-KGV-Korridor und kein Fair Value freigegeben. Yahoo-FCF, generisches Net-Debt/FCF, "
-                            "Standard-KGV und Analystenziele dürfen dieses Gate nicht umgehen."
+                            "V165 Multi-Issuer Foundation Gate: PayPal- und Adyen-Primärdaten sind als unterschiedliche Subprofile strukturiert, "
+                            "aber noch kein 100-Punkte-Family-Score, kein gemeinsamer Earnings-Anker, kein Payments-Processor-KGV-Korridor und "
+                            "kein Fair Value freigegeben. Yahoo-FCF, generisches Net-Debt/FCF, Standard-KGV und Analystenziele dürfen dieses Gate nicht umgehen. "
+                            "Fiserv bleibt der dritte Comparability-Test."
                         )
                         st.caption(pp_foundation_ui.get("note"))
 
@@ -73079,6 +73240,9 @@ if selected_symbol:
                         st.info(f"Issuer-primary Finanzkalender: **{holding_calendar_date}** · nächster Berichtstermin.")
                         if holding_calendar_source:
                             st.markdown(f"[Holding-Finanzkalender / Primärquelle]({holding_calendar_source})")
+                    elif symbol_calendar == "ADYEN.AS" and today_calendar <= datetime(2026, 10, 28).date():
+                        st.info("Offizieller Adyen-Investor-Kalender: **28.10.2026 · Q3-2026 Business Update**.")
+                        st.markdown("[Adyen Q3 2026 Business Update](https://investors.adyen.com/events/business-update-q3-2026)")
                     elif symbol_calendar == "DB1.DE" and today_calendar <= datetime(2026, 10, 20).date():
                         st.info("Offizieller Deutsche-Börse-Finanzkalender: **20.10.2026 · Q3-2026-Ergebnisveröffentlichung**.")
                         st.markdown("[Deutsche Börse Q3-2026 Veröffentlichung](https://deutsche-boerse.com/dbg-en/investor-relations/financial-calendar)")
