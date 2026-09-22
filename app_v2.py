@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.61"
+APP_BUILD_VERSION = "V2.22.62"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Exchange Step-1 Raw Multiple & Module-5 Final Cleanup V157"
+    f"Build {APP_BUILD_VERSION} · Exchange Deutsche-Börse Guard Copy Finalization V158"
 )
 
 
@@ -45,7 +45,7 @@ st.caption(
 # V2.22.58: Exchange Dual-Anchor Family Corridor & Nasdaq Valuation V154. Promotes the two validated Exchange / Market Infrastructure adapters into a released 18–26x Current-FY Adjusted/Cash-EPS family corridor for Nasdaq only, while Deutsche Börse remains transaction-gated by the pending Allfunds perimeter/capital-structure change. Corridor calibration deliberately combines two primary-source peer anchors instead of pretending H1 annualization is FY2026 guidance: current prices versus verified FY2025 Adjusted EPS (CME 11.20, ICE 6.95, Cboe 10.67) provide the full-year trailing anchor, while Q1+Q2 2026 Adjusted-EPS annualization remains a current run-rate/cycle check. The 100-point Exchange operating score positions the raw target linearly from 50→18x to 100→26x; the live FY2025 trailing-adjusted peer median is downside-only and may cap but never lift the target. Nasdaq (94/100) is eligible for one-multiple Fair Value on the released FY2026 Non-GAAP-EPS bridge; Deutsche Börse receives the same corridor only as context and no target P/E/Fair Value until the Allfunds pro-forma capital structure and post-transaction earnings perimeter are sufficiently evidenced. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the Exchange specialist Fair Value. Capital-Goods V148 mathematics and all other released specialist models remain unchanged.
 # V2.22.59: Exchange Peer Load-Order Runtime Fix V155. No valuation mathematics changed. Moves the Exchange / Market Infrastructure peer-calibration application behind calculate_peer_check(), preventing an uninitialized peer_check reference that caused NDAQ/DB1.DE to abort immediately after selection in V154. The 18–26x Exchange corridor, dual-anchor CME/ICE/Cboe calibration, Nasdaq 94/100 score and Deutsche-Börse Allfunds transaction gate remain unchanged.
 # V2.22.60: Exchange UI Consistency & Dual-Anchor Copy Cleanup V156. No valuation mathematics changed. Removes stale generic Standard-model copy from the released Exchange / Market Infrastructure path: Yahoo/statement FCF and standard EPS normalization are diagnosis-only; generic growth, margin/ROE, FCF-margin and Net-Debt/FCF footers are suppressed in favor of issuer-primary Exchange specialist dimensions. Fixes the Step-2B dual-anchor caption so the FY2025 full-year median and H1-2026 run-rate median cannot be mislabeled, updates stale Nasdaq Step-3A wording to reflect the already released 18–26x corridor, and makes the Fair-Value earnings display explicitly show the source-currency Specialist Bridge plus display-currency equivalent. Nasdaq 94/100, raw 25.04x, peer-capped 24.60x, Fair Value mathematics, Deutsche-Börse Allfunds gate and every other released model remain unchanged.
-# V2.22.61: Exchange Step-1 Raw Multiple & Module-5 Final Cleanup V157. UI/flow-consistency only; no valuation mathematics changed. Module 6 Step 1 now shows the score-positioned raw Exchange fundamental multiple before any peer ceiling, while Step 2B remains the only place that applies/displays the FY2025 downside-only peer cap. Suppresses the four remaining generic Module-5 footers (30-point growth build note, current margin/ROE note, FCF-margin note and Net-Debt/FCF/Net-Cash scoring note) for Exchange-specialist issuers. Clarifies that the Exchange Operational Score is not a generic industrial multiple score but, after all family gates pass, is the quality score that positions the raw P/E inside the 18–26x corridor. Nasdaq score/corridor/peer data/Fair Value/zones/signals and Deutsche-Börse Allfunds guard remain unchanged.
+# V2.22.62: Exchange Deutsche-Börse Guard Copy Finalization V158. UI/copy-only; no valuation mathematics changed. Removes the last Nasdaq-specific target wording from the shared Exchange peer layer so Deutsche Börse no longer references a hypothetical Nasdaq target in Step 2A/2B. Updates the Deutsche-Börse specialist-router checklist/note to reflect that the Dual-Anchor Full-Year peer calibration and 18–26x family corridor are already released, while the Allfunds Transaction/Leverage Guard alone continues to block a Deutsche-Börse target P/E/Fair Value. Clarifies that the Exchange Operational Score only positions a raw P/E for fully released Exchange profiles. Nasdaq 94/100 valuation path and Deutsche Börse 87/100 fail-closed path remain unchanged.
 
 # V2.22.15: Universal Professional-Services Industry Precedence Guard V111. Adds a reusable Professional & Business Services valuation family and fixes an over-broad Industrials sector fallback that previously routed Specialty Business Services issuers into Industrials / Capital Goods. High-confidence professional-service industries now outrank the broad Industrials sector; broader service labels require corroborating business-model evidence such as professional/advisory/consulting, corporate-finance/due-diligence, legal/accounting/tax, restructuring/recovery, fee-earner/network, licence-fee or revenue-share economics. Capital-goods/manufacturing industries remain on the existing Industrials route. The new family is defined_unreleased and therefore fail-closed: no generic Standard score, Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV, Fair Value or signals are unlocked. V110 Asset-Management evidence recovery, GBp/GBP unit handling and all released valuation mathematics remain unchanged.
 # V2.22.16: Professional & Business Services Specialist Model V1 V112. First validated issuer: DSW Capital (DSW.L). Releases an issuer-primary Professional & Business Services specialist path for DSW while keeping the wider family globally unreleased until a second independent issuer is validated. The model scores platform/network growth and fee-earner productivity, adjusted EBITDA/PBT quality, issuer operating cash conversion, balance quality, licence/revenue-mix resilience, capital allocation/dilution and earnings stability. Valuation uses an issuer-adjusted two-year diluted-EPS anchor (FY26 weighted 80%, FY25 20%) with a 9–18x score corridor and a downside-only small-cap/liquidity cap. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the specialist Fair Value. GBp/GBP conversion stays explicit at 1 GBP = 100 GBp. V110 Asset-Management evidence recovery and all other released specialist mathematics remain unchanged.
@@ -37915,7 +37915,7 @@ def _calculate_exchange_peer_runrate_reference(peer_group, fundamental_multiple,
         result["comparability_gate_passed"] = True
     result["note"] = (
         f"Exchange Peer Calibration {APP_BUILD_VERSION}: CME, ICE and Cboe use two issuer-primary anchors with live same-currency prices: verified FY2025 Adjusted EPS for a full-year trailing P/E and Q1+Q2 2026 Adjusted EPS annualized only as a current run-rate/cycle P/E. "
-        "The H1 run-rate is explicitly not FY2026 guidance. The stable 18–26x family corridor is calibrated from the combined full-year/run-rate market band; the verified full-year trailing median is downside-only and can cap but never lift a score-derived Nasdaq target multiple."
+        "The H1 run-rate is explicitly not FY2026 guidance. The stable 18–26x family corridor is calibrated from the combined full-year/run-rate market band; the verified full-year trailing median is downside-only and can cap but never lift the score-derived target multiple of a fully released Exchange profile."
     )
     return result
 
@@ -41770,13 +41770,13 @@ def get_special_control(company_type, symbol):
                 "Current-FY Cash-EPS-Bridge als transparenter mechanischer Proxy freigegeben; kein Company-Guidance-Claim",
                 "Kapitalallokation: EUR 500m Buyback + Allfunds Finanzierung",
                 "Allfunds ~EUR 5.3bn Transaction/Leverage Guard bis pro-forma Closing-Daten vorliegen",
-                "Nasdaq als zweiter unabhängiger Exchange-Infrastructure-Emittent; Earnings-Bridge freigegeben, Full-Year-Peer-/Multiple-Kalibrierung folgt",
+                "Nasdaq als zweiter unabhängiger Exchange-Infrastructure-Emittent; gemeinsame Earnings-Bridge, Dual-Anchor-Peer-Kalibrierung und 18–26× Family-Korridor freigegeben",
                 "Analystenziele ausschließlich Reality Check",
             ],
             "status": f"Router aktiv – {APP_BUILD_VERSION} Exchange Infrastructure Multi-Issuer Validation V2",
             "note": (
                 "Deutsche Börse bleibt der treasury-normalisierte integrierte Marktinfrastruktur-Adapter. Nasdaq liefert inzwischen die zweite unabhängige Family-Validierung mit einem stärker wiederkehrenden Solutions-/ARR-Mix. "
-                "Der Allfunds-Guard bleibt für Deutsche Börse bindend. Die Current-FY Earnings-Bridge ist freigegeben; Multiple-Korridor und Fair Value bleiben bis zur verifizierten Full-Year-Peer-Kalibrierung gesperrt."
+                "Der Allfunds-Guard bleibt für Deutsche Börse bindend. Current-FY Earnings-Bridge, Dual-Anchor Peer Gate und 18–26× Family-Korridor sind freigegeben; Ziel-KGV und Fair Value bleiben ausschließlich wegen der noch fehlenden post-Allfunds Pro-forma-Finanzierungs-, Aktienzahl- und Earnings-Perimeter-Bridge gesperrt."
             ),
         }
 
@@ -65971,7 +65971,7 @@ if selected_symbol:
                 elif peer_group.get("peer_model") == "exchange_adjusted_eps_runrate_reference_v1":
                     st.caption(
                         "Schritt 2A lädt CME, ICE und Cboe mit issuer-primary FY2025 Adjusted EPS plus Q1+Q2-2026 Adjusted EPS. "
-                        "FY2025 bildet den verifizierten Volljahres-/Trailing-Anker; H1 2026 bleibt ausschließlich Run-Rate/Cycle-Check. Der spätere Peer-Median darf ein score-basiertes Nasdaq-Ziel nur downside-only begrenzen."
+                        "FY2025 bildet den verifizierten Volljahres-/Trailing-Anker; H1 2026 bleibt ausschließlich Run-Rate/Cycle-Check. Der spätere Peer-Median darf bei vollständig freigegebenen Exchange-Profilen ein score-basiertes Ziel nur downside-only begrenzen; bei issuer-spezifischem Guard bleibt er reine Referenz."
                     )
                 elif peer_group.get("peer_model") == "capital_goods_adjusted_eps_reference_v1":
                     st.caption(
@@ -66453,7 +66453,7 @@ if selected_symbol:
                     if is_exchange_peer_metric:
                         st.caption(
                             f"Exchange Peer-Layer {APP_BUILD_VERSION}: Drei verifizierte FY2025 Full-Year-Adjusted-EPS-Beobachtungen plus drei H1-2026 Run-Rate-Beobachtungen bilden das Dual-Anchor-Datengate. "
-                            "Der Full-Year-Median erzeugt kein Premium und verändert den Operational Score nicht; er darf ein score-basiertes Nasdaq-Ziel ausschließlich nach unten begrenzen. Die H1-Run-Rate bleibt Cycle-/Reality-Check."
+                            "Der Full-Year-Median erzeugt kein Premium und verändert den Operational Score nicht; bei vollständig freigegebenen Exchange-Profilen darf er ein score-basiertes Ziel ausschließlich nach unten begrenzen. Bei issuer-spezifischem Transaction-/Structure-Guard bleibt er reine Referenz. Die H1-Run-Rate bleibt Cycle-/Reality-Check."
                         )
                     elif is_capital_goods_peer_metric:
                         _cg_peer_model_caption = data.get("industrials_capital_goods_specialist_model") or {}
@@ -66806,7 +66806,7 @@ if selected_symbol:
                             )
 
                         st.write(f"**Operationaler Exchange-Infrastructure-Qualitätsscore:** {int(safe_float(score_ex.get('score')) or 0)}/100 · {text_or_dash(score_ex.get('quality_level'))}")
-                        st.caption("Dieser Score beschreibt operative Qualität und Primärdatenreife. Er ist kein generischer industrieller P/E-/EV-Multiple-Score und kein alleiniger Fair-Value-Anker; nach bestandenem Earnings-/Peer-Gate positioniert er ausschließlich das Roh-KGV innerhalb des freigegebenen 18–26× Exchange-Family-Korridors.")
+                        st.caption("Dieser Score beschreibt operative Qualität und Primärdatenreife. Er ist kein generischer industrieller P/E-/EV-Multiple-Score und kein alleiniger Fair-Value-Anker; nur bei einem vollständig freigegebenen Exchange-Profil positioniert er das Roh-KGV innerhalb des 18–26× Exchange-Family-Korridors. Issuer-spezifische Transaction-/Structure-Gates haben Vorrang.")
                         comp_ex = score_ex.get("components") or {}
                         labels_ex = [
                             ("Structural Growth", "structural_growth"),
