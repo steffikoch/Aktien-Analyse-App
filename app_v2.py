@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.64"
+APP_BUILD_VERSION = "V2.22.65"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,12 +31,13 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Payment-Network Primary-Listing Search Guard V160"
+    f"Build {APP_BUILD_VERSION} · Payment-Network Verified Primary-Lock V161"
 )
 
 
 # V2.22.63: Payment-Network Universal-Family Promotion · Visa Baseline V159. Architecture/copy-only promotion of the already existing Visa + Mastercard Payment-Network specialist route into the current Universal Family framework; no legacy Payment-Network valuation mathematics changed. V and MA are now surfaced as a validated_multi_issuer_route for Payment Network / Capital-Light Payments, with the existing issuer-primary network-growth/cross-border/transaction/adjusted-earnings/cash-conversion/capital-return score architecture, 22–32x P/E corridor and downside-only Regulatory/Litigation caps retained exactly. The family header now makes clear that Visa and Mastercard are the two validated reference issuers while unsupported Payment-Network members remain issuer-primary evidence-gated. This build is intentionally a Visa regression/baseline pass before any UI consistency cleanup or family-math revision. Exchange V158, Capital-Goods V148 and all other released specialist mathematics remain unchanged.
 # V2.22.64: Payment-Network Primary-Listing Search Guard V160. Search-only fix after the V159 Visa baseline test resolved the literal company-name query "Visa" to the Warsaw secondary listing VISA.WA instead of the US home listing V, preventing the existing issuer-primary Payment-Network snapshot from activating. Adds verified exact company/ticker aliases for Visa Inc. -> V (NYSE, USD) and Mastercard Incorporated -> MA (NYSE, USD), and bumps the search resolver cache epoch so stale secondary-listing rankings cannot survive the fix. No Payment-Network score, 22–32x corridor, Regulatory/Litigation cap, Fair Value, signal, Exchange V158 or Capital-Goods V148 mathematics changed.
+# V2.22.65: Payment-Network Verified Primary-Lock V161. Search-only correction after V160 showed that the literal company-name query "Visa" was still interpreted as the short base ticker VISA, allowing the Vienna secondary listing VISA.VI to receive the resolver's +4700 exact-base-ticker precedence and outrank the verified V/NYSE alias. Adds a route-local primary_lock only to Visa and Mastercard verified aliases; this lock outranks fuzzy/exact-base secondary-listing precedence for the company-name/ticker aliases Visa/V and Mastercard/MA while an explicitly entered full secondary ticker such as VISA.VI remains selectable because it does not match the locked alias. Bumps the resolver cache epoch. No Payment-Network score, 22–32x corridor, Regulatory/Litigation cap, Fair Value, signal, Exchange V158 or Capital-Goods V148 mathematics changed.
 
 # V2.22.54: Deutsche Börse Primary-Listing Search Guard V150. Search-only hotfix after the first V149 live test showed that the Exchange / Market Infrastructure specialist route existed but the security resolver had no verified Deutsche-Börse name alias, so a literal "Deutsche Börse" query could return no selectable equity before DB1.DE ever reached the valuation router. Adds verified aliases for Deutsche Börse/Deutsche Boerse/DB1/DB1.DE that resolve to the XETRA home listing DB1.DE (EUR), and bumps the resolver cache epoch so stale empty search results cannot survive the fix. Exchange V149 score/gates, Capital-Goods V148 mathematics and all other valuation logic are unchanged.
 
@@ -13254,7 +13255,7 @@ def classify_company(name, symbol, sector, industry):
 # Aktiensuche / Security Identity & Primary Listing Resolver
 # =========================================================
 
-SEARCH_RESOLVER_CACHE_EPOCH = "v22264_payment_network_primary_alias_v160"
+SEARCH_RESOLVER_CACHE_EPOCH = "v22265_payment_network_primary_lock_v161"
 
 SEARCH_EXCHANGE_PRIORITY = {
     # US primary venues
@@ -13292,12 +13293,14 @@ PRIMARY_SEARCH_ALIASES = [
     {
         "aliases": ["VISA", "VISA INC", "VISA INC.", "V"],
         "exact_aliases": True,
+        "primary_lock": True,
         "symbol": "V", "quoteType": "EQUITY", "longname": "Visa Inc.",
         "exchange": "NYQ", "exchDisp": "NYSE", "currency": "USD",
     },
     {
         "aliases": ["MASTERCARD", "MASTERCARD INCORPORATED", "MASTERCARD INC", "MA"],
         "exact_aliases": True,
+        "primary_lock": True,
         "symbol": "MA", "quoteType": "EQUITY", "longname": "Mastercard Incorporated",
         "exchange": "NYQ", "exchDisp": "NYSE", "currency": "USD",
     },
@@ -13457,9 +13460,10 @@ def _primary_alias_rows(query):
             row = {
                 key: value
                 for key, value in route.items()
-                if key not in {"aliases", "exact_aliases"}
+                if key not in {"aliases", "exact_aliases", "primary_lock"}
             }
             row["_preferred"] = True
+            row["_primary_lock"] = bool(route.get("primary_lock"))
             row["_source"] = "primary_alias"
             output.append(row)
     return output
@@ -13643,6 +13647,12 @@ def _listing_candidate_score(item, query, query_type, identifier_rows=None):
 
     if item.get("_preferred"):
         score += 3600
+    # V161: verified issuer-name/ticker aliases for Visa/Mastercard must beat a
+    # secondary listing whose BASE ticker happens to spell the company name
+    # (Visa -> VISA.VI). The lock is route-local and only exists on those two
+    # explicit aliases; a full secondary symbol query does not match the alias.
+    if item.get("_primary_lock"):
+        score += 5200
 
     # WKN/ISIN: issuer identity from OpenFIGI outranks ordinary text similarity.
     figi_company_keys = _identifier_company_keys(identifier_rows)
