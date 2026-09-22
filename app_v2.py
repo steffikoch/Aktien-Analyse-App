@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.62"
+APP_BUILD_VERSION = "V2.22.63"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,9 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Exchange Deutsche-Börse Guard Copy Finalization V158"
+    f"Build {APP_BUILD_VERSION} · Payment-Network Universal-Family Promotion · Visa Baseline V159"
 )
 
+
+# V2.22.63: Payment-Network Universal-Family Promotion · Visa Baseline V159. Architecture/copy-only promotion of the already existing Visa + Mastercard Payment-Network specialist route into the current Universal Family framework; no legacy Payment-Network valuation mathematics changed. V and MA are now surfaced as a validated_multi_issuer_route for Payment Network / Capital-Light Payments, with the existing issuer-primary network-growth/cross-border/transaction/adjusted-earnings/cash-conversion/capital-return score architecture, 22–32x P/E corridor and downside-only Regulatory/Litigation caps retained exactly. The family header now makes clear that Visa and Mastercard are the two validated reference issuers while unsupported Payment-Network members remain issuer-primary evidence-gated. This build is intentionally a Visa regression/baseline pass before any UI consistency cleanup or family-math revision. Exchange V158, Capital-Goods V148 and all other released specialist mathematics remain unchanged.
 
 # V2.22.54: Deutsche Börse Primary-Listing Search Guard V150. Search-only hotfix after the first V149 live test showed that the Exchange / Market Infrastructure specialist route existed but the security resolver had no verified Deutsche-Börse name alias, so a literal "Deutsche Börse" query could return no selectable equity before DB1.DE ever reached the valuation router. Adds verified aliases for Deutsche Börse/Deutsche Boerse/DB1/DB1.DE that resolve to the XETRA home listing DB1.DE (EUR), and bumps the resolver cache epoch so stale empty search results cannot survive the fix. Exchange V149 score/gates, Capital-Goods V148 mathematics and all other valuation logic are unchanged.
 
@@ -7395,7 +7397,25 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
         out.setdefault("valuation_family", meta["label"])
         out.setdefault("family_router_source", "existing_specialist_route")
         out.setdefault("family_policy", meta["policy"])
-        if family_id == "asset_manager":
+        if family_id == "payment_network" and str(symbol or "").upper().strip() in {"V", "MA"}:
+            # V159: the legacy Visa/Mastercard specialist route already contains two
+            # independently validated issuer-primary profiles. Promote it into the
+            # current Universal Family state without changing its frozen mathematics.
+            out["family_model_status"] = "validated_multi_issuer_route"
+            out["family_model_ready"] = True
+            out["family_model_released"] = False
+            out["family_validation_status"] = "two_main_issuers_passed_corridor_released"
+            out["universal_family_fail_closed"] = False
+            out["method"] = (
+                "Issuer-primary Payment-Network KPI adapter + issuer-adjusted Earnings Bridge + "
+                "22–32× Family P/E corridor + downside-only Regulatory/Litigation P/E cap; "
+                "generischer Standard-Score, Yahoo-FCF/Net-Debt-to-FCF und Standard-KGV bleiben gesperrt."
+            )
+            out["confidence_cap"] = "Mittel"
+            out["business_model"] = "Globales, kapitalarmes Zahlungsnetzwerk ohne klassische Kreditbuch-/Bankökonomie"
+            out["core_segments"] = "Payment Network · Cross-Border · Processing/Transactions · Value-Added Services"
+            out["focus_areas"] = "Network Volume · Cross-Border · Transactions · Net Revenue · Adjusted Earnings · Operating Margin · Cash Conversion · Capital Returns · Regulatory/Litigation Risk"
+        elif family_id == "asset_manager":
             # V99: two independent main issuers (TROW + BLK) have passed end-to-end,
             # but the family is not yet globally released because issuer-primary
             # AUM/flow/fee/margin evidence still comes from ticker-bound verified
@@ -59999,6 +60019,13 @@ if selected_symbol:
                             "Industrials / Capital Goods Multi-Issuer Specialist: Siemens und Schneider Electric validieren zwei unterschiedliche issuer-native KPI-Adapter unter derselben Qualitätsarchitektur. "
                             "Die Current-FY Earnings Bridge und der 22–32× Family-Korridor sind für diese validierten Profile freigegeben; weitere Familienmitglieder bleiben issuer-primary evidence-gated. "
                             "Siemens bleibt wegen des Healthineers-Structural-Breaks separat SOTP-geblockt."
+                        )
+                    if (company_type.get("family_model_status") == "validated_multi_issuer_route"
+                            and company_type.get("valuation_family") == "Payment Network / Capital-Light Payments"):
+                        st.info(
+                            "Payment Network / Capital-Light Payments Multi-Issuer Specialist: Visa und Mastercard sind als zwei unabhängige issuer-primary Netzwerkprofile validiert. "
+                            "Der bestehende 22–32× Family-KGV-Korridor, issuer-adjustierte Earnings-Anker und downside-only Regulatory/Litigation Caps bleiben unverändert; "
+                            "weitere Payment-Network-Emittenten bleiben issuer-primary evidence-gated."
                         )
                     if is_universal_family_fail_closed(company_type):
                         if is_released_listed_holding_family(company_type):
