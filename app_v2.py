@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.60"
+APP_BUILD_VERSION = "V2.22.61"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Exchange UI Consistency & Dual-Anchor Copy Cleanup V156"
+    f"Build {APP_BUILD_VERSION} · Exchange Step-1 Raw Multiple & Module-5 Final Cleanup V157"
 )
 
 
@@ -45,6 +45,7 @@ st.caption(
 # V2.22.58: Exchange Dual-Anchor Family Corridor & Nasdaq Valuation V154. Promotes the two validated Exchange / Market Infrastructure adapters into a released 18–26x Current-FY Adjusted/Cash-EPS family corridor for Nasdaq only, while Deutsche Börse remains transaction-gated by the pending Allfunds perimeter/capital-structure change. Corridor calibration deliberately combines two primary-source peer anchors instead of pretending H1 annualization is FY2026 guidance: current prices versus verified FY2025 Adjusted EPS (CME 11.20, ICE 6.95, Cboe 10.67) provide the full-year trailing anchor, while Q1+Q2 2026 Adjusted-EPS annualization remains a current run-rate/cycle check. The 100-point Exchange operating score positions the raw target linearly from 50→18x to 100→26x; the live FY2025 trailing-adjusted peer median is downside-only and may cap but never lift the target. Nasdaq (94/100) is eligible for one-multiple Fair Value on the released FY2026 Non-GAAP-EPS bridge; Deutsche Börse receives the same corridor only as context and no target P/E/Fair Value until the Allfunds pro-forma capital structure and post-transaction earnings perimeter are sufficiently evidenced. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the Exchange specialist Fair Value. Capital-Goods V148 mathematics and all other released specialist models remain unchanged.
 # V2.22.59: Exchange Peer Load-Order Runtime Fix V155. No valuation mathematics changed. Moves the Exchange / Market Infrastructure peer-calibration application behind calculate_peer_check(), preventing an uninitialized peer_check reference that caused NDAQ/DB1.DE to abort immediately after selection in V154. The 18–26x Exchange corridor, dual-anchor CME/ICE/Cboe calibration, Nasdaq 94/100 score and Deutsche-Börse Allfunds transaction gate remain unchanged.
 # V2.22.60: Exchange UI Consistency & Dual-Anchor Copy Cleanup V156. No valuation mathematics changed. Removes stale generic Standard-model copy from the released Exchange / Market Infrastructure path: Yahoo/statement FCF and standard EPS normalization are diagnosis-only; generic growth, margin/ROE, FCF-margin and Net-Debt/FCF footers are suppressed in favor of issuer-primary Exchange specialist dimensions. Fixes the Step-2B dual-anchor caption so the FY2025 full-year median and H1-2026 run-rate median cannot be mislabeled, updates stale Nasdaq Step-3A wording to reflect the already released 18–26x corridor, and makes the Fair-Value earnings display explicitly show the source-currency Specialist Bridge plus display-currency equivalent. Nasdaq 94/100, raw 25.04x, peer-capped 24.60x, Fair Value mathematics, Deutsche-Börse Allfunds gate and every other released model remain unchanged.
+# V2.22.61: Exchange Step-1 Raw Multiple & Module-5 Final Cleanup V157. UI/flow-consistency only; no valuation mathematics changed. Module 6 Step 1 now shows the score-positioned raw Exchange fundamental multiple before any peer ceiling, while Step 2B remains the only place that applies/displays the FY2025 downside-only peer cap. Suppresses the four remaining generic Module-5 footers (30-point growth build note, current margin/ROE note, FCF-margin note and Net-Debt/FCF/Net-Cash scoring note) for Exchange-specialist issuers. Clarifies that the Exchange Operational Score is not a generic industrial multiple score but, after all family gates pass, is the quality score that positions the raw P/E inside the 18–26x corridor. Nasdaq score/corridor/peer data/Fair Value/zones/signals and Deutsche-Börse Allfunds guard remain unchanged.
 
 # V2.22.15: Universal Professional-Services Industry Precedence Guard V111. Adds a reusable Professional & Business Services valuation family and fixes an over-broad Industrials sector fallback that previously routed Specialty Business Services issuers into Industrials / Capital Goods. High-confidence professional-service industries now outrank the broad Industrials sector; broader service labels require corroborating business-model evidence such as professional/advisory/consulting, corporate-finance/due-diligence, legal/accounting/tax, restructuring/recovery, fee-earner/network, licence-fee or revenue-share economics. Capital-goods/manufacturing industries remain on the existing Industrials route. The new family is defined_unreleased and therefore fail-closed: no generic Standard score, Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV, Fair Value or signals are unlocked. V110 Asset-Management evidence recovery, GBp/GBP unit handling and all released valuation mathematics remain unchanged.
 # V2.22.16: Professional & Business Services Specialist Model V1 V112. First validated issuer: DSW Capital (DSW.L). Releases an issuer-primary Professional & Business Services specialist path for DSW while keeping the wider family globally unreleased until a second independent issuer is validated. The model scores platform/network growth and fee-earner productivity, adjusted EBITDA/PBT quality, issuer operating cash conversion, balance quality, licence/revenue-mix resilience, capital allocation/dilution and earnings stability. Valuation uses an issuer-adjusted two-year diluted-EPS anchor (FY26 weighted 80%, FY25 20%) with a 9–18x score corridor and a downside-only small-cap/liquidity cap. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the specialist Fair Value. GBp/GBP conversion stays explicit at 1 GBP = 100 GBp. V110 Asset-Management evidence recovery and all other released specialist mathematics remain unchanged.
@@ -62736,7 +62737,7 @@ if selected_symbol:
                             "nicht berechenbar."
                         )
 
-                if not is_capital_goods_score_ui and not is_universal_family_score_ui and not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_payment_network_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_oilfield_services_score_ui and not is_integrated_oil_gas_score_ui and not is_branded_consumer_staples_score_ui and not is_asset_management_score_ui and not is_professional_services_score_ui and not is_defense_high_growth_score_ui:
+                if not is_capital_goods_score_ui and not is_universal_family_score_ui and not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_payment_network_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_oilfield_services_score_ui and not is_integrated_oil_gas_score_ui and not is_branded_consumer_staples_score_ui and not is_asset_management_score_ui and not is_professional_services_score_ui and not is_defense_high_growth_score_ui and not is_exchange_score_ui:
                     st.caption(
                         "Modul 5 wird schrittweise aufgebaut. "
                         "Wachstum liefert maximal 30 Punkte. "
@@ -63054,6 +63055,7 @@ if selected_symbol:
                     and not is_defense_high_growth_profitability_ui
                     and not is_universal_family_profitability_ui
                     and not is_capital_goods_profitability_ui
+                    and not is_exchange_profitability_ui
                 ):
                     st.caption(
                         "Die Profitabilität basiert derzeit auf "
@@ -63400,6 +63402,7 @@ if selected_symbol:
                     and not bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                     and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                     and not bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable"))
                 ):
                     st.caption(
                         "Die FCF-Punkte basieren auf der aktuellen "
@@ -63806,6 +63809,7 @@ if selected_symbol:
                     and not is_baker_hughes_energy_tech_company_type(company_type)
                     and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                     and not bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
+                    and not bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable"))
                 ):
                     st.caption(
                         "Bilanzpunkte: Netto-Cash 15/15; "
@@ -65794,6 +65798,7 @@ if selected_symbol:
                     if multiple_result["available"]:
 
                         is_asset_management_m6 = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
+                        is_exchange_m6 = bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable"))
                         if is_asset_management_m6:
                             am_val_step1 = (data.get("asset_management_specialist_model") or {}).get("specialist_valuation") or {}
                             am_pre_guard = safe_float(am_val_step1.get("pre_peer_guard_multiple") or am_val_step1.get("raw_score_multiple"))
@@ -65806,6 +65811,18 @@ if selected_symbol:
                                 "Schritt 1 zeigt ausschließlich den score-gesteuerten Asset-Manager-Anker. "
                                 "Das tatsächlich verwendete Ziel-KGV wird erst in Schritt 3B nach Prüfung der verfügbaren "
                                 "Peer-/Historical-Safety-Referenzen festgelegt."
+                            )
+                        elif is_exchange_m6:
+                            ex_val_step1 = (data.get("exchange_market_infrastructure_specialist_model") or {}).get("specialist_valuation") or {}
+                            ex_raw_step1 = safe_float(ex_val_step1.get("raw_score_multiple"))
+                            if ex_raw_step1 is not None:
+                                st.metric(
+                                    "Fundamental-Multiple vor Peer Ceiling",
+                                    f"{ex_raw_step1:.2f}×"
+                                )
+                            st.caption(
+                                "Schritt 1 zeigt ausschließlich das aus Exchange Operational Score und 18–26× Family-Korridor abgeleitete Roh-KGV. "
+                                "Der FY2025 Full-Year-Peer-Median wird erst in Schritt 2B als downside-only Ceiling geprüft; das verwendete Ziel-KGV entsteht erst danach."
                             )
                         else:
                             st.metric(
@@ -66789,7 +66806,7 @@ if selected_symbol:
                             )
 
                         st.write(f"**Operationaler Exchange-Infrastructure-Qualitätsscore:** {int(safe_float(score_ex.get('score')) or 0)}/100 · {text_or_dash(score_ex.get('quality_level'))}")
-                        st.caption("Dieser Score beschreibt operative Qualität und Primärdatenreife; er ist ausdrücklich noch kein P/E-/EV-Multiple-Score und kein Fair-Value-Anker.")
+                        st.caption("Dieser Score beschreibt operative Qualität und Primärdatenreife. Er ist kein generischer industrieller P/E-/EV-Multiple-Score und kein alleiniger Fair-Value-Anker; nach bestandenem Earnings-/Peer-Gate positioniert er ausschließlich das Roh-KGV innerhalb des freigegebenen 18–26× Exchange-Family-Korridors.")
                         comp_ex = score_ex.get("components") or {}
                         labels_ex = [
                             ("Structural Growth", "structural_growth"),
