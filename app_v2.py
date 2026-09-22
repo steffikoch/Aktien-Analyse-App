@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.46"
+APP_BUILD_VERSION = "V2.22.47"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Siemens Specialist Copy & Fair-Value Gate Cleanup V142"
+    f"Build {APP_BUILD_VERSION} · Capital-Goods Multi-Issuer Adapter · Schneider Validation V143"
 )
 
 
@@ -65,6 +65,7 @@ st.caption(
 # V2.22.44: Asset-Manager Guard Display Order Cleanup V140. No valuation mathematics changed. Step 1 now displays only the raw score-derived Asset-Manager multiple and explicitly defers the final guarded target multiple to Step 3B after peer/historical evidence has been shown. Step 3B labels the actually available guard reference conditionally, so a missing 3Y historical median is no longer rendered under a combined Peer/Historical label. DWS score, Through-Cycle EPS, peer cap, Fair Value and signals remain unchanged.
 
 # V2.22.46: Siemens Specialist Copy & Fair-Value Gate Cleanup V142. No valuation mathematics changed. Clarifies that the 100-point Siemens Capital-Goods score measures operating quality / primary-data quality rather than valuation readiness; removes the duplicated English specialist-method caption from Step 3B; preserves the concise German router note in Step 3A; and replaces the generic Fair-Value lock text with the actual Siemens blockers (Healthineers distribution/retained-stake SOTP bridge plus second independent family validation). V141 issuer-primary metrics, 93/100 operating score and all fail-closed behavior remain unchanged.
+# V2.22.47: Capital-Goods Multi-Issuer Adapter · Schneider Validation V143. Adds Schneider Electric (SU.PA) as the second independent issuer-primary Industrials / Capital Goods validation profile. The family now supports issuer-native demand/visibility adapters rather than forcing Siemens Orders/Book-to-Bill onto every capital-goods issuer: Siemens keeps Orders/Book-to-Bill, while Schneider uses record backlog, broad-based end-market demand and upgraded organic-growth guidance. Schneider uses H1-2026 organic revenue growth, Adjusted EBITA margin, FY2025 ROCE/cash conversion/net debt, A-grade balance evidence, progressive dividend and the pending Cognite acquisition as a capital-allocation/leverage guard. The operating-quality architecture remains 100 points and is still explicitly not a valuation-multiple score. Both Siemens and Schneider remain valuation fail-closed until the reusable cross-issuer earnings basis, family multiple corridor and peer comparability layer are calibrated; Siemens additionally retains its Healthineers SOTP structural-break gate. No generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF or Standard-KGV path is released.
 # V2.22.41: Asset-Manager Annual-History Candidate Merge V137. Fixes a de-duplication/ranking defect in generic same-basis Asset-Manager EPS-history recovery. The same issuer-primary report can be discovered once for each requested target year; prior builds kept the first URL occurrence and therefore preserved the score from the first target year instead of the best score across all requested years. V117 now merges duplicate URLs by their strongest year-aware score, explicitly recognizes the discovered document_class even when the download URL/anchor is opaque, and prioritizes the latest completed-FY Financial Data Supplement/annual report because such reports often contain the full 3Y same-basis EPS series in one table. Current-period AUM/flow/fee/CIR evidence, specialist score weights, 9–18x corridor, peer/historical guards and signal thresholds are unchanged.
 # V2.22.37: Asset-Manager Structured XLSX Period Binding V133. Fixes wide issuer-primary financial supplements whose comparison headers (for example “Q2 2026 vs. Q1 2026 / Q2 2025”) precede the actual multi-period data-header row. XLSX extraction now preserves explicit worksheet-row boundaries, period detection ranks the real multi-period header row ahead of comparison captions, and KPI rows are parsed only within their own workbook row so comparison columns cannot shift AUM/flow/fee/CIR/EPS values onto the wrong period. Same-scope guards, same-basis earnings requirements, score weights, 9–18x corridor, peer/historical guards and signal thresholds remain unchanged; no issuer ticker, URL or KPI value is hard-coded.
 # V2.22.34: Development-Stage EPS Copy Isolation Cleanup V130. Copy/UI-only change. Keeps V128 subprofile routing and V121 financial-stage detection unchanged, but isolates Development-Stage Mining / Materials from the generic Universal-Family EPS wording: Standard TTM/Forward EPS remains diagnosis-only and is explicitly not a Fair-Value anchor; Mineral Explorer / Mine Developer points instead to a technical/economic project and Project-NAV basis, while Battery Materials / Processing / Technology points to resource/feedstock, process/pilot/scale-up, qualification/offtake, funding and commercialisation evidence. The terminal EPS caption is profile-aware for the same reason. All scores, corridors, guard states, V127 Net-Cash logic, LOM logic and valuation mathematics remain unchanged.
@@ -37434,7 +37435,7 @@ def is_industrials_capital_goods_specialist_type(company_type, symbol=None):
     family = str((company_type or {}).get("valuation_family") or "").strip().lower()
     type_name = normalized_company_type_name(company_type)
     sym = str(symbol or "").upper().strip()
-    return sym == "SIE.DE" or family_id == "industrials" or "industrials / capital goods" in family or "industrials / capital goods" in type_name
+    return sym in {"SIE.DE", "SU.PA", "SCHN.PA"} or family_id == "industrials" or "industrials / capital goods" in family or "industrials / capital goods" in type_name
 
 
 def get_verified_siemens_industrials_snapshot(symbol):
@@ -37512,11 +37513,154 @@ def get_verified_siemens_industrials_snapshot(symbol):
     }
 
 
+def get_verified_schneider_industrials_snapshot(symbol):
+    """Issuer-primary Schneider Electric snapshot for second Capital-Goods validation.
+
+    Schneider does not publish Siemens-style Orders/Book-to-Bill as its primary
+    demand KPIs.  The adapter therefore uses issuer-native record-backlog /
+    broad-demand evidence plus organic growth and guidance while keeping the
+    same family quality dimensions. Monetary amounts are EUR unless noted.
+    """
+    if str(symbol or "").upper().strip() not in {"SU.PA", "SCHN.PA"}:
+        return None
+    return {
+        "company": "Schneider Electric SE",
+        "symbol": "SU.PA",
+        "specialist_profile": "Energy Technology / Electrification & Automation Platform",
+        "specialist_profile_key": "energy_technology_automation",
+        "reporting_currency": "EUR",
+        "as_of_date": "30.06.2026",
+        "published_date": "30.07.2026",
+        "source_name": "Schneider Electric H1 2026 Results + FY2025 Results + Cognite acquisition announcement",
+        "h1_results_url": "https://www.se.com/ww/en/about-us/investor-relations/financial-results/",
+        "fy2025_report_url": "https://www.se.com/ww/en/assets/564/document/528237/release-fy-results-2025.pdf",
+        "cognite_url": "https://www.se.com/ww/en/about-us/investor-relations/regulatory-information/overview/",
+        # H1 2026 issuer-primary current operating evidence
+        "h1_revenue": 21.226e9,
+        "h1_revenue_organic_growth_pct": 14.0,
+        "q2_revenue": 11.5e9,
+        "q2_revenue_organic_growth_pct": 17.0,
+        "q2_energy_management_organic_growth_pct": 18.0,
+        "q2_industrial_automation_organic_growth_pct": 11.0,
+        "h1_adjusted_ebita": 4.093e9,
+        "h1_adjusted_ebita_organic_growth_pct": 22.0,
+        "h1_adjusted_ebita_margin_pct": 19.3,
+        "h1_adjusted_ebita_margin_organic_delta_bps": 120.0,
+        "h1_net_income": 2.5e9,
+        "h1_free_cash_flow": 1.6e9,
+        "h1_fcf_growth_pct": 244.0,
+        "record_backlog": True,
+        "broad_based_demand": True,
+        "fy2026_target_upgraded": True,
+        "fy2026_revenue_organic_growth_low_pct": 10.0,
+        "fy2026_revenue_organic_growth_high_pct": 13.0,
+        "fy2026_adjusted_ebita_growth_low_pct": 14.0,
+        "fy2026_adjusted_ebita_growth_high_pct": 19.0,
+        "fy2026_adjusted_ebita_margin_low_pct": 19.4,
+        "fy2026_adjusted_ebita_margin_high_pct": 19.7,
+        # FY2025 audited / issuer-result framework evidence
+        "fy2025_revenue": 40.152e9,
+        "fy2025_revenue_organic_growth_pct": 8.9,
+        "fy2025_adjusted_ebita": 7.520e9,
+        "fy2025_adjusted_ebita_margin_pct": 18.7,
+        "fy2025_adjusted_ebita_margin_organic_delta_bps": 50.0,
+        "fy2025_free_cash_flow": 4.635e9,
+        "fy2025_cash_conversion_rate": 1.11,
+        "fy2025_adjusted_cash_conversion_rate": 1.06,
+        "fy2025_roce_pct": 15.1,
+        "fy2025_net_debt": 13.721e9,
+        "fy2025_adjusted_eps": 8.59,
+        "fy2025_dividend_per_share": 4.20,
+        "fy2025_dividend_growth_pct": 8.0,
+        "progressive_dividend_years": 16,
+        "a_grade_credit_commitment": True,
+        # Capital-allocation / transaction guard; not a structural earnings break.
+        "cognite_acquisition_announced": True,
+        "cognite_transaction_value_usd": 3.1e9,
+        "cognite_transaction_pending": True,
+        "structural_break": False,
+        "valuation_confidence_cap": "Niedrig bis Mittel",
+        "note": (
+            "Schneider is assessed with issuer-native Capital-Goods metrics rather than Siemens-style Orders/Book-to-Bill. "
+            "Record backlog, broad-based end-market demand, organic growth, Adjusted EBITA, ROCE and cash conversion form the operating evidence. "
+            "The pending Cognite acquisition is treated as a capital-allocation/leverage guard, not as a structural earnings break."
+        ),
+    }
+
+
+def build_schneider_capital_goods_operational_score(snap):
+    """Profile-aware 100-point operating-quality adapter for Schneider Electric."""
+    record_backlog = bool(snap.get("record_backlog"))
+    broad_demand = bool(snap.get("broad_based_demand"))
+    target_upgraded = bool(snap.get("fy2026_target_upgraded"))
+    visibility_pts = (8 if record_backlog else 3) + (6 if broad_demand else 2) + (4 if target_upgraded else 1)
+
+    h1_growth = safe_float(snap.get("h1_revenue_organic_growth_pct"))
+    gl = safe_float(snap.get("fy2026_revenue_organic_growth_low_pct")); gh = safe_float(snap.get("fy2026_revenue_organic_growth_high_pct"))
+    guide_mid = (gl + gh) / 2.0 if gl is not None and gh is not None else None
+    ia_growth = safe_float(snap.get("q2_industrial_automation_organic_growth_pct"))
+    rev_pts = 7 if h1_growth is not None and h1_growth >= 10 else 6 if h1_growth is not None and h1_growth >= 7 else 4 if h1_growth is not None and h1_growth >= 3 else 2
+    guide_pts = 5 if guide_mid is not None and guide_mid >= 10 else 4 if guide_mid is not None and guide_mid >= 7 else 2
+    mix_pts = 3 if ia_growth is not None and ia_growth >= 10 else 2 if ia_growth is not None and ia_growth >= 5 else 1
+    growth_pts = rev_pts + guide_pts + mix_pts
+
+    h1_margin = safe_float(snap.get("h1_adjusted_ebita_margin_pct"))
+    margin_delta = safe_float(snap.get("h1_adjusted_ebita_margin_organic_delta_bps"))
+    fy_margin = safe_float(snap.get("fy2025_adjusted_ebita_margin_pct"))
+    roce = safe_float(snap.get("fy2025_roce_pct"))
+    margin_pts = 8 if h1_margin is not None and h1_margin >= 19 and margin_delta is not None and margin_delta >= 100 else 7 if h1_margin is not None and h1_margin >= 17 else 4
+    fy_margin_pts = 6 if fy_margin is not None and fy_margin >= 18 else 5 if fy_margin is not None and fy_margin >= 15 else 3
+    roce_pts = 6 if roce is not None and roce >= 15 else 4 if roce is not None and roce >= 10 else 2
+    profitability_pts = margin_pts + fy_margin_pts + roce_pts
+
+    ccr = safe_float(snap.get("fy2025_cash_conversion_rate"))
+    h1_fcf = safe_float(snap.get("h1_free_cash_flow")); h1_ni = safe_float(snap.get("h1_net_income"))
+    h1_ccr = h1_fcf / h1_ni if h1_fcf is not None and h1_ni is not None and h1_ni > 0 else None
+    ccr_pts = 8 if ccr is not None and ccr >= 1.0 else 6 if ccr is not None and ccr >= 0.8 else 4
+    h1_cash_pts = 2 if h1_ccr is not None and h1_ccr >= 0.60 else 1 if h1_ccr is not None and h1_ccr >= 0.40 else 0
+    fcf_growth_pts = 2 if safe_float(snap.get("h1_fcf_growth_pct")) is not None and safe_float(snap.get("h1_fcf_growth_pct")) >= 50 else 1
+    cash_target_pts = 2 if safe_float(snap.get("fy2025_adjusted_cash_conversion_rate")) is not None and safe_float(snap.get("fy2025_adjusted_cash_conversion_rate")) >= 1.0 else 1
+    cash_pts = min(15, ccr_pts + h1_cash_pts + fcf_growth_pts + cash_target_pts)
+
+    # No generic Net-Debt/FCF score: issuer balance evidence is used directly.
+    a_grade = bool(snap.get("a_grade_credit_commitment"))
+    pending_cognite = bool(snap.get("cognite_transaction_pending"))
+    balance_pts = 6 if a_grade and pending_cognite else 8 if a_grade else 4
+
+    dividend = safe_float(snap.get("fy2025_dividend_per_share"))
+    dividend_years = safe_float(snap.get("progressive_dividend_years"))
+    capital_pts = 8 if dividend is not None and dividend_years is not None and dividend_years >= 10 else 6 if dividend is not None else 4
+
+    adj_eps = safe_float(snap.get("fy2025_adjusted_eps"))
+    earnings_pts = 5 if adj_eps is not None else 3
+    structure_pts = 4 if not snap.get("structural_break") else 0
+    structure_total = earnings_pts + structure_pts
+
+    components = {
+        "orders_visibility": {"score": visibility_pts, "max": 20, "adapter": "record_backlog_broad_demand", "record_backlog": record_backlog, "broad_based_demand": broad_demand, "target_upgraded": target_upgraded},
+        "comparable_growth": {"score": growth_pts, "max": 15, "h1_revenue_growth_pct": h1_growth, "fy2026_guidance_mid_pct": guide_mid, "q2_industrial_automation_growth_pct": ia_growth},
+        "margin_roce_quality": {"score": profitability_pts, "max": 20, "h1_adjusted_ebita_margin_pct": h1_margin, "margin_delta_bps": margin_delta, "fy2025_margin_pct": fy_margin, "fy2025_roce_pct": roce},
+        "cash_conversion": {"score": cash_pts, "max": 15, "fy2025_cash_conversion_rate": ccr, "h1_fcf_to_net_income": h1_ccr, "h1_fcf_growth_pct": safe_float(snap.get("h1_fcf_growth_pct"))},
+        "industrial_balance": {"score": balance_pts, "max": 10, "fy2025_net_debt": safe_float(snap.get("fy2025_net_debt")), "a_grade_credit_commitment": a_grade, "cognite_pending": pending_cognite},
+        "capital_allocation": {"score": capital_pts, "max": 10, "dividend_per_share": dividend, "progressive_dividend_years": dividend_years, "cognite_transaction_value_usd": safe_float(snap.get("cognite_transaction_value_usd"))},
+        "earnings_structure": {"score": structure_total, "max": 10, "fy2025_adjusted_eps": adj_eps, "structural_break": bool(snap.get("structural_break")), "target_upgraded": target_upgraded},
+    }
+    score = sum(int(v.get("score") or 0) for v in components.values())
+    quality = "Sehr gut" if score >= 85 else "Gut" if score >= 70 else "Ausreichend" if score >= 50 else "Schwach"
+    return {
+        "available": True, "score": score, "max_score": 100, "quality_level": quality,
+        "components": components, "valuation_score": False,
+        "note": "Operationaler Capital-Goods-Qualitätsscore mit Schneider-spezifischem Demand/Backlog-Adapter; ausdrücklich kein Multiple-Score und kein Fair-Value-Anker.",
+    }
+
+
 def build_industrials_capital_goods_operational_score(snapshot):
     """100-point operational diagnostic; explicitly not a valuation-multiple score."""
     snap = snapshot or {}
     if not snap:
         return {"available": False, "score": None, "max_score": 100, "components": {}, "quality_level": "Nicht verfügbar"}
+    if snap.get("specialist_profile_key") == "energy_technology_automation":
+        return build_schneider_capital_goods_operational_score(snap)
 
     orders_g = safe_float(snap.get("q3_orders_comparable_growth_pct"))
     btb = safe_float(snap.get("q3_book_to_bill"))
@@ -37595,7 +37739,7 @@ def build_industrials_capital_goods_operational_score(snapshot):
 def build_industrials_capital_goods_specialist_model(company_type, fundamental_info, symbol):
     if not is_industrials_capital_goods_specialist_type(company_type, symbol):
         return {"applicable": False}
-    snap = get_verified_siemens_industrials_snapshot(symbol)
+    snap = get_verified_siemens_industrials_snapshot(symbol) or get_verified_schneider_industrials_snapshot(symbol)
     if not snap:
         return {
             "applicable": True,
@@ -37606,28 +37750,48 @@ def build_industrials_capital_goods_specialist_model(company_type, fundamental_i
             "readiness": "Industrials / Capital Goods family recognized; issuer-primary family adapter not yet calibrated",
         }
     op_score = build_industrials_capital_goods_operational_score(snap)
-    structural_break = bool(snap.get("healthineers_structural_break"))
+    profile_key = snap.get("specialist_profile_key")
+    structural_break = bool(snap.get("healthineers_structural_break") or snap.get("structural_break"))
+    if profile_key == "energy_technology_automation":
+        readiness = "Schneider Primärdatenprofil vollständig · zweiter unabhängiger Family-Adapter validiert · Cross-Issuer-Multiple-Kalibrierung noch gesperrt"
+        missing = [
+            "reusable current-FY issuer-adjusted earnings basis reconciled across Siemens and Schneider",
+            "cross-issuer Capital-Goods P/E / EV-based corridor calibration on comparable horizons",
+            "at least 3 same-basis external peers for median reality-check calibration",
+            "post-Cognite pro-forma leverage / capital-allocation check when closing data become available",
+        ]
+        note = (
+            f"{APP_BUILD_VERSION} validates Schneider as the second independent Capital-Goods issuer using a profile-aware adapter: record backlog / broad demand, "
+            "organic revenue growth, Adjusted EBITA margin, ROCE, cash conversion, issuer net debt and capital allocation. "
+            "The Cognite acquisition is a leverage/capital-allocation guard, not a structural earnings break. Fair Value remains locked until cross-issuer earnings and multiple calibration is released."
+        )
+    else:
+        readiness = "Siemens Primärdatenprofil vollständig · Healthineers-Spin-off Structural-Break/SOTP-Gate aktiv · Fair Value gesperrt"
+        missing = [
+            "post-spin Core-Siemens earnings / capital structure on a comparable basis",
+            "value bridge for the direct 30% Healthineers share distribution to Siemens shareholders",
+            "treatment/value of Siemens' retained Healthineers minority stake after deconsolidation",
+            "cross-issuer Capital-Goods earnings/multiple calibration using the Schneider second validation profile",
+        ]
+        note = (
+            f"{APP_BUILD_VERSION} uses Siemens issuer-primary orders, book-to-bill, Industrial-Business margin, ROCE, cash conversion and Industrial net debt/EBITDA. "
+            "Because Siemens Financial Services is a captive finance business, its debt is explicitly excluded from industrial leverage. "
+            "The announced Healthineers spin-off changes ownership and earnings comparability, therefore no target P/E/Fair Value is released yet."
+        )
     return {
         "applicable": True,
         "issuer_supported": True,
         "primary_source_complete": True,
+        "second_family_validation": profile_key == "energy_technology_automation",
         "valuation_anchor_complete": False,
         "structural_break_active": structural_break,
-        "sotp_required": structural_break,
+        "sotp_required": bool(snap.get("healthineers_structural_break")),
+        "transaction_guard_active": bool(snap.get("cognite_transaction_pending")),
         "snapshot": snap,
         "operational_score": op_score,
-        "readiness": "Siemens Primärdatenprofil vollständig · Healthineers-Spin-off Structural-Break/SOTP-Gate aktiv · Fair Value gesperrt",
-        "missing_valuation_inputs": [
-            "post-spin Core-Siemens earnings / capital structure on a comparable basis",
-            "value bridge for the direct 30% Healthineers share distribution to Siemens shareholders",
-            "treatment/value of Siemens' retained Healthineers minority stake after deconsolidation",
-            "second independent Capital-Goods issuer validation for reusable family multiple calibration",
-        ],
-        "note": (
-            f"{APP_BUILD_VERSION} uses Siemens issuer-primary orders, book-to-bill, Industrial-Business margin, ROCE, cash conversion and Industrial net debt/EBITDA. "
-            "Because Siemens Financial Services is a captive finance business, its debt is explicitly excluded from industrial leverage. "
-            "The announced Healthineers spin-off changes ownership and earnings comparability, therefore no target P/E/Fair Value is released yet."
-        ),
+        "readiness": readiness,
+        "missing_valuation_inputs": missing,
+        "note": note,
     }
 
 
@@ -37636,18 +37800,25 @@ def build_industrials_capital_goods_special_control(control, specialist_model):
         return control
     model = specialist_model if isinstance(specialist_model, dict) else {}
     snap = model.get("snapshot") or {}
+    profile_key = snap.get("specialist_profile_key")
+    if profile_key == "energy_technology_automation":
+        router_status = "Schritt 3B aktiv – Schneider Primärdaten validiert, zweiter Family-Adapter bestätigt; Valuation Calibration Gate bindend"
+    else:
+        router_status = "Schritt 3B aktiv – Siemens Primärdaten validiert, Structural-Break/SOTP-Gate bindend"
     out = dict(control)
     out.update({
         "implemented": True,
         "released": False,
         "confidence_cap": snap.get("valuation_confidence_cap") or "Niedrig bis Mittel",
-        "router_status": "Schritt 3B aktiv – Siemens Primärdaten validiert, Structural-Break/SOTP-Gate bindend",
+        "router_status": router_status,
         "step3b_status": model.get("readiness"),
         "snapshot": snap,
         "checks": {
             "operational_score": model.get("operational_score") or {},
             "structural_break_active": bool(model.get("structural_break_active")),
             "sotp_required": bool(model.get("sotp_required")),
+            "transaction_guard_active": bool(model.get("transaction_guard_active")),
+            "second_family_validation": bool(model.get("second_family_validation")),
             "missing_valuation_inputs": list(model.get("missing_valuation_inputs") or []),
         },
         "note": model.get("note"),
@@ -40382,8 +40553,30 @@ def get_special_control(company_type, symbol):
     # not release the family or allow legacy/generic valuation math.
     if (
         str((company_type or {}).get("valuation_family_id") or "").strip().lower() == "industrials"
-        and symbol_text == "SIE.DE"
+        and symbol_text in {"SIE.DE", "SU.PA", "SCHN.PA"}
     ):
+        if symbol_text in {"SU.PA", "SCHN.PA"}:
+            return {
+                "required": True,
+                "control_key": "industrials_capital_goods_specialist",
+                "control_name": "Schneider Electric / Industrials & Capital Goods Primary-Source-, Demand-Adapter- & Valuation-Calibration-Kontrolle",
+                "planned_checks": [
+                    "Record Backlog + broad-based end-market demand statt erzwungenem Orders/Book-to-Bill",
+                    "Organic Revenue Growth + Industrial-Automation growth + upgraded FY2026 target",
+                    "Adjusted EBITA Margin + ROCE statt generischer Nettomarge/ROE-Punkte",
+                    "Issuer Free Cash Flow / Cash Conversion statt Yahoo-FCF-Margen-Score",
+                    "Issuer Net Debt + A-grade credit evidence; kein generischer Net-Debt/FCF-Score",
+                    "Cognite acquisition als Capital-Allocation/Leverage-Guard, nicht als Structural Break",
+                    "cross-issuer Current-FY earnings basis + family multiple corridor noch zu kalibrieren",
+                    "mindestens 3 same-basis Peers vor Peer-Median-Reality-Check",
+                    "Analystenziele ausschließlich Reality Check",
+                ],
+                "status": f"Router aktiv – {APP_BUILD_VERSION} Industrials / Capital Goods Multi-Issuer Adapter · Schneider V1",
+                "note": (
+                    "Schneider Electric ist der zweite unabhängige Capital-Goods-Validierungstitel. Der Adapter verwendet issuer-native Backlog/Demand-, organische Wachstums-, Adjusted-EBITA-, ROCE- und Cash-Conversion-KPIs, "
+                    "statt Siemens-spezifische Orders/Book-to-Bill zu erzwingen. Fair Value bleibt bis zur Cross-Issuer-Earnings-/Multiple-Kalibrierung gesperrt."
+                ),
+            }
         return {
             "required": True,
             "control_key": "industrials_capital_goods_specialist",
@@ -40396,13 +40589,13 @@ def get_special_control(company_type, symbol):
                 "Industrial net debt/EBITDA mit explizitem Ausschluss von Siemens Financial Services debt",
                 "Current-FY EPS pre PPA nur als Earnings-Kontext, nicht als alleiniger Fair-Value-Anker",
                 "Healthineers 30%-Direktabspaltung / retained stake / post-spin Core-Siemens SOTP-Bridge",
-                "zweiter unabhängiger Capital-Goods-Emittent vor globaler Familienfreigabe",
+                "Schneider als zweite unabhängige Family-Validierung; Cross-Issuer-Multiple-Kalibrierung folgt",
                 "Analystenziele ausschließlich Reality Check",
             ],
             "status": f"Router aktiv – {APP_BUILD_VERSION} Industrials / Capital Goods Siemens Primary-Source & Spin-off Gate V1",
             "note": (
-                "Siemens erhält als erster Capital-Goods-Validierungstitel ein issuer-primary Betriebsqualitätsprofil. "
-                "Der Healthineers-Spin-off ist ein bestätigter Structural Break; deshalb bleiben Ziel-KGV, Fair Value, Zonen und Signale gesperrt."
+                "Siemens bleibt der erste Capital-Goods-Validierungstitel mit issuer-primary Betriebsqualitätsprofil. "
+                "Der Healthineers-Spin-off ist ein bestätigter Structural Break; Schneider liefert nun den zweiten unabhängigen Family-Adapter, aber Ziel-KGV/Fair Value bleiben bis zur Cross-Issuer-Kalibrierung gesperrt."
             ),
         }
 
@@ -50811,12 +51004,19 @@ def calculate_fair_value_v1(
         ) or "Spezialkontrolle"
 
         if special_control.get("control_key") == "industrials_capital_goods_specialist":
-            result["note"] = (
-                "Fair Value V1 gesperrt: Siemens verfügt über eine validierte operative Primärdatenbasis, "
-                "aber der angekündigte Healthineers-Spin-off erzeugt einen Structural Break. Vor einer Fair-Value-Freigabe "
-                "fehlen die Core-Siemens + Healthineers Distribution/Retained-Stake SOTP-Bridge sowie die zweite unabhängige "
-                "Capital-Goods-Family-Validierung. Deshalb wird weder ein Ziel-KGV noch ein Fair Value erzeugt."
-            )
+            _ind_fv_snap = (special_control.get("snapshot") or {}) if isinstance(special_control, dict) else {}
+            if _ind_fv_snap.get("specialist_profile_key") == "energy_technology_automation":
+                result["note"] = (
+                    "Fair Value V1 gesperrt: Schneider Electric verfügt über eine validierte operative Primärdatenbasis und bestätigt den zweiten unabhängigen Capital-Goods-KPI-Adapter. "
+                    "Es fehlt jedoch noch die wiederverwendbare Cross-Issuer-Current-FY-Earnings-Basis, der familiengerechte Multiple-Korridor sowie die same-basis Peer-Kalibrierung; "
+                    "zusätzlich bleibt die angekündigte Cognite-Übernahme ein Capital-Allocation/Leverage-Guard. Deshalb wird noch kein Ziel-Multiple und kein Fair Value erzeugt."
+                )
+            else:
+                result["note"] = (
+                    "Fair Value V1 gesperrt: Siemens verfügt über eine validierte operative Primärdatenbasis, aber der angekündigte Healthineers-Spin-off erzeugt einen Structural Break. "
+                    "Schneider Electric bestätigt inzwischen den zweiten unabhängigen Capital-Goods-KPI-Adapter; vor einer Siemens-Fair-Value-Freigabe fehlen dennoch die Core-Siemens + "
+                    "Healthineers Distribution/Retained-Stake SOTP-Bridge sowie die Cross-Issuer-Earnings-/Multiple-Kalibrierung. Deshalb wird weder ein Ziel-KGV noch ein Fair Value erzeugt."
+                )
             return result
 
         if control_name == "Development-Stage Mineral Explorer / Mine Developer / Project Gate":
@@ -56781,10 +56981,27 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                     "Damit sind heutige Konzern-EPS, künftige Core-Siemens-Earnings und der Wert der ausgeschütteten/retained Healthineers-Beteiligung nicht auf einer stabilen Ein-Multiple-Basis vergleichbar."
                 ),
                 "action": (
-                    "Keine Standard-EPS-Sonderrecherche und kein generisches KGV verwenden. Erst eine explizite Core-Siemens + Healthineers Distribution/Retained-Stake SOTP-Bridge darf den Fair Value wieder freigeben."
+                    "Keine Standard-EPS-Sonderrecherche und kein generisches KGV verwenden. Erst eine explizite Core-Siemens + Healthineers Distribution/Retained-Stake SOTP-Bridge plus Cross-Issuer-Multiple-Kalibrierung darf den Fair Value wieder freigeben."
                 ),
                 "family_model_gate": True,
                 "structural_break_gate": True,
+            }
+        elif _ind_snap.get("specialist_profile_key") == "energy_technology_automation":
+            special_event_warning = {
+                "level": "Grün",
+                "icon": "🟢",
+                "title": "Kein Structural Break – zweiter Capital-Goods-Family-Adapter aktiv",
+                "requires_research": False,
+                "valuation_usable": False,
+                "reason": (
+                    "Schneider Electric bestätigt den zweiten unabhängigen issuer-primary Capital-Goods-KPI-Adapter. Die angekündigte Cognite-Übernahme wird als Capital-Allocation/Leverage-Guard behandelt, "
+                    "nicht als EPS-Sonderereignis. Der Bewertungsstopp entsteht ausschließlich durch die noch nicht freigegebene Cross-Issuer-Earnings-/Multiple-Kalibrierung."
+                ),
+                "action": (
+                    "Keine Standard-EPS-Sonderrecherche und kein generisches KGV verwenden. Nächster Schritt ist die familienweite Earnings-, Multiple- und Peer-Comparability-Kalibrierung auf Siemens + Schneider."
+                ),
+                "family_model_gate": True,
+                "second_issuer_validation": True,
             }
 
     # V2.20.123 – Family calibration is not a special event.  Keep a
@@ -64541,45 +64758,74 @@ if selected_symbol:
 
                 if special_control.get("control_key") == "industrials_capital_goods_specialist":
                     st.divider()
-                    st.subheader("🏭 Modul 6 – Schritt 3B: Industrials / Capital Goods Specialist V1 · Siemens")
                     if special_control.get("implemented"):
                         checks_ind = special_control.get("checks") or {}
                         snap_ind = special_control.get("snapshot") or {}
                         score_ind = checks_ind.get("operational_score") or {}
                         ind_ccy = snap_ind.get("reporting_currency") or financial_currency
+                        ind_profile_key = snap_ind.get("specialist_profile_key")
+                        ind_short_name = "Schneider Electric" if ind_profile_key == "energy_technology_automation" else "Siemens"
+                        st.subheader(f"🏭 Modul 6 – Schritt 3B: Industrials / Capital Goods Specialist V1 · {ind_short_name}")
                         st.write(f"**Unternehmen / Profil:** {text_or_dash(snap_ind.get('company'))} · {text_or_dash(snap_ind.get('specialist_profile'))}")
                         st.write(f"**Primärdatenstand:** {text_or_dash(snap_ind.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_ind.get('published_date'))})")
                         st.caption(text_or_dash(snap_ind.get("source_name")))
                         ind_links = []
-                        if snap_ind.get("q3_results_url"):
-                            ind_links.append(f"[Q3 FY2026]({snap_ind.get('q3_results_url')})")
-                        if snap_ind.get("fy2025_report_url"):
-                            ind_links.append(f"[FY2025 Annual Report]({snap_ind.get('fy2025_report_url')})")
-                        if snap_ind.get("spin_off_url"):
-                            ind_links.append(f"[Healthineers Spin-off Timeline]({snap_ind.get('spin_off_url')})")
+                        if ind_profile_key == "energy_technology_automation":
+                            if snap_ind.get("h1_results_url"):
+                                ind_links.append(f"[H1 2026 Results]({snap_ind.get('h1_results_url')})")
+                            if snap_ind.get("fy2025_report_url"):
+                                ind_links.append(f"[FY2025 Results]({snap_ind.get('fy2025_report_url')})")
+                            if snap_ind.get("cognite_url"):
+                                ind_links.append(f"[Cognite / Regulatory Information]({snap_ind.get('cognite_url')})")
+                        else:
+                            if snap_ind.get("q3_results_url"):
+                                ind_links.append(f"[Q3 FY2026]({snap_ind.get('q3_results_url')})")
+                            if snap_ind.get("fy2025_report_url"):
+                                ind_links.append(f"[FY2025 Annual Report]({snap_ind.get('fy2025_report_url')})")
+                            if snap_ind.get("spin_off_url"):
+                                ind_links.append(f"[Healthineers Spin-off Timeline]({snap_ind.get('spin_off_url')})")
                         if ind_links:
                             st.markdown(" · ".join(ind_links))
+
                         c1, c2, c3 = st.columns(3)
-                        with c1:
-                            st.metric("Q3 Orders", format_money(snap_ind.get("q3_orders"), ind_ccy), f"+{safe_float(snap_ind.get('q3_orders_comparable_growth_pct')):.1f}% vergleichbar")
-                            st.metric("Q3 Book-to-Bill", f"{safe_float(snap_ind.get('q3_book_to_bill')):.2f}×")
-                            st.metric("Q3 Revenue", format_money(snap_ind.get("q3_revenue"), ind_ccy), f"+{safe_float(snap_ind.get('q3_revenue_comparable_growth_pct')):.1f}% vergleichbar")
-                        with c2:
-                            st.metric("Industrial Business Margin Q3", f"{safe_float(snap_ind.get('q3_industrial_business_margin_pct')):.1f}%", f"Vorjahr {safe_float(snap_ind.get('q3_industrial_business_margin_prior_pct')):.1f}%")
-                            st.metric("FY2025 ROCE", f"{safe_float(snap_ind.get('fy2025_roce_pct')):.1f}%")
-                            st.metric("FY2025 Cash Conversion", f"{safe_float(snap_ind.get('fy2025_cash_conversion_rate')):.2f}×")
-                        with c3:
-                            st.metric("Industrial Net Debt / EBITDA", f"{safe_float(snap_ind.get('fy2025_industrial_net_debt_to_ebitda')):.1f}×", f"Ziel ≤ {safe_float(snap_ind.get('industrial_net_debt_to_ebitda_target_max')):.1f}×")
-                            st.metric("FY2026 EPS pre PPA Guidance", f"{safe_float(snap_ind.get('fy2026_eps_pre_ppa_guidance_low')):.2f}–{safe_float(snap_ind.get('fy2026_eps_pre_ppa_guidance_high')):.2f} EUR")
-                            st.metric("9M Digital Revenue Growth", f"+{safe_float(snap_ind.get('nine_month_digital_revenue_growth_pct')):.0f}%")
-                        st.caption(
-                            f"Industrial leverage uses issuer-defined Industrial net debt. Siemens Financial Services debt ({format_money(snap_ind.get('fy2025_sfs_debt'), ind_ccy)}) is explicitly excluded rather than being mixed into a generic Net-Debt/FCF ratio."
-                        )
+                        if ind_profile_key == "energy_technology_automation":
+                            with c1:
+                                st.metric("H1 Revenue", format_money(snap_ind.get("h1_revenue"), ind_ccy), f"+{safe_float(snap_ind.get('h1_revenue_organic_growth_pct')):.1f}% organisch")
+                                st.metric("Q2 Revenue", format_money(snap_ind.get("q2_revenue"), ind_ccy), f"+{safe_float(snap_ind.get('q2_revenue_organic_growth_pct')):.1f}% organisch")
+                                st.metric("Demand / Backlog", "Record backlog" if snap_ind.get("record_backlog") else "–", "breit über Endmärkte" if snap_ind.get("broad_based_demand") else None)
+                            with c2:
+                                st.metric("H1 Adjusted EBITA", format_money(snap_ind.get("h1_adjusted_ebita"), ind_ccy), f"+{safe_float(snap_ind.get('h1_adjusted_ebita_organic_growth_pct')):.0f}% organisch")
+                                st.metric("H1 Adjusted EBITA Margin", f"{safe_float(snap_ind.get('h1_adjusted_ebita_margin_pct')):.1f}%", f"+{safe_float(snap_ind.get('h1_adjusted_ebita_margin_organic_delta_bps')):.0f} bps org.")
+                                st.metric("FY2025 ROCE", f"{safe_float(snap_ind.get('fy2025_roce_pct')):.1f}%")
+                            with c3:
+                                st.metric("H1 Free Cash Flow", format_money(snap_ind.get("h1_free_cash_flow"), ind_ccy), f"+{safe_float(snap_ind.get('h1_fcf_growth_pct')):.0f}%")
+                                st.metric("FY2025 Cash Conversion", f"{safe_float(snap_ind.get('fy2025_cash_conversion_rate')):.2f}×")
+                                st.metric("FY2026 Organic Revenue Target", f"+{safe_float(snap_ind.get('fy2026_revenue_organic_growth_low_pct')):.0f}% bis +{safe_float(snap_ind.get('fy2026_revenue_organic_growth_high_pct')):.0f}%")
+                            st.caption(
+                                f"Demand-Adapter: Schneider veröffentlicht für diesen Family-Test keine Siemens-identische Orders/Book-to-Bill-Kernlogik. Deshalb werden Record Backlog, broad-based end-market demand und die angehobene FY2026-Guidance als issuer-native Visibility-Evidenz verwendet. FY2025 Net Debt: {format_money(snap_ind.get('fy2025_net_debt'), ind_ccy)}; A-grade credit commitment bleibt aktiv."
+                            )
+                        else:
+                            with c1:
+                                st.metric("Q3 Orders", format_money(snap_ind.get("q3_orders"), ind_ccy), f"+{safe_float(snap_ind.get('q3_orders_comparable_growth_pct')):.1f}% vergleichbar")
+                                st.metric("Q3 Book-to-Bill", f"{safe_float(snap_ind.get('q3_book_to_bill')):.2f}×")
+                                st.metric("Q3 Revenue", format_money(snap_ind.get("q3_revenue"), ind_ccy), f"+{safe_float(snap_ind.get('q3_revenue_comparable_growth_pct')):.1f}% vergleichbar")
+                            with c2:
+                                st.metric("Industrial Business Margin Q3", f"{safe_float(snap_ind.get('q3_industrial_business_margin_pct')):.1f}%", f"Vorjahr {safe_float(snap_ind.get('q3_industrial_business_margin_prior_pct')):.1f}%")
+                                st.metric("FY2025 ROCE", f"{safe_float(snap_ind.get('fy2025_roce_pct')):.1f}%")
+                                st.metric("FY2025 Cash Conversion", f"{safe_float(snap_ind.get('fy2025_cash_conversion_rate')):.2f}×")
+                            with c3:
+                                st.metric("Industrial Net Debt / EBITDA", f"{safe_float(snap_ind.get('fy2025_industrial_net_debt_to_ebitda')):.1f}×", f"Ziel ≤ {safe_float(snap_ind.get('industrial_net_debt_to_ebitda_target_max')):.1f}×")
+                                st.metric("FY2026 EPS pre PPA Guidance", f"{safe_float(snap_ind.get('fy2026_eps_pre_ppa_guidance_low')):.2f}–{safe_float(snap_ind.get('fy2026_eps_pre_ppa_guidance_high')):.2f} EUR")
+                                st.metric("9M Digital Revenue Growth", f"+{safe_float(snap_ind.get('nine_month_digital_revenue_growth_pct')):.0f}%")
+                            st.caption(
+                                f"Industrial leverage uses issuer-defined Industrial net debt. Siemens Financial Services debt ({format_money(snap_ind.get('fy2025_sfs_debt'), ind_ccy)}) is explicitly excluded rather than being mixed into a generic Net-Debt/FCF ratio."
+                            )
+
                         st.write(f"**Operationaler Capital-Goods-Qualitätsscore:** {int(safe_float(score_ind.get('score')) or 0)}/100 · {text_or_dash(score_ind.get('quality_level'))}")
-                        st.caption("Dieser Score beschreibt operative Qualität und die Qualität der Primärdatenbasis; die Bewertungsreife wird separat durch SOTP-/Comparability-Gates bestimmt. Er ist ausdrücklich kein KGV-/Multiple-Score.")
+                        st.caption("Dieser Score beschreibt operative Qualität und die Qualität der Primärdatenbasis; die Bewertungsreife wird separat durch SOTP-/Transaction-/Comparability-Gates bestimmt. Er ist ausdrücklich kein KGV-/Multiple-Score.")
                         ind_components = score_ind.get("components") or {}
                         ind_labels = {
-                            "orders_visibility": "Orders & Visibility",
+                            "orders_visibility": "Demand / Visibility",
                             "comparable_growth": "Comparable Growth",
                             "margin_roce_quality": "Margin & ROCE Quality",
                             "cash_conversion": "Cash Conversion",
@@ -64591,17 +64837,28 @@ if selected_symbol:
                             ind_item = ind_components.get(ind_key) or {}
                             if ind_item:
                                 st.caption(f"{ind_label}: {int(safe_float(ind_item.get('score')) or 0)}/{int(safe_float(ind_item.get('max')) or 0)}")
+
+                        missing_ind = checks_ind.get("missing_valuation_inputs") or []
                         if checks_ind.get("structural_break_active"):
                             st.warning(
                                 f"Healthineers Structural Break: Siemens plant eine direkte Abspaltung von {safe_float(snap_ind.get('healthineers_direct_spin_off_pct')):.0f}% der Healthineers-Aktien; Abstimmung geplant für {text_or_dash(snap_ind.get('healthineers_spin_off_vote_target'))}. "
                                 "Ein einfacher Current-FY-EPS × KGV-Fair-Value würde Core-Siemens, die Aktionärsdistribution und die verbleibende Healthineers-Beteiligung vermischen."
                             )
-                            missing_ind = checks_ind.get("missing_valuation_inputs") or []
                             if missing_ind:
-                                st.write("**Für die spätere SOTP-Freigabe fehlen noch:**")
+                                st.write("**Für die spätere SOTP-/Family-Freigabe fehlen noch:**")
                                 for item in missing_ind:
                                     st.write(f"• {item}")
-                            st.error("Fair Value bleibt fail-closed: erst Core-Siemens + Healthineers Distribution/Retained-Stake SOTP-Bridge und zweite unabhängige Family-Validierung.")
+                            st.error("Fair Value bleibt fail-closed: Core-Siemens + Healthineers Distribution/Retained-Stake SOTP-Bridge sowie Cross-Issuer-Earnings-/Multiple-Kalibrierung fehlen noch.")
+                        elif ind_profile_key == "energy_technology_automation":
+                            if checks_ind.get("transaction_guard_active"):
+                                st.warning(
+                                    f"Cognite Transaction Guard: Schneider hat die Übernahme von Cognite angekündigt (Transaktionswert rund USD {safe_float(snap_ind.get('cognite_transaction_value_usd'))/1e9:.1f} Mrd.). Das ist kein Structural Break, kann aber die pro-forma Verschuldung/Kapitalallokation verändern und bleibt deshalb als Leverage-Guard aktiv."
+                                )
+                            if missing_ind:
+                                st.write("**Für die familienweite Bewertungsfreigabe fehlen noch:**")
+                                for item in missing_ind:
+                                    st.write(f"• {item}")
+                            st.error("Fair Value bleibt fail-closed: zweiter KPI-Adapter ist validiert, aber Cross-Issuer-Earnings-Basis, Capital-Goods-Multiple-Korridor und Peer-Comparability sind noch nicht freigegeben.")
 
                 if special_control.get("control_key") == "professional_business_services_specialist":
                     st.divider()
