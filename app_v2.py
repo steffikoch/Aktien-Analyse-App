@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.72"
+APP_BUILD_VERSION = "V2.22.73"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Payments Processor Family Score Copy & Regression Cleanup V168"
+    f"Build {APP_BUILD_VERSION} · Payments Processor Family Earnings Basis Calibration V169"
 )
 
 
@@ -46,6 +46,7 @@ st.caption(
 
 # V2.22.71: Payments Processor Three-Issuer Family Score Calibration V167. Promotes the successfully live-regressed PayPal, Adyen and Fiserv processor foundation into a transparent 100-point family quality score while keeping valuation fail-closed. The score uses five abstract blocks across all three subprofiles: Economics/Revenue Conversion (25), Margin Quality/Trend (20), Cash Conversion/Capital Intensity (20), Earnings/Guidance/Execution (20), and Capital/Structure Context (15). Payment volume remains diagnostic only and contributes at most through a small conversion-discipline subcomponent; issuer-native economics remain TM$ ex interest for PayPal, constant-currency Net Revenue for Adyen and Organic Revenue for Fiserv. No common EPS anchor, P/E corridor, Fair Value, valuation zone or signal is released. Fixes the Fiserv guidance copy backtick artifact and the "Fiserv One transformation expenses" wording. Visa/Mastercard V163 mathematics remain unchanged.
 # V2.22.72: Payments Processor Family Score Copy & Regression Cleanup V168. Copy/status-only cleanup after the successful Fiserv V167 live score regression; no Payments-Processor score mathematics or valuation mathematics changed. Replaces Markdown-sensitive dollar-sign guidance copy with render-safe USD wording, removes stale pre-regression language from Fiserv and Adyen earnings-reference text, and aligns visible V168 diagnostics with the already released three-issuer Family Quality Score. Earnings anchor, P/E corridor, peer adjustment, Fair Value, valuation zones and signals remain fail-closed pending separate valuation calibration. PayPal/Adyen/Fiserv score inputs and Visa/Mastercard V163 mathematics remain unchanged.
+# V2.22.73: Payments Processor Family Earnings Basis Calibration V169. Releases the current-FY Family Earnings Basis after PayPal, Adyen and Fiserv Family Quality Score live validation while keeping valuation fail-closed. PayPal uses issuer-primary FY2026 non-GAAP EPS guidance (~USD 5.38); Fiserv uses the midpoint of issuer-primary FY2026 adjusted EPS guidance (USD 7.20–7.40 -> USD 7.30); Adyen, which does not publish EPS guidance, uses the horizon-aligned 0Y/current-FY analyst consensus only as a controlled IFRS-EPS fallback, guarded by issuer-primary 2026 net-revenue and margin objectives. Provider raw Forward-EPS, standard EPS normalization, Yahoo FCF, generic Net-Debt/FCF and analyst price targets remain excluded. No processor P/E corridor, peer adjustment, Fair Value, valuation zone or action signal is released. Clarifies PayPal share-count copy as share-count reduction rather than ambiguous share-count change. Family Quality Score mathematics and Visa/Mastercard V163 mathematics remain unchanged.
 
 
 # V2.22.54: Deutsche Börse Primary-Listing Search Guard V150. Search-only hotfix after the first V149 live test showed that the Exchange / Market Infrastructure specialist route existed but the security resolver had no verified Deutsche-Börse name alias, so a literal "Deutsche Börse" query could return no selectable equity before DB1.DE ever reached the valuation router. Adds verified aliases for Deutsche Börse/Deutsche Boerse/DB1/DB1.DE that resolve to the XETRA home listing DB1.DE (EUR), and bumps the resolver cache epoch so stale empty search results cannot survive the fix. Exchange V149 score/gates, Capital-Goods V148 mathematics and all other valuation logic are unchanged.
@@ -7555,16 +7556,16 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
     if family_id == "payments_processor" and _canonical_family_symbol in {"PYPL", "ADYEN.AS", "FISV"}:
         out["type"] = meta["label"]
         out["confidence_cap"] = "Niedrig bis Mittel"
-        out["family_model_status"] = "three_issuer_score_calibration_released"
+        out["family_model_status"] = "three_issuer_earnings_basis_released"
         out["family_model_ready"] = False
         out["family_model_released"] = False
-        out["family_validation_status"] = "paypal_adyen_fiserv_live_regression_passed_family_score_released"
+        out["family_validation_status"] = "paypal_adyen_fiserv_live_regression_passed_score_and_earnings_basis_released"
         out["universal_family_fail_closed"] = True
         out["method"] = (
-            "Issuer-primary Payments-Processor Three-Issuer Score V1: Payment Volume/Activity bleibt Volumen-/Effizienzkontext; "
+            "Issuer-primary Payments-Processor Three-Issuer Earnings Basis V1: Payment Volume/Activity bleibt Volumen-/Effizienzkontext; "
             "issuer-native Economics, Margin Quality, Cash Conversion/Capital Intensity, Earnings/Execution und Capital/Structure werden "
-            "auf gemeinsame abstrakte Family-Score-Blöcke gemappt. Der 100-Punkte-Qualitätsscore ist freigegeben; Earnings-Anker, "
-            "Multiple-Korridor, Fair Value und Signale bleiben bis zur separaten Bewertungs-Kalibrierung gesperrt."
+            "auf gemeinsame abstrakte Family-Score-Blöcke gemappt. Der 100-Punkte-Qualitätsscore und die current-FY Family Earnings Basis V1 "
+            "sind freigegeben; Multiple-Korridor, Fair Value und Signale bleiben bis zur separaten Multiple-Kalibrierung gesperrt."
         )
         if _canonical_family_symbol == "PYPL":
             out["payments_processor_subprofile"] = "wallet_branded_checkout_psp"
@@ -12359,11 +12360,11 @@ def _universal_family_special_control(company_type):
             "issuer-native Economics/Revenue Conversion statt erzwungener Einheitsmetrik (TM$, Net Revenue, Organic/Adjusted Revenue)",
             "Margin Quality und Margentrend auf vergleichbarer bereinigter Basis",
             "issuer-reported FCF/FCF Conversion und CapEx-Intensität statt Yahoo-FCF-Score",
-            "Company Adjusted-EPS-Guidance bzw. sauberer same-basis Earnings-Bridge vor Provider-Forward-EPS",
+            "Current-FY Earnings-Hierarchie: Company Adjusted-/Non-GAAP-EPS-Guidance; falls nicht vorhanden nur guarded 0Y/current-FY same-basis Konsens vor rohem Provider-Forward-EPS",
             "Structure/Guidance Comparability inklusive Akquisitionen, Transformation und Guidance-Revisionen",
             "Kapitalstruktur und Kapitalallokation subprofilgerecht statt generischem Net-Debt/FCF",
             "Subprofil-Comparability: Wallet/PSP vs. Integrated Acquirer vs. Diversified Merchant+Banking Tech",
-            "familiengerechter Multiple-Korridor erst nach bestandener Drei-Emittenten-Validierung",
+            "familiengerechter Multiple-Korridor erst nach separater Earnings-Basis- und Multiple-Kalibrierung",
             "Analystenziele ausschließlich Reality Check, nie Fair-Value-Anker",
         ]
     return {
@@ -30523,15 +30524,16 @@ def build_payment_network_special_control(control, payment_model):
 # PayPal + Adyen + Fiserv three-issuer primary-data score calibration; valuation remains closed.
 # =========================================================
 
-PAYMENTS_PROCESSOR_FOUNDATION_VERSION = "v22271_paypal_adyen_fiserv_family_score_v167"
+PAYMENTS_PROCESSOR_FOUNDATION_VERSION = "v22273_paypal_adyen_fiserv_earnings_basis_v169"
 
 
 def get_verified_payments_processor_foundation_snapshot(symbol):
     """Curated issuer-primary foundation data for the unreleased processor family.
 
-    V167 carries a transparent 100-point family quality score but still no target multiple, peer adjustment or
-    Fair Value. PayPal, Adyen and Fiserv populate the common abstract KPI contract across three materially
-    different business models. The Fiserv live regression has passed; valuation calibration remains separate.
+    V169 carries the released 100-point family quality score plus a current-FY Family Earnings Basis, but still no
+    target multiple, peer adjustment or Fair Value. PayPal, Adyen and Fiserv populate the common abstract KPI
+    contract across three materially different business models. Earnings-basis selection is issuer-primary where
+    company EPS guidance exists and uses a guarded current-FY consensus fallback only where it does not.
     """
     sym = str(symbol or "").upper().strip()
     if sym not in {"PYPL", "ADYEN.AS", "FISV"}:
@@ -30571,7 +30573,7 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
             "clover_q2_gpv_growth_ex_gateway_pct": 11.0,
             "clover_gateway_conversion_comparability_note": (
                 "Clover GPV wuchs Q2 reported um 9%; auf vergleichbarer Basis ohne Volumen der zuvor offengelegten Gateway-Konversion um 11%. "
-                "V168 zeigt beide Raten und verwendet die 11% nicht als alleinigen Qualitätsanker."
+                "V169 zeigt beide Raten und verwendet die 11% nicht als alleinigen Qualitätsanker."
             ),
             "q2_adjusted_operating_income": 1.580e9,
             "q2_adjusted_operating_margin_pct": 31.8,
@@ -30622,7 +30624,7 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
             "student_loan_servicing_divestiture_expected_q3_2026": True,
             "structure_note": (
                 "Fiserv One transformation expenses beeinflussen GAAP-Comparability; zusätzlich wurde die MoneyPass Group JV im August abgeschlossen "
-                "und die Student-Loan-Servicing-Veräußerung für Q3 erwartet. V168 hält deshalb GAAP-Margen und rohe Provider-Trends außerhalb der Family-Score-Logik."
+                "und die Student-Loan-Servicing-Veräußerung für Q3 erwartet. V169 hält deshalb GAAP-Margen und rohe Provider-Trends außerhalb der Family-Score-Logik."
             ),
             "volume_economics_note": (
                 "Clover GPV wächst vergleichbar +11%, während Total-Company Organic Revenue Q2 -5% und Adjusted Revenue -4% beträgt. "
@@ -30630,7 +30632,7 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
             ),
             "earnings_reference_status": (
                 "FY2026 Company Adjusted EPS Guidance $7.20–7.40 ist issuer-primary same-basis Kontext. "
-                "V168 verwendet sie noch nicht als Fair-Value-Anker; die Family-Earnings-Definition bleibt bis zur separaten Bewertungs-Kalibrierung gesperrt."
+                "V169 verwendet den Mittelpunkt dieser issuer-primary Guidance als freigegebene Family-Earnings-Basis; Multiple-Korridor und Fair Value bleiben separat gesperrt."
             ),
         }
 
@@ -30674,8 +30676,8 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
             "long_term_ebitda_margin_target_year": 2028,
             "company_eps_guidance_available": False,
             "earnings_reference_status": (
-                "Keine Company-EPS-Guidance: V168 erzwingt deshalb keinen PayPal-artigen EPS-Guidance-Anker. "
-                "Eine familienweite Earnings-Definition bleibt bis zur separaten Bewertungs-Kalibrierung gesperrt."
+                "Keine Company-EPS-Guidance: V169 erzwingt deshalb keinen PayPal-artigen EPS-Guidance-Anker. "
+                "Als kontrollierter Fallback ist nur der horizon-aligned 0Y/current-FY IFRS-EPS-Konsens unter issuer-primary Operating-Guidance-Guard zulässig."
             ),
             "talon_one_orb_closed_date": "01.07.2026",
             "h1_includes_talon_one_orb": False,
@@ -30689,7 +30691,7 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
             "volume_economics_cc_spread_pct_points": 21.0 - 24.0,
             "volume_monetization_note": (
                 "H1 Processed Volume +24% versus Net Revenue +19% reported bzw. +21% constant currency. "
-                "Volumen wächst damit schneller als die Net-Revenue-Ökonomie; in V168 ist das Diagnoseevidenz, kein Score-Abzug."
+                "Volumen wächst damit schneller als die Net-Revenue-Ökonomie; in V169 ist das Diagnoseevidenz, kein Score-Abzug."
             ),
         }
 
@@ -30745,7 +30747,7 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
         "fy2026_non_gaap_eps_guidance": 5.38,
         "fy2025_non_gaap_eps": 5.31,
         "earnings_reference_label": "FY2026 Company Non-GAAP EPS Guidance",
-        "earnings_reference_status": "Primärquellen-Kontext · noch kein Fair-Value-Anker",
+        "earnings_reference_status": "Issuer-primary FY2026 Non-GAAP EPS Guidance · Family-Earnings-Basis V1",
         "q2_operating_cash_flow": 1.983e9,
         "q2_free_cash_flow": 1.775e9,
         "q2_adjusted_free_cash_flow": 1.832e9,
@@ -30770,7 +30772,7 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
         "volume_monetization_spread_pct_points": 3.0 - 10.0,
         "volume_monetization_note": (
             "Q2 TPV +10% versus TM$ ex Interest +3%: starkes Volumenwachstum übersetzt sich nicht proportional "
-            "in die isolierte operative Zahlungsökonomie. Das ist in V168 Diagnoseevidenz, noch kein Score-Abzug."
+            "in die isolierte operative Zahlungsökonomie. Das ist in V169 Diagnoseevidenz, noch kein Score-Abzug."
         ),
     }
 
@@ -30924,7 +30926,7 @@ def build_payments_processor_family_score(snapshot):
         else: return_pts = 1
         capital_points = balance_pts + dilution_pts + return_pts
         capital_note = (
-            f"Cash/Investments vs. Debt, tatsächliche Aktienzahlentwicklung ({share_reduction:+.1f}% vs. FY2025) und Buyback/SBC-Deckung werden getrennt geprüft."
+            f"Cash/Investments vs. Debt, tatsächliche Aktienzahlreduktion ({share_reduction:+.1f}% vs. FY2025) und Buyback/SBC-Deckung werden getrennt geprüft."
             if share_reduction is not None else "Cash/Debt sowie Buyback/SBC-Kontext werden geprüft; Verwässerungsdaten unvollständig."
         )
 
@@ -31014,7 +31016,7 @@ def build_payments_processor_family_score(snapshot):
 
     return {
         "available": available,
-        "score_version": "Payments Processor Family Quality Score V1 · V167 math / V168 copy cleanup",
+        "score_version": "Payments Processor Family Quality Score V1 · V167 math unchanged / V169 earnings-basis release",
         "total_points": total,
         "max_points": 100,
         "quality_label": quality_label,
@@ -31076,7 +31078,129 @@ def build_payments_processor_family_score(snapshot):
         },
     }
 
-def build_payments_processor_foundation_model(company_type, fundamental_info, symbol):
+
+def build_payments_processor_earnings_basis(snapshot, current_fy_consensus_eps=None, current_fy_analyst_count=None):
+    """Current-FY earnings basis for the released Payments Processor family.
+
+    Hierarchy:
+      1) issuer-primary current-FY adjusted/non-GAAP EPS guidance where published;
+      2) guarded horizon-aligned 0Y/current-FY consensus only when the issuer does not publish EPS guidance.
+
+    This function releases an earnings basis only. It does not release a P/E corridor, Fair Value or signal.
+    """
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    sym = str(snap.get("symbol") or "").upper().strip()
+    consensus = safe_float(current_fy_consensus_eps)
+    analyst_count = safe_float(current_fy_analyst_count)
+
+    base = {
+        "available": False,
+        "fiscal_year": 2026,
+        "valuation_multiple_released": False,
+        "fair_value_released": False,
+        "current_fy_consensus_eps": consensus,
+        "current_fy_analyst_count": int(analyst_count) if analyst_count is not None else None,
+    }
+
+    if sym == "PYPL":
+        anchor = safe_float(snap.get("fy2026_non_gaap_eps_guidance"))
+        if anchor is None or anchor <= 0:
+            return base
+        gap = ((consensus / anchor) - 1.0) * 100.0 if consensus not in (None, 0) else None
+        return {
+            **base,
+            "available": True,
+            "earnings_basis_released": True,
+            "earnings_basis_eps": anchor,
+            "currency": "USD",
+            "basis_label": "FY2026 Company Non-GAAP EPS Guidance",
+            "basis_type": "issuer_primary_company_guidance",
+            "accounting_basis": "Non-GAAP EPS",
+            "confidence": "Hoch",
+            "source_name": snap.get("source_name"),
+            "source_url": snap.get("source_url"),
+            "consensus_vs_anchor_pct": gap,
+            "provider_forward_allowed_as_anchor": False,
+            "note": (
+                "PayPal veröffentlicht eine konkrete FY2026 Non-GAAP-EPS-Guidance. Sie hat Vorrang vor Provider-/Analysten-EPS. "
+                "Der horizon-aligned aktuelle FY-Konsens bleibt nur Plausibilitätscheck; der rohe Provider-Forward-EPS bleibt Horizont-Kontext."
+            ),
+        }
+
+    if sym == "FISV":
+        low = safe_float(snap.get("fy2026_adjusted_eps_low"))
+        high = safe_float(snap.get("fy2026_adjusted_eps_high"))
+        if low is None or high is None or low <= 0 or high <= 0 or high < low:
+            return base
+        anchor = (low + high) / 2.0
+        gap = ((consensus / anchor) - 1.0) * 100.0 if consensus not in (None, 0) else None
+        return {
+            **base,
+            "available": True,
+            "earnings_basis_released": True,
+            "earnings_basis_eps": anchor,
+            "guidance_low": low,
+            "guidance_high": high,
+            "currency": "USD",
+            "basis_label": "FY2026 Company Adjusted EPS Guidance · Mittelpunkt",
+            "basis_type": "issuer_primary_company_guidance_midpoint",
+            "accounting_basis": "Adjusted EPS",
+            "confidence": "Mittel",
+            "source_name": snap.get("source_name"),
+            "source_url": snap.get("source_url"),
+            "consensus_vs_anchor_pct": gap,
+            "provider_forward_allowed_as_anchor": False,
+            "guidance_reset_guard": True,
+            "note": (
+                "Fiservs FY2026 Adjusted-EPS-Guidance von USD 7.20–7.40 wird mit dem Mittelpunkt USD 7.30 als current-FY Earnings-Basis verwendet. "
+                "Wegen des Q2-Guidance-Resets bleibt die Earnings-Basis nur Mittel-sicher; der Execution-Reset wirkt später über Score/Multiple-Guard, nicht durch ein zweites EPS-Haircut."
+            ),
+        }
+
+    if sym == "ADYEN.AS":
+        if consensus is None or consensus <= 0:
+            return {
+                **base,
+                "earnings_basis_released": False,
+                "note": "Adyen veröffentlicht keine Company-EPS-Guidance; ohne belastbaren 0Y/current-FY IFRS-EPS-Konsens bleibt die Earnings-Basis fail-closed.",
+            }
+        gl = safe_float(snap.get("fy2026_net_revenue_growth_guidance_cc_low_pct"))
+        gh = safe_float(snap.get("fy2026_net_revenue_growth_guidance_cc_high_pct"))
+        margin_ok = bool(snap.get("fy2026_ebitda_margin_guidance_note"))
+        primary_guard_ok = bool(gl is not None and gh is not None and gl > 0 and gh >= gl and margin_ok)
+        if not primary_guard_ok:
+            return {
+                **base,
+                "earnings_basis_released": False,
+                "note": "Adyen Consensus-Fallback gesperrt: issuer-primary Revenue-/Margin-Guidance ist nicht vollständig genug für den Operating-Guidance-Guard.",
+            }
+        return {
+            **base,
+            "available": True,
+            "earnings_basis_released": True,
+            "earnings_basis_eps": consensus,
+            "currency": "EUR",
+            "basis_label": "0Y/current-FY Analystenkonsens · IFRS EPS · Primary-Guidance-Guard",
+            "basis_type": "guarded_current_fy_consensus_fallback",
+            "accounting_basis": "IFRS EPS",
+            "confidence": "Mittel",
+            "source_name": "Horizon-aligned 0Y/current-FY Analystenkonsens + Adyen H1 2026 Primary Operating Guidance",
+            "source_url": snap.get("source_url"),
+            "provider_forward_allowed_as_anchor": False,
+            "primary_operating_guidance_guard": True,
+            "operating_guidance_low_pct": gl,
+            "operating_guidance_high_pct": gh,
+            "note": (
+                "Adyen veröffentlicht keine EPS-Guidance. Deshalb ist ausschließlich der horizon-aligned 0Y/current-FY IFRS-EPS-Konsens als Fallback zugelassen. "
+                "Er wird nur freigegeben, weil Adyens issuer-primary FY2026 Net-Revenue- und EBITDA-Margin-Guidance die aktuelle Operating-Horizon-Richtung stützt. "
+                "Der rohe Provider-Forward-EPS (+1Y-Nähe) bleibt ausgeschlossen."
+            ),
+        }
+
+    return base
+
+
+def build_payments_processor_foundation_model(company_type, fundamental_info, symbol, current_fy_consensus_eps=None, current_fy_analyst_count=None):
     family_id = str((company_type or {}).get("valuation_family_id") or "").strip().lower()
     sym = str(symbol or "").upper().strip()
     if family_id != "payments_processor":
@@ -31091,10 +31215,12 @@ def build_payments_processor_foundation_model(company_type, fundamental_info, sy
             "primary_source_complete": False,
             "valuation_anchor_complete": False,
             "family_score_released": False,
+            "family_earnings_basis_released": False,
+            "earnings_basis": {"available": False},
             "family_multiple_released": False,
             "fair_value_released": False,
             "note": (
-                "Payments Processor / Merchant Acquirer erkannt, aber für diesen Emittenten ist in V168 noch kein "
+                "Payments Processor / Merchant Acquirer erkannt, aber für diesen Emittenten ist in V169 noch kein "
                 "issuer-primary Foundation Snapshot hinterlegt. PayPal, Adyen und Fiserv sind Foundation-Referenzen; "
                 "Standard-Score und Fair Value bleiben fail-closed."
             ),
@@ -31137,6 +31263,12 @@ def build_payments_processor_foundation_model(company_type, fundamental_info, sy
     complete = bool(fresh and required and all(safe_float(snap.get(k)) is not None for k in required))
     family_score = build_payments_processor_family_score(snap) if complete else {"available": False}
     score_released = bool(complete and family_score.get("available"))
+    earnings_basis = build_payments_processor_earnings_basis(
+        snap,
+        current_fy_consensus_eps=current_fy_consensus_eps,
+        current_fy_analyst_count=current_fy_analyst_count,
+    ) if score_released else {"available": False, "earnings_basis_released": False}
+    earnings_released = bool(score_released and earnings_basis.get("available") and earnings_basis.get("earnings_basis_released"))
     issuer_name = {"PYPL": "PayPal", "ADYEN.AS": "Adyen", "FISV": "Fiserv"}.get(sym, sym)
     return {
         "applicable": True,
@@ -31149,18 +31281,20 @@ def build_payments_processor_foundation_model(company_type, fundamental_info, sy
         "subprofile_label": snap.get("specialist_profile"),
         "family_score_released": score_released,
         "family_score": family_score,
+        "family_earnings_basis_released": earnings_released,
+        "earnings_basis": earnings_basis,
         "family_multiple_released": False,
-        "valuation_anchor_complete": False,
+        "valuation_anchor_complete": earnings_released,
         "fair_value_released": False,
         "readiness": (
-            f"{issuer_name} Primärdaten-/Subprofil validiert · Drei-Emittenten-KPI-Vertrag bestanden · Family Quality Score V1 freigegeben"
-            if score_released else f"{issuer_name} Family Score gesperrt – Primärdaten unvollständig oder veraltet"
+            f"{issuer_name} Primärdaten validiert · Family Quality Score V1 freigegeben · Family Earnings Basis V1 freigegeben"
+            if earnings_released else (f"{issuer_name} Family Quality Score freigegeben · Earnings-Basis noch gesperrt" if score_released else f"{issuer_name} Family Score gesperrt – Primärdaten unvollständig oder veraltet")
         ),
         "note": (
-            "V168 bewertet PayPal, Adyen und Fiserv als drei wirtschaftlich unterschiedliche issuer-primary Subprofile unter derselben "
-            "Payments-Processor-Familie. Der gemeinsame 100-Punkte-Family-Quality-Score ist nach bestandenem Fiserv-Live-Regressionslauf freigegeben. "
-            "Payment Volume bleibt Diagnosekontext; issuer-native Economics, Margin, Cash Conversion, Execution und Capital/Structure werden in gemeinsame "
-            "Score-Blöcke übersetzt. Der Score ist ausdrücklich noch kein Bewertungs-Multiple. Earnings-Anker, Multiple-Korridor, Fair Value und Signale bleiben gesperrt."
+            "V169 hält den live validierten Family Quality Score unverändert und gibt zusätzlich die current-FY Family Earnings Basis V1 frei. "
+            "PayPal und Fiserv nutzen issuer-primary Company-Guidance; Adyen nutzt mangels Company-EPS-Guidance ausschließlich einen horizon-aligned "
+            "0Y/current-FY IFRS-EPS-Konsens unter issuer-primary Operating-Guidance-Guard. Payment Volume bleibt Diagnosekontext. "
+            "Der Earnings-Anker ist noch kein Bewertungs-Multiple; Multiple-Korridor, Peer-Adjustment, Fair Value, Bewertungszonen und Signale bleiben gesperrt."
         ),
     }
 
@@ -57998,6 +58132,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         company_type,
         fundamental_info,
         fundamental_symbol,
+        eps_horizon_alignment.get("current_fy_eps"),
+        eps_horizon_alignment.get("current_fy_analyst_count"),
     )
 
     adjusted_earnings_specialist_model = build_legacy_specialist_if_allowed(
@@ -60807,15 +60943,15 @@ if selected_symbol:
                             "Der bestehende 22–32× Family-KGV-Korridor, issuer-adjustierte Earnings-Anker und downside-only Regulatory/Litigation Caps bleiben unverändert; "
                             "weitere Payment-Network-Emittenten bleiben issuer-primary evidence-gated."
                         )
-                    if (company_type.get("family_model_status") == "three_issuer_score_calibration_released"
+                    if (company_type.get("family_model_status") == "three_issuer_earnings_basis_released"
                             and company_type.get("valuation_family_id") == "payments_processor"):
                         st.info(
                             "Payments Processor / Merchant Acquirer Foundation V1: PayPal (Wallet / Branded Checkout / PSP), "
                             "Adyen (Integrated Merchant Acquirer / Unified Commerce / Platforms) und Fiserv "
                             "(Diversified Merchant Acquirer / Banking Technology / Clover) sind als drei unabhängige issuer-primary "
                             "Subprofile live validiert. Der gemeinsame abstrakte KPI-Vertrag ist vollständig befüllt und der transparente "
-                            "100-Punkte-Family-Qualitätsscore ist freigegeben. Earnings-Anker, Multiple-Korridor und Fair Value bleiben bis zur "
-                            "separaten Bewertungs-Kalibrierung gesperrt."
+                            "100-Punkte-Family-Qualitätsscore und die current-FY Family Earnings Basis V1 sind freigegeben. "
+                            "Multiple-Korridor und Fair Value bleiben bis zur separaten Multiple-Kalibrierung gesperrt."
                         )
                     if is_universal_family_fail_closed(company_type):
                         if is_released_listed_holding_family(company_type):
@@ -60823,11 +60959,11 @@ if selected_symbol:
                                 "Wiederverwendbares Holding-Familienmodell freigegeben. Der industrielle Standardpfad bleibt für diese Familie bewusst gesperrt; "
                                 "die Bewertung läuft ausschließlich über issuer-primary NAV und die Holding-spezifischen Evidenz-Gates."
                             )
-                        elif (company_type.get("family_model_status") == "three_issuer_score_calibration_released"
+                        elif (company_type.get("family_model_status") == "three_issuer_earnings_basis_released"
                                 and company_type.get("valuation_family_id") == "payments_processor"):
                             st.warning(
-                                "Family Quality Score V1 ist freigegeben, aber das wiederverwendbare Bewertungsmodell ist noch nicht freigegeben. "
-                                "Earnings-Anker, Multiple-Korridor, Fair Value, Bewertungszonen und Signale bleiben fail-closed; der industrielle Standardpfad bleibt gesperrt."
+                                "Family Quality Score V1 und Family Earnings Basis V1 sind freigegeben, aber das Multiple-/Fair-Value-Modell ist noch nicht freigegeben. "
+                                "Multiple-Korridor, Peer-Adjustment, Fair Value, Bewertungszonen und Signale bleiben fail-closed; der industrielle Standardpfad bleibt gesperrt."
                             )
                         else:
                             st.warning(
@@ -67519,11 +67655,11 @@ if selected_symbol:
                 if special_control.get("control_key") == "universal_family_model_gate":
                     st.divider()
                     st.subheader("🧭 Modul 6 – Schritt 3B: Universal Valuation Family Gate")
-                    if (company_type.get("family_model_status") == "three_issuer_score_calibration_released"
+                    if (company_type.get("family_model_status") == "three_issuer_earnings_basis_released"
                             and company_type.get("valuation_family_id") == "payments_processor"):
                         st.warning(
                             f"Bewertungsfamilie erkannt: {company_type.get('valuation_family') or company_type.get('type')}. "
-                            "Der Family Quality Score V1 ist freigegeben; die Bewertungsstufe mit Earnings-Anker, Multiple-Korridor und Fair Value ist noch gesperrt."
+                            "Family Quality Score V1 und Family Earnings Basis V1 sind freigegeben; Multiple-Korridor, Peer-Adjustment und Fair Value bleiben noch gesperrt."
                         )
                     else:
                         st.warning(
@@ -67591,6 +67727,34 @@ if selected_symbol:
                                 "Score-Gewichte: Economics/Revenue Conversion 25 · Margin Quality/Trend 20 · "
                                 "Cash Conversion/Capital Intensity 20 · Earnings/Guidance/Execution 20 · Capital/Structure 15."
                             )
+                            pp_earnings = pp_foundation_ui.get("earnings_basis") or {}
+                            if pp_foundation_ui.get("family_earnings_basis_released") and pp_earnings.get("available"):
+                                st.markdown("**Family Earnings Basis V1 · current FY**")
+                                eb_eps = safe_float(pp_earnings.get("earnings_basis_eps"))
+                                eb_ccy = text_or_dash(pp_earnings.get("currency"))
+                                st.metric(
+                                    "Freigegebene Earnings-Basis",
+                                    f"{eb_eps:.2f} {eb_ccy}" if eb_eps is not None else "–",
+                                )
+                                st.write(
+                                    f"**Basis:** {text_or_dash(pp_earnings.get('basis_label'))} · "
+                                    f"**Sicherheit:** {text_or_dash(pp_earnings.get('confidence'))}"
+                                )
+                                eb_cons = safe_float(pp_earnings.get("current_fy_consensus_eps"))
+                                eb_gap = safe_float(pp_earnings.get("consensus_vs_anchor_pct"))
+                                if eb_cons is not None and pp_earnings.get("basis_type") != "guarded_current_fy_consensus_fallback":
+                                    gap_txt = f" · Abweichung zum Anchor {eb_gap:+.1f}%" if eb_gap is not None else ""
+                                    st.caption(f"0Y/current-FY Konsens: {eb_cons:.2f} {eb_ccy}{gap_txt} · nur Plausibilitätscheck")
+                                elif pp_earnings.get("basis_type") == "guarded_current_fy_consensus_fallback":
+                                    st.caption(
+                                        "Adyen-Fallback: aktueller FY-Konsens ist der Earnings-Anker; issuer-primary Revenue-/Margin-Guidance dient als Guard. "
+                                        "Roher Provider-Forward-EPS bleibt ausgeschlossen."
+                                    )
+                                st.info(text_or_dash(pp_earnings.get("note")))
+                                st.caption(
+                                    "Earnings Basis V1 setzt nur den current-FY Nenner für die spätere Bewertung. "
+                                    "Sie setzt noch kein KGV, erzeugt keinen Fair Value und verändert kein Signal."
+                                )
 
                         if pp_profile == "wallet_branded_checkout_psp":
                             pp_c1, pp_c2, pp_c3 = st.columns(3)
@@ -67635,7 +67799,7 @@ if selected_symbol:
                             )
                             st.caption(text_or_dash(pp_snap.get("volume_monetization_note")))
 
-                            st.markdown("**Issuer-native Earnings-/Cashflow-Basis – noch kein Family-Bewertungsanker**")
+                            st.markdown("**Issuer-native Earnings-/Cashflow-Kontext**")
                             st.write(
                                 f"**FY2026 Company Non-GAAP EPS Guidance:** ≈ {safe_float(pp_snap.get('fy2026_non_gaap_eps_guidance')):.2f} USD "
                                 f"· FY2025 Non-GAAP EPS {safe_float(pp_snap.get('fy2025_non_gaap_eps')):.2f} USD"
@@ -67697,7 +67861,7 @@ if selected_symbol:
                             )
                             st.caption(text_or_dash(pp_snap.get("volume_monetization_note")))
 
-                            st.markdown("**Issuer-native Profitabilitäts-/Cash-Conversion-Basis – noch kein Family-Bewertungsanker**")
+                            st.markdown("**Issuer-native Profitabilitäts-/Cash-Conversion-Kontext**")
                             st.write(
                                 f"EBITDA-Marge H1 {safe_float(pp_snap.get('h1_ebitda_margin_pct')):.1f}% · underlying "
                                 f"{safe_float(pp_snap.get('h1_underlying_ebitda_margin_pct')):.1f}% · "
@@ -67763,7 +67927,7 @@ if selected_symbol:
                             st.caption(text_or_dash(pp_snap.get("volume_economics_note")))
                             st.caption(text_or_dash(pp_snap.get("clover_gateway_conversion_comparability_note")))
 
-                            st.markdown("**Issuer-native Profitabilitäts-/Cash-Conversion-Basis – noch kein Family-Bewertungsanker**")
+                            st.markdown("**Issuer-native Profitabilitäts-/Cash-Conversion-Kontext**")
                             st.write(
                                 f"Q2 Adjusted Operating Margin {safe_float(pp_snap.get('q2_adjusted_operating_margin_pct')):.1f}% "
                                 f"vs. {safe_float(pp_snap.get('q2_adjusted_operating_margin_prior_pct')):.1f}% Vorjahr · "
@@ -67785,10 +67949,10 @@ if selected_symbol:
                             st.caption(text_or_dash(pp_snap.get("structure_note")))
 
                         st.warning(
-                            "V168 Valuation Gate: Der 100-Punkte-Family-Quality-Score ist nach PayPal-, Adyen- und Fiserv-Live-Validierung freigegeben. "
-                            "Er ist ausdrücklich noch kein Bewertungs-Multiple. Gemeinsamer Earnings-Anker, Payments-Processor-KGV-Korridor, Peer-Adjustment, "
-                            "Fair Value, Bewertungszonen und Handlungssignale bleiben gesperrt. Yahoo-FCF, generisches Net-Debt/FCF, Standard-KGV und "
-                            "Analystenziele dürfen dieses Gate nicht umgehen."
+                            "V169 Valuation Gate: Family Quality Score V1 und current-FY Family Earnings Basis V1 sind nach PayPal-, Adyen- und Fiserv-Live-Validierung freigegeben. "
+                            "Die Earnings-Basis ist ausdrücklich noch kein Bewertungs-Multiple. Payments-Processor-KGV-Korridor, Peer-Adjustment, Fair Value, "
+                            "Bewertungszonen und Handlungssignale bleiben gesperrt. Yahoo-FCF, generisches Net-Debt/FCF, Standard-KGV, roher Provider-Forward-EPS "
+                            "und Analystenziele dürfen dieses Gate nicht umgehen."
                         )
                         st.caption(pp_foundation_ui.get("note"))
 
