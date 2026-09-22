@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.59"
+APP_BUILD_VERSION = "V2.22.60"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Exchange Peer Load-Order Runtime Fix V155"
+    f"Build {APP_BUILD_VERSION} · Exchange UI Consistency & Dual-Anchor Copy Cleanup V156"
 )
 
 
@@ -44,6 +44,7 @@ st.caption(
 # V2.22.57: Exchange Earnings Bridge & Run-Rate Peer Calibration V153. Releases a reusable Current-FY earnings-bridge definition for the two validated Exchange / Market Infrastructure profiles while keeping the family multiple and Fair Value fail-closed. Nasdaq uses the issuer-hosted FY2026 analyst mean Non-GAAP EPS of USD 4.13 (17 estimates). Deutsche Börse uses a transparent mechanical FY2026 Cash-EPS proxy: issuer-hosted FY2026 reported-EPS consensus EUR 12.37 plus an annualized H1 PPA addback of EUR 0.98 derived from Q1/Q2 reported-vs-Cash EPS, yielding EUR 13.35; this proxy is explicitly medium-confidence and is not company guidance. Adds CME, ICE and Cboe as reference-only exchange peers using issuer-primary H1 2026 adjusted EPS annualized run-rates plus live same-currency prices. The run-rate median is calibration evidence only: its Current-FY horizon comparability gate remains false and it cannot set a target multiple, corridor, Fair Value or signal. Deutsche Börse retains the Allfunds transaction/leverage guard; Nasdaq retains the no-current-structural-break profile. Capital-Goods V148 mathematics and all other released specialist models are unchanged.
 # V2.22.58: Exchange Dual-Anchor Family Corridor & Nasdaq Valuation V154. Promotes the two validated Exchange / Market Infrastructure adapters into a released 18–26x Current-FY Adjusted/Cash-EPS family corridor for Nasdaq only, while Deutsche Börse remains transaction-gated by the pending Allfunds perimeter/capital-structure change. Corridor calibration deliberately combines two primary-source peer anchors instead of pretending H1 annualization is FY2026 guidance: current prices versus verified FY2025 Adjusted EPS (CME 11.20, ICE 6.95, Cboe 10.67) provide the full-year trailing anchor, while Q1+Q2 2026 Adjusted-EPS annualization remains a current run-rate/cycle check. The 100-point Exchange operating score positions the raw target linearly from 50→18x to 100→26x; the live FY2025 trailing-adjusted peer median is downside-only and may cap but never lift the target. Nasdaq (94/100) is eligible for one-multiple Fair Value on the released FY2026 Non-GAAP-EPS bridge; Deutsche Börse receives the same corridor only as context and no target P/E/Fair Value until the Allfunds pro-forma capital structure and post-transaction earnings perimeter are sufficiently evidenced. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the Exchange specialist Fair Value. Capital-Goods V148 mathematics and all other released specialist models remain unchanged.
 # V2.22.59: Exchange Peer Load-Order Runtime Fix V155. No valuation mathematics changed. Moves the Exchange / Market Infrastructure peer-calibration application behind calculate_peer_check(), preventing an uninitialized peer_check reference that caused NDAQ/DB1.DE to abort immediately after selection in V154. The 18–26x Exchange corridor, dual-anchor CME/ICE/Cboe calibration, Nasdaq 94/100 score and Deutsche-Börse Allfunds transaction gate remain unchanged.
+# V2.22.60: Exchange UI Consistency & Dual-Anchor Copy Cleanup V156. No valuation mathematics changed. Removes stale generic Standard-model copy from the released Exchange / Market Infrastructure path: Yahoo/statement FCF and standard EPS normalization are diagnosis-only; generic growth, margin/ROE, FCF-margin and Net-Debt/FCF footers are suppressed in favor of issuer-primary Exchange specialist dimensions. Fixes the Step-2B dual-anchor caption so the FY2025 full-year median and H1-2026 run-rate median cannot be mislabeled, updates stale Nasdaq Step-3A wording to reflect the already released 18–26x corridor, and makes the Fair-Value earnings display explicitly show the source-currency Specialist Bridge plus display-currency equivalent. Nasdaq 94/100, raw 25.04x, peer-capped 24.60x, Fair Value mathematics, Deutsche-Börse Allfunds gate and every other released model remain unchanged.
 
 # V2.22.15: Universal Professional-Services Industry Precedence Guard V111. Adds a reusable Professional & Business Services valuation family and fixes an over-broad Industrials sector fallback that previously routed Specialty Business Services issuers into Industrials / Capital Goods. High-confidence professional-service industries now outrank the broad Industrials sector; broader service labels require corroborating business-model evidence such as professional/advisory/consulting, corporate-finance/due-diligence, legal/accounting/tax, restructuring/recovery, fee-earner/network, licence-fee or revenue-share economics. Capital-goods/manufacturing industries remain on the existing Industrials route. The new family is defined_unreleased and therefore fail-closed: no generic Standard score, Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV, Fair Value or signals are unlocked. V110 Asset-Management evidence recovery, GBp/GBP unit handling and all released valuation mathematics remain unchanged.
 # V2.22.16: Professional & Business Services Specialist Model V1 V112. First validated issuer: DSW Capital (DSW.L). Releases an issuer-primary Professional & Business Services specialist path for DSW while keeping the wider family globally unreleased until a second independent issuer is validated. The model scores platform/network growth and fee-earner productivity, adjusted EBITDA/PBT quality, issuer operating cash conversion, balance quality, licence/revenue-mix resilience, capital allocation/dilution and earnings stability. Valuation uses an issuer-adjusted two-year diluted-EPS anchor (FY26 weighted 80%, FY25 20%) with a 9–18x score corridor and a downside-only small-cap/liquidity cap. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the specialist Fair Value. GBp/GBP conversion stays explicit at 1 GBP = 100 GBp. V110 Asset-Management evidence recovery and all other released specialist mathematics remain unchanged.
@@ -41747,13 +41748,13 @@ def get_special_control(company_type, symbol):
                     "Non-GAAP EPS + Operating Cash Flow als Earnings-/Cash-Qualität",
                     "Debt repayment + Buybacks + Dividenden als Capital-Allocation-/Balance-Evidenz",
                     "Current-FY Non-GAAP-EPS Earnings Bridge freigegeben (issuer-hosted FY2026 consensus)",
-                    "CME/ICE/Cboe H1-run-rate Peers reference-only; verifizierter Full-Year Same-Horizon-Peer-Korridor noch zu kalibrieren",
+                    "CME/ICE/Cboe Dual-Anchor-Peers: FY2025 Full-Year-Median downside-only; H1-2026 Run-Rate nur Cycle-/Reality-Check",
                     "Analystenziele ausschließlich Reality Check",
                 ],
                 "status": f"Router aktiv – {APP_BUILD_VERSION} Nasdaq Exchange-Infrastructure Second-Issuer Validation V1",
                 "note": (
                     "Nasdaq validiert den zweiten unabhängigen Exchange-Infrastructure-Adapter mit issuer-native Net-Revenue-, Solutions-, ARR/SaaS-, Operating-Margin-, EPS- und Cashflow-Evidenz. "
-                    "Deutsche-Börse-spezifische Treasury-Normalisierung wird nicht künstlich auf Nasdaq übertragen. Die gemeinsame Current-FY Earnings-Bridge ist freigegeben; Multiple-Korridor und Fair Value bleiben bis zur verifizierten Full-Year-Peer-Kalibrierung gesperrt."
+                    "Deutsche-Börse-spezifische Treasury-Normalisierung wird nicht künstlich auf Nasdaq übertragen. Die gemeinsame Current-FY Earnings-Bridge und der 18–26× Exchange-Family-Korridor sind nach bestandenem Dual-Anchor Peer Gate freigegeben; der FY2025 Full-Year-Median wirkt downside-only, H1 2026 bleibt Cycle-/Reality-Kontext."
                 ),
             }
         return {
@@ -60126,6 +60127,12 @@ if selected_symbol:
                         fcf_label = "Free Cashflow (REIT-Kontext, Cashflow-Statement)"
                     elif is_reit_fcf_context:
                         fcf_label = "Levered Free Cashflow (REIT-Kontext, Yahoo-Referenz)"
+                    elif bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable")):
+                        fcf_label = (
+                            "Free Cashflow (Cashflow-Statement, Diagnosekontext)"
+                            if fcf_ctx.get("score_eligible")
+                            else "Levered Free Cashflow (Yahoo, Diagnosekontext)"
+                        )
                     else:
                         fcf_label = (
                             "Free Cashflow (Cashflow-Statement)"
@@ -60330,6 +60337,7 @@ if selected_symbol:
                 is_ctva_fcf_context = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 is_professional_services_fcf_context = bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
                 is_capital_goods_fcf_context = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
+                is_exchange_fcf_context = bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable"))
                 is_universal_family_fcf_context = is_universal_family_fail_closed(company_type)
                 if fcf_ctx.get("score_eligible"):
                     source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
@@ -60476,6 +60484,12 @@ if selected_symbol:
                             "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
                             f"Bei Industrials / Capital Goods bleibt dieser Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. {APP_BUILD_VERSION} verwendet im Specialist-Modell issuer-native Cash-Conversion-/FCF-Evidenz; "
                             "der Provider-FCF steuert weder den Operational Score noch Balance/Leverage, Ziel-KGV oder Fair Value."
+                        )
+                    elif is_exchange_fcf_context:
+                        st.caption(
+                            "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
+                            f"Bei Exchange / Market Infrastructure bleibt dieser Yahoo-/Cashflow-Statement-TTM-FCF ausschließlich Diagnosekontext. {APP_BUILD_VERSION} verwendet issuer-primary Operating-Cash-Flow/Cash-Earnings-, Funding-, Debt-Paydown- und Capital-Allocation-Evidenz; "
+                            "der Provider-FCF steuert weder Operational Score noch Balance/Leverage, Ziel-KGV oder Fair Value."
                         )
                     elif is_universal_family_fcf_context:
                         if is_released_listed_holding_family(company_type):
@@ -60909,6 +60923,7 @@ if selected_symbol:
                 defense_high_growth_eps_context_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                 ctva_eps_context_ui = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                 capital_goods_eps_context_ui = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
+                exchange_eps_context_ui = bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable"))
                 universal_family_eps_context_ui = is_universal_family_fail_closed(company_type)
                 if bank_core_eps_active:
                     normalized_eps = safe_float(
@@ -60926,7 +60941,7 @@ if selected_symbol:
                     )
                 else:
                     normalized_eps = eps_result["normalized_eps"]
-                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (bank_eps_context_ui or capital_goods_eps_context_ui or universal_family_eps_context_ui or is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or professional_services_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
+                    normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (bank_eps_context_ui or capital_goods_eps_context_ui or exchange_eps_context_ui or universal_family_eps_context_ui or is_semicap_lithography_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or professional_services_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
 
                 if normalized_eps is not None:
 
@@ -61028,6 +61043,18 @@ if selected_symbol:
                                 "Specialist Earnings Bridge: "
                                 + format_eps(cg_eps_bridge_ui.get("earnings_per_share"), financial_currency)
                                 + " · Provider-0Y bleibt Diagnosekontext."
+                            )
+                    elif exchange_eps_context_ui:
+                        ex_eps_model_ui = data.get("exchange_market_infrastructure_specialist_model") or {}
+                        ex_eps_bridge_ui = ex_eps_model_ui.get("earnings_bridge") or {}
+                        ex_bridge_ccy_ui = ex_eps_bridge_ui.get("currency") or financial_currency
+                        st.info(
+                            f"Exchange / Market Infrastructure: Diese Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. {APP_BUILD_VERSION} verwendet für die Spezialbewertung nur die freigegebene issuer-adjusted Current-FY Adjusted/Cash-EPS Bridge; "
+                            "die Standard-Normalisierung wird weder mit ihr gemischt noch als Fair-Value-Anker verwendet."
+                        )
+                        if ex_eps_bridge_ui.get("available"):
+                            st.caption(
+                                f"Specialist Earnings Bridge: {safe_float(ex_eps_bridge_ui.get('earnings_per_share')):.2f} {ex_bridge_ccy_ui} · Provider-0Y bleibt Diagnosekontext."
                             )
                     elif universal_family_eps_context_ui:
                         if is_released_listed_holding_family(company_type):
@@ -61457,6 +61484,17 @@ if selected_symbol:
                         f"Standard-EPS-Diagnosequalität: **{cg_diag_label_ui}** · keine Bewertungsfreigabe. "
                         f"Capital-Goods Specialist-Earnings-Basis: **{cg_eps_bridge_conf_ui}**."
                     )
+                elif exchange_eps_context_ui:
+                    ex_diag_label_ui = {
+                        "Hoch": "hoch",
+                        "Mittel": "mittel",
+                        "Niedrig": "niedrig",
+                    }.get(str(confidence or ""), "nicht bestimmt")
+                    ex_eps_bridge_conf_ui = ((data.get("exchange_market_infrastructure_specialist_model") or {}).get("earnings_bridge") or {}).get("confidence") or "Mittel"
+                    st.info(
+                        f"Standard-EPS-Diagnosequalität: **{ex_diag_label_ui}** · keine Bewertungsfreigabe. "
+                        f"Exchange Specialist-Earnings-Basis: **{ex_eps_bridge_conf_ui}**."
+                    )
                 elif integrated_oil_gas_eps_context_ui:
                     oil_diag_label_ui = {
                         "Hoch": "hoch",
@@ -61813,6 +61851,11 @@ if selected_symbol:
                         st.caption(
                             "Das oben angezeigte Standard-normalisierte EPS bleibt ausschließlich Diagnosekontext. "
                             "Gewinnbasis der Capital-Goods-Bewertung ist nur die separat freigegebene Specialist Earnings Bridge."
+                        )
+                    elif exchange_eps_context_ui:
+                        st.caption(
+                            "Das oben angezeigte Standard-normalisierte EPS bleibt ausschließlich Diagnosekontext. "
+                            "Gewinnbasis der Exchange-Bewertung ist nur die separat freigegebene Current-FY Specialist Earnings Bridge."
                         )
                     elif universal_family_eps_context_ui:
                         st.caption(
@@ -62443,6 +62486,7 @@ if selected_symbol:
                 is_kratos_score_ui = str(selected_symbol or "").upper() == "KTOS"
                 is_bkr_score_ui = str(selected_symbol or "").upper() == "BKR"
                 is_capital_goods_score_ui = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
+                is_exchange_score_ui = bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable"))
                 is_universal_family_score_ui = is_universal_family_fail_closed(company_type)
 
                 if is_bkr_score_ui:
@@ -62457,7 +62501,14 @@ if selected_symbol:
                         "Sie bestimmen weder eine Kratos-Earnings-Basis noch ein Fundamental-Multiple oder einen Fair Value. Maßgeblich ist zunächst das primärquellenbasierte Growth-/Backlog-/Owner-Operating-Earnings-Gate."
                     )
 
-                if is_capital_goods_score_ui:
+                if is_exchange_score_ui:
+                    st.info(
+                        "Exchange-Spezialmodell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet."
+                    )
+                    st.caption(
+                        "Provider-Wachstum bleibt Diagnosekontext; Structural Growth sowie issuer-native Net-Revenue-, ARR/SaaS-, Mix- und Revenue-Quality-Evidenz werden im Exchange Operational Score bewertet."
+                    )
+                elif is_capital_goods_score_ui:
                     st.info(
                         "Capital-Goods-Spezialmodell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet."
                     )
@@ -62726,9 +62777,17 @@ if selected_symbol:
                 is_defense_high_growth_profitability_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                 is_bkr_profitability_ui = is_baker_hughes_energy_tech_company_type(company_type)
                 is_capital_goods_profitability_ui = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
+                is_exchange_profitability_ui = bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable"))
                 is_universal_family_profitability_ui = is_universal_family_fail_closed(company_type)
 
-                if is_capital_goods_profitability_ui:
+                if is_exchange_profitability_ui:
+                    st.info(
+                        "Exchange-Spezialmodell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet."
+                    )
+                    st.caption(
+                        "Profitabilität wird über issuer-native Operating Leverage, Adjusted/Non-GAAP Margin und Earnings Quality im Exchange Operational Score bewertet; Provider-Nettomarge und ROE bleiben Diagnosekontext."
+                    )
+                elif is_capital_goods_profitability_ui:
                     st.info(
                         "Capital-Goods-Spezialmodell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet."
                     )
@@ -63134,9 +63193,17 @@ if selected_symbol:
                     is_defense_high_growth_fcf_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                     is_bkr_model_ui = is_baker_hughes_energy_tech_company_type(company_type)
                     is_capital_goods_fcf_ui = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
+                    is_exchange_fcf_ui = bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable"))
                     is_universal_family_fcf_ui = is_universal_family_fail_closed(company_type)
 
-                    if is_capital_goods_fcf_ui:
+                    if is_exchange_fcf_ui:
+                        st.info(
+                            "Exchange-Spezialmodell: Der generische Yahoo-/Cashflow-Statement-FCF-Margen-Score wird nicht verwendet."
+                        )
+                        st.caption(
+                            "Cash-/Funding-Qualität wird über issuer-primary Operating Cash Flow, Cash/Adjusted Earnings, Debt Paydown und Capital Allocation im Exchange Operational Score bewertet; Provider-TTM-FCF bleibt Diagnosekontext."
+                        )
+                    elif is_capital_goods_fcf_ui:
                         st.info(
                             "Capital-Goods-Spezialmodell: Der generische Yahoo-/Cashflow-Statement-FCF-Margen-Score wird nicht verwendet."
                         )
@@ -63471,9 +63538,26 @@ if selected_symbol:
                     is_defense_high_growth_balance_ui = bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                     is_bkr_balance_ui = is_baker_hughes_energy_tech_company_type(company_type)
                     is_capital_goods_balance_ui = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
+                    is_exchange_balance_ui = bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable"))
                     is_universal_family_balance_ui = is_universal_family_fail_closed(company_type)
 
-                    if is_capital_goods_balance_ui:
+                    if is_exchange_balance_ui:
+                        ex_balance_model_ui = data.get("exchange_market_infrastructure_specialist_model") or {}
+                        ex_balance_snap_ui = ex_balance_model_ui.get("snapshot") or {}
+                        st.info(
+                            "Exchange-Spezialmodell: Die generische Netto-Schulden/FCF- bzw. Netto-Cash-Punktelogik wird nicht verwendet."
+                        )
+                        if ex_balance_snap_ui.get("specialist_profile_key") == "solutions_market_infrastructure":
+                            st.caption(
+                                "Bilanz-/Kapitalqualität wird über issuer-primary Debt Paydown, Funding/Credit-Evidenz und Capital Allocation bewertet. "
+                                "Provider-Net-Debt/FCF bleibt Diagnosekontext und erzeugt keine generischen Punkte."
+                            )
+                        else:
+                            st.caption(
+                                "Bilanz-/Kapitalqualität wird über issuer-primary Funding, Credit-Evidenz, Capital Allocation und den Allfunds Transaction/Structure Guard bewertet. "
+                                "Provider-Net-Debt/FCF bleibt Diagnosekontext und erzeugt keine generischen Punkte."
+                            )
+                    elif is_capital_goods_balance_ui:
                         cg_balance_model_ui = data.get("industrials_capital_goods_specialist_model") or {}
                         cg_balance_snap_ui = cg_balance_model_ui.get("snapshot") or {}
                         st.info(
@@ -66250,13 +66334,31 @@ if selected_symbol:
 
                             if peer_check.get("reference_only"):
                                 if is_exchange_peer_metric:
-                                    if peer_check.get("peer_median") is not None:
-                                        st.info(
-                                            f"Run-Rate-Referenzmedian {safe_float(peer_check.get('peer_median')):.2f}× verfügbar – ausschließlich Markt-/Kalibrierungskontext. "
-                                            "Kein Full-Year/Current-FY-Peer-Gate, kein Ziel-Multiple und kein Fair Value werden daraus abgeleitet."
-                                        )
+                                    ex_peer_model_ui = data.get("exchange_market_infrastructure_specialist_model") or {}
+                                    ex_peer_val_ui = ex_peer_model_ui.get("specialist_valuation") or {}
+                                    ex_full_year_med_ui = safe_float(ex_peer_val_ui.get("peer_reference_median_pe"))
+                                    ex_runrate_med_ui = safe_float(ex_peer_val_ui.get("runrate_reference_median_pe"))
+                                    ex_target_ui = safe_float(ex_peer_val_ui.get("target_multiple"))
+                                    if ex_full_year_med_ui is not None and ex_runrate_med_ui is not None:
+                                        if ex_target_ui is not None:
+                                            raw_ex_ui = safe_float(ex_peer_val_ui.get("raw_score_multiple"))
+                                            if raw_ex_ui is not None and ex_target_ui < raw_ex_ui - 1e-9:
+                                                st.warning(
+                                                    f"FY2025 Full-Year downside-only Peer Ceiling bindet: score-basiertes Ziel {raw_ex_ui:.2f}× wird auf {ex_target_ui:.2f}× begrenzt. "
+                                                    f"H1-2026 Run-Rate-Median {ex_runrate_med_ui:.2f}× bleibt ausschließlich Cycle-/Reality-Kontext."
+                                                )
+                                            else:
+                                                st.info(
+                                                    f"FY2025 Full-Year Peer Ceiling {ex_full_year_med_ui:.2f}× ist verfügbar und nicht bindend. "
+                                                    f"H1-2026 Run-Rate-Median {ex_runrate_med_ui:.2f}× bleibt ausschließlich Cycle-/Reality-Kontext."
+                                                )
+                                        else:
+                                            st.info(
+                                                f"Dual-Anchor-Peer-Kontext: FY2025 Full-Year-Median {ex_full_year_med_ui:.2f}× · H1-2026 Run-Rate-Median {ex_runrate_med_ui:.2f}×. "
+                                                "Für diesen Emittenten ist kein Ziel-KGV freigegeben; es wird kein hypothetisches Zielmultiple erzeugt."
+                                            )
                                     else:
-                                        st.warning("Kein belastbarer 3-Peer-Run-Rate-Median verfügbar; die Exchange-Bewertung bleibt ohnehin fail-closed.")
+                                        st.warning("Exchange Dual-Anchor Peer Gate unvollständig: drei Full-Year- plus H1-Run-Rate-Beobachtungen sind erforderlich.")
                                 elif is_capital_goods_peer_metric:
                                     cg_peer_median_ui = safe_float(peer_check.get("peer_median"))
                                     cg_fundamental_ui = safe_float((data.get("fundamental_multiple") or {}).get("multiple"))
@@ -71600,7 +71702,15 @@ if selected_symbol:
                     elif fair_value.get("valuation_method") == "exchange_current_fy_adjusted_pe":
                         st.write("**Bewertungsformel:** issuer-adjustiertes Current-FY Adjusted/Cash EPS × score-positioniertes Exchange-Family-KGV; FY2025-Peer-Median nur downside-only Ceiling")
                         st.write(f"**Exchange Operational Score:** {safe_float(fair_value.get('specialist_score')):.0f}/100 · {text_or_dash(fair_value.get('specialist_quality_level'))}")
-                        st.write("**Current-FY Earnings-Basis:** " + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"]))
+                        st.write("**Current-FY Earnings-Basis (Anzeige):** " + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"]))
+                        ex_fv_model_ui = data.get("exchange_market_infrastructure_specialist_model") or {}
+                        ex_fv_bridge_ui = ex_fv_model_ui.get("earnings_bridge") or {}
+                        if ex_fv_bridge_ui.get("available"):
+                            ex_fv_bridge_ccy_ui = ex_fv_bridge_ui.get("currency") or financial_currency
+                            st.caption(
+                                f"Specialist Bridge in Quellwährung: {safe_float(ex_fv_bridge_ui.get('earnings_per_share')):.2f} {ex_fv_bridge_ccy_ui}; "
+                                "der oben angezeigte Wert ist lediglich das FX-konvertierte Anzeigeäquivalent."
+                            )
                         st.write(f"**Family-KGV-Korridor:** {safe_float(fair_value.get('multiple_corridor_low')):.1f}× – {safe_float(fair_value.get('multiple_corridor_high')):.1f}×")
                         st.write(f"**Score-positioniertes Roh-KGV:** {safe_float(fair_value.get('raw_score_multiple')):.2f}×")
                         st.write(f"**Verwendetes Ziel-KGV:** {safe_float(fair_value.get('target_multiple')):.2f}×")
