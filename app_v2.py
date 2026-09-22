@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.54"
+APP_BUILD_VERSION = "V2.22.55"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,11 +31,13 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Deutsche Börse Primary-Listing Search Guard V150"
+    f"Build {APP_BUILD_VERSION} · Exchange Peer-Render Runtime Fix V151"
 )
 
 
 # V2.22.54: Deutsche Börse Primary-Listing Search Guard V150. Search-only hotfix after the first V149 live test showed that the Exchange / Market Infrastructure specialist route existed but the security resolver had no verified Deutsche-Börse name alias, so a literal "Deutsche Börse" query could return no selectable equity before DB1.DE ever reached the valuation router. Adds verified aliases for Deutsche Börse/Deutsche Boerse/DB1/DB1.DE that resolve to the XETRA home listing DB1.DE (EUR), and bumps the resolver cache epoch so stale empty search results cannot survive the fix. Exchange V149 score/gates, Capital-Goods V148 mathematics and all other valuation logic are unchanged.
+
+# V2.22.55: Exchange Peer-Render Runtime Fix V151. Fixes a UI-only NameError in Module 6 Step 2A for families without an automatic peer group: a Capital-Goods peer-metric flag was referenced before Step 2B initialized it. Schneider/Capital-Goods never exposed the bug because its peer-model branch short-circuited first; Deutsche Börse reached the stale branch and aborted rendering after Step 2A. Removes the stale pre-initialization branch. Also clarifies the Exchange-family standard EPS-normalization footer as diagnosis-only so it cannot be mistaken for the future specialist earnings anchor. No Exchange score/gate mathematics, Capital-Goods V148/V147 valuation mathematics, search logic, or other released specialist models changed.
 
 # V2.22.15: Universal Professional-Services Industry Precedence Guard V111. Adds a reusable Professional & Business Services valuation family and fixes an over-broad Industrials sector fallback that previously routed Specialty Business Services issuers into Industrials / Capital Goods. High-confidence professional-service industries now outrank the broad Industrials sector; broader service labels require corroborating business-model evidence such as professional/advisory/consulting, corporate-finance/due-diligence, legal/accounting/tax, restructuring/recovery, fee-earner/network, licence-fee or revenue-share economics. Capital-goods/manufacturing industries remain on the existing Industrials route. The new family is defined_unreleased and therefore fail-closed: no generic Standard score, Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV, Fair Value or signals are unlocked. V110 Asset-Management evidence recovery, GBp/GBP unit handling and all released valuation mathematics remain unchanged.
 # V2.22.16: Professional & Business Services Specialist Model V1 V112. First validated issuer: DSW Capital (DSW.L). Releases an issuer-primary Professional & Business Services specialist path for DSW while keeping the wider family globally unreleased until a second independent issuer is validated. The model scores platform/network growth and fee-earner productivity, adjusted EBITDA/PBT quality, issuer operating cash conversion, balance quality, licence/revenue-mix resilience, capital allocation/dilution and earnings stability. Valuation uses an issuer-adjusted two-year diluted-EPS anchor (FY26 weighted 80%, FY25 20%) with a 9–18x score corridor and a downside-only small-cap/liquidity cap. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the specialist Fair Value. GBp/GBP conversion stays explicit at 1 GBP = 100 GBp. V110 Asset-Management evidence recovery and all other released specialist mathematics remain unchanged.
@@ -61075,6 +61077,11 @@ if selected_symbol:
                             "Das oben angezeigte Standard-normalisierte EPS bleibt ausschließlich Diagnosekontext. "
                             "Gewinnbasis der Capital-Goods-Bewertung ist nur die separat freigegebene Specialist Earnings Bridge."
                         )
+                    elif universal_family_eps_context_ui:
+                        st.caption(
+                            "Das oben angezeigte Standard-normalisierte EPS bleibt ausschließlich Diagnosekontext und ist keine freigegebene Bewertungsbasis. "
+                            "Die Earnings-Basis wird erst im jeweiligen freigegebenen Family-Specialist-Modell definiert."
+                        )
                     else:
                         st.caption(
                             "Dieser Wert ist noch kein Fair Value. "
@@ -65128,8 +65135,6 @@ if selected_symbol:
                         "Die Major-Peer-KGVs werden ausschließlich als reference-only Marktvergleich geladen; "
                         "es gibt keine automatische ±5-%-Anpassung, kein Peer-Gate und keinen Peer-bedingten Confidence-Abzug."
                     )
-                elif is_capital_goods_peer_metric:
-                    peer_explain = f"Capital Goods {APP_BUILD_VERSION}: Eaton/ROK/Emerson use issuer-published FY2026 Adjusted EPS and live same-currency prices. Three valid observations unlock the run-level peer data gate; the stable 22–32× family corridor is score-driven, while the live median is downside-only and can never lift the target."
                 elif bool((data.get("professional_business_services_specialist_model") or {}).get("applicable")):
                     ps_peer_model_ui = data.get("professional_business_services_specialist_model") or {}
                     if ps_peer_model_ui.get("valuation_anchor_complete"):
