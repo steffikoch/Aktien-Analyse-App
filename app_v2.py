@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.53"
+APP_BUILD_VERSION = "V2.22.54"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,9 +31,11 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Exchange Infrastructure Deutsche Börse Primary-Source Gate V149"
+    f"Build {APP_BUILD_VERSION} · Deutsche Börse Primary-Listing Search Guard V150"
 )
 
+
+# V2.22.54: Deutsche Börse Primary-Listing Search Guard V150. Search-only hotfix after the first V149 live test showed that the Exchange / Market Infrastructure specialist route existed but the security resolver had no verified Deutsche-Börse name alias, so a literal "Deutsche Börse" query could return no selectable equity before DB1.DE ever reached the valuation router. Adds verified aliases for Deutsche Börse/Deutsche Boerse/DB1/DB1.DE that resolve to the XETRA home listing DB1.DE (EUR), and bumps the resolver cache epoch so stale empty search results cannot survive the fix. Exchange V149 score/gates, Capital-Goods V148 mathematics and all other valuation logic are unchanged.
 
 # V2.22.15: Universal Professional-Services Industry Precedence Guard V111. Adds a reusable Professional & Business Services valuation family and fixes an over-broad Industrials sector fallback that previously routed Specialty Business Services issuers into Industrials / Capital Goods. High-confidence professional-service industries now outrank the broad Industrials sector; broader service labels require corroborating business-model evidence such as professional/advisory/consulting, corporate-finance/due-diligence, legal/accounting/tax, restructuring/recovery, fee-earner/network, licence-fee or revenue-share economics. Capital-goods/manufacturing industries remain on the existing Industrials route. The new family is defined_unreleased and therefore fail-closed: no generic Standard score, Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV, Fair Value or signals are unlocked. V110 Asset-Management evidence recovery, GBp/GBP unit handling and all released valuation mathematics remain unchanged.
 # V2.22.16: Professional & Business Services Specialist Model V1 V112. First validated issuer: DSW Capital (DSW.L). Releases an issuer-primary Professional & Business Services specialist path for DSW while keeping the wider family globally unreleased until a second independent issuer is validated. The model scores platform/network growth and fee-earner productivity, adjusted EBITDA/PBT quality, issuer operating cash conversion, balance quality, licence/revenue-mix resilience, capital allocation/dilution and earnings stability. Valuation uses an issuer-adjusted two-year diluted-EPS anchor (FY26 weighted 80%, FY25 20%) with a 9–18x score corridor and a downside-only small-cap/liquidity cap. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the specialist Fair Value. GBp/GBP conversion stays explicit at 1 GBP = 100 GBp. V110 Asset-Management evidence recovery and all other released specialist mathematics remain unchanged.
@@ -13195,7 +13197,7 @@ def classify_company(name, symbol, sector, industry):
 # Aktiensuche / Security Identity & Primary Listing Resolver
 # =========================================================
 
-SEARCH_RESOLVER_CACHE_EPOCH = "v22226_cross_exchange_exact_ticker_collision_v122"
+SEARCH_RESOLVER_CACHE_EPOCH = "v22254_deutsche_boerse_primary_alias_v150"
 
 SEARCH_EXCHANGE_PRIORITY = {
     # US primary venues
@@ -13230,6 +13232,14 @@ SEARCH_LEGAL_WORDS = {
 }
 
 PRIMARY_SEARCH_ALIASES = [
+    {
+        "aliases": [
+            "DEUTSCHE BÖRSE", "DEUTSCHE BOERSE", "DEUTSCHE BÖRSE AG",
+            "DEUTSCHE BOERSE AG", "DB1", "DB1.DE",
+        ],
+        "symbol": "DB1.DE", "quoteType": "EQUITY", "longname": "Deutsche Börse AG",
+        "exchange": "GER", "exchDisp": "XETRA", "currency": "EUR",
+    },
     {
         "aliases": ["AXA", "AXA SA"],
         "symbol": "CS.PA", "quoteType": "EQUITY", "longname": "AXA SA",
