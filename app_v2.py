@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.66"
+APP_BUILD_VERSION = "V2.22.67"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Payment-Network Visa UI Consistency Cleanup V162"
+    f"Build {APP_BUILD_VERSION} · Payment-Network Mastercard Earnings-Bridge Copy Finalization V163"
 )
 
 
@@ -39,6 +39,8 @@ st.caption(
 # V2.22.64: Payment-Network Primary-Listing Search Guard V160. Search-only fix after the V159 Visa baseline test resolved the literal company-name query "Visa" to the Warsaw secondary listing VISA.WA instead of the US home listing V, preventing the existing issuer-primary Payment-Network snapshot from activating. Adds verified exact company/ticker aliases for Visa Inc. -> V (NYSE, USD) and Mastercard Incorporated -> MA (NYSE, USD), and bumps the search resolver cache epoch so stale secondary-listing rankings cannot survive the fix. No Payment-Network score, 22–32x corridor, Regulatory/Litigation cap, Fair Value, signal, Exchange V158 or Capital-Goods V148 mathematics changed.
 # V2.22.65: Payment-Network Verified Primary-Lock V161. Search-only correction after V160 showed that the literal company-name query "Visa" was still interpreted as the short base ticker VISA, allowing the Vienna secondary listing VISA.VI to receive the resolver's +4700 exact-base-ticker precedence and outrank the verified V/NYSE alias. Adds a route-local primary_lock only to Visa and Mastercard verified aliases; this lock outranks fuzzy/exact-base secondary-listing precedence for the company-name/ticker aliases Visa/V and Mastercard/MA while an explicitly entered full secondary ticker such as VISA.VI remains selectable because it does not match the locked alias. Bumps the resolver cache epoch. No Payment-Network score, 22–32x corridor, Regulatory/Litigation cap, Fair Value, signal, Exchange V158 or Capital-Goods V148 mathematics changed.
 # V2.22.66: Payment-Network Visa UI Consistency Cleanup V162. UI/copy-only cleanup after the first successful Visa/NYSE regression under the promoted Universal Family route; no Payment-Network valuation mathematics changed. Provider 0Y/current-FY EPS is now explicitly diagnosis/horizon context in the data card and Earnings-Horizon banner for V/MA, Yahoo/statement FCF is labeled diagnosis-only in the data card, the terminal Standard-EPS caption now states that only the issuer-primary Payment-Network earnings bridge is the valuation earnings basis, and the stale generic Nettomarge/ROE profitability footer is suppressed. Step-1 wording also distinguishes the score-derived Quality P/E from the downside-only Regulatory/Litigation overlay so the visible 30.0x Visa multiple cannot be mistaken for an unadjusted score-only result. Visa remains 93/100 with 31.30x pre-overlay Quality P/E, 30.0x used P/E and unchanged Fair Value mathematics; Mastercard, Exchange V158 and Capital-Goods V148 mathematics remain unchanged.
+# V2.22.67: Payment-Network Mastercard Earnings-Bridge Copy Finalization V163. UI/copy-only finalization after the successful MA/NYSE regression; no Payment-Network valuation mathematics changed. Mastercard's earnings basis label is normalized from the redundant "Issuer-primary Adjusted TTM EPS" wording to "Adjusted TTM EPS Bridge (Q3'25–Q2'26)", so generic issuer-primary prefixes no longer render as "issuer-primary Issuer-primary" in the EPS-context and Fair-Value copy. Visa remains 93/100 with 31.30x pre-overlay Quality P/E and 30.0x used P/E; Mastercard remains 91/100 with 31.10x pre-overlay Quality P/E, 30.50x used P/E and unchanged Fair Value mathematics.
+
 
 # V2.22.54: Deutsche Börse Primary-Listing Search Guard V150. Search-only hotfix after the first V149 live test showed that the Exchange / Market Infrastructure specialist route existed but the security resolver had no verified Deutsche-Börse name alias, so a literal "Deutsche Börse" query could return no selectable equity before DB1.DE ever reached the valuation router. Adds verified aliases for Deutsche Börse/Deutsche Boerse/DB1/DB1.DE that resolve to the XETRA home listing DB1.DE (EUR), and bumps the resolver cache epoch so stale empty search results cannot survive the fix. Exchange V149 score/gates, Capital-Goods V148 mathematics and all other valuation logic are unchanged.
 
@@ -30166,7 +30168,7 @@ def get_verified_payment_network_snapshot(symbol):
             "pe_corridor_high": 32.0,
             "valuation_method_name": "Mastercard Payment Network Adjusted-TTM-EPS P/E + Regulatory/Litigation Overlay",
             "valuation_eps_basis": adjusted_ttm_eps,
-            "earnings_basis_name": "Issuer-primary Adjusted TTM EPS (Q3'25–Q2'26)",
+            "earnings_basis_name": "Adjusted TTM EPS Bridge (Q3'25–Q2'26)",
             "earnings_basis_confidence": "Mittel",
             "earnings_basis_note": (
                 "Mastercard veröffentlicht keine punktgenaue FY2026-Adjusted-EPS-Guidance. V2.20.141 verwendet deshalb keine erfundene "
