@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.65"
+APP_BUILD_VERSION = "V2.22.66"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,13 +31,14 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Payment-Network Verified Primary-Lock V161"
+    f"Build {APP_BUILD_VERSION} · Payment-Network Visa UI Consistency Cleanup V162"
 )
 
 
 # V2.22.63: Payment-Network Universal-Family Promotion · Visa Baseline V159. Architecture/copy-only promotion of the already existing Visa + Mastercard Payment-Network specialist route into the current Universal Family framework; no legacy Payment-Network valuation mathematics changed. V and MA are now surfaced as a validated_multi_issuer_route for Payment Network / Capital-Light Payments, with the existing issuer-primary network-growth/cross-border/transaction/adjusted-earnings/cash-conversion/capital-return score architecture, 22–32x P/E corridor and downside-only Regulatory/Litigation caps retained exactly. The family header now makes clear that Visa and Mastercard are the two validated reference issuers while unsupported Payment-Network members remain issuer-primary evidence-gated. This build is intentionally a Visa regression/baseline pass before any UI consistency cleanup or family-math revision. Exchange V158, Capital-Goods V148 and all other released specialist mathematics remain unchanged.
 # V2.22.64: Payment-Network Primary-Listing Search Guard V160. Search-only fix after the V159 Visa baseline test resolved the literal company-name query "Visa" to the Warsaw secondary listing VISA.WA instead of the US home listing V, preventing the existing issuer-primary Payment-Network snapshot from activating. Adds verified exact company/ticker aliases for Visa Inc. -> V (NYSE, USD) and Mastercard Incorporated -> MA (NYSE, USD), and bumps the search resolver cache epoch so stale secondary-listing rankings cannot survive the fix. No Payment-Network score, 22–32x corridor, Regulatory/Litigation cap, Fair Value, signal, Exchange V158 or Capital-Goods V148 mathematics changed.
 # V2.22.65: Payment-Network Verified Primary-Lock V161. Search-only correction after V160 showed that the literal company-name query "Visa" was still interpreted as the short base ticker VISA, allowing the Vienna secondary listing VISA.VI to receive the resolver's +4700 exact-base-ticker precedence and outrank the verified V/NYSE alias. Adds a route-local primary_lock only to Visa and Mastercard verified aliases; this lock outranks fuzzy/exact-base secondary-listing precedence for the company-name/ticker aliases Visa/V and Mastercard/MA while an explicitly entered full secondary ticker such as VISA.VI remains selectable because it does not match the locked alias. Bumps the resolver cache epoch. No Payment-Network score, 22–32x corridor, Regulatory/Litigation cap, Fair Value, signal, Exchange V158 or Capital-Goods V148 mathematics changed.
+# V2.22.66: Payment-Network Visa UI Consistency Cleanup V162. UI/copy-only cleanup after the first successful Visa/NYSE regression under the promoted Universal Family route; no Payment-Network valuation mathematics changed. Provider 0Y/current-FY EPS is now explicitly diagnosis/horizon context in the data card and Earnings-Horizon banner for V/MA, Yahoo/statement FCF is labeled diagnosis-only in the data card, the terminal Standard-EPS caption now states that only the issuer-primary Payment-Network earnings bridge is the valuation earnings basis, and the stale generic Nettomarge/ROE profitability footer is suppressed. Step-1 wording also distinguishes the score-derived Quality P/E from the downside-only Regulatory/Litigation overlay so the visible 30.0x Visa multiple cannot be mistaken for an unadjusted score-only result. Visa remains 93/100 with 31.30x pre-overlay Quality P/E, 30.0x used P/E and unchanged Fair Value mathematics; Mastercard, Exchange V158 and Capital-Goods V148 mathematics remain unchanged.
 
 # V2.22.54: Deutsche Börse Primary-Listing Search Guard V150. Search-only hotfix after the first V149 live test showed that the Exchange / Market Infrastructure specialist route existed but the security resolver had no verified Deutsche-Börse name alias, so a literal "Deutsche Börse" query could return no selectable equity before DB1.DE ever reached the valuation router. Adds verified aliases for Deutsche Börse/Deutsche Boerse/DB1/DB1.DE that resolve to the XETRA home listing DB1.DE (EUR), and bumps the resolver cache epoch so stale empty search results cannot survive the fix. Exchange V149 score/gates, Capital-Goods V148 mathematics and all other valuation logic are unchanged.
 
@@ -53250,6 +53251,11 @@ def build_eps_horizon_alignment(symbol, raw_forward_eps, analyst_context):
                 "Horizon Alignment: 0Y/current-FY Analystenkonsens wird als Provider-Horizontkontext geführt; "
                 "für den Capital-Goods-Spezialpfad bleibt er Diagnosekontext und ist nicht die Specialist-Bewertungsbasis"
             )
+        elif _sym_upper in {"V", "MA"}:
+            note_parts.append(
+                "Horizon Alignment: 0Y/current-FY Analystenkonsens wird im Payment-Network-Spezialpfad ausschließlich als Provider-Horizont-/Diagnosekontext geführt; "
+                "er ist nicht die freigegebene issuer-primary Specialist-Earnings-Basis"
+            )
         else:
             note_parts.append("Horizon Alignment: 0Y/current-FY Analystenkonsens wird als Forward-Bewertungsbasis verwendet")
     if raw_matches_next:
@@ -60134,7 +60140,8 @@ if selected_symbol:
 
                     capital_goods_provider_eps_ui = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
                     exchange_provider_eps_ui = bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable"))
-                    specialist_provider_eps_ui = capital_goods_provider_eps_ui or exchange_provider_eps_ui
+                    payment_network_provider_eps_ui = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
+                    specialist_provider_eps_ui = capital_goods_provider_eps_ui or exchange_provider_eps_ui or payment_network_provider_eps_ui
                     st.metric(
                         "EPS Provider-0Y/current-FY (Diagnosekontext)" if specialist_provider_eps_ui else "EPS Bewertungsbasis (aktuelles FY)",
                         format_eps(
@@ -60178,7 +60185,7 @@ if selected_symbol:
                         fcf_label = "Free Cashflow (REIT-Kontext, Cashflow-Statement)"
                     elif is_reit_fcf_context:
                         fcf_label = "Levered Free Cashflow (REIT-Kontext, Yahoo-Referenz)"
-                    elif bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable")):
+                    elif bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable")) or bool((data.get("payment_network_specialist_model") or {}).get("applicable")):
                         fcf_label = (
                             "Free Cashflow (Cashflow-Statement, Diagnosekontext)"
                             if fcf_ctx.get("score_eligible")
@@ -61908,6 +61915,11 @@ if selected_symbol:
                             "Das oben angezeigte Standard-normalisierte EPS bleibt ausschließlich Diagnosekontext. "
                             "Gewinnbasis der Exchange-Bewertung ist nur die separat freigegebene Current-FY Specialist Earnings Bridge."
                         )
+                    elif payment_network_eps_context_ui:
+                        st.caption(
+                            "Das oben angezeigte Standard-normalisierte EPS bleibt ausschließlich Diagnosekontext. "
+                            "Gewinnbasis der Payment-Network-Bewertung ist nur die separat freigegebene issuer-primary Specialist Earnings Bridge."
+                        )
                     elif universal_family_eps_context_ui:
                         st.caption(
                             "Das oben angezeigte Standard-normalisierte EPS bleibt ausschließlich Diagnosekontext und ist keine freigegebene Bewertungsbasis. "
@@ -63106,6 +63118,7 @@ if selected_symbol:
                     and not is_universal_family_profitability_ui
                     and not is_capital_goods_profitability_ui
                     and not is_exchange_profitability_ui
+                    and not is_payment_network_profitability_ui
                 ):
                     st.caption(
                         "Die Profitabilität basiert derzeit auf "
@@ -65874,6 +65887,20 @@ if selected_symbol:
                                 "Schritt 1 zeigt ausschließlich das aus Exchange Operational Score und 18–26× Family-Korridor abgeleitete Roh-KGV. "
                                 "Der FY2025 Full-Year-Peer-Median wird erst in Schritt 2B als downside-only Ceiling geprüft; das verwendete Ziel-KGV entsteht erst danach."
                             )
+                        elif bool((data.get("payment_network_specialist_model") or {}).get("applicable")):
+                            pn_val_step1 = (data.get("payment_network_specialist_model") or {}).get("specialist_valuation") or {}
+                            pn_raw_step1 = safe_float(pn_val_step1.get("base_target_pe"))
+                            pn_used_step1 = safe_float(pn_val_step1.get("target_pe"))
+                            if pn_raw_step1 is not None:
+                                st.metric(
+                                    "Quality-P/E vor Regulatory/Litigation Overlay",
+                                    f"{pn_raw_step1:.2f}×"
+                                )
+                            if pn_used_step1 is not None:
+                                st.caption(
+                                    f"Downside-only Regulatory/Litigation Overlay geprüft: verwendetes Ziel-KGV {pn_used_step1:.2f}×. "
+                                    "Der Overlay kann das Quality-P/E nur begrenzen, niemals anheben."
+                                )
                         else:
                             st.metric(
                                 "Fundamental-Multiple",
@@ -65911,6 +65938,11 @@ if selected_symbol:
                         st.caption(
                             "Für die freigegebene Holding-Familie bleibt Schritt 1 absichtlich ohne industrielles Fundamental-Multiple. "
                             "Peer-Evidenz und Fair Value werden ausschließlich im Holding-Spezialmodell geprüft."
+                        )
+                    elif bool((data.get("payment_network_specialist_model") or {}).get("applicable")):
+                        st.caption(
+                            "Schritt 1 leitet das Payment-Network Quality-P/E aus Score und Family-Korridor ab und prüft anschließend den issuer-spezifischen downside-only Regulatory/Litigation Overlay. "
+                            "Peer-Check und Fair Value bleiben getrennte nachfolgende Schritte."
                         )
                     else:
                         st.caption(
