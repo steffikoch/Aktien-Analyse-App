@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.50"
+APP_BUILD_VERSION = "V2.22.51"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Capital-Goods UI Consistency & Peer-Ceiling Cleanup V146"
+    f"Build {APP_BUILD_VERSION} · Capital-Goods EPS Context Final Cleanup V147"
 )
 
 
@@ -70,6 +70,7 @@ st.caption(
 
 # V2.22.49: Capital-Goods Family Multiple Corridor V145. Promotes the Siemens + Schneider multi-issuer validation into a released corridor only for the two issuer-primary validated profiles while keeping unsupported Industrials / Capital Goods members evidence-gated. The reusable current-FY Adjusted/pre-PPA P/E corridor is fixed at 22–32x after V144 live calibration against Emerson (low-20s) and premium electrification/automation references Eaton/Rockwell (low-30s); the current peer median remains a downside-only ceiling/reference and can never lift the score-derived target. The 100-point operational Capital-Goods score positions the target linearly inside the corridor from 50→22x to 100→32x. Schneider (90/100) therefore receives a 30.0x target on the released FY2026 Adjusted-EPS bridge; Cognite remains a confidence/leverage guard and is not double-counted as a second P/E penalty. Siemens receives the same family corridor as context but no target P/E/Fair Value because the Healthineers spin-off still requires a Core-Siemens + distributed/retained Healthineers SOTP bridge. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the specialist Fair Value.
 # V2.22.50: Capital-Goods UI Consistency & Peer-Ceiling Cleanup V146. No valuation mathematics changed. Restores strict specialist-context rendering after the V145 family release: provider Current-FY EPS and standard EPS normalization are labelled diagnosis-only; Yahoo/statement FCF and provider net debt no longer render as Capital-Goods valuation inputs; stale generic growth/profitability/FCF/balance footers are suppressed. Step 2B now describes the live peer median consistently as a run-level data gate plus downside-only ceiling that can cap, but never lift, the score-derived target multiple. Schneider remains 90/100, 30.0x and 311.70 EUR Fair Value; Siemens remains 93/100 and SOTP-blocked.
+# V2.22.51: Capital-Goods EPS Context Final Cleanup V147. UI/copy-only change. Removes the last generic terminal EPS caption that could imply the standard 30% TTM / 70% provider-forward diagnostic EPS is the profit basis for Capital-Goods valuation. The released Specialist Earnings Bridge remains the sole earnings anchor. Also removes the stale V145 suffix from the family-status banner so model-state wording does not look tied to an older app build. No score, corridor, peer ceiling, Fair Value, zones, signals or confidence mathematics changed. Schneider remains 90/100, 30.0x and 311.70 EUR Fair Value; Siemens remains 93/100 and Healthineers-SOTP blocked.
 # V2.22.41: Asset-Manager Annual-History Candidate Merge V137. Fixes a de-duplication/ranking defect in generic same-basis Asset-Manager EPS-history recovery. The same issuer-primary report can be discovered once for each requested target year; prior builds kept the first URL occurrence and therefore preserved the score from the first target year instead of the best score across all requested years. V117 now merges duplicate URLs by their strongest year-aware score, explicitly recognizes the discovered document_class even when the download URL/anchor is opaque, and prioritizes the latest completed-FY Financial Data Supplement/annual report because such reports often contain the full 3Y same-basis EPS series in one table. Current-period AUM/flow/fee/CIR evidence, specialist score weights, 9–18x corridor, peer/historical guards and signal thresholds are unchanged.
 # V2.22.37: Asset-Manager Structured XLSX Period Binding V133. Fixes wide issuer-primary financial supplements whose comparison headers (for example “Q2 2026 vs. Q1 2026 / Q2 2025”) precede the actual multi-period data-header row. XLSX extraction now preserves explicit worksheet-row boundaries, period detection ranks the real multi-period header row ahead of comparison captions, and KPI rows are parsed only within their own workbook row so comparison columns cannot shift AUM/flow/fee/CIR/EPS values onto the wrong period. Same-scope guards, same-basis earnings requirements, score weights, 9–18x corridor, peer/historical guards and signal thresholds remain unchanged; no issuer ticker, URL or KPI value is hard-coded.
 # V2.22.34: Development-Stage EPS Copy Isolation Cleanup V130. Copy/UI-only change. Keeps V128 subprofile routing and V121 financial-stage detection unchanged, but isolates Development-Stage Mining / Materials from the generic Universal-Family EPS wording: Standard TTM/Forward EPS remains diagnosis-only and is explicitly not a Fair-Value anchor; Mineral Explorer / Mine Developer points instead to a technical/economic project and Project-NAV basis, while Battery Materials / Processing / Technology points to resource/feedstock, process/pilot/scale-up, qualification/offtake, funding and commercialisation evidence. The terminal EPS caption is profile-aware for the same reason. All scores, corridors, guard states, V127 Net-Cash logic, LOM logic and valuation mathematics remain unchanged.
@@ -58990,7 +58991,7 @@ if selected_symbol:
                     if (company_type.get("family_model_status") == "validated_multi_issuer_route"
                             and company_type.get("valuation_family") == "Industrials / Capital Goods"):
                         st.info(
-                            "Industrials / Capital Goods Multi-Issuer Specialist V145: Siemens und Schneider Electric validieren zwei unterschiedliche issuer-native KPI-Adapter unter derselben Qualitätsarchitektur. "
+                            "Industrials / Capital Goods Multi-Issuer Specialist: Siemens und Schneider Electric validieren zwei unterschiedliche issuer-native KPI-Adapter unter derselben Qualitätsarchitektur. "
                             "Die Current-FY Earnings Bridge und der 22–32× Family-Korridor sind für diese validierten Profile freigegeben; weitere Familienmitglieder bleiben issuer-primary evidence-gated. "
                             "Siemens bleibt wegen des Healthineers-Structural-Breaks separat SOTP-geblockt."
                         )
@@ -60796,6 +60797,11 @@ if selected_symbol:
                                 "EPS-Daten bleiben ausschließlich Diagnosekontext und sind kein Bewertungsanker. "
                                 "Maßgeblich ist später eine belastbare technische/wirtschaftliche Projekt- und Project-NAV-Basis."
                             )
+                    elif capital_goods_eps_context_ui:
+                        st.caption(
+                            "Das oben angezeigte Standard-normalisierte EPS bleibt ausschließlich Diagnosekontext. "
+                            "Gewinnbasis der Capital-Goods-Bewertung ist nur die separat freigegebene Specialist Earnings Bridge."
+                        )
                     else:
                         st.caption(
                             "Dieser Wert ist noch kein Fair Value. "
