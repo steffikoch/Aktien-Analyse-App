@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.56"
+APP_BUILD_VERSION = "V2.22.57"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,7 +31,7 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Exchange Multi-Issuer Nasdaq Validation V152"
+    f"Build {APP_BUILD_VERSION} · Exchange Earnings Bridge & Run-Rate Peer Calibration V153"
 )
 
 
@@ -40,6 +40,8 @@ st.caption(
 # V2.22.55: Exchange Peer-Render Runtime Fix V151. Fixes a UI-only NameError in Module 6 Step 2A for families without an automatic peer group: a Capital-Goods peer-metric flag was referenced before Step 2B initialized it. Schneider/Capital-Goods never exposed the bug because its peer-model branch short-circuited first; Deutsche Börse reached the stale branch and aborted rendering after Step 2A. Removes the stale pre-initialization branch. Also clarifies the Exchange-family standard EPS-normalization footer as diagnosis-only so it cannot be mistaken for the future specialist earnings anchor. No Exchange score/gate mathematics, Capital-Goods V148/V147 valuation mathematics, search logic, or other released specialist models changed.
 
 # V2.22.56: Exchange / Market Infrastructure Multi-Issuer Nasdaq Validation V152. Adds Nasdaq, Inc. (NDAQ) as the second independent issuer-primary validation profile under the Exchange / Market Infrastructure family without releasing a family valuation yet. The shared 100-point operating architecture now maps issuer-native evidence into Structural Growth, Operating Leverage, Mix/Resilience, Revenue Quality/Normalization, Earnings Quality, Capital Allocation and Transaction/Structure. Deutsche Börse keeps its 87/100 score with treasury normalization and Allfunds guard; Nasdaq uses net revenue/organic growth, Solutions + Market Services mix, ARR/SaaS recurrence, non-GAAP operating margin/EPS, cash generation and debt-paydown/capital-return evidence. Also marks Provider 0Y/current-FY EPS as diagnosis-only in the Exchange UI and rewrites the horizon banner accordingly. No Exchange earnings anchor, multiple corridor, Fair Value or signal is released; same-basis earnings/multiple calibration remains the next gate. Capital-Goods V148 mathematics and all other released specialist models are unchanged.
+
+# V2.22.57: Exchange Earnings Bridge & Run-Rate Peer Calibration V153. Releases a reusable Current-FY earnings-bridge definition for the two validated Exchange / Market Infrastructure profiles while keeping the family multiple and Fair Value fail-closed. Nasdaq uses the issuer-hosted FY2026 analyst mean Non-GAAP EPS of USD 4.13 (17 estimates). Deutsche Börse uses a transparent mechanical FY2026 Cash-EPS proxy: issuer-hosted FY2026 reported-EPS consensus EUR 12.37 plus an annualized H1 PPA addback of EUR 0.98 derived from Q1/Q2 reported-vs-Cash EPS, yielding EUR 13.35; this proxy is explicitly medium-confidence and is not company guidance. Adds CME, ICE and Cboe as reference-only exchange peers using issuer-primary H1 2026 adjusted EPS annualized run-rates plus live same-currency prices. The run-rate median is calibration evidence only: its Current-FY horizon comparability gate remains false and it cannot set a target multiple, corridor, Fair Value or signal. Deutsche Börse retains the Allfunds transaction/leverage guard; Nasdaq retains the no-current-structural-break profile. Capital-Goods V148 mathematics and all other released specialist models are unchanged.
 
 # V2.22.15: Universal Professional-Services Industry Precedence Guard V111. Adds a reusable Professional & Business Services valuation family and fixes an over-broad Industrials sector fallback that previously routed Specialty Business Services issuers into Industrials / Capital Goods. High-confidence professional-service industries now outrank the broad Industrials sector; broader service labels require corroborating business-model evidence such as professional/advisory/consulting, corporate-finance/due-diligence, legal/accounting/tax, restructuring/recovery, fee-earner/network, licence-fee or revenue-share economics. Capital-goods/manufacturing industries remain on the existing Industrials route. The new family is defined_unreleased and therefore fail-closed: no generic Standard score, Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV, Fair Value or signals are unlocked. V110 Asset-Management evidence recovery, GBp/GBP unit handling and all released valuation mathematics remain unchanged.
 # V2.22.16: Professional & Business Services Specialist Model V1 V112. First validated issuer: DSW Capital (DSW.L). Releases an issuer-primary Professional & Business Services specialist path for DSW while keeping the wider family globally unreleased until a second independent issuer is validated. The model scores platform/network growth and fee-earner productivity, adjusted EBITDA/PBT quality, issuer operating cash conversion, balance quality, licence/revenue-mix resilience, capital allocation/dilution and earnings stability. Valuation uses an issuer-adjusted two-year diluted-EPS anchor (FY26 weighted 80%, FY25 20%) with a 9–18x score corridor and a downside-only small-cap/liquidity cap. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the specialist Fair Value. GBp/GBP conversion stays explicit at 1 GBP = 100 GBp. V110 Asset-Management evidence recovery and all other released specialist mathematics remain unchanged.
@@ -37499,6 +37501,8 @@ def get_verified_deutsche_boerse_exchange_snapshot(symbol):
         "published_date": "22.07.2026",
         "source_name": "Deutsche Börse Q2/H1 2026 Results + FY2025 Annual Report + Allfunds transaction updates",
         "q2_results_url": "https://www.deutsche-boerse.com/dbg-en/media/news-stories/press-releases/Q2-2026-Broad-Based-Secular-Growth-and-Operating-Leverage-in-the-Second-Quarter-5397468",
+        "q1_results_url": "https://www.deutsche-boerse.com/resource/blob/5053028/5524b27e0d1ea96ed562d1b6dedd7465/data/gdb-quarterly-statement-q1-2026_en.pdf",
+        "fy2026_consensus_url": "https://www.deutsche-boerse.com/resource/blob/1745410/49cdbf93c4735d837d8e29c30d6df221/data/consensus_de.pdf",
         "fy2025_report_url": "https://www.deutsche-boerse.com/dbg-en/investor-relations/financial-reports/annual-report-2025",
         "allfunds_url": "https://www.deutsche-boerse.com/dbg-en/media/news-stories/press-releases/Deutsche-B-rse-Group-s-Recommended-Acquisition-of-Allfunds-Shareholder-Approvals-of-Allfunds-Obtained-5008700",
         "next_q3_report_date": "20.10.2026",
@@ -37513,7 +37517,14 @@ def get_verified_deutsche_boerse_exchange_snapshot(symbol):
         "q2_total_ebitda_growth_pct": 10.0,
         "q2_net_profit": 0.569e9,
         "q2_net_profit_growth_pct": 12.0,
+        "q1_reported_eps": 3.21,
+        "q1_eps_pre_ppa": 3.40,
+        "q2_reported_eps": 3.03,
         "q2_eps_pre_ppa": 3.33,
+        "fy2026_reported_eps_consensus": 12.37,
+        "fy2026_reported_eps_consensus_median": 12.41,
+        "fy2026_reported_eps_consensus_count": 13,
+        "fy2026_consensus_window": "26.06.2026–14.07.2026",
         "q2_business_units_with_revenue_growth": 6,
         "q2_business_units_total": 8,
         "fy2026_net_revenue_ex_treasury_guidance": 5.7e9,
@@ -37567,6 +37578,13 @@ def get_verified_nasdaq_exchange_snapshot(symbol):
         "q2_results_url": "https://ir.nasdaq.com/node/110756",
         "quarterly_results_url": "https://ir.nasdaq.com/financials/quarterly-results",
         "annual_report_url": "https://ir.nasdaq.com/financials/annual-reports",
+        "earnings_estimates_url": "https://ir.nasdaq.com/stock-information/earnings-estimates",
+        "fy2026_non_gaap_eps_consensus": 4.13,
+        "fy2026_non_gaap_eps_consensus_median": 4.11,
+        "fy2026_non_gaap_eps_consensus_high": 4.26,
+        "fy2026_non_gaap_eps_consensus_low": 4.03,
+        "fy2026_non_gaap_eps_consensus_count": 17,
+        "fy2026_non_gaap_eps_consensus_date": "11.09.2026",
         "q2_net_revenue": 1.500e9,
         "q2_net_revenue_growth_pct": 15.0,
         "q2_net_revenue_organic_growth_pct": 16.0,
@@ -37609,6 +37627,242 @@ def get_verified_nasdaq_exchange_snapshot(symbol):
 
 def get_verified_exchange_market_infrastructure_snapshot(symbol):
     return get_verified_deutsche_boerse_exchange_snapshot(symbol) or get_verified_nasdaq_exchange_snapshot(symbol)
+
+
+def build_exchange_market_infrastructure_earnings_bridge(snapshot, provider_current_fy_eps=None):
+    """Reusable Exchange-family Current-FY adjusted/Cash-EPS bridge.
+
+    The bridge standardizes horizon and a management/issuer-hosted adjusted basis,
+    but it deliberately does NOT release a family multiple or Fair Value. Deutsche
+    Börse uses a transparent mechanical Cash-EPS proxy because the issuer consensus
+    publishes reported EPS rather than a full-year Cash-EPS consensus.
+    """
+    snap = snapshot or {}
+    profile = snap.get("specialist_profile_key")
+    provider_eps = safe_float(provider_current_fy_eps)
+    out = {
+        "available": False,
+        "family_method_released": False,
+        "earnings_per_share": None,
+        "currency": snap.get("reporting_currency"),
+        "provider_current_fy_eps": provider_eps,
+        "provider_gap_pct": None,
+        "confidence": "Niedrig",
+        "source_type": None,
+        "source_url": None,
+        "source_date": None,
+        "note": None,
+    }
+
+    if profile == "solutions_market_infrastructure":
+        eps = safe_float(snap.get("fy2026_non_gaap_eps_consensus"))
+        count = int(safe_float(snap.get("fy2026_non_gaap_eps_consensus_count")) or 0)
+        if eps is None or eps <= 0 or count < 10:
+            out["note"] = "Nasdaq issuer-hosted FY2026 Non-GAAP EPS consensus bridge incomplete."
+            return out
+        out.update({
+            "available": True,
+            "family_method_released": True,
+            "earnings_per_share": eps,
+            "confidence": "Hoch",
+            "source_type": f"issuer-hosted FY2026 analyst consensus Non-GAAP EPS mean ({count} estimates)",
+            "source_url": snap.get("earnings_estimates_url"),
+            "source_date": snap.get("fy2026_non_gaap_eps_consensus_date"),
+            "consensus_median": safe_float(snap.get("fy2026_non_gaap_eps_consensus_median")),
+            "consensus_low": safe_float(snap.get("fy2026_non_gaap_eps_consensus_low")),
+            "consensus_high": safe_float(snap.get("fy2026_non_gaap_eps_consensus_high")),
+            "consensus_count": count,
+            "basis_label": "FY2026 Non-GAAP diluted EPS consensus",
+            "note": (
+                "Nasdaq uses the analyst-consensus table hosted on its own Investor Relations site. "
+                "The FY2026 mean of USD 4.13 is aligned with the issuer's Non-GAAP EPS history; generic provider EPS remains diagnostic only."
+            ),
+        })
+    elif profile == "integrated_market_infrastructure":
+        reported = safe_float(snap.get("fy2026_reported_eps_consensus"))
+        q1_rep = safe_float(snap.get("q1_reported_eps")); q1_cash = safe_float(snap.get("q1_eps_pre_ppa"))
+        q2_rep = safe_float(snap.get("q2_reported_eps")); q2_cash = safe_float(snap.get("q2_eps_pre_ppa"))
+        count = int(safe_float(snap.get("fy2026_reported_eps_consensus_count")) or 0)
+        if None in {reported, q1_rep, q1_cash, q2_rep, q2_cash} or reported <= 0 or count < 10:
+            out["note"] = "Deutsche-Börse issuer-hosted FY2026 reported-EPS consensus / H1 Cash-EPS bridge incomplete."
+            return out
+        h1_ppa_addback = (q1_cash - q1_rep) + (q2_cash - q2_rep)
+        annualized_ppa_addback = h1_ppa_addback * 2.0
+        eps = reported + annualized_ppa_addback
+        out.update({
+            "available": True,
+            "family_method_released": True,
+            "earnings_per_share": eps,
+            "confidence": "Mittel",
+            "source_type": "issuer-hosted FY2026 reported-EPS consensus + mechanical annualized H1 PPA addback",
+            "source_url": snap.get("fy2026_consensus_url"),
+            "source_date": snap.get("fy2026_consensus_window"),
+            "secondary_source_url": snap.get("q1_results_url"),
+            "secondary_source_url_2": snap.get("q2_results_url"),
+            "reported_eps_consensus": reported,
+            "reported_eps_consensus_median": safe_float(snap.get("fy2026_reported_eps_consensus_median")),
+            "consensus_count": count,
+            "q1_reported_eps": q1_rep,
+            "q1_cash_eps": q1_cash,
+            "q2_reported_eps": q2_rep,
+            "q2_cash_eps": q2_cash,
+            "h1_ppa_addback": h1_ppa_addback,
+            "annualized_ppa_addback": annualized_ppa_addback,
+            "basis_label": "FY2026 mechanical Cash-EPS proxy",
+            "note": (
+                "Deutsche Börse does not publish a full-year Cash-EPS consensus in the current consensus table. "
+                "V153 therefore starts from the issuer-hosted FY2026 reported-EPS mean and adds twice the verified H1 reported-to-Cash-EPS PPA difference. "
+                "This is a transparent mechanical current-FY proxy, not company guidance, so confidence is capped at Medium."
+            ),
+        })
+    else:
+        out["note"] = "No released Exchange-family current-FY earnings adapter for this profile."
+        return out
+
+    eps = safe_float(out.get("earnings_per_share"))
+    if eps is not None and eps > 0 and provider_eps is not None and provider_eps > 0:
+        out["provider_gap_pct"] = (provider_eps / eps - 1.0) * 100.0
+    return out
+
+
+EXCHANGE_PRIMARY_PEER_H1_ADJUSTED_EPS = {
+    "CME": {
+        "name": "CME Group",
+        "earnings_currency": "USD",
+        "q1_adjusted_eps": 3.36,
+        "q2_adjusted_eps": 2.99,
+        "q1_source_url": "https://www.cmegroup.com/media-room/press-releases/2026/4/22/cme_group_inc_reportsrecordrevenueadjustedoperatingincomeadjuste.html",
+        "q2_source_url": "https://www.cmegroup.com/media-room/press-releases/2026/7/22/cme_group_inc_reportsstrongfinancialresultsforq22026.html",
+        "business_fit": "Derivatives exchange / clearing / market data",
+    },
+    "ICE": {
+        "name": "Intercontinental Exchange",
+        "earnings_currency": "USD",
+        "q1_adjusted_eps": 2.35,
+        "q2_adjusted_eps": 1.90,
+        "q1_source_url": "https://ir.theice.com/press/news-details/2026/Intercontinental-Exchange-Reports-Record-First-Quarter-2026/default.aspx",
+        "q2_source_url": "https://ir.theice.com/press/news-details/2026/Intercontinental-Exchange-Reports-Second-Quarter-2026/default.aspx",
+        "business_fit": "Exchange / clearing / data / mortgage technology",
+    },
+    "CBOE": {
+        "name": "Cboe Global Markets",
+        "earnings_currency": "USD",
+        "q1_adjusted_eps": 3.70,
+        "q2_adjusted_eps": 3.56,
+        "q1_source_url": "https://ir.cboe.com/news/news-details/2026/Cboe-Global-Markets-Reports-Results-for-First-Quarter-2026-and-Continued-Execution-of-Strategic-Realignment/default.aspx",
+        "q2_source_url": "https://ir.cboe.com/financials/quarterly-results/default.aspx",
+        "business_fit": "Options / equities / derivatives / data infrastructure",
+    },
+}
+
+
+@st.cache_data(ttl=900)
+def load_exchange_primary_peer_runrate_pe(peer_symbol, cache_version):
+    """Reference-only P/E using issuer-primary H1 adjusted EPS annualized.
+
+    This deliberately does not claim a verified FY2026 denominator. It exists to
+    observe the current market range while the full-year same-horizon family peer
+    calibration remains locked.
+    """
+    sym = str(peer_symbol or "").upper().strip()
+    cfg = dict(EXCHANGE_PRIMARY_PEER_H1_ADJUSTED_EPS.get(sym) or {})
+    if not cfg:
+        return {"usable": False, "reason": "Kein issuer-primary H1 Adjusted-EPS-Profil hinterlegt."}
+    q1 = safe_float(cfg.get("q1_adjusted_eps")); q2 = safe_float(cfg.get("q2_adjusted_eps"))
+    if q1 is None or q2 is None or q1 <= 0 or q2 <= 0:
+        return {"usable": False, "reason": "H1 Adjusted-EPS-Daten unvollständig.", **cfg}
+    h1_eps = q1 + q2
+    annualized_eps = h1_eps * 2.0
+    px = _holding_peer_last_price_snapshot(sym) or {}
+    price = safe_float(px.get("price")); quote_ccy = str(px.get("currency") or "").upper().strip()
+    earnings_ccy = str(cfg.get("earnings_currency") or "").upper().strip()
+    currency_ok = bool(price is not None and price > 0 and quote_ccy and earnings_ccy and quote_ccy == earnings_ccy)
+    if not currency_ok:
+        return {
+            "usable": False,
+            "reason": "Live-Preis oder eindeutige Same-Currency-Bindung fehlt.",
+            "h1_adjusted_eps": h1_eps,
+            "annualized_adjusted_eps": annualized_eps,
+            "price": price,
+            "quote_currency": quote_ccy,
+            "price_date": px.get("price_date"),
+            **cfg,
+        }
+    pe = price / annualized_eps
+    usable = bool(pe > 0 and pe < 80)
+    return {
+        "usable": usable,
+        "reason": None if usable else "H1-run-rate P/E außerhalb Plausibilitätsbereich.",
+        "h1_adjusted_eps": h1_eps,
+        "annualized_adjusted_eps": annualized_eps,
+        "price": price,
+        "price_date": px.get("price_date"),
+        "quote_currency": quote_ccy,
+        "runrate_pe": pe if usable else None,
+        "same_horizon": False,
+        "same_basis_family": True,
+        **cfg,
+    }
+
+
+def _calculate_exchange_peer_runrate_reference(peer_group, fundamental_multiple, cache_version):
+    result = {
+        "method_supported": True,
+        "metric": "Exchange adjusted-EPS H1 annualized run-rate P/E reference",
+        "peer_rows": [],
+        "usable_count": 0,
+        "adjustment_eligible_count": 0,
+        "peer_median": None,
+        "peer_min": None,
+        "peer_max": None,
+        "adjustment_pct": 0.0,
+        "adjusted_multiple": safe_float(fundamental_multiple),
+        "applied": False,
+        "reference_only": True,
+        "comparability_gate_passed": False,
+        "runrate_reference_ready": False,
+        "note": None,
+    }
+    vals = []
+    for peer in (peer_group or {}).get("peers", []):
+        pdx = dict(load_exchange_primary_peer_runrate_pe(peer.get("symbol"), cache_version) or {})
+        pe = safe_float(pdx.get("runrate_pe"))
+        usable = bool(pdx.get("usable") and pe is not None and pe > 0)
+        row = {
+            "symbol": peer.get("symbol"),
+            "name": peer.get("name"),
+            "usable": usable,
+            "forward_pe": pe,
+            "source": "Issuer H1 2026 adjusted EPS annualized + live market price" if usable else None,
+            "reason": pdx.get("reason"),
+            "q1_adjusted_eps": safe_float(pdx.get("q1_adjusted_eps")),
+            "q2_adjusted_eps": safe_float(pdx.get("q2_adjusted_eps")),
+            "h1_adjusted_eps": safe_float(pdx.get("h1_adjusted_eps")),
+            "annualized_adjusted_eps": safe_float(pdx.get("annualized_adjusted_eps")),
+            "price": safe_float(pdx.get("price")),
+            "price_date": pdx.get("price_date"),
+            "quote_currency": pdx.get("quote_currency"),
+            "business_fit": pdx.get("business_fit"),
+            "q1_source_url": pdx.get("q1_source_url"),
+            "q2_source_url": pdx.get("q2_source_url"),
+            "same_horizon": False,
+            "same_basis_family": True,
+            "adjustment_eligible": False,
+        }
+        result["peer_rows"].append(row)
+        if usable:
+            vals.append(pe)
+    result["usable_count"] = len(vals)
+    if len(vals) >= 3:
+        result["peer_median"] = float(pd.Series(vals).median())
+        result["peer_min"] = min(vals)
+        result["peer_max"] = max(vals)
+        result["runrate_reference_ready"] = True
+    result["note"] = (
+        f"Exchange Peer Calibration {APP_BUILD_VERSION}: CME, ICE and Cboe use issuer-published Q1+Q2 2026 adjusted EPS annualized as a run-rate denominator plus live same-currency prices. "
+        "The resulting median is reference-only. H1 annualization is not a verified FY2026 same-horizon denominator, therefore the Current-FY comparability gate remains deliberately closed and no peer value can set a family corridor, target multiple or Fair Value."
+    )
+    return result
 
 
 def build_exchange_market_infrastructure_operational_score(snapshot):
@@ -37696,34 +37950,39 @@ def build_exchange_market_infrastructure_specialist_model(company_type, fundamen
             "readiness": "Exchange / Market Infrastructure family recognized; issuer-primary adapter not yet calibrated",
         }
     score = build_exchange_market_infrastructure_operational_score(snap)
+    bridge = build_exchange_market_infrastructure_earnings_bridge(snap, current_fy_eps)
     profile = snap.get("specialist_profile_key")
     is_db1 = profile == "integrated_market_infrastructure"
+    bridge_ready = bool(bridge.get("available") and bridge.get("family_method_released"))
     readiness = (
-        "Deutsche-Börse Primärdatenprofil validiert · Nasdaq zweiter Family-Adapter verfügbar · Earnings-/Multiple-/Peer-Kalibrierung weiterhin gesperrt"
+        "Deutsche-Börse Primärdatenprofil + Current-FY Cash-EPS-Bridge validiert · Nasdaq zweiter Family-Adapter verfügbar · Family-Multiple/Full-Year-Peer-Comparability weiterhin gesperrt"
         if is_db1 else
-        "Nasdaq Primärdatenprofil validiert · zweiter unabhängiger Exchange-Family-Adapter aktiv · Earnings-/Multiple-/Peer-Kalibrierung weiterhin gesperrt"
+        "Nasdaq Primärdatenprofil + Current-FY Non-GAAP-EPS-Bridge validiert · zweiter unabhängiger Exchange-Family-Adapter aktiv · Family-Multiple/Full-Year-Peer-Comparability weiterhin gesperrt"
     )
     missing = [
-        "reusable Exchange-family issuer-adjusted earnings anchor on a comparable Current-FY basis",
-        "same-basis peer comparability and reusable Exchange-family multiple corridor",
+        "verified same-horizon full-year Exchange peer comparability and reusable family multiple corridor",
     ]
+    if not bridge_ready:
+        missing.insert(0, "reusable Exchange-family issuer-adjusted earnings anchor on a comparable Current-FY basis")
     if is_db1:
         missing.append("post-Allfunds pro-forma leverage / capital-structure refresh when closing data become available")
     return {
         "applicable": True,
         "issuer_supported": True,
         "primary_source_complete": True,
+        "earnings_bridge_complete": bridge_ready,
         "valuation_anchor_complete": False,
         "transaction_guard_active": bool(snap.get("allfunds_acquisition_pending") or snap.get("major_pending_structural_transaction")),
         "snapshot": snap,
         "operational_score": score,
-        "specialist_valuation": {"available": False, "corridor_released": False},
+        "earnings_bridge": bridge,
+        "specialist_valuation": {"available": False, "corridor_released": False, "earnings_bridge": bridge},
         "readiness": readiness,
         "missing_valuation_inputs": missing,
         "note": (
             f"{APP_BUILD_VERSION} validates {snap.get('company')} under the Exchange / Market Infrastructure multi-issuer architecture. "
             "Deutsche Börse maps treasury-normalized structural economics; Nasdaq maps recurring Solutions/ARR/SaaS economics and Market Services. "
-            "No target P/E, EV/EBITDA or Fair Value is released until a common Current-FY earnings anchor and family multiple calibration are validated."
+            "The reusable Current-FY adjusted/Cash-EPS bridge is released for the two validated profiles. The family multiple corridor and Fair Value remain locked until full-year same-horizon peer comparability is validated."
         ),
     }
 
@@ -37741,14 +38000,15 @@ def build_exchange_market_infrastructure_special_control(control, specialist_mod
         "released": False,
         "confidence_cap": snap.get("valuation_confidence_cap") or "Niedrig bis Mittel",
         "router_status": (
-            "Schritt 3B aktiv – Deutsche Börse Primärdaten validiert; Nasdaq als zweiter Family-Adapter verfügbar, Bewertung weiterhin fail-closed"
+            "Schritt 3B aktiv – Deutsche Börse Primärdaten + Current-FY Cash-EPS-Bridge validiert; Run-Rate-Peer-Layer reference-only, Bewertung weiterhin fail-closed"
             if profile == "integrated_market_infrastructure" else
-            "Schritt 3B aktiv – Nasdaq Primärdaten validiert; zweiter unabhängiger Family-Adapter bestätigt, Bewertung weiterhin fail-closed"
+            "Schritt 3B aktiv – Nasdaq Primärdaten + Current-FY Non-GAAP-EPS-Bridge validiert; Run-Rate-Peer-Layer reference-only, Bewertung weiterhin fail-closed"
         ),
         "step3b_status": model.get("readiness"),
         "snapshot": snap,
         "checks": {
             "operational_score": model.get("operational_score") or {},
+            "earnings_bridge": model.get("earnings_bridge") or {},
             "specialist_valuation": model.get("specialist_valuation") or {},
             "transaction_guard_active": bool(model.get("transaction_guard_active")),
             "missing_valuation_inputs": list(model.get("missing_valuation_inputs") or []),
@@ -39242,6 +39502,26 @@ def get_peer_group(company_type, symbol, industry=None):
                 f"Branded Consumer Staples Peer Lock {APP_BUILD_VERSION}: Family-Peers sind ausschließlich Markt-Referenzen. "
                 "Unterschiede bei Snacks-/Getränke-/Food-Mix, Margen, Rohstoffexponierung, Franchise-/Bottling-Struktur, Reporting-Horizont und Accounting-Basis verhindern jede automatische Peer-Anpassung. "
                 "Der Peer-Median verändert weder Quality Score noch Ziel-KGV noch Fair Value."
+            ),
+        }
+
+    if own_symbol in {"DB1.DE", "NDAQ"} and is_exchange_market_infrastructure_specialist_type(company_type, own_symbol):
+        peers = [
+            {"symbol": "CME", "name": "CME Group", "role": "core_reference"},
+            {"symbol": "ICE", "name": "Intercontinental Exchange", "role": "core_reference"},
+            {"symbol": "CBOE", "name": "Cboe Global Markets", "role": "core_reference"},
+        ]
+        return {
+            "available": True,
+            "peers": peers,
+            "count": len(peers),
+            "target_symbol": own_symbol,
+            "peer_model": "exchange_adjusted_eps_runrate_reference_v1",
+            "reference_only": True,
+            "note": (
+                f"Exchange Peer Calibration {APP_BUILD_VERSION}: CME, ICE und Cboe bilden den ersten externen issuer-primary Referenzcluster. "
+                "Q1+Q2 2026 Adjusted EPS werden nur als H1-Run-Rate annualisiert und mit Live-USD-Preisen gebunden. Der Median ist reine Kalibrierungsevidenz; "
+                "weil dies kein verifizierter FY2026 Same-Horizon-Denominator ist, bleibt der Family-Multiple-Korridor ausdrücklich gesperrt."
             ),
         }
 
@@ -41022,6 +41302,11 @@ def calculate_peer_check(
             )
         return result
 
+    if (peer_group or {}).get("peer_model") == "exchange_adjusted_eps_runrate_reference_v1":
+        return _calculate_exchange_peer_runrate_reference(
+            peer_group, fundamental_multiple, cache_version
+        )
+
     if (peer_group or {}).get("peer_model") == "capital_goods_adjusted_eps_reference_v1":
         return _calculate_capital_goods_peer_calibration(
             peer_group, fundamental_multiple, cache_version
@@ -41306,14 +41591,14 @@ def get_special_control(company_type, symbol):
                     "Non-GAAP Operating Margin + Operating Leverage",
                     "Non-GAAP EPS + Operating Cash Flow als Earnings-/Cash-Qualität",
                     "Debt repayment + Buybacks + Dividenden als Capital-Allocation-/Balance-Evidenz",
-                    "gemeinsamer Current-FY Exchange-Earnings-Anker noch zu kalibrieren",
-                    "same-basis Peers und Family-Multiple-Korridor noch zu kalibrieren",
+                    "Current-FY Non-GAAP-EPS Earnings Bridge freigegeben (issuer-hosted FY2026 consensus)",
+                    "CME/ICE/Cboe H1-run-rate Peers reference-only; verifizierter Full-Year Same-Horizon-Peer-Korridor noch zu kalibrieren",
                     "Analystenziele ausschließlich Reality Check",
                 ],
                 "status": f"Router aktiv – {APP_BUILD_VERSION} Nasdaq Exchange-Infrastructure Second-Issuer Validation V1",
                 "note": (
                     "Nasdaq validiert den zweiten unabhängigen Exchange-Infrastructure-Adapter mit issuer-native Net-Revenue-, Solutions-, ARR/SaaS-, Operating-Margin-, EPS- und Cashflow-Evidenz. "
-                    "Deutsche-Börse-spezifische Treasury-Normalisierung wird nicht künstlich auf Nasdaq übertragen. Earnings-Anker, Multiple-Korridor und Fair Value bleiben bis zur Cross-Issuer-Kalibrierung gesperrt."
+                    "Deutsche-Börse-spezifische Treasury-Normalisierung wird nicht künstlich auf Nasdaq übertragen. Die gemeinsame Current-FY Earnings-Bridge ist freigegeben; Multiple-Korridor und Fair Value bleiben bis zur verifizierten Full-Year-Peer-Kalibrierung gesperrt."
                 ),
             }
         return {
@@ -41325,16 +41610,16 @@ def get_special_control(company_type, symbol):
                 "EBITDA ohne Treasury-Ergebnis + Operating Leverage / Margin",
                 "Diversifikation über Trading, Clearing, Post-Trade, Fund Services sowie Data/Index",
                 "Treasury-Ergebnis separat als Zins-/Cash-Balance-Sensitivität statt Kernwachstum",
-                "Pre-PPA/Cash-EPS-Earnings-Basis erst nach Family-Kalibrierung",
+                "Current-FY Cash-EPS-Bridge als transparenter mechanischer Proxy freigegeben; kein Company-Guidance-Claim",
                 "Kapitalallokation: EUR 500m Buyback + Allfunds Finanzierung",
                 "Allfunds ~EUR 5.3bn Transaction/Leverage Guard bis pro-forma Closing-Daten vorliegen",
-                "Nasdaq als zweiter unabhängiger Exchange-Infrastructure-Emittent; Cross-Issuer-Kalibrierung folgt",
+                "Nasdaq als zweiter unabhängiger Exchange-Infrastructure-Emittent; Earnings-Bridge freigegeben, Full-Year-Peer-/Multiple-Kalibrierung folgt",
                 "Analystenziele ausschließlich Reality Check",
             ],
             "status": f"Router aktiv – {APP_BUILD_VERSION} Exchange Infrastructure Multi-Issuer Validation V2",
             "note": (
                 "Deutsche Börse bleibt der treasury-normalisierte integrierte Marktinfrastruktur-Adapter. Nasdaq liefert inzwischen die zweite unabhängige Family-Validierung mit einem stärker wiederkehrenden Solutions-/ARR-Mix. "
-                "Der Allfunds-Guard bleibt für Deutsche Börse bindend; Earnings-Anker, Multiple-Korridor und Fair Value bleiben bis zur Cross-Issuer-Kalibrierung gesperrt."
+                "Der Allfunds-Guard bleibt für Deutsche Börse bindend. Die Current-FY Earnings-Bridge ist freigegeben; Multiple-Korridor und Fair Value bleiben bis zur verifizierten Full-Year-Peer-Kalibrierung gesperrt."
             ),
         }
 
@@ -57877,8 +58162,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                     f"Die Gegenleistung ist zu rund {_ex_snap.get('allfunds_cash_consideration_pct'):.0f}% Cash und {_ex_snap.get('allfunds_share_consideration_pct'):.0f}% Deutsche-Börse-Aktien geplant; regulatorische Genehmigungen stehen noch aus und der Abschluss wird für {_ex_snap.get('allfunds_expected_close')} erwartet."
                 ),
                 "action": (
-                    "Kein generisches KGV verwenden. Nasdaq bestätigt inzwischen den zweiten unabhängigen Exchange-KPI-Adapter; als Nächstes müssen ein gemeinsamer Current-FY Earnings-Anker und der Family-Multiple-/Peer-Korridor kalibriert werden. "
-                    "Allfunds bleibt zusätzlich bis zu belastbaren pro-forma Leverage-/Kapitalstrukturdaten ein Downside-/Confidence-Guard."
+                    "Kein generisches KGV verwenden. Die gemeinsame Current-FY Adjusted/Cash-EPS-Bridge ist inzwischen freigegeben; CME/ICE/Cboe liefern zunächst nur einen H1-annualisierten Run-Rate-Peer-Referenzlayer. "
+                    "Der Family-Multiple-Korridor bleibt bis zu verifizierter Full-Year-Same-Horizon-Comparability gesperrt. Allfunds bleibt zusätzlich bis zu belastbaren pro-forma Leverage-/Kapitalstrukturdaten ein Downside-/Confidence-Guard."
                 ),
                 "family_model_gate": True,
                 "transaction_guard": True,
@@ -57894,7 +58179,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                     "Nasdaq bestätigt den zweiten unabhängigen issuer-primary Exchange-/Market-Infrastructure-Adapter. ARR/SaaS-, Solutions-, Market-Services- und Operating-Leverage-Kennzahlen werden profile-aware abgebildet; es liegt kein bindender aktueller Structural-Break-Guard vor."
                 ),
                 "action": (
-                    "Kein generisches KGV verwenden. Nächster Schritt ist die Cross-Issuer-Kalibrierung einer gemeinsamen Current-FY Adjusted/Cash-Earnings-Basis sowie eines Exchange-Family-Multiple-Korridors mit same-basis Peer-Referenzen."
+                    "Kein generisches KGV verwenden. Die gemeinsame Current-FY Adjusted/Cash-EPS-Bridge ist freigegeben; CME/ICE/Cboe werden zunächst als H1-annualisierte Run-Rate-Referenzen geladen. "
+                    "Nächster Schritt ist eine verifizierte Full-Year-Same-Horizon-Peer-Basis und daraus erst anschließend der Exchange-Family-Multiple-Korridor."
                 ),
                 "family_model_gate": True,
                 "transaction_guard": False,
@@ -65211,8 +65497,14 @@ if selected_symbol:
                         "luxury_premium_reference_v1",
                         "branded_consumer_staples_reference_v2",
                         "integrated_oil_gas_major_reference_v1",
+                        "exchange_adjusted_eps_runrate_reference_v1",
                     }
-                    if reference_only_peer_group_ui:
+                    if peer_group.get("peer_model") == "exchange_adjusted_eps_runrate_reference_v1":
+                        st.info(
+                            "Reference-only Exchange-Kalibrierung: Drei live H1-annualisierte Adjusted-EPS-Beobachtungen können einen Run-Rate-Median liefern, "
+                            "aber sie erfüllen bewusst noch nicht das Full-Year/Current-FY-Comparability-Gate und können weder Multiple-Korridor noch Fair Value freigeben."
+                        )
+                    elif reference_only_peer_group_ui:
                         st.info(
                             "Reference-only Peer-Set: Es gilt keine Mindestanzahl als Freigabe- oder Sicherheitsbedingung. "
                             "Fehlende Peer-KGVs blockieren den Spezial-Fair-Value nicht und verändern weder Score noch Ziel-Multiple."
@@ -65271,6 +65563,11 @@ if selected_symbol:
                         "Schritt 2A verändert weder Oilfield/Energy-Tech Quality Score noch Ziel-KGV. "
                         "SLB/HAL/FTI/BKR werden ausschließlich als reference-only Marktvergleich geladen; keine automatische Peer-Anpassung und kein Peer-bedingter Confidence-Abzug."
                     )
+                elif peer_group.get("peer_model") == "exchange_adjusted_eps_runrate_reference_v1":
+                    st.caption(
+                        "Schritt 2A lädt CME, ICE und Cboe mit issuer-primary Q1+Q2-Adjusted-EPS. Die H1-Werte werden nur als transparente Run-Rate annualisiert; "
+                        "der Median ist Markt-/Kalibrierungskontext und kein freigegebener Current-FY-Peer-Anker."
+                    )
                 elif peer_group.get("peer_model") == "capital_goods_adjusted_eps_reference_v1":
                     st.caption(
                         "Schritt 2A lädt drei externe FY2026-Adjusted-EPS-Kalibrierungs-Peers. Der 22–32× Family-Korridor ist bereits kalibriert; "
@@ -65328,6 +65625,7 @@ if selected_symbol:
                 is_oilfield_services_peer_metric = peer_check.get("metric") == "Oilfield Services & Energy Technology Forward P/E reference-only"
                 is_integrated_oil_gas_peer_metric = peer_check.get("metric") == "Integrated Oil & Gas Major Forward P/E reference-only"
                 is_capital_goods_peer_metric = peer_check.get("metric") == "Capital Goods issuer-adjusted current-FY P/E calibration"
+                is_exchange_peer_metric = peer_check.get("metric") == "Exchange adjusted-EPS H1 annualized run-rate P/E reference"
 
                 if not peer_check[
                     "method_supported"
@@ -65367,6 +65665,8 @@ if selected_symbol:
                         peer_header = "**Integrated-Oil-&-Gas Major Peer-Forward-KGVs (reference-only):**"
                     elif is_capital_goods_peer_metric:
                         peer_header = "**Capital-Goods issuer-adjusted Current-FY Peer-KGVs (Kalibrierung):**"
+                    elif is_exchange_peer_metric:
+                        peer_header = "**Exchange H1-annualisierte Adjusted-EPS Run-Rate-P/Es (reference-only):**"
                     else:
                         peer_header = "**Geladene Peer-KGVs:**"
                     st.write(peer_header)
@@ -65448,6 +65748,16 @@ if selected_symbol:
                                     f"• {row['name']} ({row['symbol']}): {peer_value:.2f}× · Preis {px_txt} · FY2026 Adjusted EPS {eps_txt} "
                                     f"· {text_or_dash(row.get('business_fit'))}{portfolio_note}"
                                 )
+                            elif is_exchange_peer_metric:
+                                px_val = safe_float(row.get("price")); h1_val = safe_float(row.get("h1_adjusted_eps")); ann_val = safe_float(row.get("annualized_adjusted_eps"))
+                                ccy_val = row.get("quote_currency") or ""
+                                px_txt = f"{px_val:.2f} {ccy_val}" if px_val is not None else "–"
+                                h1_txt = f"{h1_val:.2f} {ccy_val}" if h1_val is not None else "–"
+                                ann_txt = f"{ann_val:.2f} {ccy_val}" if ann_val is not None else "–"
+                                st.write(
+                                    f"• {row['name']} ({row['symbol']}): {peer_value:.2f}× · Preis {px_txt} · H1 Adjusted EPS {h1_txt} · annualisierte Run-Rate {ann_txt} "
+                                    f"· {text_or_dash(row.get('business_fit'))}"
+                                )
                             elif is_asset_management_peer_metric:
                                 role_label = "Premium-Referenz" if row.get("role") == "premium_reference" else "Core-Peer"
                                 st.write(
@@ -65473,7 +65783,7 @@ if selected_symbol:
                             )
                     else:
                         st.write(
-                            ("**Brauchbare Referenz-Peer-Daten:** " if (is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric or is_kratos_peer_metric or is_bkr_peer_metric or is_medical_devices_peer_metric or is_capital_goods_peer_metric) else "**Brauchbare Peer-Daten:** ")
+                            ("**Brauchbare Referenz-Peer-Daten:** " if (is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric or is_kratos_peer_metric or is_bkr_peer_metric or is_medical_devices_peer_metric or is_capital_goods_peer_metric or is_exchange_peer_metric) else "**Brauchbare Peer-Daten:** ")
                             + f"{peer_check['usable_count']}"
                         )
                     if is_capital_goods_peer_metric:
@@ -65482,6 +65792,17 @@ if selected_symbol:
                             st.success("Capital-Goods Peer Data Gate bestanden: drei issuer-adjusted FY2026 P/E-Beobachtungen sind live verfügbar. Der 22–32× Family-Multiple-Korridor ist für die zwei validierten Profile freigegeben; der Live-Median bleibt ausschließlich Reference/Downside-Ceiling.")
                         else:
                             st.warning("Capital-Goods Peer Data Gate nicht bestanden: weniger als drei live same-currency issuer-adjusted FY2026 P/E-Beobachtungen verfügbar.")
+
+                    if is_exchange_peer_metric:
+                        st.write(f"**H1-Run-Rate-Referenzbeobachtungen:** {peer_check.get('usable_count', 0)}/3")
+                        if peer_check.get("runrate_reference_ready"):
+                            st.success("Exchange Run-Rate Reference Set vollständig: CME, ICE und Cboe liefern drei live same-currency Beobachtungen.")
+                        else:
+                            st.warning("Exchange Run-Rate Reference Set unvollständig: weniger als drei live same-currency Beobachtungen verfügbar.")
+                        st.warning(
+                            "Full-Year/Current-FY Comparability Gate bewusst NICHT bestanden: Q1+Q2 Adjusted EPS werden lediglich annualisiert. "
+                            "Saisonalität und H2-Earnings sind nicht verifiziert; der Median kann keinen Family-Multiple-Korridor und keinen Fair Value freigeben."
+                        )
 
                     if is_midstream_peer_metric or is_automotive_peer_metric or is_semicap_peer_metric or is_nvidia_peer_metric or is_kratos_peer_metric or is_bkr_peer_metric or is_medical_devices_peer_metric:
                         if is_medical_devices_peer_metric:
@@ -65528,10 +65849,27 @@ if selected_symbol:
                                 )
 
                     if peer_check["peer_median"] is not None:
-                        st.metric(
-                            "Peer-Median EV/EBITDA" if is_midstream_peer_metric else ("Automotive Referenzmedian Forward-KGV" if is_automotive_peer_metric else ("Semicap Referenzmedian Forward-KGV" if is_semicap_peer_metric else ("NVIDIA Referenzmedian Forward-KGV" if is_nvidia_peer_metric else ("Kratos Referenzmedian Forward-KGV" if is_kratos_peer_metric else ("Baker Hughes Component-Referenzmedian Forward-KGV" if is_bkr_peer_metric else ("Medical-Devices Referenzmedian Forward-KGV" if is_medical_devices_peer_metric else ("Capital-Goods issuer-adjusted Current-FY Referenzmedian" if is_capital_goods_peer_metric else "Peer-Median Forward-KGV"))))))),
-                            f"{peer_check['peer_median']:.2f}×"
-                        )
+                        if is_midstream_peer_metric:
+                            peer_median_label = "Peer-Median EV/EBITDA"
+                        elif is_automotive_peer_metric:
+                            peer_median_label = "Automotive Referenzmedian Forward-KGV"
+                        elif is_semicap_peer_metric:
+                            peer_median_label = "Semicap Referenzmedian Forward-KGV"
+                        elif is_nvidia_peer_metric:
+                            peer_median_label = "NVIDIA Referenzmedian Forward-KGV"
+                        elif is_kratos_peer_metric:
+                            peer_median_label = "Kratos Referenzmedian Forward-KGV"
+                        elif is_bkr_peer_metric:
+                            peer_median_label = "Baker Hughes Component-Referenzmedian Forward-KGV"
+                        elif is_medical_devices_peer_metric:
+                            peer_median_label = "Medical-Devices Referenzmedian Forward-KGV"
+                        elif is_capital_goods_peer_metric:
+                            peer_median_label = "Capital-Goods issuer-adjusted Current-FY Referenzmedian"
+                        elif is_exchange_peer_metric:
+                            peer_median_label = "Exchange H1-annualized Adjusted-EPS Run-Rate Referenzmedian"
+                        else:
+                            peer_median_label = "Peer-Median Forward-KGV"
+                        st.metric(peer_median_label, f"{peer_check['peer_median']:.2f}×")
 
                     if is_medical_devices_peer_metric and peer_check.get("structural_core_median") is not None:
                         st.metric(
@@ -65597,7 +65935,15 @@ if selected_symbol:
                                 )
 
                             if peer_check.get("reference_only"):
-                                if is_capital_goods_peer_metric:
+                                if is_exchange_peer_metric:
+                                    if peer_check.get("peer_median") is not None:
+                                        st.info(
+                                            f"Run-Rate-Referenzmedian {safe_float(peer_check.get('peer_median')):.2f}× verfügbar – ausschließlich Markt-/Kalibrierungskontext. "
+                                            "Kein Full-Year/Current-FY-Peer-Gate, kein Ziel-Multiple und kein Fair Value werden daraus abgeleitet."
+                                        )
+                                    else:
+                                        st.warning("Kein belastbarer 3-Peer-Run-Rate-Median verfügbar; die Exchange-Bewertung bleibt ohnehin fail-closed.")
+                                elif is_capital_goods_peer_metric:
                                     cg_peer_median_ui = safe_float(peer_check.get("peer_median"))
                                     cg_fundamental_ui = safe_float((data.get("fundamental_multiple") or {}).get("multiple"))
                                     if cg_peer_median_ui is None:
@@ -65657,6 +66003,11 @@ if selected_symbol:
                     peer_explain = f"Oilfield Services & Energy Technology {APP_BUILD_VERSION}: SLB/HAL/FTI/BKR bleiben reference-only; Score, Same-Basis Adjusted-EPS-Bridge, Ziel-KGV und Fair Value bleiben issuer-/profil-spezifisch."
                 elif is_integrated_oil_gas_peer_metric:
                     peer_explain = f"Integrated Oil & Gas {APP_BUILD_VERSION}: Die anderen globalen Majors sind reine Markt-Referenzen. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Peer-Anpassung; Score, Through-Cycle-EPS, Ziel-KGV und Fair Value bleiben issuer-spezifisch."
+                elif is_exchange_peer_metric:
+                    peer_explain = (
+                        f"Exchange / Market Infrastructure {APP_BUILD_VERSION}: CME/ICE/Cboe basieren nur auf annualisierter H1-2026 Adjusted-EPS-Run-Rate. "
+                        "Der Median ist reference-only; Full-Year/Current-FY-Horizont und H2-Saisonalität sind noch nicht verifiziert, daher keine Multiple- oder Fair-Value-Wirkung."
+                    )
                 elif bool((data.get("professional_business_services_specialist_model") or {}).get("applicable")):
                     ps_peer_model_b_ui = data.get("professional_business_services_specialist_model") or {}
                     if ps_peer_model_b_ui.get("valuation_anchor_complete"):
@@ -65667,7 +66018,12 @@ if selected_symbol:
                     peer_explain = "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
 
                 if peer_check.get("reference_only"):
-                    if is_capital_goods_peer_metric:
+                    if is_exchange_peer_metric:
+                        st.caption(
+                            f"Exchange Peer-Layer {APP_BUILD_VERSION}: Drei H1-run-rate Beobachtungen können einen Marktmedian liefern, aber das Current-FY/Full-Year Comparability Gate bleibt bewusst geschlossen. "
+                            "Der Median verändert weder Operational Score noch Earnings Bridge und kann keinen Family-Korridor freigeben."
+                        )
+                    elif is_capital_goods_peer_metric:
                         _cg_peer_model_caption = data.get("industrials_capital_goods_specialist_model") or {}
                         if bool(_cg_peer_model_caption.get("structural_break_active") or _cg_peer_model_caption.get("sotp_required")):
                             st.caption(
@@ -65688,7 +66044,12 @@ if selected_symbol:
                     st.caption("Der Peer-Check ist nur ein externer Realitätscheck. Er verändert den 100-Punkte-Multiple-Score nicht. " + peer_explain)
 
                 if peer_check.get("reference_only"):
-                    if is_capital_goods_peer_metric:
+                    if is_exchange_peer_metric:
+                        st.caption(
+                            "Die Exchange-Peer-Schicht erzeugt selbst keinen Fair Value. V153 nutzt sie ausschließlich zur Marktband-/Plausibilitätsbeobachtung; "
+                            "ein späterer Family-Korridor erfordert verifizierte Full-Year same-horizon Adjusted/Cash-EPS-Peers."
+                        )
+                    elif is_capital_goods_peer_metric:
                         _cg_peer_model_footer = data.get("industrials_capital_goods_specialist_model") or {}
                         if bool(_cg_peer_model_footer.get("structural_break_active") or _cg_peer_model_footer.get("sotp_required")):
                             st.caption(
@@ -65948,6 +66309,47 @@ if selected_symbol:
                                 f"Treasury-Normalisierung: Q2 Treasury-Ergebnis {format_money(snap_ex.get('q2_treasury_result'), snap_ex.get('reporting_currency') or financial_currency)} wird separat geführt. "
                                 "Strukturelles Wachstum und Operating Leverage werden vor Treasury-Effekt bewertet."
                             )
+                        bridge_ex = checks_ex.get("earnings_bridge") or {}
+                        if bridge_ex.get("available"):
+                            st.write("**Current-FY Earnings Bridge (familienweit freigegebene Basisdefinition):**")
+                            ex_bridge_ccy = bridge_ex.get("currency") or snap_ex.get("reporting_currency") or financial_currency
+                            st.metric(
+                                "FY2026 Adjusted / Cash-EPS-Basis",
+                                f"{safe_float(bridge_ex.get('earnings_per_share')):.2f} {ex_bridge_ccy}"
+                            )
+                            if ex_profile == "integrated_market_infrastructure":
+                                st.caption(
+                                    f"Mechanischer Cash-EPS-Proxy: FY2026 reported-EPS consensus {safe_float(bridge_ex.get('reported_eps_consensus')):.2f} EUR "
+                                    f"+ annualisierter H1-PPA-Addback {safe_float(bridge_ex.get('annualized_ppa_addback')):.2f} EUR = {safe_float(bridge_ex.get('earnings_per_share')):.2f} EUR. "
+                                    f"Q1 reported/Cash EPS {safe_float(bridge_ex.get('q1_reported_eps')):.2f}/{safe_float(bridge_ex.get('q1_cash_eps')):.2f}; "
+                                    f"Q2 {safe_float(bridge_ex.get('q2_reported_eps')):.2f}/{safe_float(bridge_ex.get('q2_cash_eps')):.2f}. "
+                                    "Dies ist keine Unternehmens-Guidance; Bridge-Sicherheit Mittel."
+                                )
+                                st.markdown(
+                                    f"[FY2026 issuer-hosted Consensus]({bridge_ex.get('source_url')}) · "
+                                    f"[Q1 2026 Cash EPS]({bridge_ex.get('secondary_source_url')}) · "
+                                    f"[Q2 2026 Cash EPS]({bridge_ex.get('secondary_source_url_2')})"
+                                )
+                            else:
+                                st.caption(
+                                    f"Issuer-hosted FY2026 Non-GAAP EPS analyst consensus: mean {safe_float(bridge_ex.get('earnings_per_share')):.2f} USD · "
+                                    f"median {safe_float(bridge_ex.get('consensus_median')):.2f} USD · range {safe_float(bridge_ex.get('consensus_low')):.2f}–{safe_float(bridge_ex.get('consensus_high')):.2f} USD · "
+                                    f"{int(bridge_ex.get('consensus_count') or 0)} estimates. Bridge-Sicherheit Hoch."
+                                )
+                                st.markdown(f"[Nasdaq Earnings Estimates]({bridge_ex.get('source_url')})")
+                            ex_provider_eps = safe_float(bridge_ex.get("provider_current_fy_eps"))
+                            ex_bridge_eps = safe_float(bridge_ex.get("earnings_per_share"))
+                            ex_gap = safe_float(bridge_ex.get("provider_gap_pct"))
+                            if ex_provider_eps is not None and ex_bridge_eps is not None:
+                                st.caption(
+                                    f"Provider 0Y/current-FY EPS nur Diagnose: {ex_provider_eps:.2f} {ex_bridge_ccy}" +
+                                    (f" · Abweichung {ex_gap:+.1f}% zur Specialist Bridge." if ex_gap is not None else ".") +
+                                    " Numerische Nähe beweist keine identische Accounting-Basis."
+                                )
+                            st.info(
+                                "Die Exchange Current-FY Earnings Bridge ist freigegeben. Sie setzt noch kein Bewertungs-Multiple: Family-Korridor und Fair Value bleiben bis zur verifizierten Full-Year-Peer-Comparability gesperrt."
+                            )
+
                         st.write(f"**Operationaler Exchange-Infrastructure-Qualitätsscore:** {int(safe_float(score_ex.get('score')) or 0)}/100 · {text_or_dash(score_ex.get('quality_level'))}")
                         st.caption("Dieser Score beschreibt operative Qualität und Primärdatenreife; er ist ausdrücklich noch kein P/E-/EV-Multiple-Score und kein Fair-Value-Anker.")
                         comp_ex = score_ex.get("components") or {}
@@ -65974,7 +66376,7 @@ if selected_symbol:
                         st.write("**Für die familienweite Bewertungsfreigabe fehlen noch:**")
                         for miss_ex in checks_ex.get("missing_valuation_inputs") or []:
                             st.write(f"• {miss_ex}")
-                        st.info("Fair Value bleibt fail-closed: zwei unabhängige issuer-primary Exchange-Adapter sind nun validiert; der gemeinsame Current-FY Earnings-Anker sowie Family-Multiple-/Peer-Comparability sind noch nicht freigegeben. Deutsche Börse benötigt zusätzlich später den post-Allfunds Kapitalstruktur-Refresh.")
+                        st.info("Fair Value bleibt fail-closed: zwei unabhängige issuer-primary Exchange-Adapter und die gemeinsame Current-FY Adjusted/Cash-EPS-Bridge sind validiert. Der Family-Multiple-Korridor bleibt jedoch bis zu verifizierter Full-Year same-horizon Peer-Comparability gesperrt. Deutsche Börse benötigt zusätzlich später den post-Allfunds Kapitalstruktur-Refresh.")
                     else:
                         st.warning("Exchange-Infrastructure-Spezialprüfung noch nicht vollständig implementiert.")
 
