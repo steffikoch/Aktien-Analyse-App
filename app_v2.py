@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.55"
+APP_BUILD_VERSION = "V2.22.56"
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
@@ -31,13 +31,15 @@ st.caption(
     "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Exchange Peer-Render Runtime Fix V151"
+    f"Build {APP_BUILD_VERSION} · Exchange Multi-Issuer Nasdaq Validation V152"
 )
 
 
 # V2.22.54: Deutsche Börse Primary-Listing Search Guard V150. Search-only hotfix after the first V149 live test showed that the Exchange / Market Infrastructure specialist route existed but the security resolver had no verified Deutsche-Börse name alias, so a literal "Deutsche Börse" query could return no selectable equity before DB1.DE ever reached the valuation router. Adds verified aliases for Deutsche Börse/Deutsche Boerse/DB1/DB1.DE that resolve to the XETRA home listing DB1.DE (EUR), and bumps the resolver cache epoch so stale empty search results cannot survive the fix. Exchange V149 score/gates, Capital-Goods V148 mathematics and all other valuation logic are unchanged.
 
 # V2.22.55: Exchange Peer-Render Runtime Fix V151. Fixes a UI-only NameError in Module 6 Step 2A for families without an automatic peer group: a Capital-Goods peer-metric flag was referenced before Step 2B initialized it. Schneider/Capital-Goods never exposed the bug because its peer-model branch short-circuited first; Deutsche Börse reached the stale branch and aborted rendering after Step 2A. Removes the stale pre-initialization branch. Also clarifies the Exchange-family standard EPS-normalization footer as diagnosis-only so it cannot be mistaken for the future specialist earnings anchor. No Exchange score/gate mathematics, Capital-Goods V148/V147 valuation mathematics, search logic, or other released specialist models changed.
+
+# V2.22.56: Exchange / Market Infrastructure Multi-Issuer Nasdaq Validation V152. Adds Nasdaq, Inc. (NDAQ) as the second independent issuer-primary validation profile under the Exchange / Market Infrastructure family without releasing a family valuation yet. The shared 100-point operating architecture now maps issuer-native evidence into Structural Growth, Operating Leverage, Mix/Resilience, Revenue Quality/Normalization, Earnings Quality, Capital Allocation and Transaction/Structure. Deutsche Börse keeps its 87/100 score with treasury normalization and Allfunds guard; Nasdaq uses net revenue/organic growth, Solutions + Market Services mix, ARR/SaaS recurrence, non-GAAP operating margin/EPS, cash generation and debt-paydown/capital-return evidence. Also marks Provider 0Y/current-FY EPS as diagnosis-only in the Exchange UI and rewrites the horizon banner accordingly. No Exchange earnings anchor, multiple corridor, Fair Value or signal is released; same-basis earnings/multiple calibration remains the next gate. Capital-Goods V148 mathematics and all other released specialist models are unchanged.
 
 # V2.22.15: Universal Professional-Services Industry Precedence Guard V111. Adds a reusable Professional & Business Services valuation family and fixes an over-broad Industrials sector fallback that previously routed Specialty Business Services issuers into Industrials / Capital Goods. High-confidence professional-service industries now outrank the broad Industrials sector; broader service labels require corroborating business-model evidence such as professional/advisory/consulting, corporate-finance/due-diligence, legal/accounting/tax, restructuring/recovery, fee-earner/network, licence-fee or revenue-share economics. Capital-goods/manufacturing industries remain on the existing Industrials route. The new family is defined_unreleased and therefore fail-closed: no generic Standard score, Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV, Fair Value or signals are unlocked. V110 Asset-Management evidence recovery, GBp/GBP unit handling and all released valuation mathematics remain unchanged.
 # V2.22.16: Professional & Business Services Specialist Model V1 V112. First validated issuer: DSW Capital (DSW.L). Releases an issuer-primary Professional & Business Services specialist path for DSW while keeping the wider family globally unreleased until a second independent issuer is validated. The model scores platform/network growth and fee-earner productivity, adjusted EBITDA/PBT quality, issuer operating cash conversion, balance quality, licence/revenue-mix resilience, capital allocation/dilution and earnings stability. Valuation uses an issuer-adjusted two-year diluted-EPS anchor (FY26 weighted 80%, FY25 20%) with a 9–18x score corridor and a downside-only small-cap/liquidity cap. Generic Yahoo growth/ROE/FCF/Net-Debt-to-FCF, Standard-KGV and analyst targets remain outside the specialist Fair Value. GBp/GBP conversion stays explicit at 1 GBP = 100 GBp. V110 Asset-Management evidence recovery and all other released specialist mathematics remain unchanged.
@@ -37471,8 +37473,8 @@ def build_professional_business_services_special_control(control, specialist_mod
 
 
 # =========================================================
-# V2.22.53 – Exchange / Market Infrastructure Specialist V1
-# First issuer-primary validation profile: Deutsche Börse AG (DB1.DE)
+# V2.22.56 – Exchange / Market Infrastructure Specialist V2
+# Multi-issuer validation: Deutsche Börse AG (DB1.DE) + Nasdaq, Inc. (NDAQ)
 # =========================================================
 
 def is_exchange_market_infrastructure_specialist_type(company_type, symbol=None):
@@ -37480,16 +37482,11 @@ def is_exchange_market_infrastructure_specialist_type(company_type, symbol=None)
     family = str((company_type or {}).get("valuation_family") or "").strip().lower()
     type_name = normalized_company_type_name(company_type)
     sym = str(symbol or "").upper().strip()
-    return sym == "DB1.DE" or family_id == "exchange_market_infrastructure" or "exchange / market infrastructure" in family or "exchange / market infrastructure" in type_name
+    return sym in {"DB1.DE", "NDAQ"} or family_id == "exchange_market_infrastructure" or "exchange / market infrastructure" in family or "exchange / market infrastructure" in type_name
 
 
 def get_verified_deutsche_boerse_exchange_snapshot(symbol):
-    """Issuer-primary Deutsche Börse snapshot for first Exchange-family validation.
-
-    Structural operating economics are measured before treasury result so that
-    interest-rate/cash-balance effects do not masquerade as core exchange growth.
-    Monetary amounts are EUR unless otherwise noted.
-    """
+    """Issuer-primary Deutsche Börse snapshot for Exchange-family validation."""
     if str(symbol or "").upper().strip() != "DB1.DE":
         return None
     return {
@@ -37505,7 +37502,6 @@ def get_verified_deutsche_boerse_exchange_snapshot(symbol):
         "fy2025_report_url": "https://www.deutsche-boerse.com/dbg-en/investor-relations/financial-reports/annual-report-2025",
         "allfunds_url": "https://www.deutsche-boerse.com/dbg-en/media/news-stories/press-releases/Deutsche-B-rse-Group-s-Recommended-Acquisition-of-Allfunds-Shareholder-Approvals-of-Allfunds-Obtained-5008700",
         "next_q3_report_date": "20.10.2026",
-        # Q2 2026 current operating evidence
         "q2_net_revenue_ex_treasury": 1.412e9,
         "q2_net_revenue_ex_treasury_growth_pct": 9.0,
         "q2_treasury_result": 0.205e9,
@@ -37520,20 +37516,17 @@ def get_verified_deutsche_boerse_exchange_snapshot(symbol):
         "q2_eps_pre_ppa": 3.33,
         "q2_business_units_with_revenue_growth": 6,
         "q2_business_units_total": 8,
-        # FY2026 outlook
         "fy2026_net_revenue_ex_treasury_guidance": 5.7e9,
         "fy2026_ebitda_ex_treasury_guidance": 3.1e9,
         "fy2026_treasury_result_guidance_min": 0.7e9,
         "fy2026_total_net_revenue_guidance_min": 6.4e9,
         "fy2026_total_ebitda_guidance_min": 3.8e9,
-        # FY2025 structural baseline
         "fy2025_net_revenue_ex_treasury": 5.189e9,
         "fy2025_treasury_result": 0.837e9,
         "fy2025_total_net_revenue": 6.026e9,
         "fy2025_total_ebitda": 3.512e9,
         "fy2025_ebitda_ex_treasury": 2.675e9,
         "fy2025_net_profit": 1.995e9,
-        # Capital allocation / transaction evidence
         "share_buyback_2026_completed": True,
         "share_buyback_2026_value": 0.5e9,
         "allfunds_acquisition_pending": True,
@@ -37548,43 +37541,135 @@ def get_verified_deutsche_boerse_exchange_snapshot(symbol):
         "valuation_confidence_cap": "Niedrig bis Mittel",
         "note": (
             "Deutsche Börse is assessed on structural net revenue and EBITDA before treasury result, diversified market-infrastructure economics, "
-            "earnings quality and capital allocation. The pending Allfunds acquisition is a material transaction/leverage guard; no Exchange-family "
-            "earnings anchor, target multiple or Fair Value is released in the first validation build."
+            "earnings quality and capital allocation. The pending Allfunds acquisition remains a material transaction/leverage guard."
         ),
     }
 
 
+def get_verified_nasdaq_exchange_snapshot(symbol):
+    """Issuer-primary Nasdaq snapshot for the second Exchange-family adapter.
+
+    Nasdaq has a different mix from Deutsche Börse: recurring Solutions/ARR/SaaS
+    quality is the key normalization layer instead of a treasury-result carve-out.
+    Monetary amounts are USD unless otherwise noted.
+    """
+    if str(symbol or "").upper().strip() != "NDAQ":
+        return None
+    return {
+        "company": "Nasdaq, Inc.",
+        "symbol": "NDAQ",
+        "specialist_profile": "Exchange / Market Services / Financial Technology / Index & Data Platform",
+        "specialist_profile_key": "solutions_market_infrastructure",
+        "reporting_currency": "USD",
+        "as_of_date": "30.06.2026",
+        "published_date": "23.07.2026",
+        "source_name": "Nasdaq Q2 2026 Results + 2025 Annual Report / IR materials",
+        "q2_results_url": "https://ir.nasdaq.com/node/110756",
+        "quarterly_results_url": "https://ir.nasdaq.com/financials/quarterly-results",
+        "annual_report_url": "https://ir.nasdaq.com/financials/annual-reports",
+        "q2_net_revenue": 1.500e9,
+        "q2_net_revenue_growth_pct": 15.0,
+        "q2_net_revenue_organic_growth_pct": 16.0,
+        "q2_solutions_revenue": 1.160e9,
+        "q2_solutions_revenue_growth_pct": 17.0,
+        "q2_market_services_net_revenue": 0.340e9,
+        "q2_market_services_net_revenue_growth_pct": 11.0,
+        "q2_financial_technology_revenue": 0.539e9,
+        "q2_financial_technology_revenue_growth_pct": 16.0,
+        "q2_index_revenue": 0.271e9,
+        "q2_index_revenue_growth_pct": 38.0,
+        "q2_arr": 3.258e9,
+        "q2_arr_growth_pct": 11.0,
+        "q2_arr_organic_growth_pct": 12.0,
+        "q2_saas_arr_share_pct": 38.0,
+        "q2_saas_organic_growth_pct": 15.0,
+        "q2_non_gaap_operating_income": 0.859e9,
+        "q2_non_gaap_operating_income_growth_pct": 19.0,
+        "q2_non_gaap_operating_margin_pct": 57.0,
+        "q2_non_gaap_operating_margin_prior_pct": 55.0,
+        "q2_non_gaap_eps": 1.07,
+        "q2_non_gaap_eps_growth_pct": 25.0,
+        "q2_cash_flow_from_operations": 0.711e9,
+        "q2_dividends": 0.174e9,
+        "q2_share_repurchases": 0.356e9,
+        "q2_net_debt_repayment": 0.162e9,
+        "q2_cash": 0.520e9,
+        "q2_short_term_debt": 0.269e9,
+        "q2_long_term_debt": 8.492e9,
+        "q2_divisions_with_double_digit_growth": 3,
+        "q2_divisions_total": 3,
+        "major_pending_structural_transaction": False,
+        "valuation_confidence_cap": "Niedrig bis Mittel",
+        "note": (
+            "Nasdaq validates a second Exchange-family adapter using net-revenue growth, Solutions/Market Services mix, ARR/SaaS recurrence, "
+            "non-GAAP operating leverage and EPS quality, cash generation and balance/capital-allocation evidence."
+        ),
+    }
+
+
+def get_verified_exchange_market_infrastructure_snapshot(symbol):
+    return get_verified_deutsche_boerse_exchange_snapshot(symbol) or get_verified_nasdaq_exchange_snapshot(symbol)
+
+
 def build_exchange_market_infrastructure_operational_score(snapshot):
     snap = snapshot or {}
-    if snap.get("specialist_profile_key") != "integrated_market_infrastructure":
+    profile = snap.get("specialist_profile_key")
+    if profile == "integrated_market_infrastructure":
+        rev_g = safe_float(snap.get("q2_net_revenue_ex_treasury_growth_pct"))
+        ebitda_g = safe_float(snap.get("q2_ebitda_ex_treasury_growth_pct"))
+        rev = safe_float(snap.get("q2_net_revenue_ex_treasury"))
+        ebitda = safe_float(snap.get("q2_ebitda_ex_treasury"))
+        margin = (100.0 * ebitda / rev) if (ebitda is not None and rev not in (None, 0)) else None
+        np_g = safe_float(snap.get("q2_net_profit_growth_pct"))
+        units_growing = safe_float(snap.get("q2_business_units_with_revenue_growth"))
+        units_total = safe_float(snap.get("q2_business_units_total"))
+        structural_growth = 18 if rev_g is not None and rev_g >= 8 else 15 if rev_g is not None and rev_g >= 5 else 10
+        operating_leverage = 19 if (ebitda_g is not None and rev_g is not None and ebitda_g >= rev_g + 3 and (margin or 0) >= 54) else 16
+        mix_resilience = 14 if (units_growing is not None and units_total and units_growing / units_total >= 0.70) else 11
+        revenue_quality = 10 if safe_float(snap.get("q2_treasury_result")) is not None and safe_float(snap.get("q2_net_revenue_ex_treasury")) is not None else 5
+        earnings_quality = 13 if np_g is not None and np_g >= 10 and (safe_float(snap.get("q2_eps_pre_ppa")) or 0) > 0 else 10
+        capital_allocation = 8 if snap.get("share_buyback_2026_completed") and snap.get("allfunds_committed_funding") else 6
+        transaction_structure = 5 if snap.get("allfunds_acquisition_pending") else 10
+        components = {
+            "structural_growth": {"score": structural_growth, "max": 20, "growth_pct": rev_g},
+            "operating_leverage": {"score": operating_leverage, "max": 20, "profit_growth_pct": ebitda_g, "margin_pct": margin},
+            "mix_resilience": {"score": mix_resilience, "max": 15, "units_with_growth": units_growing, "units_total": units_total},
+            "revenue_quality_normalization": {"score": revenue_quality, "max": 10, "normalization": "treasury_result_separated"},
+            "earnings_quality": {"score": earnings_quality, "max": 15, "earnings_growth_pct": np_g, "eps": safe_float(snap.get("q2_eps_pre_ppa"))},
+            "capital_allocation": {"score": capital_allocation, "max": 10, "buyback_value": safe_float(snap.get("share_buyback_2026_value")), "rating_target": snap.get("post_allfunds_rating_target")},
+            "transaction_structure": {"score": transaction_structure, "max": 10, "pending_transaction": bool(snap.get("allfunds_acquisition_pending"))},
+        }
+    elif profile == "solutions_market_infrastructure":
+        rev_g = safe_float(snap.get("q2_net_revenue_organic_growth_pct"))
+        op_g = safe_float(snap.get("q2_non_gaap_operating_income_growth_pct"))
+        margin = safe_float(snap.get("q2_non_gaap_operating_margin_pct"))
+        prior_margin = safe_float(snap.get("q2_non_gaap_operating_margin_prior_pct"))
+        divisions = safe_float(snap.get("q2_divisions_with_double_digit_growth"))
+        divisions_total = safe_float(snap.get("q2_divisions_total"))
+        arr_g = safe_float(snap.get("q2_arr_organic_growth_pct"))
+        saas_share = safe_float(snap.get("q2_saas_arr_share_pct"))
+        eps_g = safe_float(snap.get("q2_non_gaap_eps_growth_pct"))
+        cfo = safe_float(snap.get("q2_cash_flow_from_operations"))
+        debt_repay = safe_float(snap.get("q2_net_debt_repayment"))
+        structural_growth = 20 if rev_g is not None and rev_g >= 14 else 18 if rev_g is not None and rev_g >= 10 else 15
+        operating_leverage = 19 if (op_g is not None and rev_g is not None and op_g >= rev_g + 3 and (margin or 0) >= 55 and (prior_margin is None or margin > prior_margin)) else 16
+        mix_resilience = 15 if (divisions is not None and divisions_total and divisions / divisions_total >= 1.0 and safe_float(snap.get("q2_solutions_revenue_growth_pct")) >= 15) else 13
+        revenue_quality = 10 if (arr_g is not None and arr_g >= 10 and saas_share is not None and saas_share >= 35) else 8
+        earnings_quality = 14 if (eps_g is not None and eps_g >= 20 and cfo is not None and cfo > 0) else 12
+        capital_allocation = 7 if (debt_repay is not None and debt_repay > 0 and safe_float(snap.get("q2_share_repurchases")) > 0 and safe_float(snap.get("q2_dividends")) > 0) else 6
+        transaction_structure = 9 if not snap.get("major_pending_structural_transaction") else 5
+        components = {
+            "structural_growth": {"score": structural_growth, "max": 20, "growth_pct": rev_g},
+            "operating_leverage": {"score": operating_leverage, "max": 20, "profit_growth_pct": op_g, "margin_pct": margin},
+            "mix_resilience": {"score": mix_resilience, "max": 15, "double_digit_divisions": divisions, "divisions_total": divisions_total},
+            "revenue_quality_normalization": {"score": revenue_quality, "max": 10, "arr_organic_growth_pct": arr_g, "saas_arr_share_pct": saas_share},
+            "earnings_quality": {"score": earnings_quality, "max": 15, "earnings_growth_pct": eps_g, "cash_flow_from_operations": cfo},
+            "capital_allocation": {"score": capital_allocation, "max": 10, "debt_repayment": debt_repay, "share_repurchases": safe_float(snap.get("q2_share_repurchases"))},
+            "transaction_structure": {"score": transaction_structure, "max": 10, "pending_transaction": bool(snap.get("major_pending_structural_transaction"))},
+        }
+    else:
         return {"available": False, "score": None, "max_score": 100}
 
-    rev_g = safe_float(snap.get("q2_net_revenue_ex_treasury_growth_pct"))
-    ebitda_g = safe_float(snap.get("q2_ebitda_ex_treasury_growth_pct"))
-    rev = safe_float(snap.get("q2_net_revenue_ex_treasury"))
-    ebitda = safe_float(snap.get("q2_ebitda_ex_treasury"))
-    margin = (100.0 * ebitda / rev) if (ebitda is not None and rev not in (None, 0)) else None
-    np_g = safe_float(snap.get("q2_net_profit_growth_pct"))
-    units_growing = safe_float(snap.get("q2_business_units_with_revenue_growth"))
-    units_total = safe_float(snap.get("q2_business_units_total"))
-
-    structural_growth = 18 if rev_g is not None and rev_g >= 8 else 15 if rev_g is not None and rev_g >= 5 else 10
-    operating_leverage = 19 if (ebitda_g is not None and rev_g is not None and ebitda_g >= rev_g + 3 and (margin or 0) >= 54) else 16
-    mix_resilience = 14 if (units_growing is not None and units_total and units_growing / units_total >= 0.70) else 11
-    treasury_normalization = 10 if safe_float(snap.get("q2_treasury_result")) is not None and safe_float(snap.get("q2_net_revenue_ex_treasury")) is not None else 5
-    earnings_quality = 13 if np_g is not None and np_g >= 10 and (safe_float(snap.get("q2_eps_pre_ppa")) or 0) > 0 else 10
-    capital_allocation = 8 if snap.get("share_buyback_2026_completed") and snap.get("allfunds_committed_funding") else 6
-    transaction_structure = 5 if snap.get("allfunds_acquisition_pending") else 10
-
-    components = {
-        "structural_growth": {"score": structural_growth, "max": 20, "q2_net_revenue_ex_treasury_growth_pct": rev_g},
-        "operating_leverage": {"score": operating_leverage, "max": 20, "q2_ebitda_ex_treasury_growth_pct": ebitda_g, "q2_ebitda_margin_ex_treasury_pct": margin},
-        "mix_resilience": {"score": mix_resilience, "max": 15, "business_units_with_growth": units_growing, "business_units_total": units_total},
-        "treasury_normalization": {"score": treasury_normalization, "max": 10, "q2_treasury_result": safe_float(snap.get("q2_treasury_result"))},
-        "earnings_quality": {"score": earnings_quality, "max": 15, "q2_net_profit_growth_pct": np_g, "q2_eps_pre_ppa": safe_float(snap.get("q2_eps_pre_ppa"))},
-        "capital_allocation": {"score": capital_allocation, "max": 10, "share_buyback_value": safe_float(snap.get("share_buyback_2026_value")), "post_allfunds_rating_target": snap.get("post_allfunds_rating_target")},
-        "transaction_structure": {"score": transaction_structure, "max": 10, "allfunds_pending": bool(snap.get("allfunds_acquisition_pending")), "allfunds_transaction_value": safe_float(snap.get("allfunds_transaction_value"))},
-    }
     score = sum(int(v.get("score") or 0) for v in components.values())
     quality = "Sehr gut" if score >= 85 else "Gut" if score >= 70 else "Ausreichend" if score >= 50 else "Schwach"
     return {
@@ -37594,14 +37679,14 @@ def build_exchange_market_infrastructure_operational_score(snapshot):
         "quality_level": quality,
         "components": components,
         "valuation_score": False,
-        "note": "Operationaler Exchange-Infrastructure-Qualitätsscore aus issuer-primary Strukturwachstum, Operating Leverage, Mix/Resilienz, Treasury-Normalisierung, Earnings und Kapitalallokation; ausdrücklich noch kein Multiple-Score.",
+        "note": "Operationaler Exchange-Infrastructure-Qualitätsscore aus issuer-primary Strukturwachstum, Operating Leverage, Mix/Resilienz, Revenue Quality/Normalization, Earnings, Kapitalallokation und Struktur; ausdrücklich noch kein Multiple-Score.",
     }
 
 
 def build_exchange_market_infrastructure_specialist_model(company_type, fundamental_info, symbol, current_fy_eps=None):
     if not is_exchange_market_infrastructure_specialist_type(company_type, symbol):
         return {"applicable": False}
-    snap = get_verified_deutsche_boerse_exchange_snapshot(symbol)
+    snap = get_verified_exchange_market_infrastructure_snapshot(symbol)
     if not snap:
         return {
             "applicable": True,
@@ -37611,26 +37696,34 @@ def build_exchange_market_infrastructure_specialist_model(company_type, fundamen
             "readiness": "Exchange / Market Infrastructure family recognized; issuer-primary adapter not yet calibrated",
         }
     score = build_exchange_market_infrastructure_operational_score(snap)
+    profile = snap.get("specialist_profile_key")
+    is_db1 = profile == "integrated_market_infrastructure"
+    readiness = (
+        "Deutsche-Börse Primärdatenprofil validiert · Nasdaq zweiter Family-Adapter verfügbar · Earnings-/Multiple-/Peer-Kalibrierung weiterhin gesperrt"
+        if is_db1 else
+        "Nasdaq Primärdatenprofil validiert · zweiter unabhängiger Exchange-Family-Adapter aktiv · Earnings-/Multiple-/Peer-Kalibrierung weiterhin gesperrt"
+    )
+    missing = [
+        "reusable Exchange-family issuer-adjusted earnings anchor on a comparable Current-FY basis",
+        "same-basis peer comparability and reusable Exchange-family multiple corridor",
+    ]
+    if is_db1:
+        missing.append("post-Allfunds pro-forma leverage / capital-structure refresh when closing data become available")
     return {
         "applicable": True,
         "issuer_supported": True,
         "primary_source_complete": True,
         "valuation_anchor_complete": False,
-        "transaction_guard_active": bool(snap.get("allfunds_acquisition_pending")),
+        "transaction_guard_active": bool(snap.get("allfunds_acquisition_pending") or snap.get("major_pending_structural_transaction")),
         "snapshot": snap,
         "operational_score": score,
         "specialist_valuation": {"available": False, "corridor_released": False},
-        "readiness": "Deutsche-Börse Primärdatenprofil validiert · erster Exchange-Family-Adapter aktiv · Earnings-/Multiple-/Peer-Kalibrierung noch gesperrt",
-        "missing_valuation_inputs": [
-            "reusable Exchange-family issuer-adjusted earnings anchor (pre-PPA/Cash-EPS basis and horizon)",
-            "second independent Exchange / Market Infrastructure issuer validation",
-            "same-basis peer comparability and family multiple corridor",
-            "post-Allfunds pro-forma leverage / capital-structure refresh when closing data become available",
-        ],
+        "readiness": readiness,
+        "missing_valuation_inputs": missing,
         "note": (
-            f"{APP_BUILD_VERSION} validates Deutsche Börse as the first Exchange / Market Infrastructure issuer-primary profile. "
-            "Structural net revenue/EBITDA are evaluated before treasury result; treasury sensitivity is isolated instead of rewarded as core growth. "
-            "The pending Allfunds acquisition remains a transaction/leverage guard. No target P/E, EV/EBITDA or Fair Value is released yet."
+            f"{APP_BUILD_VERSION} validates {snap.get('company')} under the Exchange / Market Infrastructure multi-issuer architecture. "
+            "Deutsche Börse maps treasury-normalized structural economics; Nasdaq maps recurring Solutions/ARR/SaaS economics and Market Services. "
+            "No target P/E, EV/EBITDA or Fair Value is released until a common Current-FY earnings anchor and family multiple calibration are validated."
         ),
     }
 
@@ -37640,12 +37733,18 @@ def build_exchange_market_infrastructure_special_control(control, specialist_mod
         return control
     model = specialist_model if isinstance(specialist_model, dict) else {}
     snap = model.get("snapshot") or {}
+    profile = snap.get("specialist_profile_key")
+    issuer = snap.get("company") or "Exchange issuer"
     out = dict(control)
     out.update({
         "implemented": True,
         "released": False,
         "confidence_cap": snap.get("valuation_confidence_cap") or "Niedrig bis Mittel",
-        "router_status": "Schritt 3B aktiv – Deutsche Börse Primärdaten validiert; erster Exchange-Family-Adapter aktiv, Bewertung weiterhin fail-closed",
+        "router_status": (
+            "Schritt 3B aktiv – Deutsche Börse Primärdaten validiert; Nasdaq als zweiter Family-Adapter verfügbar, Bewertung weiterhin fail-closed"
+            if profile == "integrated_market_infrastructure" else
+            "Schritt 3B aktiv – Nasdaq Primärdaten validiert; zweiter unabhängiger Family-Adapter bestätigt, Bewertung weiterhin fail-closed"
+        ),
         "step3b_status": model.get("readiness"),
         "snapshot": snap,
         "checks": {
@@ -41193,8 +41292,30 @@ def get_special_control(company_type, symbol):
 
     if (
         str((company_type or {}).get("valuation_family_id") or "").strip().lower() == "exchange_market_infrastructure"
-        and symbol_text == "DB1.DE"
+        and symbol_text in {"DB1.DE", "NDAQ"}
     ):
+        if symbol_text == "NDAQ":
+            return {
+                "required": True,
+                "control_key": "exchange_market_infrastructure_specialist",
+                "control_name": "Nasdaq / Exchange & Market Infrastructure Primary-Source-, Recurring-Revenue- & Comparability-Kontrolle",
+                "planned_checks": [
+                    "Net Revenue / Organic Growth statt Provider-Umsatzwachstum allein",
+                    "Solutions + Market Services Mix und Financial-Technology/Index-Wachstum",
+                    "ARR / SaaS-Anteil als wiederkehrende Revenue-Quality-Evidenz",
+                    "Non-GAAP Operating Margin + Operating Leverage",
+                    "Non-GAAP EPS + Operating Cash Flow als Earnings-/Cash-Qualität",
+                    "Debt repayment + Buybacks + Dividenden als Capital-Allocation-/Balance-Evidenz",
+                    "gemeinsamer Current-FY Exchange-Earnings-Anker noch zu kalibrieren",
+                    "same-basis Peers und Family-Multiple-Korridor noch zu kalibrieren",
+                    "Analystenziele ausschließlich Reality Check",
+                ],
+                "status": f"Router aktiv – {APP_BUILD_VERSION} Nasdaq Exchange-Infrastructure Second-Issuer Validation V1",
+                "note": (
+                    "Nasdaq validiert den zweiten unabhängigen Exchange-Infrastructure-Adapter mit issuer-native Net-Revenue-, Solutions-, ARR/SaaS-, Operating-Margin-, EPS- und Cashflow-Evidenz. "
+                    "Deutsche-Börse-spezifische Treasury-Normalisierung wird nicht künstlich auf Nasdaq übertragen. Earnings-Anker, Multiple-Korridor und Fair Value bleiben bis zur Cross-Issuer-Kalibrierung gesperrt."
+                ),
+            }
         return {
             "required": True,
             "control_key": "exchange_market_infrastructure_specialist",
@@ -41207,14 +41328,13 @@ def get_special_control(company_type, symbol):
                 "Pre-PPA/Cash-EPS-Earnings-Basis erst nach Family-Kalibrierung",
                 "Kapitalallokation: EUR 500m Buyback + Allfunds Finanzierung",
                 "Allfunds ~EUR 5.3bn Transaction/Leverage Guard bis pro-forma Closing-Daten vorliegen",
-                "zweiter unabhängiger Exchange-Infrastructure-Emittent vor Family-Multiple-Freigabe",
+                "Nasdaq als zweiter unabhängiger Exchange-Infrastructure-Emittent; Cross-Issuer-Kalibrierung folgt",
                 "Analystenziele ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Deutsche Börse Exchange-Infrastructure Primary-Source Gate V1",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Exchange Infrastructure Multi-Issuer Validation V2",
             "note": (
-                "Deutsche Börse wird als integrierte Marktinfrastruktur und nicht als generisches Financial-/Industrieunternehmen behandelt. "
-                "Strukturelle Nettoerlöse und EBITDA werden vor Treasury-Effekt gemessen; die Allfunds-Übernahme bleibt ein bindender Transaction/Leverage Guard. "
-                "Earnings-Anker, Multiple-Korridor und Fair Value bleiben bis zur zweiten Family-Validierung gesperrt."
+                "Deutsche Börse bleibt der treasury-normalisierte integrierte Marktinfrastruktur-Adapter. Nasdaq liefert inzwischen die zweite unabhängige Family-Validierung mit einem stärker wiederkehrenden Solutions-/ARR-Mix. "
+                "Der Allfunds-Guard bleibt für Deutsche Börse bindend; Earnings-Anker, Multiple-Korridor und Fair Value bleiben bis zur Cross-Issuer-Kalibrierung gesperrt."
             ),
         }
 
@@ -57744,23 +57864,41 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     if (exchange_market_infrastructure_specialist_model or {}).get("issuer_supported"):
         _ex_model = exchange_market_infrastructure_specialist_model or {}
         _ex_snap = _ex_model.get("snapshot") or {}
-        special_event_warning = {
-            "level": "Gelb",
-            "icon": "🟡",
-            "title": "Allfunds-Übernahme – Transaction/Leverage Guard aktiv",
-            "requires_research": False,
-            "valuation_usable": False,
-            "reason": (
-                f"Deutsche Börse hat die Übernahme von Allfunds mit einem Transaktionswert von rund EUR {safe_float(_ex_snap.get('allfunds_transaction_value'))/1e9:.1f} Mrd. vereinbart. "
-                f"Die Gegenleistung ist zu rund {_ex_snap.get('allfunds_cash_consideration_pct'):.0f}% Cash und {_ex_snap.get('allfunds_share_consideration_pct'):.0f}% Deutsche-Börse-Aktien geplant; regulatorische Genehmigungen stehen noch aus und der Abschluss wird für {_ex_snap.get('allfunds_expected_close')} erwartet."
-            ),
-            "action": (
-                "Keine Standard-EPS-Sonderrecherche und kein generisches KGV verwenden. Zuerst Exchange-Family Earnings-/Multiple-Comparability auf einem zweiten unabhängigen Marktinfrastruktur-Emittenten kalibrieren; "
-                "Allfunds bleibt zusätzlich bis zu belastbaren pro-forma Leverage-/Kapitalstrukturdaten ein Downside-/Confidence-Guard."
-            ),
-            "family_model_gate": True,
-            "transaction_guard": True,
-        }
+        _ex_profile = _ex_snap.get("specialist_profile_key")
+        if _ex_profile == "integrated_market_infrastructure":
+            special_event_warning = {
+                "level": "Gelb",
+                "icon": "🟡",
+                "title": "Allfunds-Übernahme – Transaction/Leverage Guard aktiv",
+                "requires_research": False,
+                "valuation_usable": False,
+                "reason": (
+                    f"Deutsche Börse hat die Übernahme von Allfunds mit einem Transaktionswert von rund EUR {safe_float(_ex_snap.get('allfunds_transaction_value'))/1e9:.1f} Mrd. vereinbart. "
+                    f"Die Gegenleistung ist zu rund {_ex_snap.get('allfunds_cash_consideration_pct'):.0f}% Cash und {_ex_snap.get('allfunds_share_consideration_pct'):.0f}% Deutsche-Börse-Aktien geplant; regulatorische Genehmigungen stehen noch aus und der Abschluss wird für {_ex_snap.get('allfunds_expected_close')} erwartet."
+                ),
+                "action": (
+                    "Kein generisches KGV verwenden. Nasdaq bestätigt inzwischen den zweiten unabhängigen Exchange-KPI-Adapter; als Nächstes müssen ein gemeinsamer Current-FY Earnings-Anker und der Family-Multiple-/Peer-Korridor kalibriert werden. "
+                    "Allfunds bleibt zusätzlich bis zu belastbaren pro-forma Leverage-/Kapitalstrukturdaten ein Downside-/Confidence-Guard."
+                ),
+                "family_model_gate": True,
+                "transaction_guard": True,
+            }
+        else:
+            special_event_warning = {
+                "level": "Grün",
+                "icon": "🟢",
+                "title": "Kein Structural Break – zweiter Exchange-Family-Adapter aktiv",
+                "requires_research": False,
+                "valuation_usable": False,
+                "reason": (
+                    "Nasdaq bestätigt den zweiten unabhängigen issuer-primary Exchange-/Market-Infrastructure-Adapter. ARR/SaaS-, Solutions-, Market-Services- und Operating-Leverage-Kennzahlen werden profile-aware abgebildet; es liegt kein bindender aktueller Structural-Break-Guard vor."
+                ),
+                "action": (
+                    "Kein generisches KGV verwenden. Nächster Schritt ist die Cross-Issuer-Kalibrierung einer gemeinsamen Current-FY Adjusted/Cash-Earnings-Basis sowie eines Exchange-Family-Multiple-Korridors mit same-basis Peer-Referenzen."
+                ),
+                "family_model_gate": True,
+                "transaction_guard": False,
+            }
 
     if (industrials_capital_goods_specialist_model or {}).get("issuer_supported"):
         _ind_model = industrials_capital_goods_specialist_model or {}
@@ -59353,8 +59491,10 @@ if selected_symbol:
                         )
 
                     capital_goods_provider_eps_ui = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
+                    exchange_provider_eps_ui = bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable"))
+                    specialist_provider_eps_ui = capital_goods_provider_eps_ui or exchange_provider_eps_ui
                     st.metric(
-                        "EPS Provider-0Y/current-FY (Diagnosekontext)" if capital_goods_provider_eps_ui else "EPS Bewertungsbasis (aktuelles FY)",
+                        "EPS Provider-0Y/current-FY (Diagnosekontext)" if specialist_provider_eps_ui else "EPS Bewertungsbasis (aktuelles FY)",
                         format_eps(
                             data.get("valuation_forward_eps"),
                             financial_currency
@@ -59450,7 +59590,14 @@ if selected_symbol:
                     if horizon_bits:
                         st.caption("EPS-Horizonte: " + " · ".join(horizon_bits))
                     if eps_horizon_ui.get("note"):
-                        st.info(f"🧭 **Earnings Horizon Alignment {APP_BUILD_VERSION}:** " + text_or_dash(eps_horizon_ui.get("note")))
+                        if exchange_provider_eps_ui:
+                            st.info(
+                                f"🧭 **Earnings Horizon Alignment {APP_BUILD_VERSION}:** "
+                                "0Y/current-FY Analystenkonsens wird im Exchange-Spezialpfad ausschließlich als Provider-Horizont-/Diagnosekontext geführt; "
+                                "er ist nicht die freigegebene Specialist-Bewertungsbasis. Der rohe Provider-Forward-EPS bleibt +1Y-/Horizont-Kontext."
+                            )
+                        else:
+                            st.info(f"🧭 **Earnings Horizon Alignment {APP_BUILD_VERSION}:** " + text_or_dash(eps_horizon_ui.get("note")))
 
                 eps_unit_ui = data.get("eps_unit_context") or {}
                 if eps_unit_ui.get("active"):
@@ -65744,34 +65891,63 @@ if selected_symbol:
 
                 if special_control.get("control_key") == "exchange_market_infrastructure_specialist":
                     st.divider()
-                    st.subheader("🏛️ Modul 6 – Schritt 3B: Exchange / Market Infrastructure Specialist V1 · Deutsche Börse")
                     if special_control.get("implemented"):
                         checks_ex = special_control.get("checks") or {}
                         snap_ex = special_control.get("snapshot") or {}
                         score_ex = checks_ex.get("operational_score") or {}
+                        ex_profile = snap_ex.get("specialist_profile_key")
+                        ex_short_name = "Nasdaq" if ex_profile == "solutions_market_infrastructure" else "Deutsche Börse"
+                        st.subheader(f"🏛️ Modul 6 – Schritt 3B: Exchange / Market Infrastructure Specialist V2 · {ex_short_name}")
                         st.write(f"**Unternehmen / Profil:** {text_or_dash(snap_ex.get('company'))} · {text_or_dash(snap_ex.get('specialist_profile'))}")
                         st.write(f"**Primärdatenstand:** {text_or_dash(snap_ex.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_ex.get('published_date'))})")
                         st.caption(text_or_dash(snap_ex.get("source_name")))
-                        st.markdown(
-                            f"[Q2/H1 2026 Results]({snap_ex.get('q2_results_url')}) · "
-                            f"[FY2025 Annual Report]({snap_ex.get('fy2025_report_url')}) · "
-                            f"[Allfunds Transaction]({snap_ex.get('allfunds_url')})"
-                        )
-                        ex_c1, ex_c2, ex_c3 = st.columns(3)
-                        with ex_c1:
-                            st.metric("Q2 Net Revenue ex Treasury", format_money(snap_ex.get("q2_net_revenue_ex_treasury"), snap_ex.get("reporting_currency") or financial_currency), delta=f"+{safe_float(snap_ex.get('q2_net_revenue_ex_treasury_growth_pct')):.1f}%")
-                            st.metric("Q2 EBITDA ex Treasury", format_money(snap_ex.get("q2_ebitda_ex_treasury"), snap_ex.get("reporting_currency") or financial_currency), delta=f"+{safe_float(snap_ex.get('q2_ebitda_ex_treasury_growth_pct')):.1f}%")
-                        with ex_c2:
-                            ex_margin = 100.0 * safe_float(snap_ex.get("q2_ebitda_ex_treasury")) / safe_float(snap_ex.get("q2_net_revenue_ex_treasury"))
-                            st.metric("Q2 EBITDA Margin ex Treasury", f"{ex_margin:.1f}%")
-                            st.metric("Q2 Net Profit", format_money(snap_ex.get("q2_net_profit"), snap_ex.get("reporting_currency") or financial_currency), delta=f"+{safe_float(snap_ex.get('q2_net_profit_growth_pct')):.1f}%")
-                        with ex_c3:
-                            st.metric("FY2026 Net Revenue ex Treasury", f"≈ {format_money(snap_ex.get('fy2026_net_revenue_ex_treasury_guidance'), snap_ex.get('reporting_currency') or financial_currency)}")
-                            st.metric("FY2026 EBITDA ex Treasury", f"≈ {format_money(snap_ex.get('fy2026_ebitda_ex_treasury_guidance'), snap_ex.get('reporting_currency') or financial_currency)}")
-                        st.caption(
-                            f"Treasury-Normalisierung: Q2 Treasury-Ergebnis {format_money(snap_ex.get('q2_treasury_result'), snap_ex.get('reporting_currency') or financial_currency)} wird separat geführt. "
-                            "Strukturelles Wachstum und Operating Leverage werden vor Treasury-Effekt bewertet."
-                        )
+                        if ex_profile == "solutions_market_infrastructure":
+                            st.markdown(
+                                f"[Q2 2026 Results]({snap_ex.get('q2_results_url')}) · "
+                                f"[Quarterly Results]({snap_ex.get('quarterly_results_url')}) · "
+                                f"[Annual Reports]({snap_ex.get('annual_report_url')})"
+                            )
+                            ex_c1, ex_c2, ex_c3 = st.columns(3)
+                            with ex_c1:
+                                st.metric("Q2 Net Revenue", format_money(snap_ex.get("q2_net_revenue"), "USD"), delta=f"+{safe_float(snap_ex.get('q2_net_revenue_growth_pct')):.1f}%")
+                                st.metric("Solutions Revenue", format_money(snap_ex.get("q2_solutions_revenue"), "USD"), delta=f"+{safe_float(snap_ex.get('q2_solutions_revenue_growth_pct')):.1f}%")
+                            with ex_c2:
+                                st.metric("ARR", format_money(snap_ex.get("q2_arr"), "USD"), delta=f"+{safe_float(snap_ex.get('q2_arr_organic_growth_pct')):.1f}% org.")
+                                st.metric("SaaS-Anteil an ARR", f"{safe_float(snap_ex.get('q2_saas_arr_share_pct')):.0f}%")
+                            with ex_c3:
+                                st.metric("Non-GAAP Operating Margin", f"{safe_float(snap_ex.get('q2_non_gaap_operating_margin_pct')):.1f}%", delta=f"{safe_float(snap_ex.get('q2_non_gaap_operating_margin_pct'))-safe_float(snap_ex.get('q2_non_gaap_operating_margin_prior_pct')):+.1f} pp")
+                                st.metric("Q2 Non-GAAP EPS", f"{safe_float(snap_ex.get('q2_non_gaap_eps')):.2f} USD", delta=f"+{safe_float(snap_ex.get('q2_non_gaap_eps_growth_pct')):.1f}%")
+                            st.caption(
+                                f"Revenue-Quality-Adapter: ARR wächst organisch um {safe_float(snap_ex.get('q2_arr_organic_growth_pct')):.1f}% und SaaS macht {safe_float(snap_ex.get('q2_saas_arr_share_pct')):.0f}% der ARR aus. "
+                                f"Market Services Net Revenue {format_money(snap_ex.get('q2_market_services_net_revenue'), 'USD')} (+{safe_float(snap_ex.get('q2_market_services_net_revenue_growth_pct')):.0f}%), "
+                                f"Financial Technology {format_money(snap_ex.get('q2_financial_technology_revenue'), 'USD')} (+{safe_float(snap_ex.get('q2_financial_technology_revenue_growth_pct')):.0f}%)."
+                            )
+                            st.caption(
+                                f"Capital Allocation / Balance: Q2 Operating Cash Flow {format_money(snap_ex.get('q2_cash_flow_from_operations'), 'USD')}; "
+                                f"Dividenden {format_money(snap_ex.get('q2_dividends'), 'USD')}, Buybacks {format_money(snap_ex.get('q2_share_repurchases'), 'USD')} und Netto-Schuldenrückzahlung {format_money(snap_ex.get('q2_net_debt_repayment'), 'USD')}. "
+                                f"Short-/Long-Term Debt: {format_money(snap_ex.get('q2_short_term_debt'), 'USD')} / {format_money(snap_ex.get('q2_long_term_debt'), 'USD')}."
+                            )
+                        else:
+                            st.markdown(
+                                f"[Q2/H1 2026 Results]({snap_ex.get('q2_results_url')}) · "
+                                f"[FY2025 Annual Report]({snap_ex.get('fy2025_report_url')}) · "
+                                f"[Allfunds Transaction]({snap_ex.get('allfunds_url')})"
+                            )
+                            ex_c1, ex_c2, ex_c3 = st.columns(3)
+                            with ex_c1:
+                                st.metric("Q2 Net Revenue ex Treasury", format_money(snap_ex.get("q2_net_revenue_ex_treasury"), snap_ex.get("reporting_currency") or financial_currency), delta=f"+{safe_float(snap_ex.get('q2_net_revenue_ex_treasury_growth_pct')):.1f}%")
+                                st.metric("Q2 EBITDA ex Treasury", format_money(snap_ex.get("q2_ebitda_ex_treasury"), snap_ex.get("reporting_currency") or financial_currency), delta=f"+{safe_float(snap_ex.get('q2_ebitda_ex_treasury_growth_pct')):.1f}%")
+                            with ex_c2:
+                                ex_margin = 100.0 * safe_float(snap_ex.get("q2_ebitda_ex_treasury")) / safe_float(snap_ex.get("q2_net_revenue_ex_treasury"))
+                                st.metric("Q2 EBITDA Margin ex Treasury", f"{ex_margin:.1f}%")
+                                st.metric("Q2 Net Profit", format_money(snap_ex.get("q2_net_profit"), snap_ex.get("reporting_currency") or financial_currency), delta=f"+{safe_float(snap_ex.get('q2_net_profit_growth_pct')):.1f}%")
+                            with ex_c3:
+                                st.metric("FY2026 Net Revenue ex Treasury", f"≈ {format_money(snap_ex.get('fy2026_net_revenue_ex_treasury_guidance'), snap_ex.get('reporting_currency') or financial_currency)}")
+                                st.metric("FY2026 EBITDA ex Treasury", f"≈ {format_money(snap_ex.get('fy2026_ebitda_ex_treasury_guidance'), snap_ex.get('reporting_currency') or financial_currency)}")
+                            st.caption(
+                                f"Treasury-Normalisierung: Q2 Treasury-Ergebnis {format_money(snap_ex.get('q2_treasury_result'), snap_ex.get('reporting_currency') or financial_currency)} wird separat geführt. "
+                                "Strukturelles Wachstum und Operating Leverage werden vor Treasury-Effekt bewertet."
+                            )
                         st.write(f"**Operationaler Exchange-Infrastructure-Qualitätsscore:** {int(safe_float(score_ex.get('score')) or 0)}/100 · {text_or_dash(score_ex.get('quality_level'))}")
                         st.caption("Dieser Score beschreibt operative Qualität und Primärdatenreife; er ist ausdrücklich noch kein P/E-/EV-Multiple-Score und kein Fair-Value-Anker.")
                         comp_ex = score_ex.get("components") or {}
@@ -65779,7 +65955,7 @@ if selected_symbol:
                             ("Structural Growth", "structural_growth"),
                             ("Operating Leverage", "operating_leverage"),
                             ("Mix / Resilience", "mix_resilience"),
-                            ("Treasury Normalization", "treasury_normalization"),
+                            ("Revenue Quality / Normalization", "revenue_quality_normalization"),
                             ("Earnings Quality", "earnings_quality"),
                             ("Capital Allocation", "capital_allocation"),
                             ("Transaction / Structure", "transaction_structure"),
@@ -65787,15 +65963,18 @@ if selected_symbol:
                         for lbl_ex, key_ex in labels_ex:
                             row_ex = comp_ex.get(key_ex) or {}
                             st.write(f"{lbl_ex}: {int(safe_float(row_ex.get('score')) or 0)}/{int(safe_float(row_ex.get('max')) or 0)}")
-                        st.warning(
-                            f"Allfunds Transaction Guard: rund EUR {safe_float(snap_ex.get('allfunds_transaction_value'))/1e9:.1f} Mrd. Transaktionswert; "
-                            f"{safe_float(snap_ex.get('allfunds_cash_consideration_pct')):.0f}% Cash / {safe_float(snap_ex.get('allfunds_share_consideration_pct')):.0f}% Aktien; "
-                            f"regulatorische Freigaben ausstehend, erwarteter Abschluss {text_or_dash(snap_ex.get('allfunds_expected_close'))}."
-                        )
+                        if ex_profile == "integrated_market_infrastructure":
+                            st.warning(
+                                f"Allfunds Transaction Guard: rund EUR {safe_float(snap_ex.get('allfunds_transaction_value'))/1e9:.1f} Mrd. Transaktionswert; "
+                                f"{safe_float(snap_ex.get('allfunds_cash_consideration_pct')):.0f}% Cash / {safe_float(snap_ex.get('allfunds_share_consideration_pct')):.0f}% Aktien; "
+                                f"regulatorische Freigaben ausstehend, erwarteter Abschluss {text_or_dash(snap_ex.get('allfunds_expected_close'))}."
+                            )
+                        else:
+                            st.success("Kein aktueller Structural-Break-/Großtransaktions-Guard im Nasdaq-Validierungsprofil. Hohe Verschuldung nach der früheren Adenza-Transformation bleibt über Capital Allocation/Balance sichtbar, wird aber nicht als aktueller Structural Break behandelt.")
                         st.write("**Für die familienweite Bewertungsfreigabe fehlen noch:**")
                         for miss_ex in checks_ex.get("missing_valuation_inputs") or []:
                             st.write(f"• {miss_ex}")
-                        st.info("Fair Value bleibt fail-closed: erster issuer-primary Exchange-Adapter ist validiert, aber Earnings-Anker, zweiter Emittent, Family-Multiple-Korridor/Peer-Comparability und post-Allfunds Kapitalstruktur sind noch nicht freigegeben.")
+                        st.info("Fair Value bleibt fail-closed: zwei unabhängige issuer-primary Exchange-Adapter sind nun validiert; der gemeinsame Current-FY Earnings-Anker sowie Family-Multiple-/Peer-Comparability sind noch nicht freigegeben. Deutsche Börse benötigt zusätzlich später den post-Allfunds Kapitalstruktur-Refresh.")
                     else:
                         st.warning("Exchange-Infrastructure-Spezialprüfung noch nicht vollständig implementiert.")
 
