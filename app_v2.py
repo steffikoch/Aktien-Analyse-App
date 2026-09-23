@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.94"
+APP_BUILD_VERSION = "V2.22.95"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -781,6 +781,76 @@ def _de_ui_text(value):
     out = out.replace("FY2025 Gesamtjahres-Vergleichsgruppen-Median", "FY2025-Gesamtjahres-Vergleichsgruppen-Median")
     out = out.replace("FY2025 Gesamtjahr-Median", "FY2025-Gesamtjahres-Median")
     out = out.replace("H1-2026 Hochrechnung-Median", "H1-2026-Hochrechnungs-Median")
+    # V191: gezielte finale Textbereinigung nach dem Nasdaq-V190-Praxistest.
+    # Ausschließlich sichtbare Ausgabe; keine internen Schlüssel oder Bewertungswerte werden verändert.
+    out = out.replace("primärquellenbasiert Börsen-/Marktinfrastruktur-Adapter", "primärquellenbasierter Adapter für Börsen-/Marktinfrastruktur")
+    out = out.replace("primärquellenbasiert Börsen-/Marktinfrastruktur Kennzahlen-Adapter", "primärquellenbasierter Kennzahlen-Adapter für Börsen-/Marktinfrastruktur")
+    out = out.replace("operativ-Verschuldung-Kennzahlen", "Kennzahlen zur operativen Hebelwirkung")
+    out = out.replace("kein bindender aktueller Strukturbruch-Schutzregel", "keine bindende aktuelle Strukturbruch-Schutzregel")
+    out = out.replace("Der generische Umsatz-/Gewinnwachstums-Punktelogik", "Die generische Umsatz-/Gewinnwachstums-Punktelogik")
+    out = out.replace("Der generische Yahoo-/Kapitalflussrechnung-FCF-Margen-Punktzahl", "Die generische Yahoo-FCF-Margen-Punktelogik auf Basis der Kapitalflussrechnung")
+    out = out.replace("mit primärquellenbasiertes bereinigtes FY2025-EPS", "mit primärquellenbasiertem bereinigtem FY2025-EPS")
+    out = out.replace("Volljahres-/Trailing-Anker", "Gesamtjahresanker")
+    out = out.replace("Volljahres-/nachlaufend-Anker", "Gesamtjahresanker")
+    out = out.replace("punktzahlbasiertes Ziel nur nach unten wirkend begrenzen", "punktzahlbasiertes Ziel ausschließlich nach unten begrenzen")
+    out = out.replace("FY2025-Gesamtjahres-Median nur nach unten wirkend", "FY2025-Gesamtjahres-Median ausschließlich als Abwärts-Obergrenze")
+    out = out.replace("MarketAxess Übernahme angekündigt (~USD 5.7bn Unternehmenswert; Bar-/Fremdfinanzierung; voraussichtlicher Abschluss H1 2027) – observation bleibt verwendbar, but Portfolio/Kapitalstruktur change muss aktualisiert werden in späteren Kalibrierung.", "MarketAxess-Übernahme angekündigt (Unternehmenswert rund 5,7 Mrd. USD; Bar-/Fremdfinanzierung; voraussichtlicher Abschluss im 1. Halbjahr 2027). Die Beobachtung bleibt verwendbar; Portfolio und Kapitalstruktur müssen bei einer späteren Kalibrierung aktualisiert werden.")
+    out = out.replace("observation bleibt verwendbar, but Portfolio/Kapitalstruktur change muss aktualisiert werden in späteren Kalibrierung", "die Beobachtung bleibt verwendbar; Portfolio und Kapitalstruktur müssen bei einer späteren Kalibrierung aktualisiert werden")
+    out = out.replace("GesamtjahresMedian", "Gesamtjahresmedian")
+    out = out.replace("HochrechnungsMedian", "Hochrechnungsmedian")
+    out = out.replace("Doppelanker-Datenprüfung", "Doppelanker-Datensatz")
+    out = out.replace("Bei emittentenspezifischer Transaktions-/Struktur-Schutzregel", "Bei einer emittentenspezifischen Transaktions-/Struktur-Schutzregel")
+    out = out.replace("bei emittentenspezifischer Transaktions-/Struktur-Schutzregel", "bei einer emittentenspezifischen Transaktions-/Struktur-Schutzregel")
+    out = out.replace("Exchange & Market Infrastructure Primärquelle-, Recurring-Umsatz- & Vergleichbarkeit-Kontrolle", "Börsen-/Marktinfrastruktur · Primärquellen-, wiederkehrende-Umsatz- und Vergleichbarkeitskontrolle")
+    out = out.replace("Exchange & Market Infrastructure Primary-Source-, Recurring-Revenue- & Comparability-Kontrolle", "Börsen-/Marktinfrastruktur · Primärquellen-, wiederkehrende-Umsatz- und Vergleichbarkeitskontrolle")
+    out = out.replace("Solutions + Marktdienste-Mix und Financial-Technology/Index-Wachstum", "Lösungs- und Marktdienste-Mix sowie Finanztechnologie-/Index-Wachstum")
+    out = out.replace("Lösungen + Marktdienste-Mix und Financial-Technology/Index-Wachstum", "Lösungs- und Marktdienste-Mix sowie Finanztechnologie-/Index-Wachstum")
+    out = out.replace("operative Non-GAAP- Marge", "operative Non-GAAP-Marge")
+    out = out.replace("vom Emittenten bereitgestellt FY2026 Konsens", "vom Emittenten bereitgestellter FY2026-Konsens")
+    out = out.replace("Doppelanker-Vergleichsunternehmen", "Doppelanker-Vergleichsgruppe")
+    out = out.replace("emittentenspezifische Transaktions-/Struktur-Gates", "emittentenspezifische Transaktions-/Strukturprüfungen")
+    out = out.replace("Emittent-spezifische Transaktions-/Struktur-Gates", "emittentenspezifische Transaktions-/Strukturprüfungen")
+    out = out.replace("FY2025 bereinigtes EPS Vergleichsgruppen-Median", "FY2025-Vergleichsgruppen-Median auf Basis bereinigter EPS")
+    out = out.replace("FY2025 bereinigtes EPS Vergleichsgruppen-Referenzmedian", "FY2025-Vergleichsgruppen-Referenzmedian auf Basis bereinigter EPS")
+    out = out.replace("der verifizierte GesamtjahresMedian", "der verifizierte Gesamtjahresmedian")
+    out = out.replace("der H1-2026-HochrechnungsMedian", "der H1-2026-Hochrechnungsmedian")
+    out = out.replace("Non-GAAP- Marge", "Non-GAAP-Marge")
+    out = out.replace("Primärquelle-,", "Primärquellen-,")
+    out = out.replace("Recurring-Umsatz", "wiederkehrende Umsätze")
+    out = out.replace("Financial-Technology", "Finanztechnologie")
+    out = out.replace("Transaction-/Structure-Gates", "Transaktions-/Strukturprüfungen")
+    out = out.replace("Transaction-/Struktur-Gates", "Transaktions-/Strukturprüfungen")
+    out = out.replace("Trailing-Anker", "Gesamtjahresanker")
+    out = out.replace("Trailing-Marktanker", "Gesamtjahres-Marktanker")
+    out = out.replace("unabhängigen primärquellenbasierter Adapter", "unabhängigen primärquellenbasierten Adapter")
+    out = out.replace("ARR-/SaaS-, Lösungs- und Marktdienste- und Kennzahlen zur operativen Hebelwirkung", "Kennzahlen zu ARR/SaaS, Lösungen, Marktdiensten und operativer Hebelwirkung")
+    out = out.replace("ARR-/SaaS-, Lösungs- und Marktdienste- sowie Kennzahlen zur operativen Hebelwirkung", "Kennzahlen zu ARR/SaaS, Lösungen, Marktdiensten und operativer Hebelwirkung")
+    out = out.replace("Primärquellen-, wiederkehrende-Umsatz- und Vergleichbarkeitskontrolle", "Kontrolle von Primärquellen, wiederkehrenden Umsätzen und Vergleichbarkeit")
+    out = out.replace("Solutions + Marktdienste Mix und Finanztechnologie/Index-Wachstum", "Lösungs- und Marktdienste-Mix sowie Finanztechnologie-/Index-Wachstum")
+    out = out.replace("Lösungen + Marktdienste Mix und Finanztechnologie/Index-Wachstum", "Lösungs- und Marktdienste-Mix sowie Finanztechnologie-/Index-Wachstum")
+    out = out.replace("Dieser Punktzahl", "Diese Punktzahl")
+    out = out.replace("nur nach unten wirkend verifiziertes Gesamtjahr Vergleichsgruppen-Obergrenze", "verifizierte Gesamtjahres-Vergleichsgruppen-Obergrenze, die ausschließlich nach unten wirkt")
+    out = out.replace("ausschließlich nach unten verifiziertes Gesamtjahr Vergleichsgruppen-Obergrenze", "verifizierte Gesamtjahres-Vergleichsgruppen-Obergrenze, die ausschließlich nach unten wirkt")
+    out = out.replace("generischer Standard-Punktzahl", "generische Standard-Punktelogik")
+    out = out.replace("primärquellenbasierter operativer Cashflow/Cash-Ergebnis-, Finanzierungs-, Schuldenabbau- und Kapitalallokation-Evidenz", "primärquellenbasierte Evidenz zu operativem Cashflow, bereinigtem Ergebnis, Finanzierung, Schuldenabbau und Kapitalallokation")
+    out = out.replace("Balance/Verschuldung", "Bilanz/Verschuldung")
+    out = out.replace("primärquellenbasiert Doppelanker-Cluster", "primärquellenbasierten Doppelanker-Verbund")
+    out = out.replace("das Doppelanker-Datensatz", "den Doppelanker-Datensatz")
+    out = out.replace("Bei emittentenspezifischem Transaktions-/Struktur-Schutzregel", "Bei einer emittentenspezifischen Transaktions-/Struktur-Schutzregel")
+    out = out.replace("bei emittentenspezifischem Transaktions-/Struktur-Schutzregel", "bei einer emittentenspezifischen Transaktions-/Struktur-Schutzregel")
+    out = out.replace("Sicherheit der Ergebnisbrücke Hoch", "Sicherheit der Ergebnisbrücke: Hoch")
+    out = out.replace("Accounting-Basis", "Bilanzierungsbasis")
+    out = out.replace("Kapitalallokation/Balance", "Kapitalallokation/Bilanz")
+    out = out.replace("kann das Ziel nur nach unten begrenzen", "kann das Ziel-KGV ausschließlich nach unten begrenzen")
+    out = out.replace("H1-2026-Hochrechnung nur Zyklus-/Plausibilitätscheck", "H1-2026-Hochrechnung nur als Zyklus-/Plausibilitätscheck")
+    out = out.replace("H1-2026 Hochrechnung nur Zyklus-/Plausibilitätscheck", "H1-2026-Hochrechnung nur als Zyklus-/Plausibilitätscheck")
+    out = out.replace("Zyklus/Plausibilitätscheck", "Zyklus-/Plausibilitätscheck")
+    out = out.replace("in den Fairer Wert ein", "in den fairen Wert ein")
+    out = out.replace(". emittentenspezifische Transaktions-/Strukturprüfungen", ". Emittentenspezifische Transaktions-/Strukturprüfungen")
+    out = out.replace("H1-Hochrechnung/Zyklus-Prüfung", "H1-Hochrechnungs-/Zyklusprüfung")
+    out = out.replace("H1-Hochrechnung/Zyklusprüfung", "H1-Hochrechnungs-/Zyklusprüfung")
+    out = re.sub(r"MarketAxess Übernahme angekündigt \(~USD 5\.7bn Unternehmenswert; Bar-/Fremdfinanzierung; voraussichtlicher Abschluss H1 2027\) – Beobachtung bleibt verwendbar; die Änderung von Portfolio und Kapitalstruktur muss bei einer späteren Kalibrierung aktualisiert werden\.?", "MarketAxess-Übernahme angekündigt (Unternehmenswert rund 5,7 Mrd. USD; Bar-/Fremdfinanzierung; voraussichtlicher Abschluss im 1. Halbjahr 2027). Die Beobachtung bleibt verwendbar; Portfolio und Kapitalstruktur müssen bei einer späteren Kalibrierung aktualisiert werden.", out)
+    out = re.sub(r"\bnur nach unten wirkend\b", "ausschließlich nach unten", out, flags=re.IGNORECASE)
     return out
 
 def _de_wrap_all_string_args(func):
@@ -849,10 +919,11 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Vollständige deutsche Darstellungskonsistenz V190"
+    f"Build {APP_BUILD_VERSION} · Finale deutsche Textbereinigung V191"
 )
 
 
+# V2.22.95: Finale deutsche Textbereinigung V191. Gezielte reine UI-/Copy-Korrektur nach dem Nasdaq-V190-Praxistest. Bereinigt die verbliebenen Börseninfrastruktur-Mischtexte und Grammatikreste, darunter MarketAxess-Transaktionshinweis, Gesamtjahresanker, Kontrollbezeichnungen, operative Hebelwirkung und Abwärts-Obergrenzen. Bewertungsmathematik, Gewinnbasis, Vergleichsgruppendaten, Korridore, Schutzregeln, Scores, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.94: Vollständige deutsche Darstellungskonsistenz V190. Reine UI-/Copy-Bereinigung nach dem Nasdaq-V189-Praxistest. Übersetzt verbliebene Mischtexte im Börseninfrastruktur-Pfad, korrigiert Grammatikreste und insbesondere die fehlerhafte sichtbare Übersetzung „Operating Leverage“ → „operative Hebelwirkung“ statt „operativ Verschuldung“. Bewertungsmathematik, Gewinnbasis, Peer-Daten, Korridore, Schutzregeln, Scores, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.93: Deutsche Sprach- und Darstellungskonsistenz V189. Reine UI-/Copy-Bereinigung nach den erfolgreichen Fremdfamilien-Gegentests mit Schneider Electric und Nasdaq. Entfernt doppelte Formulierungen wie „nur nur nach unten wirkend“, übersetzt verbliebene englische Mischtexte in den Investitionsgüter- und Börseninfrastruktur-Spezialpfaden und vereinheitlicht sichtbare Bezeichnungen. Bewertungsmathematik, Gewinnbasen, Peers, Schutzgrenzen, Scores, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.92: Payments Processor Peer Calibration Display Consistency V188. UI-only correction after the first PayPal V187 live run proved that the Fair Value already used the released -5% peer-adjusted target P/E while the compact card still displayed the pre-peer family target P/E. The compact Payments-Processor card now reads the final used_multiple from the Fair-Value block when available, shows the pre-peer target and released peer adjustment explicitly in the valuation path, and keeps score, earnings basis, peer selection, peer median, guard rules, valuation-zone mathematics and Fair Value mathematics unchanged.
