@@ -23,9 +23,9 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.81"
+APP_BUILD_VERSION = "V2.22.82"
 
-# V177 – Deutsche Benutzeroberfläche.
+# V178 – Modul-6-Transparenz & deutsche Verständlichkeit.
 # Nur die sichtbare Darstellung wird übersetzt; interne Schlüssel, Statuswerte,
 # Datenpfade und Bewertungsmathematik bleiben unverändert.
 _UI_DE_EXACT = {
@@ -63,6 +63,20 @@ _UI_DE_REPLACEMENTS = [
     ("Payment Network", "Zahlungsnetzwerk"),
     ("Payment-Network", "Zahlungsnetzwerk"),
     ("Payments-Processor", "Zahlungsabwickler"),
+    ("Payments Processor", "Zahlungsabwickler"),
+    ("Three-Issuer", "Drei-Unternehmen"),
+    ("Three-Emittent", "Drei-Unternehmen"),
+    ("State-Guards", "Schutzregeln"),
+    ("State Guards", "Schutzregeln"),
+    ("Quality-Line", "Qualitätslinie"),
+    ("Economics-Premium", "Ökonomie-Aufschlag"),
+    ("Growth-Premium", "Wachstums-Aufschlag"),
+    ("Universal Family Router", "Universelle Familien-Zuordnung"),
+    ("Family Router", "Familien-Zuordnung"),
+    ("Comparability-Gate", "Vergleichbarkeitsprüfung"),
+    ("Valuation Gate", "Bewertungsprüfung"),
+    ("Volume → Economics Diagnostic", "Prüfung: Zahlungsvolumen → Ertragsökonomie"),
+    ("Volume / Activity → Economics Diagnostic", "Prüfung: Zahlungsvolumen/Aktivität → Ertragsökonomie"),
     ("Merchant Acquirer", "Zahlungsakquisiteur"),
     ("Family Quality Score", "Familien-Qualitätspunktzahl"),
     ("Family Score", "Familien-Punktzahl"),
@@ -397,7 +411,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Deutsche Benutzeroberfläche & Verständlichkeits-Bereinigung V177"
+    f"Build {APP_BUILD_VERSION} · Modul-6-Transparenz & deutsche Verständlichkeit V178"
 )
 
 
@@ -420,6 +434,7 @@ st.caption(
 # V2.22.78: Payments Processor Fair Value Live Validation & Copy Cleanup V174. Status/copy-only closure after PayPal, Adyen and Fiserv all passed the V173 own-Fair-Value live run: PayPal 69.94 USD, Adyen 966.81 EUR and Fiserv 61.83 USD before display-currency conversion. No processor score, earnings-basis, multiple or Fair-Value mathematics change. Promotes the family stage to three_issuer_fair_value_live_validated and removes stale V172/V173 copy that still described Fair Value as blocked after release. Peer adjustment remains neutral/unreleased; valuation zones and action signals remain fail-closed for separate calibration. Visa/Mastercard V163 mathematics remain unchanged.
 # V2.22.80: Payments Processor Valuation Zones Live Validation & Gate Cleanup V176. Status/copy-only closure after PayPal, Adyen and Fiserv passed the live V175 zone regression as Underbewertet, Fair bewertet and Unterbewertet with unchanged Fair Values and calibrated widths. No score, earnings-basis, multiple, Fair-Value or valuation-zone mathematics change. Family status advances to three_issuer_valuation_zone_live_validated. Peer adjustment remains neutral/unreleased and action signals remain fail-closed for separate signal calibration/release. Removes stale copy implying valuation zones are still blocked or awaiting live validation. Visa/Mastercard V163 mathematics remain unchanged.
 # V2.22.81: Deutsche Benutzeroberfläche & Verständlichkeits-Bereinigung V177. Darstellungs-/Sprachschicht בלבד: sichtbare englische Fachbegriffe werden deutsch erläutert; interne Schlüssel, Bewertungsmathematik und Freigabestatus bleiben unverändert.
+# V2.22.82: Modul-6-Transparenz & deutsche Verständlichkeit V178. Reine Darstellungs-/Sprachbereinigung ohne Änderung der Bewertungsmathematik. Für Zahlungsabwickler zeigt Modul 6 jetzt getrennt Qualitätspunktzahl-KGV, Ökonomie-Aufschlag, KGV vor Schutzregeln, Schutzgrenze und freigegebenes Ziel-KGV. Referenzunternehmen zur Modellvalidierung werden klar von einer noch nicht freigegebenen automatischen Bewertungs-Vergleichsgruppe getrennt. Sichtbare interne Entwicklungsbegriffe und Wiederholungen im Zahlungsabwickler-Pfad werden reduziert.
 
 
 
@@ -7937,22 +7952,24 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
         out["family_validation_status"] = "paypal_adyen_fiserv_zones_live_validated_signals_pending"
         out["universal_family_fail_closed"] = True
         out["method"] = (
-            "Issuer-primary Payments-Processor Three-Issuer Multiple Corridor V1: Payment Volume/Activity bleibt Volumen-/Effizienzkontext; "
-            "Family Quality Score V1 und current-FY Family Earnings Basis V1 speisen einen transparenten 8–30x Current-FY same-basis P/E-Korridor. "
-            "Quality-Line, Economics-Premium und downside-only State-Guards bestimmen das Ziel-KGV. Der Drei-Emittenten-Live-Multiple-Test und der Drei-Emittenten-Fair-Value-Test sind bestanden; der eigene Fair Value = current-FY Family Earnings Basis × Ziel-KGV ist live validiert. Payments-Processor Bewertungszonen V1 sind an PayPal, Adyen und Fiserv live validiert; Peer-Adjustment bleibt neutral/unreleased und Handlungssignale bleiben bis zur separaten Signal-Kalibrierung gesperrt."
+            "Primärquellenbasierter Zahlungsabwickler-Korridor V1: Zahlungsvolumen und Aktivität bleiben Volumen-/Effizienzkontext. "
+            "Familien-Qualitätspunktzahl V1 und Gewinnbasis des laufenden Geschäftsjahres V1 speisen einen transparenten 8–30× KGV-Korridor auf gleicher Ergebnisbasis. "
+            "Qualitätslinie, möglicher Ökonomie-Aufschlag und ausschließlich nach unten wirkende Schutzregeln bestimmen das Ziel-KGV. "
+            "Die Tests mit PayPal, Adyen und Fiserv für Multiple, fairen Wert und Bewertungszonen sind bestanden. "
+            "Die Vergleichsgruppen-Anpassung ist noch nicht freigegeben; Handlungssignale folgen in einer separaten Kalibrierung."
         )
         if _canonical_family_symbol == "PYPL":
             out["payments_processor_subprofile"] = "wallet_branded_checkout_psp"
-            out["payments_processor_subprofile_label"] = "Wallet / Branded Checkout / PSP"
+            out["payments_processor_subprofile_label"] = "Digitale Geldbörse / Marken-Checkout / PSP"
             out["business_model"] = (
-                "Wallet / Branded Checkout / PSP mit PayPal/Venmo-Consumer-Ökosystem, branded checkout und "
-                "Braintree/unbranded merchant processing; keine reine Visa/Mastercard-Netzwerkökonomie."
+                "Digitale Geldbörse / Marken-Checkout / PSP mit PayPal/Venmo-Consumer-Ökosystem, Marken-Checkout und "
+                "Braintree/markenunabhängiger Händlerabwicklung; keine reine Visa/Mastercard-Netzwerkökonomie."
             )
-            out["core_segments"] = "Branded Checkout · Venmo/Wallet · Braintree/PSP · Merchant Services · Financial Services"
+            out["core_segments"] = "Marken-Checkout · Venmo/digitale Geldbörse · Braintree/PSP · Händlerdienste · Finanzdienstleistungen"
             out["focus_areas"] = (
-                "TPV vs. Transaction-Margin-Dollar-Konversion · TM$ ex Interest on Customer Balances · "
-                "Operating Margin · Adjusted FCF · Adjusted EPS Guidance · Active Accounts/Engagement · "
-                "Buybacks/Dilution · Cash/Debt; Analystenziele nur Reality Check"
+                "TPV vs. Umwandlung in Transaktionsmargen-Dollar · TM$ ohne Zinsen auf Kundenguthaben · "
+                "operative Marge · bereinigter FCF · bereinigte EPS-Unternehmensprognose · aktive Konten/Engagement · "
+                "Aktienrückkäufe/Verwässerung · Liquidität/Schulden; Analystenziele nur Plausibilitätscheck"
             )
         elif _canonical_family_symbol == "ADYEN.AS":
             out["payments_processor_subprofile"] = "integrated_merchant_acquirer_unified_commerce_platforms"
@@ -31658,18 +31675,18 @@ def build_payments_processor_family_multiple(snapshot, family_score, earnings_ba
     # PayPal: weak conversion of volume into economics + clear margin pressure.
     if sym == "PYPL" and econ <= 12.0 and margin_bps is not None and margin_bps <= -200.0:
         caps.append(13.0)
-        guard_notes.append("Conversion/Margin Guard: TM$-Economics wachsen deutlich langsamer als TPV und die Non-GAAP-Marge ist rückläufig; Ziel-KGV max. 13x.")
+        guard_notes.append("Umwandlungs-/Margen-Schutzregel: TM$ ohne Zinsen wächst deutlich langsamer als TPV und die Non-GAAP-Marge ist rückläufig; Ziel-KGV maximal 13×.")
 
     # Fiserv: broad guidance reset / execution break gets a hard downside cap.
     if sym == "FISV" and (bool(snap.get("guidance_reset_active")) or (execution_pts is not None and execution_pts <= 5.0)):
         caps.append(8.5)
-        guard_notes.append("Execution Reset Guard: breiter FY2026 Guidance-Reset; Ziel-KGV max. 8.5x, robuste FCF Conversion hebt den Cap nicht auf.")
+        guard_notes.append("Umsetzungs-Schutzregel: breite Senkung der FY2026-Unternehmensprognose; Ziel-KGV maximal 8,5×. Eine robuste FCF-Umwandlung hebt diese Grenze nicht an.")
 
     # Adyen: outstanding quality, but current-FY EPS is a guarded consensus fallback
     # and H1 actuals vs FY guidance are not fully organic after Talon.One/Orb.
     if sym == "ADYEN.AS" and str(eb.get("confidence") or "").lower() != "hoch":
         caps.append(26.0)
-        guard_notes.append("Earnings/Comparability Guard: current-FY EPS ist guarded consensus fallback und H1/FY Guidance ist durch Talon.One/Orb nicht vollständig organisch vergleichbar; Ziel-KGV max. 26x.")
+        guard_notes.append("Ergebnis-/Vergleichbarkeits-Schutzregel: Das EPS des laufenden Geschäftsjahres basiert auf einem abgesicherten Konsens-Fallback; H1 und Gesamtjahresprognose sind wegen Talon.One/Orb nicht vollständig organisch vergleichbar. Ziel-KGV maximal 26×.")
 
     guard_cap = min(caps) if caps else None
     target = min(raw_target, guard_cap) if guard_cap is not None else raw_target
@@ -31688,7 +31705,7 @@ def build_payments_processor_family_multiple(snapshot, family_score, earnings_ba
         "guard_cap": guard_cap,
         "guard_applied": bool(guard_cap is not None and target < raw_target - 1e-9),
         "guard_notes": guard_notes,
-        "method": "Payments Processor Current-FY same-basis P/E",
+        "method": "Zahlungsabwickler-KGV auf Basis des laufenden Geschäftsjahres",
         "confidence": ("Niedrig bis Mittel" if sym == "FISV" else "Mittel"),
         "score": total,
         "economics_points": econ,
@@ -31696,9 +31713,9 @@ def build_payments_processor_family_multiple(snapshot, family_score, earnings_ba
         "earnings_basis_currency": eb.get("currency"),
         "earnings_basis_label": eb.get("basis_label"),
         "note": (
-            "V176 hält das live validierte Ziel-KGV aus zwei transparenten Family-Treibern unverändert: Quality Score plus nur bei sehr starken issuer-native Economics ein begrenzter Growth-Premium. "
-            "Issuer-State-Guards wirken ausschließlich downside-only. Historisches Durchschnitts-KGV, aktueller Aktienkurs, Analystenziele, Yahoo-FCF und Standard-KGV setzen oder erhöhen das Ziel-KGV nicht. "
-            "Der freigegebene Multiple und der eigene Fair Value bleiben live validiert. Bewertungszonen V1 sind in V176 live validiert; Peer-Adjustment bleibt neutral/unreleased und Handlungssignale bleiben separat gesperrt."
+            "V178 hält das praktisch geprüfte Ziel-KGV aus zwei transparenten Familientreibern unverändert: Qualitätspunktzahl plus ein begrenzter Aufschlag nur bei sehr starker emittenteneigener Ertragsökonomie. "
+            "Emittentenbezogene Schutzregeln wirken ausschließlich nach unten. Historisches Durchschnitts-KGV, aktueller Aktienkurs, Analystenziele, Yahoo-FCF und Standard-KGV setzen oder erhöhen das Ziel-KGV nicht. "
+            "Ziel-KGV, eigener fairer Wert und Bewertungszonen bleiben freigegeben; Vergleichsgruppen-Anpassung und Handlungssignale folgen separat."
         ),
     }
 
@@ -31792,13 +31809,12 @@ def build_payments_processor_foundation_model(company_type, fundamental_info, sy
         "valuation_anchor_complete": multiple_released,
         "fair_value_released": multiple_released,
         "readiness": (
-            f"{issuer_name} Primärdaten validiert · Family Quality Score V1 + Earnings Basis V1 + Multiple Corridor V1 + eigener Fair Value freigegeben"
-            if multiple_released else (f"{issuer_name} Family Quality Score freigegeben · Earnings-Basis noch gesperrt" if score_released else f"{issuer_name} Family Score gesperrt – Primärdaten unvollständig oder veraltet")
+            f"{issuer_name} Primärdaten geprüft · Familien-Punktzahl V1 + Gewinnbasis V1 + KGV-Korridor V1 + eigener fairer Wert freigegeben"
+            if multiple_released else (f"{issuer_name} Familien-Punktzahl freigegeben · Gewinnbasis noch gesperrt" if score_released else f"{issuer_name} Familien-Punktzahl gesperrt – Primärdaten unvollständig oder veraltet")
         ),
         "note": (
-            "V176 hält Family Quality Score, current-FY Family Earnings Basis, den live validierten 8–30x Payments-Processor Current-FY P/E-Korridor, den eigenen Fair Value und die live validierten Bewertungszonen unverändert. "
-            "Fair Value = Family Earnings Basis × live validiertes Ziel-KGV; es gibt keinen Peer-Aufschlag, keinen historischen-KGV-Anker und keinen Analysten-Blend. "
-            "Bewertungszonen V1 sind an PayPal, Adyen und Fiserv live validiert; Peer-Adjustment bleibt neutral/unreleased und Handlungssignale bleiben bis zur separaten Signal-Kalibrierung gesperrt."
+            "V178 hält Familien-Punktzahl, Gewinnbasis für das laufende Geschäftsjahr, den praktisch geprüften 8–30× Zahlungsabwickler-KGV-Korridor, den eigenen fairen Wert und die Bewertungszonen unverändert. "
+            "Fairer Wert = Familien-Gewinnbasis × freigegebenes Ziel-KGV; es gibt keinen Vergleichsgruppen-Aufschlag, keinen historischen KGV-Anker und keine Mischung mit Analystenzielen."
         ),
     }
 
@@ -58970,15 +58986,15 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "available": True,
                 "lower": safe_float(pp_mul_fm.get("corridor_low")),
                 "upper": safe_float(pp_mul_fm.get("corridor_high")),
-                "method": "Payments Processor Current-FY same-basis P/E",
+                "method": "Zahlungsabwickler-KGV auf Basis des laufenden Geschäftsjahres",
                 "note": (
-                    "V176: live validierter 8–30x Family-Korridor. Quality-Line 40→8x bis 100→22x plus bis zu +6x Economics-Premium; "
-                    "issuer-state Guards können das Ziel nur nach unten begrenzen. Historisches Durchschnitts-KGV, aktueller Kurs und Analystenziele setzen das Ziel nicht."
+                    "V178: praktisch geprüfter 8–30× Familien-Korridor. Die Qualitätslinie reicht von 40 Punkten = 8× bis 100 Punkten = 22×; nur sehr starke Ertragsökonomie kann bis zu +6× hinzufügen. "
+                    "Emittentenbezogene Schutzregeln können das Ziel-KGV ausschließlich nach unten begrenzen. Historisches Durchschnitts-KGV, aktueller Kurs und Analystenziele setzen das Ziel nicht."
                 ),
             },
             "note": (
-                f"{APP_BUILD_VERSION} Payments Processor Specialist: Family Quality Score + current-FY Family Earnings Basis → 8–30x Family-Korridor. "
-                "Das angezeigte Ziel-KGV, der daraus berechnete eigene Fair Value und die family-spezifischen Bewertungszonen sind live validiert. Peer-Adjustment bleibt neutral/unreleased."
+                f"{APP_BUILD_VERSION} Zahlungsabwickler-Spezialmodell: Familien-Qualitätspunktzahl + Gewinnbasis des laufenden Geschäftsjahres → 8–30× Familien-Korridor. "
+                "Das angezeigte Ziel-KGV, der daraus berechnete eigene faire Wert und die familienbezogenen Bewertungszonen sind praktisch geprüft und freigegeben. Die Vergleichsgruppen-Anpassung bleibt neutral und noch nicht freigegeben."
             ),
         }
 
@@ -60061,17 +60077,17 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             special_event_warning = {
                 "level": "Grün",
                 "icon": "🟢",
-                "title": "Keine automatische Sonderereignis-Recherche – Payments-Processor-Spezialpfad aktiv",
+                "title": "Keine automatische Sonderereignis-Recherche – Zahlungsabwickler-Spezialpfad aktiv",
                 "requires_research": False,
                 "valuation_usable": True,
                 "reason": (
-                    f"{_family_label}: Family Quality Score V1, current-FY Family Earnings Basis V1 und der 8–30× Multiple-Korridor sowie der eigene Fair Value sind freigegeben. "
-                    "Die generische Standard-TTM/Forward-EPS-Basis bleibt Diagnosekontext und darf keine separate Sonderereignis-Recherche oder Standardbewertung auslösen."
+                    f"{_family_label}: Familien-Qualitätspunktzahl V1, Gewinnbasis des laufenden Geschäftsjahres V1, 8–30× KGV-Korridor und eigener fairer Wert sind freigegeben. "
+                    "Die generische Standard-TTM-/Prognose-EPS-Basis bleibt Diagnosekontext und darf keine separate Sonderereignis-Recherche oder Standardbewertung auslösen."
                     + _diagnostic_note
                 ),
                 "action": (
-                    "Keine Sonderereignis-Recherche aus der generischen EPS-Normalisierung starten. Der Payments-Processor-Spezialpfad bleibt maßgeblich; "
-                    "Peer-Adjustment bleibt neutral/unreleased; Bewertungszonen V1 sind live validiert; Peer-Adjustment bleibt neutral/unreleased und Handlungssignale bleiben bis zur separaten Signal-Freigabe gesperrt."
+                    "Keine Sonderereignis-Recherche aus der generischen EPS-Normalisierung starten. Der Zahlungsabwickler-Spezialpfad bleibt maßgeblich. "
+                    "Bewertungszonen V1 sind freigegeben; Vergleichsgruppen-Anpassung und Handlungssignale bleiben separate, noch nicht freigegebene Folgestufen."
                 ),
                 "family_model_gate": True,
                 "diagnostic_original_level": _diagnostic_level or None,
@@ -61677,7 +61693,7 @@ if selected_symbol:
                 if company_type.get("valuation_family"):
                     st.write(f"**Bewertungsfamilie:** {company_type.get('valuation_family')}")
                     _family_source_labels = {
-                        "security_family_master": "Security Family Master",
+                        "security_family_master": "Stammtabelle der Bewertungsfamilien",
                         "business_summary_rule": "Geschäftsmodell-Regel",
                         "sector_industry_rule": "Sektor-/Branchenregel",
                         "industry_rule": "Branchenregel",
@@ -61692,9 +61708,14 @@ if selected_symbol:
                         company_type.get("family_router_source"),
                         company_type.get("family_router_source") or "–",
                     )
+                    _family_status_raw = company_type.get("family_model_status") or "–"
+                    _family_status_labels = {
+                        "three_issuer_valuation_zone_live_validated": "Bewertungszonen mit drei Referenzunternehmen geprüft",
+                    }
+                    _family_status = _family_status_labels.get(_family_status_raw, _family_status_raw)
                     st.caption(
-                        f"Universal Family Router {APP_BUILD_VERSION}: {len(UNIVERSAL_VALUATION_FAMILY_CATALOG)} Bewertungsfamilien · "
-                        f"Quelle {_family_source} · Status {company_type.get('family_model_status') or '–'}"
+                        f"Universelle Familien-Zuordnung {APP_BUILD_VERSION}: {len(UNIVERSAL_VALUATION_FAMILY_CATALOG)} Bewertungsfamilien · "
+                        f"Quelle {_family_source} · Status {_family_status}"
                     )
                     if is_validated_asset_manager_existing_route(company_type):
                         st.info(
@@ -61724,12 +61745,9 @@ if selected_symbol:
                     if (company_type.get("family_model_status") == "three_issuer_valuation_zone_live_validated"
                             and company_type.get("valuation_family_id") == "payments_processor"):
                         st.info(
-                            "Payments Processor / Merchant Acquirer Foundation V1: PayPal (Wallet / Branded Checkout / PSP), "
-                            "Adyen (Integrated Merchant Acquirer / Unified Commerce / Platforms) und Fiserv "
-                            "(Diversified Merchant Acquirer / Banking Technology / Clover) sind als drei unabhängige issuer-primary "
-                            "Subprofile live validiert. Der gemeinsame abstrakte KPI-Vertrag ist vollständig befüllt und der transparente "
-                            "100-Punkte-Family-Qualitätsscore, current-FY Family Earnings Basis V1 und der 8–30x Family-Multiple-Korridor sind freigegeben. "
-                            "Der Live-Multiple-Regressionslauf und der Fair-Value-Live-Test sind für alle drei Referenzemittenten bestanden. Der eigene Family Fair Value ist live validiert. Bewertungszonen V1 sind an PayPal, Adyen und Fiserv live validiert; Peer-Adjustment bleibt neutral/unreleased und Handlungssignale bleiben bis zur separaten Signal-Kalibrierung gesperrt."
+                            "Zahlungsabwickler-Grundlage V1: PayPal, Adyen und Fiserv sind als drei unabhängige primärquellenbasierte Referenzprofile geprüft. "
+                            "Der gemeinsame KPI-Rahmen, die 100-Punkte-Familien-Qualitätspunktzahl, die Gewinnbasis des laufenden Geschäftsjahres, der 8–30× KGV-Korridor, der eigene faire Wert und die Bewertungszonen sind freigegeben. "
+                            "Die automatische Vergleichsgruppen-Anpassung und Kaufen/Halten/Verkaufen bleiben noch nicht freigegeben."
                         )
                     if is_universal_family_fail_closed(company_type):
                         if is_released_listed_holding_family(company_type):
@@ -61740,8 +61758,8 @@ if selected_symbol:
                         elif (company_type.get("family_model_status") == "three_issuer_valuation_zone_live_validated"
                                 and company_type.get("valuation_family_id") == "payments_processor"):
                             st.warning(
-                                "Family Quality Score V1, Family Earnings Basis V1, der Payments-Processor-Multiple-Korridor und der eigene Fair Value sind live validiert. "
-                                "Der Drei-Emittenten-Multiple-, Fair-Value- und Bewertungszonen-Test ist bestanden. Bewertungszonen V1 sind live validiert; Peer-Adjustment bleibt neutral/unreleased, Handlungssignale bleiben fail-closed und der industrielle Standardpfad bleibt gesperrt."
+                                "Zahlungsabwickler-Spezialpfad aktiv: Familien-Punktzahl, Gewinnbasis, Ziel-KGV, fairer Wert und Bewertungszonen sind freigegeben. "
+                                "Vergleichsgruppen-Anpassung und Handlungssignale sind noch nicht freigegeben; der industrielle Standardpfad bleibt gesperrt."
                             )
                         else:
                             st.warning(
@@ -64292,14 +64310,14 @@ if selected_symbol:
                     )
                 elif is_universal_family_score_ui:
                     st.info(
-                        f"Universal Family Router {APP_BUILD_VERSION}: Der generische Umsatz-/Gewinnwachstums-Score wird für "
+                        f"Universelle Familien-Zuordnung {APP_BUILD_VERSION}: Der generische Umsatz-/Gewinnwachstums-Punktzahl wird für "
                         f"{company_type.get('valuation_family') or company_type.get('type')} nicht verwendet."
                     )
                     st.caption(
                         "Provider-Wachstum bleibt Diagnosekontext; das freigegebene Holding-Familienmodell bewertet stattdessen issuer-primary NAV, P/NAV-Historie, Leverage, Konzentration, Kosten und Peer-Evidenz."
                         if is_released_listed_holding_family(company_type)
                         else (
-                            "Provider-Wachstum bleibt Diagnosekontext; der freigegebene Payments-Processor Family Quality Score V1 bewertet Economics/Revenue Conversion bereits separat in Schritt 3B."
+                            "Datenanbieter-Wachstum bleibt Diagnosekontext; die freigegebene Zahlungsabwickler-Familien-Qualitätspunktzahl V1 bewertet Ertragsökonomie und Umsatz-Umwandlung bereits separat in Schritt 3B."
                             if (company_type or {}).get("valuation_family_id") == "payments_processor"
                             else "Provider-Wachstum bleibt Diagnosekontext; Familienkennzahlen und eine vergleichbare Primärdatenbasis müssen zuerst freigegeben werden."
                         )
@@ -64575,14 +64593,14 @@ if selected_symbol:
                     )
                 elif is_universal_family_profitability_ui:
                     st.info(
-                        f"Universal Family Router {APP_BUILD_VERSION}: Die generische Nettomargen-/ROE-Punktelogik wird für "
+                        f"Universelle Familien-Zuordnung {APP_BUILD_VERSION}: Die generische Nettomargen-/ROE-Punktelogik wird für "
                         f"{company_type.get('valuation_family') or company_type.get('type')} nicht verwendet."
                     )
                     st.caption(
                         "Nettomarge und ROE bleiben Diagnosekontext; das freigegebene Holding-Familienmodell beurteilt die Bewertungsqualität über NAV-/P/NAV-Evidenz, Holding-Leverage, Konzentration, Kosten und Peers."
                         if is_released_listed_holding_family(company_type)
                         else (
-                            "Provider-Nettomarge und ROE bleiben Diagnosekontext; Margin Quality/Trend wird bereits im freigegebenen Payments-Processor Family Quality Score V1 in Schritt 3B bewertet."
+                            "Datenanbieter-Nettomarge und ROE bleiben Diagnosekontext; Margenqualität und Margentrend werden bereits in der freigegebenen Zahlungsabwickler-Familien-Qualitätspunktzahl V1 in Schritt 3B bewertet."
                             if (company_type or {}).get("valuation_family_id") == "payments_processor"
                             else "Profitabilität wird erst über die familiengerechten Kennzahlen des freigegebenen Family Models bewertet."
                         )
@@ -64997,14 +65015,14 @@ if selected_symbol:
                         )
                     elif is_universal_family_fcf_ui:
                         st.info(
-                            f"Universal Family Router {APP_BUILD_VERSION}: Der generische Yahoo-/Cashflow-Statement-FCF-Margen-Score ist für "
+                            f"Universelle Familien-Zuordnung {APP_BUILD_VERSION}: Die generische Yahoo-/Cashflow-Statement-FCF-Margen-Punktzahl ist für "
                             f"{company_type.get('valuation_family') or company_type.get('type')} gesperrt."
                         )
                         st.caption(
                             "Yahoo-FCF bleibt Diagnosekontext; das freigegebene Holding-Familienmodell bewertet NAV, Leverage, Konzentration, Kosten und P/NAV-Evidenz statt industrieller FCF-Margen."
                             if is_released_listed_holding_family(company_type)
                             else (
-                                "Yahoo-FCF bleibt Diagnosekontext; issuer-native Cash Conversion/Adjusted FCF und CapEx-Intensität werden bereits im freigegebenen Payments-Processor Family Quality Score V1 in Schritt 3B bewertet."
+                                "Yahoo-FCF bleibt Diagnosekontext; emittenteneigene Cashflow-Umwandlung, bereinigter FCF und CapEx-Intensität werden bereits in der freigegebenen Zahlungsabwickler-Familien-Qualitätspunktzahl V1 in Schritt 3B bewertet."
                                 if (company_type or {}).get("valuation_family_id") == "payments_processor"
                                 else "Yahoo-FCF bleibt Diagnosekontext; das Family Model muss zuerst eine geschäftsmodellgerechte Cashflow-/Kapitalmetrik definieren."
                             )
@@ -65369,14 +65387,14 @@ if selected_symbol:
                             )
                     elif is_universal_family_balance_ui:
                         st.info(
-                            f"Universal Family Router {APP_BUILD_VERSION}: Die generische Netto-Schulden/FCF- bzw. Netto-Cash-Logik ist für "
+                            f"Universelle Familien-Zuordnung {APP_BUILD_VERSION}: Die generische Netto-Schulden/FCF- bzw. Netto-Cash-Logik ist für "
                             f"{company_type.get('valuation_family') or company_type.get('type')} gesperrt."
                         )
                         st.caption(
                             "Bilanz-/Kapitalqualität wird im freigegebenen Holding-Familienmodell über issuer-primary Holding-Leverage und die zugehörigen Evidenz-Gates bewertet."
                             if is_released_listed_holding_family(company_type)
                             else (
-                                "Bilanz-/Kapitalqualität wird bereits subprofilgerecht im freigegebenen Payments-Processor Capital/Structure-Block bewertet; generisches Net-Debt/FCF bleibt ausgeschlossen."
+                                "Bilanz- und Kapitalqualität werden bereits subprofilgerecht im freigegebenen Zahlungsabwickler-Block Kapital/Struktur bewertet; generisches Netto-Schulden/FCF bleibt ausgeschlossen."
                                 if (company_type or {}).get("valuation_family_id") == "payments_processor"
                                 else "Bilanz-/Kapitalqualität wird erst mit den familiengerechten Kennzahlen des freigegebenen Family Models bewertet."
                             )
@@ -67629,6 +67647,36 @@ if selected_symbol:
                                     f"Downside-only Regulatory/Litigation Overlay geprüft: verwendetes Ziel-KGV {pn_used_step1:.2f}×. "
                                     "Der Overlay kann das Quality-P/E nur begrenzen, niemals anheben."
                                 )
+                        elif bool(multiple_result.get("payments_processor_family")):
+                            pp_step1 = (data.get("payments_processor_foundation_model") or {}).get("family_multiple") or {}
+                            pp_quality_line = safe_float(pp_step1.get("quality_line_multiple"))
+                            pp_premium = safe_float(pp_step1.get("economics_growth_premium"))
+                            pp_pre_guard = safe_float(pp_step1.get("raw_target_multiple"))
+                            pp_guard_cap = safe_float(pp_step1.get("guard_cap"))
+                            pp_target = safe_float(pp_step1.get("target_multiple"))
+
+                            c_pp1, c_pp2, c_pp3 = st.columns(3)
+                            with c_pp1:
+                                if pp_quality_line is not None:
+                                    st.metric("Roh-KGV aus Qualitätspunktzahl", f"{pp_quality_line:.2f}×")
+                            with c_pp2:
+                                if pp_premium is not None:
+                                    st.metric("Ökonomie-Aufschlag", f"{pp_premium:+.2f}×")
+                            with c_pp3:
+                                if pp_pre_guard is not None:
+                                    st.metric("KGV vor Schutzregeln", f"{pp_pre_guard:.2f}×")
+
+                            if pp_guard_cap is not None and pp_step1.get("guard_applied"):
+                                st.write(f"**Schutzregel:** Ziel-KGV maximal **{pp_guard_cap:.2f}×**")
+                            else:
+                                st.write("**Schutzregel:** keine zusätzliche Begrenzung aktiv")
+                            if pp_target is not None:
+                                st.metric("Freigegebenes Ziel-KGV", f"{pp_target:.2f}×")
+
+                            st.success(
+                                "Das Ziel-KGV wird transparent in drei Stufen hergeleitet: "
+                                "Qualitätspunktzahl → möglicher Ökonomie-Aufschlag → nur nach unten wirkende Schutzregel."
+                            )
                         else:
                             st.metric(
                                 "Fundamental-Multiple",
@@ -67671,6 +67719,11 @@ if selected_symbol:
                         st.caption(
                             "Schritt 1 leitet das Payment-Network Quality-P/E aus Score und Family-Korridor ab und prüft anschließend den issuer-spezifischen downside-only Regulatory/Litigation Overlay. "
                             "Peer-Check und Fair Value bleiben getrennte nachfolgende Schritte."
+                        )
+                    elif bool(multiple_result.get("payments_processor_family")):
+                        st.caption(
+                            "Schritt 1 zeigt beim Zahlungsabwickler ausschließlich die Herleitung des Familien-Ziel-KGV. "
+                            "Vergleichsgruppen-Prüfung und fairer Wert bleiben getrennte nachfolgende Schritte."
                         )
                     else:
                         st.caption(
@@ -67740,10 +67793,18 @@ if selected_symbol:
 
                 else:
 
-                    st.info(
-                        "Noch keine automatische Peer-Gruppe "
-                        "für diesen Unternehmenstyp hinterlegt."
-                    )
+                    if bool(multiple_result.get("payments_processor_family")):
+                        st.write("**Referenzunternehmen zur Modellvalidierung:** PayPal · Adyen · Fiserv")
+                        st.info(
+                            "**Automatische Bewertungs-Vergleichsgruppe:** noch nicht freigegeben. "
+                            "Die drei Referenzunternehmen wurden zur Entwicklung und Prüfung des Zahlungsabwickler-Modells verwendet; "
+                            "sie verändern derzeit weder Ziel-KGV noch fairen Wert."
+                        )
+                    else:
+                        st.info(
+                            "Noch keine automatische Peer-Gruppe "
+                            "für diesen Unternehmenstyp hinterlegt."
+                        )
 
                 st.caption(
                     peer_group["note"]
@@ -67793,6 +67854,11 @@ if selected_symbol:
                         "Schritt 2A verändert weder Integrated-Oil-&-Gas Quality Score noch Ziel-KGV. "
                         "Die Major-Peer-KGVs werden ausschließlich als reference-only Marktvergleich geladen; "
                         "es gibt keine automatische ±5-%-Anpassung, kein Peer-Gate und keinen Peer-bedingten Confidence-Abzug."
+                    )
+                elif bool(multiple_result.get("payments_processor_family")):
+                    st.caption(
+                        "Schritt 2A dient beim Zahlungsabwickler nur der klaren Trennung zwischen Referenzunternehmen und einer künftigen automatischen Bewertungs-Vergleichsgruppe. "
+                        "Eine Vergleichsgruppen-Anpassung ist noch nicht freigegeben und verändert deshalb weder Qualitätspunktzahl noch Ziel-KGV oder fairen Wert."
                     )
                 elif bool((data.get("professional_business_services_specialist_model") or {}).get("applicable")):
                     ps_peer_model_ui = data.get("professional_business_services_specialist_model") or {}
@@ -68465,7 +68531,7 @@ if selected_symbol:
                         )
                     else:
                         st.caption(
-                            "Schritt 3A ist ausschließlich der Router. "
+                            "Schritt 3A dient ausschließlich der Zuordnung. "
                             "Die eigentliche Spezialprüfung erfolgt – sofern bereits "
                             "implementiert – getrennt in Schritt 3B und verändert weder "
                             "Multiple Score noch Fundamental-/Peer-Multiple."
@@ -68474,8 +68540,8 @@ if selected_symbol:
                         if (company_type.get("family_model_status") == "three_issuer_valuation_zone_live_validated"
                                 and company_type.get("valuation_family_id") == "payments_processor"):
                             st.caption(
-                                "Der Payments-Processor-Spezialpfad ist bis einschließlich Bewertungszonen V1 live validiert. "
-                                "Peer-Adjustment bleibt neutral/unreleased; Handlungssignale bleiben als getrennte Folgestufe bis zur separaten Signal-Kalibrierung gesperrt."
+                                "Der Zahlungsabwickler-Spezialpfad ist bis einschließlich Bewertungszonen V1 praktisch geprüft und freigegeben. "
+                                "Die Vergleichsgruppen-Anpassung und die Handlungssignale bleiben getrennte, noch nicht freigegebene Folgestufen."
                             )
                         else:
                             st.caption(
@@ -68486,12 +68552,17 @@ if selected_symbol:
 
                 if special_control.get("control_key") == "universal_family_model_gate":
                     st.divider()
-                    st.subheader("🧭 Modul 6 – Schritt 3B: Universal Valuation Family Gate")
+                    st.subheader("🧭 Modul 6 – Schritt 3B: Prüfung der Bewertungsfamilie")
                     if (company_type.get("family_model_status") == "three_issuer_valuation_zone_live_validated"
                             and company_type.get("valuation_family_id") == "payments_processor"):
-                        st.warning(
+                        st.info(
                             f"Bewertungsfamilie erkannt: {company_type.get('valuation_family') or company_type.get('type')}. "
-                            "Family Quality Score V1, Family Earnings Basis V1, der 8–30x Family-Multiple-Korridor, der eigene Fair Value und Bewertungszonen V1 sind live validiert. Peer-Adjustment bleibt neutral/unreleased und Handlungssignale bleiben noch gesperrt."
+                            "Familien-Punktzahl, Gewinnbasis, Ziel-KGV, fairer Wert und Bewertungszonen sind freigegeben."
+                        )
+                        st.markdown(
+                            "**Aktueller Entwicklungsstand**  \n"
+                            "✅ Familien-Punktzahl · ✅ Gewinnbasis · ✅ Ziel-KGV · ✅ Fairer Wert · ✅ Bewertungszonen  \n"
+                            "⏳ Vergleichsgruppen-Anpassung noch nicht freigegeben · 🔒 Kaufen/Halten/Verkaufen noch gesperrt"
                         )
                     else:
                         st.warning(
@@ -68499,13 +68570,13 @@ if selected_symbol:
                             "Das wiederverwendbare Familienmodell ist in diesem Build noch nicht freigegeben."
                         )
                     st.write(
-                        "**Bewertungsschutz:** Generischer Wachstumsscore, Nettomargen-/ROE-Score, Yahoo-FCF-Marge, "
-                        "Net-Debt/FCF und Standard-KGV bleiben ausgeschlossen. Eigener Family Fair Value und Bewertungszonen V1 sind live validiert; Peer-Adjustment bleibt neutral/unreleased und Handlungssignale bleiben gesperrt."
+                        "**Bewertungsschutz:** Generischer Wachstumsscore, Nettomargen-/ROE-Punktzahl, Yahoo-FCF-Marge, "
+                        "Netto-Schulden/FCF und Standard-KGV bleiben ausgeschlossen. Maßgeblich sind ausschließlich die freigegebenen Bausteine der Bewertungsfamilie."
                     )
                     st.info(
                         "Neue Aktien derselben Familie benötigen künftig keinen eigenen Aktienpfad. "
-                        "Nach Freigabe eines Familienmodells greifen sie automatisch über Family Router + Primärdaten-/Comparability-Gate; "
-                        "issuer-spezifische Overrides bleiben nur für echte Sonderfälle."
+                        "Nach Freigabe eines Familienmodells greifen sie automatisch über Familien-Zuordnung sowie Primärdaten- und Vergleichbarkeitsprüfung; "
+                        "emittentenspezifische Ausnahmen bleiben echten Sonderfällen vorbehalten."
                     )
 
                     pp_foundation_ui = data.get("payments_processor_foundation_model") or {}
@@ -68515,7 +68586,7 @@ if selected_symbol:
                         pp_short = {"PYPL": "PayPal", "ADYEN.AS": "Adyen", "FISV": "Fiserv"}.get(pp_snap.get("symbol"), text_or_dash(pp_snap.get("company")))
                         pp_ccy = pp_snap.get("reporting_currency") or currency
                         st.divider()
-                        st.subheader(f"💳 Payments Processor Family Score V1 · {pp_short}")
+                        st.subheader(f"💳 Zahlungsabwickler Familien-Punktzahl V1 · {pp_short}")
                         st.write(
                             f"**Subprofil:** {text_or_dash(pp_foundation_ui.get('subprofile_label'))} · "
                             f"**Primärdatenstand:** {text_or_dash(pp_snap.get('as_of_date'))} "
@@ -68528,44 +68599,44 @@ if selected_symbol:
                         pp_score = pp_foundation_ui.get("family_score") or {}
                         if pp_score.get("available"):
                             pp_blocks = pp_score.get("blocks") or {}
-                            st.markdown("**100-Punkte Family Quality Score V1**")
+                            st.markdown("**100-Punkte Familien-Qualitätspunktzahl V1**")
                             sc1, sc2, sc3 = st.columns(3)
                             with sc1:
-                                st.metric("Family Quality Score", f"{int(pp_score.get('total_points'))}/100")
+                                st.metric("Familien-Qualitätspunktzahl", f"{int(pp_score.get('total_points'))}/100")
                                 st.caption(text_or_dash(pp_score.get("quality_label")))
                             with sc2:
                                 b = pp_blocks.get("economics") or {}
-                                st.metric("Economics / Conversion", f"{int(b.get('points'))}/{int(b.get('max_points'))}")
+                                st.metric("Ertragsökonomie / Umwandlung", f"{int(b.get('points'))}/{int(b.get('max_points'))}")
                                 st.caption(f"{text_or_dash(b.get('economics_label'))}: {safe_float(b.get('economics_growth_pct')):+.1f}% · {text_or_dash(b.get('volume_label'))}: {safe_float(b.get('volume_growth_pct')):+.1f}%")
                             with sc3:
                                 b = pp_blocks.get("margin") or {}
-                                st.metric("Margin Quality / Trend", f"{int(b.get('points'))}/{int(b.get('max_points'))}")
+                                st.metric("Margenqualität / Trend", f"{int(b.get('points'))}/{int(b.get('max_points'))}")
                                 st.caption(f"{text_or_dash(b.get('margin_label'))}: {safe_float(b.get('margin_pct')):.1f}% · Trend {safe_float(b.get('margin_trend_bps')):+.0f} bps")
                             sc4, sc5, sc6 = st.columns(3)
                             with sc4:
                                 b = pp_blocks.get("cash") or {}
-                                st.metric("Cash / Capital Intensity", f"{int(b.get('points'))}/{int(b.get('max_points'))}")
+                                st.metric("Cashflow / Kapitalintensität", f"{int(b.get('points'))}/{int(b.get('max_points'))}")
                                 st.caption(f"Cash Conversion: {safe_float(b.get('cash_conversion_pct')):.1f}% · CapEx-Intensität: {safe_float(b.get('capex_intensity_pct')):.1f}%")
                             with sc5:
                                 b = pp_blocks.get("execution") or {}
-                                st.metric("Earnings / Execution", f"{int(b.get('points'))}/{int(b.get('max_points'))}")
+                                st.metric("Ergebnis / Umsetzung", f"{int(b.get('points'))}/{int(b.get('max_points'))}")
                                 st.caption(text_or_dash(b.get("note")))
                             with sc6:
                                 b = pp_blocks.get("capital") or {}
-                                st.metric("Capital / Structure", f"{int(b.get('points'))}/{int(b.get('max_points'))}")
+                                st.metric("Kapital / Struktur", f"{int(b.get('points'))}/{int(b.get('max_points'))}")
                                 st.caption(text_or_dash(b.get("note")))
                             st.info(text_or_dash(pp_score.get("note")))
                             st.caption(
-                                "Score-Gewichte: Economics/Revenue Conversion 25 · Margin Quality/Trend 20 · "
-                                "Cash Conversion/Capital Intensity 20 · Earnings/Guidance/Execution 20 · Capital/Structure 15."
+                                "Punktzahl-Gewichte: Ertragsökonomie/Umsatz-Umwandlung 25 · Margenqualität/Trend 20 · "
+                                "Cashflow-Umwandlung/Kapitalintensität 20 · Ergebnis/Unternehmensprognose/Umsetzung 20 · Kapital/Struktur 15."
                             )
                             pp_earnings = pp_foundation_ui.get("earnings_basis") or {}
                             if pp_foundation_ui.get("family_earnings_basis_released") and pp_earnings.get("available"):
-                                st.markdown("**Family Earnings Basis V1 · current FY**")
+                                st.markdown("**Familien-Gewinnbasis V1 · laufendes Geschäftsjahr**")
                                 eb_eps = safe_float(pp_earnings.get("earnings_basis_eps"))
                                 eb_ccy = text_or_dash(pp_earnings.get("currency"))
                                 st.metric(
-                                    "Freigegebene Earnings-Basis",
+                                    "Freigegebene Gewinnbasis",
                                     f"{eb_eps:.2f} {eb_ccy}" if eb_eps is not None else "–",
                                 )
                                 st.write(
@@ -68576,7 +68647,7 @@ if selected_symbol:
                                 eb_gap = safe_float(pp_earnings.get("consensus_vs_anchor_pct"))
                                 if eb_cons is not None and pp_earnings.get("basis_type") != "guarded_current_fy_consensus_fallback":
                                     gap_txt = f" · Abweichung zum Anchor {eb_gap:+.1f}%" if eb_gap is not None else ""
-                                    st.caption(f"0Y/current-FY Konsens: {eb_cons:.2f} {eb_ccy}{gap_txt} · nur Plausibilitätscheck")
+                                    st.caption(f"0Y-Konsens für das laufende Geschäftsjahr: {eb_cons:.2f} {eb_ccy}{gap_txt} · nur Plausibilitätscheck")
                                 elif pp_earnings.get("basis_type") == "guarded_current_fy_consensus_fallback":
                                     st.caption(
                                         "Adyen-Fallback: aktueller FY-Konsens ist der Earnings-Anker; issuer-primary Revenue-/Margin-Guidance dient als Guard. "
@@ -68584,23 +68655,22 @@ if selected_symbol:
                                     )
                                 st.info(text_or_dash(pp_earnings.get("note")))
                                 st.caption(
-                                    "Earnings Basis V1 setzt den current-FY Nenner. Der Family-Multiple-Korridor und der eigene Fair Value werden separat darunter ausgewiesen; "
-                                    "Bewertungszonen V1 sind live validiert; Handlungssignale bleiben bis zur separaten Signal-Kalibrierung gesperrt."
+                                    "Die Gewinnbasis V1 setzt den Nenner für das laufende Geschäftsjahr. Familien-KGV und fairer Wert werden separat darunter ausgewiesen."
                                 )
 
                             pp_multiple = pp_foundation_ui.get("family_multiple") or {}
                             if pp_foundation_ui.get("family_multiple_released") and pp_multiple.get("available"):
-                                st.markdown("**Family Multiple Corridor V1 · current FY**")
+                                st.markdown("**Familien-KGV-Korridor V1 · laufendes Geschäftsjahr**")
                                 mc1, mc2, mc3 = st.columns(3)
                                 with mc1:
-                                    st.metric("Family-Korridor", f"{safe_float(pp_multiple.get('corridor_low')):.0f}–{safe_float(pp_multiple.get('corridor_high')):.0f}×")
+                                    st.metric("Familien-Korridor", f"{safe_float(pp_multiple.get('corridor_low')):.0f}–{safe_float(pp_multiple.get('corridor_high')):.0f}×")
                                 with mc2:
-                                    st.metric("Raw Quality/Economics P/E", f"{safe_float(pp_multiple.get('raw_target_multiple')):.2f}×")
+                                    st.metric("KGV vor Schutzregeln", f"{safe_float(pp_multiple.get('raw_target_multiple')):.2f}×")
                                 with mc3:
                                     st.metric("Freigegebenes Ziel-KGV", f"{safe_float(pp_multiple.get('target_multiple')):.2f}×")
                                 st.caption(
-                                    f"Quality-Line {safe_float(pp_multiple.get('quality_line_multiple')):.2f}× + "
-                                    f"Economics-Premium {safe_float(pp_multiple.get('economics_growth_premium')):+.2f}× · "
+                                    f"Qualitätslinie {safe_float(pp_multiple.get('quality_line_multiple')):.2f}× + "
+                                    f"Ökonomie-Aufschlag {safe_float(pp_multiple.get('economics_growth_premium')):+.2f}× · "
                                     f"Sicherheit {text_or_dash(pp_multiple.get('confidence'))}."
                                 )
                                 if pp_multiple.get("guard_notes"):
@@ -68608,8 +68678,8 @@ if selected_symbol:
                                         st.warning(_pp_guard_note)
                                 st.info(text_or_dash(pp_multiple.get("note")))
                                 st.caption(
-                                    "V176 bestätigt nach dem Bewertungszonen-Live-Test: 13.0× PayPal, 25.07× Adyen und 8.47× Fiserv sowie die daraus abgeleiteten eigenen Fair Values wurden korrekt dargestellt. "
-                                    "Peer-Adjustment bleibt neutral/unreleased; historische Bewertungsbandbreite und Analystenziele bleiben Kontrollschichten, nicht Multiple- oder Fair-Value-Anker."
+                                    "Praxistest der drei Referenzunternehmen bestanden: PayPal 13,00× · Adyen 25,07× · Fiserv 8,47×. "
+                                    "Historische Bewertungsbandbreiten und Analystenziele bleiben reine Kontrollschichten und setzen weder Ziel-KGV noch fairen Wert."
                                 )
 
                         if pp_profile == "wallet_branded_checkout_psp":
@@ -68647,7 +68717,7 @@ if selected_symbol:
                                 st.metric("Cash + Investments", format_money(pp_snap.get("cash_and_investments"), pp_ccy))
                                 st.metric("Debt", format_money(pp_snap.get("debt"), pp_ccy))
 
-                            st.markdown("**Volume → Economics Diagnostic**")
+                            st.markdown("**Prüfung: Zahlungsvolumen → Ertragsökonomie**")
                             st.write(
                                 f"TPV wächst {safe_float(pp_snap.get('q2_tpv_growth_pct')):.1f}%, TM$ ex Interest aber nur "
                                 f"{safe_float(pp_snap.get('q2_transaction_margin_dollars_ex_interest_growth_pct')):.1f}%. "
@@ -68655,7 +68725,7 @@ if selected_symbol:
                             )
                             st.caption(text_or_dash(pp_snap.get("volume_monetization_note")))
 
-                            st.markdown("**Issuer-native Earnings-/Cashflow-Kontext**")
+                            st.markdown("**Emittenteneigener Ergebnis-/Cashflow-Kontext**")
                             st.write(
                                 f"**FY2026 Company Non-GAAP EPS Guidance:** ≈ {safe_float(pp_snap.get('fy2026_non_gaap_eps_guidance')):.2f} USD "
                                 f"· FY2025 Non-GAAP EPS {safe_float(pp_snap.get('fy2025_non_gaap_eps')):.2f} USD"
@@ -68708,7 +68778,7 @@ if selected_symbol:
                                 )
                                 st.metric("FY2026 CapEx / Net Revenue", f"≈ {safe_float(pp_snap.get('fy2026_capex_pct_net_revenue_guidance')):.0f}%")
 
-                            st.markdown("**Volume → Economics Diagnostic**")
+                            st.markdown("**Prüfung: Zahlungsvolumen → Ertragsökonomie**")
                             st.write(
                                 f"Processed Volume wächst {safe_float(pp_snap.get('h1_processed_volume_growth_pct')):.1f}%, Net Revenue "
                                 f"{safe_float(pp_snap.get('h1_net_revenue_growth_pct')):.1f}% reported bzw. "
@@ -68717,7 +68787,7 @@ if selected_symbol:
                             )
                             st.caption(text_or_dash(pp_snap.get("volume_monetization_note")))
 
-                            st.markdown("**Issuer-native Profitabilitäts-/Cash-Conversion-Kontext**")
+                            st.markdown("**Emittenteneigener Profitabilitäts-/Cashflow-Kontext**")
                             st.write(
                                 f"EBITDA-Marge H1 {safe_float(pp_snap.get('h1_ebitda_margin_pct')):.1f}% · underlying "
                                 f"{safe_float(pp_snap.get('h1_underlying_ebitda_margin_pct')):.1f}% · "
@@ -68726,7 +68796,7 @@ if selected_symbol:
                             )
                             st.info(text_or_dash(pp_snap.get("earnings_reference_status")))
 
-                            st.markdown("**Structure / Guidance Comparability Gate**")
+                            st.markdown("**Struktur- und Prognose-Vergleichbarkeitsprüfung**")
                             st.write(
                                 f"Talon.One + Orb geschlossen: **{text_or_dash(pp_snap.get('talon_one_orb_closed_date'))}** · "
                                 f"H1 enthält Akquisitionen: **{'Ja' if pp_snap.get('h1_includes_talon_one_orb') else 'Nein'}** · "
@@ -68772,7 +68842,7 @@ if selected_symbol:
                                     f"{safe_float(pp_snap.get('fy2026_adjusted_eps_low')):.2f}–{safe_float(pp_snap.get('fy2026_adjusted_eps_high')):.2f} USD",
                                 )
 
-                            st.markdown("**Volume / Activity → Economics Diagnostic**")
+                            st.markdown("**Prüfung: Zahlungsvolumen/Aktivität → Ertragsökonomie**")
                             st.write(
                                 f"Clover GPV wächst vergleichbar +{safe_float(pp_snap.get('clover_q2_gpv_growth_ex_gateway_pct')):.1f}% "
                                 f"(+{safe_float(pp_snap.get('clover_q2_gpv_growth_reported_pct')):.1f}% reported), während Total-Company Organic Revenue "
@@ -68783,7 +68853,7 @@ if selected_symbol:
                             st.caption(text_or_dash(pp_snap.get("volume_economics_note")))
                             st.caption(text_or_dash(pp_snap.get("clover_gateway_conversion_comparability_note")))
 
-                            st.markdown("**Issuer-native Profitabilitäts-/Cash-Conversion-Kontext**")
+                            st.markdown("**Emittenteneigener Profitabilitäts-/Cashflow-Kontext**")
                             st.write(
                                 f"Q2 Adjusted Operating Margin {safe_float(pp_snap.get('q2_adjusted_operating_margin_pct')):.1f}% "
                                 f"vs. {safe_float(pp_snap.get('q2_adjusted_operating_margin_prior_pct')):.1f}% Vorjahr · "
@@ -68792,7 +68862,7 @@ if selected_symbol:
                             )
                             st.info(text_or_dash(pp_snap.get("earnings_reference_status")))
 
-                            st.markdown("**Guidance Reset / Execution Gate**")
+                            st.markdown("**Prüfung von Prognose-Änderung und Umsetzung**")
                             st.write(
                                 f"Organic Revenue: {safe_float(pp_snap.get('fy2026_organic_revenue_guidance_prev_low_pct')):.0f}–{safe_float(pp_snap.get('fy2026_organic_revenue_guidance_prev_high_pct')):.0f}% "
                                 f"→ {safe_float(pp_snap.get('fy2026_organic_revenue_guidance_low_pct')):.0f}–{safe_float(pp_snap.get('fy2026_organic_revenue_guidance_high_pct')):.0f}% · "
@@ -68805,9 +68875,7 @@ if selected_symbol:
                             st.caption(text_or_dash(pp_snap.get("structure_note")))
 
                         st.warning(
-                            "V176 Valuation Gate: Family Quality Score V1, current-FY Family Earnings Basis V1, der 8–30× Payments-Processor-Multiple-Korridor und der eigene Family Fair Value sind live validiert. Bewertungszonen V1 sind freigegeben. "
-                            "Der Drei-Emittenten-Multiple-, Fair-Value- und Bewertungszonen-Test ist bestanden. Peer-Adjustment bleibt neutral/unreleased; Handlungssignale bleiben bis zur separaten Signal-Kalibrierung gesperrt. "
-                            "Yahoo-FCF, generisches Net-Debt/FCF, Standard-KGV, roher Provider-Forward-EPS und Analystenziele dürfen dieses Gate nicht umgehen."
+                            "Bewertungsschutz: Yahoo-FCF, generisches Netto-Schulden/FCF, Standard-KGV, rohes Datenanbieter-Prognose-EPS und Analystenziele dürfen den freigegebenen Zahlungsabwickler-Pfad nicht umgehen."
                         )
                         st.caption(pp_foundation_ui.get("note"))
 
