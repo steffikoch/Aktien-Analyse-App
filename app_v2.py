@@ -23,10 +23,10 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.82"
+APP_BUILD_VERSION = "V2.22.83"
 
-# V178 – Modul-6-Transparenz & deutsche Verständlichkeit.
-# Nur die sichtbare Darstellung wird übersetzt; interne Schlüssel, Statuswerte,
+# V179 – Sprach-, Versions- & Konsistenzbereinigung.
+# Reine UI-/Textbereinigung auf Basis von V178; interne Schlüssel, Statuswerte,
 # Datenpfade und Bewertungsmathematik bleiben unverändert.
 _UI_DE_EXACT = {
     "buy": "kaufen",
@@ -132,7 +132,7 @@ _UI_DE_REPLACEMENTS = [
     ("Cash Conversion", "Cashflow-Umwandlung"),
     ("Cash-Conversion", "Cashflow-Umwandlung"),
     ("FCF Conversion", "FCF-Umwandlung"),
-    ("Adjusted Operating Margin", "bereinigte operative Marge"),
+    ("Bereinigte operative Marge", "bereinigte operative Marge"),
     ("Adjusted Operating Income", "bereinigtes operatives Ergebnis"),
     ("Adjusted Revenue", "bereinigter Umsatz"),
     ("Organic Revenue", "organischer Umsatz"),
@@ -411,7 +411,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Modul-6-Transparenz & deutsche Verständlichkeit V178"
+    f"Build {APP_BUILD_VERSION} · Sprach-, Versions- & Konsistenzbereinigung V179"
 )
 
 
@@ -435,6 +435,7 @@ st.caption(
 # V2.22.80: Payments Processor Valuation Zones Live Validation & Gate Cleanup V176. Status/copy-only closure after PayPal, Adyen and Fiserv passed the live V175 zone regression as Underbewertet, Fair bewertet and Unterbewertet with unchanged Fair Values and calibrated widths. No score, earnings-basis, multiple, Fair-Value or valuation-zone mathematics change. Family status advances to three_issuer_valuation_zone_live_validated. Peer adjustment remains neutral/unreleased and action signals remain fail-closed for separate signal calibration/release. Removes stale copy implying valuation zones are still blocked or awaiting live validation. Visa/Mastercard V163 mathematics remain unchanged.
 # V2.22.81: Deutsche Benutzeroberfläche & Verständlichkeits-Bereinigung V177. Darstellungs-/Sprachschicht בלבד: sichtbare englische Fachbegriffe werden deutsch erläutert; interne Schlüssel, Bewertungsmathematik und Freigabestatus bleiben unverändert.
 # V2.22.82: Modul-6-Transparenz & deutsche Verständlichkeit V178. Reine Darstellungs-/Sprachbereinigung ohne Änderung der Bewertungsmathematik. Für Zahlungsabwickler zeigt Modul 6 jetzt getrennt Qualitätspunktzahl-KGV, Ökonomie-Aufschlag, KGV vor Schutzregeln, Schutzgrenze und freigegebenes Ziel-KGV. Referenzunternehmen zur Modellvalidierung werden klar von einer noch nicht freigegebenen automatischen Bewertungs-Vergleichsgruppe getrennt. Sichtbare interne Entwicklungsbegriffe und Wiederholungen im Zahlungsabwickler-Pfad werden reduziert.
+# V2.22.83: Sprach-, Versions- & Konsistenzbereinigung V179. Reine UI-/Textbereinigung ohne Änderung der Bewertungsmathematik. Entfernt veraltete V176/V175-Verweise aus dem sichtbaren Zahlungsabwickler-Pfad, korrigiert Grammatik und Schritt-2B-Texte, ersetzt verbliebene Entwicklungsbegriffe durch verständliches Deutsch und benennt die methodische Sicherheitsobergrenze eindeutiger. PayPal-/Adyen-/Fiserv-Punktzahl-, Gewinnbasis-, Multiple-, Fair-Value- und Zonenmathematik bleiben unverändert.
 
 
 
@@ -12696,7 +12697,7 @@ def _universal_family_special_control(company_type):
                 "Technology/IP/Licensing- bzw. Processing-Economics getrennt von klassischem Mine-NAV",
                 "Projekt-CapEx, Zeitplan und Funding-Gate vor jedem Asset-/Project-NAV",
                 "erst bei kommerzieller Produktion: Produktions-/Kosten-/Rohstoffzyklus-Metriken",
-                "Analystenziele ausschließlich Reality Check, nie Fair-Value-Anker",
+                "Analystenziele ausschließlich als Plausibilitätscheck, nie als Bewertungsanker",
             ]
             profile_note = (
                 "Das Unternehmen wird als Battery-Materials-/Processing-/Technology-Developer und nicht wie ein laufender "
@@ -12714,7 +12715,7 @@ def _universal_family_special_control(company_type):
                 "Projekt-CapEx und Project-Financing-Gate vor jedem Project-NAV",
                 "Project-NAV erst mit belastbarer technischer/wirtschaftlicher Studie und vergleichbarer Primärdatenbasis",
                 "erst bei kommerzieller Produktion: Produktions-/Kosten-/Rohstoffzyklus-Metriken",
-                "Analystenziele ausschließlich Reality Check, nie Fair-Value-Anker",
+                "Analystenziele ausschließlich als Plausibilitätscheck, nie als Bewertungsanker",
             ]
             profile_note = (
                 "Das Unternehmen wird als Mineral Explorer / Mine Developer und nicht wie ein laufender Bergbauproduzent bewertet. "
@@ -12743,20 +12744,20 @@ def _universal_family_special_control(company_type):
         "Primärquellen-/Comparability-Basis für die aktuelle Periode",
         "familiengerechter Bewertungsanker und Korridor",
         "issuer-spezifische Overrides nur bei echten Struktur-/Sonderfällen",
-        "Analystenziele ausschließlich Reality Check, nie Fair-Value-Anker",
+        "Analystenziele ausschließlich als Plausibilitätscheck, nie als Bewertungsanker",
     ]
     if (company_type or {}).get("valuation_family_id") == "payments_processor":
         planned_checks = [
-            "Payment Volume/Activity als Volumen- und Effizienzkontext, nicht als alleiniger Qualitätsanker",
-            "issuer-native Economics/Revenue Conversion statt erzwungener Einheitsmetrik (TM$, Net Revenue, Organic/Adjusted Revenue)",
-            "Margin Quality und Margentrend auf vergleichbarer bereinigter Basis",
-            "issuer-reported FCF/FCF Conversion und CapEx-Intensität statt Yahoo-FCF-Score",
-            "Current-FY Earnings-Hierarchie: Company Adjusted-/Non-GAAP-EPS-Guidance; falls nicht vorhanden nur guarded 0Y/current-FY same-basis Konsens vor rohem Provider-Forward-EPS",
-            "Structure/Guidance Comparability inklusive Akquisitionen, Transformation und Guidance-Revisionen",
-            "Kapitalstruktur und Kapitalallokation subprofilgerecht statt generischem Net-Debt/FCF",
-            "Subprofil-Comparability: Wallet/PSP vs. Integrated Acquirer vs. Diversified Merchant+Banking Tech",
-            "familiengerechter 8–30x Current-FY Multiple-Korridor und eigener Fair Value an PayPal/Adyen/Fiserv live validiert; Bewertungszonen V1 freigegeben; Peer-Adjustment bleibt neutral/unreleased; Handlungssignale folgen separat",
-            "Analystenziele ausschließlich Reality Check, nie Fair-Value-Anker",
+            "Zahlungsvolumen und Aktivität als Volumen- und Effizienzkontext, nicht als alleiniger Qualitätsanker",
+            "Emittenteneigene Ertragsökonomie und Umsatz-Umwandlung statt erzwungener Einheitsmetrik (TM$, Nettoerlös, organischer/bereinigter Umsatz)",
+            "Margenqualität und Margentrend auf vergleichbarer bereinigter Basis",
+            "Vom Emittenten ausgewiesener FCF, FCF-Umwandlung und CapEx-Intensität statt Yahoo-FCF-Punktzahl",
+            "Ergebnis-Hierarchie für das laufende Geschäftsjahr: unternehmenseigene Prognose für bereinigtes/Non-GAAP-EPS; falls nicht vorhanden nur abgesicherter 0Y-Konsens auf gleicher Ergebnisbasis vor rohem Datenanbieter-Prognose-EPS",
+            "Vergleichbarkeit von Struktur und Unternehmensprognose einschließlich Akquisitionen, Transformation und Prognoseänderungen",
+            "Kapitalstruktur und Kapitalallokation subprofilgerecht statt generischem Netto-Schulden/FCF",
+            "Subprofil-Vergleichbarkeit: digitale Geldbörse/PSP gegenüber integriertem Zahlungsakquisiteur gegenüber diversifiziertem Händler- und Banking-Technologieanbieter",
+            "Familiengerechter 8–30× KGV-Korridor für das laufende Geschäftsjahr sowie eigener fairer Wert an PayPal, Adyen und Fiserv praktisch geprüft; Bewertungszonen V1 freigegeben; Vergleichsgruppen-Anpassung bleibt neutral und noch nicht freigegeben; Handlungssignale folgen separat",
+            "Analystenziele ausschließlich als Plausibilitätscheck, nie als Bewertungsanker",
         ]
     if (company_type or {}).get("valuation_family_id") == "payments_processor":
         return {
@@ -12766,20 +12767,20 @@ def _universal_family_special_control(company_type):
             "control_key": "universal_family_model_gate",
             "control_name": f"Universal Family / {family_label} Modell-Gate",
             "planned_checks": planned_checks,
-            "status": "Family Score + Earnings Basis + Multiple-Korridor + eigener Fair Value live validiert · Bewertungszonen V1 freigegeben · Signale noch gesperrt",
-            "router_status": "Family Score + Earnings Basis + Multiple-Korridor + eigener Fair Value live validiert · Bewertungszonen V1 freigegeben · Signale noch gesperrt",
+            "status": "Familien-Punktzahl + Gewinnbasis + KGV-Korridor + eigener fairer Wert praktisch geprüft · Bewertungszonen V1 freigegeben · Signale noch gesperrt",
+            "router_status": "Familien-Punktzahl + Gewinnbasis + KGV-Korridor + eigener fairer Wert praktisch geprüft · Bewertungszonen V1 freigegeben · Signale noch gesperrt",
             "confidence_cap": "Niedrig bis Mittel",
             "note": (
-                f"{family_label} wurde durch den Universal Company Classification & Valuation Family Router erkannt. "
-                "Family Quality Score V1, current-FY Family Earnings Basis V1 und der 8–30x Current-FY Payments-Processor-Multiple-Korridor sind live validiert. "
-                "V176 hält den live validierten eigenen Fair Value und die in V175 kalibrierten family-spezifischen Bewertungszonen V1 unverändert; der Drei-Emittenten-Zonentest ist bestanden. "
-                "Die Zonenbreite startet bei der Bewertungssicherheit und wird bei niedrigerer operativer Qualität sowie schwächerer Earnings-/Multiple-Sicherheit konservativ verbreitert. "
-                "Peer-Adjustment bleibt neutral/unreleased; historische Durchschnitts-KGVs und Analystenziele bleiben reine Vergleichsschichten. Handlungssignale bleiben bis zur separaten Signal-Kalibrierung und -Freigabe gesperrt."
+                f"{family_label} wurde durch die universelle Unternehmensklassifizierung und Bewertungsfamilien-Zuordnung erkannt. "
+                "Familien-Qualitätspunktzahl V1, Gewinnbasis des laufenden Geschäftsjahres V1 und der 8–30× Zahlungsabwickler-KGV-Korridor sind praktisch geprüft und freigegeben. "
+                "Der eigene faire Wert und die familienbezogenen Bewertungszonen V1 sind ebenfalls praktisch geprüft; der Test mit PayPal, Adyen und Fiserv ist bestanden. "
+                "Die Zonenbreite startet bei der Bewertungssicherheit und wird bei niedrigerer operativer Qualität sowie schwächerer Sicherheit von Gewinnbasis oder Ziel-KGV konservativ verbreitert. "
+                "Die Vergleichsgruppen-Anpassung bleibt neutral und noch nicht freigegeben; historische Durchschnitts-KGVs und Analystenziele bleiben reine Vergleichsschichten. Handlungssignale bleiben bis zur separaten Signal-Kalibrierung und -Freigabe gesperrt."
             ),
             "router_note": (
-                f"{family_label} wurde durch den Universal Company Classification & Valuation Family Router erkannt. "
-                "Score, Earnings-Basis, Multiple-Korridor und eigener Fair Value sind live validiert; Bewertungszonen V1 sind freigegeben. "
-                "Peer-Adjustment bleibt neutral/unreleased; Handlungssignale folgen erst nach separater Signal-Kalibrierung und -Freigabe."
+                f"{family_label} wurde durch die universelle Unternehmensklassifizierung und Bewertungsfamilien-Zuordnung erkannt. "
+                "Punktzahl, Gewinnbasis, KGV-Korridor, eigener fairer Wert und Bewertungszonen V1 sind praktisch geprüft und freigegeben. "
+                "Die Vergleichsgruppen-Anpassung bleibt neutral und noch nicht freigegeben; Handlungssignale folgen erst nach separater Signal-Kalibrierung und -Freigabe."
             ),
         }
 
@@ -29523,7 +29524,7 @@ def get_verified_regulated_utility_snapshot(symbol):
             "published_date": "14.09.2026",
             "source_name": "NextEra Energy Q2 2026 Earnings + Financial Policy/Credit + September 2026 Investor Update",
             "source_url": "https://www.investor.nexteraenergy.com/news-and-events/news-releases/2026/09-14-2026-123048416",
-            "earnings_basis_name": "FY2026 Adjusted EPS Guidance",
+            "earnings_basis_name": "FY2026 Prognose für bereinigtes EPS",
             "fy_eps_guidance_low": 3.92,
             "fy_eps_guidance_high": 4.02,
             "fy_eps_guidance_mid": 3.97,
@@ -29589,7 +29590,7 @@ def get_verified_regulated_utility_snapshot(symbol):
             "published_date": "31.07.2026",
             "source_name": "Portland General Electric Q2 2026 Results + July 31, 2026 Investor Presentation",
             "source_url": "https://investors.portlandgeneral.com/news-releases/news-release-details/portland-general-electric-announces-second-quarter-2026-results",
-            "earnings_basis_name": "FY2026 Adjusted EPS Guidance",
+            "earnings_basis_name": "FY2026 Prognose für bereinigtes EPS",
             "fy_eps_guidance_low": 3.33,
             "fy_eps_guidance_high": 3.53,
             "fy_eps_guidance_mid": 3.43,
@@ -30988,8 +30989,8 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
             "clover_q2_gpv_growth_reported_pct": 9.0,
             "clover_q2_gpv_growth_ex_gateway_pct": 11.0,
             "clover_gateway_conversion_comparability_note": (
-                "Clover GPV wuchs Q2 reported um 9%; auf vergleichbarer Basis ohne Volumen der zuvor offengelegten Gateway-Konversion um 11%. "
-                "V176 zeigt beide Raten und verwendet die 11% nicht als alleinigen Qualitätsanker."
+                "Clover-GPV wuchs im Q2 ausgewiesen um 9 %; auf vergleichbarer Basis ohne Volumen der zuvor offengelegten Gateway-Umstellung um 11 %. "
+                "Beide Raten werden gezeigt; die 11 % werden nicht als alleiniger Qualitätsanker verwendet."
             ),
             "q2_adjusted_operating_income": 1.580e9,
             "q2_adjusted_operating_margin_pct": 31.8,
@@ -31040,15 +31041,15 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
             "student_loan_servicing_divestiture_expected_q3_2026": True,
             "structure_note": (
                 "Fiserv One transformation expenses beeinflussen GAAP-Comparability; zusätzlich wurde die MoneyPass Group JV im August abgeschlossen "
-                "und die Student-Loan-Servicing-Veräußerung für Q3 erwartet. V176 hält deshalb GAAP-Margen und rohe Provider-Trends außerhalb der Family-Score-/Multiple-Logik."
+                "und die Veräußerung des Student-Loan-Servicing für Q3 erwartet. Deshalb bleiben GAAP-Margen und rohe Datenanbieter-Trends außerhalb der Familien-Punktzahl-/Ziel-KGV-Logik."
             ),
             "volume_economics_note": (
                 "Clover GPV wächst vergleichbar +11%, während Total-Company Organic Revenue Q2 -5% und Adjusted Revenue -4% beträgt. "
                 "Das bestätigt den Family-Grundsatz: Payment Activity/Volume darf nicht automatisch als Economics-/Gewinnwachstum gewertet werden."
             ),
             "earnings_reference_status": (
-                "FY2026 Company Adjusted EPS Guidance $7.20–7.40 ist issuer-primary same-basis Kontext. "
-                "V176 verwendet den Mittelpunkt dieser issuer-primary Guidance als freigegebene Family-Earnings-Basis; Family-Multiple-Korridor und eigener Fair Value sind live validiert, Bewertungszonen und Signale bleiben separat gesperrt."
+                "Die FY2026-Unternehmensprognose für bereinigtes EPS von 7,20–7,40 USD ist primärquellenbasierter Kontext auf gleicher Ergebnisbasis. "
+                "Der Mittelpunkt wird als freigegebene Familien-Gewinnbasis verwendet; Familien-KGV-Korridor, eigener fairer Wert und Bewertungszonen sind praktisch geprüft und freigegeben. Handlungssignale bleiben separat gesperrt."
             ),
         }
 
@@ -31092,7 +31093,7 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
             "long_term_ebitda_margin_target_year": 2028,
             "company_eps_guidance_available": False,
             "earnings_reference_status": (
-                "Keine Company-EPS-Guidance: V176 erzwingt deshalb keinen PayPal-artigen EPS-Guidance-Anker. "
+                "Keine unternehmenseigene EPS-Prognose: Deshalb wird kein PayPal-artiger EPS-Prognoseanker erzwungen. "
                 "Als kontrollierter Fallback ist nur der horizon-aligned 0Y/current-FY IFRS-EPS-Konsens unter issuer-primary Operating-Guidance-Guard zulässig."
             ),
             "talon_one_orb_closed_date": "01.07.2026",
@@ -31107,7 +31108,7 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
             "volume_economics_cc_spread_pct_points": 21.0 - 24.0,
             "volume_monetization_note": (
                 "H1 Processed Volume +24% versus Net Revenue +19% reported bzw. +21% constant currency. "
-                "Volumen wächst damit schneller als die Net-Revenue-Ökonomie; in V176 ist das Diagnoseevidenz und wird nicht nochmals außerhalb des Family Score doppelt bestraft."
+                "Das Volumen wächst damit schneller als die Nettoerlös-Ökonomie; diese Diagnoseevidenz wird außerhalb der Familien-Punktzahl nicht nochmals doppelt berücksichtigt."
             ),
         }
 
@@ -31162,8 +31163,8 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
         "q2_non_gaap_eps_growth_pct": -1.0,
         "fy2026_non_gaap_eps_guidance": 5.38,
         "fy2025_non_gaap_eps": 5.31,
-        "earnings_reference_label": "FY2026 Company Non-GAAP EPS Guidance",
-        "earnings_reference_status": "Issuer-primary FY2026 Non-GAAP EPS Guidance · Family-Earnings-Basis V1",
+        "earnings_reference_label": "FY2026 Unternehmensprognose für Non-GAAP-EPS",
+        "earnings_reference_status": "Primärquellenbasierte FY2026-Unternehmensprognose für Non-GAAP-EPS · Familien-Gewinnbasis V1",
         "q2_operating_cash_flow": 1.983e9,
         "q2_free_cash_flow": 1.775e9,
         "q2_adjusted_free_cash_flow": 1.832e9,
@@ -31187,8 +31188,8 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
         "declared_dividend_per_share": 0.14,
         "volume_monetization_spread_pct_points": 3.0 - 10.0,
         "volume_monetization_note": (
-            "Q2 TPV +10% versus TM$ ex Interest +3%: starkes Volumenwachstum übersetzt sich nicht proportional "
-            "in die isolierte operative Zahlungsökonomie. Das ist in V176 Diagnoseevidenz und wird im Family Score/Multiple-Guard nur einmal berücksichtigt."
+            "Q2 TPV +10 % gegenüber TM$ ohne Zinsen auf Kundenguthaben +3 %: Starkes Volumenwachstum übersetzt sich nicht proportional "
+            "in die isolierte operative Zahlungsökonomie. Diese Diagnoseevidenz wird in Familien-Punktzahl und Schutzregel nur einmal berücksichtigt."
         ),
     }
 
@@ -31302,7 +31303,7 @@ def build_payments_processor_family_score(snapshot):
         economics_growth = safe_float(snap.get("q2_transaction_margin_dollars_ex_interest_growth_pct"))
         volume_growth = safe_float(snap.get("q2_tpv_growth_pct"))
         conversion_spread = (economics_growth - volume_growth) if economics_growth is not None and volume_growth is not None else None
-        economics_label = "TM$ ex Interest Wachstum"
+        economics_label = "TM$ ohne Zinsen auf Kundenguthaben – Wachstum"
         volume_label = "TPV Wachstum"
         margin_level = safe_float(snap.get("q2_non_gaap_operating_margin_pct"))
         margin_trend_bps = safe_float(snap.get("q2_non_gaap_operating_margin_change_bps"))
@@ -31350,8 +31351,8 @@ def build_payments_processor_family_score(snapshot):
         economics_growth = safe_float(snap.get("h1_net_revenue_cc_growth_pct"))
         volume_growth = safe_float(snap.get("h1_processed_volume_growth_pct"))
         conversion_spread = (economics_growth - volume_growth) if economics_growth is not None and volume_growth is not None else None
-        economics_label = "Net Revenue Wachstum · CC"
-        volume_label = "Processed Volume Wachstum"
+        economics_label = "Nettoerlös-Wachstum · währungsbereinigt"
+        volume_label = "Wachstum des verarbeiteten Zahlungsvolumens"
         margin_level = safe_float(snap.get("h1_underlying_ebitda_margin_pct"))
         # H1 2025 EBITDA margin was 50%; compare underlying like-for-like.
         margin_trend_bps = (margin_level - 50.0) * 100.0 if margin_level is not None else None
@@ -31366,7 +31367,7 @@ def build_payments_processor_family_score(snapshot):
             guidance_mid = (gl + gh) / 2.0
         earnings_momentum = guidance_mid  # no company EPS guidance; revenue+stable-margin proxy
         execution_points = 8  # strong outlook, but acquisitions make H1 vs FY guide not fully organic comparable
-        execution_note = "Keine Company-EPS-Guidance; 2026 Net-Revenue-Guidance plus stabile underlying Margin dienen als Earnings-Proxy. Talon.One/Orb begrenzen den Execution-Teilscore."
+        execution_note = "Keine unternehmenseigene EPS-Prognose; die Nettoerlös-Prognose 2026 plus stabile bereinigte Marge dienen als Ergebnis-Näherung. Talon.One/Orb begrenzen den Umsetzungs-Teilscore."
         capital_points = 12
         capital_note = (
             "Kapital-/Strukturblock konservativ auf 12/15 begrenzt: hohe FCF Conversion und geringe Kapitalintensität, "
@@ -31437,7 +31438,7 @@ def build_payments_processor_family_score(snapshot):
         "max_points": 100,
         "quality_label": quality_label,
         "valuation_score": False,
-        "note": "Der Score misst aktuelle operative Qualität und Ausführungsstärke. Er ist für sich allein weder Bewertungs-Multiple noch Fair Value; er speist zusammen mit der freigegebenen Earnings-Basis den live validierten Multiple-/Fair-Value-Pfad.",
+        "note": "Die Punktzahl misst die aktuelle operative Qualität und Ausführungsstärke. Sie ist für sich allein weder Ziel-KGV noch fairer Wert; zusammen mit der freigegebenen Gewinnbasis speist sie den praktisch geprüften Bewertungsweg.",
         "blocks": {
             "economics": {
                 "label": "Economics / Revenue Conversion",
@@ -31450,7 +31451,7 @@ def build_payments_processor_family_score(snapshot):
                 "volume_growth_pct": volume_growth,
                 "volume_label": volume_label,
                 "conversion_spread_pct_points": conversion_spread,
-                "note": "Payment Volume selbst erhält keine Wachstumspunkte; nur die Relation zur issuer-nativen Economics-Metrik fließt mit maximal 5 Punkten ein.",
+                "note": "Das Zahlungsvolumen selbst erhält keine Wachstumspunkte; nur das Verhältnis zur emittenteneigenen Ertragsökonomie-Metrik fließt mit maximal 5 Punkten ein.",
             },
             "margin": {
                 "label": "Margin Quality / Trend",
@@ -31477,7 +31478,7 @@ def build_payments_processor_family_score(snapshot):
                 ),
             },
             "execution": {
-                "label": "Earnings / Guidance / Execution",
+                "label": "Ergebnis / Unternehmensprognose / Umsetzung",
                 "points": earnings_execution_points,
                 "max_points": 20,
                 "momentum_points": momentum_pts,
@@ -31529,7 +31530,7 @@ def build_payments_processor_earnings_basis(snapshot, current_fy_consensus_eps=N
             "earnings_basis_released": True,
             "earnings_basis_eps": anchor,
             "currency": "USD",
-            "basis_label": "FY2026 Company Non-GAAP EPS Guidance",
+            "basis_label": "FY2026 Unternehmensprognose für Non-GAAP-EPS",
             "basis_type": "issuer_primary_company_guidance",
             "accounting_basis": "Non-GAAP EPS",
             "confidence": "Hoch",
@@ -31538,8 +31539,8 @@ def build_payments_processor_earnings_basis(snapshot, current_fy_consensus_eps=N
             "consensus_vs_anchor_pct": gap,
             "provider_forward_allowed_as_anchor": False,
             "note": (
-                "PayPal veröffentlicht eine konkrete FY2026 Non-GAAP-EPS-Guidance. Sie hat Vorrang vor Provider-/Analysten-EPS. "
-                "Der horizon-aligned aktuelle FY-Konsens bleibt nur Plausibilitätscheck; der rohe Provider-Forward-EPS bleibt Horizont-Kontext."
+                "PayPal veröffentlicht eine konkrete FY2026-Unternehmensprognose für Non-GAAP-EPS. Sie hat Vorrang vor Datenanbieter- und Analysten-EPS. "
+                "Der auf denselben Ergebnishorizont abgestimmte Konsens für das laufende Geschäftsjahr bleibt nur Plausibilitätscheck; der rohe Datenanbieter-Prognose-EPS bleibt Horizont-Kontext."
             ),
         }
 
@@ -31558,7 +31559,7 @@ def build_payments_processor_earnings_basis(snapshot, current_fy_consensus_eps=N
             "guidance_low": low,
             "guidance_high": high,
             "currency": "USD",
-            "basis_label": "FY2026 Company Adjusted EPS Guidance · Mittelpunkt",
+            "basis_label": "FY2026 Unternehmensprognose für bereinigtes EPS · Mittelpunkt",
             "basis_type": "issuer_primary_company_guidance_midpoint",
             "accounting_basis": "Adjusted EPS",
             "confidence": "Mittel",
@@ -31568,8 +31569,8 @@ def build_payments_processor_earnings_basis(snapshot, current_fy_consensus_eps=N
             "provider_forward_allowed_as_anchor": False,
             "guidance_reset_guard": True,
             "note": (
-                "Fiservs FY2026 Adjusted-EPS-Guidance von USD 7.20–7.40 wird mit dem Mittelpunkt USD 7.30 als current-FY Earnings-Basis verwendet. "
-                "Wegen des Q2-Guidance-Resets bleibt die Earnings-Basis nur Mittel-sicher; der Execution-Reset wirkt später über Score/Multiple-Guard, nicht durch ein zweites EPS-Haircut."
+                "Fiservs FY2026-Prognose für bereinigtes EPS von 7,20–7,40 USD wird mit dem Mittelpunkt 7,30 USD als Gewinnbasis des laufenden Geschäftsjahres verwendet. "
+                "Wegen der deutlichen Q2-Prognoseänderung bleibt die Gewinnbasis nur mit mittlerer Sicherheit belegt; der Umsetzungsrückschlag wirkt später über Punktzahl und Schutzregel, nicht durch eine zweite Kürzung des EPS."
             ),
         }
 
@@ -31578,7 +31579,7 @@ def build_payments_processor_earnings_basis(snapshot, current_fy_consensus_eps=N
             return {
                 **base,
                 "earnings_basis_released": False,
-                "note": "Adyen veröffentlicht keine Company-EPS-Guidance; ohne belastbaren 0Y/current-FY IFRS-EPS-Konsens bleibt die Earnings-Basis fail-closed.",
+                "note": "Adyen veröffentlicht keine unternehmenseigene EPS-Prognose; ohne belastbaren 0Y-Konsens für IFRS-EPS des laufenden Geschäftsjahres bleibt die Gewinnbasis gesperrt.",
             }
         gl = safe_float(snap.get("fy2026_net_revenue_growth_guidance_cc_low_pct"))
         gh = safe_float(snap.get("fy2026_net_revenue_growth_guidance_cc_high_pct"))
@@ -31596,20 +31597,20 @@ def build_payments_processor_earnings_basis(snapshot, current_fy_consensus_eps=N
             "earnings_basis_released": True,
             "earnings_basis_eps": consensus,
             "currency": "EUR",
-            "basis_label": "0Y/current-FY Analystenkonsens · IFRS EPS · Primary-Guidance-Guard",
+            "basis_label": "0Y-Analystenkonsens für das laufende Geschäftsjahr · IFRS-EPS · Primärdaten-Schutzregel",
             "basis_type": "guarded_current_fy_consensus_fallback",
             "accounting_basis": "IFRS EPS",
             "confidence": "Mittel",
-            "source_name": "Horizon-aligned 0Y/current-FY Analystenkonsens + Adyen H1 2026 Primary Operating Guidance",
+            "source_name": "Auf denselben Ergebnishorizont abgestimmter 0Y-Analystenkonsens + Adyen H1 2026 operative Primärprognose",
             "source_url": snap.get("source_url"),
             "provider_forward_allowed_as_anchor": False,
             "primary_operating_guidance_guard": True,
             "operating_guidance_low_pct": gl,
             "operating_guidance_high_pct": gh,
             "note": (
-                "Adyen veröffentlicht keine EPS-Guidance. Deshalb ist ausschließlich der horizon-aligned 0Y/current-FY IFRS-EPS-Konsens als Fallback zugelassen. "
-                "Er wird nur freigegeben, weil Adyens issuer-primary FY2026 Net-Revenue- und EBITDA-Margin-Guidance die aktuelle Operating-Horizon-Richtung stützt. "
-                "Der rohe Provider-Forward-EPS (+1Y-Nähe) bleibt ausgeschlossen."
+                "Adyen veröffentlicht keine unternehmenseigene EPS-Prognose. Deshalb ist ausschließlich der auf denselben Ergebnishorizont abgestimmte 0Y-Konsens für IFRS-EPS des laufenden Geschäftsjahres als Ersatz zugelassen. "
+                "Er wird nur freigegeben, weil Adyens primärquellenbasierte FY2026-Nettoerlös- und EBITDA-Margenprognose die aktuelle Ergebnisrichtung stützt. "
+                "Der rohe Datenanbieter-Prognose-EPS mit Nähe zum Folgejahr bleibt ausgeschlossen."
             ),
         }
 
@@ -31713,7 +31714,7 @@ def build_payments_processor_family_multiple(snapshot, family_score, earnings_ba
         "earnings_basis_currency": eb.get("currency"),
         "earnings_basis_label": eb.get("basis_label"),
         "note": (
-            "V178 hält das praktisch geprüfte Ziel-KGV aus zwei transparenten Familientreibern unverändert: Qualitätspunktzahl plus ein begrenzter Aufschlag nur bei sehr starker emittenteneigener Ertragsökonomie. "
+            "Das praktisch geprüfte Ziel-KGV wird aus zwei transparenten Familientreibern abgeleitet: Qualitätspunktzahl plus ein begrenzter Aufschlag nur bei sehr starker emittenteneigener Ertragsökonomie. "
             "Emittentenbezogene Schutzregeln wirken ausschließlich nach unten. Historisches Durchschnitts-KGV, aktueller Aktienkurs, Analystenziele, Yahoo-FCF und Standard-KGV setzen oder erhöhen das Ziel-KGV nicht. "
             "Ziel-KGV, eigener fairer Wert und Bewertungszonen bleiben freigegeben; Vergleichsgruppen-Anpassung und Handlungssignale folgen separat."
         ),
@@ -31739,7 +31740,7 @@ def build_payments_processor_foundation_model(company_type, fundamental_info, sy
             "family_multiple_released": False,
             "fair_value_released": False,
             "note": (
-                "Payments Processor / Merchant Acquirer erkannt, aber für diesen Emittenten ist in V176 noch kein "
+                "Zahlungsabwickler / Zahlungsakquisiteur erkannt, aber für diesen Emittenten ist noch kein "
                 "issuer-primary Foundation Snapshot hinterlegt. PayPal, Adyen und Fiserv sind Foundation-Referenzen; "
                 "Standard-Score und Fair Value bleiben fail-closed."
             ),
@@ -40489,8 +40490,8 @@ def get_valuation_corridor(company_type):
                  "Der industrielle Standard-KGV-Korridor bleibt absichtlich gesperrt; die Bewertung erfolgt ausschließlich über den Holding-NAV-Pfad.")
                 if _released_holding
                 else (
-                    (f"Universal Family Router {APP_BUILD_VERSION}: Family Quality Score V1, current-FY Family Earnings Basis V1, der 8–30x Payments-Processor-Multiple-Korridor und der eigene Family Fair Value sind für {family_label} live validiert. "
-                     "Der industrielle Standard-KGV-Korridor bleibt gesperrt; Family-Ziel-KGV und Fair Value werden ausschließlich im Payments-Processor-Specialist berechnet.")
+                    (f"Universelle Familien-Zuordnung {APP_BUILD_VERSION}: Familien-Qualitätspunktzahl V1, Gewinnbasis des laufenden Geschäftsjahres V1, der 8–30× Zahlungsabwickler-KGV-Korridor und der eigene faire Wert sind für {family_label} praktisch geprüft und freigegeben. "
+                     "Der industrielle Standard-KGV-Korridor bleibt gesperrt; Familien-Ziel-KGV und fairer Wert werden ausschließlich im Zahlungsabwickler-Spezialmodell berechnet.")
                     if (company_type or {}).get("valuation_family_id") == "payments_processor"
                     else (f"Universal Family Router {APP_BUILD_VERSION}: {family_label} ist erkannt, aber das wiederverwendbare Familienmodell ist noch nicht freigegeben. "
                           "Der Standard-KGV-Korridor bleibt fail-closed; es wird kein Multiple geschätzt.")
@@ -50895,10 +50896,10 @@ def calculate_payments_processor_valuation_zone(current_price, fair_value, valua
     fair = safe_float(fv.get("fair_value_quote"))
     confidence = str((valuation_confidence or {}).get("level") or "").strip()
     if fv.get("valuation_method") != "payments_processor_current_fy_family_pe" or not fv.get("available"):
-        result["note"] = "Payments-Processor Bewertungszone gesperrt: eigener Family Fair Value ist nicht freigegeben."
+        result["note"] = "Zahlungsabwickler-Bewertungszone gesperrt: Der eigene faire Wert der Bewertungsfamilie ist nicht freigegeben."
         return result
     if price is None or fair is None or price <= 0 or fair <= 0:
-        result["note"] = "Payments-Processor Bewertungszone gesperrt: Kurs oder eigener Fair Value fehlt."
+        result["note"] = "Zahlungsabwickler-Bewertungszone gesperrt: Kurs oder eigener fairer Wert fehlt."
         return result
 
     base_map = {
@@ -50910,14 +50911,14 @@ def calculate_payments_processor_valuation_zone(current_price, fair_value, valua
     }
     base_fair = base_map.get(confidence)
     if base_fair is None:
-        result["note"] = "Payments-Processor Bewertungszone gesperrt: Bewertungssicherheit ist nicht belastbar verfügbar."
+        result["note"] = "Zahlungsabwickler-Bewertungszone gesperrt: Die Bewertungssicherheit ist nicht belastbar verfügbar."
         return result
 
     score = safe_float(fv.get("payments_processor_score"))
     if score is None:
         score = safe_float(((model.get("family_score") or {}).get("total_points")))
     if score is None:
-        result["note"] = "Payments-Processor Bewertungszone gesperrt: Family Quality Score fehlt."
+        result["note"] = "Zahlungsabwickler-Bewertungszone gesperrt: Die Familien-Qualitätspunktzahl fehlt."
         return result
 
     # Lower current operating quality widens the neutral/fair band.  It does not
@@ -50991,10 +50992,10 @@ def calculate_payments_processor_valuation_zone(current_price, fair_value, valua
         "earnings_basis_confidence": earnings_conf or "–",
         "multiple_confidence": multiple_conf or "–",
         "note": (
-            "Payments-Processor Zonen V1 (V176): Der live validierte eigene Fair Value bleibt unverändert das Zentrum. "
-            "Die Fair-Bandbreite startet bei der Bewertungssicherheit und wird nur bei niedrigerer aktueller operativer Qualität "
-            "sowie schwächerer Earnings-/Multiple-Sicherheit verbreitert. Dadurch werden Execution-/Comparability-Risiken über die "
-            "Zonenbreite berücksichtigt, ohne den Fair Value ein zweites Mal zu kürzen. Historische KGVs, Analystenziele und Peer-Werte "
+            "Zahlungsabwickler-Bewertungszonen V1: Der praktisch geprüfte eigene faire Wert bleibt unverändert das Zentrum. "
+            "Die faire Bandbreite startet bei der Bewertungssicherheit und wird nur bei niedrigerer aktueller operativer Qualität "
+            "sowie schwächerer Sicherheit von Gewinnbasis oder Ziel-KGV verbreitert. Dadurch werden Umsetzungs- und Vergleichbarkeitsrisiken über die "
+            "Zonenbreite berücksichtigt, ohne den fairen Wert ein zweites Mal zu kürzen. Historische KGVs, Analystenziele und Vergleichsgruppen-Werte "
             "setzen keine Zonengrenze. Die Bewertungszone ist noch kein Handlungssignal."
         ),
     })
@@ -53967,9 +53968,9 @@ def calculate_fair_value_v1(
 
         if control_name == "Universal Family / Payments Processor / Merchant Acquirer Modell-Gate":
             result["note"] = (
-                "Fair Value V1 gesperrt: Family Quality Score V1, current-FY Family Earnings Basis V1 und der 8–30x Payments-Processor-Multiple-Korridor sind bereits freigegeben. "
-                "Der Live-Multiple- und Fair-Value-Test an PayPal, Adyen und Fiserv ist bestanden. Der eigene Family Fair Value ist live validiert; Peer-Adjustment bleibt neutral/unreleased und Bewertungszonen/Signale bleiben separat gesperrt. "
-                "Es wird ausdrücklich nicht auf Standard-KGV, rohen Provider-Forward-EPS, Yahoo-FCF, historische Durchschnitts-KGVs oder Analystenziele ausgewichen."
+                "Fairer Wert V1 gesperrt: Familien-Qualitätspunktzahl V1, Gewinnbasis des laufenden Geschäftsjahres V1 und der 8–30× Zahlungsabwickler-KGV-Korridor sind bereits freigegeben. "
+                "Der Multiple- und Fairer-Wert-Praxistest an PayPal, Adyen und Fiserv ist bestanden. Der eigene faire Wert ist praktisch geprüft; die Vergleichsgruppen-Anpassung bleibt neutral und noch nicht freigegeben, Bewertungszonen und Signale bleiben separat behandelt. "
+                "Es wird ausdrücklich nicht auf Standard-KGV, rohen Datenanbieter-Prognose-EPS, Yahoo-FCF, historische Durchschnitts-KGVs oder Analystenziele ausgewichen."
             )
             return result
 
@@ -58988,7 +58989,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "upper": safe_float(pp_mul_fm.get("corridor_high")),
                 "method": "Zahlungsabwickler-KGV auf Basis des laufenden Geschäftsjahres",
                 "note": (
-                    "V178: praktisch geprüfter 8–30× Familien-Korridor. Die Qualitätslinie reicht von 40 Punkten = 8× bis 100 Punkten = 22×; nur sehr starke Ertragsökonomie kann bis zu +6× hinzufügen. "
+                    "Praktisch geprüfter 8–30× Familien-Korridor. Die Qualitätslinie reicht von 40 Punkten = 8× bis 100 Punkten = 22×; nur sehr starke Ertragsökonomie kann bis zu +6× hinzufügen. "
                     "Emittentenbezogene Schutzregeln können das Ziel-KGV ausschließlich nach unten begrenzen. Historisches Durchschnitts-KGV, aktueller Kurs und Analystenziele setzen das Ziel nicht."
                 ),
             },
@@ -60799,7 +60800,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 **(eps_normalization or {}),
                 "normalized_eps": pp_fv_eps,
                 "confidence": pp_fv_eb.get("confidence") or "Mittel",
-                "method": "Payments Processor Family Earnings Basis V1 · current FY",
+                "method": "Zahlungsabwickler Familien-Gewinnbasis V1 · laufendes Geschäftsjahr",
             }
 
     fair_value = calculate_fair_value_v1(
@@ -60821,7 +60822,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         pp_fv_score = payments_processor_foundation_model.get("family_score") or {}
         fair_value.update({
             "valuation_method": "payments_processor_current_fy_family_pe",
-            "multiple_source": "Payments Processor Family Target P/E · kein Peer-Adjustment",
+            "multiple_source": "Zahlungsabwickler Familien-Ziel-KGV · keine Vergleichsgruppen-Anpassung",
             "payments_processor_score": safe_float(pp_fv_score.get("total_points")),
             "earnings_basis_label": pp_fv_eb.get("basis_label"),
             "earnings_basis_confidence": pp_fv_eb.get("confidence"),
@@ -60832,9 +60833,9 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "historical_valuation_anchor_used": False,
             "analyst_target_anchor_used": False,
             "note": (
-                "Payments-Processor Fair Value V1 = freigegebene current-FY Family Earnings Basis × live validiertes Family-Ziel-KGV. "
-                "V176 verwendet keinen Peer-Aufschlag, kein historisches Durchschnitts-KGV und keinen Analysten-Kursziel-Blend. "
-                "Diese externen/historischen Ebenen bleiben ausschließlich Vergleich/Reality Check."
+                "Zahlungsabwickler Fairer Wert V1 = freigegebene Familien-Gewinnbasis des laufenden Geschäftsjahres × praktisch geprüftes Familien-Ziel-KGV. "
+                "Es wird kein Vergleichsgruppen-Aufschlag, kein historisches Durchschnitts-KGV und keine Mischung mit Analysten-Kurszielen verwendet. "
+                "Diese externen und historischen Ebenen bleiben ausschließlich Vergleich und Plausibilitätscheck."
             ),
         })
 
@@ -60910,8 +60911,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
 
     if fair_value.get("valuation_method") == "payments_processor_current_fy_family_pe":
         pp_signal_gate_reason = (
-            "Payments-Processor Bewertungszonen V1 sind an PayPal, Adyen und Fiserv live validiert. "
-            "Die Handlungssignale bleiben bewusst fail-closed, bis die Kauf-/Halten-/Verkaufen-Regeln separat kalibriert, regressionsgetestet und freigegeben sind."
+            "Die Zahlungsabwickler-Bewertungszonen V1 sind an PayPal, Adyen und Fiserv praktisch geprüft und freigegeben. "
+            "Die Handlungssignale bleiben gesperrt, bis die Kaufen-/Halten-/Verkaufen-Regeln separat kalibriert, regressionsgetestet und freigegeben sind."
         )
         new_buy_signal = {
             "available": False,
@@ -61686,7 +61687,7 @@ if selected_symbol:
                 )
 
                 st.write(
-                    f"**Maximale Bewertungssicherheit:** "
+                    f"**Methodische Obergrenze der Bewertungssicherheit:** "
                     f"{company_type['confidence_cap']}"
                 )
 
@@ -62857,12 +62858,12 @@ if selected_symbol:
                         else:
                             if (company_type or {}).get("valuation_family_id") == "payments_processor":
                                 st.info(
-                                    f"Universal Family Router {APP_BUILD_VERSION}: Diese Standard-TTM/Forward-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
-                                    "Für Payments Processor / Merchant Acquirer ist die current-FY Family Earnings Basis V1 bereits separat in Schritt 3B freigegeben; "
-                                    "die hier gezeigte Standard-Normalisierung ist ausdrücklich kein Fair-Value-Anker."
+                                    f"Universelle Familien-Zuordnung {APP_BUILD_VERSION}: Diese Standard-TTM/Prognose-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
+                                    "Für Zahlungsabwickler / Zahlungsakquisiteur ist die Familien-Gewinnbasis des laufenden Geschäftsjahres V1 bereits separat in Schritt 3B freigegeben; "
+                                    "die hier gezeigte Standard-Normalisierung ist ausdrücklich kein Bewertungsanker."
                                 )
                                 st.caption(
-                                    "Roher Provider-Forward-EPS, Yahoo-FCF, Net-Debt/FCF und das industrielle Standard-KGV dürfen die freigegebene Family Earnings Basis sowie den live validierten Family-Multiple-/Fair-Value-Pfad nicht umgehen."
+                                    "Roher Datenanbieter-Prognose-EPS, Yahoo-FCF, Netto-Schulden/FCF und das industrielle Standard-KGV dürfen die freigegebene Familien-Gewinnbasis sowie den praktisch geprüften Familien-KGV-/Fairer-Wert-Pfad nicht umgehen."
                                 )
                             else:
                                 st.info(
@@ -63134,9 +63135,9 @@ if selected_symbol:
                         )
                     elif company_type.get("valuation_family_id") == "payments_processor":
                         st.info(
-                            f"Standard-EPS-Normalisierung: **nur Diagnosekontext** · Universal Family Router {APP_BUILD_VERSION}: "
-                            "Family Quality Score V1, current-FY Family Earnings Basis V1 und der 8–30× Family-Multiple-Korridor sind freigegeben. "
-                            "Die Standard-EPS-Normalisierung bleibt ausgeschlossen; Multiple, eigener Family Fair Value und Bewertungszonen V1 sind live validiert. Peer-Adjustment bleibt neutral/unreleased; Handlungssignale bleiben bis zur separaten Signal-Kalibrierung gesperrt."
+                            f"Standard-EPS-Normalisierung: **nur Diagnosekontext** · Universelle Familien-Zuordnung {APP_BUILD_VERSION}: "
+                            "Familien-Qualitätspunktzahl V1, Familien-Gewinnbasis des laufenden Geschäftsjahres V1 und der 8–30× Familien-KGV-Korridor sind freigegeben. "
+                            "Die Standard-EPS-Normalisierung bleibt ausgeschlossen; Ziel-KGV, eigener fairer Wert und Bewertungszonen V1 sind praktisch geprüft und freigegeben. Die Vergleichsgruppen-Anpassung bleibt neutral und noch nicht freigegeben; Handlungssignale bleiben bis zur separaten Signal-Kalibrierung gesperrt."
                         )
                     else:
                         st.info(
@@ -63648,7 +63649,7 @@ if selected_symbol:
                         if (company_type or {}).get("valuation_family_id") == "payments_processor":
                             st.caption(
                                 "Das oben angezeigte Standard-normalisierte EPS bleibt ausschließlich Diagnosekontext und ist keine freigegebene Bewertungsbasis. "
-                                "Die freigegebene current-FY Family Earnings Basis V1 wird separat im Payments-Processor-Specialist in Schritt 3B ausgewiesen."
+                                "Die freigegebene Familien-Gewinnbasis des laufenden Geschäftsjahres V1 wird separat im Zahlungsabwickler-Spezialmodell in Schritt 3B ausgewiesen."
                             )
                         else:
                             st.caption(
@@ -64310,7 +64311,7 @@ if selected_symbol:
                     )
                 elif is_universal_family_score_ui:
                     st.info(
-                        f"Universelle Familien-Zuordnung {APP_BUILD_VERSION}: Der generische Umsatz-/Gewinnwachstums-Punktzahl wird für "
+                        f"Universelle Familien-Zuordnung {APP_BUILD_VERSION}: Die generische Umsatz-/Gewinnwachstums-Punktzahl wird für "
                         f"{company_type.get('valuation_family') or company_type.get('type')} nicht verwendet."
                     )
                     st.caption(
@@ -67142,7 +67143,9 @@ if selected_symbol:
                 st.divider()
 
                 st.subheader(
-                    "🧭 Modul 6 – Bewertungs-Korridor & Fundamental-Multiple"
+                    "🧭 Modul 6 – Bewertungs-Korridor & Familien-Ziel-KGV"
+                    if (company_type or {}).get("valuation_family_id") == "payments_processor"
+                    else "🧭 Modul 6 – Bewertungs-Korridor & Fundamental-Multiple"
                 )
 
                 multiple_result = data[
@@ -67600,7 +67603,7 @@ if selected_symbol:
                     if multiple_result["score"] is not None:
 
                         st.write(
-                            "**Verwendeter Multiple Score:** "
+                            "**Verwendete Bewertungspunktzahl:** "
                             f"{multiple_result['score']}/100"
                         )
 
@@ -68349,7 +68352,7 @@ if selected_symbol:
                             "fehlende/zu wenige Peer-Daten blockieren die Spezialbewertung nicht und begrenzen nicht die Bewertungssicherheit. " + peer_explain
                         )
                 else:
-                    st.caption("Der Peer-Check ist nur ein externer Realitätscheck. Er verändert den 100-Punkte-Multiple-Score nicht. " + peer_explain)
+                    st.caption("Die Vergleichsgruppen-Prüfung ist nur ein externer Realitätscheck. Sie verändert die 100-Punkte-Qualitätspunktzahl nicht. " + peer_explain)
 
                 if peer_check.get("reference_only"):
                     if is_exchange_peer_metric:
@@ -68378,15 +68381,15 @@ if selected_symbol:
                         )
                 else:
                     st.caption(
-                        "Der Peer-Check erzeugt selbst noch keinen Fair Value. "
-                        "Die eigentliche Fair-Value-Rechnung folgt separat."
+                        "Die Vergleichsgruppen-Prüfung erzeugt selbst noch keinen fairen Wert. "
+                        "Die eigentliche Berechnung des fairen Werts folgt separat."
                     )
 
                 st.divider()
 
                 st.subheader(
                     "🧩 Modul 6 – Schritt 3A: "
-                    "Spezialkontroll-Router"
+                    "Spezialkontroll-Zuordnung"
                 )
 
                 special_control = data[
@@ -68646,12 +68649,12 @@ if selected_symbol:
                                 eb_cons = safe_float(pp_earnings.get("current_fy_consensus_eps"))
                                 eb_gap = safe_float(pp_earnings.get("consensus_vs_anchor_pct"))
                                 if eb_cons is not None and pp_earnings.get("basis_type") != "guarded_current_fy_consensus_fallback":
-                                    gap_txt = f" · Abweichung zum Anchor {eb_gap:+.1f}%" if eb_gap is not None else ""
+                                    gap_txt = f" · Abweichung zum Ankerwert {eb_gap:+.1f}%" if eb_gap is not None else ""
                                     st.caption(f"0Y-Konsens für das laufende Geschäftsjahr: {eb_cons:.2f} {eb_ccy}{gap_txt} · nur Plausibilitätscheck")
                                 elif pp_earnings.get("basis_type") == "guarded_current_fy_consensus_fallback":
                                     st.caption(
-                                        "Adyen-Fallback: aktueller FY-Konsens ist der Earnings-Anker; issuer-primary Revenue-/Margin-Guidance dient als Guard. "
-                                        "Roher Provider-Forward-EPS bleibt ausgeschlossen."
+                                        "Adyen-Fallback: Der Konsens für das laufende Geschäftsjahr ist der Ergebnisanker; primärquellenbasierte Umsatz- und Margenprognosen dienen als Schutzregel. "
+                                        "Roher Datenanbieter-Prognose-EPS bleibt ausgeschlossen."
                                     )
                                 st.info(text_or_dash(pp_earnings.get("note")))
                                 st.caption(
@@ -68688,111 +68691,111 @@ if selected_symbol:
                                 st.metric(
                                     "Q2 TPV",
                                     format_money(pp_snap.get("q2_tpv"), pp_ccy),
-                                    delta=f"+{safe_float(pp_snap.get('q2_tpv_growth_pct')):.1f}% YoY",
+                                    delta=f"+{safe_float(pp_snap.get('q2_tpv_growth_pct')):.1f}% ggü. Vorjahr",
                                 )
                                 st.metric(
-                                    "Q2 Net Revenue",
+                                    "Q2 Nettoerlös",
                                     format_money(pp_snap.get("q2_net_revenue"), pp_ccy),
-                                    delta=f"+{safe_float(pp_snap.get('q2_net_revenue_growth_pct')):.1f}% YoY",
+                                    delta=f"+{safe_float(pp_snap.get('q2_net_revenue_growth_pct')):.1f}% ggü. Vorjahr",
                                 )
-                                st.metric("Active Accounts", f"{safe_float(pp_snap.get('active_accounts'))/1e6:.0f} Mio.")
+                                st.metric("Aktive Konten", f"{safe_float(pp_snap.get('active_accounts'))/1e6:.0f} Mio.")
                             with pp_c2:
                                 st.metric(
-                                    "TM$ ex Interest",
+                                    "TM$ ohne Zinsen auf Kundenguthaben",
                                     format_money(pp_snap.get("q2_transaction_margin_dollars_ex_interest"), pp_ccy),
-                                    delta=f"+{safe_float(pp_snap.get('q2_transaction_margin_dollars_ex_interest_growth_pct')):.1f}% YoY",
+                                    delta=f"+{safe_float(pp_snap.get('q2_transaction_margin_dollars_ex_interest_growth_pct')):.1f}% ggü. Vorjahr",
                                 )
                                 st.metric(
-                                    "Non-GAAP Operating Margin",
+                                    "Non-GAAP operative Marge",
                                     f"{safe_float(pp_snap.get('q2_non_gaap_operating_margin_pct')):.1f}%",
-                                    delta=f"{safe_float(pp_snap.get('q2_non_gaap_operating_margin_change_bps')):.0f} bps YoY",
+                                    delta=f"{safe_float(pp_snap.get('q2_non_gaap_operating_margin_change_bps')):.0f} Basispunkte ggü. Vorjahr",
                                 )
                                 st.metric(
                                     "Q2 Non-GAAP EPS",
                                     f"{safe_float(pp_snap.get('q2_non_gaap_eps')):.2f} USD",
-                                    delta=f"{safe_float(pp_snap.get('q2_non_gaap_eps_growth_pct')):+.1f}% YoY",
+                                    delta=f"{safe_float(pp_snap.get('q2_non_gaap_eps_growth_pct')):+.1f}% ggü. Vorjahr",
                                 )
                             with pp_c3:
-                                st.metric("Q2 Adjusted FCF", format_money(pp_snap.get("q2_adjusted_free_cash_flow"), pp_ccy))
-                                st.metric("Cash + Investments", format_money(pp_snap.get("cash_and_investments"), pp_ccy))
-                                st.metric("Debt", format_money(pp_snap.get("debt"), pp_ccy))
+                                st.metric("Q2 bereinigter FCF", format_money(pp_snap.get("q2_adjusted_free_cash_flow"), pp_ccy))
+                                st.metric("Liquidität + Anlagen", format_money(pp_snap.get("cash_and_investments"), pp_ccy))
+                                st.metric("Schulden", format_money(pp_snap.get("debt"), pp_ccy))
 
                             st.markdown("**Prüfung: Zahlungsvolumen → Ertragsökonomie**")
                             st.write(
-                                f"TPV wächst {safe_float(pp_snap.get('q2_tpv_growth_pct')):.1f}%, TM$ ex Interest aber nur "
-                                f"{safe_float(pp_snap.get('q2_transaction_margin_dollars_ex_interest_growth_pct')):.1f}%. "
-                                "Payment Volume wird deshalb nicht als alleiniger Qualitäts- oder Gewinnwachstumsanker verwendet."
+                                f"TPV wächst {safe_float(pp_snap.get('q2_tpv_growth_pct')):.1f} %, TM$ ohne Zinsen auf Kundenguthaben aber nur "
+                                f"{safe_float(pp_snap.get('q2_transaction_margin_dollars_ex_interest_growth_pct')):.1f} %. "
+                                "Das Zahlungsvolumen wird deshalb nicht als alleiniger Qualitäts- oder Gewinnwachstumsanker verwendet."
                             )
                             st.caption(text_or_dash(pp_snap.get("volume_monetization_note")))
 
                             st.markdown("**Emittenteneigener Ergebnis-/Cashflow-Kontext**")
                             st.write(
-                                f"**FY2026 Company Non-GAAP EPS Guidance:** ≈ {safe_float(pp_snap.get('fy2026_non_gaap_eps_guidance')):.2f} USD "
+                                f"**FY2026 Unternehmensprognose für Non-GAAP-EPS:** ≈ {safe_float(pp_snap.get('fy2026_non_gaap_eps_guidance')):.2f} USD "
                                 f"· FY2025 Non-GAAP EPS {safe_float(pp_snap.get('fy2025_non_gaap_eps')):.2f} USD"
                             )
                             st.write(
-                                f"**Adjusted FCF Q2:** {format_money(pp_snap.get('q2_adjusted_free_cash_flow'), pp_ccy)} · "
-                                f"Operating Cash Flow {format_money(pp_snap.get('q2_operating_cash_flow'), pp_ccy)}"
+                                f"**Bereinigter FCF Q2:** {format_money(pp_snap.get('q2_adjusted_free_cash_flow'), pp_ccy)} · "
+                                f"operativer Cashflow {format_money(pp_snap.get('q2_operating_cash_flow'), pp_ccy)}"
                             )
                             st.caption(text_or_dash(pp_snap.get("adjusted_fcf_definition_note")))
 
                             st.markdown("**Kapitalallokation / Verwässerungskontext**")
                             st.write(
-                                f"Cash + Investments {format_money(pp_snap.get('cash_and_investments'), pp_ccy)} · "
-                                f"Debt {format_money(pp_snap.get('debt'), pp_ccy)} · "
-                                f"Q2 Buybacks {format_money(pp_snap.get('q2_share_repurchases'), pp_ccy)} · "
-                                f"TTM Buybacks {format_money(pp_snap.get('ttm_share_repurchases'), pp_ccy)} · "
-                                f"H1 SBC {format_money(pp_snap.get('h1_stock_based_compensation'), pp_ccy)}"
+                                f"Liquidität + Anlagen {format_money(pp_snap.get('cash_and_investments'), pp_ccy)} · "
+                                f"Schulden {format_money(pp_snap.get('debt'), pp_ccy)} · "
+                                f"Q2 Aktienrückkäufe {format_money(pp_snap.get('q2_share_repurchases'), pp_ccy)} · "
+                                f"TTM Aktienrückkäufe {format_money(pp_snap.get('ttm_share_repurchases'), pp_ccy)} · "
+                                f"H1 aktienbasierte Vergütung (SBC) {format_money(pp_snap.get('h1_stock_based_compensation'), pp_ccy)}"
                             )
 
                         elif pp_profile == "integrated_merchant_acquirer_unified_commerce_platforms":
                             pp_c1, pp_c2, pp_c3 = st.columns(3)
                             with pp_c1:
                                 st.metric(
-                                    "H1 Processed Volume",
+                                    "H1 verarbeitetes Zahlungsvolumen",
                                     format_money(pp_snap.get("h1_processed_volume"), pp_ccy),
-                                    delta=f"+{safe_float(pp_snap.get('h1_processed_volume_growth_pct')):.1f}% YoY",
+                                    delta=f"+{safe_float(pp_snap.get('h1_processed_volume_growth_pct')):.1f}% ggü. Vorjahr",
                                 )
                                 st.metric(
-                                    "H1 Net Revenue",
+                                    "H1 Nettoerlös",
                                     format_money(pp_snap.get("h1_net_revenue"), pp_ccy),
-                                    delta=f"+{safe_float(pp_snap.get('h1_net_revenue_growth_pct')):.1f}% YoY",
+                                    delta=f"+{safe_float(pp_snap.get('h1_net_revenue_growth_pct')):.1f}% ggü. Vorjahr",
                                 )
                                 st.metric(
-                                    "Net Revenue · constant currency",
-                                    f"+{safe_float(pp_snap.get('h1_net_revenue_cc_growth_pct')):.1f}% YoY",
+                                    "Nettoerlös · währungsbereinigt",
+                                    f"+{safe_float(pp_snap.get('h1_net_revenue_cc_growth_pct')):.1f}% ggü. Vorjahr",
                                 )
                             with pp_c2:
                                 st.metric("H1 EBITDA", format_money(pp_snap.get("h1_ebitda"), pp_ccy))
                                 st.metric(
-                                    "EBITDA Margin",
+                                    "EBITDA-Marge",
                                     f"{safe_float(pp_snap.get('h1_ebitda_margin_pct')):.1f}%",
-                                    delta=f"{safe_float(pp_snap.get('h1_underlying_ebitda_margin_pct')):.1f}% ex one-time costs",
+                                    delta=f"{safe_float(pp_snap.get('h1_underlying_ebitda_margin_pct')):.1f}% ohne Einmalkosten",
                                 )
-                                st.metric("FCF Conversion", f"{safe_float(pp_snap.get('h1_fcf_conversion_pct')):.0f}%")
+                                st.metric("FCF-Umwandlung", f"{safe_float(pp_snap.get('h1_fcf_conversion_pct')):.0f}%")
                             with pp_c3:
-                                st.metric("H1 CapEx / Net Revenue", f"{safe_float(pp_snap.get('h1_capex_pct_net_revenue')):.0f}%")
+                                st.metric("H1 CapEx / Nettoerlös", f"{safe_float(pp_snap.get('h1_capex_pct_net_revenue')):.0f}%")
                                 st.metric(
-                                    "FY2026 Net Revenue Guidance · CC",
+                                    "FY2026 Nettoerlös-Prognose · währungsbereinigt",
                                     f"{safe_float(pp_snap.get('fy2026_net_revenue_growth_guidance_cc_low_pct')):.0f}–{safe_float(pp_snap.get('fy2026_net_revenue_growth_guidance_cc_high_pct')):.0f}%",
                                 )
-                                st.metric("FY2026 CapEx / Net Revenue", f"≈ {safe_float(pp_snap.get('fy2026_capex_pct_net_revenue_guidance')):.0f}%")
+                                st.metric("FY2026 CapEx / Nettoerlös", f"≈ {safe_float(pp_snap.get('fy2026_capex_pct_net_revenue_guidance')):.0f}%")
 
                             st.markdown("**Prüfung: Zahlungsvolumen → Ertragsökonomie**")
                             st.write(
-                                f"Processed Volume wächst {safe_float(pp_snap.get('h1_processed_volume_growth_pct')):.1f}%, Net Revenue "
-                                f"{safe_float(pp_snap.get('h1_net_revenue_growth_pct')):.1f}% reported bzw. "
-                                f"{safe_float(pp_snap.get('h1_net_revenue_cc_growth_pct')):.1f}% constant currency. "
-                                "Auch hier bleibt Payment Volume ein Effizienz-/Mix-Kontext und kein alleiniger Qualitätsanker."
+                                f"Das verarbeitete Zahlungsvolumen wächst {safe_float(pp_snap.get('h1_processed_volume_growth_pct')):.1f} %, der Nettoerlös "
+                                f"{safe_float(pp_snap.get('h1_net_revenue_growth_pct')):.1f} % ausgewiesen bzw. "
+                                f"{safe_float(pp_snap.get('h1_net_revenue_cc_growth_pct')):.1f} % währungsbereinigt. "
+                                "Auch hier bleibt das Zahlungsvolumen ein Effizienz- und Mix-Kontext und kein alleiniger Qualitätsanker."
                             )
                             st.caption(text_or_dash(pp_snap.get("volume_monetization_note")))
 
                             st.markdown("**Emittenteneigener Profitabilitäts-/Cashflow-Kontext**")
                             st.write(
-                                f"EBITDA-Marge H1 {safe_float(pp_snap.get('h1_ebitda_margin_pct')):.1f}% · underlying "
-                                f"{safe_float(pp_snap.get('h1_underlying_ebitda_margin_pct')):.1f}% · "
-                                f"FCF Conversion {safe_float(pp_snap.get('h1_fcf_conversion_pct')):.0f}% · "
-                                f"CapEx {safe_float(pp_snap.get('h1_capex_pct_net_revenue')):.0f}% des Net Revenue."
+                                f"EBITDA-Marge H1 {safe_float(pp_snap.get('h1_ebitda_margin_pct')):.1f} % · ohne Einmalkosten "
+                                f"{safe_float(pp_snap.get('h1_underlying_ebitda_margin_pct')):.1f} % · "
+                                f"FCF-Umwandlung {safe_float(pp_snap.get('h1_fcf_conversion_pct')):.0f} % · "
+                                f"CapEx {safe_float(pp_snap.get('h1_capex_pct_net_revenue')):.0f} % des Nettoerlöses."
                             )
                             st.info(text_or_dash(pp_snap.get("earnings_reference_status")))
 
@@ -68800,7 +68803,7 @@ if selected_symbol:
                             st.write(
                                 f"Talon.One + Orb geschlossen: **{text_or_dash(pp_snap.get('talon_one_orb_closed_date'))}** · "
                                 f"H1 enthält Akquisitionen: **{'Ja' if pp_snap.get('h1_includes_talon_one_orb') else 'Nein'}** · "
-                                f"FY2026 Guidance enthält H2-Beitrag: **{'Ja' if pp_snap.get('fy2026_guidance_includes_talon_one_orb') else 'Nein'}**"
+                                f"FY2026-Unternehmensprognose enthält H2-Beitrag: **{'Ja' if pp_snap.get('fy2026_guidance_includes_talon_one_orb') else 'Nein'}**"
                             )
                             st.caption(text_or_dash(pp_snap.get("comparability_guard_note")))
                             st.write(f"**2026 EBITDA-Margin-Ziel:** {text_or_dash(pp_snap.get('fy2026_ebitda_margin_guidance_note'))}")
@@ -68809,66 +68812,66 @@ if selected_symbol:
                             pp_c1, pp_c2, pp_c3 = st.columns(3)
                             with pp_c1:
                                 st.metric(
-                                    "Q2 Adjusted Revenue",
+                                    "Q2 bereinigter Umsatz",
                                     format_money(pp_snap.get("q2_adjusted_revenue"), pp_ccy),
-                                    delta=f"{safe_float(pp_snap.get('q2_adjusted_revenue_growth_pct')):+.1f}% YoY",
+                                    delta=f"{safe_float(pp_snap.get('q2_adjusted_revenue_growth_pct')):+.1f}% ggü. Vorjahr",
                                 )
                                 st.metric(
-                                    "Q2 Organic Revenue",
-                                    f"{safe_float(pp_snap.get('q2_organic_revenue_growth_pct')):+.1f}% YoY",
+                                    "Q2 organischer Umsatz",
+                                    f"{safe_float(pp_snap.get('q2_organic_revenue_growth_pct')):+.1f}% ggü. Vorjahr",
                                 )
                                 st.metric(
-                                    "Clover annualized Q2 GPV",
+                                    "Clover annualisiertes Q2-GPV",
                                     format_money(pp_snap.get("clover_q2_annualized_gpv"), pp_ccy),
-                                    delta=f"+{safe_float(pp_snap.get('clover_q2_gpv_growth_ex_gateway_pct')):.1f}% ex gateway",
+                                    delta=f"+{safe_float(pp_snap.get('clover_q2_gpv_growth_ex_gateway_pct')):.1f}% ohne Gateway-Effekt",
                                 )
                             with pp_c2:
                                 st.metric(
-                                    "Adjusted Operating Margin",
+                                    "Bereinigte operative Marge",
                                     f"{safe_float(pp_snap.get('q2_adjusted_operating_margin_pct')):.1f}%",
-                                    delta=f"{safe_float(pp_snap.get('q2_adjusted_operating_margin_change_bps')):.0f} bps YoY",
+                                    delta=f"{safe_float(pp_snap.get('q2_adjusted_operating_margin_change_bps')):.0f} Basispunkte ggü. Vorjahr",
                                 )
                                 st.metric(
-                                    "Q2 Adjusted EPS",
+                                    "Q2 bereinigtes EPS",
                                     f"{safe_float(pp_snap.get('q2_adjusted_eps')):.2f} USD",
-                                    delta=f"{safe_float(pp_snap.get('q2_adjusted_eps_growth_pct')):+.1f}% YoY",
+                                    delta=f"{safe_float(pp_snap.get('q2_adjusted_eps_growth_pct')):+.1f}% ggü. Vorjahr",
                                 )
-                                st.metric("TTM FCF Conversion", f"{safe_float(pp_snap.get('ttm_fcf_conversion_pct')):.0f}%")
+                                st.metric("TTM FCF-Umwandlung", f"{safe_float(pp_snap.get('ttm_fcf_conversion_pct')):.0f}%")
                             with pp_c3:
-                                st.metric("H1 Free Cash Flow", format_money(pp_snap.get("h1_free_cash_flow"), pp_ccy))
-                                st.metric("H1 CapEx / Adj. Revenue", f"{safe_float(pp_snap.get('h1_capex_pct_adjusted_revenue')):.1f}%")
+                                st.metric("H1 freier Cashflow", format_money(pp_snap.get("h1_free_cash_flow"), pp_ccy))
+                                st.metric("H1 CapEx / bereinigter Umsatz", f"{safe_float(pp_snap.get('h1_capex_pct_adjusted_revenue')):.1f}%")
                                 st.metric(
-                                    "FY2026 Adjusted EPS Guidance",
+                                    "FY2026 Prognose für bereinigtes EPS",
                                     f"{safe_float(pp_snap.get('fy2026_adjusted_eps_low')):.2f}–{safe_float(pp_snap.get('fy2026_adjusted_eps_high')):.2f} USD",
                                 )
 
                             st.markdown("**Prüfung: Zahlungsvolumen/Aktivität → Ertragsökonomie**")
                             st.write(
                                 f"Clover GPV wächst vergleichbar +{safe_float(pp_snap.get('clover_q2_gpv_growth_ex_gateway_pct')):.1f}% "
-                                f"(+{safe_float(pp_snap.get('clover_q2_gpv_growth_reported_pct')):.1f}% reported), während Total-Company Organic Revenue "
-                                f"{safe_float(pp_snap.get('q2_organic_revenue_growth_pct')):+.1f}% und Adjusted Revenue "
-                                f"{safe_float(pp_snap.get('q2_adjusted_revenue_growth_pct')):+.1f}% beträgt. "
-                                "Activity/Volume bleibt deshalb Kontext und kein alleiniger Economics-Anker."
+                                f"(+{safe_float(pp_snap.get('clover_q2_gpv_growth_reported_pct')):.1f} % ausgewiesen), während der organische Gesamtumsatz "
+                                f"{safe_float(pp_snap.get('q2_organic_revenue_growth_pct')):+.1f} % und der bereinigte Umsatz "
+                                f"{safe_float(pp_snap.get('q2_adjusted_revenue_growth_pct')):+.1f} % beträgt. "
+                                "Aktivität und Volumen bleiben deshalb Kontext und kein alleiniger Ertragsökonomie-Anker."
                             )
                             st.caption(text_or_dash(pp_snap.get("volume_economics_note")))
                             st.caption(text_or_dash(pp_snap.get("clover_gateway_conversion_comparability_note")))
 
                             st.markdown("**Emittenteneigener Profitabilitäts-/Cashflow-Kontext**")
                             st.write(
-                                f"Q2 Adjusted Operating Margin {safe_float(pp_snap.get('q2_adjusted_operating_margin_pct')):.1f}% "
-                                f"vs. {safe_float(pp_snap.get('q2_adjusted_operating_margin_prior_pct')):.1f}% Vorjahr · "
-                                f"TTM FCF Conversion {safe_float(pp_snap.get('ttm_fcf_conversion_pct')):.0f}% · "
+                                f"Q2 bereinigte operative Marge {safe_float(pp_snap.get('q2_adjusted_operating_margin_pct')):.1f} % "
+                                f"gegenüber {safe_float(pp_snap.get('q2_adjusted_operating_margin_prior_pct')):.1f} % im Vorjahr · "
+                                f"TTM FCF-Umwandlung {safe_float(pp_snap.get('ttm_fcf_conversion_pct')):.0f} % · "
                                 f"FY2026 FCF-Conversion-Ziel ≈ {safe_float(pp_snap.get('fy2026_fcf_conversion_guidance_pct')):.0f}%."
                             )
                             st.info(text_or_dash(pp_snap.get("earnings_reference_status")))
 
                             st.markdown("**Prüfung von Prognose-Änderung und Umsetzung**")
                             st.write(
-                                f"Organic Revenue: {safe_float(pp_snap.get('fy2026_organic_revenue_guidance_prev_low_pct')):.0f}–{safe_float(pp_snap.get('fy2026_organic_revenue_guidance_prev_high_pct')):.0f}% "
+                                f"Organischer Umsatz: {safe_float(pp_snap.get('fy2026_organic_revenue_guidance_prev_low_pct')):.0f}–{safe_float(pp_snap.get('fy2026_organic_revenue_guidance_prev_high_pct')):.0f} % "
                                 f"→ {safe_float(pp_snap.get('fy2026_organic_revenue_guidance_low_pct')):.0f}–{safe_float(pp_snap.get('fy2026_organic_revenue_guidance_high_pct')):.0f}% · "
-                                f"Adjusted Margin: ≈{safe_float(pp_snap.get('fy2026_adjusted_operating_margin_prev_pct')):.0f}% "
+                                f"Bereinigte operative Marge: ≈{safe_float(pp_snap.get('fy2026_adjusted_operating_margin_prev_pct')):.0f} % "
                                 f"→ {safe_float(pp_snap.get('fy2026_adjusted_operating_margin_low_pct')):.1f}–{safe_float(pp_snap.get('fy2026_adjusted_operating_margin_high_pct')):.1f}% · "
-                                f"Adjusted EPS: {safe_float(pp_snap.get('fy2026_adjusted_eps_prev_low')):.2f}–{safe_float(pp_snap.get('fy2026_adjusted_eps_prev_high')):.2f} "
+                                f"Bereinigtes EPS: {safe_float(pp_snap.get('fy2026_adjusted_eps_prev_low')):.2f}–{safe_float(pp_snap.get('fy2026_adjusted_eps_prev_high')):.2f} "
                                 f"→ {safe_float(pp_snap.get('fy2026_adjusted_eps_low')):.2f}–{safe_float(pp_snap.get('fy2026_adjusted_eps_high')):.2f} USD."
                             )
                             st.caption(text_or_dash(pp_snap.get("guidance_reset_note")))
@@ -68900,13 +68903,13 @@ if selected_symbol:
                             )
                             ex_c1, ex_c2, ex_c3 = st.columns(3)
                             with ex_c1:
-                                st.metric("Q2 Net Revenue", format_money(snap_ex.get("q2_net_revenue"), "USD"), delta=f"+{safe_float(snap_ex.get('q2_net_revenue_growth_pct')):.1f}%")
+                                st.metric("Q2 Nettoerlös", format_money(snap_ex.get("q2_net_revenue"), "USD"), delta=f"+{safe_float(snap_ex.get('q2_net_revenue_growth_pct')):.1f}%")
                                 st.metric("Solutions Revenue", format_money(snap_ex.get("q2_solutions_revenue"), "USD"), delta=f"+{safe_float(snap_ex.get('q2_solutions_revenue_growth_pct')):.1f}%")
                             with ex_c2:
                                 st.metric("ARR", format_money(snap_ex.get("q2_arr"), "USD"), delta=f"+{safe_float(snap_ex.get('q2_arr_organic_growth_pct')):.1f}% org.")
                                 st.metric("SaaS-Anteil an ARR", f"{safe_float(snap_ex.get('q2_saas_arr_share_pct')):.0f}%")
                             with ex_c3:
-                                st.metric("Non-GAAP Operating Margin", f"{safe_float(snap_ex.get('q2_non_gaap_operating_margin_pct')):.1f}%", delta=f"{safe_float(snap_ex.get('q2_non_gaap_operating_margin_pct'))-safe_float(snap_ex.get('q2_non_gaap_operating_margin_prior_pct')):+.1f} pp")
+                                st.metric("Non-GAAP operative Marge", f"{safe_float(snap_ex.get('q2_non_gaap_operating_margin_pct')):.1f}%", delta=f"{safe_float(snap_ex.get('q2_non_gaap_operating_margin_pct'))-safe_float(snap_ex.get('q2_non_gaap_operating_margin_prior_pct')):+.1f} pp")
                                 st.metric("Q2 Non-GAAP EPS", f"{safe_float(snap_ex.get('q2_non_gaap_eps')):.2f} USD", delta=f"+{safe_float(snap_ex.get('q2_non_gaap_eps_growth_pct')):.1f}%")
                             st.caption(
                                 f"Revenue-Quality-Adapter: ARR wächst organisch um {safe_float(snap_ex.get('q2_arr_organic_growth_pct')):.1f}% und SaaS macht {safe_float(snap_ex.get('q2_saas_arr_share_pct')):.0f}% der ARR aus. "
@@ -69081,7 +69084,7 @@ if selected_symbol:
                                 st.metric("H1 Adjusted EBITA Margin", f"{safe_float(snap_ind.get('h1_adjusted_ebita_margin_pct')):.1f}%", f"+{safe_float(snap_ind.get('h1_adjusted_ebita_margin_organic_delta_bps')):.0f} bps org.")
                                 st.metric("FY2025 ROCE", f"{safe_float(snap_ind.get('fy2025_roce_pct')):.1f}%")
                             with c3:
-                                st.metric("H1 Free Cash Flow", format_money(snap_ind.get("h1_free_cash_flow"), ind_ccy), f"+{safe_float(snap_ind.get('h1_fcf_growth_pct')):.0f}%")
+                                st.metric("H1 freier Cashflow", format_money(snap_ind.get("h1_free_cash_flow"), ind_ccy), f"+{safe_float(snap_ind.get('h1_fcf_growth_pct')):.0f}%")
                                 st.metric("FY2025 Cash Conversion", f"{safe_float(snap_ind.get('fy2025_cash_conversion_rate')):.2f}×")
                                 st.metric("FY2026 Organic Revenue Target", f"+{safe_float(snap_ind.get('fy2026_revenue_organic_growth_low_pct')):.0f}% bis +{safe_float(snap_ind.get('fy2026_revenue_organic_growth_high_pct')):.0f}%")
                             st.caption(
@@ -69938,7 +69941,7 @@ if selected_symbol:
                             if bcs_profile_ui == "global_snacks_beverages_integrated":
                                 b1, b2 = st.columns(2)
                                 with b1:
-                                    st.metric("Q2 Organic Revenue", f"{safe_float(snap_bcs.get('q2_organic_net_revenue_growth_pct')):+.1f} %")
+                                    st.metric("Q2 organischer Umsatz", f"{safe_float(snap_bcs.get('q2_organic_net_revenue_growth_pct')):+.1f} %")
                                     st.metric("Q2 Convenient-Foods Volume", f"{safe_float(snap_bcs.get('q2_convenient_foods_volume_pct')):+.1f} %")
                                     st.metric("Q2 Beverage Volume", f"{safe_float(snap_bcs.get('q2_beverages_volume_pct')):+.1f} %")
                                     st.metric("Q2 Core Operating Margin", f"{safe_float(snap_bcs.get('q2_adjusted_operating_margin_pct')):.1f} %")
@@ -69970,7 +69973,7 @@ if selected_symbol:
                             elif bcs_profile_ui == "global_beverage_franchise_system":
                                 b1, b2 = st.columns(2)
                                 with b1:
-                                    st.metric("Q2 Organic Revenue", f"{safe_float(snap_bcs.get('q2_organic_net_revenue_growth_pct')):+.1f} %")
+                                    st.metric("Q2 organischer Umsatz", f"{safe_float(snap_bcs.get('q2_organic_net_revenue_growth_pct')):+.1f} %")
                                     st.metric("Q2 Unit Case Volume", f"{safe_float(snap_bcs.get('q2_unit_case_volume_growth_pct')):+.1f} %")
                                     st.metric("Q2 Comparable Operating Margin", f"{safe_float(snap_bcs.get('q2_comparable_operating_margin_pct')):.1f} %")
                                     st.metric("Q2 Comparable Margin Δ", f"{safe_float(snap_bcs.get('q2_comparable_operating_margin_change_pp')):+.1f} pp")
@@ -70010,7 +70013,7 @@ if selected_symbol:
                                     st.metric("Q2 Adjusted Operating Margin", f"{safe_float(snap_bcs.get('q2_adjusted_operating_margin_pct')):.1f} %")
                                     st.metric("Q2 Adjusted Gross Margin", f"{safe_float(snap_bcs.get('q2_adjusted_gross_profit_margin_pct')):.1f} %")
                                 with b2:
-                                    st.metric("Q2 Adjusted EPS", format_eps(snap_bcs.get("q2_adjusted_eps"), financial_currency))
+                                    st.metric("Q2 bereinigtes EPS", format_eps(snap_bcs.get("q2_adjusted_eps"), financial_currency))
                                     st.metric("Q2 Adjusted EPS Wachstum cFX", f"{safe_float(snap_bcs.get('q2_adjusted_eps_growth_constant_fx_pct')):+.1f} %")
                                     st.metric("FY2025 FCF Conversion", f"{safe_float(snap_bcs.get('fy2025_fcf_conversion_pct')):.1f} %")
                                     st.metric("Debt / Capitalization", f"{safe_float(snap_bcs.get('debt_to_capitalization_pct')):.1f} %")
@@ -74145,19 +74148,19 @@ if selected_symbol:
                             "Maßgeblich sind Current-FY issuer-adjusted Earnings Bridge, Capital-Goods-Spezialkontrolle und der Cognite Confidence/Leverage Guard; der Peer-Layer bleibt reference/downside-only."
                         )
                     elif fair_value.get("valuation_method") == "payments_processor_current_fy_family_pe":
-                        st.write("**Bewertungsformel:** current-FY Family Earnings Basis V1 × live validiertes Payments-Processor-Ziel-KGV")
+                        st.write("**Bewertungsformel:** Familien-Gewinnbasis V1 des laufenden Geschäftsjahres × praktisch geprüftes Zahlungsabwickler-Ziel-KGV")
                         st.write(
-                            "**Family Earnings Basis:** "
+                            "**Familien-Gewinnbasis:** "
                             + format_eps(fair_value.get("normalized_eps"), fair_value.get("financial_currency"))
                             + f" · {text_or_dash(fair_value.get('earnings_basis_label'))}"
                         )
-                        st.write(f"**Family Quality Score:** {safe_float(fair_value.get('payments_processor_score')):.0f}/100")
+                        st.write(f"**Familien-Qualitätspunktzahl:** {safe_float(fair_value.get('payments_processor_score')):.0f}/100")
                         st.write(f"**Verwendetes Ziel-KGV:** {safe_float(fair_value.get('used_multiple')):.2f}×")
                         st.write(
-                            f"**Family-Korridor:** {safe_float(fair_value.get('family_corridor_low')):.0f}–{safe_float(fair_value.get('family_corridor_high')):.0f}×"
+                            f"**Familien-Korridor:** {safe_float(fair_value.get('family_corridor_low')):.0f}–{safe_float(fair_value.get('family_corridor_high')):.0f}×"
                         )
                         st.caption(
-                            "Peer-Adjustment V176: 0 % / nicht freigegeben. Historische Durchschnitts-KGVs und Analystenziele verändern diesen Fair Value nicht; sie bleiben Vergleichsschichten."
+                            "Vergleichsgruppen-Anpassung: 0 % / nicht freigegeben. Historische Durchschnitts-KGVs und Analystenziele verändern diesen fairen Wert nicht; sie bleiben Vergleichsschichten."
                         )
                     elif fair_value.get("valuation_method") == "professional_business_services_adjusted_pe":
                         ps_basis_gbp_fv_ui = safe_float(fair_value.get("professional_services_earnings_basis_gbp"))
@@ -74290,8 +74293,8 @@ if selected_symbol:
                         )
                     elif fair_value.get("valuation_method") == "payments_processor_current_fy_family_pe":
                         st.success(
-                            "Payments-Processor Fair Value V1 wurde ausschließlich aus der freigegebenen current-FY Family Earnings Basis und dem live validierten Family-Ziel-KGV berechnet. "
-                            "Peer-Adjustment, historische Durchschnitts-KGVs und Analystenziele sind keine Fair-Value-Anker. Bewertungszonen V1 sind in V176 live validiert; Handlungssignale bleiben bis zur separaten Signal-Kalibrierung gesperrt."
+                            "Der Zahlungsabwickler-Faire-Wert V1 wurde ausschließlich aus der freigegebenen Familien-Gewinnbasis des laufenden Geschäftsjahres und dem praktisch geprüften Familien-Ziel-KGV berechnet. "
+                            "Vergleichsgruppen-Anpassung, historische Durchschnitts-KGVs und Analystenziele sind keine Bewertungsanker. Die Bewertungszonen V1 sind freigegeben; Handlungssignale bleiben bis zur separaten Signal-Kalibrierung gesperrt."
                         )
                     elif fair_value.get("valuation_method") == "professional_business_services_adjusted_pe":
                         ps_fv_success_profile = fair_value.get("professional_services_profile_key") or "network_licence_platform"
