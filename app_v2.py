@@ -23,12 +23,13 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.86"
+APP_BUILD_VERSION = "V2.22.87"
 
-# V182 – Kompaktansicht Feinschliff.
-# Die vollständige Bewertungsrechnung läuft unverändert im Hintergrund. Standardmäßig
-# zeigt die Oberfläche nur die entscheidenden Ergebnisse; die bisherige Modul-1–8-
-# Darstellung bleibt über eine explizite Detailansicht vollständig verfügbar.
+# V183 – Zahlungsabwickler Vergleichsgruppen-Kalibrierung.
+# Die bestehende Bewertung bleibt unverändert. Für PayPal/Adyen/Fiserv wird erstmals
+# ein externer Zahlungsabwickler-Peer-Cluster live geprüft. Median und theoretische
+# ±5-%-Anpassung werden nur diagnostisch berechnet; Fair Value und Ziel-KGV bleiben
+# bis zum Drei-Emittenten-Test unverändert.
 _UI_DE_EXACT = {
     "buy": "kaufen",
     "hold": "halten",
@@ -412,7 +413,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Kompaktansicht Feinschliff V182"
+    f"Build {APP_BUILD_VERSION} · Vergleichsgruppen-Kalibrierung V183"
 )
 
 
@@ -439,6 +440,7 @@ st.caption(
 # V2.22.83: Sprach-, Versions- & Konsistenzbereinigung V179. Reine UI-/Textbereinigung ohne Änderung der Bewertungsmathematik. Entfernt veraltete V176/V175-Verweise aus dem sichtbaren Zahlungsabwickler-Pfad, korrigiert Grammatik und Schritt-2B-Texte, ersetzt verbliebene Entwicklungsbegriffe durch verständliches Deutsch und benennt die methodische Sicherheitsobergrenze eindeutiger. PayPal-/Adyen-/Fiserv-Punktzahl-, Gewinnbasis-, Multiple-, Fair-Value- und Zonenmathematik bleiben unverändert.
 # V2.22.84: Abschließende sichtbare Sprachbereinigung V180. Reine UI-/Textbereinigung ohne Änderung der Bewertungsmathematik. Entfernt den letzten sichtbaren V178-Altverweis im Zahlungsabwickler-Pfad, bereinigt die FCF-Quellenabweichung, PayPal-Fachbegriffe, Bewertungszonen- und Plausibilitätscheck-Texte und ersetzt verbliebene englische Anzeigeformulierungen durch verständliches Deutsch. Interne Schlüssel und alle PayPal-/Adyen-/Fiserv-Punktzahl-, Gewinnbasis-, Ziel-KGV-, Fairer-Wert- und Zonenformeln bleiben unverändert.
 # V2.22.86: Kompaktansicht Feinschliff V182. Reine UI-/Darstellungsänderung ohne Änderung der Bewertungsmathematik. Doppelte Hauptlisting-Hinweise, technische Stammdaten und FX-Detailtexte werden aus der Standardansicht entfernt und in die vollständige Detailansicht verschoben. Die Kurzbewertung verwendet bewusst verständliche Risikoformulierungen; alle bisherigen Detaildaten und Prüfpfade bleiben erhalten.
+# V2.22.87: Zahlungsabwickler Vergleichsgruppen-Kalibrierung V183. Fügt für PayPal, Adyen und Fiserv einen live geladenen Zahlungsabwickler-Peer-Cluster aus den jeweils anderen validierten Referenzemittenten plus Global Payments und FIS als breiter Markt-Referenz hinzu. Verwendet Current-FY issuer-primary/guarded EPS-Basen und Live-Kurse, Median statt Durchschnitt und berechnet eine theoretische ±5-%-Anpassung. Die Anpassung ist ausdrücklich noch nicht freigegeben und verändert weder Ziel-KGV noch Fair Value oder Bewertungszonen; Freigabe erst nach separatem PayPal/Adyen/Fiserv-Livetest.
 
 
 
@@ -40985,6 +40987,36 @@ def get_peer_group(company_type, symbol, industry=None):
 
     own_symbol = str(symbol or "").upper()
 
+    # V183 – Zahlungsabwickler-Peer-Kalibrierung. Der Cluster ist absichtlich
+    # noch calibration-only: Er liefert Live-Median und theoretische ±5-%-Wirkung,
+    # verändert aber vor dem Drei-Emittenten-Test weder Ziel-KGV noch Fair Value.
+    if str((company_type or {}).get("valuation_family_id") or "").lower() == "payments_processor" and own_symbol in {"PYPL", "ADYEN.AS", "FISV"}:
+        universe = [
+            ("PYPL", "PayPal", "core"),
+            ("ADYEN.AS", "Adyen", "core"),
+            ("FISV", "Fiserv", "core"),
+            ("GPN", "Global Payments", "core"),
+            ("FIS", "FIS", "broad_reference"),
+        ]
+        peers = [
+            {"symbol": ps, "name": pn, "role": role}
+            for ps, pn, role in universe
+            if not _same_canonical_issuer_symbol(ps, own_symbol)
+        ]
+        return {
+            "available": True,
+            "peers": peers,
+            "count": len(peers),
+            "target_symbol": own_symbol,
+            "peer_model": "payments_processor_current_fy_calibration_v1",
+            "calibration_only": True,
+            "note": (
+                "Zahlungsabwickler Vergleichsgruppen-Kalibrierung V183: PayPal, Adyen, Fiserv und Global Payments bilden den Kerncluster; "
+                "FIS bleibt wegen des stärkeren Banking-/Issuer-Technologie-Mix eine breitere Markt-Referenz. Das Zielunternehmen selbst wird ausgeschlossen. "
+                "Mindestens drei brauchbare Kernwerte sind Pflicht. Median statt Durchschnitt; eine theoretische Wirkung wird auf ±5 % begrenzt, bleibt aber bis zum Drei-Emittenten-Livetest ohne Einfluss auf Ziel-KGV und fairen Wert."
+            ),
+        }
+
     if "listed investment / holding company" in type_name and own_symbol.endswith(".ST"):
         family_peers = _holding_family_peer_universe(own_symbol)
         peers = [{"symbol": row.get("symbol"), "name": row.get("name"), "role": ("fallback" if row.get("tier") == "fallback" else "core")} for row in family_peers]
@@ -42876,6 +42908,159 @@ def _calculate_integrated_oil_gas_peer_reference(peer_group, fundamental_multipl
     return result
 
 
+PAYMENTS_PROCESSOR_PEER_EARNINGS_ANCHORS_V183 = {
+    "PYPL": {
+        "eps": 5.38, "currency": "USD", "basis": "FY2026 Non-GAAP-EPS-Unternehmensprognose",
+        "source": "PayPal Q2 2026 Results", "source_url": "https://www.sec.gov/Archives/edgar/data/1633917/000163391726000080/pypl2q-26earningsrelease.htm",
+    },
+    "FISV": {
+        "eps": 7.30, "currency": "USD", "basis": "FY2026 bereinigtes EPS · Unternehmensprognose-Mittelpunkt",
+        "source": "Fiserv Q2 2026 Results", "source_url": "https://investors.fiserv.com/news-releases/news-release-details/fiserv-reports-second-quarter-2026-results",
+    },
+    "GPN": {
+        "eps": 13.70, "currency": "USD", "basis": "FY2026 bereinigtes EPS · Unternehmensprognose-Mittelpunkt",
+        "source": "Global Payments Q2 2026 Results", "source_url": "https://investors.globalpayments.com/news-events/press-releases/detail/514/global-payments-reports-second-quarter-2026-results",
+    },
+    "FIS": {
+        "eps": 6.195, "currency": "USD", "basis": "FY2026 bereinigtes EPS · Unternehmensprognose-Mittelpunkt",
+        "source": "FIS Q2 2026 Results", "source_url": "https://www.investor.fisglobal.com/news-releases/news-release-details/fis-reports-second-quarter-2026-results",
+    },
+}
+
+
+def _payments_processor_peer_current_fy_snapshot(peer_symbol, cache_version):
+    """Live price + current-FY issuer-native earnings basis for V183 calibration.
+
+    Adyen has no issuer EPS guidance, so the already approved family rule is reused:
+    current-FY IFRS analyst consensus is accepted only as a guarded peer denominator.
+    """
+    sym = str(peer_symbol or "").upper().strip()
+    anchor = dict(PAYMENTS_PROCESSOR_PEER_EARNINGS_ANCHORS_V183.get(sym) or {})
+    price_snap = _holding_peer_last_price_snapshot(sym)
+    price = safe_float(price_snap.get("price"))
+    eps = safe_float(anchor.get("eps"))
+    basis = anchor.get("basis")
+    source = anchor.get("source")
+    source_url = anchor.get("source_url")
+    guarded_consensus = False
+
+    if sym == "ADYEN.AS":
+        try:
+            horizon = _analyst_eps_horizon_context(yf.Ticker(sym)) or {}
+        except Exception:
+            horizon = {}
+        eps = safe_float(horizon.get("current_fy_eps"))
+        basis = "0Y-Konsens laufendes Geschäftsjahr · IFRS-EPS · Primärdaten-Schutzregel"
+        source = "Adyen H1 2026 Primärdaten + 0Y-Analystenkonsens"
+        source_url = "https://www.adyen.com/press-and-media/adyen-publishes-h1-2026-financial-results-3wjne"
+        guarded_consensus = True
+
+    pe = (price / eps) if price is not None and eps is not None and price > 0 and eps > 0 else None
+    usable = bool(pe is not None and 4.0 <= pe <= 60.0)
+    return {
+        "usable": usable,
+        "symbol": sym,
+        "price": price,
+        "price_date": price_snap.get("price_date"),
+        "quote_currency": price_snap.get("currency") or anchor.get("currency"),
+        "current_fy_eps": eps,
+        "earnings_basis": basis,
+        "current_fy_pe": pe,
+        "source": source,
+        "source_url": source_url,
+        "guarded_consensus": guarded_consensus,
+        "reason": None if usable else "Live-Kurs oder belastbare Gewinnbasis des laufenden Geschäftsjahres fehlt bzw. KGV ist unplausibel.",
+    }
+
+
+def _calculate_payments_processor_peer_calibration(peer_group, fundamental_multiple, cache_version):
+    """V183 calibration-only peer layer for PayPal/Adyen/Fiserv.
+
+    Core rule: >=3 usable core peers, median, theoretical ±5% cap. The result is
+    deliberately NOT released into valuation. Active issuer state guards remain
+    authoritative even in the theoretical candidate path.
+    """
+    base_multiple = safe_float(fundamental_multiple)
+    out = {
+        "method_supported": True,
+        "metric": "Zahlungsabwickler Current-FY KGV Kalibrierung",
+        "peer_rows": [],
+        "usable_count": 0,
+        "eligible_peer_count": 0,
+        "peer_median": None,
+        "adjustment_pct": 0.0,
+        "candidate_adjustment_pct": 0.0,
+        "adjusted_multiple": base_multiple,
+        "candidate_adjusted_multiple": base_multiple,
+        "applied": False,
+        "peer_adjustment_released": False,
+        "calibration_only": True,
+        "reference_only": True,
+        "comparability_gate_passed": False,
+        "note": None,
+    }
+    eligible = []
+    all_usable = []
+    for peer in (peer_group or {}).get("peers", []):
+        snap = _payments_processor_peer_current_fy_snapshot(peer.get("symbol"), cache_version)
+        pe = safe_float(snap.get("current_fy_pe"))
+        usable = bool(snap.get("usable") and pe is not None)
+        core = str(peer.get("role") or "core") == "core"
+        eligible_flag = bool(usable and core)
+        row = {
+            "symbol": peer.get("symbol"), "name": peer.get("name"), "role": peer.get("role") or "core",
+            "usable": usable, "forward_pe": pe, "current_fy_pe": pe,
+            "price": snap.get("price"), "price_date": snap.get("price_date"), "quote_currency": snap.get("quote_currency"),
+            "current_fy_eps": snap.get("current_fy_eps"), "earnings_basis": snap.get("earnings_basis"),
+            "source": snap.get("source"), "source_url": snap.get("source_url"), "reason": snap.get("reason"),
+            "guarded_consensus": bool(snap.get("guarded_consensus")), "adjustment_eligible": eligible_flag,
+        }
+        out["peer_rows"].append(row)
+        if usable:
+            all_usable.append(pe)
+        if eligible_flag:
+            eligible.append(pe)
+
+    out["usable_count"] = len(all_usable)
+    out["eligible_peer_count"] = len(eligible)
+    if all_usable:
+        out["reference_median"] = float(pd.Series(all_usable).median())
+    if len(eligible) < 3:
+        out["note"] = (
+            f"Nur {len(eligible)} brauchbare Kern-Vergleichsunternehmen. Für eine automatische Anpassung wären mindestens 3 erforderlich. "
+            "V183 bleibt deshalb vollständig neutral."
+        )
+        return out
+
+    median = float(pd.Series(eligible).median())
+    out["peer_median"] = median
+    out["comparability_gate_passed"] = True
+    if base_multiple is None or base_multiple <= 0:
+        out["note"] = "Vergleichsgruppen-Median verfügbar, aber kein belastbares Familien-Ziel-KGV als Ausgangsbasis."
+        return out
+
+    raw_gap = median / base_multiple - 1.0
+    candidate_pct = max(-0.05, min(0.05, raw_gap))
+    candidate_multiple = base_multiple * (1.0 + candidate_pct)
+    # Existing issuer-state guards remain authoritative. A future peer layer may
+    # never lift PayPal/Fiserv/Adyen above an already validated hard cap.
+    guard_caps = {"PYPL": 13.0, "FISV": 8.5, "ADYEN.AS": 26.0}
+    target_sym = str((peer_group or {}).get("target_symbol") or "").upper().strip()
+    guard_cap = safe_float(guard_caps.get(target_sym))
+    if guard_cap is not None:
+        candidate_multiple = min(candidate_multiple, guard_cap)
+    candidate_pct = candidate_multiple / base_multiple - 1.0
+    out["candidate_adjustment_pct"] = candidate_pct
+    out["candidate_adjusted_multiple"] = candidate_multiple
+    out["issuer_guard_cap"] = guard_cap
+    out["note"] = (
+        f"Kalibrierung bestanden: {len(eligible)} brauchbare Kern-Peers, Median {median:.2f}×. "
+        f"Theoretische Anpassung {candidate_pct*100:+.1f} % auf {candidate_multiple:.2f}×. "
+        "Diese Wirkung ist in V183 ausdrücklich noch nicht freigegeben und verändert weder Ziel-KGV noch fairen Wert."
+    )
+    return out
+
+
 def calculate_peer_check(
     company_type,
     peer_group,
@@ -42909,6 +43094,11 @@ def calculate_peer_check(
                 "Keine automatische Peer-Gruppe verfügbar."
             )
         return result
+
+    if (peer_group or {}).get("peer_model") == "payments_processor_current_fy_calibration_v1":
+        return _calculate_payments_processor_peer_calibration(
+            peer_group, fundamental_multiple, cache_version
+        )
 
     if (peer_group or {}).get("peer_model") == "exchange_adjusted_eps_runrate_reference_v1":
         return _calculate_exchange_peer_runrate_reference(
@@ -61753,7 +61943,7 @@ if selected_symbol:
                 show_full_details = st.toggle(
                     "🔎 Bewertungsdetails anzeigen",
                     value=False,
-                    key="show_full_details_v182",
+                    key="show_full_details_v183",
                     help=(
                         "Die vollständige Analyse wird immer im Hintergrund berechnet. "
                         "Dieser Schalter zeigt zusätzlich alle bisherigen Module, Datenquellen, Prüfpfade und Diagnosewerte."
@@ -67889,7 +68079,12 @@ if selected_symbol:
                         )
 
                         for peer in peer_group["peers"]:
-                            peer_suffix_ui = " · Fallback" if peer.get("role") == "fallback" else ""
+                            peer_role_ui = peer.get("role")
+                            peer_suffix_ui = (
+                                " · Fallback" if peer_role_ui == "fallback"
+                                else " · breite Referenz" if peer_role_ui == "broad_reference"
+                                else ""
+                            )
                             st.write(
                                 f"• {peer['name']} "
                                 f"({peer['symbol']}){peer_suffix_ui}"
@@ -67907,7 +68102,12 @@ if selected_symbol:
                             "integrated_oil_gas_major_reference_v1",
                             "exchange_adjusted_eps_runrate_reference_v1",
                         }
-                        if peer_group.get("peer_model") == "exchange_adjusted_eps_runrate_reference_v1":
+                        if peer_group.get("peer_model") == "payments_processor_current_fy_calibration_v1":
+                            st.info(
+                                "Zahlungsabwickler-Kalibrierung: Der Kerncluster wird live auf Kurs und Gewinnbasis des laufenden Geschäftsjahres geprüft. "
+                                "Mindestens drei brauchbare Kern-Peers sind Pflicht. V183 zeigt nur den Testwert; Ziel-KGV und fairer Wert bleiben unverändert."
+                            )
+                        elif peer_group.get("peer_model") == "exchange_adjusted_eps_runrate_reference_v1":
                             st.info(
                                 "Exchange Dual-Anchor-Kalibrierung: CME, ICE und Cboe liefern verifiziertes FY2025 Adjusted EPS als Volljahresanker und H1-2026 Adjusted EPS als separat gekennzeichneten Run-Rate/Cycle-Check. "
                                 "Der H1-Wert wird nicht als FY2026-Guidance ausgegeben; beide Anker müssen live same-currency verfügbar sein, bevor der 18–26× Family-Korridor angewendet werden darf."
@@ -67995,10 +68195,14 @@ if selected_symbol:
                             "Die Major-Peer-KGVs werden ausschließlich als reference-only Marktvergleich geladen; "
                             "es gibt keine automatische ±5-%-Anpassung, kein Peer-Gate und keinen Peer-bedingten Confidence-Abzug."
                         )
+                    elif peer_group.get("peer_model") == "payments_processor_current_fy_calibration_v1":
+                        st.caption(
+                            "Schritt 2A legt den V183-Testcluster fest. Kern-Peers: die jeweils anderen Zahlungsabwickler-Referenzprofile plus Global Payments; "
+                            "FIS bleibt breitere Markt-Referenz. Das Zielunternehmen selbst ist ausgeschlossen. Noch keine Wirkung auf die Bewertung."
+                        )
                     elif bool(multiple_result.get("payments_processor_family")):
                         st.caption(
-                            "Schritt 2A dient beim Zahlungsabwickler nur der klaren Trennung zwischen Referenzunternehmen und einer künftigen automatischen Bewertungs-Vergleichsgruppe. "
-                            "Eine Vergleichsgruppen-Anpassung ist noch nicht freigegeben und verändert deshalb weder Qualitätspunktzahl noch Ziel-KGV oder fairen Wert."
+                            "Für Zahlungsabwickler ist noch keine freigegebene Vergleichsgruppen-Anpassung aktiv; Ziel-KGV und fairer Wert bleiben bis zum erfolgreichen V183-Livetest unverändert."
                         )
                     elif bool((data.get("professional_business_services_specialist_model") or {}).get("applicable")):
                         ps_peer_model_ui = data.get("professional_business_services_specialist_model") or {}
@@ -68047,6 +68251,7 @@ if selected_symbol:
                     is_integrated_oil_gas_peer_metric = peer_check.get("metric") == "Integrated Oil & Gas Major Forward P/E reference-only"
                     is_capital_goods_peer_metric = peer_check.get("metric") == "Capital Goods issuer-adjusted current-FY P/E calibration"
                     is_exchange_peer_metric = peer_check.get("metric") == "Exchange adjusted-EPS dual-anchor P/E calibration"
+                    is_payments_processor_peer_metric = peer_check.get("metric") == "Zahlungsabwickler Current-FY KGV Kalibrierung"
 
                     if not peer_check[
                         "method_supported"
@@ -68088,6 +68293,8 @@ if selected_symbol:
                             peer_header = "**Capital-Goods issuer-adjusted Current-FY Peer-KGVs (Kalibrierung):**"
                         elif is_exchange_peer_metric:
                             peer_header = "**Exchange Adjusted-EPS Dual-Anchor Peer-KGVs (FY2025 Volljahr + H1-2026 Run-Rate):**"
+                        elif is_payments_processor_peer_metric:
+                            peer_header = "**Zahlungsabwickler-KGVs des laufenden Geschäftsjahres (V183 Kalibrierung):**"
                         else:
                             peer_header = "**Geladene Peer-KGVs:**"
                         st.write(peer_header)
@@ -68160,6 +68367,15 @@ if selected_symbol:
                                     st.write(
                                         f"• {row['name']} ({row['symbol']}): {peer_value:.2f}×{source_text} "
                                         f"· {structure} · {horizon_label} · {basis_label} · {eligibility}"
+                                    )
+                                elif is_payments_processor_peer_metric:
+                                    eligibility = "Kern-Peer" if row.get("adjustment_eligible") else "breite Referenz"
+                                    px = safe_float(row.get("price")); epsv = safe_float(row.get("current_fy_eps"))
+                                    px_txt = f"{px:.2f} {row.get('quote_currency') or ''}" if px is not None else "–"
+                                    eps_txt = f"{epsv:.2f} {row.get('quote_currency') or ''}" if epsv is not None else "–"
+                                    st.write(
+                                        f"• {row['name']} ({row['symbol']}): {peer_value:.2f}× · Kurs {px_txt} · Gewinnbasis {eps_txt} "
+                                        f"· {text_or_dash(row.get('earnings_basis'))} · {eligibility}"
                                     )
                                 elif is_capital_goods_peer_metric:
                                     portfolio_note = f" · Guard: {row.get('portfolio_event_guard')}" if row.get("portfolio_event_guard") else ""
@@ -68392,6 +68608,19 @@ if selected_symbol:
                                                 )
                                         else:
                                             st.warning("Exchange Dual-Anchor Peer Gate unvollständig: drei Full-Year- plus H1-Run-Rate-Beobachtungen sind erforderlich.")
+                                    elif is_payments_processor_peer_metric:
+                                        pp_peer_median_ui = safe_float(peer_check.get("peer_median"))
+                                        pp_candidate_pct_ui = safe_float(peer_check.get("candidate_adjustment_pct"))
+                                        pp_candidate_mul_ui = safe_float(peer_check.get("candidate_adjusted_multiple"))
+                                        if pp_peer_median_ui is None:
+                                            st.warning("V183 Vergleichsgruppen-Datengate noch nicht bestanden: weniger als drei brauchbare Kern-Peers. Keine Bewertungsänderung.")
+                                        else:
+                                            st.info(
+                                                f"V183 Kalibrierungswert: Kern-Peer-Median {pp_peer_median_ui:.2f}× · "
+                                                f"theoretische Anpassung {(pp_candidate_pct_ui or 0)*100:+.1f} % · "
+                                                f"theoretisches KGV {pp_candidate_mul_ui:.2f}×. "
+                                                "Noch nicht freigegeben – das verwendete Ziel-KGV und der faire Wert bleiben unverändert."
+                                            )
                                     elif is_capital_goods_peer_metric:
                                         cg_peer_median_ui = safe_float(peer_check.get("peer_median"))
                                         cg_fundamental_ui = safe_float((data.get("fundamental_multiple") or {}).get("multiple"))
@@ -68452,6 +68681,11 @@ if selected_symbol:
                         peer_explain = f"Oilfield Services & Energy Technology {APP_BUILD_VERSION}: SLB/HAL/FTI/BKR bleiben reference-only; Score, Same-Basis Adjusted-EPS-Bridge, Ziel-KGV und Fair Value bleiben issuer-/profil-spezifisch."
                     elif is_integrated_oil_gas_peer_metric:
                         peer_explain = f"Integrated Oil & Gas {APP_BUILD_VERSION}: Die anderen globalen Majors sind reine Markt-Referenzen. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Peer-Anpassung; Score, Through-Cycle-EPS, Ziel-KGV und Fair Value bleiben issuer-spezifisch."
+                    elif is_payments_processor_peer_metric:
+                        peer_explain = (
+                            "Zahlungsabwickler V183: Mindestens drei live brauchbare Kern-Peers, Median statt Durchschnitt und theoretische ±5-%-Begrenzung. "
+                            "Die Kalibrierung bleibt bis zum separaten PayPal-/Adyen-/Fiserv-Test vollständig ohne Einfluss auf Ziel-KGV, fairen Wert und Bewertungszonen."
+                        )
                     elif is_exchange_peer_metric:
                         peer_explain = (
                             f"Exchange / Market Infrastructure {APP_BUILD_VERSION}: CME/ICE/Cboe liefern zwei getrennte issuer-primary Anker. Verifiziertes FY2025 Adjusted EPS bildet den Volljahres-/Trailing-Marktanker; annualisierte H1-2026 Adjusted EPS bleibt ausschließlich aktueller Run-Rate/Cycle-Check und wird nicht als FY2026-Guidance ausgegeben."
