@@ -23,15 +23,381 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.80"
+APP_BUILD_VERSION = "V2.22.81"
+
+# V177 – Deutsche Benutzeroberfläche.
+# Nur die sichtbare Darstellung wird übersetzt; interne Schlüssel, Statuswerte,
+# Datenpfade und Bewertungsmathematik bleiben unverändert.
+_UI_DE_EXACT = {
+    "buy": "kaufen",
+    "hold": "halten",
+    "sell": "verkaufen",
+    "strong buy": "stark kaufen",
+    "strong_buy": "stark kaufen",
+    "strong sell": "stark verkaufen",
+    "strong_sell": "stark verkaufen",
+    "underperform": "untergewichten",
+    "outperform": "übergewichten",
+    "neutral": "neutral",
+    "high": "hoch",
+    "medium": "mittel",
+    "low": "niedrig",
+    "positive": "positiv",
+    "negative": "negativ",
+}
+
+_UI_DE_REPLACEMENTS = [
+    ("Payments Processor / Merchant Acquirer", "Zahlungsabwickler / Zahlungsakquisiteur"),
+    ("Payment Network / Capital-Light Payments", "Zahlungsnetzwerk / kapitalleichte Zahlungsabwicklung"),
+    ("Professional & Business Services", "Professionelle und geschäftliche Dienstleistungen"),
+    ("Professional-&-Business-Services", "Professionelle und geschäftliche Dienstleistungen"),
+    ("Professional Services", "Professionelle Dienstleistungen"),
+    ("Asset Management", "Vermögensverwaltung"),
+    ("Asset-Manager", "Vermögensverwalter"),
+    ("Capital Goods", "Investitionsgüter"),
+    ("Capital-Goods", "Investitionsgüter"),
+    ("Branded Consumer Staples", "Marken-Basiskonsumgüter"),
+    ("Integrated Oil & Gas", "Integrierte Öl- und Gasunternehmen"),
+    ("Integrated-Oil", "Integrierte Öl- und Gasunternehmen"),
+    ("Oilfield/Energy-Tech", "Ölfeld-/Energietechnik"),
+    ("Payment Network", "Zahlungsnetzwerk"),
+    ("Payment-Network", "Zahlungsnetzwerk"),
+    ("Payments-Processor", "Zahlungsabwickler"),
+    ("Merchant Acquirer", "Zahlungsakquisiteur"),
+    ("Family Quality Score", "Familien-Qualitätspunktzahl"),
+    ("Family Score", "Familien-Punktzahl"),
+    ("Quality Score", "Qualitätspunktzahl"),
+    ("Multiple Score", "Bewertungspunktzahl"),
+    ("Family Earnings Basis", "Familien-Gewinnbasis"),
+    ("Earnings Basis", "Gewinnbasis"),
+    ("Earnings-Basis", "Gewinnbasis"),
+    ("Earnings Bridge", "Ergebnisbrücke"),
+    ("Earnings-Bridge", "Ergebnisbrücke"),
+    ("Earnings Horizon Alignment", "Abgleich des Ergebnishorizonts"),
+    ("Horizon Alignment", "Horizontabgleich"),
+    ("Fair Value", "Fairer Wert"),
+    ("Fair-Value", "Fairer-Wert"),
+    ("Reality Check", "Plausibilitätscheck"),
+    ("Reality-Check", "Plausibilitätscheck"),
+    ("Signal Engine", "Signal-Logik"),
+    ("Signal-Engine", "Signal-Logik"),
+    ("Peer Group", "Vergleichsgruppe"),
+    ("Peer-Gruppe", "Vergleichsgruppe"),
+    ("Peer Check", "Vergleichsgruppen-Prüfung"),
+    ("Peer-Check", "Vergleichsgruppen-Prüfung"),
+    ("Peer Adjustment", "Vergleichsgruppen-Anpassung"),
+    ("Peer-Adjustment", "Vergleichsgruppen-Anpassung"),
+    ("Peer Median", "Vergleichsgruppen-Median"),
+    ("Peer-Median", "Vergleichsgruppen-Median"),
+    ("Peer-Evidenz", "Vergleichsgruppen-Evidenz"),
+    ("Multi-Issuer", "Mehr-Emittenten"),
+    ("end-to-end", "durchgängig"),
+    ("reference-only", "nur als Referenz"),
+    ("Primary-Source", "Primärquelle"),
+    ("Primary Source", "Primärquelle"),
+    ("primary-source", "primärquellenbasiert"),
+    ("primary source", "Primärquelle"),
+    ("issuer-reported", "vom Emittenten ausgewiesen"),
+    ("issuer-adjusted", "vom Emittenten bereinigt"),
+    ("issuer-defined", "vom Emittenten definiert"),
+    ("issuer-native", "emittenteneigen"),
+    ("Primary-Data", "Primärdaten"),
+    ("primary-data", "Primärdaten"),
+    ("Peer-Referenz", "Vergleichsgruppen-Referenz"),
+    ("Forward EPS", "Prognose-EPS"),
+    ("Forward-EPS", "Prognose-EPS"),
+    ("Forward P/E", "Prognose-KGV"),
+    ("Forward-P/E", "Prognose-KGV"),
+    ("Forward-KGV", "Prognose-KGV"),
+    ("Free Cash Flow", "freier Cashflow"),
+    ("Free Cashflow", "freier Cashflow"),
+    ("Levered Free Cash Flow", "freier Cashflow nach Finanzierung"),
+    ("Levered Free Cashflow", "freier Cashflow nach Finanzierung"),
+    ("Adjusted Free Cash Flow", "bereinigter freier Cashflow"),
+    ("Adjusted FCF", "bereinigter FCF"),
+    ("Cash Conversion", "Cashflow-Umwandlung"),
+    ("Cash-Conversion", "Cashflow-Umwandlung"),
+    ("FCF Conversion", "FCF-Umwandlung"),
+    ("Adjusted Operating Margin", "bereinigte operative Marge"),
+    ("Adjusted Operating Income", "bereinigtes operatives Ergebnis"),
+    ("Adjusted Revenue", "bereinigter Umsatz"),
+    ("Organic Revenue", "organischer Umsatz"),
+    ("Net Revenue", "Nettoerlös"),
+    ("Adjusted EPS", "bereinigtes EPS"),
+    ("Adjusted-EPS", "bereinigtes EPS"),
+    ("Adjusted EBITDA", "bereinigtes EBITDA"),
+    ("Operating Margin", "operative Marge"),
+    ("Operating Income", "operatives Ergebnis"),
+    ("Revenue Growth", "Umsatzwachstum"),
+    ("Earnings Growth", "Gewinnwachstum"),
+    ("Economics / Conversion", "Ertragsökonomie / Umwandlung"),
+    ("Margin Quality / Trend", "Margenqualität / Trend"),
+    ("Cash / Capital Intensity", "Cashflow / Kapitalintensität"),
+    ("Earnings / Execution", "Ergebnis / Umsetzung"),
+    ("Capital / Structure", "Kapital / Struktur"),
+    ("Growth / Execution", "Wachstum / Umsetzung"),
+    ("Current-FY", "aktuelles Geschäftsjahr"),
+    ("current-FY", "aktuelles Geschäftsjahr"),
+    ("Current FY", "aktuelles Geschäftsjahr"),
+    ("current FY", "aktuelles Geschäftsjahr"),
+    ("same-basis", "auf gleicher Ergebnisbasis"),
+    ("Same-Basis", "gleiche Ergebnisbasis"),
+    ("Through-Cycle", "über den Zyklus geglättet"),
+    ("Roll-forward", "Fortschreibung"),
+    ("Run-Rate", "Hochrechnung"),
+    ("Run-rate", "Hochrechnung"),
+    ("run-rate", "Hochrechnung"),
+    ("Separation-Headwind", "Abspaltungsbelastung"),
+    ("Dis-Synergies", "Desynergien"),
+    ("Mine-Life", "Minenlaufzeit"),
+    ("Primary-source normalized owner-earnings basis", "primärquellenbasierte normalisierte Eigentümerertragsbasis"),
+    ("Primärquelle normalized Eigentümerertrag", "primärquellenbasierter normalisierter Eigentümerertrag"),
+    ("Emittent-adjusted", "vom Emittenten bereinigt"),
+    ("quality-adjustiert", "qualitätsbereinigt"),
+    ("score-positioniert", "punktzahlpositioniert"),
+    ("score-gesteuert", "punktzahlgesteuert"),
+    ("Fail-closed", "bewusst gesperrt"),
+    ("Recovery", "Erholung"),
+    ("Demand/Visibility", "Nachfrage/Planbarkeit"),
+    ("comparable/organic growth", "vergleichbares/organisches Wachstum"),
+    ("Operational Score", "operative Punktzahl"),
+    ("Operational", "operativ"),
+    ("Full-Year", "Gesamtjahr"),
+    ("Run-Rate", "Hochrechnung"),
+    ("Dual-Anchor", "Doppelanker"),
+    ("Normalized Comparability", "normalisierte Vergleichbarkeit"),
+    ("Historical-Safety", "historische Sicherheitsprüfung"),
+    ("Current Source", "aktuelle Quelle"),
+    ("current source", "aktuelle Quelle"),
+    ("owner earnings", "Eigentümerertrag"),
+    ("Owner Earnings", "Eigentümerertrag"),
+    ("Cash EPS", "cashflow-basiertes EPS"),
+    ("Cash-EPS", "cashflow-basiertes EPS"),
+    ("issuer-adjusted", "vom Emittenten bereinigt"),
+    ("issuer-primary", "primärquellenbasiert"),
+    ("quality-adjusted", "qualitätsbereinigt"),
+    ("score-based", "punktzahlbasiert"),
+    ("score-basiert", "punktzahlbasiert"),
+    ("scoregesteuert", "punktzahlgesteuert"),
+    ("live validated", "im Praxistest bestätigt"),
+    ("Live Validation", "Praxistest"),
+    ("Live-Test", "Praxistest"),
+    ("fail-closed", "bewusst gesperrt"),
+    ("Fail-Closed", "bewusst gesperrt"),
+    ("unreleased", "noch nicht freigegeben"),
+    ("Guidance Reset", "Prognose-Änderung"),
+    ("Guidance-Reset", "Prognose-Änderung"),
+    ("Guidance", "Unternehmensprognose"),
+    ("Gateway conversion", "Gateway-Umstellung"),
+    ("Gateway Conversion", "Gateway-Umstellung"),
+    ("Business Update", "Geschäftsupdate"),
+    ("Investor Relations", "Investor-Relations"),
+    ("reported", "ausgewiesen"),
+    ("Reported", "Ausgewiesen"),
+    ("underlying", "bereinigt"),
+    ("Underlying", "Bereinigt"),
+    ("Buybacks", "Aktienrückkäufe"),
+    ("Buyback", "Aktienrückkauf"),
+    ("Debt", "Schulden"),
+    ("Cash + Investments", "Liquidität + Anlagen"),
+    ("Active Accounts", "Aktive Konten"),
+    ("Processed Volume", "verarbeitetes Zahlungsvolumen"),
+    ("Payment Volume", "Zahlungsvolumen"),
+    ("Payment Activity", "Zahlungsaktivität"),
+    ("Transaction Activity", "Transaktionsaktivität"),
+    ("Branded Checkout", "Marken-Checkout"),
+    ("Unified Commerce", "Omnichannel-Handel"),
+    ("Digital Banking", "Digitales Banking"),
+    ("Financial Solutions", "Finanzlösungen"),
+    ("Merchant Solutions", "Händlerlösungen"),
+    ("Financial Products", "Finanzprodukte"),
+    ("Wallet", "digitale Geldbörse"),
+    ("Foundation", "Grundlage"),
+    ("Specialist", "Spezialmodell"),
+    ("specialist", "Spezialmodell"),
+    ("Router", "Zuordnung"),
+    ("Target Multiple", "Ziel-Multiple"),
+    ("Target P/E", "Ziel-KGV"),
+    ("Quality-Line", "Qualitätslinie"),
+    ("Economics-Premium", "Ökonomie-Aufschlag"),
+    ("Growth-Premium", "Wachstums-Aufschlag"),
+    ("downside-only", "nur nach unten wirkend"),
+    ("Downside-only", "nur nach unten wirkend"),
+    ("Safety-Cap", "Sicherheitsbegrenzung"),
+    ("Safety-Caps", "Sicherheitsbegrenzungen"),
+    ("Small-Cap/Liquidity Guard", "Schutz für Nebenwert/Liquidität"),
+    ("Net Cash", "Netto-Liquidität"),
+    ("Working Capital", "Umlaufvermögen/kurzfristiges Kapital"),
+    ("Same-Horizon", "gleicher Zeithorizont"),
+    ("Current-Share", "aktuelle Aktienzahl"),
+    ("current-share", "aktuelle Aktienzahl"),
+    ("quality-adjusted", "qualitätsbereinigt"),
+    ("Quality-adjusted", "qualitätsbereinigt"),
+    ("Horizon Guard", "Horizontschutz"),
+]
+
+_UI_DE_WORDS = [
+    (r"\bGate\b", "Prüfung"),
+    (r"\bGuard\b", "Schutzregel"),
+    (r"\bScore\b", "Punktzahl"),
+    (r"\bPeer\b", "Vergleichsgruppe"),
+    (r"\bProvider\b", "Datenanbieter"),
+    (r"\bForward\b", "Prognose"),
+    (r"\bAdjusted\b", "bereinigt"),
+    (r"\bGrowth\b", "Wachstum"),
+    (r"\bMargin\b", "Marge"),
+    (r"\bEarnings\b", "Ergebnis"),
+    (r"\bExecution\b", "Umsetzung"),
+    (r"\bStructure\b", "Struktur"),
+    (r"\bRevenue\b", "Umsatz"),
+    (r"\bCapital\b", "Kapital"),
+    (r"\bIssuer\b", "Emittent"),
+    (r"\bPrimary[- ]Source\b", "Primärquelle"),
+    (r"\bSource\b", "Quelle"),
+    (r"\bBusiness\b", "Geschäft"),
+    (r"\bNetwork\b", "Netzwerk"),
+    (r"\bHolding\b", "Beteiligungsgesellschaft"),
+    (r"\bAsset\b", "Vermögenswert"),
+    (r"\bManager\b", "Verwalter"),
+    (r"\bQuality\b", "Qualität"),
+    (r"\bConversion\b", "Umwandlung"),
+    (r"\bOperating\b", "operativ"),
+    (r"\bTarget\b", "Ziel"),
+    (r"\bControl\b", "Kontrolle"),
+    (r"\bCheck\b", "Prüfung"),
+    (r"\bValidation\b", "Validierung"),
+    (r"\bComparability\b", "Vergleichbarkeit"),
+    (r"\bGap\b", "Abstand"),
+    (r"\bOverlay\b", "Zusatzebene"),
+    (r"\bcredibility\b", "Plausibilität"),
+    (r"\bCredibility\b", "Plausibilität"),
+    (r"\bnormalized\b", "normalisiert"),
+    (r"\bIndustrial\b", "Industrie"),
+    (r"\bindustrial\b", "Industrie"),
+    (r"\bleverage\b", "Verschuldung"),
+    (r"\buses\b", "verwendet"),
+    (r"\bexplicitly\b", "ausdrücklich"),
+    (r"\bgeneric\b", "generisch"),
+    (r"\bCorporate\b", "Konzern"),
+    (r"\bSite\b", "Standort"),
+    (r"\bLuxury\b", "Luxus"),
+    (r"\bcycle\b", "Zyklus"),
+    (r"\bCurrent\b", "aktuell"),
+    (r"\bHigh\b", "hoch"),
+    (r"\bMedium\b", "mittel"),
+    (r"\bLow\b", "niedrig"),
+    (r"\bFamily\b", "Familie"),
+    (r"\bModel\b", "Modell"),
+    (r"\bremains\b", "bleibt"),
+    (r"\bis\b", "ist"),
+    (r"\bare\b", "sind"),
+    (r"\bexcluded\b", "ausgeschlossen"),
+    (r"\bconversion\b", "Umwandlung"),
+    (r"\bConsensus\b", "Konsens"),
+    (r"\bconsensus\b", "Konsens"),
+    (r"\bPayout\b", "Ausschüttungsquote"),
+    (r"\bLeverage\b", "Verschuldung"),
+    (r"\bRisk\b", "Risiko"),
+    (r"\bReturn\b", "Rendite"),
+    (r"\bCoverage\b", "Abdeckung"),
+    (r"\bResearch\b", "Recherche"),
+    (r"\bLayer\b", "Ebene"),
+    (r"\bPremium\b", "Aufschlag"),
+    (r"\bCeiling\b", "Obergrenze"),
+    (r"\bCycle\b", "Zyklus"),
+    (r"\bReality\b", "Plausibilität"),
+    (r"\bAssets\b", "Vermögenswerte"),
+    (r"\bAsset\b", "Vermögenswert"),
+    (r"\bSafety\b", "Sicherheit"),
+    (r"\bLimit\b", "Grenze"),
+    (r"\bCore\b", "Kern"),
+    (r"\bcurrent\b", "aktuell"),
+    (r"\bissuer\b", "Emittent"),
+    (r"\bbuy\b", "kaufen"),
+    (r"\bhold\b", "halten"),
+    (r"\bsell\b", "verkaufen"),
+]
+
+def _de_ui_text(value):
+    if not isinstance(value, str):
+        return value
+    exact = _UI_DE_EXACT.get(value.strip().lower())
+    if exact is not None and value.strip().lower() == value.strip():
+        return exact
+    out = value
+    for src, dst in _UI_DE_REPLACEMENTS:
+        out = out.replace(src, dst)
+    for pattern, dst in _UI_DE_WORDS:
+        out = re.sub(pattern, dst, out)
+    return out
+
+def _de_wrap_all_string_args(func):
+    def wrapped(*args, **kwargs):
+        args = tuple(_de_ui_text(a) if isinstance(a, str) else a for a in args)
+        kwargs = {k: (_de_ui_text(v) if isinstance(v, str) else v) for k, v in kwargs.items()}
+        return func(*args, **kwargs)
+    return wrapped
+
+def _de_wrap_label_only(func):
+    def wrapped(*args, **kwargs):
+        if args and isinstance(args[0], str):
+            args = (_de_ui_text(args[0]),) + args[1:]
+        for key in ("label", "help", "placeholder"):
+            if isinstance(kwargs.get(key), str):
+                kwargs[key] = _de_ui_text(kwargs[key])
+        return func(*args, **kwargs)
+    return wrapped
+
+# Reine Ausgabefunktionen: alle sichtbaren String-Argumente übersetzen.
+for _name in ("title", "header", "subheader", "caption", "info", "warning", "error", "success", "markdown", "write", "metric", "toast"):
+    if hasattr(st, _name):
+        setattr(st, _name, _de_wrap_all_string_args(getattr(st, _name)))
+
+# Bedienelemente: nur Beschriftung/Hilfe übersetzen; Optionswerte und interne Schlüssel bleiben unverändert.
+for _name in ("button", "download_button", "checkbox", "toggle", "text_input", "number_input", "selectbox", "multiselect", "radio", "slider", "select_slider", "expander", "status", "spinner"):
+    if hasattr(st, _name):
+        setattr(st, _name, _de_wrap_label_only(getattr(st, _name)))
+
+if hasattr(st, "tabs"):
+    _st_tabs_original = st.tabs
+    def _de_tabs(labels, *args, **kwargs):
+        labels = [_de_ui_text(x) if isinstance(x, str) else x for x in labels]
+        return _st_tabs_original(labels, *args, **kwargs)
+    st.tabs = _de_tabs
+
+# Auch Ausgaben in Spalten, Containern und der Seitenleiste laufen über DeltaGenerator.
+# Dadurch bleibt die Übersetzung eine reine Darstellungsschicht.
+try:
+    from streamlit.delta_generator import DeltaGenerator as _DeltaGenerator
+
+    for _name in ("title", "header", "subheader", "caption", "info", "warning", "error", "success", "markdown", "write", "metric", "toast"):
+        if hasattr(_DeltaGenerator, _name):
+            setattr(_DeltaGenerator, _name, _de_wrap_all_string_args(getattr(_DeltaGenerator, _name)))
+
+    def _de_wrap_dg_label_only(func):
+        def wrapped(*args, **kwargs):
+            args = list(args)
+            if len(args) > 1 and isinstance(args[1], str):
+                args[1] = _de_ui_text(args[1])
+            for key in ("label", "help", "placeholder"):
+                if isinstance(kwargs.get(key), str):
+                    kwargs[key] = _de_ui_text(kwargs[key])
+            return func(*tuple(args), **kwargs)
+        return wrapped
+
+    for _name in ("button", "download_button", "checkbox", "toggle", "text_input", "number_input", "selectbox", "multiselect", "radio", "slider", "select_slider", "expander", "status"):
+        if hasattr(_DeltaGenerator, _name):
+            setattr(_DeltaGenerator, _name, _de_wrap_dg_label_only(getattr(_DeltaGenerator, _name)))
+except Exception:
+    pass
 
 st.title("📊 Aktien-Analyse V2")
 st.caption(
     "Modul 1–8 – Suche, Datenbasis, Unternehmenstyp, EPS-Normalisierung, "
-    "Multiple Score, Bewertungs-Korridor, Fair Value, Signal-Engine & Reality Check"
+    "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Payments Processor Valuation Zones Live Validation & Gate Cleanup V176"
+    f"Build {APP_BUILD_VERSION} · Deutsche Benutzeroberfläche & Verständlichkeits-Bereinigung V177"
 )
 
 
@@ -53,6 +419,7 @@ st.caption(
 # V2.22.77: Payments Processor Own Fair Value Release V173. Releases the first own Payments-Processor Fair Value after the successful PayPal/Adyen/Fiserv live score, earnings-basis and multiple regressions. Fair Value is deliberately minimal and independent: current-FY Family Earnings Basis V1 × live-validated Family Target P/E, with no peer uplift, no historical-average-P/E anchor and no analyst-target blend. PayPal therefore uses FY2026 company non-GAAP EPS guidance × 13.00x, Adyen uses the guarded current-FY IFRS consensus fallback × 25.07x, and Fiserv uses FY2026 company adjusted-EPS guidance midpoint × 8.47x. Peer adjustment remains unreleased/neutral, historical valuation and analyst targets remain comparison-only, and valuation zones/action signals stay fail-closed pending a separate zone/signal release. Processor score, earnings and multiple mathematics remain unchanged; Visa/Mastercard V163 mathematics remain unchanged.
 # V2.22.78: Payments Processor Fair Value Live Validation & Copy Cleanup V174. Status/copy-only closure after PayPal, Adyen and Fiserv all passed the V173 own-Fair-Value live run: PayPal 69.94 USD, Adyen 966.81 EUR and Fiserv 61.83 USD before display-currency conversion. No processor score, earnings-basis, multiple or Fair-Value mathematics change. Promotes the family stage to three_issuer_fair_value_live_validated and removes stale V172/V173 copy that still described Fair Value as blocked after release. Peer adjustment remains neutral/unreleased; valuation zones and action signals remain fail-closed for separate calibration. Visa/Mastercard V163 mathematics remain unchanged.
 # V2.22.80: Payments Processor Valuation Zones Live Validation & Gate Cleanup V176. Status/copy-only closure after PayPal, Adyen and Fiserv passed the live V175 zone regression as Underbewertet, Fair bewertet and Unterbewertet with unchanged Fair Values and calibrated widths. No score, earnings-basis, multiple, Fair-Value or valuation-zone mathematics change. Family status advances to three_issuer_valuation_zone_live_validated. Peer adjustment remains neutral/unreleased and action signals remain fail-closed for separate signal calibration/release. Removes stale copy implying valuation zones are still blocked or awaiting live validation. Visa/Mastercard V163 mathematics remain unchanged.
+# V2.22.81: Deutsche Benutzeroberfläche & Verständlichkeits-Bereinigung V177. Darstellungs-/Sprachschicht בלבד: sichtbare englische Fachbegriffe werden deutsch erläutert; interne Schlüssel, Bewertungsmathematik und Freigabestatus bleiben unverändert.
 
 
 
