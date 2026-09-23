@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.89"
+APP_BUILD_VERSION = "V2.22.90"
 
 # V185 – modellbereinigte Zahlungsabwickler-Vergleichsgruppen-Kalibrierung.
 # Die bestehende Bewertung bleibt unverändert. Peer-Markt-KGVs werden nicht mehr roh
@@ -413,7 +413,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Global-Payments-Familienmodell & Peer-Gate V185"
+    f"Build {APP_BUILD_VERSION} · GPN-Vergleichsgruppen-Routing & Schutzregel-Konsistenz V186"
 )
 
 
@@ -441,6 +441,7 @@ st.caption(
 # V2.22.84: Abschließende sichtbare Sprachbereinigung V180. Reine UI-/Textbereinigung ohne Änderung der Bewertungsmathematik. Entfernt den letzten sichtbaren V178-Altverweis im Zahlungsabwickler-Pfad, bereinigt die FCF-Quellenabweichung, PayPal-Fachbegriffe, Bewertungszonen- und Plausibilitätscheck-Texte und ersetzt verbliebene englische Anzeigeformulierungen durch verständliches Deutsch. Interne Schlüssel und alle PayPal-/Adyen-/Fiserv-Punktzahl-, Gewinnbasis-, Ziel-KGV-, Fairer-Wert- und Zonenformeln bleiben unverändert.
 # V2.22.86: Kompaktansicht Feinschliff V182. Reine UI-/Darstellungsänderung ohne Änderung der Bewertungsmathematik. Doppelte Hauptlisting-Hinweise, technische Stammdaten und FX-Detailtexte werden aus der Standardansicht entfernt und in die vollständige Detailansicht verschoben. Die Kurzbewertung verwendet bewusst verständliche Risikoformulierungen; alle bisherigen Detaildaten und Prüfpfade bleiben erhalten.
 # V2.22.87: Zahlungsabwickler Vergleichsgruppen-Kalibrierung V183. Fügt für PayPal, Adyen und Fiserv einen live geladenen Zahlungsabwickler-Peer-Cluster aus den jeweils anderen validierten Referenzemittenten plus Global Payments und FIS als breiter Markt-Referenz hinzu. Verwendet Current-FY issuer-primary/guarded EPS-Basen und Live-Kurse, Median statt Durchschnitt und berechnet eine theoretische ±5-%-Anpassung. Die Anpassung ist ausdrücklich noch nicht freigegeben und verändert weder Ziel-KGV noch Fair Value oder Bewertungszonen; Freigabe erst nach separatem PayPal/Adyen/Fiserv-Livetest.
+# V2.22.90: GPN Vergleichsgruppen-Routing & Schutzregel-Konsistenz V186. Korrigiert den V185-Routing-Fehler, durch den Global Payments trotz freigegebenem Zahlungsabwickler-Familienmodell nicht in die eigene modellbereinigte Vergleichsgruppen-Prüfung gelangte. GPN wird nun wie PayPal, Adyen und Fiserv als Zielunternehmen aus dem Vierer-Kerncluster ausgeschlossen und gegen die jeweils drei anderen Kern-Peers geprüft. Die bestehende 12×-GPN-Schutzgrenze gilt jetzt auch ausdrücklich für den theoretischen Peer-Kandidatenwert. In der Kurzansicht wird bei aktiver Schutzregel die issuer-spezifische Schutzregel als Hauptbelastung angezeigt statt einer PayPal-Standardformulierung. Die Peer-Wirkung bleibt weiterhin Testwert und verändert Ziel-KGV oder Fair Value noch nicht.
 # V2.22.89: Global Payments Familienmodell & Peer-Gate V185. Ergänzt Global Payments mit issuer-primary Q2/FY2026-Daten als viertes vollständiges Zahlungsabwickler-Familienprofil. Die Gewinnbasis ist der Mittelpunkt der FY2026 Adjusted-EPS-Guidance 13,60–13,80 USD; Q2 normalisiertes Nettoerlöswachstum, Adjusted Margin, Adjusted EPS, FCF-Conversion und CapEx speisen die bestehende 100-Punkte-Familienlogik. Worldpay-Integration/Portfolio-Neuzuschnitt erhalten eine downside-only 12×-Schutzgrenze. Damit kann GPN erstmals als vollständig modellierter Kern-Peer in die modellbereinigte V185-Kalibrierung eingehen; die Peer-Wirkung bleibt weiterhin Testwert und verändert noch keinen fairen Wert.\n# V2.22.88: Modellbereinigte Zahlungsabwickler-Vergleichsgruppen-Kalibrierung V185. Ersetzt den rohen Peer-KGV-Median durch einen relativen Markt-/Modell-Vergleich: aktuelles Current-FY Markt-KGV jedes Kern-Peers geteilt durch dessen eigenes freigegebenes Familien-Ziel-KGV. Nur vollständig modellierte Kern-Peers sind anpassungsberechtigt; Global Payments bleibt Kern-Referenz, ist aber bis zu einem eigenen issuer-primary Familienmodell nicht anpassungsberechtigt. FIS bleibt breite Markt-Referenz und fließt nie in den Kalibrierungsmedian ein. Mindestens drei vollständig modellierte Kern-Peers bleiben Pflicht, Median statt Durchschnitt, theoretischer Effekt weiterhin auf ±5 % begrenzt. V185 ist weiterhin calibration-only und verändert weder Ziel-KGV noch Fair Value, Bewertungszonen oder Signale.
 
 
@@ -41118,7 +41119,7 @@ def get_peer_group(company_type, symbol, industry=None):
     # bleibt calibration-only. Markt-KGVs dürfen nur relativ zum jeweils eigenen
     # freigegebenen Familien-Ziel-KGV verglichen werden; rohe KGV-Niveaus werden
     # nicht mehr direkt als Anpassungsanker verwendet.
-    if str((company_type or {}).get("valuation_family_id") or "").lower() == "payments_processor" and own_symbol in {"PYPL", "ADYEN.AS", "FISV"}:
+    if str((company_type or {}).get("valuation_family_id") or "").lower() == "payments_processor" and own_symbol in {"PYPL", "ADYEN.AS", "FISV", "GPN"}:
         universe = [
             ("PYPL", "PayPal", "core"),
             ("ADYEN.AS", "Adyen", "core"),
@@ -41139,7 +41140,7 @@ def get_peer_group(company_type, symbol, industry=None):
             "peer_model": "payments_processor_model_adjusted_calibration_v3",
             "calibration_only": True,
             "note": (
-                "Zahlungsabwickler Vergleichsgruppen-Kalibrierung V185: PayPal, Adyen, Fiserv und Global Payments bilden den Kerncluster; "
+                "Zahlungsabwickler Vergleichsgruppen-Kalibrierung V186: PayPal, Adyen, Fiserv und Global Payments bilden den Kerncluster; "
                 "FIS bleibt wegen des stärkeren Banking-/Issuer-Technologie-Mix eine breite Markt-Referenz und fließt nie in die Anpassung ein. "
                 "Für die Kalibrierung zählt nur Markt-KGV geteilt durch das eigene freigegebene Familien-Ziel-KGV des jeweiligen Kern-Peers. "
                 "Mindestens drei vollständig modellierte Kern-Peers sind Pflicht; Median statt Durchschnitt; theoretische Wirkung maximal ±5 %. "
@@ -43153,7 +43154,7 @@ def _payments_processor_peer_model_target(peer_symbol, current_fy_snapshot):
 
 
 def _calculate_payments_processor_peer_calibration(peer_group, fundamental_multiple, cache_version):
-    """V185 model-adjusted, calibration-only peer layer for PayPal/Adyen/Fiserv.
+    """V186 model-adjusted, calibration-only peer layer for PayPal/Adyen/Fiserv/Global Payments.
 
     Adjustment evidence is not the raw peer P/E. Each eligible core peer contributes
     Market current-FY P/E / its own released family target P/E. At least three fully
@@ -43242,8 +43243,8 @@ def _calculate_payments_processor_peer_calibration(peer_group, fundamental_multi
         missing = out["required_eligible_peers"] - len(eligible_ratios)
         out["note"] = (
             f"Modellbereinigtes Datengate noch nicht bestanden: {len(eligible_ratios)} vollständig modellierte Kern-Peers, "
-            f"benötigt werden {out['required_eligible_peers']} (es fehlen {missing}). Global Payments bleibt bis zu einem eigenen "
-            "issuer-primary Familienmodell reine Kern-Referenz; FIS bleibt breite Markt-Referenz. Keine Bewertungsänderung."
+            f"benötigt werden {out['required_eligible_peers']} (es fehlen {missing}). Nicht vollständig modellierte Kern-Peers "
+            "bleiben reine Referenz; FIS bleibt breite Markt-Referenz. Keine Bewertungsänderung."
         )
         return out
 
@@ -43260,7 +43261,7 @@ def _calculate_payments_processor_peer_calibration(peer_group, fundamental_multi
 
     # Existing issuer-state guards remain authoritative. A future peer layer may
     # never lift a validated issuer above an already binding hard cap.
-    guard_caps = {"PYPL": 13.0, "FISV": 8.5, "ADYEN.AS": 26.0}
+    guard_caps = {"PYPL": 13.0, "FISV": 8.5, "ADYEN.AS": 26.0, "GPN": 12.0}
     target_sym = str((peer_group or {}).get("target_symbol") or "").upper().strip()
     guard_cap = safe_float(guard_caps.get(target_sym))
     if guard_cap is not None:
@@ -43273,7 +43274,7 @@ def _calculate_payments_processor_peer_calibration(peer_group, fundamental_multi
     out["note"] = (
         f"Modellbereinigte Kalibrierung bestanden: {len(eligible_ratios)} vollständig modellierte Kern-Peers, "
         f"Median Markt/Modell {median_ratio:.3f}. Theoretische Anpassung {candidate_pct*100:+.1f} % auf {candidate_multiple:.2f}×. "
-        "Diese Wirkung ist in V185 ausdrücklich noch nicht freigegeben und verändert weder Ziel-KGV noch fairen Wert."
+        "Diese Wirkung ist in V186 ausdrücklich noch nicht freigegeben und verändert weder Ziel-KGV noch fairen Wert."
     )
     return out
 
@@ -62119,11 +62120,8 @@ if selected_symbol:
                             )
                         with d2:
                             compact_guard_notes = pp_multiple_compact.get("guard_notes") or []
-                            if pp_multiple_compact.get("guard_applied"):
-                                st.warning(
-                                    "**Hauptbelastung:** Das Zahlungsvolumen wächst deutlich stärker als "
-                                    "die Ertragsökonomie; gleichzeitig ist die operative Marge rückläufig."
-                                )
+                            if pp_multiple_compact.get("guard_applied") and compact_guard_notes:
+                                st.warning("**Hauptbelastung:** " + str(compact_guard_notes[0]))
                             elif compact_guard_notes:
                                 st.warning("**Hauptbelastung:** " + str(compact_guard_notes[0]))
                             else:
@@ -68328,7 +68326,7 @@ if selected_symbol:
                         if peer_group.get("peer_model") == "payments_processor_model_adjusted_calibration_v3":
                             st.info(
                                 "Zahlungsabwickler-Kalibrierung: Der Kerncluster wird live auf Kurs, Gewinnbasis und eigenes Familien-Ziel-KGV geprüft. "
-                                "Mindestens drei vollständig modellierte Kern-Peers sind Pflicht. V185 zeigt nur den Testwert; Ziel-KGV und fairer Wert bleiben unverändert."
+                                "Mindestens drei vollständig modellierte Kern-Peers sind Pflicht. V186 zeigt nur den Testwert; Ziel-KGV und fairer Wert bleiben unverändert."
                             )
                         elif peer_group.get("peer_model") == "exchange_adjusted_eps_runrate_reference_v1":
                             st.info(
@@ -68420,13 +68418,13 @@ if selected_symbol:
                         )
                     elif peer_group.get("peer_model") == "payments_processor_model_adjusted_calibration_v3":
                         st.caption(
-                            "Schritt 2A legt den V185-Testcluster fest. Kern-Peers: die jeweils anderen Zahlungsabwickler-Referenzprofile plus Global Payments; "
+                            "Schritt 2A legt den V186-Testcluster fest. Kern-Peers: die jeweils anderen Zahlungsabwickler-Referenzprofile plus Global Payments; "
                             "FIS bleibt breite Markt-Referenz. Für die Kalibrierung zählt nur Markt-KGV relativ zum eigenen freigegebenen Familien-Ziel-KGV des Peers. "
                             "Das Zielunternehmen selbst ist ausgeschlossen. Noch keine Wirkung auf die Bewertung."
                         )
                     elif bool(multiple_result.get("payments_processor_family")):
                         st.caption(
-                            "Für Zahlungsabwickler ist noch keine freigegebene Vergleichsgruppen-Anpassung aktiv; Ziel-KGV und fairer Wert bleiben bis zum erfolgreichen modellbereinigten V185-Livetest unverändert."
+                            "Für Zahlungsabwickler ist noch keine freigegebene Vergleichsgruppen-Anpassung aktiv; Ziel-KGV und fairer Wert bleiben bis zum erfolgreichen modellbereinigten V186-Livetest unverändert."
                         )
                     elif bool((data.get("professional_business_services_specialist_model") or {}).get("applicable")):
                         ps_peer_model_ui = data.get("professional_business_services_specialist_model") or {}
@@ -68518,7 +68516,7 @@ if selected_symbol:
                         elif is_exchange_peer_metric:
                             peer_header = "**Exchange Adjusted-EPS Dual-Anchor Peer-KGVs (FY2025 Volljahr + H1-2026 Run-Rate):**"
                         elif is_payments_processor_peer_metric:
-                            peer_header = "**Modellbereinigte Zahlungsabwickler-Vergleichsgruppe (V185):**"
+                            peer_header = "**Modellbereinigte Zahlungsabwickler-Vergleichsgruppe (V186):**"
                         else:
                             peer_header = "**Geladene Peer-KGVs:**"
                         st.write(peer_header)
@@ -68856,12 +68854,12 @@ if selected_symbol:
                                         pp_eligible_ui = int(peer_check.get("eligible_peer_count") or 0)
                                         if pp_ratio_median_ui is None:
                                             st.warning(
-                                                f"V185 Modell-Datengate noch nicht bestanden: {pp_eligible_ui}/3 vollständig modellierte Kern-Peers. "
+                                                f"V186 Modell-Datengate noch nicht bestanden: {pp_eligible_ui}/3 vollständig modellierte Kern-Peers. "
                                                 "Rohe Peer-KGVs werden ausdrücklich nicht als Anpassungsanker verwendet. Keine Bewertungsänderung."
                                             )
                                         else:
                                             st.info(
-                                                f"V185 Kalibrierungswert: Median Markt/Modell {pp_ratio_median_ui:.3f} · "
+                                                f"V186 Kalibrierungswert: Median Markt/Modell {pp_ratio_median_ui:.3f} · "
                                                 f"theoretische Anpassung {(pp_candidate_pct_ui or 0)*100:+.1f} % · "
                                                 f"theoretisches KGV {pp_candidate_mul_ui:.2f}×. "
                                                 "Noch nicht freigegeben – das verwendete Ziel-KGV und der faire Wert bleiben unverändert."
@@ -68928,7 +68926,7 @@ if selected_symbol:
                         peer_explain = f"Integrated Oil & Gas {APP_BUILD_VERSION}: Die anderen globalen Majors sind reine Markt-Referenzen. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Peer-Anpassung; Score, Through-Cycle-EPS, Ziel-KGV und Fair Value bleiben issuer-spezifisch."
                     elif is_payments_processor_peer_metric:
                         peer_explain = (
-                            "Zahlungsabwickler V185: Mindestens drei vollständig modellierte Kern-Peers. Verglichen wird Markt-KGV relativ zum jeweils eigenen freigegebenen Familien-Ziel-KGV; "
+                            "Zahlungsabwickler V186: Mindestens drei vollständig modellierte Kern-Peers. Verglichen wird Markt-KGV relativ zum jeweils eigenen freigegebenen Familien-Ziel-KGV; "
                             "Median statt Durchschnitt, theoretische Wirkung maximal ±5 %. Die Kalibrierung bleibt vollständig ohne Einfluss auf Ziel-KGV, fairen Wert und Bewertungszonen."
                         )
                     elif is_exchange_peer_metric:
