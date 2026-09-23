@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.96"
+APP_BUILD_VERSION = "V2.22.97"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -868,6 +868,13 @@ def _de_ui_text(value):
     out = out.replace("kurz-/langfristige Schulden:", "Kurz-/langfristige Schulden:")
     out = out.replace("strukturelles Wachstum:", "Strukturelles Wachstum:")
     out = out.replace("punktzahlpositioniertes Roh-KGV:", "Punktzahlpositioniertes Roh-KGV:")
+    # V193: zwei letzte Nasdaq-Stammdatenzeilen und ein verbliebener Qualitätsscore-Satz.
+    out = out.replace("**Sektor:** Financial Services", "**Sektor:** Finanzdienstleistungen")
+    out = out.replace("**Branche:** Financial Data & Stock Exchanges", "**Branche:** Finanzdaten & Börsen")
+    out = out.replace(
+        "Diese Punktzahl beschreibt operative Qualität und Primärdatenreife. Sie ist kein generischer industrieller P/E-/EV-Multiple-Punktzahl und kein alleiniger Fairer-Wert-Anker; nur bei einem vollständig freigegebenen Börseninfrastruktur-Profil positioniert er das Roh-KGV innerhalb des 18–26× Börseninfrastruktur-Familien-Korridors. Emittentenspezifische Transaktions-/Strukturprüfungen haben Vorrang.",
+        "Diese Punktzahl beschreibt die operative Qualität und Primärdatenreife. Sie ist weder eine generische Bewertungskennzahl noch ein alleiniger Fairer-Wert-Anker; bei einem vollständig freigegebenen Börseninfrastruktur-Profil positioniert sie das Roh-KGV innerhalb des 18–26× Börseninfrastruktur-Familien-Korridors. Emittentenspezifische Transaktions-/Strukturprüfungen haben Vorrang."
+    )
     return out
 
 def _de_wrap_all_string_args(func):
@@ -936,10 +943,11 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Finale deutsche Feinkorrektur V192"
+    f"Build {APP_BUILD_VERSION} · Abschlusskorrektur deutsche Darstellung V193"
 )
 
 
+# V2.22.97: Abschlusskorrektur deutsche Darstellung V193. Reine UI-/Copy-Minikorrektur nach dem Nasdaq-V192-Praxistest. Übersetzt die zwei verbliebenen Nasdaq-Stammdatenzeilen Sektor/Branche und bereinigt den letzten Pronomen-/Grammatikfehler im sichtbaren Börseninfrastruktur-Qualitätsscore-Text. Bewertungsmathematik, Daten, Peers, Scores, Schutzregeln, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.96: Finale deutsche Feinkorrektur V192. Reine UI-/Copy-Korrektur nach dem Nasdaq-V191-Praxistest. Behebt verbliebene Grammatik- und Kompositafehler, übersetzt die sichtbaren Sektor-/Branchenbezeichnungen von Nasdaq und korrigiert die alte globale Median-Ersetzung, die Wörter wie Gesamtjahresmedian fälschlich zu GesamtjahresMedian machte. Bewertungsmathematik, Daten, Peers, Scores, Schutzregeln, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.95: Finale deutsche Textbereinigung V191. Gezielte reine UI-/Copy-Korrektur nach dem Nasdaq-V190-Praxistest. Bereinigt die verbliebenen Börseninfrastruktur-Mischtexte und Grammatikreste, darunter MarketAxess-Transaktionshinweis, Gesamtjahresanker, Kontrollbezeichnungen, operative Hebelwirkung und Abwärts-Obergrenzen. Bewertungsmathematik, Gewinnbasis, Vergleichsgruppendaten, Korridore, Schutzregeln, Scores, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.94: Vollständige deutsche Darstellungskonsistenz V190. Reine UI-/Copy-Bereinigung nach dem Nasdaq-V189-Praxistest. Übersetzt verbliebene Mischtexte im Börseninfrastruktur-Pfad, korrigiert Grammatikreste und insbesondere die fehlerhafte sichtbare Übersetzung „Operating Leverage“ → „operative Hebelwirkung“ statt „operativ Verschuldung“. Bewertungsmathematik, Gewinnbasis, Peer-Daten, Korridore, Schutzregeln, Scores, Fair Values, Zonen und Signale bleiben unverändert.
