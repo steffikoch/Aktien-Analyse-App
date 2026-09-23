@@ -23,9 +23,9 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.85"
+APP_BUILD_VERSION = "V2.22.86"
 
-# V181 – Kompaktansicht & aufklappbare Detailanalyse.
+# V182 – Kompaktansicht Feinschliff.
 # Die vollständige Bewertungsrechnung läuft unverändert im Hintergrund. Standardmäßig
 # zeigt die Oberfläche nur die entscheidenden Ergebnisse; die bisherige Modul-1–8-
 # Darstellung bleibt über eine explizite Detailansicht vollständig verfügbar.
@@ -412,7 +412,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Kompaktansicht & aufklappbare Detailanalyse V181"
+    f"Build {APP_BUILD_VERSION} · Kompaktansicht Feinschliff V182"
 )
 
 
@@ -438,7 +438,7 @@ st.caption(
 # V2.22.82: Modul-6-Transparenz & deutsche Verständlichkeit V178. Reine Darstellungs-/Sprachbereinigung ohne Änderung der Bewertungsmathematik. Für Zahlungsabwickler zeigt Modul 6 jetzt getrennt Qualitätspunktzahl-KGV, Ökonomie-Aufschlag, KGV vor Schutzregeln, Schutzgrenze und freigegebenes Ziel-KGV. Referenzunternehmen zur Modellvalidierung werden klar von einer noch nicht freigegebenen automatischen Bewertungs-Vergleichsgruppe getrennt. Sichtbare interne Entwicklungsbegriffe und Wiederholungen im Zahlungsabwickler-Pfad werden reduziert.
 # V2.22.83: Sprach-, Versions- & Konsistenzbereinigung V179. Reine UI-/Textbereinigung ohne Änderung der Bewertungsmathematik. Entfernt veraltete V176/V175-Verweise aus dem sichtbaren Zahlungsabwickler-Pfad, korrigiert Grammatik und Schritt-2B-Texte, ersetzt verbliebene Entwicklungsbegriffe durch verständliches Deutsch und benennt die methodische Sicherheitsobergrenze eindeutiger. PayPal-/Adyen-/Fiserv-Punktzahl-, Gewinnbasis-, Multiple-, Fair-Value- und Zonenmathematik bleiben unverändert.
 # V2.22.84: Abschließende sichtbare Sprachbereinigung V180. Reine UI-/Textbereinigung ohne Änderung der Bewertungsmathematik. Entfernt den letzten sichtbaren V178-Altverweis im Zahlungsabwickler-Pfad, bereinigt die FCF-Quellenabweichung, PayPal-Fachbegriffe, Bewertungszonen- und Plausibilitätscheck-Texte und ersetzt verbliebene englische Anzeigeformulierungen durch verständliches Deutsch. Interne Schlüssel und alle PayPal-/Adyen-/Fiserv-Punktzahl-, Gewinnbasis-, Ziel-KGV-, Fairer-Wert- und Zonenformeln bleiben unverändert.
-# V2.22.85: Kompaktansicht & aufklappbare Detailanalyse V181. Reine UI-/Darstellungsarchitektur ohne Änderung der Bewertungsmathematik. Die komplette Analyse wird weiterhin vor dem Rendering berechnet; im Vordergrund erscheinen standardmäßig Kurs, fairer Wert, Potenzial, Bewertungszone, Qualität/Punktzahl, Sicherheit, Bewertungsbasis, Zielmultiple sowie die wichtigsten Stärken/Risiken. Die vollständige bisherige Modul-1–8-Ausgabe bleibt über einen Schalter verfügbar. Für Zahlungsabwickler wird zusätzlich der transparente Bewertungsweg kompakt gezeigt.
+# V2.22.86: Kompaktansicht Feinschliff V182. Reine UI-/Darstellungsänderung ohne Änderung der Bewertungsmathematik. Doppelte Hauptlisting-Hinweise, technische Stammdaten und FX-Detailtexte werden aus der Standardansicht entfernt und in die vollständige Detailansicht verschoben. Die Kurzbewertung verwendet bewusst verständliche Risikoformulierungen; alle bisherigen Detaildaten und Prüfpfade bleiben erhalten.
 
 
 
@@ -61385,16 +61385,9 @@ if search_text:
                     "Finanzdaten werden erst nach deiner Auswahl geladen."
                 )
             else:
-                st.caption(
-                    f"{top_hit.get('listing_role_label', '✓ Hauptlisting')}: "
-                    f"{top_hit['symbol']} · {top_hit['exchange']}"
-                    + (f" · {top_hit['currency']}" if top_hit.get('currency') else "")
-                    + f" — {top_hit['name']}. "
-                      "Danach folgen weitere Börsennotierungen desselben Emittenten, "
-                      "offensichtliche ADR/OTC/Local-Wrapper separat als andere Instrumente "
-                      "und erst anschließend ähnlich benannte andere Unternehmen. "
-                      "Die vollständigen Finanzdaten werden weiterhin erst nach deiner Auswahl geladen."
-                )
+                # V182: Die Auswahlzeile selbst zeigt Hauptlisting, Börse und Währung bereits klar an.
+                # Der frühere lange Wiederholungshinweis entfällt in der Kompaktansicht.
+                pass
 
             if top_hit.get("query_type") in {"wkn", "isin"}:
                 if top_hit.get("identifier_verified"):
@@ -61485,54 +61478,20 @@ if selected_symbol:
                     {}
                 )
 
-                st.success("Aktie gefunden")
-
                 st.header(data["name"])
 
-                if search_text.upper() != str(
-                    data["symbol"]
-                ).upper():
-
-                    st.info(
-                        f"„{search_text}“ → "
-                        f"{data['symbol']} "
-                        f"aus Auswahl übernommen"
-                    )
-
-                col1, col2 = st.columns(2)
-
-                with col1:
-
-                    st.write(
-                        f"**Ticker:** "
-                        f"{text_or_dash(data['symbol'])}"
-                    )
-
-                    st.write(
-                        f"**Typ:** "
-                        f"{text_or_dash(data['quote_type'])}"
-                    )
-
-                    st.write(
-                        f"**Börse:** "
-                        f"{text_or_dash(data['exchange_name'])}"
-                    )
-
-                with col2:
-
-                    st.write(
-                        f"**Handelswährung:** {currency}"
-                    )
-
-                    st.write(
-                        f"**Sektor:** "
-                        f"{text_or_dash(data['sector'])}"
-                    )
-
-                    st.write(
-                        f"**Branche:** "
-                        f"{text_or_dash(data['industry'])}"
-                    )
+                _compact_exchange_map = {
+                    "NasdaqGS": "Nasdaq",
+                    "NasdaqGM": "Nasdaq",
+                    "NasdaqCM": "Nasdaq",
+                    "NYSE": "NYSE",
+                    "XETRA": "Xetra",
+                }
+                _compact_exchange_name = text_or_dash(data.get("exchange_name"))
+                _compact_exchange_name = _compact_exchange_map.get(_compact_exchange_name, _compact_exchange_name)
+                st.caption(
+                    f"{text_or_dash(data.get('symbol'))} · {_compact_exchange_name} · {currency}"
+                )
 
                 if data.get("fundamental_source_separate"):
                     st.info(
@@ -61581,9 +61540,8 @@ if selected_symbol:
                             currency_context.get("note")
                         )
 
-                st.subheader("💱 Anzeige-Währung")
                 display_choice = st.selectbox(
-                    "Monetäre Werte anzeigen in",
+                    "Anzeige-Währung",
                     [
                         "EUR",
                         "Originalwährungen",
@@ -61613,10 +61571,6 @@ if selected_symbol:
                         "rates": {},
                     }
                     set_display_currency_context(display_currency_context)
-                    st.caption(
-                        f"Anzeige unverändert in Originalwährungen · Handelswährung: {currency} · "
-                        f"Berichtswährung: {financial_currency}"
-                    )
                 else:
                     display_currency_context = build_display_currency_context(
                         display_choice,
@@ -61626,34 +61580,7 @@ if selected_symbol:
                     set_display_currency_context(display_currency_context)
 
                     if display_currency_context.get("enabled"):
-                        st.success(
-                            f"Anzeige-Währung: {display_choice}. Bewertungslogik und Punktzahlen bleiben "
-                            "unverändert in ihren Originaleinheiten."
-                        )
-                        st.caption(
-                            f"Original-Handelswährung: {currency} · Berichtswährung: {financial_currency}"
-                        )
-                        fx_lines = []
-                        for source_code, fx in (display_currency_context.get("rates") or {}).items():
-                            factor = safe_float((fx or {}).get("factor"))
-                            if factor is None:
-                                continue
-                            if source_code == display_choice:
-                                continue
-                            fx_lines.append(
-                                f"1 {source_code} = {factor:.6f} {display_choice}"
-                            )
-                        if fx_lines:
-                            st.write("**Verwendeter FX-Kurs:** " + " · ".join(fx_lines))
-
-                        as_of_values = display_currency_context.get("as_of_values") or []
-                        retrieved_values = display_currency_context.get("retrieved_at_values") or []
-                        if as_of_values:
-                            shown_as_of = _format_fx_timestamp(sorted(as_of_values)[-1])
-                            st.caption(f"FX-Datenstand: {shown_as_of}")
-                        elif retrieved_values:
-                            shown_retrieved = _format_fx_timestamp(sorted(retrieved_values)[-1])
-                            st.caption(f"FX abgerufen: {shown_retrieved}")
+                        pass
                     else:
                         missing = ", ".join(display_currency_context.get("missing_sources") or [])
                         st.warning(
@@ -61668,7 +61595,7 @@ if selected_symbol:
                             "rates": {},
                         })
 
-                # V181 – kompakte Vordergrundansicht. Alle Daten wurden bereits vollständig
+                # V182 – kompakte Vordergrundansicht. Alle Daten wurden bereits vollständig
                 # berechnet; dieser Block ändert ausschließlich das Rendering.
                 compact_fv = data.get("fair_value") or {}
                 compact_zone = data.get("valuation_zone") or {}
@@ -61785,8 +61712,13 @@ if selected_symbol:
                             )
                         with d2:
                             compact_guard_notes = pp_multiple_compact.get("guard_notes") or []
-                            if compact_guard_notes:
-                                st.warning("**Wichtigster Bewertungsdruck:** " + str(compact_guard_notes[0]))
+                            if pp_multiple_compact.get("guard_applied"):
+                                st.warning(
+                                    "**Hauptbelastung:** Das Zahlungsvolumen wächst deutlich stärker als "
+                                    "die Ertragsökonomie; gleichzeitig ist die operative Marge rückläufig."
+                                )
+                            elif compact_guard_notes:
+                                st.warning("**Hauptbelastung:** " + str(compact_guard_notes[0]))
                             else:
                                 st.warning(
                                     f"**Schwächster Bereich:** {block_labels_compact.get(weak_compact[1], weak_compact[1])} "
@@ -61819,9 +61751,9 @@ if selected_symbol:
                     st.info(" · ".join(compact_meta))
 
                 show_full_details = st.toggle(
-                    "🔎 Vollständige Bewertungsdetails anzeigen",
+                    "🔎 Bewertungsdetails anzeigen",
                     value=False,
-                    key="show_full_details_v181",
+                    key="show_full_details_v182",
                     help=(
                         "Die vollständige Analyse wird immer im Hintergrund berechnet. "
                         "Dieser Schalter zeigt zusätzlich alle bisherigen Module, Datenquellen, Prüfpfade und Diagnosewerte."
@@ -61829,12 +61761,47 @@ if selected_symbol:
                 )
                 if not show_full_details:
                     st.caption(
-                        "Die vollständige Modul-1–8-Prüfung läuft weiterhin im Hintergrund. "
-                        "Für die normale Nutzung reicht die Kurzbewertung; Details können jederzeit eingeblendet werden."
+                        "Die vollständige Prüfung läuft im Hintergrund und kann bei Bedarf eingeblendet werden."
                     )
 
                 if show_full_details:
                     st.divider()
+
+                    st.subheader("ℹ️ Stammdaten & Währung")
+                    dmeta1, dmeta2 = st.columns(2)
+                    with dmeta1:
+                        st.write(f"**Ticker:** {text_or_dash(data.get('symbol'))}")
+                        st.write(f"**Typ:** {text_or_dash(data.get('quote_type'))}")
+                        st.write(f"**Börse:** {text_or_dash(data.get('exchange_name'))}")
+                    with dmeta2:
+                        st.write(f"**Handelswährung:** {currency}")
+                        st.write(f"**Sektor:** {text_or_dash(data.get('sector'))}")
+                        st.write(f"**Branche:** {text_or_dash(data.get('industry'))}")
+
+                    if display_choice == "Originalwährungen":
+                        st.caption(
+                            f"Anzeige in Originalwährungen · Handelswährung: {currency} · "
+                            f"Berichtswährung: {financial_currency}"
+                        )
+                    elif display_currency_context.get("enabled"):
+                        st.caption(
+                            f"Anzeige-Währung: {display_choice} · Original-Handelswährung: {currency} · "
+                            f"Berichtswährung: {financial_currency}"
+                        )
+                        _detail_fx_lines = []
+                        for _source_code, _fx in (display_currency_context.get("rates") or {}).items():
+                            _factor = safe_float((_fx or {}).get("factor"))
+                            if _factor is None or _source_code == display_choice:
+                                continue
+                            _detail_fx_lines.append(f"1 {_source_code} = {_factor:.6f} {display_choice}")
+                        if _detail_fx_lines:
+                            st.write("**Verwendeter FX-Kurs:** " + " · ".join(_detail_fx_lines))
+                        _as_of_values = display_currency_context.get("as_of_values") or []
+                        _retrieved_values = display_currency_context.get("retrieved_at_values") or []
+                        if _as_of_values:
+                            st.caption(f"FX-Datenstand: {_format_fx_timestamp(sorted(_as_of_values)[-1])}")
+                        elif _retrieved_values:
+                            st.caption(f"FX abgerufen: {_format_fx_timestamp(sorted(_retrieved_values)[-1])}")
 
                     st.subheader(
                         "🧭 Automatische "
