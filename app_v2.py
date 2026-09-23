@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.01"
+APP_BUILD_VERSION = "V2.23.02"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -943,12 +943,12 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Unabhängiger Gegencheck V1 V197"
+    f"Build {APP_BUILD_VERSION} · Unabhängiger Gegencheck V2 V198"
 )
 
 
 # V2.22.98: Zahlungsabwickler-Sicherheitsentkopplung V194. Bei vollständig freigegebenem Zahlungsabwickler-Spezialpfad bleibt die generische TTM-/Prognose-EPS-Divergenz ausschließlich Diagnosekontext und darf die endgültige Bewertungssicherheit nicht mehr begrenzen. Maßgeblich sind Methodenobergrenze, freigegebene Familien-Gewinnbasis, Sicherheit des Familien-Ziel-KGV und Spezialkontrolle. Bewertungsmathematik, Peer-Kalibrierung, Gewinnbasis, Ziel-KGV, Fair Values und Signal-Gates bleiben unverändert.
-# V2.23.01: Unabhängiger Gegencheck V1 V197. Ergänzt für den freigegebenen Zahlungsabwickler-Pfad eine ausdrücklich nicht steuernde zweite Kontrollsicht aus drei voneinander getrennten Ankern: Analystenrichtung, rückwärts gerechnete Markterwartung auf Basis des aktuellen Kurses und der freigegebenen Current-FY-Gewinnbasis sowie roher Markt-KGV-Vergleich gegen die anderen Kern-Peers. Der Gegencheck erzeugt weder Fair Value noch Ziel-KGV und verändert weder Qualität, Bewertungssicherheit, Bewertungszonen noch Kaufen/Halten/Verkaufen. Zusätzlich wird die veraltete sichtbare Statuszeile „Signale gesperrt“ auf den tatsächlich freigegebenen Signal-Stand gebracht.
+# V2.23.02: Unabhängiger Gegencheck V2 V198. Härtet die nicht steuernde Zahlungsabwickler-Kontrollsicht nach Live-Tests mit Global Payments, PayPal, Adyen und Fiserv: Analystenabweichungen werden richtungs- und größenordnungsspezifisch formuliert; die feste 8x/10x-Bewertung wird entfernt und das aktuelle Markt-KGV nur noch als marktimplizierter Kontext gezeigt, solange keine gleichbasige historische Eigenreihe belastbar verfügbar ist; der rohe Kern-Vergleichsgruppen-Check erhält eine Streuungs-/Vergleichbarkeitssperre und darf bei heterogener KGV-Spanne weder Bestätigung noch Widerspruch erzeugen. Das Gesamtergebnis zählt nur belastbare Kontrollen. Fair Value, Ziel-KGV, Qualität, Sicherheit, Bewertungszonen und Kaufen/Halten/Verkaufen bleiben unverändert.
 # V2.23.00: Zahlungsabwickler-Signal-Logik V196. Gibt die familienbezogene Kaufen/Halten/Verkaufen-Logik nach separater Kalibrierung frei: Neukauf nur bei Unterbewertung oder starker Unterbewertung, Qualität >=65/100 und Bewertungssicherheit mindestens Mittel; schwächere Qualität bzw. niedrigere Sicherheit bremsen auf Abwarten. Bestandspositionen bleiben bis Fair bewertet auf Halten; bei Überbewertung führt Qualität <65/100 zu Verkaufen prüfen, bei starker Überbewertung und mindestens mittlerer Sicherheit zu Verkaufen. Niedrige Sicherheit verhindert harte Verkaufssignale. Bewertungsmathematik, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Values und Bewertungszonen bleiben unverändert.
 # V2.22.96: Finale deutsche Feinkorrektur V192. Reine UI-/Copy-Korrektur nach dem Nasdaq-V191-Praxistest. Behebt verbliebene Grammatik- und Kompositafehler, übersetzt die sichtbaren Sektor-/Branchenbezeichnungen von Nasdaq und korrigiert die alte globale Median-Ersetzung, die Wörter wie Gesamtjahresmedian fälschlich zu GesamtjahresMedian machte. Bewertungsmathematik, Daten, Peers, Scores, Schutzregeln, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.95: Finale deutsche Textbereinigung V191. Gezielte reine UI-/Copy-Korrektur nach dem Nasdaq-V190-Praxistest. Bereinigt die verbliebenen Börseninfrastruktur-Mischtexte und Grammatikreste, darunter MarketAxess-Transaktionshinweis, Gesamtjahresanker, Kontrollbezeichnungen, operative Hebelwirkung und Abwärts-Obergrenzen. Bewertungsmathematik, Gewinnbasis, Vergleichsgruppendaten, Korridore, Schutzregeln, Scores, Fair Values, Zonen und Signale bleiben unverändert.
@@ -52541,7 +52541,7 @@ def generate_payments_processor_action_signals(
     return buy, hold
 
 
-def build_payments_processor_independent_crosscheck_v1(
+def build_payments_processor_independent_crosscheck_v2(
     price,
     valuation_zone,
     fair_value,
@@ -52549,16 +52549,19 @@ def build_payments_processor_independent_crosscheck_v1(
     peer_check,
     analyst_consensus,
 ):
-    """Independent, non-steering cross-check for released Payments Processors.
+    """Independent, non-steering cross-check V2 for released Payments Processors.
 
-    V197 deliberately does not reuse the model target P/E or Fair Value as an
-    input to the market-expectation or raw-peer checks.  The three controls are:
-      1) external analyst direction/magnitude;
-      2) current market P/E on the released current-FY earnings basis plus
-         reverse-EPS scenarios at fixed 8x and 10x sanity multiples;
-      3) raw current-FY market P/E versus the median of the *other* core peers.
+    V198 keeps the counter-check separate from the valuation engine. It uses:
+      1) external analyst direction and magnitude;
+      2) the current market P/E on the released current-FY earnings basis as
+         market-implied context only. Without a reliable same-basis historical
+         own-company forward-P/E series, this check does not emit confirmation
+         or contradiction;
+      3) raw current-FY market P/E versus the other core processors, but only
+         after a dispersion/comparability gate. A heterogeneous cluster cannot
+         create a strong peer verdict from its median.
 
-    The output is diagnosis only.  It never changes score, confidence, target
+    The output is diagnosis only and never changes score, confidence, target
     multiple, Fair Value, valuation zone, buy signal or holding signal.
     """
     model = processor_model if isinstance(processor_model, dict) else {}
@@ -52574,15 +52577,16 @@ def build_payments_processor_independent_crosscheck_v1(
         "diagnosis_only": True,
         "affects_fair_value": False,
         "affects_signal": False,
-        "version": "V1",
+        "version": "V2",
         "checks": {},
         "overall": None,
         "direction_support_count": 0,
         "partial_support_count": 0,
-        "contradiction_count": 0,
+        "external_deviation_count": 0,
+        "excluded_check_count": 0,
     }
     if not (model.get("applicable") and model.get("fair_value_released") and zone_data.get("available")):
-        result["reason"] = "Gegencheck V1 ist nur für den vollständig freigegebenen Zahlungsabwickler-Spezialpfad verfügbar."
+        result["reason"] = "Gegencheck V2 ist nur für den vollständig freigegebenen Zahlungsabwickler-Spezialpfad verfügbar."
         return result
 
     current_price = safe_float(price)
@@ -52600,13 +52604,13 @@ def build_payments_processor_independent_crosscheck_v1(
         own_fv = safe_float(fv.get("fair_value_quote"))
         own_upside = ((own_fv / current_price) - 1.0) * 100.0 if own_fv is not None and own_fv > 0 else None
 
-    # 1) Analyst direction.  Direction is primary; a very large gap in magnitude
-    # is deliberately downgraded to partial support rather than treated as a
-    # contradiction when both still point the same way.
+    # 1) Analyst direction and magnitude. The wording distinguishes a neutraler
+    # outside view from a materially more optimistic/pessimistic external view.
     ext_upside = safe_float(analysts.get("target_upside_pct"))
     analyst_available = bool(analysts.get("available") and ext_upside is not None)
     analyst_status = "Nicht verfügbar"
     analyst_reason = "Kein belastbares externes Analystenziel verfügbar."
+    magnitude_gap = None
     if analyst_available:
         ext_under = ext_upside >= 10.0
         ext_fair = -10.0 < ext_upside < 10.0
@@ -52614,88 +52618,80 @@ def build_payments_processor_independent_crosscheck_v1(
         same_direction = (own_under and ext_under) or (own_fair and ext_fair) or (own_over and ext_over)
         opposite_direction = (own_under and ext_over) or (own_over and ext_under)
         magnitude_gap = abs((own_upside or 0.0) - ext_upside) if own_upside is not None else None
+
         if same_direction:
             if magnitude_gap is not None and magnitude_gap >= 25.0:
                 analyst_status = "Teilweise bestätigt"
                 analyst_reason = (
-                    "Analysten bestätigen die Bewertungsrichtung, aber nicht die Höhe des eigenen Fair-Value-Potenzials."
+                    "Analysten bestätigen die Bewertungsrichtung, aber nicht die Größenordnung des eigenen Potenzials zum fairen Wert."
                 )
             else:
                 analyst_status = "Bestätigt"
-                analyst_reason = "Analystenkonsens und eigene Bewertungsrichtung zeigen in dieselbe Richtung."
+                analyst_reason = "Analystenkonsens und Hauptmodell liegen in Richtung und Größenordnung ausreichend nah beieinander."
         elif opposite_direction:
-            analyst_status = "Widerspruch"
-            analyst_reason = "Analystenkonsens und eigene Bewertungsrichtung zeigen klar in entgegengesetzte Richtungen."
+            analyst_status = "Externe Abweichung"
+            analyst_reason = "Analystenkonsens und Hauptmodell zeigen eine klar unterschiedliche Bewertungsrichtung."
+        elif own_fair and ext_under:
+            analyst_status = "Externe Abweichung"
+            analyst_reason = (
+                "Der Analystenkonsens ist deutlich optimistischer als das Hauptmodell und bestätigt dessen faire Bewertung nicht."
+            )
+        elif own_fair and ext_over:
+            analyst_status = "Externe Abweichung"
+            analyst_reason = (
+                "Der Analystenkonsens ist deutlich pessimistischer als das Hauptmodell und bestätigt dessen faire Bewertung nicht."
+            )
+        elif (own_under and ext_fair) or (own_over and ext_fair):
+            analyst_status = "Teilweise bestätigt"
+            analyst_reason = (
+                "Der Analystenkonsens ist neutraler als das Hauptmodell und bestätigt dessen Bewertungsrichtung deshalb nur teilweise."
+            )
         else:
             analyst_status = "Teilweise bestätigt"
-            analyst_reason = "Der Analystenkonsens ist neutraler als die eigene Bewertung und bestätigt sie deshalb nur teilweise."
+            analyst_reason = "Analystenkonsens und Hauptmodell sind nur eingeschränkt richtungsgleich."
+
     result["checks"]["analyst"] = {
         "available": analyst_available,
+        "usable_for_overall": analyst_available,
         "status": analyst_status,
         "external_upside_pct": ext_upside,
         "own_upside_pct": own_upside,
+        "magnitude_gap_pct_points": magnitude_gap,
         "target_mean": safe_float(analysts.get("target_mean")),
         "analyst_count": analysts.get("analyst_count"),
         "reason": analyst_reason,
     }
 
-    # 2) Reverse market expectation.  Fixed 8x/10x scenario marks are *not*
-    # valuation anchors.  They only answer which EPS would justify today's price
-    # at simple conservative multiples, and how that compares with the released
-    # company/current-FY earnings basis.
+    # 2) Market-implied valuation context. The old fixed 8x/10x judgement is
+    # removed because one static threshold cannot sensibly grade both Adyen-like
+    # high-quality growth economics and restructuring/turnaround processors.
+    # Until a reliable same-basis historical own-company forward-P/E series is
+    # available, the current market P/E is transparent context, not a verdict.
     market_pe = current_price / basis_eps
-    implied_eps_8x = current_price / 8.0
-    implied_eps_10x = current_price / 10.0
-    gap_vs_8x = (basis_eps / implied_eps_8x - 1.0) * 100.0 if implied_eps_8x > 0 else None
-    gap_vs_10x = (basis_eps / implied_eps_10x - 1.0) * 100.0 if implied_eps_10x > 0 else None
-    if own_under:
-        if market_pe <= 8.0:
-            market_status = "Bestätigt"
-            market_reason = "Der aktuelle Kurs entspricht auf der freigegebenen Current-FY-Gewinnbasis höchstens 8× Gewinn und preist damit einen sehr konservativen Multiplikator ein."
-        elif market_pe <= 10.0:
-            market_status = "Teilweise bestätigt"
-            market_reason = "Der aktuelle Kurs liegt auf der freigegebenen Gewinnbasis zwischen 8× und 10×; das stützt eine günstige Bewertung, aber weniger eindeutig."
-        elif market_pe <= 12.5:
-            market_status = "Neutral"
-            market_reason = "Das aktuelle Markt-KGV liegt nicht extrem niedrig; die Unterbewertung wird durch diesen einfachen Rückwärtscheck weder klar bestätigt noch widerlegt."
-        else:
-            market_status = "Widerspruch"
-            market_reason = "Das aktuelle Markt-KGV ist für einen einfachen konservativen Rückwärtscheck bereits relativ hoch und stützt die ausgewiesene Unterbewertung nicht."
-    elif own_fair:
-        if 10.0 <= market_pe <= 24.0:
-            market_status = "Bestätigt"
-            market_reason = "Das aktuelle Markt-KGV liegt in einem breiten mittleren Bereich und ist mit einer fairen Bewertung vereinbar."
-        else:
-            market_status = "Teilweise bestätigt"
-            market_reason = "Das Markt-KGV liegt außerhalb des breiten mittleren Bereichs; die faire Bewertung wird durch diesen einfachen Rückwärtscheck nur teilweise gestützt."
-    else:
-        if market_pe >= 20.0:
-            market_status = "Bestätigt"
-            market_reason = "Das aktuelle Markt-KGV ist hoch und stützt die Richtung einer Überbewertung."
-        elif market_pe >= 15.0:
-            market_status = "Teilweise bestätigt"
-            market_reason = "Das Markt-KGV ist erhöht, bestätigt eine Überbewertung aber nur teilweise."
-        else:
-            market_status = "Widerspruch"
-            market_reason = "Das aktuelle Markt-KGV ist nicht hoch genug, um die ausgewiesene Überbewertung im einfachen Rückwärtscheck zu stützen."
+    earnings_yield_pct = (basis_eps / current_price) * 100.0 if current_price > 0 else None
     result["checks"]["market_expectation"] = {
         "available": True,
-        "status": market_status,
+        "usable_for_overall": False,
+        "status": "Eingeschränkt prüfbar",
         "market_pe_on_released_earnings": market_pe,
+        "earnings_yield_pct": earnings_yield_pct,
         "released_earnings_basis_eps": basis_eps,
         "earnings_currency": eb.get("currency"),
         "earnings_basis_label": eb.get("basis_label"),
-        "implied_eps_at_8x": implied_eps_8x,
-        "implied_eps_at_10x": implied_eps_10x,
-        "released_eps_vs_implied_8x_pct": gap_vs_8x,
-        "released_eps_vs_implied_10x_pct": gap_vs_10x,
-        "reason": market_reason,
-        "scenario_note": "8× und 10× sind feste Rückwärtsrechnungs-Szenarien und keine Fair-Value- oder Ziel-KGV-Anker.",
+        "historical_same_basis_available": False,
+        "reason": (
+            "Das aktuelle Markt-KGV wird transparent gezeigt. Eine belastbare gleichbasige historische Forward-KGV-Reihe des eigenen Unternehmens "
+            "ist im freigegebenen Zahlungsabwickler-Pfad noch nicht verfügbar; deshalb erzeugt dieser Check bewusst weder Bestätigung noch Widerspruch."
+        ),
+        "note": (
+            "Kein festes 8×/10×-Urteil mehr. Ein späterer historischer Eigenvergleich darf nur mit gleicher Gewinnbasis und ausreichend vergleichbarer Unternehmensstruktur freigegeben werden."
+        ),
     }
 
-    # 3) Raw core-peer market P/E.  Crucially, this check does not divide by or
-    # otherwise reuse any peer model target.  It is a plain market-price/current-
-    # FY earnings comparison against the other core processors.
+    # 3) Raw core-peer market P/E with a comparability/dispersion gate. The gate
+    # is evaluated on the complete live core cluster including the target. If
+    # max/min is >=2x, the raw P/E family is too heterogeneous for a strong
+    # median-based verdict.
     raw_peer_pes = []
     raw_peer_rows = []
     for row in peers.get("peer_rows") or []:
@@ -52706,59 +52702,93 @@ def build_payments_processor_independent_crosscheck_v1(
             continue
         raw_peer_pes.append(pe)
         raw_peer_rows.append({"symbol": row.get("symbol"), "name": row.get("name"), "market_pe": pe})
+
     peer_median = float(pd.Series(raw_peer_pes).median()) if raw_peer_pes else None
     peer_gap_pct = ((market_pe / peer_median) - 1.0) * 100.0 if peer_median not in (None, 0) else None
     peer_available = bool(peer_median is not None and len(raw_peer_pes) >= 3)
+    cluster_pes = ([market_pe] + raw_peer_pes) if peer_available else []
+    cluster_min = min(cluster_pes) if cluster_pes else None
+    cluster_max = max(cluster_pes) if cluster_pes else None
+    cluster_max_min_ratio = (cluster_max / cluster_min) if cluster_min not in (None, 0) and cluster_max is not None else None
+    comparability_limited = bool(cluster_max_min_ratio is not None and cluster_max_min_ratio >= 2.0)
+
     if not peer_available:
         peer_status = "Nicht verfügbar"
-        peer_reason = "Weniger als drei rohe Kern-Peer-Markt-KGVs verfügbar."
+        peer_reason = "Weniger als drei rohe Kern-Vergleichsgruppen-Markt-KGVs verfügbar."
+        peer_usable = False
+    elif comparability_limited:
+        peer_status = "Eingeschränkt vergleichbar"
+        peer_reason = (
+            f"Die rohe KGV-Spanne des vollständigen Kernclusters reicht von {cluster_min:.2f}× bis {cluster_max:.2f}× "
+            f"(Max/Min {cluster_max_min_ratio:.2f}×). Der Median ist damit kein belastbarer Beweis für Bestätigung oder Widerspruch."
+        )
+        peer_usable = False
     elif own_under:
+        peer_usable = True
         if peer_gap_pct <= -15.0:
             peer_status = "Bestätigt"
-            peer_reason = "Die Aktie handelt mindestens 15 % unter dem rohen Current-FY-Markt-KGV-Median der anderen Kern-Peers."
+            peer_reason = "Die Aktie handelt mindestens 15 % unter dem rohen Markt-KGV-Median einer ausreichend homogenen Kern-Vergleichsgruppe."
         elif peer_gap_pct <= 5.0:
             peer_status = "Teilweise bestätigt"
-            peer_reason = "Die Aktie handelt ungefähr auf oder leicht unter dem rohen Kern-Peer-Median; die Unterbewertung wird nur teilweise gestützt."
+            peer_reason = "Die Aktie handelt ungefähr auf oder leicht unter dem rohen Kern-Vergleichsgruppen-Median; die Unterbewertung wird nur teilweise gestützt."
         else:
-            peer_status = "Widerspruch"
-            peer_reason = "Die Aktie handelt mit einem deutlichen Aufschlag auf den rohen Kern-Peer-Median; das stützt die Unterbewertung nicht."
+            peer_status = "Externe Abweichung"
+            peer_reason = "Die Aktie handelt deutlich über dem homogenen Kern-Vergleichsgruppen-Median; der rohe Marktvergleich stützt die Unterbewertung nicht."
     elif own_fair:
+        peer_usable = True
         if abs(peer_gap_pct) <= 20.0:
             peer_status = "Bestätigt"
-            peer_reason = "Das rohe Markt-KGV liegt innerhalb von ±20 % des Kern-Peer-Medians und ist mit einer fairen Bewertung vereinbar."
-        else:
+            peer_reason = "Das rohe Markt-KGV liegt innerhalb von ±20 % des Medians einer ausreichend homogenen Kern-Vergleichsgruppe."
+        elif abs(peer_gap_pct) <= 40.0:
             peer_status = "Teilweise bestätigt"
-            peer_reason = "Das rohe Markt-KGV weicht deutlich vom Kern-Peer-Median ab; die faire Bewertung wird nur teilweise gestützt."
+            peer_reason = "Das rohe Markt-KGV weicht merklich vom homogenen Kern-Vergleichsgruppen-Median ab; die faire Bewertung wird nur teilweise gestützt."
+        else:
+            peer_status = "Externe Abweichung"
+            peer_reason = "Das rohe Markt-KGV weicht stark vom homogenen Kern-Vergleichsgruppen-Median ab."
     else:
+        peer_usable = True
         if peer_gap_pct >= 15.0:
             peer_status = "Bestätigt"
-            peer_reason = "Die Aktie handelt mindestens 15 % über dem rohen Kern-Peer-Median und stützt damit die Richtung einer Überbewertung."
+            peer_reason = "Die Aktie handelt mindestens 15 % über dem rohen Markt-KGV-Median einer ausreichend homogenen Kern-Vergleichsgruppe."
         elif peer_gap_pct >= -5.0:
             peer_status = "Teilweise bestätigt"
-            peer_reason = "Die Aktie handelt ungefähr auf oder leicht über dem Kern-Peer-Median; eine Überbewertung wird nur teilweise gestützt."
+            peer_reason = "Die Aktie handelt ungefähr auf oder leicht über dem Kern-Vergleichsgruppen-Median; eine Überbewertung wird nur teilweise gestützt."
         else:
-            peer_status = "Widerspruch"
-            peer_reason = "Die Aktie handelt unter dem rohen Kern-Peer-Median; das widerspricht der Richtung einer Überbewertung."
+            peer_status = "Externe Abweichung"
+            peer_reason = "Die Aktie handelt unter dem homogenen Kern-Vergleichsgruppen-Median; der rohe Marktvergleich stützt die Überbewertung nicht."
+
     result["checks"]["raw_peer_market"] = {
         "available": peer_available,
+        "usable_for_overall": bool(peer_available and peer_usable),
         "status": peer_status,
         "target_market_pe": market_pe,
         "peer_market_pe_median": peer_median,
         "target_vs_peer_median_pct": peer_gap_pct,
         "peer_count": len(raw_peer_pes),
         "peer_rows": raw_peer_rows,
+        "cluster_min_pe": cluster_min,
+        "cluster_max_pe": cluster_max,
+        "cluster_max_min_ratio": cluster_max_min_ratio,
+        "comparability_limited": comparability_limited,
         "reason": peer_reason,
-        "note": "Nur rohe Current-FY-Markt-KGVs; die eigenen Modell-Ziel-KGVs der Peers werden in diesem Gegencheck ausdrücklich nicht verwendet.",
+        "note": (
+            "Nur rohe KGVs auf der Gewinnbasis des laufenden Geschäftsjahres; die eigenen Modell-Ziel-KGVs der Vergleichsunternehmen werden im Gegencheck nicht verwendet. "
+            "Bei hoher Streuung wird der Median automatisch als nicht belastbar gesperrt."
+        ),
     }
 
     available_checks = [c for c in result["checks"].values() if c.get("available")]
-    confirmed = sum(1 for c in available_checks if c.get("status") == "Bestätigt")
-    partial = sum(1 for c in available_checks if c.get("status") in {"Teilweise bestätigt", "Neutral"})
-    contradictions = sum(1 for c in available_checks if c.get("status") == "Widerspruch")
+    usable_checks = [c for c in available_checks if c.get("usable_for_overall")]
+    confirmed = sum(1 for c in usable_checks if c.get("status") == "Bestätigt")
+    partial = sum(1 for c in usable_checks if c.get("status") == "Teilweise bestätigt")
+    deviations = sum(1 for c in usable_checks if c.get("status") == "Externe Abweichung")
+    excluded = len(available_checks) - len(usable_checks)
     result["direction_support_count"] = confirmed
     result["partial_support_count"] = partial
-    result["contradiction_count"] = contradictions
+    result["external_deviation_count"] = deviations
     result["available_check_count"] = len(available_checks)
+    result["usable_check_count"] = len(usable_checks)
+    result["excluded_check_count"] = excluded
 
     magnitude_limited = bool(
         analyst_available
@@ -52767,21 +52797,29 @@ def build_payments_processor_independent_crosscheck_v1(
         and ext_upside is not None
         and abs(own_upside - ext_upside) >= 25.0
     )
-    if contradictions >= 2:
-        overall = "Widerspruch"
-        overall_reason = "Mindestens zwei unabhängige Kontrollen widersprechen der Bewertungsrichtung des Hauptmodells."
-    elif confirmed >= 2 and magnitude_limited:
-        overall = "Richtung bestätigt · Fair-Value-Höhe nur teilweise bestätigt"
-        overall_reason = "Mindestens zwei Kontrollen stützen die Bewertungsrichtung; der Analystenkonsens bestätigt die Größenordnung des eigenen Fair Values jedoch nicht."
-    elif confirmed >= 2:
+
+    if not usable_checks:
+        overall = "Eingeschränkt prüfbar"
+        overall_reason = "Keine der verfügbaren Kontrollen ist derzeit belastbar genug für ein unabhängiges Gesamturteil."
+    elif deviations >= 1 and confirmed == 0:
+        overall = "Externe Abweichung"
+        overall_reason = (
+            "Mindestens eine belastbare externe Kontrolle weicht materiell vom Hauptmodell ab; die übrigen Kontrollen sind nicht stark genug, diese Abweichung aufzulösen."
+        )
+    elif confirmed >= 2 and deviations == 0:
         overall = "Bestätigt"
-        overall_reason = "Mindestens zwei unabhängige Kontrollen stützen die Bewertungsrichtung des Hauptmodells."
-    elif confirmed + partial >= 2:
+        overall_reason = "Mindestens zwei belastbare unabhängige Kontrollen stützen die Bewertungsrichtung des Hauptmodells."
+    elif confirmed >= 1 and deviations >= 1:
         overall = "Teilweise bestätigt"
-        overall_reason = "Mehrere Kontrollen stützen die Richtung teilweise, aber die Bestätigung ist nicht eindeutig genug für ein klares Gesamturteil."
+        overall_reason = "Belastbare Kontrollen liefern gemischte Evidenz; das Hauptmodell wird nicht eindeutig bestätigt."
+    elif confirmed >= 1 or partial >= 1:
+        overall = "Teilweise bestätigt"
+        overall_reason = (
+            "Mindestens eine belastbare Kontrolle stützt die Bewertungsrichtung, für ein klares Gesamturteil fehlen jedoch weitere unabhängige Bestätigungen."
+        )
     else:
-        overall = "Gemischt"
-        overall_reason = "Die unabhängigen Kontrollen ergeben kein ausreichend einheitliches Bild."
+        overall = "Eingeschränkt prüfbar"
+        overall_reason = "Die belastbaren Kontrollen reichen derzeit nicht für ein eindeutiges Gesamturteil."
 
     result.update({
         "available": bool(available_checks),
@@ -52789,8 +52827,8 @@ def build_payments_processor_independent_crosscheck_v1(
         "overall_reason": overall_reason,
         "magnitude_limited_by_analysts": magnitude_limited,
         "note": (
-            "Der Unabhängige Gegencheck V1 ist eine reine Kontrollansicht. Er verändert weder den eigenen Fair Value noch Qualität, "
-            "Bewertungssicherheit, Bewertungszonen oder Kaufen/Halten/Verkaufen."
+            "Der Unabhängige Gegencheck V2 ist eine reine Kontrollansicht. Er verändert weder den eigenen fairen Wert noch Qualität, "
+            "Bewertungssicherheit, Bewertungszonen oder Kaufen/Halten/Verkaufen. Nicht ausreichend vergleichbare Kontrollen werden sichtbar ausgeschlossen statt künstlich gewertet."
         ),
     })
     return result
@@ -62460,7 +62498,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         target_horizon_guard=analyst_target_horizon_guard,
     )
 
-    independent_crosscheck_v1 = build_payments_processor_independent_crosscheck_v1(
+    independent_crosscheck_v2 = build_payments_processor_independent_crosscheck_v2(
         price,
         valuation_zone,
         fair_value,
@@ -62649,7 +62687,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         "holding_signal": holding_signal,
         "analyst_consensus": analyst_consensus,
         "reality_check": reality_check,
-        "independent_crosscheck_v1": independent_crosscheck_v1,
+        "independent_crosscheck_v2": independent_crosscheck_v2,
         "final_signal_overlay": final_signal_overlay,
         "analyst_target_horizon_guard": analyst_target_horizon_guard
     }
@@ -63320,7 +63358,7 @@ if selected_symbol:
                             "three_issuer_valuation_zone_live_validated": "Bewertungszonen geprüft · Vergleichsgruppen-Kalibrierung V187 aktiv",
                         }
                         _family_status = (
-                            "Familienmodell inkl. Bewertungszonen und Signal-Logik V1 freigegeben · Vergleichsgruppen-Kalibrierung V187 aktiv · Unabhängiger Gegencheck V1 aktiv"
+                            "Familienmodell inkl. Bewertungszonen und Signal-Logik V1 freigegeben · Vergleichsgruppen-Kalibrierung V187 aktiv · Unabhängiger Gegencheck V2 aktiv"
                             if _payments_processor_released_ui
                             else _family_status_labels.get(_family_status_raw, _family_status_raw)
                         )
@@ -76490,12 +76528,12 @@ if selected_symbol:
                     st.divider()
 
                     st.subheader(
-                        "🌐 Modul 8 – Externer Plausibilitätscheck & unabhängiger Gegencheck V1"
+                        "🌐 Modul 8 – Externer Plausibilitätscheck & unabhängiger Gegencheck V2"
                     )
 
                     analyst_consensus = data.get("analyst_consensus", {})
                     reality_check = data.get("reality_check", {})
-                    independent_crosscheck_v1 = data.get("independent_crosscheck_v1", {})
+                    independent_crosscheck_v2 = data.get("independent_crosscheck_v2", {})
                     final_overlay = data.get("final_signal_overlay", {})
 
                     if analyst_consensus.get("available"):
@@ -76615,27 +76653,25 @@ if selected_symbol:
                             "Die eigene Fundamentalanalyse bleibt davon unberührt."
                         )
 
-                    if independent_crosscheck_v1.get("available"):
-                        st.markdown("### 🧭 Unabhängiger Gegencheck V1")
+                    if independent_crosscheck_v2.get("available"):
+                        st.markdown("### 🧭 Unabhängiger Gegencheck V2")
                         st.caption(
                             "Drei getrennte Kontrollen ohne Rückwirkung auf das Hauptmodell: Analystenrichtung, "
-                            "Rückwärtsrechnung aus dem aktuellen Kurs und roher Kern-Peer-Marktvergleich."
+                            "marktimplizierte Bewertung und roher Kern-Vergleichsgruppen-Marktvergleich mit Vergleichbarkeitsschutz."
                         )
 
-                        overall_cc = independent_crosscheck_v1.get("overall") or "–"
+                        overall_cc = independent_crosscheck_v2.get("overall") or "–"
                         if overall_cc == "Bestätigt":
                             st.success(f"**Gesamtergebnis: 🟢 {overall_cc}**")
-                        elif overall_cc.startswith("Richtung bestätigt"):
-                            st.warning(f"**Gesamtergebnis: 🟡🟢 {overall_cc}**")
                         elif overall_cc == "Teilweise bestätigt":
                             st.warning(f"**Gesamtergebnis: 🟡 {overall_cc}**")
-                        elif overall_cc == "Widerspruch":
-                            st.error(f"**Gesamtergebnis: 🔴 {overall_cc}**")
+                        elif overall_cc == "Externe Abweichung":
+                            st.warning(f"**Gesamtergebnis: 🟠 {overall_cc}**")
                         else:
                             st.info(f"**Gesamtergebnis: ⚪ {overall_cc}**")
-                        st.caption(independent_crosscheck_v1.get("overall_reason"))
+                        st.caption(independent_crosscheck_v2.get("overall_reason"))
 
-                        cc_checks = independent_crosscheck_v1.get("checks") or {}
+                        cc_checks = independent_crosscheck_v2.get("checks") or {}
                         cc_analyst = cc_checks.get("analyst") or {}
                         cc_market = cc_checks.get("market_expectation") or {}
                         cc_peer = cc_checks.get("raw_peer_market") or {}
@@ -76650,27 +76686,26 @@ if selected_symbol:
                         else:
                             st.caption(cc_analyst.get("reason") or "Nicht verfügbar.")
 
-                        st.markdown("**2. Rückwärtsrechnung vom Marktpreis**")
+                        st.markdown("**2. Marktimplizierte Bewertung**")
                         if cc_market.get("available"):
                             cc_ccy = cc_market.get("earnings_currency") or data.get("currency")
                             st.write(
                                 f"**{cc_market.get('status')}** · aktuelles Markt-KGV auf freigegebener Gewinnbasis: "
-                                f"**{safe_float(cc_market.get('market_pe_on_released_earnings')):.2f}×**"
+                                f"**{safe_float(cc_market.get('market_pe_on_released_earnings')):.2f}×** · "
+                                f"Gewinnrendite **{safe_float(cc_market.get('earnings_yield_pct')):.1f} %**"
                             )
                             st.caption(
-                                f"Freigegebene Gewinnbasis: {safe_float(cc_market.get('released_earnings_basis_eps')):.2f} {cc_ccy} · "
-                                f"bei 8× wären {safe_float(cc_market.get('implied_eps_at_8x')):.2f} {cc_ccy} EPS erforderlich · "
-                                f"bei 10× {safe_float(cc_market.get('implied_eps_at_10x')):.2f} {cc_ccy}."
+                                f"Freigegebene Gewinnbasis: {safe_float(cc_market.get('released_earnings_basis_eps')):.2f} {cc_ccy}."
                             )
                             st.caption(cc_market.get("reason"))
-                            st.caption(cc_market.get("scenario_note"))
+                            st.caption(cc_market.get("note"))
 
-                        st.markdown("**3. Roher Kern-Peer-Marktcheck**")
+                        st.markdown("**3. Roher Kern-Vergleichsgruppen-Marktcheck**")
                         if cc_peer.get("available"):
                             peer_gap_cc = safe_float(cc_peer.get("target_vs_peer_median_pct"))
                             st.write(
                                 f"**{cc_peer.get('status')}** · eigenes Markt-KGV "
-                                f"{safe_float(cc_peer.get('target_market_pe')):.2f}× vs. Kern-Peer-Median "
+                                f"{safe_float(cc_peer.get('target_market_pe')):.2f}× vs. Median der Kern-Vergleichsgruppe "
                                 f"{safe_float(cc_peer.get('peer_market_pe_median')):.2f}× "
                                 f"({peer_gap_cc:+.1f} %)."
                             )
@@ -76680,13 +76715,19 @@ if selected_symbol:
                                 if safe_float(r.get("market_pe")) is not None
                             ]
                             if peer_bits:
-                                st.caption("Kern-Peers: " + " · ".join(peer_bits))
+                                st.caption("Kern-Vergleichsunternehmen: " + " · ".join(peer_bits))
+                            if cc_peer.get("comparability_limited"):
+                                st.caption(
+                                    f"Vergleichbarkeitsschutz aktiv: vollständige Kerncluster-Spanne "
+                                    f"{safe_float(cc_peer.get('cluster_min_pe')):.2f}× bis {safe_float(cc_peer.get('cluster_max_pe')):.2f}× · "
+                                    f"Max/Min {safe_float(cc_peer.get('cluster_max_min_ratio')):.2f}×."
+                                )
                             st.caption(cc_peer.get("reason"))
                             st.caption(cc_peer.get("note"))
                         else:
                             st.caption(cc_peer.get("reason") or "Nicht verfügbar.")
 
-                        st.info(independent_crosscheck_v1.get("note"))
+                        st.info(independent_crosscheck_v2.get("note"))
 
                     final_buy = (final_overlay.get("new_buy_signal") or new_buy_signal)
                     final_hold = (final_overlay.get("holding_signal") or holding_signal)
