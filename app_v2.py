@@ -23,9 +23,11 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.91"
+APP_BUILD_VERSION = "V2.22.92"
 
-# V187 – modellbereinigte Zahlungsabwickler-Vergleichsgruppen-Kalibrierung aktiviert.
+# V188 – Anzeige-Konsistenz der aktivierten Zahlungsabwickler-Peer-Kalibrierung.
+# V187-Mathematik bleibt unverändert; die kompakte Ansicht verwendet jetzt dasselbe endgültige
+# Ziel-KGV wie der Fair-Value-Block und zeigt Vor-Peer-Wert sowie Peer-Anpassung transparent.
 # Jeder Kern-Peer wird weiterhin über Markt-KGV / eigenes Familien-Ziel-KGV VOR Peer-Anpassung
 # normalisiert. Erst nach bestandenem 3-Peer-Gate wirkt der Median mit maximal ±5 % auf das
 # Ziel-KGV des Zielunternehmens. Anschließend werden der freigegebene Familien-Korridor und
@@ -413,10 +415,11 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Modellbereinigte Vergleichsgruppen-Kalibrierung aktiv V187"
+    f"Build {APP_BUILD_VERSION} · Peer-Kalibrierung Anzeige-Konsistenz V188"
 )
 
 
+# V2.22.92: Payments Processor Peer Calibration Display Consistency V188. UI-only correction after the first PayPal V187 live run proved that the Fair Value already used the released -5% peer-adjusted target P/E while the compact card still displayed the pre-peer family target P/E. The compact Payments-Processor card now reads the final used_multiple from the Fair-Value block when available, shows the pre-peer target and released peer adjustment explicitly in the valuation path, and keeps score, earnings basis, peer selection, peer median, guard rules, valuation-zone mathematics and Fair Value mathematics unchanged.
 # V2.22.91: Payments Processor Model-Adjusted Peer Calibration Activation V187. Activates the already V186-live-validated PayPal/Adyen/Fiserv/Global-Payments peer layer for valuation. Each eligible core peer contributes Market current-FY P/E divided by its own released family target P/E computed strictly before any peer adjustment; this prevents feedback loops. Three fully modelled core peers remain mandatory, the median is used, and the peer effect is hard-capped to ±5%. The target issuer's existing family corridor and issuer-specific downside guard cap are then re-applied as higher-priority protections before the final target P/E is released. FIS remains broad reference only and the target issuer remains excluded. Score, earnings basis, peer selection and all non-Payments-Processor specialist mathematics are unchanged.
 # V2.22.63: Payment-Network Universal-Family Promotion · Visa Baseline V159. Architecture/copy-only promotion of the already existing Visa + Mastercard Payment-Network specialist route into the current Universal Family framework; no legacy Payment-Network valuation mathematics changed. V and MA are now surfaced as a validated_multi_issuer_route for Payment Network / Capital-Light Payments, with the existing issuer-primary network-growth/cross-border/transaction/adjusted-earnings/cash-conversion/capital-return score architecture, 22–32x P/E corridor and downside-only Regulatory/Litigation caps retained exactly. The family header now makes clear that Visa and Mastercard are the two validated reference issuers while unsupported Payment-Network members remain issuer-primary evidence-gated. This build is intentionally a Visa regression/baseline pass before any UI consistency cleanup or family-math revision. Exchange V158, Capital-Goods V148 and all other released specialist mathematics remain unchanged.
 # V2.22.64: Payment-Network Primary-Listing Search Guard V160. Search-only fix after the V159 Visa baseline test resolved the literal company-name query "Visa" to the Warsaw secondary listing VISA.WA instead of the US home listing V, preventing the existing issuer-primary Payment-Network snapshot from activating. Adds verified exact company/ticker aliases for Visa Inc. -> V (NYSE, USD) and Mastercard Incorporated -> MA (NYSE, USD), and bumps the search resolver cache epoch so stale secondary-listing rankings cannot survive the fix. No Payment-Network score, 22–32x corridor, Regulatory/Litigation cap, Fair Value, signal, Exchange V158 or Capital-Goods V148 mathematics changed.
@@ -62123,7 +62126,15 @@ if selected_symbol:
                     compact_quality_label = pp_score_compact.get("quality_label") or "–"
                     compact_earnings_eps = safe_float(pp_earnings_compact.get("earnings_basis_eps"))
                     compact_earnings_currency = pp_earnings_compact.get("currency") or compact_fv.get("financial_currency") or financial_currency
-                    compact_target_multiple = safe_float(pp_multiple_compact.get("target_multiple"))
+                    compact_target_multiple_before_peer = safe_float(pp_multiple_compact.get("target_multiple"))
+                    compact_target_multiple = (
+                        safe_float(compact_fv.get("used_multiple"))
+                        if compact_fv.get("valuation_method") == "payments_processor_current_fy_family_pe"
+                        and safe_float(compact_fv.get("used_multiple")) is not None
+                        else compact_target_multiple_before_peer
+                    )
+                    compact_peer_released = bool(compact_fv.get("peer_adjustment_released"))
+                    compact_peer_adjustment_pct = safe_float(compact_fv.get("peer_candidate_adjustment_pct"))
                     c1, c2, c3, c4 = st.columns(4)
                     with c1:
                         st.metric(
@@ -62156,6 +62167,10 @@ if selected_symbol:
                         path_parts.append(f"KGV vor Schutzregeln {raw_multiple_compact:.2f}×")
                     if pp_multiple_compact.get("guard_applied") and guard_cap_compact is not None:
                         path_parts.append(f"Schutzgrenze {guard_cap_compact:.2f}×")
+                    if compact_peer_released and compact_target_multiple_before_peer is not None:
+                        path_parts.append(f"Ziel-KGV vor Peer-Anpassung {compact_target_multiple_before_peer:.2f}×")
+                        if compact_peer_adjustment_pct is not None:
+                            path_parts.append(f"Peer-Anpassung {compact_peer_adjustment_pct * 100:+.1f} %")
                     if compact_target_multiple is not None:
                         path_parts.append(f"Ziel-KGV {compact_target_multiple:.2f}×")
                     if compact_fair is not None:
