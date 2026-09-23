@@ -23,13 +23,13 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.90"
+APP_BUILD_VERSION = "V2.22.91"
 
-# V185 – modellbereinigte Zahlungsabwickler-Vergleichsgruppen-Kalibrierung.
-# Die bestehende Bewertung bleibt unverändert. Peer-Markt-KGVs werden nicht mehr roh
-# miteinander verglichen, sondern relativ zum jeweils eigenen freigegebenen Familien-
-# Ziel-KGV betrachtet. Mindestens drei vollständig modellierte Kern-Peers bleiben Pflicht;
-# bis dieses Gate erfüllt ist, gibt es keinerlei Wirkung auf Ziel-KGV oder Fair Value.
+# V187 – modellbereinigte Zahlungsabwickler-Vergleichsgruppen-Kalibrierung aktiviert.
+# Jeder Kern-Peer wird weiterhin über Markt-KGV / eigenes Familien-Ziel-KGV VOR Peer-Anpassung
+# normalisiert. Erst nach bestandenem 3-Peer-Gate wirkt der Median mit maximal ±5 % auf das
+# Ziel-KGV des Zielunternehmens. Anschließend werden der freigegebene Familien-Korridor und
+# sämtliche bereits bestehenden issuer-spezifischen Schutzgrenzen erneut vorrangig angewendet.
 _UI_DE_EXACT = {
     "buy": "kaufen",
     "hold": "halten",
@@ -413,10 +413,11 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · GPN-Vergleichsgruppen-Routing & Schutzregel-Konsistenz V186"
+    f"Build {APP_BUILD_VERSION} · Modellbereinigte Vergleichsgruppen-Kalibrierung aktiv V187"
 )
 
 
+# V2.22.91: Payments Processor Model-Adjusted Peer Calibration Activation V187. Activates the already V186-live-validated PayPal/Adyen/Fiserv/Global-Payments peer layer for valuation. Each eligible core peer contributes Market current-FY P/E divided by its own released family target P/E computed strictly before any peer adjustment; this prevents feedback loops. Three fully modelled core peers remain mandatory, the median is used, and the peer effect is hard-capped to ±5%. The target issuer's existing family corridor and issuer-specific downside guard cap are then re-applied as higher-priority protections before the final target P/E is released. FIS remains broad reference only and the target issuer remains excluded. Score, earnings basis, peer selection and all non-Payments-Processor specialist mathematics are unchanged.
 # V2.22.63: Payment-Network Universal-Family Promotion · Visa Baseline V159. Architecture/copy-only promotion of the already existing Visa + Mastercard Payment-Network specialist route into the current Universal Family framework; no legacy Payment-Network valuation mathematics changed. V and MA are now surfaced as a validated_multi_issuer_route for Payment Network / Capital-Light Payments, with the existing issuer-primary network-growth/cross-border/transaction/adjusted-earnings/cash-conversion/capital-return score architecture, 22–32x P/E corridor and downside-only Regulatory/Litigation caps retained exactly. The family header now makes clear that Visa and Mastercard are the two validated reference issuers while unsupported Payment-Network members remain issuer-primary evidence-gated. This build is intentionally a Visa regression/baseline pass before any UI consistency cleanup or family-math revision. Exchange V158, Capital-Goods V148 and all other released specialist mathematics remain unchanged.
 # V2.22.64: Payment-Network Primary-Listing Search Guard V160. Search-only fix after the V159 Visa baseline test resolved the literal company-name query "Visa" to the Warsaw secondary listing VISA.WA instead of the US home listing V, preventing the existing issuer-primary Payment-Network snapshot from activating. Adds verified exact company/ticker aliases for Visa Inc. -> V (NYSE, USD) and Mastercard Incorporated -> MA (NYSE, USD), and bumps the search resolver cache epoch so stale secondary-listing rankings cannot survive the fix. No Payment-Network score, 22–32x corridor, Regulatory/Litigation cap, Fair Value, signal, Exchange V158 or Capital-Goods V148 mathematics changed.
 # V2.22.65: Payment-Network Verified Primary-Lock V161. Search-only correction after V160 showed that the literal company-name query "Visa" was still interpreted as the short base ticker VISA, allowing the Vienna secondary listing VISA.VI to receive the resolver's +4700 exact-base-ticker precedence and outrank the verified V/NYSE alias. Adds a route-local primary_lock only to Visa and Mastercard verified aliases; this lock outranks fuzzy/exact-base secondary-listing precedence for the company-name/ticker aliases Visa/V and Mastercard/MA while an explicitly entered full secondary ticker such as VISA.VI remains selectable because it does not match the locked alias. Bumps the resolver cache epoch. No Payment-Network score, 22–32x corridor, Regulatory/Litigation cap, Fair Value, signal, Exchange V158 or Capital-Goods V148 mathematics changed.
@@ -7964,7 +7965,7 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
             "Familien-Qualitätspunktzahl V1 und Gewinnbasis des laufenden Geschäftsjahres V1 speisen einen transparenten 8–30× KGV-Korridor auf gleicher Ergebnisbasis. "
             "Qualitätslinie, möglicher Ökonomie-Aufschlag und ausschließlich nach unten wirkende Schutzregeln bestimmen das Ziel-KGV. "
             "Die Tests mit PayPal, Adyen und Fiserv für Multiple, fairen Wert und Bewertungszonen sind bestanden. "
-            "Die Vergleichsgruppen-Anpassung ist noch nicht freigegeben; Handlungssignale folgen in einer separaten Kalibrierung."
+            "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 ist freigegeben; Handlungssignale folgen weiterhin in einer separaten Kalibrierung."
         )
         if _canonical_family_symbol == "PYPL":
             out["payments_processor_subprofile"] = "wallet_branded_checkout_psp"
@@ -12763,7 +12764,7 @@ def _universal_family_special_control(company_type):
             "Vergleichbarkeit von Struktur und Unternehmensprognose einschließlich Akquisitionen, Transformation und Prognoseänderungen",
             "Kapitalstruktur und Kapitalallokation subprofilgerecht statt generischem Netto-Schulden/FCF",
             "Subprofil-Vergleichbarkeit: digitale Geldbörse/PSP gegenüber integriertem Zahlungsakquisiteur gegenüber diversifiziertem Händler- und Banking-Technologieanbieter",
-            "Familiengerechter 8–30× KGV-Korridor für das laufende Geschäftsjahr sowie eigener fairer Wert an PayPal, Adyen und Fiserv praktisch geprüft; Bewertungszonen V1 freigegeben; Vergleichsgruppen-Anpassung bleibt neutral und noch nicht freigegeben; Handlungssignale folgen separat",
+            "Familiengerechter 8–30× KGV-Korridor für das laufende Geschäftsjahr und eigener fairer Wert praktisch geprüft; PayPal, Adyen, Fiserv und Global Payments im V186-Peer-Gegentest mit jeweils 3/3 Kern-Peers bestanden; modellbereinigte ±5-%-Vergleichsgruppen-Kalibrierung V187 freigegeben; Handlungssignale folgen separat",
             "Analystenziele ausschließlich als Plausibilitätscheck, nie als Bewertungsanker",
         ]
     if (company_type or {}).get("valuation_family_id") == "payments_processor":
@@ -12782,12 +12783,12 @@ def _universal_family_special_control(company_type):
                 "Familien-Qualitätspunktzahl V1, Gewinnbasis des laufenden Geschäftsjahres V1 und der 8–30× Zahlungsabwickler-KGV-Korridor sind praktisch geprüft und freigegeben. "
                 "Der eigene faire Wert und die familienbezogenen Bewertungszonen V1 sind ebenfalls praktisch geprüft; der Test mit PayPal, Adyen und Fiserv ist bestanden. "
                 "Die Zonenbreite startet bei der Bewertungssicherheit und wird bei niedrigerer operativer Qualität sowie schwächerer Sicherheit von Gewinnbasis oder Ziel-KGV konservativ verbreitert. "
-                "Die Vergleichsgruppen-Anpassung bleibt neutral und noch nicht freigegeben; historische Durchschnitts-KGVs und Analystenziele bleiben reine Vergleichsschichten. Handlungssignale bleiben bis zur separaten Signal-Kalibrierung und -Freigabe gesperrt."
+                "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 ist freigegeben und verwendet ausschließlich Ziel-KGVs der Peers vor deren eigener Peer-Anpassung; bestehende Schutzgrenzen bleiben vorrangig. Historische Durchschnitts-KGVs und Analystenziele bleiben reine Vergleichsschichten. Handlungssignale bleiben bis zur separaten Signal-Kalibrierung und -Freigabe gesperrt."
             ),
             "router_note": (
                 f"{family_label} wurde durch die universelle Unternehmensklassifizierung und Bewertungsfamilien-Zuordnung erkannt. "
                 "Punktzahl, Gewinnbasis, KGV-Korridor, eigener fairer Wert und Bewertungszonen V1 sind praktisch geprüft und freigegeben. "
-                "Die Vergleichsgruppen-Anpassung bleibt neutral und noch nicht freigegeben; Handlungssignale folgen erst nach separater Signal-Kalibrierung und -Freigabe."
+                "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 ist freigegeben; Handlungssignale folgen erst nach separater Signal-Kalibrierung und -Freigabe."
             ),
         }
 
@@ -31842,7 +31843,7 @@ def build_payments_processor_family_multiple(snapshot, family_score, earnings_ba
         "note": (
             "Das praktisch geprüfte Ziel-KGV wird aus zwei transparenten Familientreibern abgeleitet: Qualitätspunktzahl plus ein begrenzter Aufschlag nur bei sehr starker emittenteneigener Ertragsökonomie. "
             "Emittentenbezogene Schutzregeln wirken ausschließlich nach unten. Historisches Durchschnitts-KGV, aktueller Aktienkurs, Analystenziele, Yahoo-FCF und Standard-KGV setzen oder erhöhen das Ziel-KGV nicht. "
-            "Ziel-KGV, eigener fairer Wert und Bewertungszonen bleiben freigegeben; Vergleichsgruppen-Anpassung und Handlungssignale folgen separat."
+            "Ziel-KGV vor Peer-Anpassung, eigener fairer Wert und Bewertungszonen bleiben freigegeben; V187 kalibriert das Ziel nach bestandenem 3-Peer-Gate modellbereinigt um maximal ±5 %, während bestehende Schutzregeln vorrangig bleiben. Handlungssignale folgen separat."
         ),
     }
 
@@ -31947,8 +31948,8 @@ def build_payments_processor_foundation_model(company_type, fundamental_info, sy
             if multiple_released else (f"{issuer_name} Familien-Punktzahl freigegeben · Gewinnbasis noch gesperrt" if score_released else f"{issuer_name} Familien-Punktzahl gesperrt – Primärdaten unvollständig oder veraltet")
         ),
         "note": (
-            "Familien-Punktzahl, Gewinnbasis für das laufende Geschäftsjahr, der praktisch geprüfte 8–30× Zahlungsabwickler-KGV-Korridor, der eigene faire Wert und die Bewertungszonen bleiben unverändert. "
-            "Fairer Wert = Familien-Gewinnbasis × freigegebenes Ziel-KGV; es gibt keinen Vergleichsgruppen-Aufschlag, keinen historischen KGV-Anker und keine Mischung mit Analystenzielen."
+            "Familien-Punktzahl, Gewinnbasis für das laufende Geschäftsjahr und der praktisch geprüfte 8–30× Zahlungsabwickler-KGV-Korridor bleiben unverändert. "
+            "V187 verwendet das freigegebene Familien-Ziel-KGV als Ausgangswert vor Peer-Anpassung; nach bestandenem 3-Peer-Gate wirkt die modellbereinigte Kalibrierung mit maximal ±5 %, anschließend greifen bestehende Schutzgrenzen erneut vorrangig. Historische KGV-Anker und Analystenziele bleiben ausgeschlossen."
         ),
     }
 
@@ -41137,14 +41138,14 @@ def get_peer_group(company_type, symbol, industry=None):
             "peers": peers,
             "count": len(peers),
             "target_symbol": own_symbol,
-            "peer_model": "payments_processor_model_adjusted_calibration_v3",
-            "calibration_only": True,
+            "peer_model": "payments_processor_model_adjusted_calibration_v4",
+            "calibration_only": False,
             "note": (
-                "Zahlungsabwickler Vergleichsgruppen-Kalibrierung V186: PayPal, Adyen, Fiserv und Global Payments bilden den Kerncluster; "
+                "Zahlungsabwickler Vergleichsgruppen-Kalibrierung V187: PayPal, Adyen, Fiserv und Global Payments bilden den Kerncluster; "
                 "FIS bleibt wegen des stärkeren Banking-/Issuer-Technologie-Mix eine breite Markt-Referenz und fließt nie in die Anpassung ein. "
                 "Für die Kalibrierung zählt nur Markt-KGV geteilt durch das eigene freigegebene Familien-Ziel-KGV des jeweiligen Kern-Peers. "
-                "Mindestens drei vollständig modellierte Kern-Peers sind Pflicht; Median statt Durchschnitt; theoretische Wirkung maximal ±5 %. "
-                "Bis dieses Gate erfüllt und separat geprüft ist, bleiben Ziel-KGV und fairer Wert unverändert."
+                "Mindestens drei vollständig modellierte Kern-Peers sind Pflicht; Median statt Durchschnitt; Wirkung maximal ±5 %. "
+                "Nach bestandenem Gate wirkt die Kalibrierung auf das Ziel-KGV; Familien-Korridor und bestehende issuer-spezifische Schutzgrenzen bleiben anschließend vorrangig."
             ),
         }
 
@@ -43154,12 +43155,15 @@ def _payments_processor_peer_model_target(peer_symbol, current_fy_snapshot):
 
 
 def _calculate_payments_processor_peer_calibration(peer_group, fundamental_multiple, cache_version):
-    """V186 model-adjusted, calibration-only peer layer for PayPal/Adyen/Fiserv/Global Payments.
+    """V187 released model-adjusted peer layer for PayPal/Adyen/Fiserv/Global Payments.
 
-    Adjustment evidence is not the raw peer P/E. Each eligible core peer contributes
-    Market current-FY P/E / its own released family target P/E. At least three fully
-    modelled core peers are required. Median is used and the theoretical effect is
-    capped to ±5%. The result is deliberately NOT released into valuation.
+    Feedback-loop protection: every eligible core peer contributes its live current-FY
+    market P/E divided by its own released Payments-Processor family target P/E as
+    calculated *before* any peer adjustment. The target issuer is excluded by the peer
+    router. At least three fully modelled core peers are required; the median is used and
+    the peer effect is capped to ±5%. After that, the target issuer's already released
+    family corridor and issuer-specific downside guard are re-applied as higher-priority
+    protections. FIS remains broad-reference only.
     """
     base_multiple = safe_float(fundamental_multiple)
     out = {
@@ -43172,16 +43176,24 @@ def _calculate_payments_processor_peer_calibration(peer_group, fundamental_multi
         "peer_median": None,
         "reference_median": None,
         "model_adjusted_median_ratio": None,
+        "peer_factor": 1.0,
         "adjustment_pct": 0.0,
         "candidate_adjustment_pct": 0.0,
         "adjusted_multiple": base_multiple,
         "candidate_adjusted_multiple": base_multiple,
+        "target_multiple_before_peer": base_multiple,
+        "pre_protection_adjusted_multiple": base_multiple,
         "applied": False,
         "peer_adjustment_released": False,
-        "calibration_only": True,
-        "reference_only": True,
+        "calibration_only": False,
+        "reference_only": False,
         "comparability_gate_passed": False,
         "required_eligible_peers": 3,
+        "issuer_guard_cap": safe_float((peer_group or {}).get("target_guard_cap")),
+        "family_corridor_low": safe_float((peer_group or {}).get("target_corridor_low")),
+        "family_corridor_high": safe_float((peer_group or {}).get("target_corridor_high")),
+        "protection_reapplied": False,
+        "protection_binding": False,
         "note": None,
     }
     eligible_ratios = []
@@ -43192,6 +43204,8 @@ def _calculate_payments_processor_peer_calibration(peer_group, fundamental_multi
         pe = safe_float(snap.get("current_fy_pe"))
         usable = bool(snap.get("usable") and pe is not None)
         core = str(peer.get("role") or "core") == "core"
+        # This function is intentionally pre-peer: it builds score -> earnings basis ->
+        # family multiple directly and never calls calculate_peer_check().
         model = _payments_processor_peer_model_target(peer.get("symbol"), snap) if core else {"available": False, "target_multiple": None}
         model_target = safe_float(model.get("target_multiple"))
         ratio = (pe / model_target) if usable and model_target is not None and model_target > 0 else None
@@ -43227,6 +43241,7 @@ def _calculate_payments_processor_peer_calibration(peer_group, fundamental_multi
             "source_url": snap.get("source_url"),
             "guarded_consensus": bool(snap.get("guarded_consensus")),
             "peer_model_target_multiple": model_target,
+            "peer_model_target_before_peer": model_target,
             "peer_model_score": safe_float(model.get("score")),
             "market_to_model_ratio": ratio,
             "model_target_available": bool(model.get("available")),
@@ -43241,8 +43256,9 @@ def _calculate_payments_processor_peer_calibration(peer_group, fundamental_multi
 
     if len(eligible_ratios) < out["required_eligible_peers"]:
         missing = out["required_eligible_peers"] - len(eligible_ratios)
+        out["reference_only"] = True
         out["note"] = (
-            f"Modellbereinigtes Datengate noch nicht bestanden: {len(eligible_ratios)} vollständig modellierte Kern-Peers, "
+            f"Modellbereinigtes Datengate nicht bestanden: {len(eligible_ratios)} vollständig modellierte Kern-Peers, "
             f"benötigt werden {out['required_eligible_peers']} (es fehlen {missing}). Nicht vollständig modellierte Kern-Peers "
             "bleiben reine Referenz; FIS bleibt breite Markt-Referenz. Keine Bewertungsänderung."
         )
@@ -43252,29 +43268,54 @@ def _calculate_payments_processor_peer_calibration(peer_group, fundamental_multi
     out["model_adjusted_median_ratio"] = median_ratio
     out["comparability_gate_passed"] = True
     if base_multiple is None or base_multiple <= 0:
-        out["note"] = "Modellbereinigter Peer-Median verfügbar, aber kein belastbares Familien-Ziel-KGV als Ausgangsbasis."
+        out["reference_only"] = True
+        out["note"] = "Modellbereinigter Peer-Median verfügbar, aber kein belastbares Familien-Ziel-KGV vor Peer-Anpassung als Ausgangsbasis."
         return out
 
     raw_gap = median_ratio - 1.0
-    candidate_pct = max(-0.05, min(0.05, raw_gap))
-    candidate_multiple = base_multiple * (1.0 + candidate_pct)
+    peer_adjustment_pct = max(-0.05, min(0.05, raw_gap))
+    peer_factor = 1.0 + peer_adjustment_pct
+    pre_protection_multiple = base_multiple * peer_factor
+    final_multiple = pre_protection_multiple
 
-    # Existing issuer-state guards remain authoritative. A future peer layer may
-    # never lift a validated issuer above an already binding hard cap.
-    guard_caps = {"PYPL": 13.0, "FISV": 8.5, "ADYEN.AS": 26.0, "GPN": 12.0}
-    target_sym = str((peer_group or {}).get("target_symbol") or "").upper().strip()
-    guard_cap = safe_float(guard_caps.get(target_sym))
+    # Higher-priority protection layer: reuse the *already released* target-issuer
+    # family corridor and issuer-specific guard supplied by the foundation model.
+    corridor_low = out["family_corridor_low"]
+    corridor_high = out["family_corridor_high"]
+    guard_cap = out["issuer_guard_cap"]
+    if corridor_low is not None:
+        final_multiple = max(final_multiple, corridor_low)
+    if corridor_high is not None:
+        final_multiple = min(final_multiple, corridor_high)
     if guard_cap is not None:
-        candidate_multiple = min(candidate_multiple, guard_cap)
-    candidate_pct = candidate_multiple / base_multiple - 1.0
+        final_multiple = min(final_multiple, guard_cap)
 
-    out["candidate_adjustment_pct"] = candidate_pct
-    out["candidate_adjusted_multiple"] = candidate_multiple
-    out["issuer_guard_cap"] = guard_cap
+    final_multiple = round(final_multiple, 2)
+    protection_binding = abs(final_multiple - round(pre_protection_multiple, 2)) > 1e-9
+    effective_pct = (final_multiple / base_multiple - 1.0) if protection_binding else peer_adjustment_pct
+
+    out.update({
+        "peer_factor": peer_factor,
+        "candidate_adjustment_pct": peer_adjustment_pct,
+        "candidate_adjusted_multiple": round(pre_protection_multiple, 2),
+        "pre_protection_adjusted_multiple": round(pre_protection_multiple, 2),
+        "adjustment_pct": effective_pct,
+        "adjusted_multiple": final_multiple,
+        "applied": True,
+        "peer_adjustment_released": True,
+        "reference_only": False,
+        "protection_reapplied": True,
+        "protection_binding": protection_binding,
+    })
+    protection_text = (
+        " Eine bestehende Schutzgrenze hat den Peer-Wert anschließend zusätzlich begrenzt."
+        if protection_binding else
+        " Familien-Korridor und bestehende issuer-spezifische Schutzgrenze wurden anschließend erneut geprüft und waren nicht zusätzlich bindend."
+    )
     out["note"] = (
-        f"Modellbereinigte Kalibrierung bestanden: {len(eligible_ratios)} vollständig modellierte Kern-Peers, "
-        f"Median Markt/Modell {median_ratio:.3f}. Theoretische Anpassung {candidate_pct*100:+.1f} % auf {candidate_multiple:.2f}×. "
-        "Diese Wirkung ist in V186 ausdrücklich noch nicht freigegeben und verändert weder Ziel-KGV noch fairen Wert."
+        f"V187 freigegeben: {len(eligible_ratios)} vollständig modellierte Kern-Peers, Median Markt/Modell {median_ratio:.3f}. "
+        f"Ziel-KGV vor Peer-Anpassung {base_multiple:.2f}×; Peer-Faktor {peer_factor:.3f} ({peer_adjustment_pct*100:+.1f} %); "
+        f"endgültiges Ziel-KGV {final_multiple:.2f}×." + protection_text
     )
     return out
 
@@ -43313,7 +43354,7 @@ def calculate_peer_check(
             )
         return result
 
-    if (peer_group or {}).get("peer_model") == "payments_processor_model_adjusted_calibration_v3":
+    if (peer_group or {}).get("peer_model") == "payments_processor_model_adjusted_calibration_v4":
         return _calculate_payments_processor_peer_calibration(
             peer_group, fundamental_multiple, cache_version
         )
@@ -51054,6 +51095,7 @@ def calculate_valuation_confidence(
     is_nvidia_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "nvidia_ai_quality_operating_pe"
     is_utility_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "regulated_utility_core_eps_pe"
     is_payment_network_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "payment_network_adjusted_pe"
+    is_payments_processor_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "payments_processor_current_fy_family_pe"
     is_turnaround_postmerger_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") in {"ua_turnaround_psales", "omc_post_merger_adjusted_pe"}
     is_toyo_solar_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "toyo_policy_dilution_pe"
     is_gold_precious_metals_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "gold_precious_metals_current_share_pe"
@@ -51156,6 +51198,7 @@ def calculate_valuation_confidence(
         and not is_integrated_oil_gas_valuation
         and not is_oilfield_services_energy_tech_valuation
         and not is_defense_high_growth_valuation
+        and not is_payments_processor_valuation
     ):
         usable_peers = int(peer_check.get("usable_count") or 0)
         peer_level = "Hoch" if peer_check.get("applied") and usable_peers >= 3 else "Mittel"
@@ -54380,7 +54423,7 @@ def calculate_fair_value_v1(
         if control_name == "Universal Family / Payments Processor / Merchant Acquirer Modell-Gate":
             result["note"] = (
                 "Fairer Wert V1 gesperrt: Familien-Qualitätspunktzahl V1, Gewinnbasis des laufenden Geschäftsjahres V1 und der 8–30× Zahlungsabwickler-KGV-Korridor sind bereits freigegeben. "
-                "Der Multiple- und Fairer-Wert-Praxistest an PayPal, Adyen und Fiserv ist bestanden. Der eigene faire Wert ist praktisch geprüft; die Vergleichsgruppen-Anpassung bleibt neutral und noch nicht freigegeben, Bewertungszonen und Signale bleiben separat behandelt. "
+                "Der Multiple- und Fairer-Wert-Praxistest ist bestanden. Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 ist nach dem 3/3-Gegentest an PayPal, Adyen, Fiserv und Global Payments freigegeben; Bewertungszonen bleiben in ihrer Logik unverändert und Signale werden weiterhin separat behandelt. "
                 "Es wird ausdrücklich nicht auf Standard-KGV, rohen Datenanbieter-Prognose-EPS, Yahoo-FCF, historische Durchschnitts-KGVs oder Analystenziele ausgewichen."
             )
             return result
@@ -59406,7 +59449,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             },
             "note": (
                 f"{APP_BUILD_VERSION} Zahlungsabwickler-Spezialmodell: Familien-Qualitätspunktzahl + Gewinnbasis des laufenden Geschäftsjahres → 8–30× Familien-Korridor. "
-                "Das angezeigte Ziel-KGV, der daraus berechnete eigene faire Wert und die familienbezogenen Bewertungszonen sind praktisch geprüft und freigegeben. Die Vergleichsgruppen-Anpassung bleibt neutral und noch nicht freigegeben."
+                "Das Familien-Ziel-KGV vor Peer-Anpassung ist praktisch geprüft und freigegeben. In V187 darf die modellbereinigte Vergleichsgruppe dieses Ziel nach bestandenem 3-Peer-Gate um maximal ±5 % kalibrieren; bestehende Schutzgrenzen bleiben vorrangig."
             ),
         }
 
@@ -59983,6 +60026,19 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         fundamental_info.get("industry") or quote_info.get("industry")
     )
 
+    if (
+        (peer_group or {}).get("peer_model") == "payments_processor_model_adjusted_calibration_v4"
+        and payments_processor_foundation_model.get("family_multiple_released")
+    ):
+        pp_protection = payments_processor_foundation_model.get("family_multiple") or {}
+        peer_group = {
+            **peer_group,
+            "target_pre_peer_multiple": safe_float(pp_protection.get("target_multiple")),
+            "target_guard_cap": safe_float(pp_protection.get("guard_cap")),
+            "target_corridor_low": safe_float(pp_protection.get("corridor_low")),
+            "target_corridor_high": safe_float(pp_protection.get("corridor_high")),
+        }
+
     peer_check = calculate_peer_check(
         company_type,
         peer_group,
@@ -60499,7 +60555,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 ),
                 "action": (
                     "Keine Sonderereignis-Recherche aus der generischen EPS-Normalisierung starten. Der Zahlungsabwickler-Spezialpfad bleibt maßgeblich. "
-                    "Bewertungszonen V1 sind freigegeben; Vergleichsgruppen-Anpassung und Handlungssignale bleiben separate, noch nicht freigegebene Folgestufen."
+                    "Bewertungszonen V1 und die modellbereinigte Vergleichsgruppen-Kalibrierung V187 sind freigegeben; Handlungssignale bleiben eine separate, noch nicht freigegebene Folgestufe."
                 ),
                 "family_model_gate": True,
                 "diagnostic_original_level": _diagnostic_level or None,
@@ -61231,22 +61287,35 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         pp_fv_eb = payments_processor_foundation_model.get("earnings_basis") or {}
         pp_fv_mul = payments_processor_foundation_model.get("family_multiple") or {}
         pp_fv_score = payments_processor_foundation_model.get("family_score") or {}
+        pp_peer_released = bool((peer_check or {}).get("peer_adjustment_released") and (peer_check or {}).get("applied"))
         fair_value.update({
             "valuation_method": "payments_processor_current_fy_family_pe",
-            "multiple_source": "Zahlungsabwickler Familien-Ziel-KGV · keine Vergleichsgruppen-Anpassung",
+            "multiple_source": (
+                "Zahlungsabwickler Familien-Ziel-KGV · modellbereinigte Vergleichsgruppen-Kalibrierung V187"
+                if pp_peer_released else
+                "Zahlungsabwickler Familien-Ziel-KGV · Peer-Datengate nicht bestanden"
+            ),
             "payments_processor_score": safe_float(pp_fv_score.get("total_points")),
             "earnings_basis_label": pp_fv_eb.get("basis_label"),
             "earnings_basis_confidence": pp_fv_eb.get("confidence"),
             "family_corridor_low": safe_float(pp_fv_mul.get("corridor_low")),
             "family_corridor_high": safe_float(pp_fv_mul.get("corridor_high")),
-            "peer_adjustment_pct": 0.0,
-            "peer_adjustment_released": False,
+            "target_multiple_before_peer": safe_float(pp_fv_mul.get("target_multiple")),
+            "peer_model_adjusted_median_ratio": safe_float((peer_check or {}).get("model_adjusted_median_ratio")),
+            "peer_factor": safe_float((peer_check or {}).get("peer_factor")),
+            "peer_adjustment_pct": safe_float((peer_check or {}).get("adjustment_pct")) if pp_peer_released else 0.0,
+            "peer_candidate_adjustment_pct": safe_float((peer_check or {}).get("candidate_adjustment_pct")) if pp_peer_released else 0.0,
+            "peer_adjustment_released": pp_peer_released,
+            "peer_eligible_count": int((peer_check or {}).get("eligible_peer_count") or 0),
+            "peer_protection_reapplied": bool((peer_check or {}).get("protection_reapplied")),
+            "peer_protection_binding": bool((peer_check or {}).get("protection_binding")),
+            "issuer_guard_cap": safe_float(pp_fv_mul.get("guard_cap")),
             "historical_valuation_anchor_used": False,
             "analyst_target_anchor_used": False,
             "note": (
-                "Zahlungsabwickler Fairer Wert V1 = freigegebene Familien-Gewinnbasis des laufenden Geschäftsjahres × praktisch geprüftes Familien-Ziel-KGV. "
-                "Es wird kein Vergleichsgruppen-Aufschlag, kein historisches Durchschnitts-KGV und keine Mischung mit Analysten-Kurszielen verwendet. "
-                "Diese externen und historischen Ebenen bleiben ausschließlich Vergleich und Plausibilitätscheck."
+                "Zahlungsabwickler Fairer Wert V187 = freigegebene Familien-Gewinnbasis des laufenden Geschäftsjahres × endgültiges Ziel-KGV. "
+                "Das Ziel-KGV vor Peer-Anpassung stammt ausschließlich aus dem Familienmodell. Nach bestandenem 3-Peer-Gate kalibriert der Median der Markt/Modell-Verhältnisse dieses Ziel um höchstens ±5 %; "
+                "danach werden Familien-Korridor und bestehende issuer-spezifische Schutzgrenzen erneut vorrangig angewendet. Historische Durchschnitts-KGVs und Analystenziele bleiben reine Vergleichsschichten."
             ),
         })
 
@@ -62252,7 +62321,7 @@ if selected_symbol:
                         )
                         _family_status_raw = company_type.get("family_model_status") or "–"
                         _family_status_labels = {
-                            "three_issuer_valuation_zone_live_validated": "Bewertungszonen mit drei Referenzunternehmen geprüft",
+                            "three_issuer_valuation_zone_live_validated": "Bewertungszonen geprüft · Peer-Kalibrierung V187 aktiv",
                         }
                         _family_status = _family_status_labels.get(_family_status_raw, _family_status_raw)
                         st.caption(
@@ -62289,7 +62358,7 @@ if selected_symbol:
                             st.info(
                                 "Zahlungsabwickler-Grundlage V1: PayPal, Adyen und Fiserv sind als drei unabhängige primärquellenbasierte Referenzprofile geprüft. "
                                 "Der gemeinsame KPI-Rahmen, die 100-Punkte-Familien-Qualitätspunktzahl, die Gewinnbasis des laufenden Geschäftsjahres, der 8–30× KGV-Korridor, der eigene faire Wert und die Bewertungszonen sind freigegeben. "
-                                "Die automatische Vergleichsgruppen-Anpassung und Kaufen/Halten/Verkaufen bleiben noch nicht freigegeben."
+                                "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 ist freigegeben; Kaufen/Halten/Verkaufen bleiben noch nicht freigegeben."
                             )
                         if is_universal_family_fail_closed(company_type):
                             if is_released_listed_holding_family(company_type):
@@ -62301,7 +62370,7 @@ if selected_symbol:
                                     and company_type.get("valuation_family_id") == "payments_processor"):
                                 st.warning(
                                     "Zahlungsabwickler-Spezialpfad aktiv: Familien-Punktzahl, Gewinnbasis, Ziel-KGV, fairer Wert und Bewertungszonen sind freigegeben. "
-                                    "Vergleichsgruppen-Anpassung und Handlungssignale sind noch nicht freigegeben; der industrielle Standardpfad bleibt gesperrt."
+                                    "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 ist freigegeben; Handlungssignale sind noch nicht freigegeben und der industrielle Standardpfad bleibt gesperrt."
                                 )
                             else:
                                 st.warning(
@@ -63679,7 +63748,7 @@ if selected_symbol:
                             st.info(
                                 f"Standard-EPS-Normalisierung: **nur Diagnosekontext** · Universelle Familien-Zuordnung {APP_BUILD_VERSION}: "
                                 "Familien-Qualitätspunktzahl V1, Familien-Gewinnbasis des laufenden Geschäftsjahres V1 und der 8–30× Familien-KGV-Korridor sind freigegeben. "
-                                "Die Standard-EPS-Normalisierung bleibt ausgeschlossen; Ziel-KGV, eigener fairer Wert und Bewertungszonen V1 sind praktisch geprüft und freigegeben. Die Vergleichsgruppen-Anpassung bleibt neutral und noch nicht freigegeben; Handlungssignale bleiben bis zur separaten Signal-Kalibrierung gesperrt."
+                                "Die Standard-EPS-Normalisierung bleibt ausgeschlossen; Ziel-KGV vor Peer-Anpassung, modellbereinigte Vergleichsgruppen-Kalibrierung V187, fairer Wert und Bewertungszonen V1 sind freigegeben. Handlungssignale bleiben bis zur separaten Signal-Kalibrierung gesperrt."
                             )
                         else:
                             st.info(
@@ -68305,7 +68374,7 @@ if selected_symbol:
                                 f"({peer['symbol']}){peer_suffix_ui}"
                             )
 
-                        if peer_group.get("peer_model") == "payments_processor_model_adjusted_calibration_v3":
+                        if peer_group.get("peer_model") == "payments_processor_model_adjusted_calibration_v4":
                             planned_core_ui = sum(1 for _p in peer_group.get("peers", []) if str(_p.get("role") or "core") == "core")
                             planned_broad_ui = sum(1 for _p in peer_group.get("peers", []) if str(_p.get("role") or "core") == "broad_reference")
                             st.write(f"**Vorgesehene Kern-Peers:** {planned_core_ui}")
@@ -68323,10 +68392,10 @@ if selected_symbol:
                             "integrated_oil_gas_major_reference_v1",
                             "exchange_adjusted_eps_runrate_reference_v1",
                         }
-                        if peer_group.get("peer_model") == "payments_processor_model_adjusted_calibration_v3":
+                        if peer_group.get("peer_model") == "payments_processor_model_adjusted_calibration_v4":
                             st.info(
                                 "Zahlungsabwickler-Kalibrierung: Der Kerncluster wird live auf Kurs, Gewinnbasis und eigenes Familien-Ziel-KGV geprüft. "
-                                "Mindestens drei vollständig modellierte Kern-Peers sind Pflicht. V186 zeigt nur den Testwert; Ziel-KGV und fairer Wert bleiben unverändert."
+                                "Mindestens drei vollständig modellierte Kern-Peers sind Pflicht. In V187 wirkt der Median nach bestandenem Gate mit maximal ±5 % auf das Ziel-KGV; bestehende Schutzgrenzen bleiben vorrangig."
                             )
                         elif peer_group.get("peer_model") == "exchange_adjusted_eps_runrate_reference_v1":
                             st.info(
@@ -68357,9 +68426,9 @@ if selected_symbol:
                         if bool(multiple_result.get("payments_processor_family")):
                             st.write("**Referenzunternehmen zur Modellvalidierung:** PayPal · Adyen · Fiserv")
                             st.info(
-                                "**Automatische Bewertungs-Vergleichsgruppe:** noch nicht freigegeben. "
-                                "Die drei Referenzunternehmen wurden zur Entwicklung und Prüfung des Zahlungsabwickler-Modells verwendet; "
-                                "sie verändern derzeit weder Ziel-KGV noch fairen Wert."
+                                "**Automatische Bewertungs-Vergleichsgruppe:** V187 freigegeben, sobald das 3/3-Modell-Datengate bestanden ist. "
+                                "Die freigegebene V187-Logik verwendet drei vollständig modellierte Kern-Peers und schließt das Zielunternehmen aus; "
+                                "ohne bestandenes Datengate bleibt das Familien-Ziel-KGV unverändert."
                             )
                         else:
                             st.info(
@@ -68416,15 +68485,15 @@ if selected_symbol:
                             "Die Major-Peer-KGVs werden ausschließlich als reference-only Marktvergleich geladen; "
                             "es gibt keine automatische ±5-%-Anpassung, kein Peer-Gate und keinen Peer-bedingten Confidence-Abzug."
                         )
-                    elif peer_group.get("peer_model") == "payments_processor_model_adjusted_calibration_v3":
+                    elif peer_group.get("peer_model") == "payments_processor_model_adjusted_calibration_v4":
                         st.caption(
-                            "Schritt 2A legt den V186-Testcluster fest. Kern-Peers: die jeweils anderen Zahlungsabwickler-Referenzprofile plus Global Payments; "
+                            "Schritt 2A legt den V187-Kerncluster fest. Kern-Peers: die jeweils anderen Zahlungsabwickler-Referenzprofile plus Global Payments; "
                             "FIS bleibt breite Markt-Referenz. Für die Kalibrierung zählt nur Markt-KGV relativ zum eigenen freigegebenen Familien-Ziel-KGV des Peers. "
-                            "Das Zielunternehmen selbst ist ausgeschlossen. Noch keine Wirkung auf die Bewertung."
+                            "Das Zielunternehmen selbst ist ausgeschlossen. Die Wirkung wird erst nach bestandenem 3-Peer-Gate freigegeben."
                         )
                     elif bool(multiple_result.get("payments_processor_family")):
                         st.caption(
-                            "Für Zahlungsabwickler ist noch keine freigegebene Vergleichsgruppen-Anpassung aktiv; Ziel-KGV und fairer Wert bleiben bis zum erfolgreichen modellbereinigten V186-Livetest unverändert."
+                            "Für Zahlungsabwickler ist die modellbereinigte Vergleichsgruppen-Kalibrierung V187 aktiv; ohne bestandenes 3-Peer-Gate bleibt das Familien-Ziel-KGV unverändert."
                         )
                     elif bool((data.get("professional_business_services_specialist_model") or {}).get("applicable")):
                         ps_peer_model_ui = data.get("professional_business_services_specialist_model") or {}
@@ -68516,7 +68585,7 @@ if selected_symbol:
                         elif is_exchange_peer_metric:
                             peer_header = "**Exchange Adjusted-EPS Dual-Anchor Peer-KGVs (FY2025 Volljahr + H1-2026 Run-Rate):**"
                         elif is_payments_processor_peer_metric:
-                            peer_header = "**Modellbereinigte Zahlungsabwickler-Vergleichsgruppe (V186):**"
+                            peer_header = "**Modellbereinigte Zahlungsabwickler-Vergleichsgruppe (V187):**"
                         else:
                             peer_header = "**Geladene Peer-KGVs:**"
                         st.write(peer_header)
@@ -68784,16 +68853,29 @@ if selected_symbol:
                             )
 
                             st.metric(
-                                "Peer-kontrolliertes EV/Adjusted EBITDA"
-                                if peer_check.get("metric") == "EV/EBITDA"
-                                else ("Peer-kontrolliertes Automotive-Ziel-KGV" if is_automotive_peer_metric else ("Peer-kontrolliertes Semicap-Ziel-KGV" if is_semicap_peer_metric else ("Peer-kontrolliertes NVIDIA-Ziel-KGV" if is_nvidia_peer_metric else ("Peer-kontrolliertes Medical-Devices-Ziel-KGV" if is_medical_devices_peer_metric else "Peer-kontrolliertes Multiple")))),
+                                "Endgültiges Zahlungsabwickler-Ziel-KGV"
+                                if is_payments_processor_peer_metric
+                                else (
+                                    "Peer-kontrolliertes EV/Adjusted EBITDA"
+                                    if peer_check.get("metric") == "EV/EBITDA"
+                                    else ("Peer-kontrolliertes Automotive-Ziel-KGV" if is_automotive_peer_metric else ("Peer-kontrolliertes Semicap-Ziel-KGV" if is_semicap_peer_metric else ("Peer-kontrolliertes NVIDIA-Ziel-KGV" if is_nvidia_peer_metric else ("Peer-kontrolliertes Medical-Devices-Ziel-KGV" if is_medical_devices_peer_metric else "Peer-kontrolliertes Multiple"))))
+                                ),
                                 f"{peer_check['adjusted_multiple']:.2f}×"
                             )
 
-                            st.success(
-                                "Peer-Kontrolle angewendet. Multiple-Vorschlag maximal ±5 %; "
-                                "der nachgelagerte Equity-Fair-Value-Effekt ist ebenfalls auf ±5 % begrenzt."
-                            )
+                            if is_payments_processor_peer_metric:
+                                st.write(f"**Ziel-KGV vor Peer-Anpassung:** {safe_float(peer_check.get('target_multiple_before_peer')):.2f}×")
+                                st.write(f"**Median Markt/Modell:** {safe_float(peer_check.get('model_adjusted_median_ratio')):.3f}")
+                                st.write(f"**Peer-Faktor:** {safe_float(peer_check.get('peer_factor')):.3f}")
+                                if peer_check.get("protection_binding"):
+                                    st.warning("Bestehende Schutzgrenze war nach der Peer-Kalibrierung zusätzlich bindend; sie hat Vorrang vor dem Peer-Ergebnis.")
+                                else:
+                                    st.success("V187 Peer-Kalibrierung angewendet. Familien-Korridor und bestehende Schutzgrenzen wurden danach erneut geprüft und bleiben vorrangig.")
+                            else:
+                                st.success(
+                                    "Peer-Kontrolle angewendet. Multiple-Vorschlag maximal ±5 %; "
+                                    "der nachgelagerte Equity-Fair-Value-Effekt ist ebenfalls auf ±5 % begrenzt."
+                                )
 
                         else:
 
@@ -68854,15 +68936,15 @@ if selected_symbol:
                                         pp_eligible_ui = int(peer_check.get("eligible_peer_count") or 0)
                                         if pp_ratio_median_ui is None:
                                             st.warning(
-                                                f"V186 Modell-Datengate noch nicht bestanden: {pp_eligible_ui}/3 vollständig modellierte Kern-Peers. "
+                                                f"V187 Modell-Datengate nicht bestanden: {pp_eligible_ui}/3 vollständig modellierte Kern-Peers. "
                                                 "Rohe Peer-KGVs werden ausdrücklich nicht als Anpassungsanker verwendet. Keine Bewertungsänderung."
                                             )
                                         else:
                                             st.info(
-                                                f"V186 Kalibrierungswert: Median Markt/Modell {pp_ratio_median_ui:.3f} · "
+                                                f"V187 Kalibrierungswert: Median Markt/Modell {pp_ratio_median_ui:.3f} · "
                                                 f"theoretische Anpassung {(pp_candidate_pct_ui or 0)*100:+.1f} % · "
                                                 f"theoretisches KGV {pp_candidate_mul_ui:.2f}×. "
-                                                "Noch nicht freigegeben – das verwendete Ziel-KGV und der faire Wert bleiben unverändert."
+                                                "Das Datengate ist nicht freigegeben; ohne 3/3 Kern-Peers bleibt das Familien-Ziel-KGV unverändert."
                                             )
                                     elif is_capital_goods_peer_metric:
                                         cg_peer_median_ui = safe_float(peer_check.get("peer_median"))
@@ -68926,8 +69008,8 @@ if selected_symbol:
                         peer_explain = f"Integrated Oil & Gas {APP_BUILD_VERSION}: Die anderen globalen Majors sind reine Markt-Referenzen. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Peer-Anpassung; Score, Through-Cycle-EPS, Ziel-KGV und Fair Value bleiben issuer-spezifisch."
                     elif is_payments_processor_peer_metric:
                         peer_explain = (
-                            "Zahlungsabwickler V186: Mindestens drei vollständig modellierte Kern-Peers. Verglichen wird Markt-KGV relativ zum jeweils eigenen freigegebenen Familien-Ziel-KGV; "
-                            "Median statt Durchschnitt, theoretische Wirkung maximal ±5 %. Die Kalibrierung bleibt vollständig ohne Einfluss auf Ziel-KGV, fairen Wert und Bewertungszonen."
+                            "Zahlungsabwickler V187: Mindestens drei vollständig modellierte Kern-Peers. Verglichen wird Markt-KGV relativ zum jeweils eigenen freigegebenen Familien-Ziel-KGV vor Peer-Anpassung; "
+                            "Median statt Durchschnitt, Wirkung maximal ±5 %. Nach der Peer-Kalibrierung werden Familien-Korridor und bestehende Schutzgrenzen erneut vorrangig angewendet; erst das endgültige Ziel-KGV fließt in fairen Wert und Bewertungszonen ein."
                         )
                     elif is_exchange_peer_metric:
                         peer_explain = (
@@ -69158,7 +69240,7 @@ if selected_symbol:
                                     and company_type.get("valuation_family_id") == "payments_processor"):
                                 st.caption(
                                     "Der Zahlungsabwickler-Spezialpfad ist bis einschließlich Bewertungszonen V1 praktisch geprüft und freigegeben. "
-                                    "Die Vergleichsgruppen-Anpassung und die Handlungssignale bleiben getrennte, noch nicht freigegebene Folgestufen."
+                                    "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 ist ebenfalls freigegeben; die Handlungssignale bleiben eine getrennte, noch nicht freigegebene Folgestufe."
                                 )
                             else:
                                 st.caption(
@@ -69178,8 +69260,8 @@ if selected_symbol:
                             )
                             st.markdown(
                                 "**Aktueller Entwicklungsstand**  \n"
-                                "✅ Familien-Punktzahl · ✅ Gewinnbasis · ✅ Ziel-KGV · ✅ Fairer Wert · ✅ Bewertungszonen  \n"
-                                "⏳ Vergleichsgruppen-Anpassung noch nicht freigegeben · 🔒 Kaufen/Halten/Verkaufen noch gesperrt"
+                                "✅ Familien-Punktzahl · ✅ Gewinnbasis · ✅ Ziel-KGV vor Peer · ✅ Vergleichsgruppen-Kalibrierung V187 · ✅ Fairer Wert · ✅ Bewertungszonen  \n"
+                                "🔒 Kaufen/Halten/Verkaufen noch gesperrt"
                             )
                         else:
                             st.warning(
@@ -74762,19 +74844,27 @@ if selected_symbol:
                                 "Maßgeblich sind Current-FY issuer-adjusted Earnings Bridge, Capital-Goods-Spezialkontrolle und der Cognite Confidence/Leverage Guard; der Peer-Layer bleibt reference/downside-only."
                             )
                         elif fair_value.get("valuation_method") == "payments_processor_current_fy_family_pe":
-                            st.write("**Bewertungsformel:** Familien-Gewinnbasis V1 des laufenden Geschäftsjahres × praktisch geprüftes Zahlungsabwickler-Ziel-KGV")
+                            st.write("**Bewertungsformel:** Familien-Gewinnbasis des laufenden Geschäftsjahres × endgültiges Zahlungsabwickler-Ziel-KGV")
                             st.write(
                                 "**Familien-Gewinnbasis:** "
                                 + format_eps(fair_value.get("normalized_eps"), fair_value.get("financial_currency"))
                                 + f" · {text_or_dash(fair_value.get('earnings_basis_label'))}"
                             )
                             st.write(f"**Familien-Qualitätspunktzahl:** {safe_float(fair_value.get('payments_processor_score')):.0f}/100")
-                            st.write(f"**Verwendetes Ziel-KGV:** {safe_float(fair_value.get('used_multiple')):.2f}×")
+                            st.write(f"**Ziel-KGV vor Peer-Anpassung:** {safe_float(fair_value.get('target_multiple_before_peer')):.2f}×")
+                            if fair_value.get("peer_adjustment_released"):
+                                st.write(f"**Modellbereinigter Peer-Median Markt/Modell:** {safe_float(fair_value.get('peer_model_adjusted_median_ratio')):.3f}")
+                                st.write(f"**Peer-Anpassung:** {safe_float(fair_value.get('peer_candidate_adjustment_pct'))*100:+.1f} %")
+                            else:
+                                st.write("**Peer-Anpassung:** 0,0 % · Datengate nicht bestanden")
+                            st.write(f"**Endgültiges Ziel-KGV:** {safe_float(fair_value.get('used_multiple')):.2f}×")
                             st.write(
                                 f"**Familien-Korridor:** {safe_float(fair_value.get('family_corridor_low')):.0f}–{safe_float(fair_value.get('family_corridor_high')):.0f}×"
                             )
+                            if safe_float(fair_value.get("issuer_guard_cap")) is not None:
+                                st.write(f"**Issuer-Schutzgrenze:** maximal {safe_float(fair_value.get('issuer_guard_cap')):.2f}×")
                             st.caption(
-                                "Vergleichsgruppen-Anpassung: 0 % / nicht freigegeben. Historische Durchschnitts-KGVs und Analystenziele verändern diesen fairen Wert nicht; sie bleiben Vergleichsschichten."
+                                "V187: Peer-Berechnung verwendet ausschließlich die Ziel-KGVs der Peers vor deren eigener Peer-Anpassung. Nach der maximal ±5-%-Kalibrierung werden Familien-Korridor und bestehende Schutzgrenzen erneut vorrangig geprüft. Historische Durchschnitts-KGVs und Analystenziele bleiben reine Vergleichsschichten."
                             )
                         elif fair_value.get("valuation_method") == "professional_business_services_adjusted_pe":
                             ps_basis_gbp_fv_ui = safe_float(fair_value.get("professional_services_earnings_basis_gbp"))
