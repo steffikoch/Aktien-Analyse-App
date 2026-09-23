@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.98"
+APP_BUILD_VERSION = "V2.22.99"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -943,11 +943,12 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Zahlungsabwickler-Sicherheitsentkopplung V194"
+    f"Build {APP_BUILD_VERSION} · Zahlungsabwickler-Statuskonsistenz V195"
 )
 
 
 # V2.22.98: Zahlungsabwickler-Sicherheitsentkopplung V194. Bei vollständig freigegebenem Zahlungsabwickler-Spezialpfad bleibt die generische TTM-/Prognose-EPS-Divergenz ausschließlich Diagnosekontext und darf die endgültige Bewertungssicherheit nicht mehr begrenzen. Maßgeblich sind Methodenobergrenze, freigegebene Familien-Gewinnbasis, Sicherheit des Familien-Ziel-KGV und Spezialkontrolle. Bewertungsmathematik, Peer-Kalibrierung, Gewinnbasis, Ziel-KGV, Fair Values und Signal-Gates bleiben unverändert.
+# V2.22.99: Zahlungsabwickler-Statuskonsistenz V195. Reine UI-/Statusbereinigung nach dem GPN-V194-Livetest: vollständig freigegebene Zahlungsabwickler-Spezialpfade zeigen den realen Freigabestatus auch dann korrekt an, wenn der allgemeine Universal-Family-Router noch defined_unreleased meldet. Die generische TTM-/Prognose-EPS-Divergenz bleibt sichtbar, wird im freigegebenen Zahlungsabwickler-Pfad aber ohne widersprüchlichen Sicherheits-Cap-Hinweis als Diagnosekontext formuliert. Bewertungsmathematik, Sicherheitsberechnung, Peer-Kalibrierung, Fair Values, Bewertungszonen und Signal-Gates bleiben unverändert.
 # V2.22.96: Finale deutsche Feinkorrektur V192. Reine UI-/Copy-Korrektur nach dem Nasdaq-V191-Praxistest. Behebt verbliebene Grammatik- und Kompositafehler, übersetzt die sichtbaren Sektor-/Branchenbezeichnungen von Nasdaq und korrigiert die alte globale Median-Ersetzung, die Wörter wie Gesamtjahresmedian fälschlich zu GesamtjahresMedian machte. Bewertungsmathematik, Daten, Peers, Scores, Schutzregeln, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.95: Finale deutsche Textbereinigung V191. Gezielte reine UI-/Copy-Korrektur nach dem Nasdaq-V190-Praxistest. Bereinigt die verbliebenen Börseninfrastruktur-Mischtexte und Grammatikreste, darunter MarketAxess-Transaktionshinweis, Gesamtjahresanker, Kontrollbezeichnungen, operative Hebelwirkung und Abwärts-Obergrenzen. Bewertungsmathematik, Gewinnbasis, Vergleichsgruppendaten, Korridore, Schutzregeln, Scores, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.94: Vollständige deutsche Darstellungskonsistenz V190. Reine UI-/Copy-Bereinigung nach dem Nasdaq-V189-Praxistest. Übersetzt verbliebene Mischtexte im Börseninfrastruktur-Pfad, korrigiert Grammatikreste und insbesondere die fehlerhafte sichtbare Übersetzung „Operating Leverage“ → „operative Hebelwirkung“ statt „operativ Verschuldung“. Bewertungsmathematik, Gewinnbasis, Peer-Daten, Korridore, Schutzregeln, Scores, Fair Values, Zonen und Signale bleiben unverändert.
@@ -62889,10 +62890,19 @@ if selected_symbol:
                             company_type.get("family_router_source") or "–",
                         )
                         _family_status_raw = company_type.get("family_model_status") or "–"
+                        _payments_processor_released_ui = bool(
+                            company_type.get("valuation_family_id") == "payments_processor"
+                            and (data.get("payments_processor_foundation_model") or {}).get("applicable")
+                            and (data.get("payments_processor_foundation_model") or {}).get("fair_value_released")
+                        )
                         _family_status_labels = {
-                            "three_issuer_valuation_zone_live_validated": "Bewertungszonen geprüft · Peer-Kalibrierung V187 aktiv",
+                            "three_issuer_valuation_zone_live_validated": "Bewertungszonen geprüft · Vergleichsgruppen-Kalibrierung V187 aktiv",
                         }
-                        _family_status = _family_status_labels.get(_family_status_raw, _family_status_raw)
+                        _family_status = (
+                            "Familienmodell bis Bewertungszonen freigegeben · Vergleichsgruppen-Kalibrierung V187 aktiv · Signale gesperrt"
+                            if _payments_processor_released_ui
+                            else _family_status_labels.get(_family_status_raw, _family_status_raw)
+                        )
                         st.caption(
                             f"Universelle Familien-Zuordnung {APP_BUILD_VERSION}: {len(UNIVERSAL_VALUATION_FAMILY_CATALOG)} Bewertungsfamilien · "
                             f"Quelle {_family_source} · Status {_family_status}"
@@ -62935,9 +62945,8 @@ if selected_symbol:
                                     "Wiederverwendbares Holding-Familienmodell freigegeben. Der industrielle Standardpfad bleibt für diese Familie bewusst gesperrt; "
                                     "die Bewertung läuft ausschließlich über issuer-primary NAV und die Holding-spezifischen Evidenz-Gates."
                                 )
-                            elif (company_type.get("family_model_status") == "three_issuer_valuation_zone_live_validated"
-                                    and company_type.get("valuation_family_id") == "payments_processor"):
-                                st.warning(
+                            elif _payments_processor_released_ui:
+                                st.info(
                                     "Zahlungsabwickler-Spezialpfad aktiv: Familien-Punktzahl, Gewinnbasis, Ziel-KGV, fairer Wert und Bewertungszonen sind freigegeben. "
                                     "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 ist freigegeben; Handlungssignale sind noch nicht freigegeben und der industrielle Standardpfad bleibt gesperrt."
                                 )
@@ -64497,6 +64506,17 @@ if selected_symbol:
                             st.caption("Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) + " Diese Divergenz steuert das Kratos-Sondermodell nicht; GAAP/Adjusted-EPS werden separat geprüft.")
                         elif is_nvidia_ai_growth_company_type(company_type):
                             st.caption("Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) + " Diese Divergenz steuert das NVIDIA-Sondermodell nicht.")
+                        elif payments_processor_provider_eps_ui:
+                            _pp_eps_deviation_ui = safe_float(eps_result.get("ttm_forward_deviation"))
+                            _pp_eps_deviation_text_ui = (
+                                f"{_pp_eps_deviation_ui * 100:.1f} %"
+                                if _pp_eps_deviation_ui is not None else "–"
+                            )
+                            st.caption(
+                                "Standardpfad-Kontext: TTM-EPS und Prognose-EPS weichen um "
+                                f"{_pp_eps_deviation_text_ui} voneinander ab. Diese Abweichung bleibt ausschließlich Diagnosekontext "
+                                "und begrenzt weder die Zahlungsabwickler-Spezialmodell-Sicherheit noch Fair Value oder spätere Signal-Freigaben."
+                            )
                         elif universal_family_eps_context_ui:
                             st.caption(
                                 "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
@@ -64582,6 +64602,11 @@ if selected_symbol:
                             st.caption("Standardpfad-Sicherheit nur Kontext; das Kratos-Sondermodell verwendet Primärquellen für Growth/Visibility und Earnings-Credibility.")
                         elif is_nvidia_ai_growth_company_type(company_type):
                             st.caption("Standardpfad-Sicherheit nur Kontext; das NVIDIA-Sondermodell verwendet eigene Demand-/Horizon-Gates.")
+                        elif payments_processor_provider_eps_ui:
+                            st.caption(
+                                "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die Zahlungsabwickler-Spezialbewertungssicherheit nicht. "
+                                "Maßgeblich sind die freigegebene Familien-Gewinnbasis, Ziel-KGV-Sicherheit, Methodenobergrenze und Spezialkontrolle."
+                            )
                         elif cof_card_bank_eps_context_ui:
                             st.caption(
                                 "Standardpfad-Sicherheit nur Diagnosekontext; sie begrenzt die COF-Spezialbewertungssicherheit nicht. "
@@ -69805,8 +69830,12 @@ if selected_symbol:
                                 "Qualitätspunktzahl noch Familien-Ziel-KGV oder Vergleichsgruppen-Anpassung."
                             )
 
-                            if (company_type.get("family_model_status") == "three_issuer_valuation_zone_live_validated"
-                                    and company_type.get("valuation_family_id") == "payments_processor"):
+                            _pp_step3a_released_ui = bool(
+                                company_type.get("valuation_family_id") == "payments_processor"
+                                and (data.get("payments_processor_foundation_model") or {}).get("applicable")
+                                and (data.get("payments_processor_foundation_model") or {}).get("fair_value_released")
+                            )
+                            if _pp_step3a_released_ui:
                                 st.caption(
                                     "Der Zahlungsabwickler-Spezialpfad ist bis einschließlich Bewertungszonen V1 praktisch geprüft und freigegeben. "
                                     "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 ist ebenfalls freigegeben; die Handlungssignale bleiben eine getrennte, noch nicht freigegebene Folgestufe."
@@ -69821,8 +69850,12 @@ if selected_symbol:
                     if special_control.get("control_key") == "universal_family_model_gate":
                         st.divider()
                         st.subheader("🧭 Modul 6 – Schritt 3B: Prüfung der Bewertungsfamilie")
-                        if (company_type.get("family_model_status") == "three_issuer_valuation_zone_live_validated"
-                                and company_type.get("valuation_family_id") == "payments_processor"):
+                        _pp_step3_released_ui = bool(
+                            company_type.get("valuation_family_id") == "payments_processor"
+                            and (data.get("payments_processor_foundation_model") or {}).get("applicable")
+                            and (data.get("payments_processor_foundation_model") or {}).get("fair_value_released")
+                        )
+                        if _pp_step3_released_ui:
                             st.info(
                                 f"Bewertungsfamilie erkannt: {company_type.get('valuation_family') or company_type.get('type')}. "
                                 "Familien-Punktzahl, Gewinnbasis, Ziel-KGV, fairer Wert und Bewertungszonen sind freigegeben."
@@ -75750,6 +75783,11 @@ if selected_symbol:
                             st.info(
                                 "Defense-Sicherheitsisolierung: BAE/Leonardo/Thales/Saab sind reference-only und daher kein Begrenzungsfaktor der Bewertungssicherheit. "
                                 "Maßgeblich bleiben Unternehmenstyp/Methode, Defense Current-FY Earnings-Basis und die Defense-Spezialkontrolle."
+                            )
+                        elif fair_value.get("valuation_method") == "payments_processor_current_fy_family_pe":
+                            st.info(
+                                "Zahlungsabwickler-Sicherheitsisolierung: Die generische TTM-/Prognose-EPS-Divergenz bleibt Diagnosekontext und begrenzt die Spezialmodell-Sicherheit nicht. "
+                                "Maßgeblich sind die freigegebene Familien-Gewinnbasis, Ziel-KGV-Sicherheit, Methodenobergrenze und Spezialkontrolle."
                             )
                         else:
                             eps_confidence_note = data.get(
