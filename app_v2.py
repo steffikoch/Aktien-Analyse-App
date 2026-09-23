@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.97"
+APP_BUILD_VERSION = "V2.22.98"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -943,11 +943,11 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Abschlusskorrektur deutsche Darstellung V193"
+    f"Build {APP_BUILD_VERSION} · Zahlungsabwickler-Sicherheitsentkopplung V194"
 )
 
 
-# V2.22.97: Abschlusskorrektur deutsche Darstellung V193. Reine UI-/Copy-Minikorrektur nach dem Nasdaq-V192-Praxistest. Übersetzt die zwei verbliebenen Nasdaq-Stammdatenzeilen Sektor/Branche und bereinigt den letzten Pronomen-/Grammatikfehler im sichtbaren Börseninfrastruktur-Qualitätsscore-Text. Bewertungsmathematik, Daten, Peers, Scores, Schutzregeln, Fair Values, Zonen und Signale bleiben unverändert.
+# V2.22.98: Zahlungsabwickler-Sicherheitsentkopplung V194. Bei vollständig freigegebenem Zahlungsabwickler-Spezialpfad bleibt die generische TTM-/Prognose-EPS-Divergenz ausschließlich Diagnosekontext und darf die endgültige Bewertungssicherheit nicht mehr begrenzen. Maßgeblich sind Methodenobergrenze, freigegebene Familien-Gewinnbasis, Sicherheit des Familien-Ziel-KGV und Spezialkontrolle. Bewertungsmathematik, Peer-Kalibrierung, Gewinnbasis, Ziel-KGV, Fair Values und Signal-Gates bleiben unverändert.
 # V2.22.96: Finale deutsche Feinkorrektur V192. Reine UI-/Copy-Korrektur nach dem Nasdaq-V191-Praxistest. Behebt verbliebene Grammatik- und Kompositafehler, übersetzt die sichtbaren Sektor-/Branchenbezeichnungen von Nasdaq und korrigiert die alte globale Median-Ersetzung, die Wörter wie Gesamtjahresmedian fälschlich zu GesamtjahresMedian machte. Bewertungsmathematik, Daten, Peers, Scores, Schutzregeln, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.95: Finale deutsche Textbereinigung V191. Gezielte reine UI-/Copy-Korrektur nach dem Nasdaq-V190-Praxistest. Bereinigt die verbliebenen Börseninfrastruktur-Mischtexte und Grammatikreste, darunter MarketAxess-Transaktionshinweis, Gesamtjahresanker, Kontrollbezeichnungen, operative Hebelwirkung und Abwärts-Obergrenzen. Bewertungsmathematik, Gewinnbasis, Vergleichsgruppendaten, Korridore, Schutzregeln, Scores, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.94: Vollständige deutsche Darstellungskonsistenz V190. Reine UI-/Copy-Bereinigung nach dem Nasdaq-V189-Praxistest. Übersetzt verbliebene Mischtexte im Börseninfrastruktur-Pfad, korrigiert Grammatikreste und insbesondere die fehlerhafte sichtbare Übersetzung „Operating Leverage“ → „operative Hebelwirkung“ statt „operativ Verschuldung“. Bewertungsmathematik, Gewinnbasis, Peer-Daten, Korridore, Schutzregeln, Scores, Fair Values, Zonen und Signale bleiben unverändert.
@@ -51713,7 +51713,20 @@ def calculate_valuation_confidence(
         earnings_rank = _confidence_rank_value(earnings_level)
         if earnings_rank is not None:
             components["Defense Current-FY Earnings-Basis"] = (earnings_rank, earnings_level)
-    elif not is_holding_nav_valuation and not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation and not is_branded_consumer_staples_valuation and not is_oilfield_services_energy_tech_valuation and not is_integrated_oil_gas_valuation and not is_professional_services_valuation and not is_capital_goods_valuation and not is_exchange_valuation and not is_defense_high_growth_valuation and not is_payment_network_valuation:
+    elif is_payments_processor_valuation:
+        # V194: Im freigegebenen Zahlungsabwickler-Spezialpfad ist die Standard-EPS-
+        # Normalisierung reine Diagnose. Die Bewertungssicherheit folgt nur den
+        # tatsächlich verwendeten Familienbausteinen.
+        earnings_level = str(fair_value.get("earnings_basis_confidence") or "Mittel")
+        earnings_rank = _confidence_rank_value(earnings_level)
+        if earnings_rank is not None:
+            components["Zahlungsabwickler-Gewinnbasis"] = (earnings_rank, earnings_level)
+
+        multiple_level = str(fair_value.get("target_multiple_confidence") or "Mittel")
+        multiple_rank = _confidence_rank_value(multiple_level)
+        if multiple_rank is not None:
+            components["Zahlungsabwickler-Ziel-KGV"] = (multiple_rank, multiple_level)
+    elif not is_holding_nav_valuation and not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation and not is_branded_consumer_staples_valuation and not is_oilfield_services_energy_tech_valuation and not is_integrated_oil_gas_valuation and not is_professional_services_valuation and not is_capital_goods_valuation and not is_exchange_valuation and not is_defense_high_growth_valuation and not is_payment_network_valuation and not is_payments_processor_valuation:
         eps_level = (eps_normalization or {}).get("confidence")
         eps_rank = _confidence_rank_value(eps_level)
         if eps_rank is not None:
@@ -51770,9 +51783,16 @@ def calculate_valuation_confidence(
         },
         "limiting_factor": ", ".join(limiting),
         "note": (
-            "Die endgültige Bewertungssicherheit entspricht der schwächsten "
-            "relevanten Sicherheitsstufe. Eine spätere Kontrolle kann eine "
-            "frühere Unsicherheit nicht hochstufen."
+            (
+                "Die endgültige Bewertungssicherheit entspricht der schwächsten relevanten Sicherheitsstufe des freigegebenen Zahlungsabwickler-Spezialpfads. "
+                "Die generische TTM-/Prognose-EPS-Divergenz bleibt ausschließlich Diagnosekontext und begrenzt diese Spezialmodell-Sicherheit nicht."
+            )
+            if is_payments_processor_valuation else
+            (
+                "Die endgültige Bewertungssicherheit entspricht der schwächsten "
+                "relevanten Sicherheitsstufe. Eine spätere Kontrolle kann eine "
+                "frühere Unsicherheit nicht hochstufen."
+            )
         ),
     })
     return result
@@ -61834,6 +61854,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "payments_processor_score": safe_float(pp_fv_score.get("total_points")),
             "earnings_basis_label": pp_fv_eb.get("basis_label"),
             "earnings_basis_confidence": pp_fv_eb.get("confidence"),
+            "target_multiple_confidence": pp_fv_mul.get("confidence"),
             "family_corridor_low": safe_float(pp_fv_mul.get("corridor_low")),
             "family_corridor_high": safe_float(pp_fv_mul.get("corridor_high")),
             "target_multiple_before_peer": safe_float(pp_fv_mul.get("target_multiple")),
