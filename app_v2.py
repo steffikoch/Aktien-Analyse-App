@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.99"
+APP_BUILD_VERSION = "V2.23.00"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -943,12 +943,12 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Zahlungsabwickler-Statuskonsistenz V195"
+    f"Build {APP_BUILD_VERSION} · Zahlungsabwickler-Signal-Logik V196"
 )
 
 
 # V2.22.98: Zahlungsabwickler-Sicherheitsentkopplung V194. Bei vollständig freigegebenem Zahlungsabwickler-Spezialpfad bleibt die generische TTM-/Prognose-EPS-Divergenz ausschließlich Diagnosekontext und darf die endgültige Bewertungssicherheit nicht mehr begrenzen. Maßgeblich sind Methodenobergrenze, freigegebene Familien-Gewinnbasis, Sicherheit des Familien-Ziel-KGV und Spezialkontrolle. Bewertungsmathematik, Peer-Kalibrierung, Gewinnbasis, Ziel-KGV, Fair Values und Signal-Gates bleiben unverändert.
-# V2.22.99: Zahlungsabwickler-Statuskonsistenz V195. Reine UI-/Statusbereinigung nach dem GPN-V194-Livetest: vollständig freigegebene Zahlungsabwickler-Spezialpfade zeigen den realen Freigabestatus auch dann korrekt an, wenn der allgemeine Universal-Family-Router noch defined_unreleased meldet. Die generische TTM-/Prognose-EPS-Divergenz bleibt sichtbar, wird im freigegebenen Zahlungsabwickler-Pfad aber ohne widersprüchlichen Sicherheits-Cap-Hinweis als Diagnosekontext formuliert. Bewertungsmathematik, Sicherheitsberechnung, Peer-Kalibrierung, Fair Values, Bewertungszonen und Signal-Gates bleiben unverändert.
+# V2.23.00: Zahlungsabwickler-Signal-Logik V196. Gibt die familienbezogene Kaufen/Halten/Verkaufen-Logik nach separater Kalibrierung frei: Neukauf nur bei Unterbewertung oder starker Unterbewertung, Qualität >=65/100 und Bewertungssicherheit mindestens Mittel; schwächere Qualität bzw. niedrigere Sicherheit bremsen auf Abwarten. Bestandspositionen bleiben bis Fair bewertet auf Halten; bei Überbewertung führt Qualität <65/100 zu Verkaufen prüfen, bei starker Überbewertung und mindestens mittlerer Sicherheit zu Verkaufen. Niedrige Sicherheit verhindert harte Verkaufssignale. Bewertungsmathematik, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Values und Bewertungszonen bleiben unverändert.
 # V2.22.96: Finale deutsche Feinkorrektur V192. Reine UI-/Copy-Korrektur nach dem Nasdaq-V191-Praxistest. Behebt verbliebene Grammatik- und Kompositafehler, übersetzt die sichtbaren Sektor-/Branchenbezeichnungen von Nasdaq und korrigiert die alte globale Median-Ersetzung, die Wörter wie Gesamtjahresmedian fälschlich zu GesamtjahresMedian machte. Bewertungsmathematik, Daten, Peers, Scores, Schutzregeln, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.95: Finale deutsche Textbereinigung V191. Gezielte reine UI-/Copy-Korrektur nach dem Nasdaq-V190-Praxistest. Bereinigt die verbliebenen Börseninfrastruktur-Mischtexte und Grammatikreste, darunter MarketAxess-Transaktionshinweis, Gesamtjahresanker, Kontrollbezeichnungen, operative Hebelwirkung und Abwärts-Obergrenzen. Bewertungsmathematik, Gewinnbasis, Vergleichsgruppendaten, Korridore, Schutzregeln, Scores, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.94: Vollständige deutsche Darstellungskonsistenz V190. Reine UI-/Copy-Bereinigung nach dem Nasdaq-V189-Praxistest. Übersetzt verbliebene Mischtexte im Börseninfrastruktur-Pfad, korrigiert Grammatikreste und insbesondere die fehlerhafte sichtbare Übersetzung „Operating Leverage“ → „operative Hebelwirkung“ statt „operativ Verschuldung“. Bewertungsmathematik, Gewinnbasis, Peer-Daten, Korridore, Schutzregeln, Scores, Fair Values, Zonen und Signale bleiben unverändert.
@@ -8495,14 +8495,14 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
         out["family_model_status"] = "three_issuer_valuation_zone_live_validated"
         out["family_model_ready"] = False
         out["family_model_released"] = False
-        out["family_validation_status"] = "paypal_adyen_fiserv_zones_live_validated_signals_pending"
+        out["family_validation_status"] = "paypal_adyen_fiserv_signals_v1_released"
         out["universal_family_fail_closed"] = True
         out["method"] = (
             "Primärquellenbasierter Zahlungsabwickler-Korridor V1: Zahlungsvolumen und Aktivität bleiben Volumen-/Effizienzkontext. "
             "Familien-Qualitätspunktzahl V1 und Gewinnbasis des laufenden Geschäftsjahres V1 speisen einen transparenten 8–30× KGV-Korridor auf gleicher Ergebnisbasis. "
             "Qualitätslinie, möglicher Ökonomie-Aufschlag und ausschließlich nach unten wirkende Schutzregeln bestimmen das Ziel-KGV. "
             "Die Tests mit PayPal, Adyen und Fiserv für Multiple, fairen Wert und Bewertungszonen sind bestanden. "
-            "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 ist freigegeben; Handlungssignale folgen weiterhin in einer separaten Kalibrierung."
+            "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 und die Zahlungsabwickler-Signal-Logik V1 sind freigegeben."
         )
         if _canonical_family_symbol == "PYPL":
             out["payments_processor_subprofile"] = "wallet_branded_checkout_psp"
@@ -13301,7 +13301,7 @@ def _universal_family_special_control(company_type):
             "Vergleichbarkeit von Struktur und Unternehmensprognose einschließlich Akquisitionen, Transformation und Prognoseänderungen",
             "Kapitalstruktur und Kapitalallokation subprofilgerecht statt generischem Netto-Schulden/FCF",
             "Subprofil-Vergleichbarkeit: digitale Geldbörse/PSP gegenüber integriertem Zahlungsakquisiteur gegenüber diversifiziertem Händler- und Banking-Technologieanbieter",
-            "Familiengerechter 8–30× KGV-Korridor für das laufende Geschäftsjahr und eigener fairer Wert praktisch geprüft; PayPal, Adyen, Fiserv und Global Payments im V186-Peer-Gegentest mit jeweils 3/3 Kern-Peers bestanden; modellbereinigte ±5-%-Vergleichsgruppen-Kalibrierung V187 freigegeben; Handlungssignale folgen separat",
+            "Familiengerechter 8–30× KGV-Korridor für das laufende Geschäftsjahr und eigener fairer Wert praktisch geprüft; PayPal, Adyen, Fiserv und Global Payments im V186-Peer-Gegentest mit jeweils 3/3 Kern-Peers bestanden; modellbereinigte ±5-%-Vergleichsgruppen-Kalibrierung V187 und Zahlungsabwickler-Signal-Logik V1 freigegeben",
             "Analystenziele ausschließlich als Plausibilitätscheck, nie als Bewertungsanker",
         ]
     if (company_type or {}).get("valuation_family_id") == "payments_processor":
@@ -13312,20 +13312,20 @@ def _universal_family_special_control(company_type):
             "control_key": "universal_family_model_gate",
             "control_name": f"Universal Family / {family_label} Modell-Gate",
             "planned_checks": planned_checks,
-            "status": "Familien-Punktzahl + Gewinnbasis + KGV-Korridor + eigener fairer Wert praktisch geprüft · Bewertungszonen V1 freigegeben · Signale noch gesperrt",
-            "router_status": "Familien-Punktzahl + Gewinnbasis + KGV-Korridor + eigener fairer Wert praktisch geprüft · Bewertungszonen V1 freigegeben · Signale noch gesperrt",
+            "status": "Familien-Punktzahl + Gewinnbasis + KGV-Korridor + eigener fairer Wert + Bewertungszonen V1 + Signal-Logik V1 freigegeben",
+            "router_status": "Familien-Punktzahl + Gewinnbasis + KGV-Korridor + eigener fairer Wert + Bewertungszonen V1 + Signal-Logik V1 freigegeben",
             "confidence_cap": "Niedrig bis Mittel",
             "note": (
                 f"{family_label} wurde durch die universelle Unternehmensklassifizierung und Bewertungsfamilien-Zuordnung erkannt. "
                 "Familien-Qualitätspunktzahl V1, Gewinnbasis des laufenden Geschäftsjahres V1 und der 8–30× Zahlungsabwickler-KGV-Korridor sind praktisch geprüft und freigegeben. "
                 "Der eigene faire Wert und die familienbezogenen Bewertungszonen V1 sind ebenfalls praktisch geprüft; der Test mit PayPal, Adyen und Fiserv ist bestanden. "
                 "Die Zonenbreite startet bei der Bewertungssicherheit und wird bei niedrigerer operativer Qualität sowie schwächerer Sicherheit von Gewinnbasis oder Ziel-KGV konservativ verbreitert. "
-                "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 ist freigegeben und verwendet ausschließlich Ziel-KGVs der Peers vor deren eigener Peer-Anpassung; bestehende Schutzgrenzen bleiben vorrangig. Historische Durchschnitts-KGVs und Analystenziele bleiben reine Vergleichsschichten. Handlungssignale bleiben bis zur separaten Signal-Kalibrierung und -Freigabe gesperrt."
+                "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 ist freigegeben und verwendet ausschließlich Ziel-KGVs der Peers vor deren eigener Peer-Anpassung; bestehende Schutzgrenzen bleiben vorrangig. Historische Durchschnitts-KGVs und Analystenziele bleiben reine Vergleichsschichten. Die Zahlungsabwickler-Signal-Logik V1 ist nach separater Kalibrierung freigegeben."
             ),
             "router_note": (
                 f"{family_label} wurde durch die universelle Unternehmensklassifizierung und Bewertungsfamilien-Zuordnung erkannt. "
                 "Punktzahl, Gewinnbasis, KGV-Korridor, eigener fairer Wert und Bewertungszonen V1 sind praktisch geprüft und freigegeben. "
-                "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 ist freigegeben; Handlungssignale folgen erst nach separater Signal-Kalibrierung und -Freigabe."
+                "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 und die Zahlungsabwickler-Signal-Logik V1 sind freigegeben."
             ),
         }
 
@@ -31649,7 +31649,7 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
             ),
             "earnings_reference_status": (
                 "Die FY2026-Unternehmensprognose für bereinigtes EPS von 7,20–7,40 USD ist primärquellenbasierter Kontext auf gleicher Ergebnisbasis. "
-                "Der Mittelpunkt wird als freigegebene Familien-Gewinnbasis verwendet; Familien-KGV-Korridor, eigener fairer Wert und Bewertungszonen sind praktisch geprüft und freigegeben. Handlungssignale bleiben separat gesperrt."
+                "Der Mittelpunkt wird als freigegebene Familien-Gewinnbasis verwendet; Familien-KGV-Korridor, eigener fairer Wert, Bewertungszonen und Zahlungsabwickler-Signal-Logik V1 sind praktisch geprüft und freigegeben."
             ),
         }
 
@@ -32380,7 +32380,7 @@ def build_payments_processor_family_multiple(snapshot, family_score, earnings_ba
         "note": (
             "Das praktisch geprüfte Ziel-KGV wird aus zwei transparenten Familientreibern abgeleitet: Qualitätspunktzahl plus ein begrenzter Aufschlag nur bei sehr starker emittenteneigener Ertragsökonomie. "
             "Emittentenbezogene Schutzregeln wirken ausschließlich nach unten. Historisches Durchschnitts-KGV, aktueller Aktienkurs, Analystenziele, Yahoo-FCF und Standard-KGV setzen oder erhöhen das Ziel-KGV nicht. "
-            "Ziel-KGV vor Peer-Anpassung, eigener fairer Wert und Bewertungszonen bleiben freigegeben; V187 kalibriert das Ziel nach bestandenem 3-Peer-Gate modellbereinigt um maximal ±5 %, während bestehende Schutzregeln vorrangig bleiben. Handlungssignale folgen separat."
+            "Ziel-KGV vor Peer-Anpassung, eigener fairer Wert und Bewertungszonen bleiben freigegeben; V187 kalibriert das Ziel nach bestandenem 3-Peer-Gate modellbereinigt um maximal ±5 %, während bestehende Schutzregeln vorrangig bleiben. Die Zahlungsabwickler-Signal-Logik V1 ist freigegeben."
         ),
     }
 
@@ -52388,6 +52388,158 @@ def generate_holding_signal(
     return result
 
 
+def generate_payments_processor_action_signals(
+    valuation_zone,
+    valuation_confidence,
+    processor_model,
+    special_event_warning=None,
+):
+    """Released V1 action layer for Payments Processor / Merchant Acquirer.
+
+    The family signal intentionally reuses only three already-released inputs:
+    valuation zone, Payments-Processor Family Quality Score and valuation
+    confidence. It does not re-score EPS, FCF, leverage, peer ratios or analyst
+    targets and therefore cannot double-count the valuation guards already
+    embedded in the family model.
+    """
+    zone = (valuation_zone or {}).get("zone")
+    confidence = str((valuation_confidence or {}).get("level") or "").strip()
+    model = processor_model if isinstance(processor_model, dict) else {}
+    family_score = model.get("family_score") or {}
+    quality_score = safe_float(family_score.get("total_points"))
+    quality_label = family_score.get("quality_label") or "–"
+    upside_to_fair_value = _valuation_zone_upside_to_fair_value_pct(valuation_zone)
+
+    base = {
+        "available": False,
+        "signal": None,
+        "reason": None,
+        "fundamental_strength": quality_label,
+        "quality_score": quality_score,
+        "valuation_confidence": confidence or None,
+        "payments_processor_signal_v1": True,
+        "special_event_blocked": False,
+        "upside_to_fair_value_pct": upside_to_fair_value,
+    }
+
+    special_blocked, warning = _special_event_signal_block(special_event_warning)
+    if special_blocked:
+        blocked = dict(base)
+        blocked.update({
+            "signal": "Kein Handlungssignal – Sonderprüfung offen",
+            "special_event_blocked": True,
+            "reason": (
+                "Die Zahlungsabwickler-Signal-Logik bleibt gesperrt, solange eine "
+                "bindende Sonderprüfung Fair Value oder Vergleichbarkeit blockiert."
+            ),
+            "next_step": warning.get("action"),
+        })
+        return blocked, dict(blocked)
+
+    if not (valuation_zone or {}).get("available") or not zone or not confidence or quality_score is None:
+        unavailable = dict(base)
+        unavailable["reason"] = (
+            "Zahlungsabwickler-Signal nicht verfügbar: Bewertungszone, Familien-Qualitätspunktzahl "
+            "oder Bewertungssicherheit fehlt."
+        )
+        return unavailable, dict(unavailable)
+
+    confidence_at_least_medium = confidence in {"Mittel", "Mittel bis Hoch", "Hoch"}
+    quality_buy_gate = quality_score >= 65.0
+
+    buy = dict(base)
+    buy["available"] = True
+    if zone in {"Stark unterbewertet", "Unterbewertet"}:
+        if not confidence_at_least_medium:
+            buy.update({
+                "signal": "Abwarten",
+                "reason": (
+                    "Unterbewertung vorhanden, die Bewertungssicherheit liegt aber unter Mittel. "
+                    "Für einen Neukauf ist mindestens mittlere Sicherheit erforderlich."
+                ),
+            })
+        elif not quality_buy_gate:
+            buy.update({
+                "signal": "Abwarten",
+                "reason": (
+                    f"Unterbewertung vorhanden, die Zahlungsabwickler-Qualität liegt mit {quality_score:.0f}/100 "
+                    "aber unter der Kauf-Schwelle von 65/100."
+                ),
+            })
+        else:
+            buy.update({
+                "signal": "Kaufen",
+                "reason": (
+                    f"{zone} bei Zahlungsabwickler-Qualität {quality_score:.0f}/100 und "
+                    f"Bewertungssicherheit {confidence}; die V1-Kaufbedingungen sind erfüllt."
+                ),
+            })
+    elif zone == "Fair bewertet":
+        buy.update({
+            "signal": "Abwarten",
+            "reason": "Fair bewertet; für einen Neukauf fehlt ein ausreichender Bewertungsabschlag.",
+        })
+    else:
+        buy.update({
+            "signal": "Abwarten",
+            "reason": "Aktie liegt oberhalb des fairen Bewertungsbereichs; kein Neukauf-Signal.",
+        })
+
+    hold = dict(base)
+    hold["available"] = True
+    if zone in {"Stark unterbewertet", "Unterbewertet", "Fair bewertet"}:
+        hold.update({
+            "signal": "Halten",
+            "reason": (
+                "Für eine bestehende Position ergibt sich aus der aktuellen Bewertungszone kein Verkaufssignal."
+            ),
+        })
+    elif zone == "Überbewertet":
+        if not confidence_at_least_medium:
+            hold.update({
+                "signal": "Halten / Beobachten",
+                "reason": (
+                    "Überbewertung vorhanden, die Bewertungssicherheit liegt aber unter Mittel; "
+                    "kein hartes Verkaufssignal aus einem unsicheren Fair Value."
+                ),
+            })
+        elif quality_score < 65.0:
+            hold.update({
+                "signal": "Verkaufen prüfen",
+                "reason": (
+                    f"Überbewertung trifft auf Zahlungsabwickler-Qualität {quality_score:.0f}/100 unter 65/100; "
+                    "eine Reduktion bzw. ein Verkauf sollte geprüft werden."
+                ),
+            })
+        else:
+            hold.update({
+                "signal": "Halten",
+                "reason": (
+                    "Moderate Überbewertung bei mindestens ausreichender Zahlungsabwickler-Qualität; "
+                    "noch kein automatisches Verkaufssignal."
+                ),
+            })
+    elif zone == "Stark überbewertet":
+        if not confidence_at_least_medium:
+            hold.update({
+                "signal": "Halten / Beobachten",
+                "reason": (
+                    "Starke Überbewertung angezeigt, die Bewertungssicherheit liegt aber unter Mittel; "
+                    "die V1-Schutzregel verhindert ein hartes Verkaufssignal."
+                ),
+            })
+        else:
+            hold.update({
+                "signal": "Verkaufen",
+                "reason": (
+                    f"Starke Überbewertung bei Bewertungssicherheit {confidence}; "
+                    "die Zahlungsabwickler-Signal-Logik V1 gibt ein Verkaufssignal frei."
+                ),
+            })
+
+    return buy, hold
+
+
 def generate_listed_holding_action_signals(
     valuation_zone,
     valuation_confidence,
@@ -57945,7 +58097,7 @@ def apply_reality_check_to_signals(new_buy_signal, holding_signal, reality_check
     external_upside = safe_float(reality.get("external_upside_pct"))
 
     # Buy/add brakes: consensus can block an aggressive action, never create one.
-    if original_buy in ["Starker Kauf", "Kauf"]:
+    if original_buy in ["Starker Kauf", "Kauf", "Kaufen"]:
         final_buy.update({
             "signal": "Prüfen / Kauf nicht freigegeben",
             "reason": (
@@ -57969,7 +58121,7 @@ def apply_reality_check_to_signals(new_buy_signal, holding_signal, reality_check
     # Sell/reduce brakes only when the own model is materially negative while
     # external consensus is not. This avoids outsourcing a sale to analysts.
     if (
-        original_hold in ["Reduzieren", "Verkaufen"]
+        original_hold in ["Reduzieren", "Verkaufen", "Verkaufen prüfen"]
         and own_upside is not None and own_upside <= -10.0
         and external_upside is not None and external_upside > -10.0
     ):
@@ -61112,7 +61264,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 ),
                 "action": (
                     "Keine Sonderereignis-Recherche aus der generischen EPS-Normalisierung starten. Der Zahlungsabwickler-Spezialpfad bleibt maßgeblich. "
-                    "Bewertungszonen V1 und die modellbereinigte Vergleichsgruppen-Kalibrierung V187 sind freigegeben; Handlungssignale bleiben eine separate, noch nicht freigegebene Folgestufe."
+                    "Bewertungszonen V1, die modellbereinigte Vergleichsgruppen-Kalibrierung V187 und die Zahlungsabwickler-Signal-Logik V1 sind freigegeben."
                 ),
                 "family_model_gate": True,
                 "diagnostic_original_level": _diagnostic_level or None,
@@ -61948,20 +62100,12 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     )
 
     if fair_value.get("valuation_method") == "payments_processor_current_fy_family_pe":
-        pp_signal_gate_reason = (
-            "Die Zahlungsabwickler-Bewertungszonen V1 sind an PayPal, Adyen und Fiserv praktisch geprüft und freigegeben. "
-            "Die Handlungssignale bleiben gesperrt, bis die Kaufen-/Halten-/Verkaufen-Regeln separat kalibriert, regressionsgetestet und freigegeben sind."
+        new_buy_signal, holding_signal = generate_payments_processor_action_signals(
+            valuation_zone,
+            valuation_confidence,
+            payments_processor_foundation_model,
+            special_event_warning=special_event_warning,
         )
-        new_buy_signal = {
-            "available": False,
-            "signal": None,
-            "fundamental_strength": get_fundamental_strength(fundamental_multiple.get("score")),
-            "reason": pp_signal_gate_reason,
-            "payments_processor_signal_gate": True,
-            "special_event_blocked": False,
-            "upside_to_fair_value_pct": _valuation_zone_upside_to_fair_value_pct(valuation_zone),
-        }
-        holding_signal = dict(new_buy_signal)
 
     if fair_value.get("valuation_method") == "listed_holding_nav_target":
         new_buy_signal, holding_signal = generate_listed_holding_action_signals(
@@ -62861,9 +63005,20 @@ if selected_symbol:
                         f"**{company_type['type']}**"
                     )
 
+                    _company_method_display = company_type.get("method")
+                    if (
+                        company_type.get("valuation_family_id") == "payments_processor"
+                        and (data.get("payments_processor_foundation_model") or {}).get("applicable")
+                        and (data.get("payments_processor_foundation_model") or {}).get("fair_value_released")
+                    ):
+                        _company_method_display = (
+                            "Freigegebenes Zahlungsabwickler-Spezialmodell V1: Familien-Qualitätspunktzahl + Gewinnbasis des laufenden Geschäftsjahres + "
+                            "8–30× Familien-KGV-Korridor + modellbereinigte Vergleichsgruppen-Kalibrierung V187 + Bewertungszonen V1 + Signal-Logik V1. "
+                            "Der industrielle Standardpfad, Yahoo-FCF/Nettoschulden-zu-FCF und Standard-KGV bleiben ausgeschlossen."
+                        )
                     st.write(
                         f"**Spätere Bewertungsmethode:** "
-                        f"{company_type['method']}"
+                        f"{_company_method_display}"
                     )
 
                     st.write(
@@ -62937,7 +63092,7 @@ if selected_symbol:
                             st.info(
                                 "Zahlungsabwickler-Grundlage V1: PayPal, Adyen und Fiserv sind als drei unabhängige primärquellenbasierte Referenzprofile geprüft. "
                                 "Der gemeinsame KPI-Rahmen, die 100-Punkte-Familien-Qualitätspunktzahl, die Gewinnbasis des laufenden Geschäftsjahres, der 8–30× KGV-Korridor, der eigene faire Wert und die Bewertungszonen sind freigegeben. "
-                                "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 ist freigegeben; Kaufen/Halten/Verkaufen bleiben noch nicht freigegeben."
+                                "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 und die Zahlungsabwickler-Signal-Logik V1 sind freigegeben."
                             )
                         if is_universal_family_fail_closed(company_type):
                             if is_released_listed_holding_family(company_type):
@@ -62948,7 +63103,7 @@ if selected_symbol:
                             elif _payments_processor_released_ui:
                                 st.info(
                                     "Zahlungsabwickler-Spezialpfad aktiv: Familien-Punktzahl, Gewinnbasis, Ziel-KGV, fairer Wert und Bewertungszonen sind freigegeben. "
-                                    "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 ist freigegeben; Handlungssignale sind noch nicht freigegeben und der industrielle Standardpfad bleibt gesperrt."
+                                    "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 und die Zahlungsabwickler-Signal-Logik V1 sind freigegeben; der industrielle Standardpfad bleibt gesperrt."
                                 )
                             else:
                                 st.warning(
@@ -64326,7 +64481,7 @@ if selected_symbol:
                             st.info(
                                 f"Standard-EPS-Normalisierung: **nur Diagnosekontext** · Universelle Familien-Zuordnung {APP_BUILD_VERSION}: "
                                 "Familien-Qualitätspunktzahl V1, Familien-Gewinnbasis des laufenden Geschäftsjahres V1 und der 8–30× Familien-KGV-Korridor sind freigegeben. "
-                                "Die Standard-EPS-Normalisierung bleibt ausgeschlossen; Ziel-KGV vor Peer-Anpassung, modellbereinigte Vergleichsgruppen-Kalibrierung V187, fairer Wert und Bewertungszonen V1 sind freigegeben. Handlungssignale bleiben bis zur separaten Signal-Kalibrierung gesperrt."
+                                "Die Standard-EPS-Normalisierung bleibt ausgeschlossen; Ziel-KGV vor Peer-Anpassung, modellbereinigte Vergleichsgruppen-Kalibrierung V187, fairer Wert, Bewertungszonen V1 und Zahlungsabwickler-Signal-Logik V1 sind freigegeben."
                             )
                         else:
                             st.info(
@@ -69838,7 +69993,7 @@ if selected_symbol:
                             if _pp_step3a_released_ui:
                                 st.caption(
                                     "Der Zahlungsabwickler-Spezialpfad ist bis einschließlich Bewertungszonen V1 praktisch geprüft und freigegeben. "
-                                    "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 ist ebenfalls freigegeben; die Handlungssignale bleiben eine getrennte, noch nicht freigegebene Folgestufe."
+                                    "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 und die Zahlungsabwickler-Signal-Logik V1 sind ebenfalls freigegeben."
                                 )
                             else:
                                 st.caption(
@@ -69858,12 +70013,11 @@ if selected_symbol:
                         if _pp_step3_released_ui:
                             st.info(
                                 f"Bewertungsfamilie erkannt: {company_type.get('valuation_family') or company_type.get('type')}. "
-                                "Familien-Punktzahl, Gewinnbasis, Ziel-KGV, fairer Wert und Bewertungszonen sind freigegeben."
+                                "Familien-Punktzahl, Gewinnbasis, Ziel-KGV, fairer Wert, Bewertungszonen und Signal-Logik V1 sind freigegeben."
                             )
                             st.markdown(
                                 "**Aktueller Entwicklungsstand**  \n"
-                                "✅ Familien-Punktzahl · ✅ Gewinnbasis · ✅ Ziel-KGV vor Peer · ✅ Vergleichsgruppen-Kalibrierung V187 · ✅ Fairer Wert · ✅ Bewertungszonen  \n"
-                                "🔒 Kaufen/Halten/Verkaufen noch gesperrt"
+                                "✅ Familien-Punktzahl · ✅ Gewinnbasis · ✅ Ziel-KGV vor Peer · ✅ Vergleichsgruppen-Kalibrierung V187 · ✅ Fairer Wert · ✅ Bewertungszonen · ✅ Signal-Logik V1"
                             )
                         else:
                             st.warning(
@@ -75600,7 +75754,7 @@ if selected_symbol:
                         elif fair_value.get("valuation_method") == "payments_processor_current_fy_family_pe":
                             st.success(
                                 "Der faire Wert V1 für Zahlungsabwickler wurde ausschließlich aus der freigegebenen Familien-Gewinnbasis des laufenden Geschäftsjahres und dem praktisch geprüften Familien-Ziel-KGV berechnet. "
-                                "Vergleichsgruppen-Anpassung, historische Durchschnitts-KGVs und Analystenziele sind keine Bewertungsanker. Die Bewertungszonen V1 sind freigegeben; Handlungssignale bleiben bis zur separaten Signal-Kalibrierung gesperrt."
+                                "Vergleichsgruppen-Anpassung, historische Durchschnitts-KGVs und Analystenziele sind keine Bewertungsanker. Bewertungszonen V1 und Zahlungsabwickler-Signal-Logik V1 sind freigegeben."
                             )
                         elif fair_value.get("valuation_method") == "professional_business_services_adjusted_pe":
                             ps_fv_success_profile = fair_value.get("professional_services_profile_key") or "network_licence_platform"
@@ -76016,6 +76170,18 @@ if selected_symbol:
                                 + " · gültige Holding-Peers: "
                                 + str(int(new_buy_signal.get("peer_observation_count") or 0))
                                 + " · generischer Fundamental-/Multiple-Score: nicht verwendet"
+                            )
+                        elif new_buy_signal.get("payments_processor_signal_v1"):
+                            pp_signal_score_ui = safe_float(new_buy_signal.get("quality_score"))
+                            st.write(
+                                "**Zahlungsabwickler-Basis:** Qualität "
+                                + (f"{pp_signal_score_ui:.0f}/100" if pp_signal_score_ui is not None else "–")
+                                + " · Bewertungssicherheit "
+                                + text_or_dash(new_buy_signal.get("valuation_confidence"))
+                            )
+                            st.caption(
+                                "Signal-Logik V1: Neukauf benötigt Unterbewertung, Qualität ≥65/100 und mindestens mittlere Bewertungssicherheit. "
+                                "Bestand: bis fair bewertet Halten; Überbewertung wird bei schwächerer Qualität geprüft, starke Überbewertung kann bei mindestens mittlerer Sicherheit Verkaufen auslösen."
                             )
                         else:
                             st.write(
