@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.95"
+APP_BUILD_VERSION = "V2.22.96"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -197,7 +197,7 @@ _UI_DE_REPLACEMENTS = [
     ("Ergebnis Estimates", "Ergebnisschätzungen"),
     ("analyst Konsens", "Analystenkonsens"),
     ("mean ", "Mittelwert "),
-    ("median ", "Median "),
+    (" median ", " Median "),
     ("range ", "Spanne "),
     (" estimates", " Schätzungen"),
     ("Short-/Long-Term Schulden", "kurz-/langfristige Schulden"),
@@ -583,6 +583,11 @@ _UI_DE_WORDS = [
 def _de_ui_text(value):
     if not isinstance(value, str):
         return value
+    _standalone = value.strip().lower()
+    if _standalone == "financial services":
+        return "Finanzdienstleistungen"
+    if _standalone == "financial data & stock exchanges":
+        return "Finanzdaten & Börsen"
     exact = _UI_DE_EXACT.get(value.strip().lower())
     if exact is not None and value.strip().lower() == value.strip():
         return exact
@@ -851,6 +856,18 @@ def _de_ui_text(value):
     out = out.replace("H1-Hochrechnung/Zyklusprüfung", "H1-Hochrechnungs-/Zyklusprüfung")
     out = re.sub(r"MarketAxess Übernahme angekündigt \(~USD 5\.7bn Unternehmenswert; Bar-/Fremdfinanzierung; voraussichtlicher Abschluss H1 2027\) – Beobachtung bleibt verwendbar; die Änderung von Portfolio und Kapitalstruktur muss bei einer späteren Kalibrierung aktualisiert werden\.?", "MarketAxess-Übernahme angekündigt (Unternehmenswert rund 5,7 Mrd. USD; Bar-/Fremdfinanzierung; voraussichtlicher Abschluss im 1. Halbjahr 2027). Die Beobachtung bleibt verwendbar; Portfolio und Kapitalstruktur müssen bei einer späteren Kalibrierung aktualisiert werden.", out)
     out = re.sub(r"\bnur nach unten wirkend\b", "ausschließlich nach unten", out, flags=re.IGNORECASE)
+    # V192: letzte gezielte Grammatik-/Kompositakorrekturen aus dem Nasdaq-V191-Praxistest.
+    out = out.replace("Der Punktzahl positioniert", "Die Punktzahl positioniert")
+    out = out.replace("der Punktzahl positioniert", "die Punktzahl positioniert")
+    out = out.replace("Gesamtjahresmedian", "Gesamtjahres-Median")
+    out = out.replace("Hochrechnungsmedian", "Hochrechnungs-Median")
+    out = out.replace("Diese Punktzahl beschreibt operative Qualität und Primärdatenreife. Er ist", "Diese Punktzahl beschreibt operative Qualität und Primärdatenreife. Sie ist")
+    out = out.replace("mit primärquellenbasiertem bereinigtem FY2025-EPS plus Q1+Q2-2026 bereinigtes EPS", "mit primärquellenbasiertem bereinigtem FY2025-EPS sowie bereinigtem EPS aus Q1 und Q2 2026")
+    out = out.replace("FY2025-Vergleichsgruppen-Median ist ausschließlich nach unten", "Der FY2025-Vergleichsgruppen-Median wirkt ausschließlich als Abwärts-Obergrenze")
+    out = out.replace("Nasdaq-Fairer-Wert freigegeben: FY2026 Non-GAAP-EPS", "Nasdaq-Fairer-Wert freigegeben: FY2026-Non-GAAP-EPS")
+    out = out.replace("kurz-/langfristige Schulden:", "Kurz-/langfristige Schulden:")
+    out = out.replace("strukturelles Wachstum:", "Strukturelles Wachstum:")
+    out = out.replace("punktzahlpositioniertes Roh-KGV:", "Punktzahlpositioniertes Roh-KGV:")
     return out
 
 def _de_wrap_all_string_args(func):
@@ -919,10 +936,11 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Finale deutsche Textbereinigung V191"
+    f"Build {APP_BUILD_VERSION} · Finale deutsche Feinkorrektur V192"
 )
 
 
+# V2.22.96: Finale deutsche Feinkorrektur V192. Reine UI-/Copy-Korrektur nach dem Nasdaq-V191-Praxistest. Behebt verbliebene Grammatik- und Kompositafehler, übersetzt die sichtbaren Sektor-/Branchenbezeichnungen von Nasdaq und korrigiert die alte globale Median-Ersetzung, die Wörter wie Gesamtjahresmedian fälschlich zu GesamtjahresMedian machte. Bewertungsmathematik, Daten, Peers, Scores, Schutzregeln, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.95: Finale deutsche Textbereinigung V191. Gezielte reine UI-/Copy-Korrektur nach dem Nasdaq-V190-Praxistest. Bereinigt die verbliebenen Börseninfrastruktur-Mischtexte und Grammatikreste, darunter MarketAxess-Transaktionshinweis, Gesamtjahresanker, Kontrollbezeichnungen, operative Hebelwirkung und Abwärts-Obergrenzen. Bewertungsmathematik, Gewinnbasis, Vergleichsgruppendaten, Korridore, Schutzregeln, Scores, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.94: Vollständige deutsche Darstellungskonsistenz V190. Reine UI-/Copy-Bereinigung nach dem Nasdaq-V189-Praxistest. Übersetzt verbliebene Mischtexte im Börseninfrastruktur-Pfad, korrigiert Grammatikreste und insbesondere die fehlerhafte sichtbare Übersetzung „Operating Leverage“ → „operative Hebelwirkung“ statt „operativ Verschuldung“. Bewertungsmathematik, Gewinnbasis, Peer-Daten, Korridore, Schutzregeln, Scores, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.93: Deutsche Sprach- und Darstellungskonsistenz V189. Reine UI-/Copy-Bereinigung nach den erfolgreichen Fremdfamilien-Gegentests mit Schneider Electric und Nasdaq. Entfernt doppelte Formulierungen wie „nur nur nach unten wirkend“, übersetzt verbliebene englische Mischtexte in den Investitionsgüter- und Börseninfrastruktur-Spezialpfaden und vereinheitlicht sichtbare Bezeichnungen. Bewertungsmathematik, Gewinnbasen, Peers, Schutzgrenzen, Scores, Fair Values, Zonen und Signale bleiben unverändert.
