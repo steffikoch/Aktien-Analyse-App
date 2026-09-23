@@ -23,13 +23,13 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.93"
+APP_BUILD_VERSION = "V2.22.94"
 
-# V189 – Deutsche Sprach- und Darstellungskonsistenz.
-# Reine UI-/Textbereinigung auf Basis von V188: Bewertungsmathematik, Datenquellen, Peers,
+# V190 – Vollständige deutsche Darstellungskonsistenz.
+# Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
 # Schutzgrenzen, Scores, Fair Values, Bewertungszonen und Signale bleiben unverändert.
-# Bereinigt werden insbesondere doppelte Formulierungen sowie verbliebene englische Mischtexte
-# in den Investitionsgüter- und Börseninfrastruktur-Spezialmodellen.
+# Bereinigt werden die im Nasdaq-Praxistest verbliebenen englischen Mischtexte, Grammatikreste
+# sowie die fehlerhafte sichtbare Übersetzung von Operating Leverage als Verschuldung.
 _UI_DE_EXACT = {
     "buy": "kaufen",
     "hold": "halten",
@@ -52,6 +52,174 @@ _UI_DE_EXACT = {
 }
 
 _UI_DE_REPLACEMENTS = [
+    # V190: gezielte Vollständigkeitsbereinigung der Börseninfrastruktur-Anzeige.
+    ("issuer-adjustiertes Current-FY Adjusted/Cash EPS × score-positioniertes Exchange-Family-KGV; FY2025-Peer-Median nur downside-only Ceiling", "vom Emittenten bereinigtes/cashflow-basiertes EPS des aktuellen Geschäftsjahres × punktzahlpositioniertes Börseninfrastruktur-Familien-KGV; FY2025-Vergleichsgruppen-Median nur als Abwärts-Obergrenze"),
+    ("Exchange-Sicherheitsisolierung: Provider/GAAP-TTM-/Forward-Divergenz, Yahoo-FCF und generischer Net-Debt/FCF-Score begrenzen die Specialist-Sicherheit nicht separat.", "Sicherheitsisolierung der Börseninfrastruktur: Datenanbieter-/GAAP-TTM-/Prognose-Abweichungen, Yahoo-FCF und die generische Nettoschulden/FCF-Punktzahl begrenzen die Sicherheit des Spezialmodells nicht separat."),
+    ("Maßgeblich sind die issuer-adjusted Current-FY Earnings Bridge, Exchange-Spezialkontrolle und das Dual-Anchor Peer Gate; H1-Run-Rate bleibt nur Cycle-/Reality-Check.", "Maßgeblich sind die vom Emittenten bereinigte Ergebnisbrücke des aktuellen Geschäftsjahres, die Börseninfrastruktur-Spezialkontrolle und die Doppelanker-Vergleichsgruppenprüfung; die H1-Hochrechnung bleibt ausschließlich Zyklus-/Plausibilitätscheck."),
+    ("Current-FY Cash-EPS Bridge", "Ergebnisbrücke für Cash-EPS des aktuellen Geschäftsjahres"),
+    ("Exchange Dual-Anchor Peer Gate", "Börseninfrastruktur-Doppelanker-Vergleichsgruppenprüfung"),
+    ("Dual-Anchor CME/ICE/Cboe Peer Gate", "Doppelanker-Vergleichsgruppenprüfung mit CME/ICE/Cboe"),
+    ("Dual-Anchor Peer Gate", "Doppelanker-Vergleichsgruppenprüfung"),
+    ("Exchange Doppelanker Vergleichsgruppe Prüfung", "Börseninfrastruktur-Doppelanker-Vergleichsgruppenprüfung"),
+    ("Current-FY Non-GAAP-EPS Bridge", "Ergebnisbrücke für Non-GAAP-EPS des aktuellen Geschäftsjahres"),
+    ("Current-FY Specialist Earnings Bridge", "Spezialmodell-Ergebnisbrücke für das aktuelle Geschäftsjahr"),
+    ("Specialist Bridge", "Spezialmodell-Ergebnisbrücke"),
+    ("Exchange Specialist-Earnings-Basis", "Börseninfrastruktur-Spezialmodell-Gewinnbasis"),
+    ("Exchange Specialist", "Börseninfrastruktur-Spezialmodell"),
+    ("Exchange Operational Score", "operative Börseninfrastruktur-Punktzahl"),
+    ("Operationaler Exchange-Infrastructure-Qualitätsscore", "operativer Qualitätsscore der Börseninfrastruktur"),
+    ("Current-FY Earnings-Basis (Anzeige)", "Gewinnbasis des aktuellen Geschäftsjahres (Anzeige)"),
+    ("Family-KGV-Korridor", "Familien-KGV-Korridor"),
+    ("Family-Korridor", "Familien-Korridor"),
+    ("Score-positioniertes Roh-KGV", "punktzahlpositioniertes Roh-KGV"),
+    ("FY2025 Adjusted-EPS Peer-Referenzmedian", "FY2025-Vergleichsgruppen-Referenzmedian auf Basis bereinigter EPS"),
+    ("Full-Year-Peer-Median", "Gesamtjahres-Vergleichsgruppen-Median"),
+    ("Premium-Multiple", "Aufschlags-Multiple"),
+    ("H1-2026 Run-Rate-Referenzmedian", "H1-2026-Hochrechnungs-Referenzmedian"),
+    ("Run-Rate nur Cycle-/Reality-Check; nicht als FY2026-Guidance oder Current-FY-Peer-Denominator verwendet.", "Hochrechnung nur als Zyklus-/Plausibilitätscheck; nicht als FY2026-Unternehmensprognose oder Vergleichsgruppen-Ergebnisbasis des aktuellen Geschäftsjahres verwendet."),
+    ("Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV und Analystenziele sind kein Bestandteil des Exchange-Fair-Values.", "Yahoo-FCF/Nettoschulden-zu-FCF, Standard-KGV und Analystenziele sind kein Bestandteil des fairen Werts der Börseninfrastruktur-Bewertung."),
+    ("Exchange Current-FY Adjusted/Cash-EPS P/E", "Börseninfrastruktur · KGV auf Basis bereinigter/cashflow-basierter EPS des aktuellen Geschäftsjahres"),
+    ("Exchange adjusted-EPS dual-anchor P/E calibration", "Börseninfrastruktur-Doppelanker-KGV-Kalibrierung auf Basis bereinigter EPS"),
+    ("Exchange Doppelanker-Kalibrierung", "Börseninfrastruktur-Doppelanker-Kalibrierung"),
+    ("Exchange Gesamtjahr Anchor", "Börseninfrastruktur-Gesamtjahresanker"),
+    ("Exchange H1-2026 Hochrechnung/Zyklus-Set", "Börseninfrastruktur-H1-2026-Hochrechnungs-/Zyklusdatensatz"),
+    ("Exchange Doppelanker Prüfung", "Börseninfrastruktur-Doppelanker-Prüfung"),
+    ("Exchange Vergleichsgruppe-Ebene", "Börseninfrastruktur-Vergleichsgruppen-Ebene"),
+    ("Exchange-Vergleichsgruppe-Schicht", "Börseninfrastruktur-Vergleichsgruppen-Schicht"),
+    ("Exchange Current-FY Earnings Bridge", "Börseninfrastruktur-Ergebnisbrücke für das aktuelle Geschäftsjahr"),
+    ("Exchange-Family-Adapter", "Börseninfrastruktur-Familienadapter"),
+    ("Exchange-Family-Korridor", "Börseninfrastruktur-Familien-Korridor"),
+    ("Exchange-Fair-Value-Pfad", "Börseninfrastruktur-Fairer-Wert-Pfad"),
+    ("Exchange-Fair-Value", "Börseninfrastruktur-Fairer-Wert"),
+    ("issuer-primary", "primärquellenbasiert"),
+    ("issuer-adjusted", "vom Emittenten bereinigt"),
+    ("Operating Cash Flow", "operativer Cashflow"),
+    ("Cash/Adjusted Earnings", "Cashflow/bereinigtes Ergebnis"),
+    ("Debt Paydown", "Schuldenabbau"),
+    ("ARR/SaaS-, Solutions-, Market-Services-", "ARR-/SaaS-, Lösungs- und Marktdienste-"),
+    ("Earnings-Perimeter", "Ergebnisumfang"),
+    ("pro-forma", "Pro-forma"),
+    ("downside-only Ceiling", "Abwärts-Obergrenze"),
+    ("Cycle-/Reality-Kontext", "Zyklus-/Plausibilitätskontext"),
+    ("Cycle-/Reality-Check", "Zyklus-/Plausibilitätscheck"),
+    ("Net-Debt-to-FCF", "Nettoschulden-zu-FCF"),
+    ("Net-Debt/FCF", "Nettoschulden/FCF"),
+    ("Exchange/Market-Infrastructure KPI adapter", "Kennzahlen-Adapter für Börsen-/Marktinfrastruktur"),
+    ("Exchange/Market-Infrastructure Kennzahlen-Adapter", "Kennzahlen-Adapter für Börsen-/Marktinfrastruktur"),
+    ("Exchange-/Market-Infrastructure-Adapter", "Börsen-/Marktinfrastruktur-Adapter"),
+    ("Exchange-/Market-Infrastructure", "Börsen-/Marktinfrastruktur"),
+    ("Exchange-Infrastructure", "Börseninfrastruktur"),
+    ("Exchange specialist", "Börseninfrastruktur-Spezialmodell"),
+    ("Exchange Spezialmodell", "Börseninfrastruktur-Spezialmodell"),
+    ("Exchange-Spezialmodell", "Börseninfrastruktur-Spezialmodell"),
+    ("Exchange-Spezialpfad", "Börseninfrastruktur-Spezialpfad"),
+    ("Exchange operative Punktzahl", "operative Börseninfrastruktur-Punktzahl"),
+    ("Exchange Vergleichsgruppe-Ebene", "Börseninfrastruktur-Vergleichsgruppen-Ebene"),
+    ("Exchange-Vergleichsgruppe-Schicht", "Börseninfrastruktur-Vergleichsgruppen-Schicht"),
+    ("Exchange-Profilen", "Börseninfrastruktur-Profilen"),
+    ("Exchange-Profil", "Börseninfrastruktur-Profil"),
+    ("Exchange H1-2026 Hochrechnung/Zyklus-Set", "Börseninfrastruktur-H1-2026-Hochrechnungs-/Zyklusdatensatz"),
+    ("Exchange Doppelanker Prüfung", "Börseninfrastruktur-Doppelanker-Prüfung"),
+    ("Exchange FY2025", "Börseninfrastruktur FY2025"),
+    ("Exchange Fairer Wert", "Börseninfrastruktur-Fairer-Wert"),
+    ("Exchange-Fairer-Wert", "Börseninfrastruktur-Fairer-Wert"),
+    ("Exchange aktuelles Geschäftsjahr Ergebnisbrücke", "Börseninfrastruktur-Ergebnisbrücke für das aktuelle Geschäftsjahr"),
+    ("Exchange operational score", "operative Börseninfrastruktur-Punktzahl"),
+    ("Operating Leverage", "operative Hebelwirkung"),
+    ("operativ Verschuldung", "operative Hebelwirkung"),
+    ("Structural Wachstum", "strukturelles Wachstum"),
+    ("Structural Growth", "strukturelles Wachstum"),
+    ("Mix / Resilience", "Mix / Widerstandsfähigkeit"),
+    ("Mix/Resilience", "Mix/Widerstandsfähigkeit"),
+    ("Umsatz Qualität / Normalization", "Umsatzqualität / Normalisierung"),
+    ("Revenue Quality/Normalization", "Umsatzqualität/Normalisierung"),
+    ("Ergebnis Qualität", "Ergebnisqualität"),
+    ("Transaction / Struktur", "Transaktion / Struktur"),
+    ("Transaction-/Struktur", "Transaktions-/Struktur"),
+    ("Transaction-/", "Transaktions-/"),
+    ("transaction-gated", "durch die Transaktion gesperrt"),
+    ("Allfunds-transaction-gated", "durch die Allfunds-Transaktion gesperrt"),
+    ("verified Gesamtjahr", "verifizierte Gesamtjahres-"),
+    ("verified full-year", "verifiziertes Gesamtjahr"),
+    ("validated_multi_issuer_route", "validierte Mehr-Emittenten-Zuordnung"),
+    ("profile-aware", "profilspezifisch"),
+    ("Organic Wachstum", "organisches Wachstum"),
+    ("Organic Growth", "organisches Wachstum"),
+    ("Net-Umsatz", "Nettoerlös"),
+    ("Net Revenue", "Nettoerlös"),
+    ("Solutions Umsatz", "Lösungsumsatz"),
+    ("Solutions + Marktdienste Mix", "Lösungen + Marktdienste-Mix"),
+    ("Solutions + Market Services mix", "Lösungen + Marktdienste-Mix"),
+    ("Non-GAAP operative Marge", "operative Non-GAAP-Marge"),
+    ("operativ Cash Flow", "operativer Cashflow"),
+    ("operativ-Cash-Flow", "operativer Cashflow"),
+    ("Cash-/Funding-Qualität", "Cashflow-/Finanzierungsqualität"),
+    ("Funding/Credit-Evidenz", "Finanzierungs- und Bonitätsevidenz"),
+    ("Funding-", "Finanzierungs-"),
+    ("Schulden-Paydown", "Schuldenabbau"),
+    ("Schulden repayment", "Schuldenrückzahlung"),
+    ("Kapital-Allocation", "Kapitalallokation"),
+    ("Capital-Allocation", "Kapitalallokation"),
+    ("Kapital-Allocation-/Balance-Evidenz", "Kapitalallokations-/Bilanz-Evidenz"),
+    ("Emittent-spezifisch", "emittentenspezifisch"),
+    ("Emittent-spezifischem", "emittentenspezifischem"),
+    ("Doppelanker-Peers", "Doppelanker-Vergleichsunternehmen"),
+    ("Peers", "Vergleichsunternehmen"),
+    ("FY2025 trailing", "FY2025-Gesamtjahr"),
+    ("trailing P/E", "Gesamtjahres-KGV"),
+    ("trailing", "nachlaufend"),
+    ("Derivatives exchange / clearing / market data", "Derivatebörse / Clearing / Marktdaten"),
+    ("Exchange / clearing / data / mortgage technology", "Börse / Clearing / Daten / Hypothekentechnologie"),
+    ("Options / equities / derivatives / data infrastructure", "Optionen / Aktien / Derivate / Dateninfrastruktur"),
+    ("acquisition announced", "Übernahme angekündigt"),
+    ("enterprise value", "Unternehmenswert"),
+    ("cash/debt financing", "Bar-/Fremdfinanzierung"),
+    ("expected H1 2027 close", "voraussichtlicher Abschluss H1 2027"),
+    ("observation bleibt usable, but portfolio/capital-structure change must be refreshed in later calibration", "Beobachtung bleibt verwendbar; die Änderung von Portfolio und Kapitalstruktur muss bei einer späteren Kalibrierung aktualisiert werden"),
+    ("usable", "verwendbar"),
+    ("portfolio/capital-structure", "Portfolio/Kapitalstruktur"),
+    ("must be refreshed", "muss aktualisiert werden"),
+    ("later calibration", "späteren Kalibrierung"),
+    ("live same-currency", "mit aktuellen Preisen in derselben Währung"),
+    ("live in derselben Währung", "mit aktuellen Preisen in derselben Währung"),
+    ("Live-Preise in derselben Währung", "aktuelle Preise in derselben Währung"),
+    ("live verfügbar", "aktuell verfügbar"),
+    ("live verfügbar sein", "aktuell verfügbar sein"),
+    ("Run-Level", "Laufebene"),
+    ("Data Gate", "Datenprüfung"),
+    ("Datengate", "Datenprüfung"),
+    ("Bridge-Sicherheit", "Sicherheit der Ergebnisbrücke"),
+    ("Bridge in Quellwährung", "Ergebnisbrücke in Quellwährung"),
+    ("Spezialmodell Bridge", "Spezialmodell-Ergebnisbrücke"),
+    ("Spezialmodell Ergebnisbrücke", "Spezialmodell-Ergebnisbrücke"),
+    ("Non-GAAP-EPS Bridge", "Ergebnisbrücke für Non-GAAP-EPS"),
+    ("Non-GAAP-EPS-Ergebnisbrücke", "Ergebnisbrücke für Non-GAAP-EPS"),
+    ("Ergebnis Estimates", "Ergebnisschätzungen"),
+    ("analyst Konsens", "Analystenkonsens"),
+    ("mean ", "Mittelwert "),
+    ("median ", "Median "),
+    ("range ", "Spanne "),
+    (" estimates", " Schätzungen"),
+    ("Short-/Long-Term Schulden", "kurz-/langfristige Schulden"),
+    ("Q2 2026 Results", "Q2-2026-Ergebnisse"),
+    ("Quarterly Results", "Quartalsergebnisse"),
+    ("Annual Reports", "Geschäftsberichte"),
+    ("2025 Annual Report / IR materials", "Geschäftsbericht 2025 / IR-Unterlagen"),
+    ("IR materials", "IR-Unterlagen"),
+    ("current run-rate/cycle check", "aktuelle Hochrechnungs-/Zyklusprüfung"),
+    ("run-rate/cycle check", "Hochrechnungs-/Zyklusprüfung"),
+    ("FY2026-Unternehmensprognose oder aktuelles Geschäftsjahr-Vergleichsgruppe-Denominator", "FY2026-Unternehmensprognose oder Ergebnisbasis der Vergleichsgruppe für das aktuelle Geschäftsjahr"),
+    ("Vergleichsgruppe-Denominator", "Ergebnisbasis der Vergleichsgruppe"),
+    ("Denominator", "Ergebnisbasis"),
+    ("Source-currency", "Quellwährung"),
+    ("source-currency", "Quellwährung"),
+    ("vom Emittenten bereinigt bereinigtes", "bereinigtes"),
+    ("vom Emittenten bereinigt aktuelles Geschäftsjahr bereinigt/cashflow-basiertes EPS", "vom Emittenten bereinigtes/cashflow-basiertes EPS des aktuellen Geschäftsjahres"),
+    ("aktuelles Geschäftsjahr bereinigt/cashflow-basiertes EPS", "bereinigtes/cashflow-basiertes EPS des aktuellen Geschäftsjahres"),
+    ("aktuelles Geschäftsjahr Non-GAAP-EPS", "Non-GAAP-EPS des aktuellen Geschäftsjahres"),
+    ("Familie-Korridor", "Familien-Korridor"),
+    ("Familie-Multiple", "Familien-Multiple"),
+    ("Familie-KGV", "Familien-KGV"),
     ("Emittent-primary", "primärquellenbasiert"),
     ("Emittent-published", "vom Emittenten veröffentlicht"),
     ("Energy Technology / Electrification & Automation Platform", "Energietechnik / Elektrifizierung & Automatisierungsplattform"),
@@ -436,6 +604,183 @@ def _de_ui_text(value):
     out = out.replace("the live Vergleichsgruppe median", "der Live-Vergleichsgruppen-Median")
     out = out.replace(" for the two validated Emittent profiles", " für die zwei validierten Emittentenprofile")
     out = out.replace(" and kann begrenzen, aber niemals erhöhen a aus der Punktzahl abgeleitet target multiple", " und kann ein aus der Punktzahl abgeleitetes Ziel-KGV begrenzen, aber niemals erhöhen")
+    # V190: Grammatik- und Restwort-Bereinigung, ohne interne Schlüssel zu verändern.
+    out = re.sub(r"\bausschließlich\s+nur\s+nach unten wirkend\b", "ausschließlich nach unten wirkend", out, flags=re.IGNORECASE)
+    out = re.sub(r"\bnur nach unten wirkend\s+Obergrenze\b", "nur nach unten wirkende Obergrenze", out, flags=re.IGNORECASE)
+    out = re.sub(r"\bnur nach unten wirkend\s+Vergleichsgruppen-Obergrenze\b", "nur nach unten wirkende Vergleichsgruppen-Obergrenze", out, flags=re.IGNORECASE)
+    out = re.sub(r"\bwirkt\s+nur nach unten wirkend\b", "wirkt nur nach unten", out, flags=re.IGNORECASE)
+    out = re.sub(r"\bwirkt\s+ausschließlich nur nach unten wirkend\b", "wirkt ausschließlich nach unten", out, flags=re.IGNORECASE)
+    out = out.replace("keinen Fairer Wert", "keinen fairen Wert")
+    out = out.replace("kein Aufschlag", "keinen Aufschlag")
+    out = out.replace("den operative Punktzahl", "die operative Punktzahl")
+    out = out.replace("der Punktzahl positioniert", "die Punktzahl positioniert")
+    out = out.replace("ein aktueller Strukturbruch-Schutzregel", "eine aktuelle Strukturbruch-Schutzregel")
+    out = out.replace("Kein aktueller Strukturbruch-/Großtransaktions-Schutzregel", "Keine aktuelle Strukturbruch-/Großtransaktions-Schutzregel")
+    out = out.replace("primärquellenbasiert FY2025 bereinigtes EPS", "primärquellenbasiertes bereinigtes FY2025-EPS")
+    out = out.replace("primärquellenbasiert operativer", "primärquellenbasierter operativer")
+    out = out.replace("primärquellenbasiert Schuldenabbau", "primärquellenbasierten Schuldenabbau")
+    out = out.replace("vom Emittenten bereinigt Vergleichsgruppen", "vom Emittenten bereinigte Vergleichsgruppen")
+    out = out.replace("FY2025 Gesamtjahr-bereinigtes EPS-Beobachtungen", "FY2025-Gesamtjahresbeobachtungen auf Basis bereinigter EPS")
+    out = out.replace("drei H1-2026 Hochrechnung-Beobachtungen", "drei H1-2026-Hochrechnungsbeobachtungen")
+    out = out.replace("FY2025 Gesamtjahr Vergleichsgruppen-Obergrenze", "FY2025-Gesamtjahres-Vergleichsgruppen-Obergrenze")
+    out = out.replace("FY2025 Gesamtjahr Referenzmedian", "FY2025-Gesamtjahres-Referenzmedian")
+    out = out.replace("H1-2026 bereinigtes EPS Hochrechnung Referenzmedian", "H1-2026-Hochrechnungs-Referenzmedian auf Basis bereinigter EPS")
+    out = out.replace("bereinigtes EPS Doppelanker Vergleichsgruppe-KGVs", "Doppelanker-KGVs der Vergleichsgruppe auf Basis bereinigter EPS")
+    out = out.replace("aktuelles Geschäftsjahr Spezialmodell-Ergebnisbrücke", "Spezialmodell-Ergebnisbrücke für das aktuelle Geschäftsjahr")
+    out = out.replace("Non-GAAP EPS", "Non-GAAP-EPS")
+    out = out.replace("Non-GAAP operative", "operative Non-GAAP-")
+    out = out.replace("Cash/bereinigt Ergebnis", "Cashflow/bereinigtes Ergebnis")
+    out = out.replace("Net-Schulden/FCF", "Nettoschulden/FCF")
+    out = out.replace("Netto-Schulden/FCF", "Nettoschulden/FCF")
+    out = out.replace("Allfunds-durch die Transaktion gesperrt", "durch die Allfunds-Transaktion gesperrt")
+    out = out.replace("nur nach unten wirkend verifizierte Gesamtjahres- Vergleichsgruppen-Obergrenze", "verifizierte Gesamtjahres-Vergleichsgruppen-Obergrenze, die nur nach unten wirkt")
+    out = out.replace("nur nach unten wirkend verifizierte Gesamtjahres-Vergleichsgruppen-Obergrenze", "verifizierte Gesamtjahres-Vergleichsgruppen-Obergrenze, die nur nach unten wirkt")
+    out = out.replace("im operative Börseninfrastruktur-Punktzahl", "in der operativen Börseninfrastruktur-Punktzahl")
+    out = out.replace("emittenteneigen operative Hebelwirkung", "emittenteneigene operative Hebelwirkung")
+    out = out.replace("Emittent-hosted", "vom Emittenten bereitgestellt")
+    out = out.replace("vom Emittenten bereitgestellt FY2026 Non-GAAP-EPS Analystenkonsens", "Vom Emittenten bereitgestellter FY2026-Analystenkonsens für Non-GAAP-EPS")
+    out = out.replace("Non-GAAP-EPS Analystenkonsens", "Analystenkonsens für Non-GAAP-EPS")
+    out = re.sub(r"\bwirkt\s+ausschließlich\s+nach unten wirkend\b", "wirkt ausschließlich nach unten", out, flags=re.IGNORECASE)
+    out = re.sub(r"\bwirkt\s+nur\s+nach unten wirkend\b", "wirkt nur nach unten", out, flags=re.IGNORECASE)
+    out = out.replace("Exchange Doppelanker-KGVs", "Börseninfrastruktur-Doppelanker-KGVs")
+    out = out.replace("Exchange H1-2026-Hochrechnungs-Referenzmedian", "Börseninfrastruktur-H1-2026-Hochrechnungs-Referenzmedian")
+    out = out.replace("Börseninfrastruktur FY2025 bereinigtes EPS Gesamtjahr Referenzmedian", "Börseninfrastruktur-FY2025-Gesamtjahres-Referenzmedian auf Basis bereinigter EPS")
+    out = out.replace("mit mit aktuellen Preisen in derselben Währung Preisen", "mit aktuellen Preisen in derselben Währung")
+    out = out.replace("FY2025 bereinigtes EPS-Volljahresbeobachtungen", "FY2025-Gesamtjahresbeobachtungen auf Basis bereinigter EPS")
+    out = out.replace("Hochrechnung-Beobachtungen", "Hochrechnungsbeobachtungen")
+    out = out.replace("Doppelanker-Datenprüfung", "Doppelanker-Datenprüfung")
+    out = out.replace("primärquellenbasiert Kennzahlen-Adapter", "primärquellenbasierter Kennzahlen-Adapter")
+    out = out.replace("Familie KGV-Korridor", "Familien-KGV-Korridor")
+    out = out.replace("bereinigtes/cashflow-basiertes EPS des aktuellen Geschäftsjahres Ergebnisbrücke", "Ergebnisbrücke für bereinigtes/cashflow-basiertes EPS des aktuellen Geschäftsjahres")
+    out = out.replace("bereinigt/Non-GAAP Marge", "bereinigte Non-GAAP-Marge")
+    out = out.replace("Cashflow-Statement", "Kapitalflussrechnung")
+    out = out.replace("Yahoo-/Kapitalflussrechnung-TTM-FCF", "Yahoo-TTM-FCF aus der Kapitalflussrechnung")
+    out = out.replace("primärquellenbasiert operativer Cashflow/Cash-Ergebnis-, Finanzierungs-, Schuldenabbau- und Kapitalallokation-Evidenz", "primärquellenbasierte Evidenz zu operativem Cashflow, Cash-Ergebnis, Finanzierung, Schuldenabbau und Kapitalallokation")
+    out = out.replace("ARR / SaaS-, Solutions-, Marktdienste-", "ARR-/SaaS-, Lösungs- und Marktdienste-")
+    out = out.replace("Doppelanker CME/ICE/Cboe Vergleichsgruppe Prüfung", "Doppelanker-Vergleichsgruppenprüfung mit CME/ICE/Cboe")
+    out = out.replace("punktzahlpositioniertes Familie-KGV", "punktzahlpositioniertes Familien-KGV")
+    out = out.replace("Volljahres-/nachlaufend-Anker", "Gesamtjahresanker")
+    out = out.replace("bei Emittent-spezifischem Schutzregel", "bei emittentenspezifischer Schutzregel")
+    out = out.replace("bei emittentenspezifischem Schutzregel", "bei emittentenspezifischer Schutzregel")
+    out = re.sub(r"\bBridge\b", "Ergebnisbrücke", out)
+    out = out.replace("Börseninfrastruktur-Spezialmodell-Ergebnisbrücke Ergebnisbrücke", "Börseninfrastruktur-Spezialmodell-Ergebnisbrücke")
+    out = out.replace("Spezialmodell-Ergebnisbrücke Ergebnisbrücke", "Spezialmodell-Ergebnisbrücke")
+    out = out.replace("Exchange Spezialmodell-Gewinnbasis", "Börseninfrastruktur-Spezialmodell-Gewinnbasis")
+    out = out.replace("Gewinnbasis der Exchange-Bewertung", "Gewinnbasis der Börseninfrastruktur-Bewertung")
+    out = out.replace("Exchange operativ Punktzahl", "operative Börseninfrastruktur-Punktzahl")
+    out = out.replace("Exchange Operational Punktzahl", "operative Börseninfrastruktur-Punktzahl")
+    out = out.replace("im operative Börseninfrastruktur-Punktzahl", "in der operativen Börseninfrastruktur-Punktzahl")
+    out = out.replace("im operative Börseninfrastruktur-Punktzahl", "in der operativen Börseninfrastruktur-Punktzahl")
+    out = out.replace("emittenteneigen Nettoerlös-", "emittenteneigene Nettoerlös-")
+    out = out.replace("bereinigt/Non-GAAP Marge", "bereinigte Non-GAAP-Marge")
+    out = out.replace("Börseninfrastruktur-Familie-Adapter", "Börseninfrastruktur-Familienadapter")
+    out = out.replace("Börseninfrastruktur-Familie-Korridor", "Börseninfrastruktur-Familien-Korridor")
+    out = out.replace("Exchange-Fairer-Wert", "Börseninfrastruktur-Fairer-Wert")
+    out = out.replace("Exchange-Fairer-Wert-Pfad", "Börseninfrastruktur-Fairer-Wert-Pfad")
+    out = out.replace("Exchange-Sicherheitsisolierung", "Sicherheitsisolierung der Börseninfrastruktur")
+    out = out.replace("Specialist-Sicherheit", "Sicherheit des Spezialmodells")
+    out = out.replace("Specialist Bridge", "Spezialmodell-Ergebnisbrücke")
+    out = out.replace("Full-Year", "Gesamtjahr")
+    out = out.replace("Run-Rate", "Hochrechnung")
+    out = out.replace("Dual-Anchor", "Doppelanker")
+    out = out.replace("Peer Gate", "Vergleichsgruppenprüfung")
+    out = out.replace("Peer-Gate", "Vergleichsgruppenprüfung")
+    out = out.replace("Family-KGV", "Familien-KGV")
+    out = out.replace("Family-Korridor", "Familien-Korridor")
+    out = out.replace("Current-FY", "aktuelles Geschäftsjahr")
+    out = out.replace("Adjusted/Cash EPS", "bereinigtes/cashflow-basiertes EPS")
+    out = out.replace("Adjusted-EPS", "bereinigtes EPS")
+    out = out.replace("score-positioniertes", "punktzahlpositioniertes")
+    out = out.replace("Score-positioniertes", "punktzahlpositioniertes")
+    out = out.replace("issuer-adjustiertes", "vom Emittenten bereinigtes")
+    # V190: Varianten, die erst durch frühere Ersetzungen entstehen.
+    out = out.replace("Exchange Doppelanker-Kalibrierung", "Börseninfrastruktur-Doppelanker-Kalibrierung")
+    out = out.replace("Exchange H1-2026 Hochrechnung/Zyklus-Set", "Börseninfrastruktur-H1-2026-Hochrechnungs-/Zyklusdatensatz")
+    out = out.replace("Exchange Doppelanker Prüfung", "Börseninfrastruktur-Doppelanker-Prüfung")
+    out = out.replace("Exchange Vergleichsgruppe-Ebene", "Börseninfrastruktur-Vergleichsgruppen-Ebene")
+    out = out.replace("Die Exchange-Vergleichsgruppe-Schicht", "Die Börseninfrastruktur-Vergleichsgruppen-Schicht")
+    out = out.replace("Exchange-Vergleichsgruppe-Schicht", "Börseninfrastruktur-Vergleichsgruppen-Schicht")
+    out = out.replace("Exchange-Familien-Korridor", "Börseninfrastruktur-Familien-Korridor")
+    out = out.replace("Exchange-Familie", "Börseninfrastruktur-Familie")
+    out = out.replace("Exchange Spezialkontrolle", "Börseninfrastruktur-Spezialkontrolle")
+    out = out.replace("Exchange-Spezialkontrolle", "Börseninfrastruktur-Spezialkontrolle")
+    out = out.replace("Exchange Spezialmodell", "Börseninfrastruktur-Spezialmodell")
+    out = out.replace("Exchange-Spezialmodell", "Börseninfrastruktur-Spezialmodell")
+    out = out.replace("Exchange-Bewertung", "Börseninfrastruktur-Bewertung")
+    out = out.replace("Exchange operative Punktzahl", "operative Börseninfrastruktur-Punktzahl")
+    out = out.replace("Exchange operativ Punktzahl", "operative Börseninfrastruktur-Punktzahl")
+    out = out.replace("Exchange Operational Punktzahl", "operative Börseninfrastruktur-Punktzahl")
+    out = out.replace("im operative Börseninfrastruktur-Punktzahl", "in der operativen Börseninfrastruktur-Punktzahl")
+    out = out.replace("in der operative Börseninfrastruktur-Punktzahl", "in der operativen Börseninfrastruktur-Punktzahl")
+    out = out.replace("Exchange-Fairer-Wert", "Börseninfrastruktur-Fairer-Wert")
+    out = out.replace("Exchange-Fairer-Werts", "Börseninfrastruktur-Fairen-Werts")
+    out = out.replace("Exchange-Fairer-Werte", "Börseninfrastruktur-Fairen-Werte")
+    out = out.replace("Exchange-Sicherheitsisolierung", "Sicherheitsisolierung der Börseninfrastruktur")
+    out = out.replace("Exchange Current-FY", "Börseninfrastruktur · aktuelles Geschäftsjahr")
+    out = out.replace("Exchange bereinigtes/cashflow-basiertes EPS", "Börseninfrastruktur · bereinigtes/cashflow-basiertes EPS")
+    out = out.replace("Exchange bereinigtes EPS", "Börseninfrastruktur · bereinigtes EPS")
+    out = out.replace("Exchange Gesamtjahr", "Börseninfrastruktur-Gesamtjahr")
+    out = out.replace("Exchange H1-2026", "Börseninfrastruktur H1-2026")
+    out = out.replace("Exchange Doppelanker", "Börseninfrastruktur-Doppelanker")
+    out = out.replace("Exchange Specialist", "Börseninfrastruktur-Spezialmodell")
+    out = out.replace("Exchange Infrastructure", "Börseninfrastruktur")
+    out = out.replace("Exchange family", "Börseninfrastruktur-Familie")
+    out = out.replace("Exchange-family", "Börseninfrastruktur-Familie")
+    out = out.replace("Exchange-Family", "Börseninfrastruktur-Familie")
+    out = out.replace("generische Umsatz-/Gewinnwachstums-Punktzahl", "generische Umsatz-/Gewinnwachstums-Punktelogik")
+    out = out.replace("primärquellenbasierter operativer Cashflow, Cashflow/bereinigtes Ergebnis, Schuldenabbau und Kapitalallokation", "primärquellenbasierte Evidenz zu operativem Cashflow, bereinigtem Ergebnis, Schuldenabbau und Kapitalallokation")
+    out = out.replace("emittenteneigene Nettoerlös-, ARR / SaaS-, Mix- und Umsatz-Qualität-Evidenz", "emittenteneigene Evidenz zu Nettoerlös, ARR/SaaS, Mix und Umsatzqualität")
+    out = out.replace("FY2025-Vergleichsgruppen-ReferenzMedian", "FY2025-Vergleichsgruppen-Referenzmedian")
+    out = out.replace("ReferenzMedian", "Referenzmedian")
+    out = out.replace("einen Aufschlags-Multiple hochziehen", "einen Bewertungsaufschlag erzeugen")
+    out = out.replace("nur nach unten wirkende Obergrenze", "Abwärts-Obergrenze")
+    out = out.replace("nur nach unten wirkende Vergleichsgruppen-Obergrenze", "Abwärts-Obergrenze der Vergleichsgruppe")
+    out = out.replace("nur nach unten wirkend Obergrenze", "Abwärts-Obergrenze")
+    out = out.replace("primärquellenbasiert Funding, Credit-Evidenz", "primärquellenbasierte Evidenz zu Finanzierung und Bonität")
+    out = out.replace("Allfunds Transaction/Struktur Schutzregel", "Allfunds-Transaktions-/Struktur-Schutzregel")
+    out = out.replace("Emittent-spezifischer Structural-/SOTP-Schutzregel", "emittentenspezifische Strukturbruch-/SOTP-Schutzregel")
+    out = out.replace("Emittent-spezifischer", "emittentenspezifischer")
+    out = out.replace("Structural-bereinigtes", "strukturell bereinigte")
+    out = out.replace("Liquidity Schutzregel", "Liquiditäts-Schutzregel")
+    out = out.replace("Bewertungs-Aufschlag", "Bewertungsaufschlag")
+    out = out.replace("Net-Schulden", "Nettoschulden")
+    out = out.replace("Share Dilution", "Aktienverwässerung")
+    out = out.replace("Public Float", "Streubesitz")
+    out = out.replace("Product Financing", "Produktfinanzierung")
+    out = out.replace("Secured Lending", "besicherte Kreditvergabe")
+    # V190: abschließende Börseninfrastruktur-Grammatik und Link-/Kennzahlbezeichnungen.
+    out = out.replace("Live-Preisen", "aktuellen Preisen")
+    out = out.replace("Live-Median", "aktuellen Median")
+    out = out.replace("FY2025 bereinigtes EPS-Beobachtungen", "FY2025-Beobachtungen auf Basis bereinigter EPS")
+    out = out.replace("Familie-Multiple", "Familien-Multiple")
+    out = out.replace("zwei getrennte primärquellenbasiert Anker", "zwei getrennte primärquellenbasierte Anker")
+    out = out.replace("Verifiziertes FY2025 bereinigtes EPS", "Verifiziertes bereinigtes FY2025-EPS")
+    out = out.replace("Volljahres-/Trailing-Marktanker", "Gesamtjahres-Marktanker")
+    out = out.replace("annualisierte H1-2026 bereinigtes EPS", "annualisiertes bereinigtes H1-2026-EPS")
+    out = out.replace("aktueller Hochrechnung/Zyklus-Prüfung", "aktuelle Hochrechnungs-/Zyklusprüfung")
+    out = out.replace("Solutions Umsatz", "Lösungsumsatz")
+    out = out.replace("Short-/Long-Term Schulden", "kurz-/langfristige Schulden")
+    out = out.replace("Kapitalallokation / Balance", "Kapitalallokation / Bilanz")
+    out = out.replace("Q2 Net Profit", "Q2 Nettogewinn")
+    out = out.replace("[Q2/H1 2026 Results]", "[Q2/H1-2026-Ergebnisse]")
+    out = out.replace("[FY2025 Annual Report]", "[Geschäftsbericht FY2025]")
+    out = out.replace("[Allfunds Transaction]", "[Allfunds-Transaktion]")
+    out = out.replace("Mechanischer cashflow-basiertes EPS-Proxy", "Mechanischer cashflow-basierter EPS-Proxy")
+    out = out.replace("ausgewiesen-EPS Konsens", "Konsens für ausgewiesenes EPS")
+    out = out.replace("annualisierter H1-PPA-Addback", "annualisierte H1-PPA-Hinzurechnung")
+    out = out.replace("ausgewiesen/cashflow-basiertes EPS", "ausgewiesenes/cashflow-basiertes EPS")
+    out = out.replace("Unternehmens-Unternehmensprognose", "Unternehmensprognose")
+    out = out.replace("vom Emittenten bereitgestellt FY2026 Non-GAAP-EPS analyst Konsens", "Vom Emittenten bereitgestellter FY2026-Analystenkonsens für Non-GAAP-EPS")
+    out = out.replace("vom Emittenten bereitgestellt FY2026 Non-GAAP-EPS Analystenkonsens", "Vom Emittenten bereitgestellter FY2026-Analystenkonsens für Non-GAAP-EPS")
+    out = out.replace("Nasdaq Ergebnis Estimates", "Nasdaq Ergebnisschätzungen")
+    out = out.replace("kein FY2026-Vergleichsgruppe-Ergebnisbasis", "keine FY2026-Ergebnisbasis der Vergleichsgruppe")
+    out = out.replace("kein FY2026-Vergleichsgruppe-Ergebnisbasis", "keine FY2026-Ergebnisbasis der Vergleichsgruppe")
+    out = out.replace("nach bestandenem Doppelanker-Vergleichsgruppenprüfung", "nach bestandener Doppelanker-Vergleichsgruppenprüfung")
+    out = out.replace("emittentenspezifischer Transaktions-/Struktur-Schutzregel", "emittentenspezifische Transaktions-/Struktur-Schutzregel")
+    out = out.replace("aus operative Börseninfrastruktur-Punktzahl", "aus der operativen Börseninfrastruktur-Punktzahl")
+    out = out.replace("FY2025 Gesamtjahres-Vergleichsgruppen-Median", "FY2025-Gesamtjahres-Vergleichsgruppen-Median")
+    out = out.replace("FY2025 Gesamtjahr-Median", "FY2025-Gesamtjahres-Median")
+    out = out.replace("H1-2026 Hochrechnung-Median", "H1-2026-Hochrechnungs-Median")
     return out
 
 def _de_wrap_all_string_args(func):
@@ -504,10 +849,11 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Sprach- und Darstellungskonsistenz V189"
+    f"Build {APP_BUILD_VERSION} · Vollständige deutsche Darstellungskonsistenz V190"
 )
 
 
+# V2.22.94: Vollständige deutsche Darstellungskonsistenz V190. Reine UI-/Copy-Bereinigung nach dem Nasdaq-V189-Praxistest. Übersetzt verbliebene Mischtexte im Börseninfrastruktur-Pfad, korrigiert Grammatikreste und insbesondere die fehlerhafte sichtbare Übersetzung „Operating Leverage“ → „operative Hebelwirkung“ statt „operativ Verschuldung“. Bewertungsmathematik, Gewinnbasis, Peer-Daten, Korridore, Schutzregeln, Scores, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.93: Deutsche Sprach- und Darstellungskonsistenz V189. Reine UI-/Copy-Bereinigung nach den erfolgreichen Fremdfamilien-Gegentests mit Schneider Electric und Nasdaq. Entfernt doppelte Formulierungen wie „nur nur nach unten wirkend“, übersetzt verbliebene englische Mischtexte in den Investitionsgüter- und Börseninfrastruktur-Spezialpfaden und vereinheitlicht sichtbare Bezeichnungen. Bewertungsmathematik, Gewinnbasen, Peers, Schutzgrenzen, Scores, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.92: Payments Processor Peer Calibration Display Consistency V188. UI-only correction after the first PayPal V187 live run proved that the Fair Value already used the released -5% peer-adjusted target P/E while the compact card still displayed the pre-peer family target P/E. The compact Payments-Processor card now reads the final used_multiple from the Fair-Value block when available, shows the pre-peer target and released peer adjustment explicitly in the valuation path, and keeps score, earnings basis, peer selection, peer median, guard rules, valuation-zone mathematics and Fair Value mathematics unchanged.
 # V2.22.91: Payments Processor Model-Adjusted Peer Calibration Activation V187. Activates the already V186-live-validated PayPal/Adyen/Fiserv/Global-Payments peer layer for valuation. Each eligible core peer contributes Market current-FY P/E divided by its own released family target P/E computed strictly before any peer adjustment; this prevents feedback loops. Three fully modelled core peers remain mandatory, the median is used, and the peer effect is hard-capped to ±5%. The target issuer's existing family corridor and issuer-specific downside guard cap are then re-applied as higher-priority protections before the final target P/E is released. FIS remains broad reference only and the target issuer remains excluded. Score, earnings basis, peer selection and all non-Payments-Processor specialist mathematics are unchanged.
