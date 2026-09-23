@@ -23,15 +23,13 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.92"
+APP_BUILD_VERSION = "V2.22.93"
 
-# V188 – Anzeige-Konsistenz der aktivierten Zahlungsabwickler-Peer-Kalibrierung.
-# V187-Mathematik bleibt unverändert; die kompakte Ansicht verwendet jetzt dasselbe endgültige
-# Ziel-KGV wie der Fair-Value-Block und zeigt Vor-Peer-Wert sowie Peer-Anpassung transparent.
-# Jeder Kern-Peer wird weiterhin über Markt-KGV / eigenes Familien-Ziel-KGV VOR Peer-Anpassung
-# normalisiert. Erst nach bestandenem 3-Peer-Gate wirkt der Median mit maximal ±5 % auf das
-# Ziel-KGV des Zielunternehmens. Anschließend werden der freigegebene Familien-Korridor und
-# sämtliche bereits bestehenden issuer-spezifischen Schutzgrenzen erneut vorrangig angewendet.
+# V189 – Deutsche Sprach- und Darstellungskonsistenz.
+# Reine UI-/Textbereinigung auf Basis von V188: Bewertungsmathematik, Datenquellen, Peers,
+# Schutzgrenzen, Scores, Fair Values, Bewertungszonen und Signale bleiben unverändert.
+# Bereinigt werden insbesondere doppelte Formulierungen sowie verbliebene englische Mischtexte
+# in den Investitionsgüter- und Börseninfrastruktur-Spezialmodellen.
 _UI_DE_EXACT = {
     "buy": "kaufen",
     "hold": "halten",
@@ -48,9 +46,37 @@ _UI_DE_EXACT = {
     "low": "niedrig",
     "positive": "positiv",
     "negative": "negativ",
+    "capital_goods_current_fy_adjusted_pe": "Investitionsgüter · bereinigtes KGV aktuelles Geschäftsjahr",
+    "exchange_current_fy_adjusted_pe": "Börseninfrastruktur · bereinigtes KGV aktuelles Geschäftsjahr",
+    "validated_multi_issuer_route": "validierte Mehr-Emittenten-Zuordnung",
 }
 
 _UI_DE_REPLACEMENTS = [
+    ("Emittent-primary", "primärquellenbasiert"),
+    ("Emittent-published", "vom Emittenten veröffentlicht"),
+    ("Energy Technology / Electrification & Automation Platform", "Energietechnik / Elektrifizierung & Automatisierungsplattform"),
+    ("Record Backlog/Demand", "Rekord-Auftragsbestand / Nachfrage"),
+    ("Digital / Energy & Industrial Intelligence", "Digital / Energie- & Industrieintelligenz"),
+    ("Digital / Energy & Industrie Intelligence", "Digital / Energie- & Industrieintelligenz"),
+    ("Exchange / Market Services / Financial Technology / Index & Data Platform", "Börse / Marktdienste / Finanztechnologie / Index- & Datenplattform"),
+    ("Capital Access Platforms", "Kapitalmarktzugangs-Plattformen"),
+    ("Financial Technology", "Finanztechnologie"),
+    ("Market Services", "Marktdienste"),
+    ("Index/Data/SaaS", "Index / Daten / SaaS"),
+    ("Net Revenue/Organic Growth", "Nettoerlös / organisches Wachstum"),
+    ("ARR/SaaS", "ARR / SaaS"),
+    ("Solutions Mix", "Lösungsmix"),
+    ("Cash Generation", "Cashflow-Erzeugung"),
+    ("Debt Paydown", "Schuldenabbau"),
+    ("Capital Returns", "Kapitalrückführungen"),
+    ("Exchange Full-Year Anchor", "Börseninfrastruktur-Gesamtjahresanker"),
+    ("Capital-Goods Family Multiple Corridor", "Investitionsgüter-Familien-KGV-Korridor"),
+    ("Exchange Family Multiple Corridor", "Börseninfrastruktur-Familien-KGV-Korridor"),
+    ("Current-FY Adjusted/Cash-EPS", "bereinigtes/cashflow-basiertes EPS des aktuellen Geschäftsjahres"),
+    ("Current-FY Adjusted/pre-PPA", "bereinigtes/pre-PPA EPS des aktuellen Geschäftsjahres"),
+    ("current-FY adjusted/cashflow-based EPS", "bereinigtes/cashflow-basiertes EPS des aktuellen Geschäftsjahres"),
+    ("Current-FY Non-GAAP-EPS", "Non-GAAP-EPS des aktuellen Geschäftsjahres"),
+    ("Guidance", "Unternehmensprognose"),
     ("Payments Processor / Merchant Acquirer", "Zahlungsabwickler / Zahlungsakquisiteur"),
     ("Payment Network / Capital-Light Payments", "Zahlungsnetzwerk / kapitalleichte Zahlungsabwicklung"),
     ("Professional & Business Services", "Professionelle und geschäftliche Dienstleistungen"),
@@ -252,6 +278,56 @@ _UI_DE_REPLACEMENTS = [
     ("quality-adjusted", "qualitätsbereinigt"),
     ("Quality-adjusted", "qualitätsbereinigt"),
     ("Horizon Guard", "Horizontschutz"),
+    ("Exchange / Market Infrastructure", "Börsen- / Marktinfrastruktur"),
+    ("Exchange Family", "Börseninfrastruktur-Familie"),
+    ("Exchange-Family", "Börseninfrastruktur-Familie"),
+    ("Exchange family", "Börseninfrastruktur-Familie"),
+    ("Capital-Goods Peer Calibration", "Investitionsgüter-Vergleichsgruppen-Kalibrierung"),
+    ("Exchange Peer Calibration", "Börseninfrastruktur-Vergleichsgruppen-Kalibrierung"),
+    ("KPI adapter", "Kennzahlen-Adapter"),
+    ("KPI-Adapter", "Kennzahlen-Adapter"),
+    ("P/E corridor", "KGV-Korridor"),
+    ("P/E Corridor", "KGV-Korridor"),
+    ("Peer Ceiling", "Vergleichsgruppen-Obergrenze"),
+    ("peer ceiling", "Vergleichsgruppen-Obergrenze"),
+    ("Peer-Ceiling", "Vergleichsgruppen-Obergrenze"),
+    ("same-currency", "in derselben Währung"),
+    ("issuer-published", "vom Emittenten veröffentlicht"),
+    ("issuer-hosted", "vom Emittenten bereitgestellt"),
+    ("post-H1", "nach H1"),
+    ("sell-side", "Analysten"),
+    ("Calibration", "Kalibrierung"),
+    ("Peer Data Gate", "Vergleichsgruppen-Datenprüfung"),
+    ("Peer-Data-Gate", "Vergleichsgruppen-Datenprüfung"),
+    ("Data Gate", "Datenprüfung"),
+    ("Data-Gate", "Datenprüfung"),
+    ("Full-Year Anchor", "Gesamtjahresanker"),
+    ("full-year", "Gesamtjahr"),
+    ("reference-only/downside-only", "nur Referenz / nur nach unten wirkend"),
+    ("Reference/Downside-Ceiling", "Referenz-/Abwärts-Obergrenze"),
+    ("Downside-Ceiling", "Abwärts-Obergrenze"),
+    ("can cap but never lift", "kann begrenzen, aber niemals erhöhen"),
+    ("cannot lift the target", "kann das Ziel nicht erhöhen"),
+    ("fully released", "vollständig freigegeben"),
+    ("live peer median", "Live-Vergleichsgruppen-Median"),
+    ("score-derived", "aus der Punktzahl abgeleitet"),
+    ("score-positioned", "punktzahlpositioniert"),
+    ("market band", "Marktband"),
+    ("cycle/reference context", "Zyklus-/Referenzkontext"),
+    ("run-rate/cycle", "Hochrechnungs-/Zyklus"),
+    ("Current-FY Earnings Bridge", "Ergebnisbrücke für das aktuelle Geschäftsjahr"),
+    ("Family Multiple Corridor", "Familien-KGV-Korridor"),
+    ("Family-Corridor", "Familien-Korridor"),
+    ("Family corridor", "Familien-Korridor"),
+    ("Transaction Guard", "Transaktions-Schutzregel"),
+    ("Leverage Guard", "Verschuldungs-Schutzregel"),
+    ("Confidence/Leverage Guard", "Sicherheits-/Verschuldungs-Schutzregel"),
+    ("Structural Break", "Strukturbruch"),
+    ("Structural-Break", "Strukturbruch"),
+    ("Capital Allocation", "Kapitalallokation"),
+    ("Follow-up-/Refresh-Punkte", "Aktualisierungs-/Prüfpunkte"),
+    ("Follow-up", "Nachprüfung"),
+    ("Refresh", "Aktualisierung"),
 ]
 
 _UI_DE_WORDS = [
@@ -347,6 +423,19 @@ def _de_ui_text(value):
         out = out.replace(src, dst)
     for pattern, dst in _UI_DE_WORDS:
         out = re.sub(pattern, dst, out)
+    # V189: reine Darstellungs-Nachbereinigung bereits gemischter Alttexte.
+    out = re.sub(r"\bnur\s+nur\s+nach unten wirkend\b", "nur nach unten wirkend", out, flags=re.IGNORECASE)
+    out = re.sub(r"\bnur nach unten wirkend\s+Vergleichsgruppe\s+Obergrenze\b", "nur nach unten wirkende Vergleichsgruppen-Obergrenze", out, flags=re.IGNORECASE)
+    out = re.sub(r"\bVergleichsgruppe\s+Obergrenze\b", "Vergleichsgruppen-Obergrenze", out, flags=re.IGNORECASE)
+    out = out.replace("live in derselben Währung prices", "Live-Preise in derselben Währung")
+    out = out.replace("Exchange Gesamtjahr Anchor", "Börseninfrastruktur-Gesamtjahresanker")
+    out = out.replace("Emittent-published", "vom Emittenten veröffentlicht")
+    out = out.replace(" use ", " verwenden ")
+    out = out.replace(" guidance ", " Unternehmensprognose ")
+    out = out.replace("the Live-Vergleichsgruppen-Median", "der Live-Vergleichsgruppen-Median")
+    out = out.replace("the live Vergleichsgruppe median", "der Live-Vergleichsgruppen-Median")
+    out = out.replace(" for the two validated Emittent profiles", " für die zwei validierten Emittentenprofile")
+    out = out.replace(" and kann begrenzen, aber niemals erhöhen a aus der Punktzahl abgeleitet target multiple", " und kann ein aus der Punktzahl abgeleitetes Ziel-KGV begrenzen, aber niemals erhöhen")
     return out
 
 def _de_wrap_all_string_args(func):
@@ -415,10 +504,11 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Peer-Kalibrierung Anzeige-Konsistenz V188"
+    f"Build {APP_BUILD_VERSION} · Sprach- und Darstellungskonsistenz V189"
 )
 
 
+# V2.22.93: Deutsche Sprach- und Darstellungskonsistenz V189. Reine UI-/Copy-Bereinigung nach den erfolgreichen Fremdfamilien-Gegentests mit Schneider Electric und Nasdaq. Entfernt doppelte Formulierungen wie „nur nur nach unten wirkend“, übersetzt verbliebene englische Mischtexte in den Investitionsgüter- und Börseninfrastruktur-Spezialpfaden und vereinheitlicht sichtbare Bezeichnungen. Bewertungsmathematik, Gewinnbasen, Peers, Schutzgrenzen, Scores, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.92: Payments Processor Peer Calibration Display Consistency V188. UI-only correction after the first PayPal V187 live run proved that the Fair Value already used the released -5% peer-adjusted target P/E while the compact card still displayed the pre-peer family target P/E. The compact Payments-Processor card now reads the final used_multiple from the Fair-Value block when available, shows the pre-peer target and released peer adjustment explicitly in the valuation path, and keeps score, earnings basis, peer selection, peer median, guard rules, valuation-zone mathematics and Fair Value mathematics unchanged.
 # V2.22.91: Payments Processor Model-Adjusted Peer Calibration Activation V187. Activates the already V186-live-validated PayPal/Adyen/Fiserv/Global-Payments peer layer for valuation. Each eligible core peer contributes Market current-FY P/E divided by its own released family target P/E computed strictly before any peer adjustment; this prevents feedback loops. Three fully modelled core peers remain mandatory, the median is used, and the peer effect is hard-capped to ±5%. The target issuer's existing family corridor and issuer-specific downside guard cap are then re-applied as higher-priority protections before the final target P/E is released. FIS remains broad reference only and the target issuer remains excluded. Score, earnings basis, peer selection and all non-Payments-Processor specialist mathematics are unchanged.
 # V2.22.63: Payment-Network Universal-Family Promotion · Visa Baseline V159. Architecture/copy-only promotion of the already existing Visa + Mastercard Payment-Network specialist route into the current Universal Family framework; no legacy Payment-Network valuation mathematics changed. V and MA are now surfaced as a validated_multi_issuer_route for Payment Network / Capital-Light Payments, with the existing issuer-primary network-growth/cross-border/transaction/adjusted-earnings/cash-conversion/capital-return score architecture, 22–32x P/E corridor and downside-only Regulatory/Litigation caps retained exactly. The family header now makes clear that Visa and Mastercard are the two validated reference issuers while unsupported Payment-Network members remain issuer-primary evidence-gated. This build is intentionally a Visa regression/baseline pass before any UI consistency cleanup or family-math revision. Exchange V158, Capital-Goods V148 and all other released specialist mathematics remain unchanged.
@@ -39494,8 +39584,8 @@ def _calculate_exchange_peer_runrate_reference(peer_group, fundamental_multiple,
         result["dual_anchor_gate_passed"] = True
         result["comparability_gate_passed"] = True
     result["note"] = (
-        f"Exchange Peer Calibration {APP_BUILD_VERSION}: CME, ICE and Cboe use two issuer-primary anchors with live same-currency prices: verified FY2025 Adjusted EPS for a full-year trailing P/E and Q1+Q2 2026 Adjusted EPS annualized only as a current run-rate/cycle P/E. "
-        "The H1 run-rate is explicitly not FY2026 guidance. The stable 18–26x family corridor is calibrated from the combined full-year/run-rate market band; the verified full-year trailing median is downside-only and can cap but never lift the score-derived target multiple of a fully released Exchange profile."
+        f"Börseninfrastruktur-Vergleichsgruppen-Kalibrierung {APP_BUILD_VERSION}: CME, ICE und Cboe verwenden zwei primärquellenbasierte Anker mit Live-Preisen in derselben Währung: verifiziertes bereinigtes FY2025-EPS als Gesamtjahresanker und annualisiertes bereinigtes EPS aus Q1+Q2 2026 ausschließlich als aktuelle Hochrechnungs-/Zyklusbeobachtung. "
+        "Die H1-Hochrechnung ist ausdrücklich keine FY2026-Unternehmensprognose. Der stabile Familien-Korridor von 18–26× ist aus dem kombinierten Gesamtjahres-/Hochrechnungs-Marktband kalibriert; der verifizierte Gesamtjahresmedian wirkt nur nach unten und kann das aus der Punktzahl abgeleitete Ziel-KGV begrenzen, aber niemals erhöhen."
     )
     return result
 
@@ -39561,8 +39651,8 @@ def build_exchange_family_valuation(snapshot, operational_score, earnings_bridge
         "available": True,
         "fair_value_financial": fv,
         "note": (
-            "Nasdaq Fair Value uses the released FY2026 Non-GAAP-EPS bridge and the score-positioned 18–26x Exchange-family corridor. "
-            "The verified FY2025 adjusted peer median is downside-only and cannot lift the target; the H1-2026 run-rate median remains cycle/reference context only."
+            "Der faire Wert von Nasdaq verwendet die freigegebene FY2026-Non-GAAP-EPS-Ergebnisbrücke und den punktzahlpositionierten 18–26×-Korridor der Börseninfrastruktur-Familie. "
+            "Der verifizierte FY2025-Vergleichsgruppen-Median wirkt ausschließlich nach unten und kann das Ziel-KGV nicht erhöhen; der H1-2026-Hochrechnungsmedian bleibt ausschließlich Zyklus-/Referenzkontext."
         ),
     })
     return out
@@ -39581,12 +39671,12 @@ def apply_exchange_market_infrastructure_peer_calibration(model, peer_check):
         out["valuation_anchor_complete"] = True
         out["readiness"] = "Nasdaq Primärdaten + Current-FY Non-GAAP-EPS Bridge + 18–26× Exchange-Family-Corridor vollständig · Fair Value freigegeben"
         out["missing_valuation_inputs"] = [
-            "refresh full-year peer/current-FY calibration when FY2026 peer consensus/guidance becomes issuer-verifiable",
-            "reusable issuer-primary discovery adapter before unsupported Exchange-family members can be auto-released",
+            "Gesamtjahres-/aktuelles-Geschäftsjahr-Kalibrierung aktualisieren, sobald FY2026-Konsens oder Unternehmensprognosen der Peers durch Emittentenquellen verifizierbar sind",
+            "wiederverwendbarer primärquellenbasierter Erkennungs-Adapter, bevor weitere Mitglieder der Börseninfrastruktur-Familie automatisch freigegeben werden können",
         ]
         out["note"] = (
-            f"{APP_BUILD_VERSION} releases the Exchange one-multiple valuation for Nasdaq after two issuer adapters, a common Current-FY Adjusted/Cash-EPS bridge and a dual-anchor CME/ICE/Cboe calibration using verified FY2025 adjusted EPS plus H1-2026 run-rate context. "
-            "The stable family corridor is 18–26x; the operating score sets the raw target and the verified full-year trailing peer median is downside-only."
+            f"{APP_BUILD_VERSION} gibt die Ein-Multiple-Bewertung für Nasdaq frei, nachdem zwei Emittenten-Adapter, eine gemeinsame Ergebnisbrücke für bereinigtes/cashflow-basiertes EPS des aktuellen Geschäftsjahres und die Doppelanker-Kalibrierung mit CME, ICE und Cboe verifiziert wurden. "
+            "Der stabile Familien-Korridor beträgt 18–26×; die operative Punktzahl setzt das Roh-Ziel-KGV, und der verifizierte Gesamtjahres-Vergleichsgruppen-Median wirkt ausschließlich nach unten."
         )
     elif profile == "integrated_market_infrastructure":
         out["valuation_anchor_complete"] = False
@@ -40115,9 +40205,9 @@ def _calculate_capital_goods_peer_calibration(peer_group, fundamental_multiple, 
         result["peer_min"] = min(vals); result["peer_max"] = max(vals)
         result["comparability_gate_passed"] = True
     result["note"] = (
-        f"Capital-Goods Peer Calibration {APP_BUILD_VERSION}: Eaton, Rockwell Automation und Emerson use issuer-published FY2026 Adjusted-EPS guidance with live same-currency prices. "
-        "At least three valid observations release the calibration median. The stable 22–32x family corridor is released for the two validated issuer profiles; "
-        "the live peer median remains reference-only/downside-only and can cap but never lift a score-derived target multiple."
+        f"Investitionsgüter-Vergleichsgruppen-Kalibrierung {APP_BUILD_VERSION}: Eaton, Rockwell Automation und Emerson verwenden vom Emittenten veröffentlichte FY2026-Prognosen für bereinigtes EPS mit Live-Preisen in derselben Währung. "
+        "Mindestens drei gültige Beobachtungen sind für die Freigabe des Kalibrierungsmedians erforderlich. Der stabile Familien-Korridor von 22–32× ist für die zwei validierten Emittentenprofile freigegeben; "
+        "der Live-Vergleichsgruppen-Median bleibt reine Referenz und wirkt nur nach unten: Er kann ein aus der Punktzahl abgeleitetes Ziel-KGV begrenzen, aber niemals erhöhen."
     )
     return result
 
@@ -40196,8 +40286,8 @@ def build_capital_goods_family_valuation(snapshot, operational_score, earnings_b
         "available": True,
         "fair_value_financial": fv,
         "note": (
-            "Schneider Fair Value uses the released FY2026 Adjusted-EPS bridge and the score-positioned 22–32x Capital-Goods corridor. "
-            "The external peer median is downside-only and cannot lift the target. Cognite is already reflected in balance/capital-allocation quality and therefore acts as a confidence/leverage guard rather than a second P/E penalty."
+            "Der faire Wert von Schneider Electric verwendet die freigegebene FY2026-Ergebnisbrücke für bereinigtes EPS und den punktzahlpositionierten 22–32×-Investitionsgüter-Korridor. "
+            "Der externe Vergleichsgruppen-Median wirkt ausschließlich nach unten und kann das Ziel-KGV nicht erhöhen. Cognite ist bereits in Bilanz- und Kapitalallokationsqualität berücksichtigt und wirkt deshalb als Sicherheits-/Verschuldungs-Schutzregel statt als zweiter KGV-Abschlag."
         ),
     })
     return out
@@ -40218,12 +40308,12 @@ def apply_industrials_capital_goods_peer_calibration(model, peer_check):
         out["valuation_anchor_complete"] = True
         out["readiness"] = "Schneider Primärdaten + Current-FY Earnings Bridge + 22–32× Family-Corridor vollständig · Fair Value freigegeben · Cognite Confidence/Leverage Guard aktiv"
         out["missing_valuation_inputs"] = [
-            "post-Cognite pro-forma leverage / capital-allocation refresh when closing data become available (confidence refresh; current Fair Value remains usable)",
-            "reusable issuer-primary discovery adapter before unsupported Capital-Goods family members can be auto-released",
+            "Pro-forma-Verschuldung und Kapitalallokation nach Cognite aktualisieren, sobald Abschlussdaten verfügbar sind (Aktualisierung der Bewertungssicherheit; aktueller fairer Wert bleibt nutzbar)",
+            "wiederverwendbarer primärquellenbasierter Erkennungs-Adapter, bevor weitere Mitglieder der Investitionsgüter-Familie automatisch freigegeben werden können",
         ]
         out["note"] = (
-            f"{APP_BUILD_VERSION} releases the Capital-Goods one-multiple valuation for Schneider only after two issuer adapters, a common Current-FY Adjusted-EPS bridge and three same-horizon issuer-adjusted peer observations. "
-            "The stable family corridor is 22–32x; the operating score sets the target and the live peer median is downside-only. Cognite limits confidence until pro-forma leverage is available but is not double-counted as a second multiple penalty."
+            f"{APP_BUILD_VERSION} gibt die Ein-Multiple-Bewertung für Schneider Electric erst nach zwei Emittenten-Adaptern, einer gemeinsamen Ergebnisbrücke für bereinigtes EPS des aktuellen Geschäftsjahres und drei Vergleichsgruppen-Beobachtungen mit gleichem Zeithorizont und bereinigter Ergebnisbasis frei. "
+            "Der stabile Familien-Korridor beträgt 22–32×; die operative Punktzahl setzt das Ziel-KGV und der Live-Vergleichsgruppen-Median wirkt ausschließlich nach unten. Cognite begrenzt die Bewertungssicherheit, bis belastbare Pro-forma-Verschuldungsdaten vorliegen, wird aber nicht als zweiter Multiple-Abschlag doppelt berücksichtigt."
         )
     elif profile == "diversified_industrial_technology":
         out["valuation_anchor_complete"] = False
@@ -68753,14 +68843,14 @@ if selected_symbol:
                         if is_capital_goods_peer_metric:
                             st.write(f"**Same-Horizon/Same-Basis Current-FY Beobachtungen:** {peer_check.get('usable_count', 0)}/3")
                             if peer_check.get("comparability_gate_passed"):
-                                st.success("Capital-Goods Peer Data Gate bestanden: drei issuer-adjusted FY2026 P/E-Beobachtungen sind live verfügbar. Der 22–32× Family-Multiple-Korridor ist für die zwei validierten Profile freigegeben; der Live-Median bleibt ausschließlich Reference/Downside-Ceiling.")
+                                st.success("Investitionsgüter-Vergleichsgruppen-Datenprüfung bestanden: Drei bereinigte FY2026-KGV-Beobachtungen sind live verfügbar. Der 22–32×-Familien-Korridor ist für die zwei validierten Profile freigegeben; der Live-Median bleibt ausschließlich Referenz und wirkt nur als Abwärts-Obergrenze.")
                             else:
-                                st.warning("Capital-Goods Peer Data Gate nicht bestanden: weniger als drei live same-currency issuer-adjusted FY2026 P/E-Beobachtungen verfügbar.")
+                                st.warning("Investitionsgüter-Vergleichsgruppen-Datenprüfung nicht bestanden: Weniger als drei live verfügbare, bereinigte FY2026-KGV-Beobachtungen in derselben Währung.")
 
                         if is_exchange_peer_metric:
                             st.write(f"**Dual-Anchor-Referenzbeobachtungen:** {peer_check.get('usable_count', 0)}/3")
                             if peer_check.get("full_year_reference_ready"):
-                                st.success("Exchange Full-Year Anchor vollständig: CME, ICE und Cboe liefern drei verifizierte FY2025 Adjusted-EPS-Volljahresbeobachtungen mit live same-currency Preisen.")
+                                st.success("Börseninfrastruktur-Gesamtjahresanker vollständig: CME, ICE und Cboe liefern drei verifizierte FY2025-Beobachtungen auf Basis bereinigter EPS mit Live-Preisen in derselben Währung.")
                             else:
                                 st.warning("Exchange Full-Year Anchor unvollständig: weniger als drei verifizierte FY2025 Adjusted-EPS-Beobachtungen verfügbar.")
                             if peer_check.get("runrate_reference_ready"):
