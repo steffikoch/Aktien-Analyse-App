@@ -23,9 +23,9 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.88"
+APP_BUILD_VERSION = "V2.22.89"
 
-# V184 – modellbereinigte Zahlungsabwickler-Vergleichsgruppen-Kalibrierung.
+# V185 – modellbereinigte Zahlungsabwickler-Vergleichsgruppen-Kalibrierung.
 # Die bestehende Bewertung bleibt unverändert. Peer-Markt-KGVs werden nicht mehr roh
 # miteinander verglichen, sondern relativ zum jeweils eigenen freigegebenen Familien-
 # Ziel-KGV betrachtet. Mindestens drei vollständig modellierte Kern-Peers bleiben Pflicht;
@@ -413,7 +413,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Modellbereinigte Vergleichsgruppen-Kalibrierung V184"
+    f"Build {APP_BUILD_VERSION} · Global-Payments-Familienmodell & Peer-Gate V185"
 )
 
 
@@ -441,7 +441,7 @@ st.caption(
 # V2.22.84: Abschließende sichtbare Sprachbereinigung V180. Reine UI-/Textbereinigung ohne Änderung der Bewertungsmathematik. Entfernt den letzten sichtbaren V178-Altverweis im Zahlungsabwickler-Pfad, bereinigt die FCF-Quellenabweichung, PayPal-Fachbegriffe, Bewertungszonen- und Plausibilitätscheck-Texte und ersetzt verbliebene englische Anzeigeformulierungen durch verständliches Deutsch. Interne Schlüssel und alle PayPal-/Adyen-/Fiserv-Punktzahl-, Gewinnbasis-, Ziel-KGV-, Fairer-Wert- und Zonenformeln bleiben unverändert.
 # V2.22.86: Kompaktansicht Feinschliff V182. Reine UI-/Darstellungsänderung ohne Änderung der Bewertungsmathematik. Doppelte Hauptlisting-Hinweise, technische Stammdaten und FX-Detailtexte werden aus der Standardansicht entfernt und in die vollständige Detailansicht verschoben. Die Kurzbewertung verwendet bewusst verständliche Risikoformulierungen; alle bisherigen Detaildaten und Prüfpfade bleiben erhalten.
 # V2.22.87: Zahlungsabwickler Vergleichsgruppen-Kalibrierung V183. Fügt für PayPal, Adyen und Fiserv einen live geladenen Zahlungsabwickler-Peer-Cluster aus den jeweils anderen validierten Referenzemittenten plus Global Payments und FIS als breiter Markt-Referenz hinzu. Verwendet Current-FY issuer-primary/guarded EPS-Basen und Live-Kurse, Median statt Durchschnitt und berechnet eine theoretische ±5-%-Anpassung. Die Anpassung ist ausdrücklich noch nicht freigegeben und verändert weder Ziel-KGV noch Fair Value oder Bewertungszonen; Freigabe erst nach separatem PayPal/Adyen/Fiserv-Livetest.
-# V2.22.88: Modellbereinigte Zahlungsabwickler-Vergleichsgruppen-Kalibrierung V184. Ersetzt den rohen Peer-KGV-Median durch einen relativen Markt-/Modell-Vergleich: aktuelles Current-FY Markt-KGV jedes Kern-Peers geteilt durch dessen eigenes freigegebenes Familien-Ziel-KGV. Nur vollständig modellierte Kern-Peers sind anpassungsberechtigt; Global Payments bleibt Kern-Referenz, ist aber bis zu einem eigenen issuer-primary Familienmodell nicht anpassungsberechtigt. FIS bleibt breite Markt-Referenz und fließt nie in den Kalibrierungsmedian ein. Mindestens drei vollständig modellierte Kern-Peers bleiben Pflicht, Median statt Durchschnitt, theoretischer Effekt weiterhin auf ±5 % begrenzt. V184 ist weiterhin calibration-only und verändert weder Ziel-KGV noch Fair Value, Bewertungszonen oder Signale.
+# V2.22.89: Global Payments Familienmodell & Peer-Gate V185. Ergänzt Global Payments mit issuer-primary Q2/FY2026-Daten als viertes vollständiges Zahlungsabwickler-Familienprofil. Die Gewinnbasis ist der Mittelpunkt der FY2026 Adjusted-EPS-Guidance 13,60–13,80 USD; Q2 normalisiertes Nettoerlöswachstum, Adjusted Margin, Adjusted EPS, FCF-Conversion und CapEx speisen die bestehende 100-Punkte-Familienlogik. Worldpay-Integration/Portfolio-Neuzuschnitt erhalten eine downside-only 12×-Schutzgrenze. Damit kann GPN erstmals als vollständig modellierter Kern-Peer in die modellbereinigte V185-Kalibrierung eingehen; die Peer-Wirkung bleibt weiterhin Testwert und verändert noch keinen fairen Wert.\n# V2.22.88: Modellbereinigte Zahlungsabwickler-Vergleichsgruppen-Kalibrierung V185. Ersetzt den rohen Peer-KGV-Median durch einen relativen Markt-/Modell-Vergleich: aktuelles Current-FY Markt-KGV jedes Kern-Peers geteilt durch dessen eigenes freigegebenes Familien-Ziel-KGV. Nur vollständig modellierte Kern-Peers sind anpassungsberechtigt; Global Payments bleibt Kern-Referenz, ist aber bis zu einem eigenen issuer-primary Familienmodell nicht anpassungsberechtigt. FIS bleibt breite Markt-Referenz und fließt nie in den Kalibrierungsmedian ein. Mindestens drei vollständig modellierte Kern-Peers bleiben Pflicht, Median statt Durchschnitt, theoretischer Effekt weiterhin auf ±5 % begrenzt. V185 ist weiterhin calibration-only und verändert weder Ziel-KGV noch Fair Value, Bewertungszonen oder Signale.
 
 
 
@@ -30947,7 +30947,7 @@ def build_payment_network_special_control(control, payment_model):
 # PayPal + Adyen + Fiserv three-issuer primary-data score calibration; valuation remains closed.
 # =========================================================
 
-PAYMENTS_PROCESSOR_FOUNDATION_VERSION = "v22278_paypal_adyen_fiserv_fair_value_live_v174"
+PAYMENTS_PROCESSOR_FOUNDATION_VERSION = "v22289_paypal_adyen_fiserv_gpn_peer_gate_v185"
 
 
 def get_verified_payments_processor_foundation_snapshot(symbol):
@@ -30959,8 +30959,63 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
     company EPS guidance exists and uses a guarded current-FY consensus fallback only where it does not.
     """
     sym = str(symbol or "").upper().strip()
-    if sym not in {"PYPL", "ADYEN.AS", "FISV"}:
+    if sym not in {"PYPL", "ADYEN.AS", "FISV", "GPN"}:
         return None
+
+    if sym == "GPN":
+        return {
+            "symbol": "GPN",
+            "company": "Global Payments Inc.",
+            "reporting_currency": "USD",
+            "specialist_profile_key": "pure_play_commerce_worldpay_integration",
+            "specialist_profile": "Pure-play Commerce Solutions / Worldpay Integration",
+            "as_of_date": "30.06.2026",
+            "published_date": "05.08.2026",
+            "valid_until": "05.11.2026",
+            "integration_version": PAYMENTS_PROCESSOR_FOUNDATION_VERSION,
+            "source_name": "Global Payments Q2 2026 Results / Investor Relations",
+            "source_url": "https://investors.globalpayments.com/news-events/press-releases/detail/514/global-payments-reports-second-quarter-2026-results",
+            "business_model_note": (
+                "Global Payments ist nach Worldpay-Übernahme und Issuer-Solutions-Verkauf ein Pure-play Commerce-Solutions-Anbieter. "
+                "Wegen der großen Portfolio- und Integrationsänderung werden ausschließlich normalisierte/adjustierte, vom Unternehmen ausgewiesene "
+                "Kennzahlen verwendet; GAAP-Wachstum und GAAP-Margen sind für die Familienkalibrierung nicht vergleichbar."
+            ),
+            "q2_adjusted_net_revenue": 3.159074e9,
+            "q2_normalized_adjusted_net_revenue_growth_pct": 4.0,
+            "q2_adjusted_operating_margin_pct": 42.0,
+            "q2_adjusted_operating_margin_change_bps": 70.0,
+            "q2_adjusted_eps": 3.46,
+            "q2_adjusted_eps_growth_pct": 12.0,
+            "q2_adjusted_fcf": 687e6,
+            "q2_adjusted_fcf_conversion_pct": 75.0,
+            "q2_capex": 236e6,
+            "q2_capex_pct_revenue": 7.0,
+            "fy2026_normalized_cc_adj_net_revenue_growth_low_pct": 4.0,
+            "fy2026_normalized_cc_adj_net_revenue_growth_high_pct": 5.0,
+            "fy2026_adjusted_operating_margin_expansion_bps": 150.0,
+            "fy2026_adjusted_eps_low": 13.60,
+            "fy2026_adjusted_eps_high": 13.80,
+            "fy2026_adjusted_eps_growth_low_pct": 11.0,
+            "fy2026_adjusted_eps_growth_high_pct": 13.0,
+            "fy2026_adjusted_fcf_conversion_guidance_pct": 90.0,
+            "fy2026_capital_return_plan": 2.0e9,
+            "h1_capital_return": 1.2e9,
+            "worldpay_integration_active": True,
+            "issuer_solutions_divested": True,
+            "integration_risk_note": (
+                "Worldpay wurde im Januar 2026 übernommen; Issuer Solutions wurde veräußert. Q2 war das erste volle Quartal als Pure-play Commerce Solutions. "
+                "Die Vergleichbarkeit zu Vorperioden ist deshalb eingeschränkt. Die FY2026-Umsatzprognose wurde wegen des Nahost-Reiseeffekts auf 4–5% normalisiertes "
+                "währungsbereinigtes Wachstum aktualisiert, während die Margenexpansion von rund 150 bp bestätigt wurde."
+            ),
+            "volume_economics_note": (
+                "Es gibt für den neu zugeschnittenen Konzern noch keinen einzelnen konzernweiten Volumen-KPI, der sauber mit dem normalisierten Nettoerlös vergleichbar ist. "
+                "Der Conversion-Teilscore wird deshalb neutral statt aus einem ungeeigneten Teilsegment-Volumen abgeleitet."
+            ),
+            "earnings_reference_status": (
+                "Die FY2026-Unternehmensprognose für bereinigtes EPS von 13,60–13,80 USD ist die primärquellenbasierte Gewinnbasis. "
+                "Wegen Worldpay-Integration, Portfolio-Neuzuschnitt und erhöhtem Verschuldungs-/Integrationsrisiko erhält das Ziel-KGV eine eigene Schutzgrenze."
+            ),
+        }
 
     if sym == "FISV":
         return {
@@ -31302,7 +31357,7 @@ def build_payments_processor_family_score(snapshot):
     snap = snapshot if isinstance(snapshot, dict) else {}
     sym = str(snap.get("symbol") or "").upper().strip()
     profile = snap.get("specialist_profile_key")
-    if sym not in {"PYPL", "ADYEN.AS", "FISV"}:
+    if sym not in {"PYPL", "ADYEN.AS", "FISV", "GPN"}:
         return {"available": False}
 
     if profile == "wallet_branded_checkout_psp":
@@ -31378,6 +31433,32 @@ def build_payments_processor_family_score(snapshot):
         capital_note = (
             "Kapital-/Strukturblock konservativ auf 12/15 begrenzt: hohe FCF Conversion und geringe Kapitalintensität, "
             "aber H1 bildet die am 1. Juli geschlossenen Talon.One/Orb-Akquisitionen noch nicht in der Bilanz ab; generisches Yahoo-Net-Cash wird nicht verwendet."
+        )
+
+    elif profile == "pure_play_commerce_worldpay_integration":
+        economics_growth = safe_float(snap.get("q2_normalized_adjusted_net_revenue_growth_pct"))
+        # No clean group-wide payment-volume denominator exists after the Worldpay perimeter reset.
+        # Keep conversion neutral rather than importing a non-comparable segment-volume KPI.
+        volume_growth = economics_growth
+        conversion_spread = 0.0 if economics_growth is not None else None
+        economics_label = "Normalisiertes bereinigtes Nettoerlös-Wachstum"
+        volume_label = "Kein vergleichbarer Konzern-Volumenanker · Conversion neutral"
+        margin_level = safe_float(snap.get("q2_adjusted_operating_margin_pct"))
+        margin_trend_bps = safe_float(snap.get("q2_adjusted_operating_margin_change_bps"))
+        margin_label = "Adjusted Operating Margin"
+        cash_conversion = safe_float(snap.get("q2_adjusted_fcf_conversion_pct"))
+        cash_conversion_cap = None
+        capex_intensity = safe_float(snap.get("q2_capex_pct_revenue"))
+        earnings_momentum = safe_float(snap.get("q2_adjusted_eps_growth_pct"))
+        execution_points = 5
+        execution_note = (
+            "Q2 bereinigtes EPS +12% und bestätigte Margenexpansion sind positiv; die auf 4–5% aktualisierte Umsatzprognose, "
+            "Nahost-Reisebelastung und laufende Worldpay-Integration verhindern einen hohen Umsetzungs-Teilscore."
+        )
+        capital_points = 7
+        capital_note = (
+            "Kapital-/Strukturblock konservativ auf 7/15 begrenzt: mehr als 2 Mrd. USD Kapitalrückgabe 2026 geplant, "
+            "gleichzeitig laufende Worldpay-Integration und Deleveraging-Ziel. Ein generischer Net-Debt/FCF-Score wird nicht übertragen."
         )
 
     elif profile == "diversified_merchant_acquirer_banking_technology_clover":
@@ -31580,6 +31661,36 @@ def build_payments_processor_earnings_basis(snapshot, current_fy_consensus_eps=N
             ),
         }
 
+    if sym == "GPN":
+        low = safe_float(snap.get("fy2026_adjusted_eps_low"))
+        high = safe_float(snap.get("fy2026_adjusted_eps_high"))
+        if low is None or high is None or low <= 0 or high <= 0 or high < low:
+            return base
+        anchor = (low + high) / 2.0
+        gap = ((consensus / anchor) - 1.0) * 100.0 if consensus not in (None, 0) else None
+        return {
+            **base,
+            "available": True,
+            "earnings_basis_released": True,
+            "earnings_basis_eps": anchor,
+            "guidance_low": low,
+            "guidance_high": high,
+            "currency": "USD",
+            "basis_label": "FY2026 Unternehmensprognose für bereinigtes EPS · Mittelpunkt",
+            "basis_type": "issuer_primary_company_guidance_midpoint",
+            "accounting_basis": "Adjusted EPS",
+            "confidence": "Mittel",
+            "source_name": snap.get("source_name"),
+            "source_url": snap.get("source_url"),
+            "consensus_vs_anchor_pct": gap,
+            "provider_forward_allowed_as_anchor": False,
+            "worldpay_integration_guard": True,
+            "note": (
+                "Global Payments prognostiziert für FY2026 bereinigtes EPS von 13,60–13,80 USD; der Mittelpunkt 13,70 USD ist die Familien-Gewinnbasis. "
+                "Worldpay-Integration und der neue Pure-play-Zuschnitt werden über Punktzahl und Schutzregel berücksichtigt, nicht durch eine zweite Kürzung des EPS."
+            ),
+        }
+
     if sym == "ADYEN.AS":
         if consensus is None or consensus <= 0:
             return {
@@ -31689,6 +31800,14 @@ def build_payments_processor_family_multiple(snapshot, family_score, earnings_ba
         caps.append(8.5)
         guard_notes.append("Umsetzungs-Schutzregel: breite Senkung der FY2026-Unternehmensprognose; Ziel-KGV maximal 8,5×. Eine robuste FCF-Umwandlung hebt diese Grenze nicht an.")
 
+    # Global Payments: Worldpay integration / perimeter reset and deleveraging keep the
+    # market-comparison target conservative until the new pure-play history matures.
+    if sym == "GPN" and bool(snap.get("worldpay_integration_active")):
+        caps.append(12.0)
+        guard_notes.append(
+            "Integrations-/Struktur-Schutzregel: Worldpay-Integration, neuer Pure-play-Zuschnitt und Deleveraging-Phase; Ziel-KGV maximal 12×."
+        )
+
     # Adyen: outstanding quality, but current-FY EPS is a guarded consensus fallback
     # and H1 actuals vs FY guidance are not fully organic after Talon.One/Orb.
     if sym == "ADYEN.AS" and str(eb.get("confidence") or "").lower() != "hoch":
@@ -31747,7 +31866,7 @@ def build_payments_processor_foundation_model(company_type, fundamental_info, sy
             "fair_value_released": False,
             "note": (
                 "Zahlungsabwickler / Zahlungsakquisiteur erkannt, aber für diesen Emittenten ist noch kein "
-                "issuer-primary Foundation Snapshot hinterlegt. PayPal, Adyen und Fiserv sind Foundation-Referenzen; "
+                "issuer-primary Foundation Snapshot hinterlegt. PayPal, Adyen, Fiserv und Global Payments sind Foundation-Referenzen; "
                 "Standard-Score und Fair Value bleiben fail-closed."
             ),
         }
@@ -31775,6 +31894,13 @@ def build_payments_processor_foundation_model(company_type, fundamental_info, sy
             "h1_fcf_conversion_pct", "h1_capex_pct_net_revenue",
             "fy2026_net_revenue_growth_guidance_cc_low_pct", "fy2026_net_revenue_growth_guidance_cc_high_pct",
         ]
+    elif profile == "pure_play_commerce_worldpay_integration":
+        required = [
+            "q2_adjusted_net_revenue", "q2_normalized_adjusted_net_revenue_growth_pct",
+            "q2_adjusted_operating_margin_pct", "q2_adjusted_operating_margin_change_bps",
+            "q2_adjusted_eps", "q2_adjusted_eps_growth_pct", "q2_adjusted_fcf_conversion_pct",
+            "q2_capex_pct_revenue", "fy2026_adjusted_eps_low", "fy2026_adjusted_eps_high",
+        ]
     elif profile == "diversified_merchant_acquirer_banking_technology_clover":
         required = [
             "q2_adjusted_revenue", "q2_organic_revenue_growth_pct", "clover_q2_annualized_gpv",
@@ -31797,7 +31923,7 @@ def build_payments_processor_foundation_model(company_type, fundamental_info, sy
     earnings_released = bool(score_released and earnings_basis.get("available") and earnings_basis.get("earnings_basis_released"))
     family_multiple = build_payments_processor_family_multiple(snap, family_score, earnings_basis) if earnings_released else {"available": False, "multiple_released": False}
     multiple_released = bool(earnings_released and family_multiple.get("available") and family_multiple.get("multiple_released"))
-    issuer_name = {"PYPL": "PayPal", "ADYEN.AS": "Adyen", "FISV": "Fiserv"}.get(sym, sym)
+    issuer_name = {"PYPL": "PayPal", "ADYEN.AS": "Adyen", "FISV": "Fiserv", "GPN": "Global Payments"}.get(sym, sym)
     return {
         "applicable": True,
         "symbol": sym,
@@ -40988,7 +41114,7 @@ def get_peer_group(company_type, symbol, industry=None):
 
     own_symbol = str(symbol or "").upper()
 
-    # V184 – modellbereinigte Zahlungsabwickler-Peer-Kalibrierung. Der Cluster
+    # V185 – modellbereinigte Zahlungsabwickler-Peer-Kalibrierung. Der Cluster
     # bleibt calibration-only. Markt-KGVs dürfen nur relativ zum jeweils eigenen
     # freigegebenen Familien-Ziel-KGV verglichen werden; rohe KGV-Niveaus werden
     # nicht mehr direkt als Anpassungsanker verwendet.
@@ -41010,10 +41136,10 @@ def get_peer_group(company_type, symbol, industry=None):
             "peers": peers,
             "count": len(peers),
             "target_symbol": own_symbol,
-            "peer_model": "payments_processor_model_adjusted_calibration_v2",
+            "peer_model": "payments_processor_model_adjusted_calibration_v3",
             "calibration_only": True,
             "note": (
-                "Zahlungsabwickler Vergleichsgruppen-Kalibrierung V184: PayPal, Adyen, Fiserv und Global Payments bilden den Kerncluster; "
+                "Zahlungsabwickler Vergleichsgruppen-Kalibrierung V185: PayPal, Adyen, Fiserv und Global Payments bilden den Kerncluster; "
                 "FIS bleibt wegen des stärkeren Banking-/Issuer-Technologie-Mix eine breite Markt-Referenz und fließt nie in die Anpassung ein. "
                 "Für die Kalibrierung zählt nur Markt-KGV geteilt durch das eigene freigegebene Familien-Ziel-KGV des jeweiligen Kern-Peers. "
                 "Mindestens drei vollständig modellierte Kern-Peers sind Pflicht; Median statt Durchschnitt; theoretische Wirkung maximal ±5 %. "
@@ -42912,7 +43038,7 @@ def _calculate_integrated_oil_gas_peer_reference(peer_group, fundamental_multipl
     return result
 
 
-PAYMENTS_PROCESSOR_PEER_EARNINGS_ANCHORS_V184 = {
+PAYMENTS_PROCESSOR_PEER_EARNINGS_ANCHORS_V185 = {
     "PYPL": {
         "eps": 5.38, "currency": "USD", "basis": "FY2026 Non-GAAP-EPS-Unternehmensprognose",
         "source": "PayPal Q2 2026 Results", "source_url": "https://www.sec.gov/Archives/edgar/data/1633917/000163391726000080/pypl2q-26earningsrelease.htm",
@@ -42933,13 +43059,13 @@ PAYMENTS_PROCESSOR_PEER_EARNINGS_ANCHORS_V184 = {
 
 
 def _payments_processor_peer_current_fy_snapshot(peer_symbol, cache_version):
-    """Live price + current-FY issuer-native earnings basis for V184 calibration.
+    """Live price + current-FY issuer-native earnings basis for V185 calibration.
 
     Adyen has no issuer EPS guidance, so the already approved family rule is reused:
     current-FY IFRS analyst consensus is accepted only as a guarded peer denominator.
     """
     sym = str(peer_symbol or "").upper().strip()
-    anchor = dict(PAYMENTS_PROCESSOR_PEER_EARNINGS_ANCHORS_V184.get(sym) or {})
+    anchor = dict(PAYMENTS_PROCESSOR_PEER_EARNINGS_ANCHORS_V185.get(sym) or {})
     price_snap = _holding_peer_last_price_snapshot(sym)
     price = safe_float(price_snap.get("price"))
     eps = safe_float(anchor.get("eps"))
@@ -43027,7 +43153,7 @@ def _payments_processor_peer_model_target(peer_symbol, current_fy_snapshot):
 
 
 def _calculate_payments_processor_peer_calibration(peer_group, fundamental_multiple, cache_version):
-    """V184 model-adjusted, calibration-only peer layer for PayPal/Adyen/Fiserv.
+    """V185 model-adjusted, calibration-only peer layer for PayPal/Adyen/Fiserv.
 
     Adjustment evidence is not the raw peer P/E. Each eligible core peer contributes
     Market current-FY P/E / its own released family target P/E. At least three fully
@@ -43147,7 +43273,7 @@ def _calculate_payments_processor_peer_calibration(peer_group, fundamental_multi
     out["note"] = (
         f"Modellbereinigte Kalibrierung bestanden: {len(eligible_ratios)} vollständig modellierte Kern-Peers, "
         f"Median Markt/Modell {median_ratio:.3f}. Theoretische Anpassung {candidate_pct*100:+.1f} % auf {candidate_multiple:.2f}×. "
-        "Diese Wirkung ist in V184 ausdrücklich noch nicht freigegeben und verändert weder Ziel-KGV noch fairen Wert."
+        "Diese Wirkung ist in V185 ausdrücklich noch nicht freigegeben und verändert weder Ziel-KGV noch fairen Wert."
     )
     return out
 
@@ -43186,7 +43312,7 @@ def calculate_peer_check(
             )
         return result
 
-    if (peer_group or {}).get("peer_model") == "payments_processor_model_adjusted_calibration_v2":
+    if (peer_group or {}).get("peer_model") == "payments_processor_model_adjusted_calibration_v3":
         return _calculate_payments_processor_peer_calibration(
             peer_group, fundamental_multiple, cache_version
         )
@@ -68181,7 +68307,7 @@ if selected_symbol:
                                 f"({peer['symbol']}){peer_suffix_ui}"
                             )
 
-                        if peer_group.get("peer_model") == "payments_processor_model_adjusted_calibration_v2":
+                        if peer_group.get("peer_model") == "payments_processor_model_adjusted_calibration_v3":
                             planned_core_ui = sum(1 for _p in peer_group.get("peers", []) if str(_p.get("role") or "core") == "core")
                             planned_broad_ui = sum(1 for _p in peer_group.get("peers", []) if str(_p.get("role") or "core") == "broad_reference")
                             st.write(f"**Vorgesehene Kern-Peers:** {planned_core_ui}")
@@ -68199,10 +68325,10 @@ if selected_symbol:
                             "integrated_oil_gas_major_reference_v1",
                             "exchange_adjusted_eps_runrate_reference_v1",
                         }
-                        if peer_group.get("peer_model") == "payments_processor_model_adjusted_calibration_v2":
+                        if peer_group.get("peer_model") == "payments_processor_model_adjusted_calibration_v3":
                             st.info(
                                 "Zahlungsabwickler-Kalibrierung: Der Kerncluster wird live auf Kurs, Gewinnbasis und eigenes Familien-Ziel-KGV geprüft. "
-                                "Mindestens drei vollständig modellierte Kern-Peers sind Pflicht. V184 zeigt nur den Testwert; Ziel-KGV und fairer Wert bleiben unverändert."
+                                "Mindestens drei vollständig modellierte Kern-Peers sind Pflicht. V185 zeigt nur den Testwert; Ziel-KGV und fairer Wert bleiben unverändert."
                             )
                         elif peer_group.get("peer_model") == "exchange_adjusted_eps_runrate_reference_v1":
                             st.info(
@@ -68292,15 +68418,15 @@ if selected_symbol:
                             "Die Major-Peer-KGVs werden ausschließlich als reference-only Marktvergleich geladen; "
                             "es gibt keine automatische ±5-%-Anpassung, kein Peer-Gate und keinen Peer-bedingten Confidence-Abzug."
                         )
-                    elif peer_group.get("peer_model") == "payments_processor_model_adjusted_calibration_v2":
+                    elif peer_group.get("peer_model") == "payments_processor_model_adjusted_calibration_v3":
                         st.caption(
-                            "Schritt 2A legt den V184-Testcluster fest. Kern-Peers: die jeweils anderen Zahlungsabwickler-Referenzprofile plus Global Payments; "
+                            "Schritt 2A legt den V185-Testcluster fest. Kern-Peers: die jeweils anderen Zahlungsabwickler-Referenzprofile plus Global Payments; "
                             "FIS bleibt breite Markt-Referenz. Für die Kalibrierung zählt nur Markt-KGV relativ zum eigenen freigegebenen Familien-Ziel-KGV des Peers. "
                             "Das Zielunternehmen selbst ist ausgeschlossen. Noch keine Wirkung auf die Bewertung."
                         )
                     elif bool(multiple_result.get("payments_processor_family")):
                         st.caption(
-                            "Für Zahlungsabwickler ist noch keine freigegebene Vergleichsgruppen-Anpassung aktiv; Ziel-KGV und fairer Wert bleiben bis zum erfolgreichen modellbereinigten V184-Livetest unverändert."
+                            "Für Zahlungsabwickler ist noch keine freigegebene Vergleichsgruppen-Anpassung aktiv; Ziel-KGV und fairer Wert bleiben bis zum erfolgreichen modellbereinigten V185-Livetest unverändert."
                         )
                     elif bool((data.get("professional_business_services_specialist_model") or {}).get("applicable")):
                         ps_peer_model_ui = data.get("professional_business_services_specialist_model") or {}
@@ -68392,7 +68518,7 @@ if selected_symbol:
                         elif is_exchange_peer_metric:
                             peer_header = "**Exchange Adjusted-EPS Dual-Anchor Peer-KGVs (FY2025 Volljahr + H1-2026 Run-Rate):**"
                         elif is_payments_processor_peer_metric:
-                            peer_header = "**Modellbereinigte Zahlungsabwickler-Vergleichsgruppe (V184):**"
+                            peer_header = "**Modellbereinigte Zahlungsabwickler-Vergleichsgruppe (V185):**"
                         else:
                             peer_header = "**Geladene Peer-KGVs:**"
                         st.write(peer_header)
@@ -68730,12 +68856,12 @@ if selected_symbol:
                                         pp_eligible_ui = int(peer_check.get("eligible_peer_count") or 0)
                                         if pp_ratio_median_ui is None:
                                             st.warning(
-                                                f"V184 Modell-Datengate noch nicht bestanden: {pp_eligible_ui}/3 vollständig modellierte Kern-Peers. "
+                                                f"V185 Modell-Datengate noch nicht bestanden: {pp_eligible_ui}/3 vollständig modellierte Kern-Peers. "
                                                 "Rohe Peer-KGVs werden ausdrücklich nicht als Anpassungsanker verwendet. Keine Bewertungsänderung."
                                             )
                                         else:
                                             st.info(
-                                                f"V184 Kalibrierungswert: Median Markt/Modell {pp_ratio_median_ui:.3f} · "
+                                                f"V185 Kalibrierungswert: Median Markt/Modell {pp_ratio_median_ui:.3f} · "
                                                 f"theoretische Anpassung {(pp_candidate_pct_ui or 0)*100:+.1f} % · "
                                                 f"theoretisches KGV {pp_candidate_mul_ui:.2f}×. "
                                                 "Noch nicht freigegeben – das verwendete Ziel-KGV und der faire Wert bleiben unverändert."
@@ -68802,7 +68928,7 @@ if selected_symbol:
                         peer_explain = f"Integrated Oil & Gas {APP_BUILD_VERSION}: Die anderen globalen Majors sind reine Markt-Referenzen. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Peer-Anpassung; Score, Through-Cycle-EPS, Ziel-KGV und Fair Value bleiben issuer-spezifisch."
                     elif is_payments_processor_peer_metric:
                         peer_explain = (
-                            "Zahlungsabwickler V184: Mindestens drei vollständig modellierte Kern-Peers. Verglichen wird Markt-KGV relativ zum jeweils eigenen freigegebenen Familien-Ziel-KGV; "
+                            "Zahlungsabwickler V185: Mindestens drei vollständig modellierte Kern-Peers. Verglichen wird Markt-KGV relativ zum jeweils eigenen freigegebenen Familien-Ziel-KGV; "
                             "Median statt Durchschnitt, theoretische Wirkung maximal ±5 %. Die Kalibrierung bleibt vollständig ohne Einfluss auf Ziel-KGV, fairen Wert und Bewertungszonen."
                         )
                     elif is_exchange_peer_metric:
