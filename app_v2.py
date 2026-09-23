@@ -23,10 +23,10 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.22.83"
+APP_BUILD_VERSION = "V2.22.84"
 
-# V179 – Sprach-, Versions- & Konsistenzbereinigung.
-# Reine UI-/Textbereinigung auf Basis von V178; interne Schlüssel, Statuswerte,
+# V180 – Abschließende sichtbare Sprachbereinigung.
+# Reine UI-/Textbereinigung auf Basis von V179; interne Schlüssel, Statuswerte,
 # Datenpfade und Bewertungsmathematik bleiben unverändert.
 _UI_DE_EXACT = {
     "buy": "kaufen",
@@ -411,7 +411,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Sprach-, Versions- & Konsistenzbereinigung V179"
+    f"Build {APP_BUILD_VERSION} · Abschließende sichtbare Sprachbereinigung V180"
 )
 
 
@@ -436,6 +436,7 @@ st.caption(
 # V2.22.81: Deutsche Benutzeroberfläche & Verständlichkeits-Bereinigung V177. Darstellungs-/Sprachschicht בלבד: sichtbare englische Fachbegriffe werden deutsch erläutert; interne Schlüssel, Bewertungsmathematik und Freigabestatus bleiben unverändert.
 # V2.22.82: Modul-6-Transparenz & deutsche Verständlichkeit V178. Reine Darstellungs-/Sprachbereinigung ohne Änderung der Bewertungsmathematik. Für Zahlungsabwickler zeigt Modul 6 jetzt getrennt Qualitätspunktzahl-KGV, Ökonomie-Aufschlag, KGV vor Schutzregeln, Schutzgrenze und freigegebenes Ziel-KGV. Referenzunternehmen zur Modellvalidierung werden klar von einer noch nicht freigegebenen automatischen Bewertungs-Vergleichsgruppe getrennt. Sichtbare interne Entwicklungsbegriffe und Wiederholungen im Zahlungsabwickler-Pfad werden reduziert.
 # V2.22.83: Sprach-, Versions- & Konsistenzbereinigung V179. Reine UI-/Textbereinigung ohne Änderung der Bewertungsmathematik. Entfernt veraltete V176/V175-Verweise aus dem sichtbaren Zahlungsabwickler-Pfad, korrigiert Grammatik und Schritt-2B-Texte, ersetzt verbliebene Entwicklungsbegriffe durch verständliches Deutsch und benennt die methodische Sicherheitsobergrenze eindeutiger. PayPal-/Adyen-/Fiserv-Punktzahl-, Gewinnbasis-, Multiple-, Fair-Value- und Zonenmathematik bleiben unverändert.
+# V2.22.84: Abschließende sichtbare Sprachbereinigung V180. Reine UI-/Textbereinigung ohne Änderung der Bewertungsmathematik. Entfernt den letzten sichtbaren V178-Altverweis im Zahlungsabwickler-Pfad, bereinigt die FCF-Quellenabweichung, PayPal-Fachbegriffe, Bewertungszonen- und Plausibilitätscheck-Texte und ersetzt verbliebene englische Anzeigeformulierungen durch verständliches Deutsch. Interne Schlüssel und alle PayPal-/Adyen-/Fiserv-Punktzahl-, Gewinnbasis-, Ziel-KGV-, Fairer-Wert- und Zonenformeln bleiben unverändert.
 
 
 
@@ -31129,8 +31130,8 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
         "source_name": "PayPal Q2 2026 Results / SEC Exhibit 99.1",
         "source_url": "https://www.sec.gov/Archives/edgar/data/1633917/000163391726000080/pypl2q-26earningsrelease.htm",
         "business_model_note": (
-            "PayPal kombiniert branded checkout, Wallet/Venmo, Braintree/PSP und Merchant Services. "
-            "Daher ist TPV allein kein Qualitäts- oder Margenanker und die Visa/Mastercard-Payment-Network-Logik bleibt gesperrt."
+            "PayPal kombiniert Marken-Checkout, digitale Geldbörse/Venmo, Braintree/PSP und Händlerdienste. "
+            "Daher ist TPV allein kein Qualitäts- oder Margenanker; die Bewertungslogik für reine Visa-/Mastercard-Zahlungsnetzwerke bleibt gesperrt."
         ),
         "q2_net_revenue": net_revenue,
         "q2_net_revenue_growth_pct": 5.0,
@@ -31171,7 +31172,7 @@ def get_verified_payments_processor_foundation_snapshot(symbol):
         "q2_adjusted_free_cash_flow_prior": 0.656e9,
         "q2_adjusted_free_cash_flow_growth_pct": 179.0,
         "adjusted_fcf_definition_note": (
-            "Adjusted FCF schließt den Netto-Timing-Effekt zwischen Originierung von zum Verkauf gehaltenen "
+            "Der bereinigte FCF schließt den Netto-Zeitverschiebungseffekt zwischen der Entstehung zum Verkauf gehaltener "
             "Kreditforderungen und deren anschließendem Verkauf aus."
         ),
         "cash_and_investments": 15.3e9,
@@ -31343,7 +31344,7 @@ def build_payments_processor_family_score(snapshot):
         else: return_pts = 1
         capital_points = balance_pts + dilution_pts + return_pts
         capital_note = (
-            f"Cash/Investments vs. Debt, tatsächliche Aktienzahlreduktion um {abs(share_reduction):.1f}% ggü. FY2025 und Buyback/SBC-Deckung werden getrennt geprüft."
+            f"Liquidität und Anlagen gegenüber Schulden, tatsächliche Aktienzahlreduktion um {abs(share_reduction):.1f}% ggü. FY2025 sowie die Deckung der aktienbasierten Vergütung durch Aktienrückkäufe werden getrennt geprüft."
             if share_reduction is not None else "Cash/Debt sowie Buyback/SBC-Kontext werden geprüft; Verwässerungsdaten unvollständig."
         )
 
@@ -31814,7 +31815,7 @@ def build_payments_processor_foundation_model(company_type, fundamental_info, sy
             if multiple_released else (f"{issuer_name} Familien-Punktzahl freigegeben · Gewinnbasis noch gesperrt" if score_released else f"{issuer_name} Familien-Punktzahl gesperrt – Primärdaten unvollständig oder veraltet")
         ),
         "note": (
-            "V178 hält Familien-Punktzahl, Gewinnbasis für das laufende Geschäftsjahr, den praktisch geprüften 8–30× Zahlungsabwickler-KGV-Korridor, den eigenen fairen Wert und die Bewertungszonen unverändert. "
+            "Familien-Punktzahl, Gewinnbasis für das laufende Geschäftsjahr, der praktisch geprüfte 8–30× Zahlungsabwickler-KGV-Korridor, der eigene faire Wert und die Bewertungszonen bleiben unverändert. "
             "Fairer Wert = Familien-Gewinnbasis × freigegebenes Ziel-KGV; es gibt keinen Vergleichsgruppen-Aufschlag, keinen historischen KGV-Anker und keine Mischung mit Analystenzielen."
         ),
     }
@@ -56595,7 +56596,7 @@ def load_external_analyst_consensus(ticker, quote_info, current_price):
         "recommendation_source": recommendation_source,
         "note": (
             "Externe Analystendaten sind ein Plausibilitätscheck und verändern "
-            "weder den eigenen Fair Value noch den fundamentalen Score. Für eine "
+            "weder den eigenen fairen Wert noch die fundamentale Punktzahl. Für eine "
             "bindende Konfliktbremse sind ein gültiges mittleres Kursziel und "
             "mindestens 3 Analystenmeinungen erforderlich; ab 5 gilt die Basis als hoch."
         ),
@@ -62415,12 +62416,12 @@ if selected_symbol:
                                 )
                             elif company_type.get("valuation_family_id") == "payments_processor":
                                 st.info(
-                                    "ℹ️ FCF-Quellenabweichung im Payments-Processor-Family-Gate: Yahoo quoteSummary/info zeigt "
-                                    f"Levered Free Cash Flow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
+                                    "ℹ️ FCF-Quellenabweichung bei der Zahlungsabwickler-Prüfung: Yahoo zeigt "
+                                    f"einen verschuldungsbereinigten freien Cashflow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
                                     f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
-                                    f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Provider-Werte bleiben Diagnose-/Rohdaten. "
-                                    "Family Score und live validiertes Ziel-KGV verwenden ausschließlich issuer-native Cash-Conversion-/Adjusted-FCF-Evidenz; "
-                                    "der live validierte eigene Family Fair Value verwendet diese Provider-FCF-Werte ebenfalls nicht als Anker."
+                                    f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Datenanbieter-Werte bleiben reine Diagnose-/Rohdaten. "
+                                    "Familien-Punktzahl und praktisch geprüftes Ziel-KGV verwenden ausschließlich unternehmenseigene Angaben zur Cashflow-Umwandlung und zum bereinigten FCF; "
+                                    "auch der eigene faire Wert verwendet diese Datenanbieter-FCF-Werte nicht als Bewertungsanker."
                                 )
                             else:
                                 st.info(
@@ -68537,7 +68538,7 @@ if selected_symbol:
                             "Schritt 3A dient ausschließlich der Zuordnung. "
                             "Die eigentliche Spezialprüfung erfolgt – sofern bereits "
                             "implementiert – getrennt in Schritt 3B und verändert weder "
-                            "Multiple Score noch Fundamental-/Peer-Multiple."
+                            "Qualitätspunktzahl noch Familien-Ziel-KGV oder Vergleichsgruppen-Anpassung."
                         )
 
                         if (company_type.get("family_model_status") == "three_issuer_valuation_zone_live_validated"
@@ -68614,12 +68615,12 @@ if selected_symbol:
                             with sc3:
                                 b = pp_blocks.get("margin") or {}
                                 st.metric("Margenqualität / Trend", f"{int(b.get('points'))}/{int(b.get('max_points'))}")
-                                st.caption(f"{text_or_dash(b.get('margin_label'))}: {safe_float(b.get('margin_pct')):.1f}% · Trend {safe_float(b.get('margin_trend_bps')):+.0f} bps")
+                                st.caption(f"{text_or_dash(b.get('margin_label'))}: {safe_float(b.get('margin_pct')):.1f}% · Trend {safe_float(b.get('margin_trend_bps')):+.0f} Basispunkte")
                             sc4, sc5, sc6 = st.columns(3)
                             with sc4:
                                 b = pp_blocks.get("cash") or {}
                                 st.metric("Cashflow / Kapitalintensität", f"{int(b.get('points'))}/{int(b.get('max_points'))}")
-                                st.caption(f"Cash Conversion: {safe_float(b.get('cash_conversion_pct')):.1f}% · CapEx-Intensität: {safe_float(b.get('capex_intensity_pct')):.1f}%")
+                                st.caption(f"Cashflow-Umwandlung: {safe_float(b.get('cash_conversion_pct')):.1f}% · CapEx-Intensität: {safe_float(b.get('capex_intensity_pct')):.1f}%")
                             with sc5:
                                 b = pp_blocks.get("execution") or {}
                                 st.metric("Ergebnis / Umsetzung", f"{int(b.get('points'))}/{int(b.get('max_points'))}")
@@ -74293,7 +74294,7 @@ if selected_symbol:
                         )
                     elif fair_value.get("valuation_method") == "payments_processor_current_fy_family_pe":
                         st.success(
-                            "Der Zahlungsabwickler-Faire-Wert V1 wurde ausschließlich aus der freigegebenen Familien-Gewinnbasis des laufenden Geschäftsjahres und dem praktisch geprüften Familien-Ziel-KGV berechnet. "
+                            "Der faire Wert V1 für Zahlungsabwickler wurde ausschließlich aus der freigegebenen Familien-Gewinnbasis des laufenden Geschäftsjahres und dem praktisch geprüften Familien-Ziel-KGV berechnet. "
                             "Vergleichsgruppen-Anpassung, historische Durchschnitts-KGVs und Analystenziele sind keine Bewertungsanker. Die Bewertungszonen V1 sind freigegeben; Handlungssignale bleiben bis zur separaten Signal-Kalibrierung gesperrt."
                         )
                     elif fair_value.get("valuation_method") == "professional_business_services_adjusted_pe":
@@ -74508,7 +74509,7 @@ if selected_symbol:
 
                     if valuation_zone.get("payments_processor_zone"):
                         st.write(
-                            "**Payments-Processor Zonenbreite:** Fair ±"
+                            "**Zahlungsabwickler-Zonenbreite:** fair ±"
                             f"{safe_float(valuation_zone.get('fair_band_pct')):.1f} % · "
                             "starke Außengrenze ±"
                             f"{safe_float(valuation_zone.get('strong_threshold_pct')):.1f} %"
@@ -74516,10 +74517,10 @@ if selected_symbol:
                         st.caption(
                             "Treiber: Bewertungssicherheit "
                             f"{text_or_dash((valuation_confidence or {}).get('level'))} · "
-                            f"Family Quality Score {safe_float(valuation_zone.get('family_quality_score')):.0f}/100 · "
-                            f"Earnings-Basis {text_or_dash(valuation_zone.get('earnings_basis_confidence'))} · "
-                            f"Multiple-Sicherheit {text_or_dash(valuation_zone.get('multiple_confidence'))}. "
-                            "Die Breite verändert den Fair Value nicht."
+                            f"Familien-Qualitätspunktzahl {safe_float(valuation_zone.get('family_quality_score')):.0f}/100 · "
+                            f"Gewinnbasis {text_or_dash(valuation_zone.get('earnings_basis_confidence'))} · "
+                            f"Sicherheit des Ziel-KGV {text_or_dash(valuation_zone.get('multiple_confidence'))}. "
+                            "Die Breite verändert den fairen Wert nicht."
                         )
 
                     if fair_value.get("valuation_method") == "listed_holding_nav_target":
@@ -74554,18 +74555,18 @@ if selected_symbol:
                             elif price_distance < 0:
                                 distance_label = "Downside bis Fair Value"
                             else:
-                                distance_label = "Abstand zum Fair Value"
+                                distance_label = "Abstand zum fairen Wert"
                             distance_text = f"{price_distance:+.1f} %" if price_distance != 0 else "0.0 %"
                         else:
                             price_distance = valuation_zone["price_vs_fair_value_pct"]
                             if price_distance < 0:
-                                distance_label = "Aktueller Kursabschlag zum Fair Value"
+                                distance_label = "Aktueller Kursabschlag zum fairen Wert"
                                 distance_text = f"{abs(price_distance):.1f} %"
                             elif price_distance > 0:
-                                distance_label = "Aktueller Kursaufschlag zum Fair Value"
+                                distance_label = "Aktueller Kursaufschlag zum fairen Wert"
                                 distance_text = f"{price_distance:.1f} %"
                             else:
-                                distance_label = "Abstand zum Fair Value"
+                                distance_label = "Abstand zum fairen Wert"
                                 distance_text = "0.0 %"
 
                         st.write(f"**{distance_label}:** {distance_text}")
@@ -74813,41 +74814,41 @@ if selected_symbol:
                     if reality_check.get("available"):
                         target_horizon_guard = reality_check.get("target_horizon_guard") or {}
                         if target_horizon_guard.get("active"):
-                            st.warning("**Analyst Target Horizon Guard: 🟡 EINGESCHRÄNKT VERGLEICHBAR**")
+                            st.warning("**Zeithorizont-Schutz für Analystenziele: 🟡 EINGESCHRÄNKT VERGLEICHBAR**")
                             current_eps_h = safe_float(target_horizon_guard.get("current_fy_eps"))
                             next_eps_h = safe_float(target_horizon_guard.get("next_fy_eps"))
                             next_change_h = safe_float(target_horizon_guard.get("next_fy_eps_change_pct"))
                             horizon_bits = [
-                                "Eigener Fair Value: 0Y/current-FY Earnings-Horizont",
-                                "Externes Kursziel: identischer FY-Horizont nicht verifiziert",
+                                "Eigener fairer Wert: Gewinnbasis des laufenden Geschäftsjahres",
+                                "Externes Kursziel: identischer Geschäftsjahres-Horizont nicht verifiziert",
                             ]
                             if current_eps_h is not None and next_eps_h is not None and next_change_h is not None:
                                 horizon_bits.append(
-                                    f"Current-FY EPS {current_eps_h:.2f} → Next-FY EPS {next_eps_h:.2f} ({next_change_h:+.1f} %)"
+                                    f"EPS laufendes Geschäftsjahr {current_eps_h:.2f} → EPS nächstes Geschäftsjahr {next_eps_h:.2f} ({next_change_h:+.1f} %)"
                                 )
                             st.caption(" · ".join(horizon_bits))
                             st.caption(target_horizon_guard.get("reason"))
 
                         agreement = reality_check.get("agreement", "NICHT VERFÜGBAR")
                         if agreement == "HOCH":
-                            st.success("**Reality Check: 🟢 HOHE ÜBEREINSTIMMUNG**")
+                            st.success("**Plausibilitätscheck: 🟢 HOHE ÜBEREINSTIMMUNG**")
                         elif agreement == "MITTEL":
-                            st.info("**Reality Check: 🟡 MITTLERE ÜBEREINSTIMMUNG**")
+                            st.info("**Plausibilitätscheck: 🟡 MITTLERE ÜBEREINSTIMMUNG**")
                         elif agreement == "HORIZON-EINGESCHRÄNKT":
-                            st.warning("**Reality Check: 🟡 HORIZONBEDINGT EINGESCHRÄNKT VERGLEICHBAR**")
+                            st.warning("**Plausibilitätscheck: 🟡 ZEITHORIZONT EINGESCHRÄNKT VERGLEICHBAR**")
                         elif agreement == "KONFLIKT":
-                            st.error("**Reality Check: 🔴 KONFLIKT**")
+                            st.error("**Plausibilitätscheck: 🔴 KONFLIKT**")
                         elif agreement == "NICHT BELASTBAR":
-                            st.warning("**Reality Check: ⚪ EXTERNE BASIS NICHT BELASTBAR**")
+                            st.warning("**Plausibilitätscheck: ⚪ EXTERNE BASIS NICHT BELASTBAR**")
                         else:
-                            st.warning("**Reality Check: 🟠 NIEDRIGE ÜBEREINSTIMMUNG**")
+                            st.warning("**Plausibilitätscheck: 🟠 NIEDRIGE ÜBEREINSTIMMUNG**")
 
                         own_up = safe_float(reality_check.get("own_upside_pct"))
                         ext_up = safe_float(reality_check.get("external_upside_pct"))
                         gap_pp = safe_float(reality_check.get("gap_pct_points"))
                         if own_up is not None and ext_up is not None:
                             st.write(
-                                f"Eigene Fair-Value-Richtung: **{own_up:+.1f} %** · "
+                                f"Eigene Bewertung zum aktuellen Kurs: **{own_up:+.1f} %** · "
                                 f"Analysten-Kursziel: **{ext_up:+.1f} %**"
                             )
                         if gap_pp is not None:
@@ -74856,14 +74857,14 @@ if selected_symbol:
                             )
                         if agreement == "HORIZON-EINGESCHRÄNKT" and target_horizon_guard.get("active"):
                             st.caption(
-                                "Der numerische Abstand bleibt als Diagnose sichtbar; wegen des aktiven Horizon Guards "
-                                "wird er nicht als voll vergleichbarer Same-Horizon-Konflikt und nicht als automatische Konfliktbremse behandelt."
+                                "Der numerische Abstand bleibt als Diagnose sichtbar; wegen des aktiven Zeithorizont-Schutzes "
+                                "wird er nicht als vollständig vergleichbarer Konflikt auf gleichem Zeithorizont und nicht als automatische Konfliktbremse behandelt."
                             )
                         else:
                             st.caption(reality_check.get("reason"))
 
                     else:
-                        st.info(reality_check.get("reason") or "Reality Check nicht verfügbar.")
+                        st.info(reality_check.get("reason") or "Plausibilitätscheck nicht verfügbar.")
 
                 else:
                     st.info(
@@ -74887,10 +74888,10 @@ if selected_symbol:
                     st.caption(final_hold.get("reason"))
 
                 st.caption(
-                    "Der Reality Check ist eine unabhängige Kontrollschicht. Analystenkonsens "
-                    "verändert weder den eigenen Fair Value noch den fundamentalen Score und kann "
-                    "kein Kauf-/Verkaufssignal erzeugen; er darf nur bei belastbarem und ausreichend horizonvergleichbarem Konflikt bremsen. "
-                    "Der Analyst Target Horizon Guard kann einen numerisch großen Abstand als eingeschränkt vergleichbar markieren, ohne den Fair Value zu verändern. "
+                    "Der Plausibilitätscheck ist eine unabhängige Kontrollschicht. Der Analystenkonsens "
+                    "verändert weder den eigenen fairen Wert noch die fundamentale Punktzahl und kann "
+                    "kein Kauf-/Verkaufssignal erzeugen; er darf nur bei einem belastbaren und über denselben Zeithorizont ausreichend vergleichbaren Konflikt bremsen. "
+                    "Der Schutz für den Zeithorizont der Analystenziele kann einen numerisch großen Abstand als eingeschränkt vergleichbar markieren, ohne den fairen Wert zu verändern. "
                     "Die Konsens-Kohärenz beschreibt nur, ob Kurszielrichtung und Analystenrating extern zueinander passen; sie verändert kein Signal."
                 )
 
