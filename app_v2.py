@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.05"
+APP_BUILD_VERSION = "V2.23.06"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -943,13 +943,14 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Investitionsgüter ABB-Validierung & Gegencheck V2 V201"
+    f"Build {APP_BUILD_VERSION} · Investitionsgüter Gegencheck-Zonen & Regression V202"
 )
 
 
 # V2.22.98: Zahlungsabwickler-Sicherheitsentkopplung V194. Bei vollständig freigegebenem Zahlungsabwickler-Spezialpfad bleibt die generische TTM-/Prognose-EPS-Divergenz ausschließlich Diagnosekontext und darf die endgültige Bewertungssicherheit nicht mehr begrenzen. Maßgeblich sind Methodenobergrenze, freigegebene Familien-Gewinnbasis, Sicherheit des Familien-Ziel-KGV und Spezialkontrolle. Bewertungsmathematik, Peer-Kalibrierung, Gewinnbasis, Ziel-KGV, Fair Values und Signal-Gates bleiben unverändert.
 # V2.23.02: Unabhängiger Gegencheck V2 V198. Härtet die nicht steuernde Zahlungsabwickler-Kontrollsicht nach Live-Tests mit Global Payments, PayPal, Adyen und Fiserv: Analystenabweichungen werden richtungs- und größenordnungsspezifisch formuliert; die feste 8x/10x-Bewertung wird entfernt und das aktuelle Markt-KGV nur noch als marktimplizierter Kontext gezeigt, solange keine gleichbasige historische Eigenreihe belastbar verfügbar ist; der rohe Kern-Vergleichsgruppen-Check erhält eine Streuungs-/Vergleichbarkeitssperre und darf bei heterogener KGV-Spanne weder Bestätigung noch Widerspruch erzeugen. Das Gesamtergebnis zählt nur belastbare Kontrollen. Fair Value, Ziel-KGV, Qualität, Sicherheit, Bewertungszonen und Kaufen/Halten/Verkaufen bleiben unverändert.
 # V2.23.04: Zahlungsabwickler-Sicherheitsobergrenze V200. Die allgemeine Methoden-/Spezialkontroll-Obergrenze der vollständig freigegebenen Zahlungsabwickler-Referenzprofile wird von „Niedrig bis Mittel“ auf „Mittel“ angehoben. Die in V199 gehärtete Regel „schwächste relevante Sicherheitsstufe gewinnt“ bleibt unverändert. Emittentenspezifische niedrigere Stufen bleiben wirksam; insbesondere behält Fiserv wegen seiner Ziel-KGV-Sicherheit „Niedrig bis Mittel“ die niedrigere Gesamtbewertungssicherheit. Score, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Value, Bewertungszonen und Signal-Schwellen bleiben unverändert.
+# V2.23.06: Investitionsgüter Gegencheck-Zonen & Regression V202. Der unabhängige Analysten-Gegencheck für freigegebene Investitionsgüter verwendet nun die bereits berechneten Bewertungszonen statt der aus Payments übernommenen starren ±10%-Richtungsgrenze. Ein Analystenziel innerhalb der eigenen Fair-Zone bestätigt eine faire Hauptmodell-Bewertung; angrenzende Zonen liefern nur Teilbestätigung, klare Gegenrichtung eine externe Abweichung. Ungültige Yahoo-Empfehlungs-Mittelwerte außerhalb der 1–5-Skala werden verworfen und als „Punktzahl –“ angezeigt. Generische Investitionsgüter-Texte ersetzen den verbliebenen Schneider-spezifischen Peer-Pfad; Siemens nennt Schneider und ABB als weitere Familienvalidierungen. Keine Änderung an Scores, Gewinnbasen, Ziel-KGVs, Fair Values, Zonen, Signalregeln oder Siemens-SOTP-Gate.
 # V2.23.05: Investitionsgüter ABB-Validierung & Gegencheck V2 V201. Erweitert das freigegebene Industrials/Investitionsgüter-Modell von Siemens/Schneider auf ABBN.SW mit issuer-primary Orders/Book-to-Bill-, vergleichbarem Wachstum-, Operational-EBITA-/ROCE-, FCF-, Net-Debt/EBITDA- und Kapitalallokations-Adapter. ABB nutzt mangels konkreter Unternehmens-EPS-Guidance den bereits durch die Cross-Currency-Schutzregel in USD normalisierten 0Y/current-FY-Konsens als konservative Earnings Bridge mit mittlerer Sicherheit. Robotics-Verkauf/Rotork-Übernahme wirken als Portfolio-/M&A-Confidence-Guard, nicht als doppelter KGV-Abschlag. Modul 8 erhält für freigegebene Investitionsgüter eine unabhängige Analysten-/marktimplizierte-/rohe-Peer-Kontrollsicht. ABB-Suche erhält einen verifizierten ABB-Ltd-Hauptlisting-Alias auf ABBN.SW; Siemens bleibt SOTP-geblockt, Schneider/Payments-Mathematik unverändert.
 # V2.23.03: Gegencheck-/Sicherheits-Konsistenz V199. Der rohe Zahlungsabwickler-Peer-Gegencheck berechnet seine Streuung ausschließlich aus den tatsächlichen anderen Kern-Vergleichsunternehmen; das Zielunternehmen kann die Vergleichbarkeitssperre nicht mehr durch sein eigenes KGV auslösen. Für den freigegebenen Zahlungsabwickler-Pfad bleibt eine explizite Zwischenstufe wie „Niedrig bis Mittel“ als schwächste relevante Bewertungssicherheit erhalten, statt automatisch zu „Mittel“ hochgestuft zu werden; die bestehende Signal-Logik verwendet weiterhin mindestens „Mittel“ als Neukauf-Gate. In der Kurzbewertung wird eine Schutzregel nur dann als Hauptbelastung gezeigt, wenn sie das Ziel-KGV tatsächlich bindend begrenzt; andernfalls wird der schwächste operative Familienblock samt Begründung gezeigt. Fair-Value-, Score-, Gewinnbasis-, Korridor- und Peer-Kalibrierungs-Mathematik bleiben unverändert.
 # V2.23.00: Zahlungsabwickler-Signal-Logik V196. Gibt die familienbezogene Kaufen/Halten/Verkaufen-Logik nach separater Kalibrierung frei: Neukauf nur bei Unterbewertung oder starker Unterbewertung, Qualität >=65/100 und Bewertungssicherheit mindestens Mittel; schwächere Qualität bzw. niedrigere Sicherheit bremsen auf Abwarten. Bestandspositionen bleiben bis Fair bewertet auf Halten; bei Überbewertung führt Qualität <65/100 zu Verkaufen prüfen, bei starker Überbewertung und mindestens mittlerer Sicherheit zu Verkaufen. Niedrige Sicherheit verhindert harte Verkaufssignale. Bewertungsmathematik, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Values und Bewertungszonen bleiben unverändert.
@@ -44382,7 +44383,7 @@ def get_special_control(company_type, symbol):
                 "Industrial net debt/EBITDA mit explizitem Ausschluss von Siemens Financial Services debt",
                 "Current-FY EPS pre PPA nur als Earnings-Kontext, nicht als alleiniger Fair-Value-Anker",
                 "Healthineers 30%-Direktabspaltung / retained stake / post-spin Core-Siemens SOTP-Bridge",
-                "Schneider als zweite unabhängige Family-Validierung; 22–32× Cross-Issuer-Family-Corridor freigegeben",
+                "Schneider und ABB als weitere unabhängige Family-Validierungen; 22–32× Cross-Issuer-Family-Corridor freigegeben",
                 "Analystenziele ausschließlich Reality Check",
             ],
             "status": f"Router aktiv – {APP_BUILD_VERSION} Industrials / Capital Goods Siemens Primary-Source & Spin-off Gate V1",
@@ -53171,6 +53172,115 @@ def build_capital_goods_independent_crosscheck_v2(
         {"peer_rows": peer_rows},
         analyst_consensus,
     )
+
+    # V202: Capital-Goods analyst confirmation is zone-aware.  A fixed ±10%
+    # external-upside bucket is too coarse for a family whose own Fair Zone is
+    # already confidence-calibrated.  The analyst target is therefore checked
+    # against the released model zones; this remains diagnosis-only.
+    analyst_check = (result.get("checks") or {}).get("analyst") or {}
+    target_mean = safe_float((analyst_consensus or {}).get("target_mean"))
+    current_price = safe_float(price)
+    own_zone = str((valuation_zone or {}).get("zone") or "").strip()
+    fair_low = safe_float((valuation_zone or {}).get("fair_lower"))
+    fair_high = safe_float((valuation_zone or {}).get("fair_upper"))
+    strong_low = safe_float((valuation_zone or {}).get("strong_undervaluation_limit"))
+    strong_high = safe_float((valuation_zone or {}).get("strong_overvaluation_limit"))
+
+    if (
+        analyst_check.get("available")
+        and target_mean is not None
+        and current_price is not None
+        and fair_low is not None
+        and fair_high is not None
+        and strong_low is not None
+        and strong_high is not None
+    ):
+        if own_zone == "Fair bewertet":
+            if fair_low <= target_mean <= fair_high:
+                analyst_check["status"] = "Bestätigt"
+                analyst_check["reason"] = (
+                    "Das Analystenziel liegt innerhalb der eigenen Fair-Zone und bestätigt damit die weitgehend faire Bewertung des Hauptmodells."
+                )
+            elif strong_low < target_mean < strong_high:
+                analyst_check["status"] = "Teilweise bestätigt"
+                analyst_check["reason"] = (
+                    "Das Analystenziel liegt außerhalb der eigenen Fair-Zone, aber noch innerhalb der angrenzenden Bewertungszonen; die faire Hauptmodell-Bewertung wird nur teilweise bestätigt."
+                )
+            else:
+                analyst_check["status"] = "Externe Abweichung"
+                analyst_check["reason"] = (
+                    "Das Analystenziel liegt außerhalb der eigenen fairen und angrenzenden Bewertungszonen und weicht damit materiell von der fairen Hauptmodell-Bewertung ab."
+                )
+        elif own_zone in {"Stark unterbewertet", "Unterbewertet"}:
+            if fair_low <= target_mean <= strong_high:
+                analyst_check["status"] = "Bestätigt"
+                analyst_check["reason"] = (
+                    "Das Analystenziel führt vom aktuellen Kurs mindestens bis in die eigene Fair-Zone und bestätigt damit die Unterbewertung des Hauptmodells."
+                )
+            elif target_mean > current_price:
+                analyst_check["status"] = "Teilweise bestätigt"
+                analyst_check["reason"] = (
+                    "Das Analystenziel zeigt ebenfalls Aufwärtspotenzial, erreicht die eigene Fair-Zone aber nicht bzw. liegt deutlich darüber; die Unterbewertung wird nur teilweise in der Größenordnung bestätigt."
+                )
+            else:
+                analyst_check["status"] = "Externe Abweichung"
+                analyst_check["reason"] = (
+                    "Das Analystenziel bestätigt das vom Hauptmodell ausgewiesene Aufwärtspotenzial nicht."
+                )
+        elif own_zone in {"Überbewertet", "Stark überbewertet"}:
+            if strong_low <= target_mean <= fair_high:
+                analyst_check["status"] = "Bestätigt"
+                analyst_check["reason"] = (
+                    "Das Analystenziel führt vom aktuellen Kurs mindestens bis in die eigene Fair-Zone und bestätigt damit die Überbewertung des Hauptmodells."
+                )
+            elif target_mean < current_price:
+                analyst_check["status"] = "Teilweise bestätigt"
+                analyst_check["reason"] = (
+                    "Das Analystenziel zeigt ebenfalls Abwärtspotenzial, erreicht die eigene Fair-Zone aber nicht bzw. liegt deutlich darunter; die Überbewertung wird nur teilweise in der Größenordnung bestätigt."
+                )
+            else:
+                analyst_check["status"] = "Externe Abweichung"
+                analyst_check["reason"] = (
+                    "Das Analystenziel bestätigt die vom Hauptmodell ausgewiesene Überbewertung nicht."
+                )
+
+        # Recalculate the non-steering overall diagnosis after the family-specific
+        # analyst classification.  Market-implied P/E remains context-only.
+        available_checks = [c for c in (result.get("checks") or {}).values() if c.get("available")]
+        usable_checks = [c for c in available_checks if c.get("usable_for_overall")]
+        confirmed = sum(1 for c in usable_checks if c.get("status") == "Bestätigt")
+        partial = sum(1 for c in usable_checks if c.get("status") == "Teilweise bestätigt")
+        deviations = sum(1 for c in usable_checks if c.get("status") == "Externe Abweichung")
+        excluded = len(available_checks) - len(usable_checks)
+        result["direction_support_count"] = confirmed
+        result["partial_support_count"] = partial
+        result["external_deviation_count"] = deviations
+        result["available_check_count"] = len(available_checks)
+        result["usable_check_count"] = len(usable_checks)
+        result["excluded_check_count"] = excluded
+        if not usable_checks:
+            result["overall"] = "Eingeschränkt prüfbar"
+            result["overall_reason"] = "Keine der verfügbaren Kontrollen ist derzeit belastbar genug für ein unabhängiges Gesamturteil."
+        elif deviations >= 1 and confirmed == 0:
+            result["overall"] = "Externe Abweichung"
+            result["overall_reason"] = (
+                "Mindestens eine belastbare externe Kontrolle weicht materiell vom Hauptmodell ab; die übrigen Kontrollen sind nicht stark genug, diese Abweichung aufzulösen."
+            )
+        elif confirmed >= 2 and deviations == 0:
+            result["overall"] = "Bestätigt"
+            result["overall_reason"] = "Mindestens zwei belastbare unabhängige Kontrollen stützen die Bewertungsrichtung des Hauptmodells."
+        elif confirmed >= 1 and deviations >= 1:
+            result["overall"] = "Teilweise bestätigt"
+            result["overall_reason"] = "Belastbare Kontrollen liefern gemischte Evidenz; das Hauptmodell wird nicht eindeutig bestätigt."
+        elif confirmed >= 1 or partial >= 1:
+            result["overall"] = "Teilweise bestätigt"
+            result["overall_reason"] = (
+                "Mindestens eine belastbare Kontrolle stützt die Bewertungsrichtung, für ein klares Gesamturteil fehlen jedoch weitere unabhängige Bestätigungen."
+            )
+        else:
+            result["overall"] = "Eingeschränkt prüfbar"
+            result["overall_reason"] = "Die belastbaren Kontrollen reichen derzeit nicht für ein eindeutiges Gesamturteil."
+
     result["family"] = "industrials_capital_goods"
     result["applicable"] = True
     market_check = (result.get("checks") or {}).get("market_expectation") or {}
@@ -58371,6 +58481,8 @@ def load_external_analyst_consensus(ticker, quote_info, current_price):
 
     recommendation_key = str(info.get("recommendationKey") or "").strip().lower() or None
     recommendation_mean = safe_float(info.get("recommendationMean"))
+    if recommendation_mean is not None and not (1.0 <= recommendation_mean <= 5.0):
+        recommendation_mean = None
     recommendation_source = (
         "Yahoo quoteSummary/info"
         if recommendation_key is not None or recommendation_mean is not None
@@ -70519,7 +70631,7 @@ if selected_symbol:
                                 )
                             else:
                                 st.caption(
-                                    "Die Peer-Schicht erzeugt selbst keinen Fair Value. Für den freigegebenen Schneider-Pfad müssen mindestens drei gültige Current-FY-Peer-Beobachtungen verfügbar sein; erst danach kann der stabile Family-Korridor angewendet werden. "
+                                    "Die Peer-Schicht erzeugt selbst keinen Fair Value. Für den freigegebenen Investitionsgüter-Pfad müssen mindestens drei gültige Current-FY-Peer-Beobachtungen verfügbar sein; erst danach kann der stabile Family-Korridor angewendet werden. "
                                     "Der Median wirkt anschließend nur als downside-only Ceiling."
                                 )
                         else:
@@ -77020,11 +77132,13 @@ if selected_symbol:
                             )
 
                         recommendation_key = analyst_consensus.get("recommendation_key")
-                        recommendation_mean = analyst_consensus.get("recommendation_mean")
+                        recommendation_mean = safe_float(analyst_consensus.get("recommendation_mean"))
                         if recommendation_key or recommendation_mean is not None:
                             rec_text = text_or_dash(recommendation_key)
-                            if recommendation_mean is not None:
-                                rec_text += f" · Score {recommendation_mean:.2f}"
+                            if recommendation_mean is not None and 1.0 <= recommendation_mean <= 5.0:
+                                rec_text += f" · Punktzahl {recommendation_mean:.2f}"
+                            elif recommendation_key:
+                                rec_text += " · Punktzahl –"
                             st.write("**Yahoo Analystenempfehlung:** " + rec_text)
 
                         coherence = reality_check.get("consensus_coherence") or _external_consensus_coherence(analyst_consensus)
