@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.03"
+APP_BUILD_VERSION = "V2.23.04"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -943,12 +943,13 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Unabhängiger Gegencheck V2 V199"
+    f"Build {APP_BUILD_VERSION} · Unabhängiger Gegencheck V2 V200"
 )
 
 
 # V2.22.98: Zahlungsabwickler-Sicherheitsentkopplung V194. Bei vollständig freigegebenem Zahlungsabwickler-Spezialpfad bleibt die generische TTM-/Prognose-EPS-Divergenz ausschließlich Diagnosekontext und darf die endgültige Bewertungssicherheit nicht mehr begrenzen. Maßgeblich sind Methodenobergrenze, freigegebene Familien-Gewinnbasis, Sicherheit des Familien-Ziel-KGV und Spezialkontrolle. Bewertungsmathematik, Peer-Kalibrierung, Gewinnbasis, Ziel-KGV, Fair Values und Signal-Gates bleiben unverändert.
 # V2.23.02: Unabhängiger Gegencheck V2 V198. Härtet die nicht steuernde Zahlungsabwickler-Kontrollsicht nach Live-Tests mit Global Payments, PayPal, Adyen und Fiserv: Analystenabweichungen werden richtungs- und größenordnungsspezifisch formuliert; die feste 8x/10x-Bewertung wird entfernt und das aktuelle Markt-KGV nur noch als marktimplizierter Kontext gezeigt, solange keine gleichbasige historische Eigenreihe belastbar verfügbar ist; der rohe Kern-Vergleichsgruppen-Check erhält eine Streuungs-/Vergleichbarkeitssperre und darf bei heterogener KGV-Spanne weder Bestätigung noch Widerspruch erzeugen. Das Gesamtergebnis zählt nur belastbare Kontrollen. Fair Value, Ziel-KGV, Qualität, Sicherheit, Bewertungszonen und Kaufen/Halten/Verkaufen bleiben unverändert.
+# V2.23.04: Zahlungsabwickler-Sicherheitsobergrenze V200. Die allgemeine Methoden-/Spezialkontroll-Obergrenze der vollständig freigegebenen Zahlungsabwickler-Referenzprofile wird von „Niedrig bis Mittel“ auf „Mittel“ angehoben. Die in V199 gehärtete Regel „schwächste relevante Sicherheitsstufe gewinnt“ bleibt unverändert. Emittentenspezifische niedrigere Stufen bleiben wirksam; insbesondere behält Fiserv wegen seiner Ziel-KGV-Sicherheit „Niedrig bis Mittel“ die niedrigere Gesamtbewertungssicherheit. Score, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Value, Bewertungszonen und Signal-Schwellen bleiben unverändert.
 # V2.23.03: Gegencheck-/Sicherheits-Konsistenz V199. Der rohe Zahlungsabwickler-Peer-Gegencheck berechnet seine Streuung ausschließlich aus den tatsächlichen anderen Kern-Vergleichsunternehmen; das Zielunternehmen kann die Vergleichbarkeitssperre nicht mehr durch sein eigenes KGV auslösen. Für den freigegebenen Zahlungsabwickler-Pfad bleibt eine explizite Zwischenstufe wie „Niedrig bis Mittel“ als schwächste relevante Bewertungssicherheit erhalten, statt automatisch zu „Mittel“ hochgestuft zu werden; die bestehende Signal-Logik verwendet weiterhin mindestens „Mittel“ als Neukauf-Gate. In der Kurzbewertung wird eine Schutzregel nur dann als Hauptbelastung gezeigt, wenn sie das Ziel-KGV tatsächlich bindend begrenzt; andernfalls wird der schwächste operative Familienblock samt Begründung gezeigt. Fair-Value-, Score-, Gewinnbasis-, Korridor- und Peer-Kalibrierungs-Mathematik bleiben unverändert.
 # V2.23.00: Zahlungsabwickler-Signal-Logik V196. Gibt die familienbezogene Kaufen/Halten/Verkaufen-Logik nach separater Kalibrierung frei: Neukauf nur bei Unterbewertung oder starker Unterbewertung, Qualität >=65/100 und Bewertungssicherheit mindestens Mittel; schwächere Qualität bzw. niedrigere Sicherheit bremsen auf Abwarten. Bestandspositionen bleiben bis Fair bewertet auf Halten; bei Überbewertung führt Qualität <65/100 zu Verkaufen prüfen, bei starker Überbewertung und mindestens mittlerer Sicherheit zu Verkaufen. Niedrige Sicherheit verhindert harte Verkaufssignale. Bewertungsmathematik, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Values und Bewertungszonen bleiben unverändert.
 # V2.22.96: Finale deutsche Feinkorrektur V192. Reine UI-/Copy-Korrektur nach dem Nasdaq-V191-Praxistest. Behebt verbliebene Grammatik- und Kompositafehler, übersetzt die sichtbaren Sektor-/Branchenbezeichnungen von Nasdaq und korrigiert die alte globale Median-Ersetzung, die Wörter wie Gesamtjahresmedian fälschlich zu GesamtjahresMedian machte. Bewertungsmathematik, Daten, Peers, Scores, Schutzregeln, Fair Values, Zonen und Signale bleiben unverändert.
@@ -8493,7 +8494,7 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
     # is released after the successful Fiserv live regression; valuation remains closed.
     if family_id == "payments_processor" and _canonical_family_symbol in {"PYPL", "ADYEN.AS", "FISV"}:
         out["type"] = meta["label"]
-        out["confidence_cap"] = "Niedrig bis Mittel"
+        out["confidence_cap"] = "Mittel"
         out["family_model_status"] = "three_issuer_valuation_zone_live_validated"
         out["family_model_ready"] = False
         out["family_model_released"] = False
@@ -8587,6 +8588,10 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
                 "Holdingkosten · Netto-Verschuldung/Geared Capital · Kapitalallokation · Dividenden"
             )
         out["confidence_cap"] = "Niedrig bis Mittel"
+        # V200: Global Payments is also a fully modelled/released Payments-Processor reference.
+        # Unsupported family members remain on the conservative default cap.
+        if family_id == "payments_processor" and _canonical_family_symbol == "GPN":
+            out["confidence_cap"] = "Mittel"
         if family_id == "listed_investment_holding":
             # V92: the reusable holding family is released, but the industrial
             # standard path remains intentionally isolated. The legacy-named
@@ -13316,7 +13321,7 @@ def _universal_family_special_control(company_type):
             "planned_checks": planned_checks,
             "status": "Familien-Punktzahl + Gewinnbasis + KGV-Korridor + eigener fairer Wert + Bewertungszonen V1 + Signal-Logik V1 freigegeben",
             "router_status": "Familien-Punktzahl + Gewinnbasis + KGV-Korridor + eigener fairer Wert + Bewertungszonen V1 + Signal-Logik V1 freigegeben",
-            "confidence_cap": "Niedrig bis Mittel",
+            "confidence_cap": "Mittel",
             "note": (
                 f"{family_label} wurde durch die universelle Unternehmensklassifizierung und Bewertungsfamilien-Zuordnung erkannt. "
                 "Familien-Qualitätspunktzahl V1, Gewinnbasis des laufenden Geschäftsjahres V1 und der 8–30× Zahlungsabwickler-KGV-Korridor sind praktisch geprüft und freigegeben. "
