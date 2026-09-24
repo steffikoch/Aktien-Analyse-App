@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.08"
+APP_BUILD_VERSION = "V2.23.09"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -943,13 +943,14 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Aerospace & Defense Datenkonsistenz & Regression V204"
+    f"Build {APP_BUILD_VERSION} · Aerospace & Defense Abschluss & Exail-Guard V205"
 )
 
 
 # V2.22.98: Zahlungsabwickler-Sicherheitsentkopplung V194. Bei vollständig freigegebenem Zahlungsabwickler-Spezialpfad bleibt die generische TTM-/Prognose-EPS-Divergenz ausschließlich Diagnosekontext und darf die endgültige Bewertungssicherheit nicht mehr begrenzen. Maßgeblich sind Methodenobergrenze, freigegebene Familien-Gewinnbasis, Sicherheit des Familien-Ziel-KGV und Spezialkontrolle. Bewertungsmathematik, Peer-Kalibrierung, Gewinnbasis, Ziel-KGV, Fair Values und Signal-Gates bleiben unverändert.
 # V2.23.02: Unabhängiger Gegencheck V2 V198. Härtet die nicht steuernde Zahlungsabwickler-Kontrollsicht nach Live-Tests mit Global Payments, PayPal, Adyen und Fiserv: Analystenabweichungen werden richtungs- und größenordnungsspezifisch formuliert; die feste 8x/10x-Bewertung wird entfernt und das aktuelle Markt-KGV nur noch als marktimplizierter Kontext gezeigt, solange keine gleichbasige historische Eigenreihe belastbar verfügbar ist; der rohe Kern-Vergleichsgruppen-Check erhält eine Streuungs-/Vergleichbarkeitssperre und darf bei heterogener KGV-Spanne weder Bestätigung noch Widerspruch erzeugen. Das Gesamtergebnis zählt nur belastbare Kontrollen. Fair Value, Ziel-KGV, Qualität, Sicherheit, Bewertungszonen und Kaufen/Halten/Verkaufen bleiben unverändert.
 # V2.23.04: Zahlungsabwickler-Sicherheitsobergrenze V200. Die allgemeine Methoden-/Spezialkontroll-Obergrenze der vollständig freigegebenen Zahlungsabwickler-Referenzprofile wird von „Niedrig bis Mittel“ auf „Mittel“ angehoben. Die in V199 gehärtete Regel „schwächste relevante Sicherheitsstufe gewinnt“ bleibt unverändert. Emittentenspezifische niedrigere Stufen bleiben wirksam; insbesondere behält Fiserv wegen seiner Ziel-KGV-Sicherheit „Niedrig bis Mittel“ die niedrigere Gesamtbewertungssicherheit. Score, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Value, Bewertungszonen und Signal-Schwellen bleiben unverändert.
+# V2.23.09: Aerospace & Defense Abschluss & Exail-Guard V205. Ergänzt bei Thales den am 06.07.2026 angekündigten Exail-M&A-/Kapitalallokationsschutz (35,51%-Gorgé-Anteil als erster Schritt, angestrebter Erwerb von 100 %, Enterprise Value rund 3,9 Mrd. EUR, erster Closing-Schritt voraussichtlich Q3 2027). Der Guard ist kein FY2026-Strukturbruch, ändert weder Score noch Current-FY-Gewinnbasis, Ziel-KGV oder Fair Value und erzeugt keinen zweiten Multiple-Abschlag; Bewertungssicherheit bleibt Mittel. Rheinmetall und Leonardo sowie der 18–30× Familienkorridor und der Current-FY/Next-FY-Horizon-Watch bleiben unverändert.
 # V2.23.08: Aerospace & Defense Datenkonsistenz & Regression V204. Korrigiert die drei validierten Defense-Adapter ohne Änderung des 18–30× Familienkorridors oder des Current-FY/Next-FY-Horizon-Watch: Leonardo trennt reported von like-for-like Backlog/Growth, verwendet H1 Adjusted EPS 0,733/0,402 (+82,3 %) und FY2025 Adjusted EPS 1,569, zeigt FY2026 Revenue Guidance inkl. IDV statt einer nicht belegten organischen Guidance und trennt H1 Net Debt von FY2026 FOCF/Year-End-Net-Debt-Guidance. Thales verwendet FY2026 Revenue Guidance 23,3–23,6 Mrd. EUR, ca. 2,24× Order-Book-Coverage, 1,14× H1 Book-to-Bill, +0,4pp H1 Margenverbesserung und FY2025 Adjusted EPS 9,76. Rheinmetall zeigt Q2 Book-to-Bill 3,32×. Familienweit bleibt Yahoo-/Statement-TTM-FCF Diagnosekontext; UI-Bezeichnungen werden auf verständliches Aerospace-&-Defense-Familienmodell vereinheitlicht. Scores, Ziel-KGVs und Fair-Value-Formeln bleiben unverändert.
 # V2.23.07: Aerospace & Defense Mehr-Emittenten-Familie V203. Hebt die bereits verifizierte Rheinmetall-Defense-Architektur auf eine drei Emittenten umfassende Familienebene mit Rheinmetall, Leonardo und Thales. Leonardo und Thales verlassen den generischen 61/100-Wachstums-/Nettomargen-/Yahoo-FCF-/Net-Debt-to-FCF-Pfad und erhalten issuer-native Orders/Backlog/Book-to-Bill-, Guidance-, Adjusted-Margin/Earnings-, FOCF/Cash-Conversion-, Bilanz- und Execution-Adapter. Der bestehende 18–30× Defense-Korridor bleibt unverändert; Current-FY Adjusted/geschützter Konsens ist die Bewertungsbasis, Next-FY bleibt Horizon-Watch bis zum nächsten Primärdaten-Refresh. BAE/Leonardo/Thales/Saab/Rheinmetall-Peers sind reference-only und erzeugen keine automatische ±5%-Anpassung. Leonardo erhält einen IDV-M&A-/Leverage-Guard ohne doppelten Multiple-Abschlag, Thales einen F126-GAAP-Distortion-Guard mit Adjusted-Earnings-Basis. Rheinmetalls fünf fortgeführte 2026-Segmente werden korrigiert und Book-to-Bill als Q2 Order-Intake/Umsatz-Untergrenze gekennzeichnet. Die Suche priorisiert Leonardo S.p.A. (LDO.MI) bei „Leonardo“ vor Leonardo DRS. Zahlungsabwickler und Investitionsgüter bleiben unverändert.
 # V2.23.06: Investitionsgüter Gegencheck-Zonen & Regression V202. Der unabhängige Analysten-Gegencheck für freigegebene Investitionsgüter verwendet nun die bereits berechneten Bewertungszonen statt der aus Payments übernommenen starren ±10%-Richtungsgrenze. Ein Analystenziel innerhalb der eigenen Fair-Zone bestätigt eine faire Hauptmodell-Bewertung; angrenzende Zonen liefern nur Teilbestätigung, klare Gegenrichtung eine externe Abweichung. Ungültige Yahoo-Empfehlungs-Mittelwerte außerhalb der 1–5-Skala werden verworfen und als „Punktzahl –“ angezeigt. Generische Investitionsgüter-Texte ersetzen den verbliebenen Schneider-spezifischen Peer-Pfad; Siemens nennt Schneider und ABB als weitere Familienvalidierungen. Keine Änderung an Scores, Gewinnbasen, Ziel-KGVs, Fair Values, Zonen, Signalregeln oder Siemens-SOTP-Gate.
@@ -13863,12 +13864,12 @@ def classify_company(name, symbol, sector, industry):
             "type": "Defense / stark wachsend / Diversified Defense, Aerospace & Cyber Prime",
             "method": (
                 "Primärquellen-Defense-Familien-Score + Current-FY Adjusted/geschützter EPS-Konsens + 18–30× Familien-KGV; "
-                "Order Intake/Order Book, organisches Wachstum, Adjusted EBIT, FOCF-Conversion, Bilanz und F126-Adjusted-Earnings-Guard; generischer Standard-Score gesperrt"
+                "Order Intake/Order Book, organisches Wachstum, Adjusted EBIT, FOCF-Conversion, Bilanz sowie F126-Adjusted-Earnings- und Exail-M&A-/Kapitalallokations-Guard; generischer Standard-Score gesperrt"
             ),
             "confidence_cap": "Mittel",
             "business_model": "Diversifizierter europäischer Defense-/Aerospace-/Cyber-Prime mit hoher Auftragsvisibilität und sicherheitskritischer Technologie",
             "core_segments": "Aerospace · Defence · Cyber & Digital",
-            "focus_areas": "Order Intake/Order Book · Book-to-Bill · organisches Wachstum · Adjusted EBIT/Marge · Adjusted EPS · FOCF-Conversion · Net Debt · F126",
+            "focus_areas": "Order Intake/Order Book · Book-to-Bill · organisches Wachstum · Adjusted EBIT/Marge · Adjusted EPS · FOCF-Conversion · Net Debt · F126 · Exail-M&A",
         }
 
     # Weitere klar erkennbare Defense-Fälle.
@@ -44997,7 +44998,7 @@ def get_special_control(company_type, symbol):
         validated_defense_family = symbol_text in {"RHM.DE", "RHM.F", "RNMBY", "RNMBF", "LDO.MI", "HO.PA"}
         profile_control_name = {
             "LDO.MI": "Leonardo / Aerospace & Defense Order-, Earnings-, FOCF- & IDV-M&A-Kontrolle",
-            "HO.PA": "Thales / Aerospace & Defense Order-, Adjusted-Earnings-, FOCF- & F126-Kontrolle",
+            "HO.PA": "Thales / Aerospace & Defense Order-, Adjusted-Earnings-, FOCF-, F126- & Exail-M&A-Kontrolle",
         }.get(symbol_text, "Rheinmetall / Aerospace & Defense Fixed-Order-, Earnings- & Cash-Conversion-Kontrolle")
         common_checks = [
             "Issuer-native Orders / Backlog / Revenue Visibility",
@@ -45674,11 +45675,11 @@ def get_verified_defense_snapshot(symbol):
             "as_of_date": "30.06.2026",
             "valid_until": "22.10.2026",
             "next_report_date": "22.10.2026",
-            "source_name": "Thales H1 2026 Results",
+            "source_name": "Thales H1 2026 Results + F126/Exail Portfolio Updates",
             "source_url": "https://www.thalesgroup.com/en/news-centre/press-releases/thales-reports-its-2026-half-year-results",
             "source_note": (
                 "Thales H1-2026: Order Intake 12,471 Mrd. EUR, Order Book 52,434 Mrd. EUR, Umsatz 10,949 Mrd. EUR, Adjusted EBIT 1,372 Mrd. EUR, Adjusted EBIT-Marge 12,5 %, "
-                "Adjusted Net Income 990 Mio. EUR und FOCF 1,865 Mrd. EUR. Der F126-Abbruch belastet GAAP, deshalb steuert die bereinigte Ergebnisbasis das Defense-Modell."
+                "Adjusted Net Income 990 Mio. EUR und FOCF 1,865 Mrd. EUR. Der F126-Abbruch belastet GAAP, deshalb steuert die bereinigte Ergebnisbasis das Defense-Modell. Die angekündigte Exail-Transaktion bleibt als M&A-/Kapitalallokationsschutz aktiv, ohne FY2026-Strukturbruch oder doppelten Multiple-Abschlag."
             ),
             "backlog_current": 52.434e9,
             "backlog_previous": 50.038e9,
@@ -45712,8 +45713,8 @@ def get_verified_defense_snapshot(symbol):
             "balance_reference_cashflow": 1.865e9,
             "guidance_upgraded": True,
             "strategic_position_score": 8,
-            "portfolio_guard": "F126 programme termination",
-            "portfolio_guard_note": "F126 führte zu einer außergewöhnlichen GAAP-Belastung; Adjusted EBIT/Adjusted Net Income/FOCF bleiben die Bewertungsbasis. Keine Doppelbestrafung im Multiple.",
+            "portfolio_guard": "F126 programme termination + Exail acquisition",
+            "portfolio_guard_note": "F126 führte zu einer außergewöhnlichen GAAP-Belastung; Adjusted EBIT/Adjusted Net Income/FOCF bleiben die Bewertungsbasis. Zusätzlich hat Thales die Exail-Übernahme angekündigt (erster Schritt 35,51%-Gorgé-Anteil, angestrebter Erwerb von 100 %, Enterprise Value rund 3,9 Mrd. EUR; erster Closing-Schritt voraussichtlich Q3 2027). Exail wirkt als M&A-/Kapitalallokations- und Leverage-Schutz, nicht als FY2026-Strukturbruch und nicht als zweiter KGV-Abschlag.",
             "near_term_horizon": "Order Book ca. 2,24× FY2026-Umsatz-Guidance-Midpoint",
         }
 
@@ -62451,14 +62452,14 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         elif df_profile_event == "thales_diversified_prime":
             special_event_warning = {
                 "level": "Gelb", "icon": "🟡",
-                "title": "Thales F126-Ergebnisbereinigungs-Schutzregel aktiv",
+                "title": "Thales F126- & Exail-M&A-/Kapitalallokations-Schutzregel aktiv",
                 "requires_research": False, "valuation_usable": True,
                 "reason": (
-                    f"Thales ist im Defense-Familienmodell mit {safe_float(df_score_event.get('score')):.0f}/100 freigegeben. Der F126-Programmabbruch verzerrt das GAAP-Nettoergebnis, während Adjusted EBIT, Adjusted Net Income und FOCF die operative Entwicklung belastbarer abbilden."
+                    f"Thales ist im Defense-Familienmodell mit {safe_float(df_score_event.get('score')):.0f}/100 freigegeben. Der F126-Programmabbruch verzerrt das GAAP-Nettoergebnis, während Adjusted EBIT, Adjusted Net Income und FOCF die operative Entwicklung belastbarer abbilden. Die angekündigte Exail-Transaktion bleibt als M&A-/Kapitalallokations- und Leverage-Schutz aktiv; der erste Closing-Schritt wird erst für Q3 2027 erwartet."
                 ),
                 "action": (
                     f"{APP_BUILD_VERSION} verwendet deshalb ausschließlich die bereinigte Defense-Ergebnis-/Cashflow-Basis als Score- und Credibility-Anker. "
-                    "Der F126-Effekt wird nicht zusätzlich über einen zweiten Multiple-Abschlag bestraft."
+                    "Der F126-Effekt wird nicht zusätzlich über einen zweiten Multiple-Abschlag bestraft. Exail ist kein FY2026-Strukturbruch, begrenzt aber als Portfolio-/Kapitalallokationsrisiko die Bewertungssicherheit weiterhin auf Mittel; auch daraus entsteht kein zweiter KGV-Abschlag."
                 ),
             }
         else:
@@ -73877,7 +73878,7 @@ if selected_symbol:
                             )
                         elif defense_variant_ui == "thales_diversified_defense_cyber_prime_v1":
                             st.caption(
-                                "Thales: Der F126-Programmeffekt verzerrt das GAAP-Nettoergebnis. Deshalb steuern Adjusted EBIT, Adjusted Net Income/EPS und FOCF/Cash Conversion die Familienbewertung; der Sondereffekt wird nicht doppelt bestraft."
+                                "Thales: Der F126-Programmeffekt verzerrt das GAAP-Nettoergebnis. Deshalb steuern Adjusted EBIT, Adjusted Net Income/EPS und FOCF/Cash Conversion die Familienbewertung. Zusätzlich bleibt die angekündigte Exail-Übernahme (EV rund 3,9 Mrd. EUR; erster Closing-Schritt voraussichtlich Q3 2027) als M&A-/Kapitalallokationsschutz aktiv. Weder F126 noch Exail werden als zweiter KGV-Abschlag doppelt berücksichtigt."
                             )
                         elif defense_variant_ui.startswith("kratos"):
                             st.caption(
