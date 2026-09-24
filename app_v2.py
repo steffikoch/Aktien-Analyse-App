@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.04"
+APP_BUILD_VERSION = "V2.23.05"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -943,13 +943,14 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Unabhängiger Gegencheck V2 V200"
+    f"Build {APP_BUILD_VERSION} · Investitionsgüter ABB-Validierung & Gegencheck V2 V201"
 )
 
 
 # V2.22.98: Zahlungsabwickler-Sicherheitsentkopplung V194. Bei vollständig freigegebenem Zahlungsabwickler-Spezialpfad bleibt die generische TTM-/Prognose-EPS-Divergenz ausschließlich Diagnosekontext und darf die endgültige Bewertungssicherheit nicht mehr begrenzen. Maßgeblich sind Methodenobergrenze, freigegebene Familien-Gewinnbasis, Sicherheit des Familien-Ziel-KGV und Spezialkontrolle. Bewertungsmathematik, Peer-Kalibrierung, Gewinnbasis, Ziel-KGV, Fair Values und Signal-Gates bleiben unverändert.
 # V2.23.02: Unabhängiger Gegencheck V2 V198. Härtet die nicht steuernde Zahlungsabwickler-Kontrollsicht nach Live-Tests mit Global Payments, PayPal, Adyen und Fiserv: Analystenabweichungen werden richtungs- und größenordnungsspezifisch formuliert; die feste 8x/10x-Bewertung wird entfernt und das aktuelle Markt-KGV nur noch als marktimplizierter Kontext gezeigt, solange keine gleichbasige historische Eigenreihe belastbar verfügbar ist; der rohe Kern-Vergleichsgruppen-Check erhält eine Streuungs-/Vergleichbarkeitssperre und darf bei heterogener KGV-Spanne weder Bestätigung noch Widerspruch erzeugen. Das Gesamtergebnis zählt nur belastbare Kontrollen. Fair Value, Ziel-KGV, Qualität, Sicherheit, Bewertungszonen und Kaufen/Halten/Verkaufen bleiben unverändert.
 # V2.23.04: Zahlungsabwickler-Sicherheitsobergrenze V200. Die allgemeine Methoden-/Spezialkontroll-Obergrenze der vollständig freigegebenen Zahlungsabwickler-Referenzprofile wird von „Niedrig bis Mittel“ auf „Mittel“ angehoben. Die in V199 gehärtete Regel „schwächste relevante Sicherheitsstufe gewinnt“ bleibt unverändert. Emittentenspezifische niedrigere Stufen bleiben wirksam; insbesondere behält Fiserv wegen seiner Ziel-KGV-Sicherheit „Niedrig bis Mittel“ die niedrigere Gesamtbewertungssicherheit. Score, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Value, Bewertungszonen und Signal-Schwellen bleiben unverändert.
+# V2.23.05: Investitionsgüter ABB-Validierung & Gegencheck V2 V201. Erweitert das freigegebene Industrials/Investitionsgüter-Modell von Siemens/Schneider auf ABBN.SW mit issuer-primary Orders/Book-to-Bill-, vergleichbarem Wachstum-, Operational-EBITA-/ROCE-, FCF-, Net-Debt/EBITDA- und Kapitalallokations-Adapter. ABB nutzt mangels konkreter Unternehmens-EPS-Guidance den bereits durch die Cross-Currency-Schutzregel in USD normalisierten 0Y/current-FY-Konsens als konservative Earnings Bridge mit mittlerer Sicherheit. Robotics-Verkauf/Rotork-Übernahme wirken als Portfolio-/M&A-Confidence-Guard, nicht als doppelter KGV-Abschlag. Modul 8 erhält für freigegebene Investitionsgüter eine unabhängige Analysten-/marktimplizierte-/rohe-Peer-Kontrollsicht. ABB-Suche erhält einen verifizierten ABB-Ltd-Hauptlisting-Alias auf ABBN.SW; Siemens bleibt SOTP-geblockt, Schneider/Payments-Mathematik unverändert.
 # V2.23.03: Gegencheck-/Sicherheits-Konsistenz V199. Der rohe Zahlungsabwickler-Peer-Gegencheck berechnet seine Streuung ausschließlich aus den tatsächlichen anderen Kern-Vergleichsunternehmen; das Zielunternehmen kann die Vergleichbarkeitssperre nicht mehr durch sein eigenes KGV auslösen. Für den freigegebenen Zahlungsabwickler-Pfad bleibt eine explizite Zwischenstufe wie „Niedrig bis Mittel“ als schwächste relevante Bewertungssicherheit erhalten, statt automatisch zu „Mittel“ hochgestuft zu werden; die bestehende Signal-Logik verwendet weiterhin mindestens „Mittel“ als Neukauf-Gate. In der Kurzbewertung wird eine Schutzregel nur dann als Hauptbelastung gezeigt, wenn sie das Ziel-KGV tatsächlich bindend begrenzt; andernfalls wird der schwächste operative Familienblock samt Begründung gezeigt. Fair-Value-, Score-, Gewinnbasis-, Korridor- und Peer-Kalibrierungs-Mathematik bleiben unverändert.
 # V2.23.00: Zahlungsabwickler-Signal-Logik V196. Gibt die familienbezogene Kaufen/Halten/Verkaufen-Logik nach separater Kalibrierung frei: Neukauf nur bei Unterbewertung oder starker Unterbewertung, Qualität >=65/100 und Bewertungssicherheit mindestens Mittel; schwächere Qualität bzw. niedrigere Sicherheit bremsen auf Abwarten. Bestandspositionen bleiben bis Fair bewertet auf Halten; bei Überbewertung führt Qualität <65/100 zu Verkaufen prüfen, bei starker Überbewertung und mindestens mittlerer Sicherheit zu Verkaufen. Niedrige Sicherheit verhindert harte Verkaufssignale. Bewertungsmathematik, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Values und Bewertungszonen bleiben unverändert.
 # V2.22.96: Finale deutsche Feinkorrektur V192. Reine UI-/Copy-Korrektur nach dem Nasdaq-V191-Praxistest. Behebt verbliebene Grammatik- und Kompositafehler, übersetzt die sichtbaren Sektor-/Branchenbezeichnungen von Nasdaq und korrigiert die alte globale Median-Ersetzung, die Wörter wie Gesamtjahresmedian fälschlich zu GesamtjahresMedian machte. Bewertungsmathematik, Daten, Peers, Scores, Schutzregeln, Fair Values, Zonen und Signale bleiben unverändert.
@@ -8438,13 +8439,13 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
     # V2.22.49 / V145 – two independently validated Capital-Goods profiles.
     # The family corridor is released only for SIE.DE and SU.PA/SCHN.PA; unsupported
     # Industrials family members remain issuer-primary evidence-gated.
-    if family_id == "industrials" and _canonical_family_symbol in {"SIE.DE", "SU.PA", "SCHN.PA"}:
+    if family_id == "industrials" and _canonical_family_symbol in {"SIE.DE", "SU.PA", "SCHN.PA", "ABBN.SW"}:
         out["type"] = meta["label"]
         out["confidence_cap"] = "Mittel"
         out["family_model_status"] = "validated_multi_issuer_route"
         out["family_model_ready"] = True
         out["family_model_released"] = False
-        out["family_validation_status"] = "two_main_issuers_passed_corridor_released"
+        out["family_validation_status"] = "three_issuer_family_validated_corridor_released"
         out["universal_family_fail_closed"] = False
         out["method"] = (
             "Issuer-primary Capital-Goods KPI adapter + Current-FY Adjusted/pre-PPA Earnings Bridge + "
@@ -8455,10 +8456,14 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
             out["business_model"] = "Diversified Capital Goods / Industrial Technology Platform mit separater captive-finance Kapitalstruktur"
             out["core_segments"] = "Digital Industries · Smart Infrastructure · Mobility · Siemens Financial Services · Healthineers-Beteiligung"
             out["focus_areas"] = "Orders/Book-to-Bill · Comparable Growth · Industrial Business Margin/ROCE · Cash Conversion · Industrial Leverage · Healthineers SOTP"
-        else:
+        elif _canonical_family_symbol in {"SU.PA", "SCHN.PA"}:
             out["business_model"] = "Energy Technology / Electrification & Automation Platform"
             out["core_segments"] = "Energy Management · Industrial Automation · Digital / Energy & Industrial Intelligence"
             out["focus_areas"] = "Record Backlog/Demand · Organic Growth · Adjusted EBITA Margin/ROCE · Cash Conversion · Net Debt · Capital Allocation/Cognite"
+        else:
+            out["business_model"] = "Electrification & Automation Platform mit dezentralen Business Areas"
+            out["core_segments"] = "Electrification · Motion · Process Automation · Robotics/Portfolio-Transformation"
+            out["focus_areas"] = "Orders/Book-to-Bill · Comparable Growth · Operational EBITA Margin/ROCE · Free Cash Flow · Net Debt/EBITDA · Robotics/Rotork Kapitalallokation"
         return out
 
     # V2.22.58 / V154 – two independently validated Exchange / Market Infrastructure profiles.
@@ -14460,6 +14465,13 @@ PRIMARY_SEARCH_ALIASES = [
         "aliases": ["MONDELEZ", "MONDELEZ INTERNATIONAL"],
         "symbol": "MDLZ", "quoteType": "EQUITY", "longname": "Mondelez International, Inc.",
         "exchange": "NMS", "exchDisp": "NASDAQ", "currency": "USD",
+    },
+    {
+        "aliases": ["ABB", "ABB LTD", "ABB GROUP"],
+        "exact_aliases": True,
+        "primary_lock": True,
+        "symbol": "ABBN.SW", "quoteType": "EQUITY", "longname": "ABB Ltd",
+        "exchange": "SWX", "exchDisp": "Swiss", "currency": "CHF",
     },
     {
         "aliases": ["NESTLE", "NESTLÉ", "NESTLE SA", "NESTLÉ SA"],
@@ -40305,7 +40317,7 @@ def is_industrials_capital_goods_specialist_type(company_type, symbol=None):
     family = str((company_type or {}).get("valuation_family") or "").strip().lower()
     type_name = normalized_company_type_name(company_type)
     sym = str(symbol or "").upper().strip()
-    return sym in {"SIE.DE", "SU.PA", "SCHN.PA"} or family_id == "industrials" or "industrials / capital goods" in family or "industrials / capital goods" in type_name
+    return sym in {"SIE.DE", "SU.PA", "SCHN.PA", "ABBN.SW"} or family_id == "industrials" or "industrials / capital goods" in family or "industrials / capital goods" in type_name
 
 
 def get_verified_siemens_industrials_snapshot(symbol):
@@ -40405,7 +40417,7 @@ def get_verified_schneider_industrials_snapshot(symbol):
         "h1_results_url": "https://www.se.com/ww/en/about-us/investor-relations/financial-results/",
         "fy2025_report_url": "https://www.se.com/ww/en/assets/564/document/528237/release-fy-results-2025.pdf",
         "cognite_url": "https://www.se.com/ww/en/about-us/investor-relations/regulatory-information/overview/",
-        "post_h1_consensus_url": "https://www.se.com/ww/fr/assets/pdf/post-H1-2026-release-consensus",
+        "post_h1_consensus_url": "https://www.se.com/ww/en/about-us/investor-relations/financial-results/",
         "post_h1_consensus_date": "11.08.2026",
         "fy2026_adjusted_eps_consensus": 10.39,
         "fy2026_adjusted_eps_consensus_count": 18,
@@ -40459,6 +40471,73 @@ def get_verified_schneider_industrials_snapshot(symbol):
             "Schneider is assessed with issuer-native Capital-Goods metrics rather than Siemens-style Orders/Book-to-Bill. "
             "Record backlog, broad-based end-market demand, organic growth, Adjusted EBITA, ROCE and cash conversion form the operating evidence. "
             "The pending Cognite acquisition is treated as a capital-allocation/leverage guard, not as a structural earnings break."
+        ),
+    }
+
+
+def get_verified_abb_industrials_snapshot(symbol):
+    """Issuer-primary ABB snapshot for the third Capital-Goods family validation.
+
+    ABB reports in USD while ABBN.SW trades in CHF. Per-share provider data have
+    already passed the V2.20.130 cross-currency unit guard before they reach the
+    earnings bridge. The Robotics divestment and recommended Rotork acquisition
+    are treated as a portfolio/capital-allocation guard, not as an SOTP break.
+    """
+    if str(symbol or "").upper().strip() != "ABBN.SW":
+        return None
+    return {
+        "company": "ABB Ltd",
+        "symbol": "ABBN.SW",
+        "specialist_profile": "Electrification & Automation Platform / Portfolio Transformation",
+        "specialist_profile_key": "electrification_automation_platform",
+        "reporting_currency": "USD",
+        "as_of_date": "30.06.2026",
+        "published_date": "16.07.2026",
+        "source_name": "ABB Q2/H1 2026 Results + ABB Analyst Consensus + Robotics/Rotork capital-allocation updates",
+        "q2_results_url": "https://new.abb.com/news/detail/137496/q2-2026-results",
+        "analyst_consensus_url": "https://global.abb/group/en/investors/investor-and-shareholder-resources/analyst-estimates",
+        "buyback_url": "https://global.abb/group/en/investors/investor-and-shareholder-resources/share-buybacks/2026",
+        "financial_calendar_url": "https://global.abb/group/en/investors/financial-calendar",
+        # Q2/H1 2026 issuer-primary operating evidence
+        "q2_orders": 12.042e9,
+        "q2_orders_comparable_growth_pct": 28.0,
+        "q2_revenue": 9.475e9,
+        "q2_revenue_comparable_growth_pct": 12.0,
+        "q2_book_to_bill": 12.042 / 9.475,
+        "h1_orders": 23.340e9,
+        "h1_orders_comparable_growth_pct": 26.0,
+        "h1_revenue": 18.209e9,
+        "h1_revenue_comparable_growth_pct": 12.0,
+        "q2_operational_ebita": 1.925e9,
+        "q2_operational_ebita_margin_pct": 20.2,
+        "q2_operational_ebita_margin_prior_pct": 19.3,
+        "h1_operational_ebita": 3.974e9,
+        "h1_operational_ebita_margin_pct": 21.8,
+        "h1_operational_ebita_margin_prior_pct": 19.8,
+        "q2_roce_pct": 28.4,
+        "q2_free_cash_flow": 0.881e9,
+        "h1_free_cash_flow": 2.131e9,
+        "h1_fcf_growth_pct": 42.0,
+        "h1_net_income": 2.555e9,
+        "fy2026_positive_book_to_bill_guidance": True,
+        "fy2026_revenue_comparable_growth_low_pct": 10.0,
+        "fy2026_revenue_comparable_growth_high_pct": 13.0,
+        "fy2026_operational_ebita_margin_improve": True,
+        # Balance / allocation
+        "q2_net_debt_to_ebitda": 0.3,
+        "share_buyback_program_usd": 2.0e9,
+        "robotics_net_cash_proceeds_expected_usd": 4.8e9,
+        "rotork_transaction_value_usd": 5.5e9,
+        "rotork_transaction_pending": True,
+        "robotics_divestment_pending": True,
+        "portfolio_transaction_pending": True,
+        "structural_break": False,
+        "valuation_confidence_cap": "Mittel",
+        "note": (
+            "ABB is assessed with issuer-native Capital-Goods metrics: orders/book-to-bill, comparable growth, "
+            "Operational EBITA margin, ROCE, free cash flow and net debt/EBITDA. The Robotics divestment and "
+            "recommended Rotork acquisition are a portfolio/capital-allocation confidence guard. They do not "
+            "create a Siemens-style SOTP ownership break and therefore are not double-counted as a second P/E haircut."
         ),
     }
 
@@ -40518,6 +40597,28 @@ def build_capital_goods_current_fy_earnings_bridge(snapshot, provider_current_fy
             "source_date": snap.get("post_h1_consensus_date"),
             "family_method_released": True,
             "note": "Schneider uses the issuer-hosted post-H1 FY2026 Adjusted-EPS consensus as the current-FY adjusted earnings bridge; generic provider Forward EPS remains diagnostic only.",
+        })
+    elif profile == "electrification_automation_platform":
+        # ABB does not publish a concrete FY2026 EPS range. The provider 0Y/current-FY
+        # consensus reaches this function only after the cross-currency EPS unit guard
+        # has normalized ABBN.SW per-share units into ABB's USD reporting currency.
+        eps = provider_eps
+        if eps is None or eps <= 0 or not (2.0 <= eps <= 6.0):
+            out["note"] = "ABB current-FY consensus bridge incomplete or outside the protected USD plausibility range."
+            return out
+        out.update({
+            "available": True,
+            "earnings_per_share": eps,
+            "source_type": "abgesicherter 0Y/current-FY Analystenkonsens nach Cross-Currency-EPS-Schutzregel",
+            "source_url": None,
+            "source_date": None,
+            "family_method_released": True,
+            "note": (
+                "ABB publishes no concrete FY2026 EPS guidance. The earnings bridge therefore uses the current-FY "
+                "analyst consensus only after the listing/reporting-currency unit guard has normalized the per-share "
+                "basis to USD. ABB's own post-Q2 analyst-consensus page and Q2/H1 operating outlook are independent primary-source "
+                "comparability controls; the numeric EPS bridge remains provider consensus and confidence remains Medium."
+            ),
         })
     else:
         out["note"] = "No released Capital-Goods current-FY earnings adapter for this profile."
@@ -40657,7 +40758,7 @@ def _calculate_capital_goods_peer_calibration(peer_group, fundamental_multiple, 
         result["comparability_gate_passed"] = True
     result["note"] = (
         f"Investitionsgüter-Vergleichsgruppen-Kalibrierung {APP_BUILD_VERSION}: Eaton, Rockwell Automation und Emerson verwenden vom Emittenten veröffentlichte FY2026-Prognosen für bereinigtes EPS mit Live-Preisen in derselben Währung. "
-        "Mindestens drei gültige Beobachtungen sind für die Freigabe des Kalibrierungsmedians erforderlich. Der stabile Familien-Korridor von 22–32× ist für die zwei validierten Emittentenprofile freigegeben; "
+        "Mindestens drei gültige Beobachtungen sind für die Freigabe des Kalibrierungsmedians erforderlich. Der stabile Familien-Korridor von 22–32× ist für die drei validierten Emittentenprofile freigegeben; "
         "der Live-Vergleichsgruppen-Median bleibt reine Referenz und wirkt nur nach unten: Er kann ein aus der Punktzahl abgeleitetes Ziel-KGV begrenzen, aber niemals erhöhen."
     )
     return result
@@ -40691,14 +40792,14 @@ def build_capital_goods_family_valuation(snapshot, operational_score, earnings_b
         "score": score,
         "earnings_basis": eps,
         "earnings_basis_method": bridge.get("source_type"),
-        "earnings_basis_confidence": "Mittel" if profile == "energy_technology_automation" else "Hoch",
+        "earnings_basis_confidence": "Mittel" if profile in {"energy_technology_automation", "electrification_automation_platform"} else "Hoch",
         "raw_score_multiple": None,
         "target_multiple": None,
         "peer_reference_median_pe": peer_median,
         "peer_reference_count": peer_count,
         "peer_ceiling_applied": False,
         "peer_ceiling": None,
-        "transaction_confidence_guard": bool(snap.get("cognite_transaction_pending")),
+        "transaction_confidence_guard": bool(snap.get("cognite_transaction_pending") or snap.get("portfolio_transaction_pending")),
         "fair_value_financial": None,
         "note": None,
     }
@@ -40728,18 +40829,22 @@ def build_capital_goods_family_valuation(snapshot, operational_score, earnings_b
             "Family corridor released as context, but Siemens target P/E/Fair Value remains blocked: the Healthineers spin-off changes the ownership and earnings perimeter and requires an explicit SOTP bridge."
         )
         return out
-    if profile != "energy_technology_automation":
+    if profile not in {"energy_technology_automation", "electrification_automation_platform"}:
         out["note"] = "Validated family corridor available, but this issuer profile is not released for one-multiple Fair Value."
         return out
 
     fv = eps * target
+    issuer_note = (
+        "Der faire Wert von Schneider Electric verwendet die freigegebene FY2026-Ergebnisbrücke für bereinigtes EPS und den punktzahlpositionierten 22–32×-Investitionsgüter-Korridor. "
+        "Der externe Vergleichsgruppen-Median wirkt ausschließlich nach unten und kann das Ziel-KGV nicht erhöhen. Cognite ist bereits in Bilanz- und Kapitalallokationsqualität berücksichtigt und wirkt deshalb als Sicherheits-/Verschuldungs-Schutzregel statt als zweiter KGV-Abschlag."
+        if profile == "energy_technology_automation" else
+        "Der faire Wert von ABB verwendet die geschützte Current-FY-USD-Konsensbrücke und den punktzahlpositionierten 22–32×-Investitionsgüter-Korridor. "
+        "Der Peer-Median wirkt nur nach unten. Robotics-Verkauf und Rotork-Übernahme sind bereits in Kapitalallokation und Bewertungssicherheit berücksichtigt und werden nicht als zweiter KGV-Abschlag doppelt gezählt."
+    )
     out.update({
         "available": True,
         "fair_value_financial": fv,
-        "note": (
-            "Der faire Wert von Schneider Electric verwendet die freigegebene FY2026-Ergebnisbrücke für bereinigtes EPS und den punktzahlpositionierten 22–32×-Investitionsgüter-Korridor. "
-            "Der externe Vergleichsgruppen-Median wirkt ausschließlich nach unten und kann das Ziel-KGV nicht erhöhen. Cognite ist bereits in Bilanz- und Kapitalallokationsqualität berücksichtigt und wirkt deshalb als Sicherheits-/Verschuldungs-Schutzregel statt als zweiter KGV-Abschlag."
-        ),
+        "note": issuer_note,
     })
     return out
 
@@ -40760,11 +40865,21 @@ def apply_industrials_capital_goods_peer_calibration(model, peer_check):
         out["readiness"] = "Schneider Primärdaten + Current-FY Earnings Bridge + 22–32× Family-Corridor vollständig · Fair Value freigegeben · Cognite Confidence/Leverage Guard aktiv"
         out["missing_valuation_inputs"] = [
             "Pro-forma-Verschuldung und Kapitalallokation nach Cognite aktualisieren, sobald Abschlussdaten verfügbar sind (Aktualisierung der Bewertungssicherheit; aktueller fairer Wert bleibt nutzbar)",
-            "wiederverwendbarer primärquellenbasierter Erkennungs-Adapter, bevor weitere Mitglieder der Investitionsgüter-Familie automatisch freigegeben werden können",
+            "weitere Familienmitglieder bleiben bis zu eigener Primärdaten-/Vergleichbarkeitsprüfung evidence-gated",
         ]
         out["note"] = (
-            f"{APP_BUILD_VERSION} gibt die Ein-Multiple-Bewertung für Schneider Electric erst nach zwei Emittenten-Adaptern, einer gemeinsamen Ergebnisbrücke für bereinigtes EPS des aktuellen Geschäftsjahres und drei Vergleichsgruppen-Beobachtungen mit gleichem Zeithorizont und bereinigter Ergebnisbasis frei. "
+            f"{APP_BUILD_VERSION} gibt die Ein-Multiple-Bewertung für Schneider Electric nach Family-Earnings-Bridge und Live-Peer-Data-Gate frei. "
             "Der stabile Familien-Korridor beträgt 22–32×; die operative Punktzahl setzt das Ziel-KGV und der Live-Vergleichsgruppen-Median wirkt ausschließlich nach unten. Cognite begrenzt die Bewertungssicherheit, bis belastbare Pro-forma-Verschuldungsdaten vorliegen, wird aber nicht als zweiter Multiple-Abschlag doppelt berücksichtigt."
+        )
+    elif profile == "electrification_automation_platform" and valuation.get("available"):
+        out["valuation_anchor_complete"] = True
+        out["readiness"] = "ABB Primärdaten + geschützte Current-FY USD-Earnings Bridge + 22–32× Family-Corridor vollständig · Fair Value freigegeben · Robotics/Rotork Confidence Guard aktiv"
+        out["missing_valuation_inputs"] = [
+            "Pro-forma-Verschuldung/Kapitalallokation nach Robotics-Verkauf und Rotork-Abschluss aktualisieren",
+        ]
+        out["note"] = (
+            f"{APP_BUILD_VERSION} validates ABB as the third independent Capital-Goods profile. The score-driven 22–32x family corridor is released after the same three-peer data gate; "
+            "Robotics/Rotork remains a confidence/capital-allocation guard and is not double-counted as a second P/E haircut."
         )
     elif profile == "diversified_industrial_technology":
         out["valuation_anchor_complete"] = False
@@ -40847,6 +40962,64 @@ def build_schneider_capital_goods_operational_score(snap):
     }
 
 
+def build_abb_capital_goods_operational_score(snap):
+    """Profile-aware 100-point operating-quality adapter for ABB."""
+    orders_g = safe_float(snap.get("q2_orders_comparable_growth_pct"))
+    btb = safe_float(snap.get("q2_book_to_bill"))
+    visibility_pts = (8 if orders_g is not None and orders_g >= 15 else 6 if orders_g is not None and orders_g >= 8 else 4)
+    visibility_pts += (8 if btb is not None and btb >= 1.20 else 6 if btb is not None and btb >= 1.10 else 4)
+    visibility_pts += 4 if snap.get("fy2026_positive_book_to_bill_guidance") else 1
+
+    q2_g = safe_float(snap.get("q2_revenue_comparable_growth_pct"))
+    h1_g = safe_float(snap.get("h1_revenue_comparable_growth_pct"))
+    gl = safe_float(snap.get("fy2026_revenue_comparable_growth_low_pct")); gh = safe_float(snap.get("fy2026_revenue_comparable_growth_high_pct"))
+    guide_mid = (gl + gh) / 2.0 if gl is not None and gh is not None else None
+    growth_pts = (7 if q2_g is not None and q2_g >= 10 else 6 if q2_g is not None and q2_g >= 7 else 4)
+    growth_pts += (5 if guide_mid is not None and guide_mid >= 10 else 4 if guide_mid is not None and guide_mid >= 7 else 2)
+    growth_pts += (3 if h1_g is not None and h1_g >= 10 else 2 if h1_g is not None and h1_g >= 6 else 1)
+
+    margin = safe_float(snap.get("q2_operational_ebita_margin_pct")); margin_prev = safe_float(snap.get("q2_operational_ebita_margin_prior_pct"))
+    h1_margin = safe_float(snap.get("h1_operational_ebita_margin_pct")); h1_prev = safe_float(snap.get("h1_operational_ebita_margin_prior_pct"))
+    roce = safe_float(snap.get("q2_roce_pct"))
+    margin_pts = 8 if margin is not None and margin >= 20 and margin_prev is not None and margin > margin_prev else 7 if margin is not None and margin >= 18 else 5
+    h1_margin_pts = 6 if h1_margin is not None and h1_prev is not None and h1_margin >= h1_prev + 1.0 else 4
+    roce_pts = 6 if roce is not None and roce >= 20 else 4 if roce is not None and roce >= 15 else 2
+    profitability_pts = min(20, margin_pts + h1_margin_pts + roce_pts)
+
+    h1_fcf = safe_float(snap.get("h1_free_cash_flow")); h1_ni = safe_float(snap.get("h1_net_income"))
+    h1_ccr = h1_fcf / h1_ni if h1_fcf is not None and h1_ni is not None and h1_ni > 0 else None
+    fcf_growth = safe_float(snap.get("h1_fcf_growth_pct"))
+    cash_pts = (8 if h1_ccr is not None and h1_ccr >= 0.9 else 7 if h1_ccr is not None and h1_ccr >= 0.8 else 5 if h1_ccr is not None and h1_ccr >= 0.6 else 3)
+    cash_pts += (5 if fcf_growth is not None and fcf_growth >= 25 else 4 if fcf_growth is not None and fcf_growth >= 10 else 2)
+    cash_pts += 1 if safe_float(snap.get("q2_free_cash_flow")) is not None else 0
+    cash_pts = min(15, cash_pts)
+
+    leverage = safe_float(snap.get("q2_net_debt_to_ebitda"))
+    balance_pts = 10 if leverage is not None and leverage <= 0.5 else 8 if leverage is not None and leverage <= 1.0 else 6 if leverage is not None and leverage <= 1.5 else 3
+
+    pending = bool(snap.get("portfolio_transaction_pending"))
+    buyback = safe_float(snap.get("share_buyback_program_usd"))
+    capital_pts = 7 if pending and buyback is not None else 9 if not pending and buyback is not None else 6
+    structure_pts = 8 if pending else 10
+
+    components = {
+        "orders_visibility": {"score": visibility_pts, "max": 20, "q2_orders_growth_pct": orders_g, "q2_book_to_bill": btb, "fy2026_positive_book_to_bill_guidance": bool(snap.get("fy2026_positive_book_to_bill_guidance"))},
+        "comparable_growth": {"score": growth_pts, "max": 15, "q2_revenue_growth_pct": q2_g, "h1_revenue_growth_pct": h1_g, "fy2026_guidance_mid_pct": guide_mid},
+        "margin_roce_quality": {"score": profitability_pts, "max": 20, "q2_operational_ebita_margin_pct": margin, "q2_margin_prior_pct": margin_prev, "h1_operational_ebita_margin_pct": h1_margin, "q2_roce_pct": roce},
+        "cash_conversion": {"score": cash_pts, "max": 15, "h1_fcf_to_net_income": h1_ccr, "h1_fcf_growth_pct": fcf_growth},
+        "industrial_balance": {"score": balance_pts, "max": 10, "net_debt_to_ebitda": leverage},
+        "capital_allocation": {"score": capital_pts, "max": 10, "share_buyback_program_usd": buyback, "rotork_transaction_value_usd": safe_float(snap.get("rotork_transaction_value_usd")), "robotics_net_cash_proceeds_expected_usd": safe_float(snap.get("robotics_net_cash_proceeds_expected_usd")), "portfolio_transaction_pending": pending},
+        "earnings_structure": {"score": structure_pts, "max": 10, "structural_break": False, "portfolio_transaction_pending": pending},
+    }
+    score = sum(int(v.get("score") or 0) for v in components.values())
+    quality = "Sehr gut" if score >= 85 else "Gut" if score >= 70 else "Ausreichend" if score >= 50 else "Schwach"
+    return {
+        "available": True, "score": score, "max_score": 100, "quality_level": quality,
+        "components": components, "valuation_score": False,
+        "note": "Operationaler Capital-Goods-Qualitätsscore mit ABB-spezifischem Orders/Book-to-Bill-, Operational-EBITA-, ROCE-, FCF- und Leverage-Adapter; ausdrücklich kein Multiple-Score.",
+    }
+
+
 def build_industrials_capital_goods_operational_score(snapshot):
     """100-point operational diagnostic; explicitly not a valuation-multiple score."""
     snap = snapshot or {}
@@ -40854,6 +41027,8 @@ def build_industrials_capital_goods_operational_score(snapshot):
         return {"available": False, "score": None, "max_score": 100, "components": {}, "quality_level": "Nicht verfügbar"}
     if snap.get("specialist_profile_key") == "energy_technology_automation":
         return build_schneider_capital_goods_operational_score(snap)
+    if snap.get("specialist_profile_key") == "electrification_automation_platform":
+        return build_abb_capital_goods_operational_score(snap)
 
     orders_g = safe_float(snap.get("q3_orders_comparable_growth_pct"))
     btb = safe_float(snap.get("q3_book_to_bill"))
@@ -40932,7 +41107,7 @@ def build_industrials_capital_goods_operational_score(snapshot):
 def build_industrials_capital_goods_specialist_model(company_type, fundamental_info, symbol, current_fy_eps=None):
     if not is_industrials_capital_goods_specialist_type(company_type, symbol):
         return {"applicable": False}
-    snap = get_verified_siemens_industrials_snapshot(symbol) or get_verified_schneider_industrials_snapshot(symbol)
+    snap = get_verified_siemens_industrials_snapshot(symbol) or get_verified_schneider_industrials_snapshot(symbol) or get_verified_abb_industrials_snapshot(symbol)
     if not snap:
         return {
             "applicable": True,
@@ -40957,6 +41132,17 @@ def build_industrials_capital_goods_specialist_model(company_type, fundamental_i
             "organic revenue growth, Adjusted EBITA margin, ROCE, cash conversion, issuer net debt and capital allocation. "
             "The reusable Current-FY Adjusted-EPS bridge and the 22–32x family corridor are defined; each run still requires the live three-peer data gate before Fair Value can be released."
         )
+    elif profile_key == "electrification_automation_platform":
+        readiness = "ABB Primärdatenprofil + Cross-Currency-geschützte Current-FY-Konsensbrücke vollständig · wartet auf Live-Peer-Data-Gate"
+        missing = [
+            "live same-horizon peer-data gate before the 22–32x corridor is applied",
+            "pro-forma leverage/capital-allocation refresh after Robotics disposal and Rotork closing",
+        ]
+        note = (
+            f"{APP_BUILD_VERSION} validates ABB as the third independent Capital-Goods issuer using orders/book-to-bill, comparable growth, Operational EBITA/ROCE, "
+            "free cash flow, net debt/EBITDA and capital allocation. ABB reports in USD while ABBN.SW trades in CHF; the earnings bridge therefore requires the existing cross-currency EPS unit guard. "
+            "Robotics/Rotork is a confidence/portfolio guard rather than an SOTP structural break."
+        )
     else:
         readiness = "Siemens Primärdatenprofil vollständig · Healthineers-Spin-off Structural-Break/SOTP-Gate aktiv · Fair Value gesperrt"
         missing = [
@@ -40975,10 +41161,11 @@ def build_industrials_capital_goods_specialist_model(company_type, fundamental_i
         "issuer_supported": True,
         "primary_source_complete": True,
         "second_family_validation": profile_key == "energy_technology_automation",
+        "third_family_validation": profile_key == "electrification_automation_platform",
         "valuation_anchor_complete": False,
         "structural_break_active": structural_break,
         "sotp_required": bool(snap.get("healthineers_structural_break")),
-        "transaction_guard_active": bool(snap.get("cognite_transaction_pending")),
+        "transaction_guard_active": bool(snap.get("cognite_transaction_pending") or snap.get("portfolio_transaction_pending")),
         "snapshot": snap,
         "operational_score": op_score,
         "earnings_bridge": earnings_bridge,
@@ -41002,6 +41189,12 @@ def build_industrials_capital_goods_special_control(control, specialist_model):
             if model.get("valuation_anchor_complete") else
             "Schritt 3B aktiv – Schneider Primärdaten validiert; Family-Corridor/Peer-Gate noch unvollständig"
         )
+    elif profile_key == "electrification_automation_platform":
+        router_status = (
+            "Schritt 3B aktiv – ABB Primärdaten + geschützte USD-Earnings Bridge + 22–32× Family-Corridor freigegeben; Robotics/Rotork Confidence Guard aktiv"
+            if model.get("valuation_anchor_complete") else
+            "Schritt 3B aktiv – ABB Primärdaten validiert; Family-Corridor/Peer-Gate noch unvollständig"
+        )
     else:
         router_status = "Schritt 3B aktiv – Siemens Primärdaten validiert, Structural-Break/SOTP-Gate bindend"
     out = dict(control)
@@ -41023,6 +41216,7 @@ def build_industrials_capital_goods_special_control(control, specialist_model):
             "sotp_required": bool(model.get("sotp_required")),
             "transaction_guard_active": bool(model.get("transaction_guard_active")),
             "second_family_validation": bool(model.get("second_family_validation")),
+            "third_family_validation": bool(model.get("third_family_validation")),
             "missing_valuation_inputs": list(model.get("missing_valuation_inputs") or []),
         },
         "note": model.get("note"),
@@ -41841,7 +42035,7 @@ def get_peer_group(company_type, symbol, industry=None):
             ),
         }
 
-    if own_symbol in {"SIE.DE", "SU.PA", "SCHN.PA"} and is_industrials_capital_goods_specialist_type(company_type, own_symbol):
+    if own_symbol in {"SIE.DE", "SU.PA", "SCHN.PA", "ABBN.SW"} and is_industrials_capital_goods_specialist_type(company_type, own_symbol):
         peers = [
             {"symbol": "ETN", "name": "Eaton", "role": "core"},
             {"symbol": "ROK", "name": "Rockwell Automation", "role": "core"},
@@ -44130,8 +44324,30 @@ def get_special_control(company_type, symbol):
     # not release the family or allow legacy/generic valuation math.
     if (
         str((company_type or {}).get("valuation_family_id") or "").strip().lower() == "industrials"
-        and symbol_text in {"SIE.DE", "SU.PA", "SCHN.PA"}
+        and symbol_text in {"SIE.DE", "SU.PA", "SCHN.PA", "ABBN.SW"}
     ):
+        if symbol_text == "ABBN.SW":
+            return {
+                "required": True,
+                "control_key": "industrials_capital_goods_specialist",
+                "control_name": "ABB / Industrials & Capital Goods Primary-Source-, Cross-Currency-EPS- & Portfolio-M&A-Kontrolle",
+                "planned_checks": [
+                    "Comparable Orders + Book-to-Bill als Nachfrage-/Visibility-Kern",
+                    "Comparable Revenue Growth + FY2026 outlook",
+                    "Operational EBITA Margin + ROCE statt generischer Nettomarge/ROE-Punkte",
+                    "Issuer Free Cash Flow / Cash Conversion statt Yahoo-FCF-Margen-Score",
+                    "Net debt/EBITDA statt generischem Net-Debt/FCF",
+                    "Robotics-Verkauf + Rotork als Capital-Allocation/Confidence-Guard, nicht als SOTP-Bruch",
+                    "Cross-Currency-geschützte Current-FY USD-Earnings Bridge + 22–32× Family-Multiple-Corridor",
+                    "mindestens 3 same-basis Peers; Median ausschließlich downside-only Ceiling/Reality-Check",
+                    "Analystenziele ausschließlich Reality Check",
+                ],
+                "status": f"Router aktiv – {APP_BUILD_VERSION} Industrials / Capital Goods ABB Third-Issuer Validation V1",
+                "note": (
+                    "ABB ist der dritte unabhängige Investitionsgüter-Validierungstitel. Der Adapter nutzt issuer-native Orders/Book-to-Bill, vergleichbares Wachstum, Operational EBITA, ROCE, FCF und Net debt/EBITDA. "
+                    "Da ABB in USD berichtet und ABBN.SW in CHF handelt, muss die EPS-Einheitenschutzregel vor der Earnings Bridge bestanden sein. Robotics/Rotork wirkt als Confidence-/Kapitalallokations-Guard."
+                ),
+            }
         if symbol_text in {"SU.PA", "SCHN.PA"}:
             return {
                 "required": True,
@@ -52869,6 +53085,115 @@ def build_payments_processor_independent_crosscheck_v2(
     return result
 
 
+
+def build_capital_goods_independent_crosscheck_v2(
+    price,
+    valuation_zone,
+    fair_value,
+    specialist_model,
+    peer_check,
+    analyst_consensus,
+    quote_currency=None,
+):
+    """Independent non-steering V2 countercheck for released Capital-Goods valuations.
+
+    Reuses the already validated three-layer V2 logic without feeding anything back
+    into score, target P/E, Fair Value, confidence, zones or signals.  The own
+    market P/E is reconstructed on the exact quote-unit earnings basis used by the
+    Fair Value, which keeps ABB's USD-reporting/CHF-trading case unit-safe.
+    """
+    model = specialist_model if isinstance(specialist_model, dict) else {}
+    fv = fair_value if isinstance(fair_value, dict) else {}
+    peers = peer_check if isinstance(peer_check, dict) else {}
+    valuation = model.get("specialist_valuation") or {}
+
+    unavailable = {
+        "available": False,
+        "applicable": bool(model.get("applicable")),
+        "diagnosis_only": True,
+        "affects_fair_value": False,
+        "affects_signal": False,
+        "version": "V2",
+        "family": "industrials_capital_goods",
+        "checks": {},
+        "overall": None,
+    }
+    if not (
+        model.get("applicable")
+        and model.get("valuation_anchor_complete")
+        and valuation.get("available")
+        and fv.get("available")
+        and fv.get("valuation_method") == "capital_goods_current_fy_adjusted_pe"
+        and isinstance(valuation_zone, dict)
+        and valuation_zone.get("available")
+    ):
+        unavailable["reason"] = "Gegencheck V2 ist nur für einen vollständig freigegebenen Investitionsgüter-Fair-Value verfügbar."
+        return unavailable
+
+    target_multiple = safe_float(fv.get("target_multiple") or fv.get("used_multiple"))
+    fair_value_quote = safe_float(fv.get("fair_value_quote"))
+    if target_multiple is None or target_multiple <= 0 or fair_value_quote is None or fair_value_quote <= 0:
+        unavailable["reason"] = "Quote-unit Gewinnbasis kann aus Fair Value und Ziel-KGV nicht sicher rekonstruiert werden."
+        return unavailable
+    quote_eps = fair_value_quote / target_multiple
+    if quote_eps <= 0:
+        unavailable["reason"] = "Quote-unit Gewinnbasis ist nicht plausibel."
+        return unavailable
+
+    # Adapt the Capital-Goods peer rows to the proven raw-current-FY P/E contract.
+    peer_rows = []
+    for row in peers.get("peer_rows") or []:
+        pe = safe_float(row.get("current_fy_adjusted_pe") if row.get("current_fy_adjusted_pe") is not None else row.get("forward_pe"))
+        if not row.get("usable") or pe is None or pe <= 0:
+            continue
+        peer_rows.append({
+            "symbol": row.get("symbol"),
+            "name": row.get("name"),
+            "role": "core",
+            "usable": True,
+            "current_fy_pe": pe,
+        })
+
+    adapter_model = {
+        "applicable": True,
+        "fair_value_released": True,
+        "earnings_basis": {
+            "earnings_basis_eps": quote_eps,
+            "currency": quote_currency,
+            "basis_label": "freigegebene Current-FY Adjusted/pre-PPA Gewinnbasis in Handelswährung",
+        },
+    }
+    result = build_payments_processor_independent_crosscheck_v2(
+        price,
+        valuation_zone,
+        fair_value,
+        adapter_model,
+        {"peer_rows": peer_rows},
+        analyst_consensus,
+    )
+    result["family"] = "industrials_capital_goods"
+    result["applicable"] = True
+    market_check = (result.get("checks") or {}).get("market_expectation") or {}
+    if market_check:
+        market_check["reason"] = (
+            "Das aktuelle Markt-KGV wird auf exakt derselben Current-FY Adjusted/pre-PPA Gewinnbasis wie der freigegebene Investitionsgüter-Fair-Value gezeigt. "
+            "Eine belastbare gleichbasige historische Forward-KGV-Reihe des eigenen Unternehmens ist im Investitionsgüter-Pfad noch nicht freigegeben; deshalb erzeugt dieser Check bewusst weder Bestätigung noch Widerspruch."
+        )
+        market_check["note"] = (
+            "Kein fixes KGV-Urteil. Ein späterer historischer Eigenvergleich wird nur auf gleicher Ergebnisbasis, gleichem Aktien-/Währungsschema und ausreichend vergleichbarer Unternehmensstruktur zugelassen."
+        )
+    peer_market = (result.get("checks") or {}).get("raw_peer_market") or {}
+    if peer_market:
+        peer_market["note"] = (
+            "Nur rohe Markt-KGVs auf der gleichen FY2026-adjustierten Ergebnisbasis der Investitionsgüter-Vergleichsunternehmen. "
+            "Die eigenen Modell-Ziel-KGVs werden im Gegencheck nicht verwendet; bei hoher Streuung wird der Median automatisch gesperrt."
+        )
+    result["note"] = (
+        "Der Unabhängige Gegencheck V2 ist reine Diagnose. Er verändert weder operativen Qualitätsscore noch Ziel-KGV, Fair Value, "
+        "Bewertungssicherheit, Bewertungszone oder Handlungssignal. Nicht ausreichend vergleichbare Kontrollen werden sichtbar ausgeschlossen."
+    )
+    return result
+
 def generate_listed_holding_action_signals(
     valuation_zone,
     valuation_confidence,
@@ -55450,6 +55775,10 @@ def calculate_fair_value_v1(
                 result["note"] = (
                     "Fair Value V1 gesperrt: Schneider Electric hat den freigegebenen 22–32× Family-Korridor nicht vollständig durchlaufen. Current-FY Earnings Bridge, Peer-Data-Gate oder Specialist-Valuation-Release sind unvollständig; es wird nicht auf den Standardpfad ausgewichen."
                 )
+            elif _ind_fv_snap.get("specialist_profile_key") == "electrification_automation_platform":
+                result["note"] = (
+                    "Fair Value V1 gesperrt: ABB hat Current-FY USD-Earnings Bridge, Peer-Data-Gate oder Family-Corridor in diesem Lauf nicht vollständig bestanden. Die Cross-Currency-EPS-Schutzregel darf nicht umgangen werden."
+                )
             else:
                 result["note"] = (
                     "Fair Value V1 gesperrt: Siemens verfügt über eine validierte operative Primärdatenbasis, aber der angekündigte Healthineers-Spin-off erzeugt einen Structural Break. "
@@ -56294,7 +56623,11 @@ def build_eps_horizon_alignment(symbol, raw_forward_eps, analyst_context):
         )
     elif current_fy is not None:
         _sym_upper = str(symbol or "").upper().strip()
-        if _sym_upper in {"SIE.DE", "SU.PA", "SCHN.PA"}:
+        if _sym_upper == "ABBN.SW":
+            note_parts.append(
+                "Horizon Alignment: ABB besitzt keine konkrete FY2026-EPS-Unternehmensprognose. Der 0Y/current-FY Analystenkonsens darf deshalb erst nach bestandener Cross-Currency-EPS-Einheitenprüfung als geschützte Spezialmodell-Gewinnbasis verwendet werden; rohe/unnormalisierte Provider-EPS bleiben Diagnosekontext"
+            )
+        elif _sym_upper in {"SIE.DE", "SU.PA", "SCHN.PA"}:
             note_parts.append(
                 "Horizon Alignment: 0Y/current-FY Analystenkonsens wird als Provider-Horizontkontext geführt; "
                 "für den Capital-Goods-Spezialpfad bleibt er Diagnosekontext und ist nicht die Specialist-Bewertungsbasis"
@@ -61699,6 +62032,23 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "family_model_gate": True,
                 "second_issuer_validation": True,
             }
+        elif _ind_snap.get("specialist_profile_key") == "electrification_automation_platform":
+            special_event_warning = {
+                "level": "Grün",
+                "icon": "🟢",
+                "title": "Kein Strukturbruch – dritter Investitionsgüter-Familienadapter aktiv",
+                "requires_research": False,
+                "valuation_usable": bool(_ind_model.get("valuation_anchor_complete")),
+                "reason": (
+                    "ABB bestätigt den dritten unabhängigen primärquellenbasierten Investitionsgüter-Adapter. Orders/Book-to-Bill, vergleichbares Wachstum, Operational-EBITA-Marge/ROCE, Free Cashflow und Net Debt/EBITDA werden ABB-spezifisch abgebildet. "
+                    "Robotics-Verkauf und Rotork-Übernahme bleiben Kapitalallokations-/Verschuldungs- und Sicherheits-Schutz, nicht ein SOTP-Strukturbruch."
+                ),
+                "action": (
+                    "Kein generisches KGV verwenden. Der ABB-Fair-Value darf ausschließlich aus der Cross-Currency-geschützten Current-FY Gewinnbasis × score-positioniertem 22–32× Familien-KGV entstehen; der Peer-Median darf nur nach unten begrenzen und Analystenziele bleiben Plausibilitätscheck."
+                ),
+                "family_model_gate": True,
+                "third_issuer_validation": True,
+            }
 
     # V2.20.123 – Family calibration is not a special event.  Keep a
     # dedicated gate so an uncalibrated Nestlé profile can fail closed
@@ -62541,6 +62891,17 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         peer_check,
         analyst_consensus,
     )
+
+    if not independent_crosscheck_v2.get("available") and (industrials_capital_goods_specialist_model or {}).get("applicable"):
+        independent_crosscheck_v2 = build_capital_goods_independent_crosscheck_v2(
+            price,
+            valuation_zone,
+            fair_value,
+            industrials_capital_goods_specialist_model,
+            peer_check,
+            analyst_consensus,
+            quote_currency=(currency_context or {}).get("quote_currency"),
+        )
 
     final_signal_overlay = apply_reality_check_to_signals(
         new_buy_signal,
@@ -63418,7 +63779,7 @@ if selected_symbol:
                         if (company_type.get("family_model_status") == "validated_multi_issuer_route"
                                 and company_type.get("valuation_family") == "Industrials / Capital Goods"):
                             st.info(
-                                "Industrials / Capital Goods Multi-Issuer Specialist: Siemens und Schneider Electric validieren zwei unterschiedliche issuer-native KPI-Adapter unter derselben Qualitätsarchitektur. "
+                                "Industrials / Capital Goods Multi-Issuer Specialist: Siemens, Schneider Electric und ABB validieren drei unterschiedliche issuer-native KPI-Adapter unter derselben Qualitätsarchitektur. "
                                 "Die Current-FY Earnings Bridge und der 22–32× Family-Korridor sind für diese validierten Profile freigegeben; weitere Familienmitglieder bleiben issuer-primary evidence-gated. "
                                 "Siemens bleibt wegen des Healthineers-Structural-Breaks separat SOTP-geblockt."
                             )
@@ -69829,7 +70190,7 @@ if selected_symbol:
                         if is_capital_goods_peer_metric:
                             st.write(f"**Same-Horizon/Same-Basis Current-FY Beobachtungen:** {peer_check.get('usable_count', 0)}/3")
                             if peer_check.get("comparability_gate_passed"):
-                                st.success("Investitionsgüter-Vergleichsgruppen-Datenprüfung bestanden: Drei bereinigte FY2026-KGV-Beobachtungen sind live verfügbar. Der 22–32×-Familien-Korridor ist für die zwei validierten Profile freigegeben; der Live-Median bleibt ausschließlich Referenz und wirkt nur als Abwärts-Obergrenze.")
+                                st.success("Investitionsgüter-Vergleichsgruppen-Datenprüfung bestanden: Drei bereinigte FY2026-KGV-Beobachtungen sind live verfügbar. Der 22–32×-Familien-Korridor ist für die drei validierten Profile freigegeben; der Live-Median bleibt ausschließlich Referenz und wirkt nur als Abwärts-Obergrenze.")
                             else:
                                 st.warning("Investitionsgüter-Vergleichsgruppen-Datenprüfung nicht bestanden: Weniger als drei live verfügbare, bereinigte FY2026-KGV-Beobachtungen in derselben Währung.")
 
@@ -70844,7 +71205,7 @@ if selected_symbol:
                             score_ind = checks_ind.get("operational_score") or {}
                             ind_ccy = snap_ind.get("reporting_currency") or financial_currency
                             ind_profile_key = snap_ind.get("specialist_profile_key")
-                            ind_short_name = "Schneider Electric" if ind_profile_key == "energy_technology_automation" else "Siemens"
+                            ind_short_name = "Schneider Electric" if ind_profile_key == "energy_technology_automation" else ("ABB" if ind_profile_key == "electrification_automation_platform" else "Siemens")
                             st.subheader(f"🏭 Modul 6 – Schritt 3B: Industrials / Capital Goods Specialist V1 · {ind_short_name}")
                             st.write(f"**Unternehmen / Profil:** {text_or_dash(snap_ind.get('company'))} · {text_or_dash(snap_ind.get('specialist_profile'))}")
                             st.write(f"**Primärdatenstand:** {text_or_dash(snap_ind.get('as_of_date'))} (veröffentlicht {text_or_dash(snap_ind.get('published_date'))})")
@@ -70857,6 +71218,13 @@ if selected_symbol:
                                     ind_links.append(f"[FY2025 Results]({snap_ind.get('fy2025_report_url')})")
                                 if snap_ind.get("cognite_url"):
                                     ind_links.append(f"[Cognite / Regulatory Information]({snap_ind.get('cognite_url')})")
+                            elif ind_profile_key == "electrification_automation_platform":
+                                if snap_ind.get("q2_results_url"):
+                                    ind_links.append(f"[ABB Q2 2026 Results]({snap_ind.get('q2_results_url')})")
+                                if snap_ind.get("analyst_consensus_url"):
+                                    ind_links.append(f"[ABB Analyst Consensus]({snap_ind.get('analyst_consensus_url')})")
+                                if snap_ind.get("buyback_url"):
+                                    ind_links.append(f"[ABB Share Buyback]({snap_ind.get('buyback_url')})")
                             else:
                                 if snap_ind.get("q3_results_url"):
                                     ind_links.append(f"[Q3 FY2026]({snap_ind.get('q3_results_url')})")
@@ -70883,6 +71251,22 @@ if selected_symbol:
                                     st.metric("FY2026 Organic Revenue Target", f"+{safe_float(snap_ind.get('fy2026_revenue_organic_growth_low_pct')):.0f}% bis +{safe_float(snap_ind.get('fy2026_revenue_organic_growth_high_pct')):.0f}%")
                                 st.caption(
                                     f"Demand-Adapter: Schneider veröffentlicht für diesen Family-Test keine Siemens-identische Orders/Book-to-Bill-Kernlogik. Deshalb werden Record Backlog, broad-based end-market demand und die angehobene FY2026-Guidance als issuer-native Visibility-Evidenz verwendet. FY2025 Net Debt: {format_money(snap_ind.get('fy2025_net_debt'), ind_ccy)}; A-grade credit commitment bleibt aktiv."
+                                )
+                            elif ind_profile_key == "electrification_automation_platform":
+                                with c1:
+                                    st.metric("Q2 Orders", format_money(snap_ind.get("q2_orders"), ind_ccy), f"+{safe_float(snap_ind.get('q2_orders_comparable_growth_pct')):.1f}% vergleichbar")
+                                    st.metric("Q2 Book-to-Bill", f"{safe_float(snap_ind.get('q2_book_to_bill')):.2f}×")
+                                    st.metric("Q2 Revenue", format_money(snap_ind.get("q2_revenue"), ind_ccy), f"+{safe_float(snap_ind.get('q2_revenue_comparable_growth_pct')):.1f}% vergleichbar")
+                                with c2:
+                                    st.metric("Operational EBITA Margin Q2", f"{safe_float(snap_ind.get('q2_operational_ebita_margin_pct')):.1f}%", f"Vorjahr {safe_float(snap_ind.get('q2_operational_ebita_margin_prior_pct')):.1f}%")
+                                    st.metric("ROCE Q2", f"{safe_float(snap_ind.get('q2_roce_pct')):.1f}%")
+                                    st.metric("H1 freier Cashflow", format_money(snap_ind.get("h1_free_cash_flow"), ind_ccy), f"+{safe_float(snap_ind.get('h1_fcf_growth_pct')):.0f}%")
+                                with c3:
+                                    st.metric("Net Debt / EBITDA", f"{safe_float(snap_ind.get('q2_net_debt_to_ebitda')):.1f}×")
+                                    st.metric("FY2026 Revenue Outlook", f"+{safe_float(snap_ind.get('fy2026_revenue_comparable_growth_low_pct')):.0f}% bis +{safe_float(snap_ind.get('fy2026_revenue_comparable_growth_high_pct')):.0f}%")
+                                    st.metric("Aktienrückkaufprogramm", f"{safe_float(snap_ind.get('share_buyback_program_usd'))/1e9:.1f} Mrd. USD")
+                                st.caption(
+                                    f"ABB-Adapter: Orders/Book-to-Bill, comparable growth, Operational EBITA, ROCE, FCF und Net debt/EBITDA. Robotics-Nettoerlös erwartet rund {safe_float(snap_ind.get('robotics_net_cash_proceeds_expected_usd'))/1e9:.1f} Mrd. USD; Rotork-Transaktionswert rund {safe_float(snap_ind.get('rotork_transaction_value_usd'))/1e9:.1f} Mrd. USD. Portfolio-Guard aktiv, kein SOTP-Bruch."
                                 )
                             else:
                                 with c1:
@@ -70915,9 +71299,14 @@ if selected_symbol:
                                 if safe_float(earnings_ind.get("provider_current_fy_eps")) is not None:
                                     gap_ind = safe_float(earnings_ind.get("provider_gap_pct"))
                                     gap_text_ind = f" · Abweichung {gap_ind:+.1f}%" if gap_ind is not None else ""
-                                    st.caption(
-                                        f"Provider 0Y/current-FY EPS nur Diagnose: {safe_float(earnings_ind.get('provider_current_fy_eps')):.2f} {ind_ccy}{gap_text_ind}. Numerische Nähe beweist keine identische Accounting-Basis."
-                                    )
+                                    if ind_profile_key == "electrification_automation_platform":
+                                        st.caption(
+                                            f"Geschützte 0Y/current-FY Konsensbasis nach Cross-Currency-EPS-Einheitenprüfung: {safe_float(earnings_ind.get('provider_current_fy_eps')):.2f} {ind_ccy}. ABB veröffentlicht keine konkrete FY2026-EPS-Spanne; deshalb bleibt die Gewinnbasis-Sicherheit Mittel."
+                                        )
+                                    else:
+                                        st.caption(
+                                            f"Provider 0Y/current-FY EPS nur Diagnose: {safe_float(earnings_ind.get('provider_current_fy_eps')):.2f} {ind_ccy}{gap_text_ind}. Numerische Nähe beweist keine identische Accounting-Basis."
+                                        )
                                 if earnings_ind.get("source_url"):
                                     st.markdown(f"[Earnings-Bridge Primärquelle]({earnings_ind.get('source_url')})")
 
@@ -70938,7 +71327,10 @@ if selected_symbol:
                                             + ("Downside-Ceiling bindend" if cg_val_ind.get("peer_ceiling_applied") else "nur Reality-/Ceiling-Check, nicht bindend")
                                         )
                                     if cg_val_ind.get("transaction_confidence_guard"):
-                                        st.info("Cognite Transaction Guard: kein zweiter P/E-Abschlag. Das Transaktions-/Leverage-Risiko ist bereits in Balance/Capital Allocation reflektiert und begrenzt bis zu pro-forma Closing-Daten die Bewertungssicherheit auf Mittel.")
+                                        if ind_profile_key == "electrification_automation_platform":
+                                            st.info("Robotics/Rotork Portfolio-Guard: kein zweiter KGV-Abschlag. Verkaufserlös, Übernahmefinanzierung und Kapitalallokation sind bereits in Balance/Kapitalallokation reflektiert und begrenzen bis zu belastbaren Pro-forma-Abschlussdaten die Bewertungssicherheit auf Mittel.")
+                                        else:
+                                            st.info("Cognite Transaktionsschutz: kein zweiter KGV-Abschlag. Das Transaktions-/Verschuldungsrisiko ist bereits in Bilanz/Kapitalallokation reflektiert und begrenzt bis zu Pro-forma-Abschlussdaten die Bewertungssicherheit auf Mittel.")
                                 else:
                                     st.warning("Family-Korridor ist als Vergleichsrahmen freigegeben, aber für diesen Emittenten kein Ziel-KGV/Fair Value: ein issuer-spezifischer Structural-/SOTP-Guard bleibt bindend.")
                                 st.caption(text_or_dash(cg_val_ind.get("note")))
@@ -70987,6 +71379,22 @@ if selected_symbol:
                                     )
                                 else:
                                     st.error("Fair Value bleibt fail-closed: Earnings Bridge, Family-Corridor oder Peer-Data-Gate sind noch nicht vollständig freigegeben.")
+                            elif ind_profile_key == "electrification_automation_platform":
+                                if checks_ind.get("transaction_guard_active"):
+                                    st.warning(
+                                        f"Robotics/Rotork Portfolio-Guard: ABB erwartet rund USD {safe_float(snap_ind.get('robotics_net_cash_proceeds_expected_usd'))/1e9:.1f} Mrd. Nettoerlös aus dem Robotics-Verkauf und plant die Rotork-Übernahme für rund USD {safe_float(snap_ind.get('rotork_transaction_value_usd'))/1e9:.1f} Mrd. Das ist kein SOTP-Strukturbruch, kann aber Pro-forma-Verschuldung und Kapitalallokation verändern; die Bewertungssicherheit bleibt deshalb vorerst auf Mittel begrenzt."
+                                    )
+                                if missing_ind:
+                                    st.write("**Offene Aktualisierungs-/Prüfpunkte:**")
+                                    for item in missing_ind:
+                                        st.write(f"• {item}")
+                                if special_control.get("released"):
+                                    st.success(
+                                        f"ABB-Fair-Value freigegeben: geschützte FY2026 Current-FY Gewinnbasis × {safe_float((checks_ind.get('specialist_valuation') or {}).get('target_multiple')):.2f}× Familien-KGV. "
+                                        "Robotics/Rotork bleibt Kapitalallokations-/Sicherheits-Schutz und wird nicht als zweiter KGV-Abschlag doppelt gezählt."
+                                    )
+                                else:
+                                    st.error("Fair Value bleibt gesperrt: Gewinnbasis, Familien-Korridor oder Vergleichsgruppen-Datenprüfung sind noch nicht vollständig freigegeben.")
 
                     if special_control.get("control_key") == "professional_business_services_specialist":
                         st.divider()
@@ -75741,7 +76149,7 @@ if selected_symbol:
                                 st.write(f"**Issuer-adjusted Peer-Referenzmedian:** {safe_float(fair_value.get('peer_reference_median_pe')):.2f}×")
                                 st.caption("Der Peer-Median kann das Ziel ausschließlich nach unten begrenzen; er kann niemals einen Premium-Multiple hochziehen.")
                             if fair_value.get("transaction_confidence_guard"):
-                                st.info("Cognite-Leverage/Capital-Allocation Guard aktiv: kein zusätzlicher P/E-Abschlag; Bewertungssicherheit bis zu belastbaren pro-forma Closing-Daten auf Mittel begrenzt.")
+                                st.info("Transaktions-/Kapitalallokations-Guard aktiv: kein zusätzlicher P/E-Abschlag; Bewertungssicherheit bis zu belastbaren Pro-forma-Abschlussdaten auf Mittel begrenzt.")
                             st.caption("Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV und Analystenziele sind kein Bestandteil des Capital-Goods-Fair-Values.")
                         elif fair_value.get("valuation_method") == "regulated_utility_core_eps_pe":
                             st.write("**Bewertungsformel:** Current-FY Core/Adjusted EPS Guidance × Utility Quality-P/E; danach downside-only Regulatory/Transaction Risk Overlay")
@@ -76817,6 +77225,9 @@ if selected_symbol:
                             st.info(f"Issuer-primary Finanzkalender: **{holding_calendar_date}** · nächster Berichtstermin.")
                             if holding_calendar_source:
                                 st.markdown(f"[Holding-Finanzkalender / Primärquelle]({holding_calendar_source})")
+                        elif symbol_calendar == "ABBN.SW" and today_calendar <= datetime(2026, 10, 20).date():
+                            st.info("Offizieller ABB-Finanzkalender: **20.10.2026 · Q3-2026-Ergebnisse**.")
+                            st.markdown("[ABB Financial Calendar](https://global.abb/group/en/investors/financial-calendar)")
                         elif symbol_calendar == "ADYEN.AS" and today_calendar <= datetime(2026, 10, 28).date():
                             st.info("Offizieller Adyen-Investor-Kalender: **28.10.2026 · Q3-2026 Business Update**.")
                             st.markdown("[Adyen Q3 2026 Business Update](https://investors.adyen.com/events/business-update-q3-2026)")
