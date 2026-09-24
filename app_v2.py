@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.02"
+APP_BUILD_VERSION = "V2.23.03"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -943,12 +943,13 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Unabhängiger Gegencheck V2 V198"
+    f"Build {APP_BUILD_VERSION} · Unabhängiger Gegencheck V2 V199"
 )
 
 
 # V2.22.98: Zahlungsabwickler-Sicherheitsentkopplung V194. Bei vollständig freigegebenem Zahlungsabwickler-Spezialpfad bleibt die generische TTM-/Prognose-EPS-Divergenz ausschließlich Diagnosekontext und darf die endgültige Bewertungssicherheit nicht mehr begrenzen. Maßgeblich sind Methodenobergrenze, freigegebene Familien-Gewinnbasis, Sicherheit des Familien-Ziel-KGV und Spezialkontrolle. Bewertungsmathematik, Peer-Kalibrierung, Gewinnbasis, Ziel-KGV, Fair Values und Signal-Gates bleiben unverändert.
 # V2.23.02: Unabhängiger Gegencheck V2 V198. Härtet die nicht steuernde Zahlungsabwickler-Kontrollsicht nach Live-Tests mit Global Payments, PayPal, Adyen und Fiserv: Analystenabweichungen werden richtungs- und größenordnungsspezifisch formuliert; die feste 8x/10x-Bewertung wird entfernt und das aktuelle Markt-KGV nur noch als marktimplizierter Kontext gezeigt, solange keine gleichbasige historische Eigenreihe belastbar verfügbar ist; der rohe Kern-Vergleichsgruppen-Check erhält eine Streuungs-/Vergleichbarkeitssperre und darf bei heterogener KGV-Spanne weder Bestätigung noch Widerspruch erzeugen. Das Gesamtergebnis zählt nur belastbare Kontrollen. Fair Value, Ziel-KGV, Qualität, Sicherheit, Bewertungszonen und Kaufen/Halten/Verkaufen bleiben unverändert.
+# V2.23.03: Gegencheck-/Sicherheits-Konsistenz V199. Der rohe Zahlungsabwickler-Peer-Gegencheck berechnet seine Streuung ausschließlich aus den tatsächlichen anderen Kern-Vergleichsunternehmen; das Zielunternehmen kann die Vergleichbarkeitssperre nicht mehr durch sein eigenes KGV auslösen. Für den freigegebenen Zahlungsabwickler-Pfad bleibt eine explizite Zwischenstufe wie „Niedrig bis Mittel“ als schwächste relevante Bewertungssicherheit erhalten, statt automatisch zu „Mittel“ hochgestuft zu werden; die bestehende Signal-Logik verwendet weiterhin mindestens „Mittel“ als Neukauf-Gate. In der Kurzbewertung wird eine Schutzregel nur dann als Hauptbelastung gezeigt, wenn sie das Ziel-KGV tatsächlich bindend begrenzt; andernfalls wird der schwächste operative Familienblock samt Begründung gezeigt. Fair-Value-, Score-, Gewinnbasis-, Korridor- und Peer-Kalibrierungs-Mathematik bleiben unverändert.
 # V2.23.00: Zahlungsabwickler-Signal-Logik V196. Gibt die familienbezogene Kaufen/Halten/Verkaufen-Logik nach separater Kalibrierung frei: Neukauf nur bei Unterbewertung oder starker Unterbewertung, Qualität >=65/100 und Bewertungssicherheit mindestens Mittel; schwächere Qualität bzw. niedrigere Sicherheit bremsen auf Abwarten. Bestandspositionen bleiben bis Fair bewertet auf Halten; bei Überbewertung führt Qualität <65/100 zu Verkaufen prüfen, bei starker Überbewertung und mindestens mittlerer Sicherheit zu Verkaufen. Niedrige Sicherheit verhindert harte Verkaufssignale. Bewertungsmathematik, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Values und Bewertungszonen bleiben unverändert.
 # V2.22.96: Finale deutsche Feinkorrektur V192. Reine UI-/Copy-Korrektur nach dem Nasdaq-V191-Praxistest. Behebt verbliebene Grammatik- und Kompositafehler, übersetzt die sichtbaren Sektor-/Branchenbezeichnungen von Nasdaq und korrigiert die alte globale Median-Ersetzung, die Wörter wie Gesamtjahresmedian fälschlich zu GesamtjahresMedian machte. Bewertungsmathematik, Daten, Peers, Scores, Schutzregeln, Fair Values, Zonen und Signale bleiben unverändert.
 # V2.22.95: Finale deutsche Textbereinigung V191. Gezielte reine UI-/Copy-Korrektur nach dem Nasdaq-V190-Praxistest. Bereinigt die verbliebenen Börseninfrastruktur-Mischtexte und Grammatikreste, darunter MarketAxess-Transaktionshinweis, Gesamtjahresanker, Kontrollbezeichnungen, operative Hebelwirkung und Abwärts-Obergrenzen. Bewertungsmathematik, Gewinnbasis, Vergleichsgruppendaten, Korridore, Schutzregeln, Scores, Fair Values, Zonen und Signale bleiben unverändert.
@@ -51765,17 +51766,44 @@ def calculate_valuation_confidence(
         result["note"] = "Keine belastbaren Sicherheitskomponenten verfügbar."
         return result
 
-    min_rank = min(value[0] for value in components.values())
-    limiting = [
-        name for name, value in components.items()
-        if value[0] == min_rank
-    ]
-    if (is_reit_valuation or is_semicap_valuation) and min_rank == 3 and any(
-        components[name][1] == "Mittel bis Hoch" for name in limiting
-    ):
-        final_level = "Mittel bis Hoch"
+    if is_payments_processor_valuation:
+        # V199: Preserve the exact weakest released family confidence stage.
+        # In particular, "Niedrig bis Mittel" must not silently become "Mittel",
+        # because the action layer explicitly requires at least "Mittel" for a
+        # new-buy signal. This changes confidence propagation only; it does not
+        # change the underlying score, earnings basis, target multiple or Fair Value.
+        detail_order = {
+            "Niedrig": 1,
+            "Niedrig bis Mittel": 2,
+            "Mittel": 3,
+            "Mittel bis Hoch": 4,
+            "Hoch": 5,
+        }
+        detailed = [
+            (name, display, detail_order.get(str(display or "").strip()))
+            for name, (_, display) in components.items()
+        ]
+        detailed = [item for item in detailed if item[2] is not None]
+        if detailed:
+            min_detail = min(item[2] for item in detailed)
+            limiting = [name for name, display, rank in detailed if rank == min_detail]
+            final_level = next(display for name, display, rank in detailed if rank == min_detail)
+        else:
+            min_rank = min(value[0] for value in components.values())
+            limiting = [name for name, value in components.items() if value[0] == min_rank]
+            final_level = {1: "Niedrig", 2: "Mittel", 3: "Hoch"}[min_rank]
     else:
-        final_level = {1: "Niedrig", 2: "Mittel", 3: "Hoch"}[min_rank]
+        min_rank = min(value[0] for value in components.values())
+        limiting = [
+            name for name, value in components.items()
+            if value[0] == min_rank
+        ]
+        if (is_reit_valuation or is_semicap_valuation) and min_rank == 3 and any(
+            components[name][1] == "Mittel bis Hoch" for name in limiting
+        ):
+            final_level = "Mittel bis Hoch"
+        else:
+            final_level = {1: "Niedrig", 2: "Mittel", 3: "Hoch"}[min_rank]
 
     result.update({
         "available": True,
@@ -52689,9 +52717,11 @@ def build_payments_processor_independent_crosscheck_v2(
     }
 
     # 3) Raw core-peer market P/E with a comparability/dispersion gate. The gate
-    # is evaluated on the complete live core cluster including the target. If
-    # max/min is >=2x, the raw P/E family is too heterogeneous for a strong
-    # median-based verdict.
+    # is evaluated only on the *other* eligible core peers. The target company
+    # is excluded from min/max dispersion and is compared with the peer median
+    # only after the peer group's own comparability has been established. If
+    # peer max/min is >=2x, the raw P/E peer group is too heterogeneous for a
+    # strong median-based verdict.
     raw_peer_pes = []
     raw_peer_rows = []
     for row in peers.get("peer_rows") or []:
@@ -52706,7 +52736,7 @@ def build_payments_processor_independent_crosscheck_v2(
     peer_median = float(pd.Series(raw_peer_pes).median()) if raw_peer_pes else None
     peer_gap_pct = ((market_pe / peer_median) - 1.0) * 100.0 if peer_median not in (None, 0) else None
     peer_available = bool(peer_median is not None and len(raw_peer_pes) >= 3)
-    cluster_pes = ([market_pe] + raw_peer_pes) if peer_available else []
+    cluster_pes = list(raw_peer_pes) if peer_available else []
     cluster_min = min(cluster_pes) if cluster_pes else None
     cluster_max = max(cluster_pes) if cluster_pes else None
     cluster_max_min_ratio = (cluster_max / cluster_min) if cluster_min not in (None, 0) and cluster_max is not None else None
@@ -52719,7 +52749,7 @@ def build_payments_processor_independent_crosscheck_v2(
     elif comparability_limited:
         peer_status = "Eingeschränkt vergleichbar"
         peer_reason = (
-            f"Die rohe KGV-Spanne des vollständigen Kernclusters reicht von {cluster_min:.2f}× bis {cluster_max:.2f}× "
+            f"Die rohe KGV-Spanne der tatsächlichen Kern-Vergleichsgruppe reicht von {cluster_min:.2f}× bis {cluster_max:.2f}× "
             f"(Max/Min {cluster_max_min_ratio:.2f}×). Der Median ist damit kein belastbarer Beweis für Bestätigung oder Widerspruch."
         )
         peer_usable = False
@@ -63209,13 +63239,16 @@ if selected_symbol:
                             compact_guard_notes = pp_multiple_compact.get("guard_notes") or []
                             if pp_multiple_compact.get("guard_applied") and compact_guard_notes:
                                 st.warning("**Hauptbelastung:** " + str(compact_guard_notes[0]))
-                            elif compact_guard_notes:
-                                st.warning("**Hauptbelastung:** " + str(compact_guard_notes[0]))
                             else:
-                                st.warning(
-                                    f"**Schwächster Bereich:** {block_labels_compact.get(weak_compact[1], weak_compact[1])} "
+                                weak_block_compact = pp_blocks_compact.get(weak_compact[1]) or {}
+                                weak_note_compact = str(weak_block_compact.get("note") or "").strip()
+                                burden_text_compact = (
+                                    f"{block_labels_compact.get(weak_compact[1], weak_compact[1])} "
                                     f"({weak_compact[2]:.0f}/{weak_compact[3]:.0f})"
                                 )
+                                if weak_note_compact:
+                                    burden_text_compact += " · " + weak_note_compact
+                                st.warning("**Hauptbelastung:** " + burden_text_compact)
                 else:
                     g1, g2, g3 = st.columns(3)
                     with g1:
@@ -76718,7 +76751,7 @@ if selected_symbol:
                                 st.caption("Kern-Vergleichsunternehmen: " + " · ".join(peer_bits))
                             if cc_peer.get("comparability_limited"):
                                 st.caption(
-                                    f"Vergleichbarkeitsschutz aktiv: vollständige Kerncluster-Spanne "
+                                    f"Vergleichbarkeitsschutz aktiv: Kern-Vergleichsgruppen-Spanne "
                                     f"{safe_float(cc_peer.get('cluster_min_pe')):.2f}× bis {safe_float(cc_peer.get('cluster_max_pe')):.2f}× · "
                                     f"Max/Min {safe_float(cc_peer.get('cluster_max_min_ratio')):.2f}×."
                                 )
