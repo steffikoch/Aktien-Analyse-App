@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.18"
+APP_BUILD_VERSION = "V2.23.19"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,13 +946,14 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Insurance Capital Framework & Currency Routing V214"
+    f"Build {APP_BUILD_VERSION} · Insurance Per-Share Currency Display & Copy Cleanup V215"
 )
 
 
 # V2.22.98: Zahlungsabwickler-Sicherheitsentkopplung V194. Bei vollständig freigegebenem Zahlungsabwickler-Spezialpfad bleibt die generische TTM-/Prognose-EPS-Divergenz ausschließlich Diagnosekontext und darf die endgültige Bewertungssicherheit nicht mehr begrenzen. Maßgeblich sind Methodenobergrenze, freigegebene Familien-Gewinnbasis, Sicherheit des Familien-Ziel-KGV und Spezialkontrolle. Bewertungsmathematik, Peer-Kalibrierung, Gewinnbasis, Ziel-KGV, Fair Values und Signal-Gates bleiben unverändert.
 # V2.23.02: Unabhängiger Gegencheck V2 V198. Härtet die nicht steuernde Zahlungsabwickler-Kontrollsicht nach Live-Tests mit Global Payments, PayPal, Adyen und Fiserv: Analystenabweichungen werden richtungs- und größenordnungsspezifisch formuliert; die feste 8x/10x-Bewertung wird entfernt und das aktuelle Markt-KGV nur noch als marktimplizierter Kontext gezeigt, solange keine gleichbasige historische Eigenreihe belastbar verfügbar ist; der rohe Kern-Vergleichsgruppen-Check erhält eine Streuungs-/Vergleichbarkeitssperre und darf bei heterogener KGV-Spanne weder Bestätigung noch Widerspruch erzeugen. Das Gesamtergebnis zählt nur belastbare Kontrollen. Fair Value, Ziel-KGV, Qualität, Sicherheit, Bewertungszonen und Kaufen/Halten/Verkaufen bleiben unverändert.
 # V2.23.04: Zahlungsabwickler-Sicherheitsobergrenze V200. Die allgemeine Methoden-/Spezialkontroll-Obergrenze der vollständig freigegebenen Zahlungsabwickler-Referenzprofile wird von „Niedrig bis Mittel“ auf „Mittel“ angehoben. Die in V199 gehärtete Regel „schwächste relevante Sicherheitsstufe gewinnt“ bleibt unverändert. Emittentenspezifische niedrigere Stufen bleiben wirksam; insbesondere behält Fiserv wegen seiner Ziel-KGV-Sicherheit „Niedrig bis Mittel“ die niedrigere Gesamtbewertungssicherheit. Score, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Value, Bewertungszonen und Signal-Schwellen bleiben unverändert.
+# V2.23.19: Insurance Per-Share Currency Display & Copy Cleanup V215. Fixes Yahoo insurer BVPS presentation for mixed quote/financial currencies by routing provider per-share book value through the verified quote-to-financial FX path before display, clarifies the mixed-currency price caption, and removes the residual Munich-Re-specific Fair-Value copy from the reusable Reinsurance path. Valuation mathematics, score thresholds, capital-framework calibration, corridors and frozen insurer inputs remain unchanged.
 # V2.23.18: Universal Insurance Capital Framework & Currency Routing V214. Adds jurisdiction-aware insurer capital frameworks (Solvency II / SST), per-share currency routing for official BVPS/dividend evidence, Swiss primary-listing/subprofile hardening, Swiss Re + Zurich issuer-primary evidence adapters and insurance-copy cleanup.
 # V2.23.17: AXA Official BVPS & Insurance Copy Correction V213. Verwendet für AXA den vom Emittenten neu definierten und direkt berichteten Book Value per Share (FY2024 24,5 EUR; FY2025 24,0 EUR; H1 2026 23,8 EUR) statt einer abgeleiteten Gesamt-Eigenkapital/Aktienzahl-Größe. Bereinigt außerdem verbliebene sichtbare V2.20.44/Core-TTM-Texte im universellen Insurance-Pfad, aktualisiert die technischen Insurance-Integrationsbezeichner und zeigt bei vollständig freigegebener Versicherungs-Evidenz einen abgeschlossenen Familienstatus. Keine Änderung an den eingefrorenen Allianz-/Munich-Re-Inputs oder an den Insurance-/Reinsurance-Korridoren.
 # V2.23.16: Universal Insurance Evidence & Subprofile Routing V212. Generalisiert den Versicherungs-Spezialpfad auf eine gemeinsame Evidenzschicht für Core-, Underlying- und issuer-reported IFRS-Earnings, routet Primary/Diversified Insurance gegenüber Reinsurance über das erkannte Unterprofil statt über Ticker-Sonderlogik, verwendet die nicht annualisierte FY-H1+H1-TTM-Brücke universell und hält Standard-EPS/Yahoo-FCF/Net-Debt-to-FCF strikt im Diagnosekontext. AXA und Hannover Re werden als verifizierte Primärdaten-Snapshots in dieselbe Familienengine aufgenommen; Allianz und Munich Re behalten ihre eingefrorenen numerischen Inputs. Reinsurance verwendet familienweit 1,1–2,2x P/B und 7,0–11,5x TTM-KGV.
@@ -16661,7 +16662,7 @@ INSURANCE_V212_PRIMARY_SOURCE_REGISTRY = (
             "company": "Swiss Re AG / Swiss Re Group",
             "profile_key": "reinsurance_reported_ifrs",
             "insurance_subprofile": "reinsurance",
-            "integration_version": "v22318_universal_insurance_capital_currency_v214",
+            "integration_version": "v22319_insurance_currency_display_v215",
             "earnings_basis_label": "issuer-reported IFRS",
             "earnings_metric_label": "Group Net Income / EPS",
             "roe_metric_label": "RoE",
@@ -16724,7 +16725,7 @@ INSURANCE_V212_PRIMARY_SOURCE_REGISTRY = (
             "company": "Zurich Insurance Group AG",
             "profile_key": "diversified_insurance_core",
             "insurance_subprofile": "primary_diversified",
-            "integration_version": "v22318_universal_insurance_capital_currency_v214",
+            "integration_version": "v22319_insurance_currency_display_v215",
             "earnings_basis_label": "Core",
             "earnings_metric_label": "Net Income / Core EPS",
             "roe_metric_label": "Core RoE",
@@ -16989,7 +16990,8 @@ def build_insurance_book_value_bridge(snapshot, yahoo_book_value=None, currency_
         "bvps_2026_h1": None, "bvps_2025_fy": None, "bvps_2024_fy": None,
         "bvps_native_2026_h1": None, "bvps_native_2025_fy": None, "bvps_native_2024_fy": None,
         "book_value_currency": None, "financial_currency": None,
-        "bvps_growth_2025_pct": None, "yahoo_book_value_deviation_pct": None, "note": None,
+        "bvps_growth_2025_pct": None, "yahoo_book_value_deviation_pct": None,
+        "yahoo_book_value_financial": None, "yahoo_book_value_source_currency": None, "note": None,
     }
     if not isinstance(snapshot, dict):
         result["note"] = "Offizieller Buchwert-Abgleich nicht verfügbar."
@@ -17030,9 +17032,16 @@ def build_insurance_book_value_bridge(snapshot, yahoo_book_value=None, currency_
     growth_25 = (native_25 / native_24 - 1.0) * 100.0
     yahoo_bv = safe_float(yahoo_book_value)
     yahoo_dev = None
+    yahoo_financial = None
+    quote_currency = _normalize_currency_code(context.get("quote_currency"))
     if yahoo_bv is not None and yahoo_bv > 0:
-        quote_currency = _normalize_currency_code(context.get("quote_currency"))
-        yahoo_financial = _convert_insurance_per_share_to_financial(yahoo_bv, quote_currency or financial_currency, context)
+        # Yahoo bookValue is a listing-level per-share field. For mixed-currency
+        # insurers it therefore follows the quote/listing currency, not the
+        # consolidated reporting currency. Convert it through the verified
+        # quote->financial route before comparison or presentation.
+        yahoo_financial = _convert_insurance_per_share_to_financial(
+            yahoo_bv, quote_currency or financial_currency, context
+        )
         if yahoo_financial is not None and yahoo_financial > 0:
             yahoo_dev = abs(yahoo_financial / bvps_26 - 1.0) * 100.0
 
@@ -17042,6 +17051,8 @@ def build_insurance_book_value_bridge(snapshot, yahoo_book_value=None, currency_
         "bvps_native_2026_h1": native_26, "bvps_native_2025_fy": native_25, "bvps_native_2024_fy": native_24,
         "book_value_currency": book_currency, "financial_currency": financial_currency,
         "bvps_growth_2025_pct": growth_25, "yahoo_book_value_deviation_pct": yahoo_dev,
+        "yahoo_book_value_financial": yahoo_financial,
+        "yahoo_book_value_source_currency": quote_currency or financial_currency,
         "source_mode": book_value_source_mode,
         "note": (
             f"Offizieller Buchwert-Abgleich: {snapshot.get('company') or 'Der Versicherer'} liefert den Buchwert je Aktie in {book_currency or financial_currency}. "
@@ -17126,7 +17137,7 @@ def calculate_insurance_score(snapshot, core_coverage, book_bridge, currency_con
     return result
 
 
-INSURANCE_VALUATION_INTEGRATION_VERSION = "v22318_insurance_dual_anchor"
+INSURANCE_VALUATION_INTEGRATION_VERSION = "v22319_insurance_dual_anchor"
 
 
 def calculate_insurance_dual_anchor_valuation(snapshot, core_coverage, book_bridge, insurance_score):
@@ -17731,6 +17742,8 @@ def build_insurance_special_model(
         "primary_gate": primary_gate,
         "price_financial": price_financial,
         "book_value_per_share": book_value,
+        "book_value_per_share_financial": safe_float(book_value_bridge.get("yahoo_book_value_financial")),
+        "book_value_per_share_source_currency": book_value_bridge.get("yahoo_book_value_source_currency"),
         "roe": roe,
         "dividend_yield": dividend_yield,
         "dividend_yield_raw": raw_dividend_yield,
@@ -17776,7 +17789,7 @@ def build_insurance_special_model(
         "insurance_score": insurance_score,
         "insurance_valuation": insurance_valuation,
         "note": (
-            f"V214 Universal Insurance Evidence & Capital Framework Routing: {earnings_basis_label}-Ergebnisbasis, {earnings_ttm_label}-Brücke, "
+            f"V215 Universal Insurance Evidence & Capital Framework Routing: {earnings_basis_label}-Ergebnisbasis, {earnings_ttm_label}-Brücke, "
             f"RoE, {capital_ratio_label} und offizieller Buchwert werden in eine gemeinsame Versicherungs-Evidenzstruktur überführt. "
             f"Unterprofil: {'Reinsurance' if is_reinsurance_profile else 'Primary/Diversified Insurance'}; "
             "55/45-Doppelanker, Standard-FCF-Sperre und Fail-Closed-Gates bleiben unverändert."
@@ -17785,7 +17798,7 @@ def build_insurance_special_model(
 
 
 def build_insurance_special_control(base_control, insurance_model):
-    """Attach the universal V214 insurer step-3B dual-anchor gate."""
+    """Attach the universal V215 insurer step-3B dual-anchor gate."""
     control = dict(base_control or {})
     control.setdefault("router_status", control.get("status"))
     control.setdefault("router_note", control.get("note"))
@@ -17816,9 +17829,9 @@ def build_insurance_special_control(base_control, insurance_model):
             "Dividende / Kapitalrückführung / Ausschüttungsqualität",
             "Versicherungs-Score",
         ],
-        "status": "Router aktiv – V214 Universal Insurance Evidence & Capital Framework Routing & Subprofile Routing",
+        "status": "Router aktiv – V215 Universal Insurance Evidence & Capital Framework Routing & Subprofile Routing",
         "note": (
-            f"V214 trennt Yahoo-Kontextdaten von verifizierten Versicherungs-Primärdaten. {earnings_ttm_label}-EPS, "
+            f"V215 trennt Yahoo-Kontextdaten von verifizierten Versicherungs-Primärdaten. {earnings_ttm_label}-EPS, "
             f"offizieller Buchwert, RoE, {capital_ratio_label} und {earnings_multiple_label}-Korridor werden ausschließlich "
             "aus dem freigegebenen Unterprofil aufgebaut."
         ),
@@ -17912,7 +17925,7 @@ def build_insurance_special_control(base_control, insurance_model):
             "roe_metric_label": model.get("roe_metric_label"),
         },
         "note": (
-            f"V214 Schritt 3B validiert die emittenteneigene {earnings_ttm_label}-Ergebnisbasis, RoE, {capital_ratio_label}, "
+            f"V215 Schritt 3B validiert die emittenteneigene {earnings_ttm_label}-Ergebnisbasis, RoE, {capital_ratio_label}, "
             f"offiziellen Buchwert sowie getrennte P/B- und {earnings_multiple_label}-Anker. "
             "Die Bewertung wird nur bei vollständiger und konsistenter Doppelanker-Prüfung freigegeben."
         ),
@@ -45583,9 +45596,9 @@ def get_special_control(company_type, symbol):
                 "Ausschüttungsqualität",
                 "Versicherungs-Score"
             ],
-            "status": "Router aktiv – V214 Universal Insurance Evidence & Capital Framework Routing + Doppelanker-Bewertung",
+            "status": "Router aktiv – V215 Universal Insurance Evidence & Capital Framework Routing + Doppelanker-Bewertung",
             "note": (
-                "V214 trennt Yahoo-Kontextkennzahlen von verifizierten Versicherungs-Primärdaten. "
+                "V215 trennt Yahoo-Kontextkennzahlen von verifizierten Versicherungs-Primärdaten. "
                 "Versicherungsspezifische TTM-Abdeckung, offizieller Buchwert, RoE und regulatorische Kapitalquote, "
                 "Versicherungs-Score sowie P/B- und unterprofilabhängige TTM-KGV-Anker werden nur aus "
                 "verifizierten Daten aufgebaut. Der Fair Value wird ausschließlich bei vollständiger "
@@ -66402,7 +66415,7 @@ if selected_symbol:
                         st.caption(
                             f"Der verifizierte {insurance_model_eps_ui.get('earnings_ttm_label') or 'Versicherungs-TTM'}-EPS-Wert ist die Gewinnbasis des "
                             f"{insurance_model_eps_ui.get('earnings_multiple_label') or 'Versicherungs-KGV'}-Ankers; die Fair-Value-Freigabe erfolgt "
-                            "ausschließlich über das V214 Universal-Insurance-Doppelanker-Gate."
+                            "ausschließlich über das V215 Universal-Insurance-Doppelanker-Gate."
                         )
                     elif company_type.get("type") == "REIT / Immobilien":
                         st.caption(
@@ -68510,13 +68523,13 @@ if selected_symbol:
                         insurance_score_growth_label_ui = insurance_snapshot_ui.get("score_growth_label") or insurance_growth_label_ui
 
                         st.subheader(
-                            "🛡️ Reinsurance-Familienmodell V214 – Datenbasis"
+                            "🛡️ Reinsurance-Familienmodell V215 – Datenbasis"
                             if insurance_is_reinsurance_ui
-                            else "🛡️ Insurance-Familienmodell V214 – Datenbasis"
+                            else "🛡️ Insurance-Familienmodell V215 – Datenbasis"
                         )
 
                         st.info(
-                            f"V214 verwendet die emittenteneigene Ergebnisbasis ({insurance_basis_ui}), RoE, {insurance_capital_label_ui} und den "
+                            f"V215 verwendet die emittenteneigene Ergebnisbasis ({insurance_basis_ui}), RoE, {insurance_capital_label_ui} und den "
                             "offiziellen Buchwert aus verifizierten Primärquellen. Die TTM-Brücke wird nicht annualisiert; "
                             f"P/B und {insurance_model.get('earnings_multiple_label') or 'Versicherungs-TTM-KGV'} bleiben getrennte Bewertungsanker. "
                             f"Unterprofil: {'Reinsurance' if insurance_is_reinsurance_ui else 'Primary/Diversified Insurance'}."
@@ -68537,15 +68550,15 @@ if selected_symbol:
                                     "–"
                                 )
 
-                            if insurance_model[
-                                "book_value_per_share"
-                            ] is not None:
+                            if insurance_model.get(
+                                "book_value_per_share_financial"
+                            ) is not None:
                                 st.metric(
                                     "Buchwert je Aktie (Yahoo-Kontext)",
                                     format_eps(
-                                        insurance_model[
-                                            "book_value_per_share"
-                                        ],
+                                        insurance_model.get(
+                                            "book_value_per_share_financial"
+                                        ),
                                         financial_currency
                                     )
                                 )
@@ -68625,13 +68638,23 @@ if selected_symbol:
                             )
                             if price_financial is not None:
                                 conversion_kind_ui = (data.get("currency_context") or {}).get("conversion_kind")
+                                quote_currency_ui = _normalize_currency_code(
+                                    (data.get("currency_context") or {}).get("quote_currency")
+                                ) or "Handelswährung"
+                                financial_currency_ui = _normalize_currency_code(
+                                    (data.get("currency_context") or {}).get("financial_currency")
+                                ) or financial_currency
                                 conversion_note_ui = (
-                                    "explizit aus der Pence-Notierung umgerechnet"
+                                    "Pence-/GBP-Handelseinheit intern auf die Finanzwährung angeglichen; "
+                                    "die gezeigte Zahl folgt anschließend nur der gewählten Anzeigewährung"
                                     if conversion_kind_ui == "gbp_pence"
-                                    else "explizit aus der Handelswährung in die Finanzwährung umgerechnet"
+                                    else (
+                                        f"intern {quote_currency_ui} → {financial_currency_ui} angeglichen; "
+                                        "die gezeigte Zahl folgt anschließend nur der gewählten Anzeigewährung"
+                                    )
                                 )
                                 st.write(
-                                    "**Kurs für fundamentale Verhältniskennzahlen:** "
+                                    "**Kurs für fundamentale Verhältniskennzahlen (Anzeige):** "
                                     f"{format_currency_value(price_financial, financial_currency, 4)} "
                                     f"({conversion_note_ui})"
                                 )
@@ -77355,8 +77378,8 @@ if selected_symbol:
                         elif fair_value.get("valuation_method") == "insurance_dual_anchor":
                             st.success(
                                 (
-                                    "Munich-Re-Fair-Value V1 wurde aus dem offiziellen Buchwert/P-B-Anker und dem "
-                                    "issuer-reported Reported-TTM-EPS/Reinsurer-KGV-Anker berechnet und erst nach "
+                                    "Reinsurance-Fair-Value V1 wurde aus dem offiziellen Buchwert/P-B-Anker und dem "
+                                    "verifizierten issuer-reported TTM-EPS/Reinsurance-KGV-Anker berechnet und erst nach "
                                     "der Schritt-3B-Freigabe veröffentlicht."
                                 )
                                 if fair_value.get("earnings_basis_label") == "issuer-reported IFRS"
