@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.17"
+APP_BUILD_VERSION = "V2.23.18"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,13 +946,14 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · AXA Official BVPS & Insurance Copy Correction V213"
+    f"Build {APP_BUILD_VERSION} · Universal Insurance Capital Framework & Currency Routing V214"
 )
 
 
 # V2.22.98: Zahlungsabwickler-Sicherheitsentkopplung V194. Bei vollständig freigegebenem Zahlungsabwickler-Spezialpfad bleibt die generische TTM-/Prognose-EPS-Divergenz ausschließlich Diagnosekontext und darf die endgültige Bewertungssicherheit nicht mehr begrenzen. Maßgeblich sind Methodenobergrenze, freigegebene Familien-Gewinnbasis, Sicherheit des Familien-Ziel-KGV und Spezialkontrolle. Bewertungsmathematik, Peer-Kalibrierung, Gewinnbasis, Ziel-KGV, Fair Values und Signal-Gates bleiben unverändert.
 # V2.23.02: Unabhängiger Gegencheck V2 V198. Härtet die nicht steuernde Zahlungsabwickler-Kontrollsicht nach Live-Tests mit Global Payments, PayPal, Adyen und Fiserv: Analystenabweichungen werden richtungs- und größenordnungsspezifisch formuliert; die feste 8x/10x-Bewertung wird entfernt und das aktuelle Markt-KGV nur noch als marktimplizierter Kontext gezeigt, solange keine gleichbasige historische Eigenreihe belastbar verfügbar ist; der rohe Kern-Vergleichsgruppen-Check erhält eine Streuungs-/Vergleichbarkeitssperre und darf bei heterogener KGV-Spanne weder Bestätigung noch Widerspruch erzeugen. Das Gesamtergebnis zählt nur belastbare Kontrollen. Fair Value, Ziel-KGV, Qualität, Sicherheit, Bewertungszonen und Kaufen/Halten/Verkaufen bleiben unverändert.
 # V2.23.04: Zahlungsabwickler-Sicherheitsobergrenze V200. Die allgemeine Methoden-/Spezialkontroll-Obergrenze der vollständig freigegebenen Zahlungsabwickler-Referenzprofile wird von „Niedrig bis Mittel“ auf „Mittel“ angehoben. Die in V199 gehärtete Regel „schwächste relevante Sicherheitsstufe gewinnt“ bleibt unverändert. Emittentenspezifische niedrigere Stufen bleiben wirksam; insbesondere behält Fiserv wegen seiner Ziel-KGV-Sicherheit „Niedrig bis Mittel“ die niedrigere Gesamtbewertungssicherheit. Score, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Value, Bewertungszonen und Signal-Schwellen bleiben unverändert.
+# V2.23.18: Universal Insurance Capital Framework & Currency Routing V214. Adds jurisdiction-aware insurer capital frameworks (Solvency II / SST), per-share currency routing for official BVPS/dividend evidence, Swiss primary-listing/subprofile hardening, Swiss Re + Zurich issuer-primary evidence adapters and insurance-copy cleanup.
 # V2.23.17: AXA Official BVPS & Insurance Copy Correction V213. Verwendet für AXA den vom Emittenten neu definierten und direkt berichteten Book Value per Share (FY2024 24,5 EUR; FY2025 24,0 EUR; H1 2026 23,8 EUR) statt einer abgeleiteten Gesamt-Eigenkapital/Aktienzahl-Größe. Bereinigt außerdem verbliebene sichtbare V2.20.44/Core-TTM-Texte im universellen Insurance-Pfad, aktualisiert die technischen Insurance-Integrationsbezeichner und zeigt bei vollständig freigegebener Versicherungs-Evidenz einen abgeschlossenen Familienstatus. Keine Änderung an den eingefrorenen Allianz-/Munich-Re-Inputs oder an den Insurance-/Reinsurance-Korridoren.
 # V2.23.16: Universal Insurance Evidence & Subprofile Routing V212. Generalisiert den Versicherungs-Spezialpfad auf eine gemeinsame Evidenzschicht für Core-, Underlying- und issuer-reported IFRS-Earnings, routet Primary/Diversified Insurance gegenüber Reinsurance über das erkannte Unterprofil statt über Ticker-Sonderlogik, verwendet die nicht annualisierte FY-H1+H1-TTM-Brücke universell und hält Standard-EPS/Yahoo-FCF/Net-Debt-to-FCF strikt im Diagnosekontext. AXA und Hannover Re werden als verifizierte Primärdaten-Snapshots in dieselbe Familienengine aufgenommen; Allianz und Munich Re behalten ihre eingefrorenen numerischen Inputs. Reinsurance verwendet familienweit 1,1–2,2x P/B und 7,0–11,5x TTM-KGV.
 # V2.23.15: Universal Family Eligibility & Evidence Gate V211. Härtet die Wiederverwendbarkeit der bereits freigegebenen Semiconductor-Equipment- und Payments-Processor-Familien außerhalb ihrer Referenzemittenten. Neue Semicap-Titel werden nicht mehr wegen fehlender Ticker-Whitelist als unreleased family behandelt, sondern laufen in das bestehende Familienmodell und bleiben bei fehlendem issuer-primary Snapshot sauber evidence-gated. Ein konservativer, geschäftsmodellbasierter Payments-Processor-Precedence-Guard kann Merchant-Acquiring/End-to-End-Payment-Processing gegenüber groben Provider-Branchen wie Software - Infrastructure priorisieren, ohne FOUR/Nexi als Familien-Whitelist einzubauen. Unsupported Payments-Familienmitglieder werden als released-family/evidence-pending ausgewiesen; Standard-Score, Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV, Fair Value und Signale bleiben gesperrt. Die freigegebenen Score-, Earnings-, Multiple-, Peer-, Fair-Value- und Signalformeln der vier Semicap- und vier Payments-Referenzwerte bleiben unverändert.
@@ -7770,6 +7771,15 @@ def _universal_family_meta(family_id):
 def _infer_universal_family_from_existing_type(company_type, name_text=""):
     type_name = normalized_company_type_name(company_type)
     name_text = str(name_text or "").lower()
+    # V214: preserve the insurer subprofile selected by the business/industry
+    # classifier.  Do not collapse a Reinsurance classification back to the
+    # broad Insurance family merely because the display type is "Versicherung".
+    if "versicherung" in type_name:
+        subprofile = str((company_type or {}).get("insurance_subprofile") or "").lower().strip()
+        if subprofile == "reinsurance":
+            return "reinsurance"
+        if subprofile in {"insurance", "primary_diversified"}:
+            return "insurance"
     checks = [
         ("card issuer / diversified lending", "consumer_finance_card"),
         ("closed-loop payments & consumer credit", "closed_loop_card"),
@@ -8060,6 +8070,8 @@ def _infer_universal_family_from_metadata(symbol, sector, industry, business_sum
         if "asset management" in industry_text or "investment management" in industry_text:
             return "asset_manager", "sector_industry_rule"
         if "insurance" in industry_text:
+            if "reinsurance" in industry_text or "reinsur" in summary_text or "rückversicher" in summary_text:
+                return "reinsurance", "sector_industry_rule"
             return "insurance", "sector_industry_rule"
         if "credit services" in industry_text or "consumer finance" in industry_text:
             lending_terms = [
@@ -14259,6 +14271,7 @@ def classify_company(name, symbol, sector, industry):
                 if is_reinsurance
                 else "Versicherungsspezifisches TTM-EPS + KGV + offizieller Buchwert / P-B Doppelanker"
             ),
+            "insurance_subprofile": "reinsurance" if is_reinsurance else "primary_diversified",
             "confidence_cap": "Mittel bis Hoch"
         }
 
@@ -14688,6 +14701,20 @@ PRIMARY_SEARCH_ALIASES = [
         ],
         "symbol": "DB1.DE", "quoteType": "EQUITY", "longname": "Deutsche Börse AG",
         "exchange": "GER", "exchDisp": "XETRA", "currency": "EUR",
+    },
+    {
+        "aliases": ["SWISS RE", "SWISS RE AG", "SWISS RE LTD", "SREN", "SREN.SW"],
+        "exact_aliases": True,
+        "primary_lock": True,
+        "symbol": "SREN.SW", "quoteType": "EQUITY", "longname": "Swiss Re AG",
+        "exchange": "SWX", "exchDisp": "Swiss", "currency": "CHF",
+    },
+    {
+        "aliases": ["ZURICH INSURANCE", "ZURICH INSURANCE GROUP", "ZURICH INSURANCE GROUP AG", "ZURN", "ZURN.SW"],
+        "exact_aliases": True,
+        "primary_lock": True,
+        "symbol": "ZURN.SW", "quoteType": "EQUITY", "longname": "Zurich Insurance Group AG",
+        "exchange": "SWX", "exchDisp": "Swiss", "currency": "CHF",
     },
     {
         "aliases": ["AXA", "AXA SA"],
@@ -16454,7 +16481,7 @@ def _get_legacy_verified_insurance_snapshot(symbol):
             "Offizielle Allianz-2Q/6M-2026-Daten. Shareholders' Core Net "
             "Income, Core EPS, Core RoE und Solvency-II-Quote werden nicht "
             "aus Yahoo-Feldern rekonstruiert. Die 6M-Werte werden nicht "
-            "annualisiert. V2.20.44 ergänzt die nicht annualisierte Core-TTM-Abdeckung, den Versicherungs-Score und die Dual-Anchor-Bewertung. "
+            "annualisiert. V214 übernimmt die nicht annualisierte Core-TTM-Abdeckung, den Versicherungs-Score und die Dual-Anchor-Bewertung. "
             "Die Bewertung wird nur nach vollständiger Konsistenzprüfung freigegeben."
         ),
     }
@@ -16628,6 +16655,135 @@ INSURANCE_V212_PRIMARY_SOURCE_REGISTRY = (
             ),
         },
     },
+    {
+        "symbols": {"SREN.SW"},
+        "snapshot": {
+            "company": "Swiss Re AG / Swiss Re Group",
+            "profile_key": "reinsurance_reported_ifrs",
+            "insurance_subprofile": "reinsurance",
+            "integration_version": "v22318_universal_insurance_capital_currency_v214",
+            "earnings_basis_label": "issuer-reported IFRS",
+            "earnings_metric_label": "Group Net Income / EPS",
+            "roe_metric_label": "RoE",
+            "earnings_ttm_label": "Reported-TTM",
+            "earnings_multiple_label": "Reported-TTM-KGV",
+            "score_growth_label": "FY2025 EPS-Wachstum",
+            "financial_currency": "USD",
+            "book_value_currency": "USD",
+            "dividend_currency": "USD",
+            "capital_framework": "SST",
+            "capital_ratio_label": "Swiss Solvency Test (SST)",
+            "capital_ratio_pct": 264.0,
+            "as_of_date": "30.06.2026",
+            "published_date": "06.08.2026",
+            "valid_until": "04.11.2026",
+            "next_financial_event_date": "05.11.2026",
+            "next_financial_event_label": "Nine Months 2026 Results",
+            "next_financial_event_source_url": "https://www.swissre.com/investors/financial-calendar.html",
+            "source_name": "Swiss Re Half-Year 2026 Results",
+            "source_url": "https://www.swissre.com/media/press-release/pr-20260806-hy-2026-press-release.html",
+            "period_label": "6M 2026",
+            "shareholders_core_net_income": 2.833e9,
+            "shareholders_core_net_income_prior": 2.605e9,
+            "shareholders_core_net_income_growth_pct": (2.833 / 2.605 - 1.0) * 100.0,
+            "shareholders_net_income": 2.833e9,
+            "basic_eps_reported": 9.57,
+            "core_eps_basic": 9.57,
+            "core_eps_basic_prior": 8.71,
+            "core_eps_growth_pct": (9.57 / 8.71 - 1.0) * 100.0,
+            "core_roe_annualized_pct": 22.7,
+            "core_eps_fy_2025": 15.67,
+            "core_eps_h1_2025": 8.71,
+            "core_eps_h1_2026": 9.57,
+            "core_net_income_fy_2025": 4.762e9,
+            "core_net_income_h1_2025": 2.605e9,
+            "core_net_income_h1_2026": 2.833e9,
+            "book_value_per_share_2026_h1": 83.89,
+            "book_value_per_share_2025_fy": 85.15,
+            "book_value_per_share_2024_fy": 74.44,
+            "score_roe_pct": 22.7,
+            "score_eps_growth_pct": (15.67 / 10.88 - 1.0) * 100.0,
+            "underlying_core_roe_pct": 22.7,
+            "underlying_core_eps_growth_pct": (15.67 / 10.88 - 1.0) * 100.0,
+            "underlying_adjustment_active": False,
+            "dividend_2025_per_share": 8.00,
+            "combined_ratio_pc_re_h1_pct": 76.7,
+            "pb_corridor_lower": 1.10,
+            "pb_corridor_upper": 2.20,
+            "core_pe_corridor_lower": 7.00,
+            "core_pe_corridor_upper": 11.50,
+            "book_weight": 0.55,
+            "core_pe_weight": 0.45,
+            "valuation_profile_note": "Reinsurance corridor selected by subprofile; SST capital framework scored separately from Solvency II.",
+            "source_note": "V214 maps Swiss Re issuer-reported IFRS earnings/EPS, RoE, SST and official book value into the common reinsurance evidence schema.",
+        },
+    },
+    {
+        "symbols": {"ZURN.SW"},
+        "snapshot": {
+            "company": "Zurich Insurance Group AG",
+            "profile_key": "diversified_insurance_core",
+            "insurance_subprofile": "primary_diversified",
+            "integration_version": "v22318_universal_insurance_capital_currency_v214",
+            "earnings_basis_label": "Core",
+            "earnings_metric_label": "Net Income / Core EPS",
+            "roe_metric_label": "Core RoE",
+            "earnings_ttm_label": "Core-TTM",
+            "earnings_multiple_label": "Core-TTM-KGV",
+            "score_growth_label": "FY2025 Core-EPS-Wachstum",
+            "financial_currency": "USD",
+            "book_value_currency": "CHF",
+            "dividend_currency": "CHF",
+            "capital_framework": "SST",
+            "capital_ratio_label": "Swiss Solvency Test (SST)",
+            "capital_ratio_pct": 266.0,
+            "capital_ratio_prior_pct": 259.0,
+            "capital_ratio_change_pp": 7.0,
+            "as_of_date": "30.06.2026",
+            "published_date": "06.08.2026",
+            "valid_until": "11.11.2026",
+            "next_financial_event_date": "12.11.2026",
+            "next_financial_event_label": "Update für die neun Monate zum 30.09.2026",
+            "next_financial_event_source_url": "https://www.zurich.com/investor-relations/calendar",
+            "source_name": "Zurich Insurance Group Half-Year 2026 Results",
+            "source_url": "https://www.zurich.com/media/news-releases/2026/2026-0806-01",
+            "period_label": "6M 2026",
+            "shareholders_core_net_income": 3.489e9,
+            "shareholders_core_net_income_prior": 3.065e9,
+            "shareholders_core_net_income_growth_pct": (3.489 / 3.065 - 1.0) * 100.0,
+            "shareholders_net_income": 3.489e9,
+            "basic_eps_reported": None,
+            "core_eps_basic": 23.63,
+            "core_eps_basic_prior": 21.68,
+            "core_eps_growth_pct": (23.63 / 21.68 - 1.0) * 100.0,
+            "core_roe_annualized_pct": 25.1,
+            "core_eps_fy_2025": 45.13,
+            "core_eps_h1_2025": 21.68,
+            "core_eps_h1_2026": 23.63,
+            "core_net_income_fy_2025": 6.798e9,
+            "core_net_income_h1_2025": 3.065e9,
+            "core_net_income_h1_2026": 3.489e9,
+            "book_value_per_share_2026_h1": 168.76,
+            "book_value_per_share_2025_fy": 158.93,
+            "book_value_per_share_2024_fy": 162.23,
+            "score_roe_pct": 25.1,
+            "score_eps_growth_pct": (45.13 / 40.08 - 1.0) * 100.0,
+            "underlying_core_roe_pct": 27.1,
+            "underlying_core_eps_growth_pct": 11.5,
+            "underlying_adjustment_active": True,
+            "underlying_growth_note": "Zurich weist zusätzlich kapitalerhöhungsbereinigte H1-2026 Core-Kennzahlen aus. V214 nutzt für die TTM-Brücke die direkt berichteten periodengleichen Core-EPS-Werte und führt die bereinigte Wachstumsangabe nur als Kontext.",
+            "dividend_2025_per_share": 30.00,
+            "combined_ratio_pc_re_h1_pct": 92.7,
+            "pb_corridor_lower": 1.00,
+            "pb_corridor_upper": 2.80,
+            "core_pe_corridor_lower": 8.00,
+            "core_pe_corridor_upper": 14.00,
+            "book_weight": 0.55,
+            "core_pe_weight": 0.45,
+            "valuation_profile_note": "Diversified/primary-insurer corridor; official BVPS and dividend are CHF while earnings are USD and are currency-routed before anchor math.",
+            "source_note": "V214 maps Zurich Core EPS/RoE, SST and official book value into the common insurance schema with explicit per-share currencies.",
+        },
+    },
 )
 
 
@@ -16687,7 +16843,7 @@ def _insurance_snapshot_is_fresh(snapshot):
 
 
 
-INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION = "v22317_insurance_ttm_bridge"
+INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION = "v22318_insurance_ttm_bridge"
 
 def build_insurance_core_coverage(snapshot):
     """
@@ -16774,263 +16930,207 @@ def build_insurance_core_coverage(snapshot):
     return result
 
 
-def build_insurance_book_value_bridge(snapshot, yahoo_book_value=None):
-    """Official book-value-per-share bridge and annual growth quality check."""
+def _insurance_capital_evidence(snapshot):
+    """Return jurisdiction-aware insurer capital evidence without cross-framework equivalence."""
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    framework = str(snap.get("capital_framework") or "").upper().strip()
+    if not framework:
+        framework = "SOLVENCY_II" if safe_float(snap.get("solvency_ii_ratio_pct")) is not None else ""
+    if framework in {"SOLVENCY II", "SOLVENCY_II", "SII"}:
+        framework = "SOLVENCY_II"
+        label = snap.get("capital_ratio_label") or "Solvency II"
+        ratio = safe_float(snap.get("capital_ratio_pct"))
+        if ratio is None:
+            ratio = safe_float(snap.get("solvency_ii_ratio_pct"))
+        prior = safe_float(snap.get("capital_ratio_prior_pct"))
+        if prior is None:
+            prior = safe_float(snap.get("solvency_ii_prior_pct"))
+        change = safe_float(snap.get("capital_ratio_change_pp"))
+        if change is None:
+            change = safe_float(snap.get("solvency_ii_change_pp"))
+    elif framework == "SST":
+        label = snap.get("capital_ratio_label") or "Swiss Solvency Test (SST)"
+        ratio = safe_float(snap.get("capital_ratio_pct"))
+        prior = safe_float(snap.get("capital_ratio_prior_pct"))
+        change = safe_float(snap.get("capital_ratio_change_pp"))
+    else:
+        label = snap.get("capital_ratio_label") or "Regulatorische Kapitalquote"
+        ratio = safe_float(snap.get("capital_ratio_pct"))
+        prior = safe_float(snap.get("capital_ratio_prior_pct"))
+        change = safe_float(snap.get("capital_ratio_change_pp"))
+    return {"framework": framework, "label": label, "ratio_pct": ratio, "prior_pct": prior, "change_pp": change}
+
+
+def _convert_insurance_per_share_to_financial(value, source_currency, currency_context):
+    """Convert an issuer per-share item to the earnings/financial currency; fail closed."""
+    amount = safe_float(value)
+    if amount is None:
+        return None
+    context = currency_context if isinstance(currency_context, dict) else {}
+    financial = _normalize_currency_code(context.get("financial_currency"))
+    quote = _normalize_currency_code(context.get("quote_currency"))
+    source = _normalize_currency_code(source_currency or financial)
+    if not source or not financial or source == financial:
+        return amount
+    # V214 only converts cross-currency per-share evidence when the source is
+    # exactly the verified quote currency and the existing quote/financial FX
+    # route is available. No third-currency or parity assumption is permitted.
+    if source == quote and context.get("conversion_available"):
+        factor = safe_float(context.get("quote_to_financial_factor"))
+        if factor is not None and factor > 0:
+            return amount * factor
+    return None
+
+
+def build_insurance_book_value_bridge(snapshot, yahoo_book_value=None, currency_context=None):
+    """Official BVPS bridge with explicit native/per-share currency routing."""
     result = {
         "available": False,
-        "bvps_2026_h1": None,
-        "bvps_2025_fy": None,
-        "bvps_2024_fy": None,
-        "bvps_growth_2025_pct": None,
-        "yahoo_book_value_deviation_pct": None,
-        "note": None,
+        "bvps_2026_h1": None, "bvps_2025_fy": None, "bvps_2024_fy": None,
+        "bvps_native_2026_h1": None, "bvps_native_2025_fy": None, "bvps_native_2024_fy": None,
+        "book_value_currency": None, "financial_currency": None,
+        "bvps_growth_2025_pct": None, "yahoo_book_value_deviation_pct": None, "note": None,
     }
     if not isinstance(snapshot, dict):
         result["note"] = "Offizieller Buchwert-Abgleich nicht verfügbar."
         return result
 
-    # Prefer issuer-reported carrying/book value per share when the insurer
-    # publishes it directly. This avoids small but real distortions from mixing
-    # total equity (including non-controlling interests) with ordinary-share counts.
     direct_bvps_26 = safe_float(snapshot.get("book_value_per_share_2026_h1"))
     direct_bvps_25 = safe_float(snapshot.get("book_value_per_share_2025_fy"))
     direct_bvps_24 = safe_float(snapshot.get("book_value_per_share_2024_fy"))
     direct_values = [direct_bvps_26, direct_bvps_25, direct_bvps_24]
 
     if all(value is not None and value > 0 for value in direct_values):
-        bvps_26 = direct_bvps_26
-        bvps_25 = direct_bvps_25
-        bvps_24 = direct_bvps_24
+        native_26, native_25, native_24 = direct_bvps_26, direct_bvps_25, direct_bvps_24
         book_value_source_mode = "issuer_reported_per_share"
     else:
-        eq_26 = safe_float(snapshot.get("shareholders_equity_2026_h1"))
-        sh_26 = safe_float(snapshot.get("shares_2026_h1"))
-        eq_25 = safe_float(snapshot.get("shareholders_equity_2025_fy"))
-        sh_25 = safe_float(snapshot.get("shares_2025_fy"))
-        eq_24 = safe_float(snapshot.get("shareholders_equity_2024_fy"))
-        sh_24 = safe_float(snapshot.get("shares_2024_fy"))
-
+        eq_26, sh_26 = safe_float(snapshot.get("shareholders_equity_2026_h1")), safe_float(snapshot.get("shares_2026_h1"))
+        eq_25, sh_25 = safe_float(snapshot.get("shareholders_equity_2025_fy")), safe_float(snapshot.get("shares_2025_fy"))
+        eq_24, sh_24 = safe_float(snapshot.get("shareholders_equity_2024_fy")), safe_float(snapshot.get("shares_2024_fy"))
         values = [eq_26, sh_26, eq_25, sh_25, eq_24, sh_24]
         if any(value is None or value <= 0 for value in values):
-            result["note"] = (
-                "Offizieller Buchwert-Abgleich gesperrt: Weder vollständige direkt berichtete "
-                "Buchwerte je Aktie noch Equity-/Aktienzahl-Daten für alle Vergleichszeitpunkte liegen vor."
-            )
+            result["note"] = "Offizieller Buchwert-Abgleich gesperrt: vollständige offizielle BVPS- oder Equity/Aktienzahl-Daten fehlen."
             return result
-
-        bvps_26 = eq_26 / sh_26
-        bvps_25 = eq_25 / sh_25
-        bvps_24 = eq_24 / sh_24
+        native_26, native_25, native_24 = eq_26/sh_26, eq_25/sh_25, eq_24/sh_24
         book_value_source_mode = "derived_from_official_equity_and_shares"
 
-    growth_25 = (bvps_25 / bvps_24 - 1.0) * 100.0
+    context = currency_context if isinstance(currency_context, dict) else {}
+    financial_currency = _normalize_currency_code(context.get("financial_currency") or snapshot.get("financial_currency"))
+    book_currency = _normalize_currency_code(snapshot.get("book_value_currency") or financial_currency)
+    bvps_26 = _convert_insurance_per_share_to_financial(native_26, book_currency, context)
+    bvps_25 = _convert_insurance_per_share_to_financial(native_25, book_currency, context)
+    bvps_24 = _convert_insurance_per_share_to_financial(native_24, book_currency, context)
+    if any(v is None or v <= 0 for v in (bvps_26, bvps_25, bvps_24)):
+        result["note"] = (
+            f"Offizieller Buchwert-Abgleich gesperrt: BVPS in {book_currency or 'unbekannter Währung'} kann nicht belastbar in "
+            f"die Gewinn-/Finanzwährung {financial_currency or '–'} umgerechnet werden."
+        )
+        return result
 
+    growth_25 = (native_25 / native_24 - 1.0) * 100.0
     yahoo_bv = safe_float(yahoo_book_value)
     yahoo_dev = None
     if yahoo_bv is not None and yahoo_bv > 0:
-        yahoo_dev = abs(yahoo_bv / bvps_26 - 1.0) * 100.0
+        quote_currency = _normalize_currency_code(context.get("quote_currency"))
+        yahoo_financial = _convert_insurance_per_share_to_financial(yahoo_bv, quote_currency or financial_currency, context)
+        if yahoo_financial is not None and yahoo_financial > 0:
+            yahoo_dev = abs(yahoo_financial / bvps_26 - 1.0) * 100.0
 
     result.update({
         "available": True,
-        "bvps_2026_h1": bvps_26,
-        "bvps_2025_fy": bvps_25,
-        "bvps_2024_fy": bvps_24,
-        "bvps_growth_2025_pct": growth_25,
-        "yahoo_book_value_deviation_pct": yahoo_dev,
+        "bvps_2026_h1": bvps_26, "bvps_2025_fy": bvps_25, "bvps_2024_fy": bvps_24,
+        "bvps_native_2026_h1": native_26, "bvps_native_2025_fy": native_25, "bvps_native_2024_fy": native_24,
+        "book_value_currency": book_currency, "financial_currency": financial_currency,
+        "bvps_growth_2025_pct": growth_25, "yahoo_book_value_deviation_pct": yahoo_dev,
         "source_mode": book_value_source_mode,
         "note": (
-            (
-                f"Offizieller Buchwert-Abgleich: Der direkt von {snapshot.get('company') or 'dem Versicherer'} berichtete Buchwert je Aktie "
-                "wird als Buchwertanker verwendet. Für den Score wird die abgeschlossene FY2025-Entwicklung "
-                "gegenüber FY2024 verwendet; 6M 2026 wird nicht annualisiert."
-            )
-            if book_value_source_mode == "issuer_reported_per_share"
-            else (
-                "Offizieller Buchwert-Abgleich: Buchwert je Aktie wird aus dem verifizierten "
-                f"Eigenkapital und der offiziellen Aktienzahl von {snapshot.get('company') or 'dem Versicherer'} "
-                "je Stichtag gebildet. Für den Score wird die abgeschlossene FY2025-Entwicklung "
-                "gegenüber FY2024 verwendet; 6M 2026 wird nicht annualisiert."
-            )
+            f"Offizieller Buchwert-Abgleich: {snapshot.get('company') or 'Der Versicherer'} liefert den Buchwert je Aktie in {book_currency or financial_currency}. "
+            + (f"Für die Bewertungsanker wird er explizit in {financial_currency} umgerechnet; " if book_currency and financial_currency and book_currency != financial_currency else "")
+            + "für den Score wird die abgeschlossene FY2025-Entwicklung gegenüber FY2024 verwendet; 6M 2026 wird nicht annualisiert."
         ),
     })
     return result
 
 
-def calculate_insurance_score(snapshot, core_coverage, book_bridge):
-    """
-    Insurer-specific 100-point score.
-
-    Components:
-      - underlying Core RoE: 30
-      - Solvency II: 25
-      - underlying Core EPS growth: 20
-      - official book-value-per-share growth: 15
-      - distribution quality: 10
-    """
+def calculate_insurance_score(snapshot, core_coverage, book_bridge, currency_context=None):
+    """Universal 100-point insurer score with framework-specific capital calibration."""
     result = {
-        "available": False,
-        "score": None,
-        "quality_level": "Nicht verfügbar",
-        "core_roe_points": None,
-        "solvency_points": None,
-        "core_growth_points": None,
-        "book_growth_points": None,
-        "distribution_points": None,
-        "core_roe_pct": None,
-        "solvency_ii_pct": None,
-        "underlying_core_eps_growth_pct": None,
-        "book_value_growth_pct": None,
-        "dividend_core_eps_payout_ratio": None,
-        "note": None,
+        "available": False, "score": None, "quality_level": "Nicht verfügbar",
+        "core_roe_points": None, "solvency_points": None, "capital_points": None,
+        "core_growth_points": None, "book_growth_points": None, "distribution_points": None,
+        "core_roe_pct": None, "solvency_ii_pct": None, "capital_ratio_pct": None,
+        "capital_framework": None, "capital_ratio_label": None,
+        "underlying_core_eps_growth_pct": None, "book_value_growth_pct": None,
+        "dividend_core_eps_payout_ratio": None, "note": None,
     }
-
     if not isinstance(snapshot, dict):
         result["note"] = "Versicherungs-Score gesperrt: Primärquellen-Snapshot fehlt."
         return result
-
     if not (core_coverage or {}).get("available"):
-        result["note"] = (
-            "Versicherungs-Score gesperrt: vollständige versicherungsspezifische TTM-Abdeckung fehlt."
-        )
+        result["note"] = "Versicherungs-Score gesperrt: vollständige versicherungsspezifische TTM-Abdeckung fehlt."
         return result
-
     if not (book_bridge or {}).get("available"):
-        result["note"] = (
-            "Versicherungs-Score gesperrt: offizieller Buchwert-Abgleich fehlt."
-        )
+        result["note"] = "Versicherungs-Score gesperrt: offizieller Buchwert-Abgleich fehlt."
         return result
 
     core_roe = safe_float(snapshot.get("score_roe_pct"))
-    if core_roe is None:
-        core_roe = safe_float(snapshot.get("underlying_core_roe_pct"))
-    solvency = safe_float(snapshot.get("solvency_ii_ratio_pct"))
+    if core_roe is None: core_roe = safe_float(snapshot.get("underlying_core_roe_pct"))
+    capital = _insurance_capital_evidence(snapshot)
+    capital_ratio = safe_float(capital.get("ratio_pct"))
     core_growth = safe_float(snapshot.get("score_eps_growth_pct"))
-    if core_growth is None:
-        core_growth = safe_float(snapshot.get("underlying_core_eps_growth_pct"))
+    if core_growth is None: core_growth = safe_float(snapshot.get("underlying_core_eps_growth_pct"))
     book_growth = safe_float(book_bridge.get("bvps_growth_2025_pct"))
     dividend = safe_float(snapshot.get("dividend_2025_per_share"))
+    dividend_currency = snapshot.get("dividend_currency") or snapshot.get("financial_currency")
+    dividend_financial = _convert_insurance_per_share_to_financial(dividend, dividend_currency, currency_context)
     fy_core_eps = safe_float(snapshot.get("core_eps_fy_2025"))
 
-    if (
-        core_roe is None
-        or solvency is None
-        or core_growth is None
-        or book_growth is None
-        or dividend is None
-        or fy_core_eps is None
-        or fy_core_eps <= 0
-    ):
-        result["note"] = (
-            "Versicherungs-Score gesperrt: mindestens eine versicherungsspezifische "
-            "Kernkomponente fehlt."
-        )
+    if any(x is None for x in (core_roe, capital_ratio, core_growth, book_growth, dividend_financial, fy_core_eps)) or fy_core_eps <= 0:
+        result["note"] = "Versicherungs-Score gesperrt: mindestens eine versicherungsspezifische Kernkomponente oder deren Währungsroute fehlt."
+        return result
+    payout = dividend_financial / fy_core_eps
+
+    roe_pts = 0 if core_roe < 10 else 10 if core_roe < 12 else 18 if core_roe < 15 else 24 if core_roe < 18 else 30
+
+    framework = capital.get("framework")
+    if framework == "SST":
+        # SST is not numerically equated with Solvency II. Swiss calibration uses
+        # a higher starting floor and recognizes the 200%+ capital-quality zone.
+        solv_pts = 0 if capital_ratio < 160 else 10 if capital_ratio < 180 else 17 if capital_ratio < 200 else 22 if capital_ratio < 220 else 25
+    elif framework == "SOLVENCY_II":
+        solv_pts = 0 if capital_ratio < 150 else 10 if capital_ratio < 180 else 17 if capital_ratio < 200 else 22 if capital_ratio < 220 else 25
+    else:
+        result["note"] = "Versicherungs-Score gesperrt: regulatorisches Kapitalframework ist nicht kalibriert."
         return result
 
-    payout = dividend / fy_core_eps
-
-    # Core RoE (max 30)
-    if core_roe < 10:
-        roe_pts = 0
-    elif core_roe < 12:
-        roe_pts = 10
-    elif core_roe < 15:
-        roe_pts = 18
-    elif core_roe < 18:
-        roe_pts = 24
-    else:
-        roe_pts = 30
-
-    # Solvency II (max 25)
-    if solvency < 150:
-        solv_pts = 0
-    elif solvency < 180:
-        solv_pts = 10
-    elif solvency < 200:
-        solv_pts = 17
-    elif solvency < 220:
-        solv_pts = 22
-    else:
-        solv_pts = 25
-
-    # Underlying Core EPS growth (max 20)
-    if core_growth <= 0:
-        growth_pts = 0
-    elif core_growth < 3:
-        growth_pts = 5
-    elif core_growth < 5:
-        growth_pts = 10
-    elif core_growth < 7:
-        growth_pts = 14
-    elif core_growth < 9:
-        growth_pts = 17
-    else:
-        growth_pts = 20
-
-    # Official FY book-value-per-share growth (max 15)
-    if book_growth <= 0:
-        book_pts = 0
-    elif book_growth < 2:
-        book_pts = 5
-    elif book_growth < 4:
-        book_pts = 9
-    elif book_growth < 6:
-        book_pts = 12
-    else:
-        book_pts = 15
-
-    # Distribution quality (max 10).
-    # 40-65% of FY core EPS is treated as a balanced dividend coverage range.
-    if 0.40 <= payout <= 0.65:
-        dist_pts = 10
-    elif 0.30 <= payout < 0.40 or 0.65 < payout <= 0.80:
-        dist_pts = 7
-    elif 0.20 <= payout < 0.30 or 0.80 < payout <= 1.00:
-        dist_pts = 4
-    else:
-        dist_pts = 0
+    growth_pts = 0 if core_growth <= 0 else 5 if core_growth < 3 else 10 if core_growth < 5 else 14 if core_growth < 7 else 17 if core_growth < 9 else 20
+    book_pts = 0 if book_growth <= 0 else 5 if book_growth < 2 else 9 if book_growth < 4 else 12 if book_growth < 6 else 15
+    dist_pts = 10 if 0.40 <= payout <= 0.65 else 7 if (0.30 <= payout < 0.40 or 0.65 < payout <= 0.80) else 4 if (0.20 <= payout < 0.30 or 0.80 < payout <= 1.00) else 0
 
     score = roe_pts + solv_pts + growth_pts + book_pts + dist_pts
-    if score >= 90:
-        quality = "Sehr stark"
-    elif score >= 75:
-        quality = "Stark"
-    elif score >= 60:
-        quality = "Solide"
-    elif score >= 45:
-        quality = "Mittel"
-    else:
-        quality = "Schwach"
-
+    quality = "Sehr stark" if score >= 90 else "Stark" if score >= 75 else "Solide" if score >= 60 else "Mittel" if score >= 45 else "Schwach"
     result.update({
-        "available": True,
-        "score": float(score),
-        "quality_level": quality,
-        "core_roe_points": roe_pts,
-        "solvency_points": solv_pts,
-        "core_growth_points": growth_pts,
-        "book_growth_points": book_pts,
-        "distribution_points": dist_pts,
+        "available": True, "score": float(score), "quality_level": quality,
+        "core_roe_points": roe_pts, "solvency_points": solv_pts, "capital_points": solv_pts,
+        "core_growth_points": growth_pts, "book_growth_points": book_pts, "distribution_points": dist_pts,
         "core_roe_pct": core_roe,
-        "solvency_ii_pct": solvency,
-        "underlying_core_eps_growth_pct": core_growth,
-        "book_value_growth_pct": book_growth,
+        "solvency_ii_pct": capital_ratio if framework == "SOLVENCY_II" else None,
+        "capital_ratio_pct": capital_ratio, "capital_framework": framework, "capital_ratio_label": capital.get("label"),
+        "underlying_core_eps_growth_pct": core_growth, "book_value_growth_pct": book_growth,
         "dividend_core_eps_payout_ratio": payout,
         "note": (
-            "Der Versicherungs-Score verwendet ausschließlich versicherungsspezifische "
-            "Qualitäts-, Kapital- und Ausschüttungsanker. Wachstum und RoE stammen aus der "
-            f"freigegebenen issuer-spezifischen Primärquellenbasis von {snapshot.get('company') or 'dem Versicherer'}; "
-            "es wird keine Yahoo-/Standard-Ertragsgröße in den Score gemischt."
+            f"Der Versicherungs-Score verwendet issuer-spezifische Ergebnis-/RoE-, {capital.get('label')}-Kapital-, Buchwert- und Ausschüttungsanker. "
+            "Kapitalframeworks werden getrennt kalibriert; Yahoo-/Standard-Ertragsgrößen fließen nicht in den Score ein."
         ),
     })
     return result
 
 
-
-INSURANCE_VALUATION_INTEGRATION_VERSION = "v22317_insurance_dual_anchor"
+INSURANCE_VALUATION_INTEGRATION_VERSION = "v22318_insurance_dual_anchor"
 
 
 def calculate_insurance_dual_anchor_valuation(snapshot, core_coverage, book_bridge, insurance_score):
-    """V212 insurer valuation: official BV/P-B + issuer-specific TTM EPS/P-E.
+    """V214 insurer valuation: official BV/P-B + issuer-specific TTM EPS/P-E.
 
     Fail closed when the primary-source chain is incomplete or the two
     valuation anchors diverge by more than 25%.
@@ -17168,7 +17268,7 @@ def build_insurance_special_model(
     """
     Conservative insurer-specific data block.
 
-    V212/V213 uses an issuer-defined earnings basis, a non-annualized TTM bridge,
+    V214 uses an issuer-defined earnings basis, a non-annualized TTM bridge,
     official book value, an insurer-specific 100-point score and fail-closed dual-anchor valuation.
     Earnings and solvency/capital ratios are never estimated from Yahoo proxies.
     """
@@ -17201,9 +17301,10 @@ def build_insurance_special_model(
     core_roe = safe_float(
         (snapshot or {}).get("core_roe_annualized_pct")
     ) if snapshot_fresh else None
-    solvency_ii = safe_float(
-        (snapshot or {}).get("solvency_ii_ratio_pct")
-    ) if snapshot_fresh else None
+    capital_evidence = _insurance_capital_evidence(snapshot) if snapshot_fresh else {}
+    capital_ratio = safe_float(capital_evidence.get("ratio_pct")) if snapshot_fresh else None
+    capital_framework = capital_evidence.get("framework") if snapshot_fresh else None
+    capital_ratio_label = capital_evidence.get("label") if snapshot_fresh else "Regulatorische Kapitalquote"
 
     primary_source_complete = bool(
         snapshot_fresh
@@ -17213,8 +17314,9 @@ def build_insurance_special_model(
         and core_eps > 0
         and core_roe is not None
         and core_roe > 0
-        and solvency_ii is not None
-        and solvency_ii > 100
+        and capital_ratio is not None
+        and capital_ratio > 100
+        and capital_framework in {"SOLVENCY_II", "SST"}
     )
 
     # V2.20.136 – schema-preserving fail-closed insurance gate.
@@ -17279,13 +17381,13 @@ def build_insurance_special_model(
     # -----------------------------------------------------
     calculated_price_to_book = None
     if (
-        price_financial is not None
-        and price_financial > 0
+        quote_price is not None
+        and quote_price > 0
         and book_value is not None
         and book_value > 0
     ):
         calculated_price_to_book = (
-            price_financial / book_value
+            quote_price / book_value
         )
 
     pb_display_value = None
@@ -17551,7 +17653,7 @@ def build_insurance_special_model(
     )
 
     book_value_bridge = (
-        build_insurance_book_value_bridge(snapshot, yahoo_book_value=book_value)
+        build_insurance_book_value_bridge(snapshot, yahoo_book_value=book_value, currency_context=currency_context)
         if snapshot_fresh
         else {
             "available": False,
@@ -17560,7 +17662,7 @@ def build_insurance_special_model(
     )
 
     insurance_score = (
-        calculate_insurance_score(snapshot, core_coverage, book_value_bridge)
+        calculate_insurance_score(snapshot, core_coverage, book_value_bridge, currency_context=currency_context)
         if snapshot_fresh
         else {
             "available": False,
@@ -17649,11 +17751,16 @@ def build_insurance_special_model(
         "snapshot_fresh": snapshot_fresh,
         "primary_source_complete": primary_source_complete,
         "core_earnings_available": core_net_income is not None and core_eps is not None,
-        "solvency_capital_available": solvency_ii is not None,
+        "solvency_capital_available": capital_ratio is not None,
+        "capital_framework": capital_framework,
+        "capital_ratio_label": capital_ratio_label,
+        "capital_ratio_pct": capital_ratio,
+        "capital_ratio_prior_pct": safe_float(capital_evidence.get("prior_pct")),
+        "capital_ratio_change_pp": safe_float(capital_evidence.get("change_pp")),
         "shareholders_core_net_income": core_net_income,
         "core_eps_basic": core_eps,
         "core_roe_annualized_pct": core_roe,
-        "solvency_ii_ratio_pct": solvency_ii,
+        "solvency_ii_ratio_pct": capital_ratio if capital_framework == "SOLVENCY_II" else None,
         "shareholders_net_income": safe_float((snapshot or {}).get("shareholders_net_income")) if snapshot_fresh else None,
         "basic_eps_reported": safe_float((snapshot or {}).get("basic_eps_reported")) if snapshot_fresh else None,
         "core_eps_growth_pct": safe_float((snapshot or {}).get("core_eps_growth_pct")) if snapshot_fresh else None,
@@ -17669,8 +17776,8 @@ def build_insurance_special_model(
         "insurance_score": insurance_score,
         "insurance_valuation": insurance_valuation,
         "note": (
-            f"V212/V213 Universal Insurance Evidence: {earnings_basis_label}-Ergebnisbasis, {earnings_ttm_label}-Brücke, "
-            "RoE, Solvency II und offizieller Buchwert werden in eine gemeinsame Versicherungs-Evidenzstruktur überführt. "
+            f"V214 Universal Insurance Evidence & Capital Framework Routing: {earnings_basis_label}-Ergebnisbasis, {earnings_ttm_label}-Brücke, "
+            f"RoE, {capital_ratio_label} und offizieller Buchwert werden in eine gemeinsame Versicherungs-Evidenzstruktur überführt. "
             f"Unterprofil: {'Reinsurance' if is_reinsurance_profile else 'Primary/Diversified Insurance'}; "
             "55/45-Doppelanker, Standard-FCF-Sperre und Fail-Closed-Gates bleiben unverändert."
         )
@@ -17678,7 +17785,7 @@ def build_insurance_special_model(
 
 
 def build_insurance_special_control(base_control, insurance_model):
-    """Attach the universal V212/V213 insurer step-3B dual-anchor gate."""
+    """Attach the universal V214 insurer step-3B dual-anchor gate."""
     control = dict(base_control or {})
     control.setdefault("router_status", control.get("status"))
     control.setdefault("router_note", control.get("note"))
@@ -17692,26 +17799,27 @@ def build_insurance_special_control(base_control, insurance_model):
     is_reinsurance_profile = bool(model.get("is_reinsurance_profile"))
     earnings_ttm_label = model.get("earnings_ttm_label") or "Insurance-TTM"
     earnings_multiple_label = model.get("earnings_multiple_label") or "Insurance-TTM-KGV"
+    capital_ratio_label = model.get("capital_ratio_label") or "Regulatorische Kapitalquote"
 
     control.update({
         "control_name": (
-            "Reinsurance / Ergebnis-, Solvency- & Kapitalprüfung"
+            "Reinsurance / Ergebnis-, Kapital- & Regulatorikprüfung"
             if is_reinsurance_profile
-            else "Insurance / Ergebnis-, Solvency- & Kapitalprüfung"
+            else "Insurance / Ergebnis-, Kapital- & Regulatorikprüfung"
         ),
         "planned_checks": [
             f"Versicherungsspezifisches Ergebnis / {earnings_ttm_label}-EPS",
             "RoE / freigegebenes EPS-Wachstum",
             "Offizieller Buchwert / P-B",
-            "Solvency II / Kapitalquote",
+            f"{capital_ratio_label} / Kapitalquote",
             "Combined-Ratio-/Zyklus-Kontext" if is_reinsurance_profile else "Ertragsqualitäts-/Portfolio-Kontext",
             "Dividende / Kapitalrückführung / Ausschüttungsqualität",
             "Versicherungs-Score",
         ],
-        "status": "Router aktiv – V212/V213 Universal Insurance Evidence & Subprofile Routing",
+        "status": "Router aktiv – V214 Universal Insurance Evidence & Capital Framework Routing & Subprofile Routing",
         "note": (
-            f"V212/V213 trennt Yahoo-Kontextdaten von verifizierten Versicherungs-Primärdaten. {earnings_ttm_label}-EPS, "
-            f"offizieller Buchwert, RoE, Solvency II und {earnings_multiple_label}-Korridor werden ausschließlich "
+            f"V214 trennt Yahoo-Kontextdaten von verifizierten Versicherungs-Primärdaten. {earnings_ttm_label}-EPS, "
+            f"offizieller Buchwert, RoE, {capital_ratio_label} und {earnings_multiple_label}-Korridor werden ausschließlich "
             "aus dem freigegebenen Unterprofil aufgebaut."
         ),
     })
@@ -17726,7 +17834,7 @@ def build_insurance_special_control(base_control, insurance_model):
             "snapshot": snapshot,
             "note": (
                 "Die Versicherungs-Primärdatenprüfung benötigt aktuelles versicherungsspezifisches Ergebnis/EPS, "
-                "RoE und Solvency II aus einer offiziellen Quelle. Fehlende Werte werden "
+                f"RoE und {capital_ratio_label} aus einer offiziellen Quelle. Fehlende Werte werden "
                 "nicht durch Nettogewinn, Standard-EPS, Yahoo-ROE oder Bilanz-Proxies ersetzt."
             ),
         })
@@ -17778,6 +17886,11 @@ def build_insurance_special_control(base_control, insurance_model):
             "core_roe_annualized_pct": model.get("core_roe_annualized_pct"),
             "underlying_core_roe_pct": model.get("underlying_core_roe_pct"),
             "solvency_ii_ratio_pct": model.get("solvency_ii_ratio_pct"),
+            "capital_framework": model.get("capital_framework"),
+            "capital_ratio_label": model.get("capital_ratio_label"),
+            "capital_ratio_pct": model.get("capital_ratio_pct"),
+            "capital_ratio_prior_pct": model.get("capital_ratio_prior_pct"),
+            "capital_ratio_change_pp": model.get("capital_ratio_change_pp"),
             "core_eps_growth_pct": model.get("core_eps_growth_pct"),
             "underlying_core_eps_growth_pct": model.get("underlying_core_eps_growth_pct"),
             "core_net_income_growth_pct": model.get("core_net_income_growth_pct"),
@@ -17799,7 +17912,7 @@ def build_insurance_special_control(base_control, insurance_model):
             "roe_metric_label": model.get("roe_metric_label"),
         },
         "note": (
-            f"V212/V213 Schritt 3B validiert die emittenteneigene {earnings_ttm_label}-Ergebnisbasis, RoE, Solvency II, "
+            f"V214 Schritt 3B validiert die emittenteneigene {earnings_ttm_label}-Ergebnisbasis, RoE, {capital_ratio_label}, "
             f"offiziellen Buchwert sowie getrennte P/B- und {earnings_multiple_label}-Anker. "
             "Die Bewertung wird nur bei vollständiger und konsistenter Doppelanker-Prüfung freigegeben."
         ),
@@ -45460,20 +45573,20 @@ def get_special_control(company_type, symbol):
             "required": True,
             "control_key": "insurance_core_capital",
             "control_name": (
-                "Insurance / Ergebnis-, Solvency- & Kapitalprüfung"
+                "Insurance / Ergebnis-, Kapital- & Regulatorikprüfung"
             ),
             "planned_checks": [
                 "Versicherungsspezifisches Ergebnis / TTM-EPS",
                 "RoE / EPS-Wachstum auf gleicher Ergebnisbasis",
                 "Offizieller Buchwert / P-B",
-                "Solvency II / Kapitalquote",
+                "Regulatorische Kapitalquote / Kapitalqualität",
                 "Ausschüttungsqualität",
                 "Versicherungs-Score"
             ],
-            "status": "Router aktiv – V212/V213 Universal Insurance Evidence + Doppelanker-Bewertung",
+            "status": "Router aktiv – V214 Universal Insurance Evidence & Capital Framework Routing + Doppelanker-Bewertung",
             "note": (
-                "V212/V213 trennt Yahoo-Kontextkennzahlen von verifizierten Versicherungs-Primärdaten. "
-                "Versicherungsspezifische TTM-Abdeckung, offizieller Buchwert, RoE, Solvency II, "
+                "V214 trennt Yahoo-Kontextkennzahlen von verifizierten Versicherungs-Primärdaten. "
+                "Versicherungsspezifische TTM-Abdeckung, offizieller Buchwert, RoE und regulatorische Kapitalquote, "
                 "Versicherungs-Score sowie P/B- und unterprofilabhängige TTM-KGV-Anker werden nur aus "
                 "verifizierten Daten aufgebaut. Der Fair Value wird ausschließlich bei vollständiger "
                 "und konsistenter Doppelanker-Prüfung freigegeben."
@@ -60353,6 +60466,18 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         or quote_currency
     )
 
+    # V214: verified insurer evidence may explicitly declare the earnings/reporting
+    # currency.  This is authoritative for the insurer dual-anchor path when Yahoo
+    # omits or inherits the listing currency (e.g. a CHF-listed Swiss insurer
+    # reporting EPS/results in USD).
+    _insurance_currency_snapshot = get_verified_insurance_snapshot(symbol)
+    if isinstance(_insurance_currency_snapshot, dict):
+        _verified_insurance_financial_currency = str(
+            _insurance_currency_snapshot.get("financial_currency") or ""
+        ).strip()
+        if _verified_insurance_financial_currency:
+            financial_currency = _verified_insurance_financial_currency
+
     # Yahoo marketCap is an absolute market-value field tied to the listing, but
     # UK shares can quote their *price* in GBp/GBX while Yahoo still reports the
     # absolute marketCap amount in GBP. Treating that amount as pence creates an
@@ -63651,7 +63776,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                         if is_bank_company_type(company_type)
                         else (
                             ". Bei Versicherungen wird ein wiederhergestellter Free Cashflow nur als Kontext geführt; "
-                            "Core Earnings/Core EPS, Core RoE und Solvency II werden separat aus Primärquellen geprüft."
+                            "Core Earnings/Core EPS, Core RoE und die regulatorische Kapitalquote werden separat aus Primärquellen geprüft."
                             if is_insurance_company_type(company_type)
                             else (
                                 ". Bei American Express bleibt ein wiederhergestellter Yahoo-Free-Cashflow ausschließlich Diagnosekontext; "
@@ -64391,7 +64516,7 @@ if selected_symbol:
                             "business_model_precedence_rule": "Geschäftsmodell-Prioritätsregel",
                             "sector_rule": "Sektorregel",
                             "metadata_rule": "Metadatenregel",
-                            "existing_specialist_route": "bestehender Spezialpfad",
+                            "existing_specialist_route": "validierter Familien-/Spezialpfad",
                             "fallback": "Fallback",
                         }
                         _family_source = _family_source_labels.get(
@@ -66277,7 +66402,7 @@ if selected_symbol:
                         st.caption(
                             f"Der verifizierte {insurance_model_eps_ui.get('earnings_ttm_label') or 'Versicherungs-TTM'}-EPS-Wert ist die Gewinnbasis des "
                             f"{insurance_model_eps_ui.get('earnings_multiple_label') or 'Versicherungs-KGV'}-Ankers; die Fair-Value-Freigabe erfolgt "
-                            "ausschließlich über das V212 Versicherungs-Doppelanker-Gate."
+                            "ausschließlich über das V214 Universal-Insurance-Doppelanker-Gate."
                         )
                     elif company_type.get("type") == "REIT / Immobilien":
                         st.caption(
@@ -67184,7 +67309,7 @@ if selected_symbol:
                         st.info(
                             "Versicherungsmodell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. "
                             "Umsatz- und Yahoo-Gewinnwachstum bleiben ausschließlich Kontext; der Versicherungs-Score "
-                            "stützt sich auf die emittenteneigene versicherungsspezifische Ergebnisbasis, RoE, Solvency II, "
+                            "stützt sich auf die emittenteneigene versicherungsspezifische Ergebnisbasis, RoE, die regulatorische Kapitalquote, "
                             "offizielle Buchwertentwicklung und Ausschüttungsqualität."
                         )
                         st.caption(
@@ -67884,7 +68009,7 @@ if selected_symbol:
                             st.caption(
                                 "Bei Versicherungen wird der konsolidierte Cashflow-Statement-FCF nur als Kontext/Rohdaten geführt. "
                                 "Die Bewertung stützt sich stattdessen auf die verifizierte versicherungsspezifische Ergebnisbasis, "
-                                "RoE, Solvency II, offiziellen Buchwert/P-B und Ausschüttungsqualität."
+                                "RoE, die regulatorische Kapitalquote, offiziellen Buchwert/P-B und Ausschüttungsqualität."
                             )
                         else:
                             if fcf_result[
@@ -68262,9 +68387,10 @@ if selected_symbol:
                             st.info(
                                 "ℹ️ Versicherungsmodell: Klassische Netto-Schulden/FCF-Logik wird nicht verwendet"
                             )
+                            _insurance_capital_label_balance = insurance_balance_model_ui.get("capital_ratio_label") or "regulatorische Kapitalquote"
                             st.caption(
                                 "Bei Versicherungen wird die Kapitalqualität nicht über industrielle Netto-Schulden/FCF bewertet. "
-                                "Maßgeblich sind Solvency II, die freigegebene RoE-Kennzahl, offizieller Buchwert/P-B und "
+                                f"Maßgeblich sind {_insurance_capital_label_balance}, die freigegebene RoE-Kennzahl, offizieller Buchwert/P-B und "
                                 "Ausschüttungsfähigkeit; konsolidierte Cash- und Schuldenwerte bleiben Kontext."
                             )
                         elif is_reit_balance_ui:
@@ -68376,6 +68502,7 @@ if selected_symbol:
                             insurance_growth_label_ui = "Core-EPS-Wachstum"
                             insurance_income_growth_label_ui = "Core-Net-Income-Wachstum"
                         insurance_roe_label_ui = insurance_model.get("roe_metric_label") or ("RoE" if insurance_is_reinsurance_ui else "Core RoE")
+                        insurance_capital_label_ui = insurance_model.get("capital_ratio_label") or "Regulatorische Kapitalquote"
                         insurance_ttm_income_label_ui = (
                             "Reported-TTM-Net-Result" if insurance_basis_ui == "issuer-reported IFRS"
                             else ("Underlying-TTM-Earnings" if insurance_basis_ui == "Underlying" else "Core-TTM-Net-Income")
@@ -68383,13 +68510,13 @@ if selected_symbol:
                         insurance_score_growth_label_ui = insurance_snapshot_ui.get("score_growth_label") or insurance_growth_label_ui
 
                         st.subheader(
-                            "🛡️ Reinsurance-Familienmodell V212 – Datenbasis"
+                            "🛡️ Reinsurance-Familienmodell V214 – Datenbasis"
                             if insurance_is_reinsurance_ui
-                            else "🛡️ Insurance-Familienmodell V212 – Datenbasis"
+                            else "🛡️ Insurance-Familienmodell V214 – Datenbasis"
                         )
 
                         st.info(
-                            f"V212 verwendet die emittenteneigene Ergebnisbasis ({insurance_basis_ui}), RoE, Solvency II und den "
+                            f"V214 verwendet die emittenteneigene Ergebnisbasis ({insurance_basis_ui}), RoE, {insurance_capital_label_ui} und den "
                             "offiziellen Buchwert aus verifizierten Primärquellen. Die TTM-Brücke wird nicht annualisiert; "
                             f"P/B und {insurance_model.get('earnings_multiple_label') or 'Versicherungs-TTM-KGV'} bleiben getrennte Bewertungsanker. "
                             f"Unterprofil: {'Reinsurance' if insurance_is_reinsurance_ui else 'Primary/Diversified Insurance'}."
@@ -68497,10 +68624,16 @@ if selected_symbol:
                                 "price_financial"
                             )
                             if price_financial is not None:
+                                conversion_kind_ui = (data.get("currency_context") or {}).get("conversion_kind")
+                                conversion_note_ui = (
+                                    "explizit aus der Pence-Notierung umgerechnet"
+                                    if conversion_kind_ui == "gbp_pence"
+                                    else "explizit aus der Handelswährung in die Finanzwährung umgerechnet"
+                                )
                                 st.write(
                                     "**Kurs für fundamentale Verhältniskennzahlen:** "
                                     f"{format_currency_value(price_financial, financial_currency, 4)} "
-                                    "(explizit aus der Pence-Notierung umgerechnet)"
+                                    f"({conversion_note_ui})"
                                 )
 
                         if insurance_model.get(
@@ -68526,7 +68659,7 @@ if selected_symbol:
                         if insurance_model.get("primary_source_complete"):
                             st.success(
                                 f"Primärquellen-Gate bestanden: {insurance_income_label_ui}/{insurance_eps_label_ui}, "
-                                f"{insurance_roe_label_ui} und Solvency II sind aus aktuellen offiziellen Primärquellen verifiziert."
+                                f"{insurance_roe_label_ui} und {insurance_capital_label_ui} sind aus aktuellen offiziellen Primärquellen verifiziert."
                             )
 
                             snapshot = insurance_snapshot_ui
@@ -68554,10 +68687,10 @@ if selected_symbol:
                                     f"{croe:.1f} %" if croe is not None else "–"
                                 )
                             with col4:
-                                sii = safe_float(insurance_model.get("solvency_ii_ratio_pct"))
+                                capital_ratio_ui = safe_float(insurance_model.get("capital_ratio_pct"))
                                 st.metric(
-                                    "Solvency II",
-                                    f"{sii:.0f} %" if sii is not None else "–"
+                                    insurance_model.get("capital_ratio_label") or "Regulatorische Kapitalquote",
+                                    f"{capital_ratio_ui:.0f} %" if capital_ratio_ui is not None else "–"
                                 )
                                 cg = safe_float(insurance_model.get("core_net_income_growth_pct"))
                                 st.metric(
@@ -68570,12 +68703,13 @@ if selected_symbol:
                                     f"{eg:.1f} %" if eg is not None else "–"
                                 )
 
-                            prior_sii = safe_float(insurance_model.get("solvency_ii_prior_pct"))
-                            sii_change = safe_float(insurance_model.get("solvency_ii_change_pp"))
-                            if prior_sii is not None and sii_change is not None:
+                            capital_prior_ui = safe_float(insurance_model.get("capital_ratio_prior_pct"))
+                            capital_change_ui = safe_float(insurance_model.get("capital_ratio_change_pp"))
+                            capital_now_ui = safe_float(insurance_model.get("capital_ratio_pct"))
+                            if capital_now_ui is not None and capital_prior_ui is not None and capital_change_ui is not None:
                                 st.caption(
-                                    f"Solvency II: {sii:.0f} % gegenüber {prior_sii:.0f} % zum Vorjahresende "
-                                    f"({sii_change:+.0f} Prozentpunkte)."
+                                    f"{insurance_capital_label_ui}: {capital_now_ui:.0f} % gegenüber {capital_prior_ui:.0f} % zum Vorjahresende "
+                                    f"({capital_change_ui:+.0f} Prozentpunkte)."
                                 )
 
                             if insurance_model.get("underlying_growth_note"):
@@ -68736,9 +68870,9 @@ if selected_symbol:
                                     f"bei {insurance_score_ui.get('core_roe_pct'):.1f} %"
                                 )
                                 st.write(
-                                    f"**Solvency-II-Kapitalqualität:** "
-                                    f"{insurance_score_ui.get('solvency_points')}/25 Punkte "
-                                    f"bei {insurance_score_ui.get('solvency_ii_pct'):.0f} %"
+                                    f"**{insurance_score_ui.get('capital_ratio_label') or 'Regulatorische Kapitalquote'}-Kapitalqualität:** "
+                                    f"{insurance_score_ui.get('capital_points')}/25 Punkte "
+                                    f"bei {insurance_score_ui.get('capital_ratio_pct'):.0f} %"
                                 )
                                 st.write(
                                     f"**{insurance_score_growth_label_ui}:** "
@@ -68771,7 +68905,7 @@ if selected_symbol:
                         elif insurance_model.get("snapshot") and not insurance_model.get("snapshot_fresh"):
                             st.warning(
                                 "Der verifizierte Versicherungs-Snapshot ist abgelaufen. "
-                                "Versicherungsspezifisches Ergebnis/EPS, RoE und Solvency II werden nicht "
+                                "Versicherungsspezifisches Ergebnis/EPS, RoE und die regulatorische Kapitalquote werden nicht "
                                 "stillschweigend weiterverwendet."
                             )
                         else:
@@ -74468,6 +74602,7 @@ if selected_symbol:
                             insurance_ttm_label_3b = checks.get("earnings_ttm_label") or "Insurance-TTM"
                             insurance_pe_label_3b = checks.get("earnings_multiple_label") or "Versicherungs-TTM-KGV"
                             insurance_roe_label_3b = checks.get("roe_metric_label") or "RoE"
+                            insurance_capital_label_3b = checks.get("capital_ratio_label") or "Regulatorische Kapitalquote"
                             if insurance_basis_3b == "issuer-reported IFRS":
                                 insurance_income_label_3b = "Net Result attributable"
                                 insurance_eps_label_3b = "Ausgewiesen EPS"
@@ -74485,9 +74620,9 @@ if selected_symbol:
                                 insurance_eps_growth_label_3b = "Core-EPS-Wachstum"
 
                             st.subheader(
-                                "🛡️ Modul 6 – Schritt 3B: Reinsurance-Ergebnis-, Solvency- & Kapitalprüfung"
+                                "🛡️ Modul 6 – Schritt 3B: Reinsurance-Ergebnis-, Kapital- & Regulatorikprüfung"
                                 if insurance_is_reinsurance_3b
-                                else "🛡️ Modul 6 – Schritt 3B: Insurance-Ergebnis-, Solvency- & Kapitalprüfung"
+                                else "🛡️ Modul 6 – Schritt 3B: Insurance-Ergebnis-, Kapital- & Regulatorikprüfung"
                             )
 
                             st.write(
@@ -74514,10 +74649,10 @@ if selected_symbol:
                                     f"{croe:.1f} %" if croe is not None else "–"
                                 )
                             with col2:
-                                sii = safe_float(checks.get("solvency_ii_ratio_pct"))
+                                capital_ratio_3b = safe_float(checks.get("capital_ratio_pct"))
                                 st.metric(
-                                    "Solvency II",
-                                    f"{sii:.0f} %" if sii is not None else "–"
+                                    insurance_capital_label_3b,
+                                    f"{capital_ratio_3b:.0f} %" if capital_ratio_3b is not None else "–"
                                 )
                                 cg = safe_float(checks.get("core_net_income_growth_pct"))
                                 st.metric(
@@ -74533,12 +74668,12 @@ if selected_symbol:
                             st.success(
                                 (
                                     "Reinsurance-Primärdaten vollständig validiert. Emittentenausgewiesenes Ergebnis/EPS, RoE, "
-                                    "Solvency II und offizieller Buchwert sind belastbar vorhanden."
+                                    f"{insurance_capital_label_3b} und offizieller Buchwert sind belastbar vorhanden."
                                 )
                                 if insurance_is_reinsurance_3b
                                 else (
                                     "Versicherungs-Primärdaten vollständig validiert. Versicherungsspezifisches Ergebnis/EPS, "
-                                    "RoE und Solvency II sind belastbar vorhanden."
+                                    f"RoE und {insurance_capital_label_3b} sind belastbar vorhanden."
                                 )
                             )
 
