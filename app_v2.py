@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.13"
+APP_BUILD_VERSION = "V2.23.14"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,14 +946,14 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Semiconductor Equipment NTM-Abschluss & Konsistenz V209"
+    f"Build {APP_BUILD_VERSION} · Insurance Loader-Hotfix V210"
 )
 
 
 # V2.22.98: Zahlungsabwickler-Sicherheitsentkopplung V194. Bei vollständig freigegebenem Zahlungsabwickler-Spezialpfad bleibt die generische TTM-/Prognose-EPS-Divergenz ausschließlich Diagnosekontext und darf die endgültige Bewertungssicherheit nicht mehr begrenzen. Maßgeblich sind Methodenobergrenze, freigegebene Familien-Gewinnbasis, Sicherheit des Familien-Ziel-KGV und Spezialkontrolle. Bewertungsmathematik, Peer-Kalibrierung, Gewinnbasis, Ziel-KGV, Fair Values und Signal-Gates bleiben unverändert.
 # V2.23.02: Unabhängiger Gegencheck V2 V198. Härtet die nicht steuernde Zahlungsabwickler-Kontrollsicht nach Live-Tests mit Global Payments, PayPal, Adyen und Fiserv: Analystenabweichungen werden richtungs- und größenordnungsspezifisch formuliert; die feste 8x/10x-Bewertung wird entfernt und das aktuelle Markt-KGV nur noch als marktimplizierter Kontext gezeigt, solange keine gleichbasige historische Eigenreihe belastbar verfügbar ist; der rohe Kern-Vergleichsgruppen-Check erhält eine Streuungs-/Vergleichbarkeitssperre und darf bei heterogener KGV-Spanne weder Bestätigung noch Widerspruch erzeugen. Das Gesamtergebnis zählt nur belastbare Kontrollen. Fair Value, Ziel-KGV, Qualität, Sicherheit, Bewertungszonen und Kaufen/Halten/Verkaufen bleiben unverändert.
 # V2.23.04: Zahlungsabwickler-Sicherheitsobergrenze V200. Die allgemeine Methoden-/Spezialkontroll-Obergrenze der vollständig freigegebenen Zahlungsabwickler-Referenzprofile wird von „Niedrig bis Mittel“ auf „Mittel“ angehoben. Die in V199 gehärtete Regel „schwächste relevante Sicherheitsstufe gewinnt“ bleibt unverändert. Emittentenspezifische niedrigere Stufen bleiben wirksam; insbesondere behält Fiserv wegen seiner Ziel-KGV-Sicherheit „Niedrig bis Mittel“ die niedrigere Gesamtbewertungssicherheit. Score, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Value, Bewertungszonen und Signal-Schwellen bleiben unverändert.
-# V2.23.13: Semiconductor Equipment NTM-Abschluss & Konsistenz V209. Reiner Abschluss-/Textkonsistenz-Build auf V208: bezeichnet den unveränderten 22–34x-Korridor ausdrücklich als NTM-KGV-Korridor, ersetzt verbliebene Legacy-Begriffe aus der alten Forward-Earnings-Credibility-/Semicap-Earnings-Referenz-Logik durch NTM-Horizontbegriffe und formuliert den Fallback eindeutig: Bei unzureichender Horizon-Evidenz bleibt die NTM-Mischung gesperrt und ausschließlich der validierte Current-FY-Anker wird verwendet. Scores, NTM-Gewichte, Ziel-KGVs, Fair Values, Peer-Reference-only-Regel und alle eingefrorenen anderen Bewertungsfamilien bleiben unverändert.
+# V2.23.14: Insurance Loader-Hotfix V210. Reiner Loader-Fix auf V209: initialisiert adapter_diagnostic im bestehenden Versicherungs-Spezialmodell, damit unterstützte Versicherer wie Allianz und Munich Re nicht mehr beim Return mit NameError abbrechen. Keine Änderung an Versicherungs-Score, Dual-Anchor-Bewertung, Semiconductor Equipment oder anderen eingefrorenen Bewertungsfamilien.
 # V2.23.12: Semiconductor Equipment NTM-Horizont & Datenkonsistenz V208. Ersetzt im freigegebenen Semiconductor-Equipment-Familienmodell die starre Current-FY-Gewinnbasis durch eine zeitgewichtete Next-Twelve-Months-(NTM)-EPS-Basis aus validiertem Current-FY- und Next-FY-Konsens sowie issuer-spezifischem Fiskaljahresende; bei fehlender oder abgelaufener Horizon-Evidenz fail-closed Current-FY-Fallback. Sperrt generische FCF-/Bilanzscores in der Datenpipeline, bereinigt FCF-Quellenhinweise und generische EPS-Divergenz-Warnungen, zeigt EPS-Währungen im Analystenziel-Gegencheck, priorisiert KLA Corporation auf KLAC/Nasdaq statt KLA.DE/Xetra, vereinheitlicht den KLA-FY2026-Primärdatenblock inklusive 41,7 % Operating Margin und hält 22–34x-Korridor, Scorearchitektur und Peer-Reference-only-Regel unverändert.
 # V2.23.11: Semiconductor Equipment Router & Horizon-Schutz V207. Hotfix nach dem ersten V206-Livetest: setzt den kanonischen Symbolschlüssel vor der universellen Semicap-Routerabfrage, sodass AMAT/LRCX/KLAC nach erfolgreicher Suche tatsächlich in das freigegebene Familienmodell laden; schützt die offiziellen Eigennamen ASML Holding N.V. und Lam Research vor der generischen UI-Wortübersetzung; ergänzt ASML Q2-2026 Operating Margin 37,1 %; entfernt den verbliebenen Legacy-Hinweis auf eine credibility-gewichtete ASML-Earnings-Mischbasis; und erweitert den bereits bei Defense verwendeten Analystenziel-Zeithorizontschutz auf Semiconductor Equipment, wenn Current-FY und Next-FY EPS materiell auseinanderliegen. Scorearchitektur, Current-FY-Gewinnbasis, 22–34×-Korridor, Peer-Reference-only-Regel und Fair-Value-Mathematik bleiben unverändert.
 # V2.23.10: Semiconductor Equipment Mehr-Emittenten-Familie V206. Ersetzt den alten ASML-Einzelpfad durch ein gemeinsames, primärquellenbasiertes Familienmodell für ASML, Applied Materials, Lam Research und KLA. Gemeinsame 100-Punkte-Architektur: Nachfrage/Zyklus/Guidance 20, Gross-/Operating-Margin-Qualität 20, Installed Base/Service/Recurring 15, Technologie-/Tool-Mix 15, issuer-native FCF/Cash Conversion 15, Bilanz/Kapitalallokation 5, Execution/Guidance-Erfüllung 10. Gewinnbasis ist ausschließlich der validierte Konsens des tatsächlich laufenden Geschäftsjahres; Next-FY bleibt Horizon-Watch und wird nicht gemischt. Familien-KGV-Korridor 22–34x, scorepositioniert; Peers reference-only. ASML-Suche priorisiert Euronext Amsterdam als principal trading market; Yahoo-EV/EBITDA-Ausreißer werden verworfen.
@@ -16793,6 +16793,7 @@ def build_insurance_special_model(
         }
 
     snapshot = get_verified_insurance_snapshot(symbol)
+    adapter_diagnostic = None
     snapshot_fresh = _insurance_snapshot_is_fresh(snapshot)
     insurance_profile_key = (snapshot or {}).get("profile_key")
     is_munich_re_profile = insurance_profile_key == "munich_re_reinsurance"
