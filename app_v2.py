@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.12"
+APP_BUILD_VERSION = "V2.23.13"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,13 +946,14 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Semiconductor Equipment NTM-Horizont & Datenkonsistenz V208"
+    f"Build {APP_BUILD_VERSION} · Semiconductor Equipment NTM-Abschluss & Konsistenz V209"
 )
 
 
 # V2.22.98: Zahlungsabwickler-Sicherheitsentkopplung V194. Bei vollständig freigegebenem Zahlungsabwickler-Spezialpfad bleibt die generische TTM-/Prognose-EPS-Divergenz ausschließlich Diagnosekontext und darf die endgültige Bewertungssicherheit nicht mehr begrenzen. Maßgeblich sind Methodenobergrenze, freigegebene Familien-Gewinnbasis, Sicherheit des Familien-Ziel-KGV und Spezialkontrolle. Bewertungsmathematik, Peer-Kalibrierung, Gewinnbasis, Ziel-KGV, Fair Values und Signal-Gates bleiben unverändert.
 # V2.23.02: Unabhängiger Gegencheck V2 V198. Härtet die nicht steuernde Zahlungsabwickler-Kontrollsicht nach Live-Tests mit Global Payments, PayPal, Adyen und Fiserv: Analystenabweichungen werden richtungs- und größenordnungsspezifisch formuliert; die feste 8x/10x-Bewertung wird entfernt und das aktuelle Markt-KGV nur noch als marktimplizierter Kontext gezeigt, solange keine gleichbasige historische Eigenreihe belastbar verfügbar ist; der rohe Kern-Vergleichsgruppen-Check erhält eine Streuungs-/Vergleichbarkeitssperre und darf bei heterogener KGV-Spanne weder Bestätigung noch Widerspruch erzeugen. Das Gesamtergebnis zählt nur belastbare Kontrollen. Fair Value, Ziel-KGV, Qualität, Sicherheit, Bewertungszonen und Kaufen/Halten/Verkaufen bleiben unverändert.
 # V2.23.04: Zahlungsabwickler-Sicherheitsobergrenze V200. Die allgemeine Methoden-/Spezialkontroll-Obergrenze der vollständig freigegebenen Zahlungsabwickler-Referenzprofile wird von „Niedrig bis Mittel“ auf „Mittel“ angehoben. Die in V199 gehärtete Regel „schwächste relevante Sicherheitsstufe gewinnt“ bleibt unverändert. Emittentenspezifische niedrigere Stufen bleiben wirksam; insbesondere behält Fiserv wegen seiner Ziel-KGV-Sicherheit „Niedrig bis Mittel“ die niedrigere Gesamtbewertungssicherheit. Score, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Value, Bewertungszonen und Signal-Schwellen bleiben unverändert.
+# V2.23.13: Semiconductor Equipment NTM-Abschluss & Konsistenz V209. Reiner Abschluss-/Textkonsistenz-Build auf V208: bezeichnet den unveränderten 22–34x-Korridor ausdrücklich als NTM-KGV-Korridor, ersetzt verbliebene Legacy-Begriffe aus der alten Forward-Earnings-Credibility-/Semicap-Earnings-Referenz-Logik durch NTM-Horizontbegriffe und formuliert den Fallback eindeutig: Bei unzureichender Horizon-Evidenz bleibt die NTM-Mischung gesperrt und ausschließlich der validierte Current-FY-Anker wird verwendet. Scores, NTM-Gewichte, Ziel-KGVs, Fair Values, Peer-Reference-only-Regel und alle eingefrorenen anderen Bewertungsfamilien bleiben unverändert.
 # V2.23.12: Semiconductor Equipment NTM-Horizont & Datenkonsistenz V208. Ersetzt im freigegebenen Semiconductor-Equipment-Familienmodell die starre Current-FY-Gewinnbasis durch eine zeitgewichtete Next-Twelve-Months-(NTM)-EPS-Basis aus validiertem Current-FY- und Next-FY-Konsens sowie issuer-spezifischem Fiskaljahresende; bei fehlender oder abgelaufener Horizon-Evidenz fail-closed Current-FY-Fallback. Sperrt generische FCF-/Bilanzscores in der Datenpipeline, bereinigt FCF-Quellenhinweise und generische EPS-Divergenz-Warnungen, zeigt EPS-Währungen im Analystenziel-Gegencheck, priorisiert KLA Corporation auf KLAC/Nasdaq statt KLA.DE/Xetra, vereinheitlicht den KLA-FY2026-Primärdatenblock inklusive 41,7 % Operating Margin und hält 22–34x-Korridor, Scorearchitektur und Peer-Reference-only-Regel unverändert.
 # V2.23.11: Semiconductor Equipment Router & Horizon-Schutz V207. Hotfix nach dem ersten V206-Livetest: setzt den kanonischen Symbolschlüssel vor der universellen Semicap-Routerabfrage, sodass AMAT/LRCX/KLAC nach erfolgreicher Suche tatsächlich in das freigegebene Familienmodell laden; schützt die offiziellen Eigennamen ASML Holding N.V. und Lam Research vor der generischen UI-Wortübersetzung; ergänzt ASML Q2-2026 Operating Margin 37,1 %; entfernt den verbliebenen Legacy-Hinweis auf eine credibility-gewichtete ASML-Earnings-Mischbasis; und erweitert den bereits bei Defense verwendeten Analystenziel-Zeithorizontschutz auf Semiconductor Equipment, wenn Current-FY und Next-FY EPS materiell auseinanderliegen. Scorearchitektur, Current-FY-Gewinnbasis, 22–34×-Korridor, Peer-Reference-only-Regel und Fair-Value-Mathematik bleiben unverändert.
 # V2.23.10: Semiconductor Equipment Mehr-Emittenten-Familie V206. Ersetzt den alten ASML-Einzelpfad durch ein gemeinsames, primärquellenbasiertes Familienmodell für ASML, Applied Materials, Lam Research und KLA. Gemeinsame 100-Punkte-Architektur: Nachfrage/Zyklus/Guidance 20, Gross-/Operating-Margin-Qualität 20, Installed Base/Service/Recurring 15, Technologie-/Tool-Mix 15, issuer-native FCF/Cash Conversion 15, Bilanz/Kapitalallokation 5, Execution/Guidance-Erfüllung 10. Gewinnbasis ist ausschließlich der validierte Konsens des tatsächlich laufenden Geschäftsjahres; Next-FY bleibt Horizon-Watch und wird nicht gemischt. Familien-KGV-Korridor 22–34x, scorepositioniert; Peers reference-only. ASML-Suche priorisiert Euronext Amsterdam als principal trading market; Yahoo-EV/EBITDA-Ausreißer werden verworfen.
@@ -8413,7 +8414,7 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
             out["semicap_subprofile"] = subprofile
             out["method"] = (
                 "Primärquellenbasierter Semiconductor-Equipment KPI-Adapter + validierter Current-/Next-FY-Konsens + zeitgewichteter NTM-EPS-Anker + "
-                "22–34× Familien-KGV-Korridor; Current-FY und Next-FY bleiben separat sichtbar und werden bei validiertem Horizont zeitgewichtet zur NTM-EPS-Basis; generischer Standard-Score, Yahoo-FCF/Net-Debt-to-FCF "
+                "22–34× NTM-KGV-Korridor; Current-FY und Next-FY bleiben separat sichtbar und werden bei validiertem Horizont zeitgewichtet zur NTM-EPS-Basis; generischer Standard-Score, Yahoo-FCF/Net-Debt-to-FCF "
                 "und automatische Peer-Multiple-Anpassungen bleiben gesperrt."
             )
             out["business_model"] = "Führender Anbieter von Halbleiterfertigungsanlagen/-prozesskontrolle mit zyklischer WFE-Nachfrage und strukturellem AI-/Leading-Edge-Treiber"
@@ -8465,7 +8466,7 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
         out["semicap_subprofile"] = subprofile
         out["method"] = (
             "Primärquellenbasierter Semiconductor-Equipment KPI-Adapter + validierter Current-/Next-FY-Konsens + zeitgewichteter NTM-EPS-Anker + "
-            "22–34× Familien-KGV-Korridor; Current-FY und Next-FY bleiben separat sichtbar und werden bei validiertem Horizont zeitgewichtet zur NTM-EPS-Basis; generischer Standard-Score, Yahoo-FCF/Net-Debt-to-FCF "
+            "22–34× NTM-KGV-Korridor; Current-FY und Next-FY bleiben separat sichtbar und werden bei validiertem Horizont zeitgewichtet zur NTM-EPS-Basis; generischer Standard-Score, Yahoo-FCF/Net-Debt-to-FCF "
             "und automatische Peer-Multiple-Anpassungen bleiben gesperrt."
         )
         out["business_model"] = "Führender Anbieter von Halbleiterfertigungsanlagen/-prozesskontrolle mit zyklischer WFE-Nachfrage und strukturellem AI-/Leading-Edge-Treiber"
@@ -13987,8 +13988,8 @@ def classify_company(name, symbol, sector, industry):
         return {
             "type": "Halbleiterausrüstung / Lithografie",
             "method": (
-                "Credibility-gewichtete Semicap-Earnings-Referenz + "
-                "quality-adjustiertes KGV + Nachfrage-/Visibilitätskontrolle"
+                "NTM-EPS-Horizontbasis + "
+                "qualitätspositioniertes NTM-KGV + Nachfrage-/Visibilitätskontrolle"
             ),
             "confidence_cap": "Mittel bis Hoch"
         }
@@ -28528,10 +28529,10 @@ def build_nvidia_special_control(base_control, nvidia_model):
 
 
 # =========================================================
-# Halbleiterausrüstung / Semiconductor Equipment V2.23.12 – NTM-Mehr-Emittenten-Familie
+# Halbleiterausrüstung / Semiconductor Equipment V2.23.13 – NTM-Mehr-Emittenten-Familie
 # =========================================================
 
-SEMICAP_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22312_semicap_multiissuer_ntm_v1"
+SEMICAP_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22313_semicap_multiissuer_ntm_final"
 
 
 def get_verified_semicap_snapshot(symbol):
@@ -28766,7 +28767,7 @@ def build_semicap_forward_earnings_credibility_gate(primary_gate, snapshot, info
         )
     else:
         result["note"] = (
-            f"{APP_BUILD_VERSION}: NTM-Horizont nicht belastbar freigegeben; die Bewertung fällt fail-closed auf den validierten Current-FY-Konsens zurück. "
+            f"{APP_BUILD_VERSION}: NTM-Horizont nicht belastbar freigegeben; die NTM-Mischung bleibt gesperrt und ausschließlich der validierte Current-FY-Konsens wird verwendet. "
             "Es erfolgt keine automatische 100-%-Next-FY-Rollierung bei fehlender oder abgelaufener Fiskaljahres-Evidenz."
         )
     return result
@@ -28794,8 +28795,8 @@ def build_semicap_valuation_anchor(semicap_score, earnings_gate):
         "fair_value_financial": fv, "peer_overlay_allowed": False, "peer_overlay_applied": False,
     })
     result["note"] = (
-        f"{APP_BUILD_VERSION}: horizon-validierte zeitgewichtete NTM-Ergebnisbasis × scorepositioniertes Semiconductor-Equipment-Familien-KGV. "
-        "Der 22–34×-Korridor ist für alle vier Adapter identisch; Peers und Analystenziele bleiben Reference-only. "
+        f"{APP_BUILD_VERSION}: horizon-validierte zeitgewichtete NTM-Ergebnisbasis × scorepositioniertes Semiconductor-Equipment-NTM-KGV. "
+        "Der 22–34× NTM-KGV-Korridor ist für alle vier Adapter identisch; Peers und Analystenziele bleiben Reference-only. "
         "Falls NTM nicht sicher freigegeben werden kann, greift ausschließlich der Current-FY-Fallback."
     )
     return result
@@ -28833,7 +28834,7 @@ def build_semicap_special_model(company_type, info, currency_context, symbol=Non
         "readiness": "Bewertungsanker vollständig" if complete and ready and valuation.get("available") else "Unvollständig",
         "note": (
             f"Semiconductor-Equipment Mehr-Emittenten-Familie {APP_BUILD_VERSION}: ASML, Applied Materials, Lam Research und KLA verwenden dieselbe Score-/KGV-Architektur mit issuer-spezifischen KPI-Adaptern. "
-            "Die Gewinnbasis wird auf einen gemeinsamen zeitgewichteten NTM-Horizont aus validiertem Current-FY und Next-FY ausgerichtet; bei fehlender Horizon-Evidenz greift Current-FY fail-closed. Yahoo-FCF und Yahoo-EV/EBITDA bleiben Diagnosekontext."
+            "Die Gewinnbasis wird auf einen gemeinsamen zeitgewichteten NTM-Horizont aus validiertem Current-FY und Next-FY ausgerichtet; bei fehlender Horizon-Evidenz bleibt die NTM-Mischung gesperrt und ausschließlich der validierte Current-FY-Anker wird verwendet. Yahoo-FCF und Yahoo-EV/EBITDA bleiben Diagnosekontext."
         ),
     }
 
@@ -28855,7 +28856,7 @@ def build_semicap_special_control(base_control, semicap_model):
         "overall_status": "Bewertung freigegeben", "snapshot": snapshot, "checks": checks,
         "note": (
             f"{APP_BUILD_VERSION} gibt die Familienbewertung nur bei frischem issuer-primary Snapshot und validierter EPS-Horizon-Basis frei. "
-            "Bei belastbarem Current-/Next-FY-Paar wird zeitgewichtet auf NTM ausgerichtet; sonst greift Current-FY fail-closed. Peer-KGVs bleiben Reference-only."
+            "Bei belastbarem Current-/Next-FY-Paar wird zeitgewichtet auf NTM ausgerichtet; andernfalls bleibt die NTM-Mischung gesperrt und ausschließlich der validierte Current-FY-Anker wird verwendet. Peer-KGVs bleiben Reference-only."
         ),
     })
     return control
@@ -43017,7 +43018,7 @@ def _calculate_semicap_family_peer_reference(peer_group, fundamental_multiple, c
     result["usable_count"] = len(vals)
     if vals:
         result["peer_median"] = float(pd.Series(vals).median())
-    result["note"] = (f"Semiconductor-Equipment Peer Lock {APP_BUILD_VERSION}: Peer-KGVs sind reine Markt-Referenz. Unterschiedliche Tool-Mixe, Fiscal-Year-Horizonte, Service-/Installed-Base-Anteile und Zykluspositionen verhindern jede automatische Anpassung des scorepositionierten Familien-KGVs.")
+    result["note"] = (f"Semiconductor-Equipment Peer Lock {APP_BUILD_VERSION}: Peer-KGVs sind reine Markt-Referenz. Unterschiedliche Tool-Mixe, Fiscal-Year-Horizonte, Service-/Installed-Base-Anteile und Zykluspositionen verhindern jede automatische Anpassung des scorepositionierten NTM-Familien-KGVs.")
     return result
 
 
@@ -44840,13 +44841,13 @@ def get_special_control(company_type, symbol):
                 "Bilanz & Kapitalallokation",
                 "Execution / Guidance-Erfüllung",
                 "Horizon-validierter zeitgewichteter NTM-EPS-Anker mit Current-FY-Fallback",
-                "22–34× Semiconductor-Equipment-Familienkorridor",
+                "22–34× Semiconductor-Equipment-NTM-KGV-Korridor",
                 "Peers und Analystenziele ausschließlich Reference-only"
             ],
             "status": f"Router aktiv – {APP_BUILD_VERSION} Semiconductor-Equipment Mehr-Emittenten-Familienmodell",
             "note": (
                 f"{APP_BUILD_VERSION} validiert ASML, Applied Materials, Lam Research und KLA über issuer-primary KPI-Adapter unter einer gemeinsamen 100-Punkte-Architektur. "
-                "Current-FY und Next-FY bleiben separat sichtbar; bei validiertem Fiskaljahresende werden beide zeitgewichtet zur NTM-EPS-Basis, andernfalls greift Current-FY fail-closed. Bookings/Backlog sind keine Familien-Pflichtmetrik; Peers bleiben Reference-only."
+                "Current-FY und Next-FY bleiben separat sichtbar; bei validiertem Fiskaljahresende werden beide zeitgewichtet zur NTM-EPS-Basis, andernfalls bleibt die NTM-Mischung gesperrt und ausschließlich der validierte Current-FY-Anker wird verwendet. Bookings/Backlog sind keine Familien-Pflichtmetrik; Peers bleiben Reference-only."
             )
         }
 
@@ -51939,7 +51940,7 @@ def calculate_valuation_confidence(
             earnings_level = "Mittel"
         else:
             earnings_level = "Niedrig"
-        components["Semicap-Earnings-Referenz"] = (_confidence_rank_value(earnings_level), earnings_level)
+        components["Semiconductor-Equipment NTM-EPS-Horizontbasis"] = (_confidence_rank_value(earnings_level), earnings_level)
     elif is_nvidia_valuation:
         cred_score = safe_float(fair_value.get("earnings_credibility_score"))
         earnings_level = "Mittel bis Hoch" if cred_score is not None and cred_score >= 90 else ("Mittel" if cred_score is not None and cred_score >= 75 else "Niedrig")
@@ -55619,7 +55620,7 @@ def calculate_fair_value_v1(
             "unit_conversion_applied": bool(unit_notes),
             "unit_note": " ".join(unit_notes) if unit_notes else None,
             "note": (
-                f"{APP_BUILD_VERSION} Semiconductor-Equipment Fair Value = horizon-validierte zeitgewichtete NTM-/Current-FY-Fallback-EPS-Basis × scorepositioniertes Familien-KGV. "
+                f"{APP_BUILD_VERSION} Semiconductor-Equipment Fair Value = horizon-validierte zeitgewichtete NTM-/Current-FY-Fallback-EPS-Basis × scorepositioniertes NTM-Familien-KGV. "
                 "Current-FY und Next-FY bleiben transparent; Standard-EPS, Yahoo-FCF, Yahoo-EV/EBITDA, Peer-KGVs und Analystenziele bleiben außerhalb der fundamentalen Fair-Value-Rechnung."
             ),
         })
@@ -61190,7 +61191,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "earnings_basis_usable": bool(scv.get("available")),
             "note": (
                 f"{APP_BUILD_VERSION} Semiconductor Equipment verwendet kein generisches EPS-/FCF-Multiple. Bei validiertem Current-/Next-FY-Paar ist die zeitgewichtete NTM-EPS-Basis der Bewertungsanker; "
-                "bei unzureichender Horizon-Evidenz greift Current-FY fail-closed. Der primärquellenbasierte Familien-Score positioniert das Ziel-KGV im 22–34× Korridor; Peers bleiben Reference-only."
+                "bei unzureichender Horizon-Evidenz bleibt die NTM-Mischung gesperrt und ausschließlich der validierte Current-FY-Anker wird verwendet. Der primärquellenbasierte Familien-Score positioniert das Ziel-KGV im 22–34× NTM-KGV-Korridor; Peers bleiben Reference-only."
             ),
         }
 
@@ -62760,7 +62761,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             )
             action_event = "Die zeitgewichtete NTM-Basis ist der einzige EPS-Bewertungsanker; Current-FY und Next-FY bleiben separat sichtbar. Generische TTM-/Forward-EPS-Divergenzwarnungen steuern weder Score noch Sicherheit."
         else:
-            reason_event = f"{snap_event_sc.get('company') or 'Semiconductor Equipment'}: NTM-Horizont ist nicht vollständig validiert; die Bewertung bleibt fail-closed auf Current-FY."
+            reason_event = f"{snap_event_sc.get('company') or 'Semiconductor Equipment'}: NTM-Horizont ist nicht vollständig validiert; die NTM-Mischung bleibt gesperrt und ausschließlich der validierte Current-FY-Anker wird verwendet."
             action_event = "Keine automatische Next-FY-Rollierung. Erst ein frischer Primärdaten-/FY-Horizont-Snapshot darf die NTM-Basis wieder freigeben."
         special_event_warning = {
             "level": "Gelb", "icon": "🟡", "title": "Semiconductor-Equipment NTM-Horizontschutz aktiv",
@@ -65096,7 +65097,7 @@ if selected_symbol:
                         elif is_semicap_family_company_type(company_type):
                             st.info(
                                 f"Semiconductor Equipment: Diese Standard-Normalisierung bleibt in {APP_BUILD_VERSION} ausschließlich Diagnosekontext. "
-                                "Die Familienbewertung verwendet bei validiertem Current-/Next-FY-Paar eine zeitgewichtete NTM-EPS-Basis; Standard-EPS bleibt Diagnosekontext. Falls der NTM-Horizont nicht sicher freigegeben ist, greift Current-FY fail-closed."
+                                "Die Familienbewertung verwendet bei validiertem Current-/Next-FY-Paar eine zeitgewichtete NTM-EPS-Basis; Standard-EPS bleibt Diagnosekontext. Falls der NTM-Horizont nicht sicher freigegeben ist, bleibt die NTM-Mischung gesperrt und ausschließlich der validierte Current-FY-Anker wird verwendet."
                             )
                         elif is_nvidia_ai_growth_company_type(company_type):
                             st.info(
@@ -65885,7 +65886,7 @@ if selected_symbol:
                         st.caption(
                             f"Das Standard-normalisierte EPS bleibt bei Semiconductor Equipment ausschließlich Diagnosekontext. "
                             f"{APP_BUILD_VERSION} verwendet bei validiertem Current-/Next-FY-Paar die zeitgewichtete NTM-EPS-Basis als Bewertungsanker; "
-                            "Current-FY und Next-FY bleiben separat sichtbar. Bei unzureichender Horizon-Evidenz greift Current-FY fail-closed."
+                            "Current-FY und Next-FY bleiben separat sichtbar. Bei unzureichender Horizon-Evidenz bleibt die NTM-Mischung gesperrt und ausschließlich der validierte Current-FY-Anker wird verwendet."
                         )
                     elif is_nvidia_ai_growth_company_type(company_type):
                         st.caption(
@@ -66739,7 +66740,7 @@ if selected_symbol:
                         st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf den NVIDIA AI-Quality-Score oder das Earnings-Horizon-Alignment-Gate.")
                     elif is_semicap_score_ui:
                         st.info("Semiconductor-Equipment-Familienmodell: Die generische Umsatz-/Gewinnwachstums-Punktelogik wird nicht verwendet; maßgeblich ist der primärquellenbasierte Familien-Score.")
-                        st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf den Semicap-Quality-Score oder das Forward-Earnings-Credibility-Gate.")
+                        st.caption("Yahoo-Wachstumswerte bleiben Kontext und haben keinen Einfluss auf den Semiconductor-Equipment-Familien-Qualitätsscore oder die NTM-EPS-Horizontprüfung.")
                     elif is_auto_score_ui:
                         st.info("Automotive-Modell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. Der eigene Automotive-Quality-Score basiert auf Industrie-FCF-Resilienz, Industrie-Netto-Liquidität, Cars/Vans-Margen, Financial Services, Kapitalallokation und FCF-Einmaleffekt-Qualität.")
                         st.caption("Yahoo-Umsatz-/Gewinnwachstum bleibt Kontext und hat keinen Einfluss auf den Automotive-Quality-Score oder das Cycle Compression Gate.")
@@ -69068,7 +69069,7 @@ if selected_symbol:
                     semicap_model = data.get("semicap_special_model", {"applicable": False})
                     if semicap_model.get("applicable"):
                         st.divider()
-                        st.subheader("🔬 Semiconductor Equipment Familienmodell V2.23.12 – Qualität, NTM-Gewinnbasis & KGV-Anker")
+                        st.subheader("🔬 Semiconductor Equipment Familienmodell V2.23.13 – Qualität, NTM-Gewinnbasis & NTM-KGV-Anker")
                         snapshot_sc = semicap_model.get("snapshot") or {}
                         gate_sc = semicap_model.get("primary_gate") or {}
                         score_sc = semicap_model.get("semicap_score") or {}
@@ -69151,12 +69152,12 @@ if selected_symbol:
                             st.write(f"**Semiconductor-Equipment Familienbewertung {APP_BUILD_VERSION}**")
                             st.write("**Bewertungs-Gewinnbasis:** " + format_eps(val_sc.get("earnings_reference"), financial_currency))
                             st.write(f"**Scorepositioniertes Ziel-KGV:** {val_sc.get('target_pe'):.2f}×")
-                            st.write(f"**Familien-KGV-Korridor:** {val_sc.get('corridor_low'):.2f}× – {val_sc.get('corridor_high'):.2f}×")
+                            st.write(f"**Familien-NTM-KGV-Korridor:** {val_sc.get('corridor_low'):.2f}× – {val_sc.get('corridor_high'):.2f}×")
                             st.metric("Fundamentaler Fairer Wert", format_currency_value(val_sc.get("fair_value_financial"), financial_currency, 2))
                             ref_pe_sc = safe_float(val_sc.get("peer_reference_median_pe"))
                             if ref_pe_sc is not None:
                                 st.write(f"**Peer-Referenzmedian Prognose-KGV:** {ref_pe_sc:.2f}× · nur Referenz")
-                            st.success("Bewertungsanker freigegeben: Die validierte NTM-/Fallback-Basis setzt die Gewinnbasis; der Familien-Qualitätsscore setzt das Ziel-KGV. Peer-KGVs verändern in V208 weder Multiple noch Fair Value.")
+                            st.success("Bewertungsanker freigegeben: Die validierte NTM-/Fallback-Basis setzt die Gewinnbasis; der Familien-Qualitätsscore setzt das Ziel-KGV. Peer-KGVs verändern in V209 weder Multiple noch Fair Value.")
                             st.caption(val_sc.get("note"))
                         else:
                             st.warning(val_sc.get("note") or "Semiconductor-Equipment Bewertungsanker noch nicht freigegeben.")
@@ -69168,7 +69169,7 @@ if selected_symbol:
                         st.write("**Yahoo EV / EBITDA:** " + (f"{yev_sc:.2f}×" if yev_sc is not None else "– / Datenanbieterwert verworfen oder nicht belastbar"))
                         st.write(f"**Datenreife Familienmodell:** {semicap_model.get('readiness')}")
                         if semicap_model.get("valuation_anchor_complete"):
-                            st.success("Bewertungsfreigabe JA: V2.23.12 gibt die validierte NTM-/Current-FY-Fallback-Gewinnbasis und den scorepositionierten Semiconductor-Equipment-KGV-Anker frei.")
+                            st.success("Bewertungsfreigabe JA: V2.23.13 gibt die validierte NTM-/Current-FY-Fallback-Gewinnbasis und den scorepositionierten Semiconductor-Equipment-NTM-KGV-Anker frei.")
                         else:
                             st.warning("Bewertungsfreigabe noch NEIN: Der Semiconductor-Equipment Bewertungsanker ist nicht vollständig freigegeben.")
                         st.caption(semicap_model.get("note"))
@@ -69700,9 +69701,9 @@ if selected_symbol:
                         if val_sc_m6.get("available"):
                             base_pe_sc_m6 = safe_float(val_sc_m6.get("fundamental_target_pe") or val_sc_m6.get("score_target_pe") or val_sc_m6.get("target_pe"))
                             if base_pe_sc_m6 is not None:
-                                st.write(f"**Scorepositioniertes Familien-KGV:** {base_pe_sc_m6:.2f}×")
+                                st.write(f"**Scorepositioniertes NTM-Familien-KGV:** {base_pe_sc_m6:.2f}×")
                             st.metric("Verwendetes Ziel-KGV", f"{val_sc_m6.get('target_pe'):.2f}×")
-                            st.write(f"**Familien-KGV-Korridor:** {val_sc_m6.get('corridor_low'):.2f}× – {val_sc_m6.get('corridor_high'):.2f}×")
+                            st.write(f"**Familien-NTM-KGV-Korridor:** {val_sc_m6.get('corridor_low'):.2f}× – {val_sc_m6.get('corridor_high'):.2f}×")
                             ref_pe_sc_m6 = safe_float(val_sc_m6.get("peer_reference_median_pe"))
                             if ref_pe_sc_m6 is not None:
                                 st.write(f"**Peer-Referenzmedian Prognose-KGV:** {ref_pe_sc_m6:.2f}× · ohne Bewertungswirkung")
@@ -69711,7 +69712,7 @@ if selected_symbol:
                         else:
                             st.warning(val_sc_m6.get("note") or "Semiconductor-Equipment Fundamental-Multiple noch nicht freigegeben.")
                         st.caption(multiple_result.get("note"))
-                        st.caption("ASML, Applied Materials, Lam Research und KLA bilden – jeweils ohne das Zielunternehmen – den Familien-Referenzcluster. Peer-KGVs verändern in V208 weder Ziel-KGV noch Fair Value.")
+                        st.caption("ASML, Applied Materials, Lam Research und KLA bilden – jeweils ohne das Zielunternehmen – den Familien-Referenzcluster. Peer-KGVs verändern in V209 weder Ziel-KGV noch Fair Value.")
 
                     elif is_auto_valuation_ui:
                         auto_m6 = data.get("auto_special_model") or {}
@@ -73201,7 +73202,7 @@ if selected_symbol:
                         "control_key"
                     ) == "semicap_order_visibility":
                         st.divider()
-                        st.subheader("🔬 Modul 6 – Schritt 3B: Semiconductor Equipment Mehr-Emittenten-Familienmodell · V2.23.12")
+                        st.subheader("🔬 Modul 6 – Schritt 3B: Semiconductor Equipment Mehr-Emittenten-Familienmodell · V2.23.13")
                         if special_control.get("implemented"):
                             checks_sc = special_control.get("checks", {})
                             snap_sc3 = special_control.get("snapshot") or {}
@@ -73254,14 +73255,14 @@ if selected_symbol:
                             if val_sc3.get("available"):
                                 base_pe_sc3 = safe_float(val_sc3.get("fundamental_target_pe") or val_sc3.get("score_target_pe") or val_sc3.get("target_pe"))
                                 if base_pe_sc3 is not None:
-                                    st.write(f"**Scorepositioniertes Familien-KGV:** {base_pe_sc3:.2f}×")
+                                    st.write(f"**Scorepositioniertes NTM-Familien-KGV:** {base_pe_sc3:.2f}×")
                                 st.write(f"**Ziel-KGV:** {val_sc3.get('target_pe'):.2f}×")
-                                st.write(f"**Familien-KGV-Korridor:** {val_sc3.get('corridor_low'):.2f}× – {val_sc3.get('corridor_high'):.2f}×")
+                                st.write(f"**Familien-NTM-KGV-Korridor:** {val_sc3.get('corridor_low'):.2f}× – {val_sc3.get('corridor_high'):.2f}×")
                                 ref_pe_sc3 = safe_float(val_sc3.get("peer_reference_median_pe"))
                                 if ref_pe_sc3 is not None:
                                     st.write(f"**Peer-Referenzmedian Prognose-KGV:** {ref_pe_sc3:.2f}× · nur Referenz")
                                 st.write("**Fairer Wert – Fundamentalwährung:** " + format_currency_value(val_sc3.get("fair_value_financial"), financial_currency, 2))
-                                st.success("Bewertungsfreigabe JA: V2.23.12 gibt die Semiconductor-Equipment-Familienbewertung frei. Peers bleiben Reference-only und erzeugen keine automatische Anpassung.")
+                                st.success("Bewertungsfreigabe JA: V2.23.13 gibt die Semiconductor-Equipment-Familienbewertung frei. Peers bleiben Reference-only und erzeugen keine automatische Anpassung.")
                             else:
                                 st.warning(val_sc3.get("note") or "Bewertungsfreigabe noch NEIN: Semiconductor-Equipment Bewertungsanker nicht vollständig.")
                         else:
@@ -76586,7 +76587,7 @@ if selected_symbol:
                             st.write("**Fair Enterprise Value:** " + format_money(fair_value.get("fair_enterprise_value"), fair_value["financial_currency"]))
                             st.write("**Fair Equity Value nach Net Debt:** " + format_money(fair_value.get("fair_equity_value"), fair_value["financial_currency"]))
                         elif fair_value.get("valuation_method") == "semicap_quality_adjusted_pe":
-                            st.write("**Bewertungsformel:** horizon-validierte zeitgewichtete NTM-/Current-FY-Fallback-EPS-Basis × scorepositioniertes Semiconductor-Equipment-Familien-KGV")
+                            st.write("**Bewertungsformel:** horizon-validierte zeitgewichtete NTM-/Current-FY-Fallback-EPS-Basis × scorepositioniertes Semiconductor-Equipment-NTM-KGV")
                             st.write(f"**Familien-Qualitätsscore:** {fair_value.get('semicap_score'):.0f}/100 · {fair_value.get('semicap_quality_level')}")
                             st.write(f"**EPS-Horizont-Plausibilität:** {fair_value.get('earnings_credibility_status')} · {fair_value.get('earnings_credibility_score'):.0f}/100")
                             if safe_float(fair_value.get("fy2026_eps_proxy")) is not None:
@@ -76603,10 +76604,10 @@ if selected_symbol:
                             st.write("**Horizon-Regel:** zeitgewichtetes NTM bei validiertem Current-/Next-FY-Paar; sonst Current-FY-Fallback")
                             cpe = safe_float(fair_value.get("current_pe_on_semicap_reference"))
                             if cpe is not None:
-                                st.write(f"**Aktuelles KGV auf Semicap-Earnings-Basis:** {cpe:.2f}×")
-                            st.write(f"**Scorepositioniertes Familien-KGV:** {fair_value.get('score_target_pe'):.2f}×")
+                                st.write(f"**Aktuelles KGV auf NTM-Gewinnbasis:** {cpe:.2f}×")
+                            st.write(f"**Scorepositioniertes NTM-Familien-KGV:** {fair_value.get('score_target_pe'):.2f}×")
                             st.write(f"**Verwendetes Ziel-KGV:** {fair_value.get('target_pe'):.2f}×")
-                            st.write(f"**Familien-KGV-Korridor:** {fair_value.get('pe_corridor_low'):.2f}× – {fair_value.get('pe_corridor_high'):.2f}×")
+                            st.write(f"**Familien-NTM-KGV-Korridor:** {fair_value.get('pe_corridor_low'):.2f}× – {fair_value.get('pe_corridor_high'):.2f}×")
                             ref_pe_fv_sc = safe_float(fair_value.get("peer_reference_median_pe"))
                             if ref_pe_fv_sc is not None:
                                 st.write(f"**Peer-Referenzmedian Prognose-KGV:** {ref_pe_fv_sc:.2f}× · nur Referenz")
@@ -76614,7 +76615,7 @@ if selected_symbol:
                             if fair_value.get("peer_overlay_applied"):
                                 st.write(f"**Tatsächliche Peer-Multiple-Anpassung:** {fair_value.get('peer_adjustment_pct')*100:+.2f} %")
                                 st.write(f"**Fair-Value-Effekt nach Safety-Cap:** {fair_value.get('peer_fair_value_effect_used_pct'):+.2f} %")
-                            st.caption("ASML, Applied Materials, Lam Research und KLA bilden – jeweils ohne das Zielunternehmen – den Reference-only Familiencluster. Peer-KGVs verändern in V208 weder Ziel-KGV noch Fair Value.")
+                            st.caption("ASML, Applied Materials, Lam Research und KLA bilden – jeweils ohne das Zielunternehmen – den Reference-only Familiencluster. Peer-KGVs verändern in V209 weder Ziel-KGV noch Fair Value.")
                         elif fair_value.get("valuation_method") == "nvidia_ai_quality_operating_pe":
                             st.write("**Bewertungsformel:** Mechanischer FY27 Operating-EPS-Proxy × scoregesteuertes quality-adjustiertes NVIDIA Operating-KGV")
                             st.write(f"**NVIDIA AI-Quality-Score:** {fair_value.get('nvidia_ai_score'):.0f}/100 · {fair_value.get('nvidia_quality_level')}")
