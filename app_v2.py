@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.20"
+APP_BUILD_VERSION = "V2.23.21"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Insurance Corporate Action & EPS Comparability Guard V216"
+    f"Build {APP_BUILD_VERSION} · Insurance Corporate-Action Status & EPS-Vergleichbarkeit Cleanup V217"
 )
 
 
@@ -954,6 +954,7 @@ st.caption(
 # V2.23.02: Unabhängiger Gegencheck V2 V198. Härtet die nicht steuernde Zahlungsabwickler-Kontrollsicht nach Live-Tests mit Global Payments, PayPal, Adyen und Fiserv: Analystenabweichungen werden richtungs- und größenordnungsspezifisch formuliert; die feste 8x/10x-Bewertung wird entfernt und das aktuelle Markt-KGV nur noch als marktimplizierter Kontext gezeigt, solange keine gleichbasige historische Eigenreihe belastbar verfügbar ist; der rohe Kern-Vergleichsgruppen-Check erhält eine Streuungs-/Vergleichbarkeitssperre und darf bei heterogener KGV-Spanne weder Bestätigung noch Widerspruch erzeugen. Das Gesamtergebnis zählt nur belastbare Kontrollen. Fair Value, Ziel-KGV, Qualität, Sicherheit, Bewertungszonen und Kaufen/Halten/Verkaufen bleiben unverändert.
 # V2.23.04: Zahlungsabwickler-Sicherheitsobergrenze V200. Die allgemeine Methoden-/Spezialkontroll-Obergrenze der vollständig freigegebenen Zahlungsabwickler-Referenzprofile wird von „Niedrig bis Mittel“ auf „Mittel“ angehoben. Die in V199 gehärtete Regel „schwächste relevante Sicherheitsstufe gewinnt“ bleibt unverändert. Emittentenspezifische niedrigere Stufen bleiben wirksam; insbesondere behält Fiserv wegen seiner Ziel-KGV-Sicherheit „Niedrig bis Mittel“ die niedrigere Gesamtbewertungssicherheit. Score, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Value, Bewertungszonen und Signal-Schwellen bleiben unverändert.
 # V2.23.20: Insurance Corporate Action & EPS Comparability Guard V216. Adds a universal insurer corporate-action/share-count comparability gate: material capital increases, cancellations/buybacks, acquisitions, disposals, mergers or similar perimeter changes inside the TTM window block the EPS bridge unless an issuer-verified comparable/pro-forma EPS basis exists. Also distinguishes non-EPS-basis net-income context labels.
+# V2.23.21: Insurance Corporate-Action Status & EPS-Vergleichbarkeit Cleanup V217. Copy/status-only cleanup: distinguishes complete TTM period coverage from blocked EPS comparability after material corporate actions; family status now reports complete issuer evidence with valuation blocked by the comparability gate. No valuation math, score calibration, FX route, or gate threshold changed.
 # V2.23.19: Insurance Per-Share Currency Display & Copy Cleanup V215. Fixes Yahoo insurer BVPS presentation for mixed quote/financial currencies by routing provider per-share book value through the verified quote-to-financial FX path before display, clarifies the mixed-currency price caption, and removes the residual Munich-Re-specific Fair-Value copy from the reusable Reinsurance path. Valuation mathematics, score thresholds, capital-framework calibration, corridors and frozen insurer inputs remain unchanged.
 # V2.23.18: Universal Insurance Capital Framework & Currency Routing V214. Adds jurisdiction-aware insurer capital frameworks (Solvency II / SST), per-share currency routing for official BVPS/dividend evidence, Swiss primary-listing/subprofile hardening, Swiss Re + Zurich issuer-primary evidence adapters and insurance-copy cleanup.
 # V2.23.17: AXA Official BVPS & Insurance Copy Correction V213. Verwendet für AXA den vom Emittenten neu definierten und direkt berichteten Book Value per Share (FY2024 24,5 EUR; FY2025 24,0 EUR; H1 2026 23,8 EUR) statt einer abgeleiteten Gesamt-Eigenkapital/Aktienzahl-Größe. Bereinigt außerdem verbliebene sichtbare V2.20.44/Core-TTM-Texte im universellen Insurance-Pfad, aktualisiert die technischen Insurance-Integrationsbezeichner und zeigt bei vollständig freigegebener Versicherungs-Evidenz einen abgeschlossenen Familienstatus. Keine Änderung an den eingefrorenen Allianz-/Munich-Re-Inputs oder an den Insurance-/Reinsurance-Korridoren.
@@ -16800,7 +16801,7 @@ INSURANCE_V212_PRIMARY_SOURCE_REGISTRY = (
             "underlying_core_roe_pct": 27.1,
             "underlying_core_eps_growth_pct": 11.5,
             "underlying_adjustment_active": True,
-            "underlying_growth_note": "Zurich weist zusätzlich kapitalerhöhungsbereinigte H1-2026 Core-Kennzahlen aus. V216 behandelt die direkt berichtete FY/6M-EPS-Brücke wegen der materiellen Kapitalerhöhung nur noch als Diagnose, solange keine issuer-verifizierte vergleichbare EPS-Basis über alle Brückenperioden vorliegt.",
+            "underlying_growth_note": "Zurich weist zusätzlich kapitalerhöhungsbereinigte H1-2026 Core-Kennzahlen aus. V217 behandelt die direkt berichtete FY/6M-EPS-Brücke wegen der materiellen Kapitalerhöhung nur noch als Diagnose, solange keine issuer-verifizierte vergleichbare EPS-Basis über alle Brückenperioden vorliegt.",
             "net_income_basis_label": "NIAS",
             "net_income_matches_eps_basis": False,
             "corporate_action": {
@@ -16824,7 +16825,7 @@ INSURANCE_V212_PRIMARY_SOURCE_REGISTRY = (
             "book_weight": 0.55,
             "core_pe_weight": 0.45,
             "valuation_profile_note": "Diversified/primary-insurer corridor; official BVPS and dividend are CHF while earnings are USD and are currency-routed before anchor math.",
-            "source_note": "V216 maps Zurich Core EPS/RoE, SST and official book value into the common insurance schema with explicit per-share currencies and applies the universal corporate-action/EPS-comparability guard.",
+            "source_note": "V217 maps Zurich Core EPS/RoE, SST and official book value into the common insurance schema with explicit per-share currencies and applies the universal corporate-action/EPS-comparability guard.",
         },
     },
 )
@@ -17233,7 +17234,14 @@ def calculate_insurance_score(snapshot, core_coverage, book_bridge, currency_con
         result["note"] = "Versicherungs-Score gesperrt: Primärquellen-Snapshot fehlt."
         return result
     if not (core_coverage or {}).get("available"):
-        result["note"] = "Versicherungs-Score gesperrt: vollständige versicherungsspezifische TTM-Abdeckung fehlt."
+        _ca_gate = (core_coverage or {}).get("corporate_action_gate") or {}
+        if (core_coverage or {}).get("bridge_calculated") and _ca_gate.get("blocked"):
+            result["note"] = (
+                "Versicherungs-Score gesperrt: versicherungsspezifische TTM-EPS-Brücke ist rechnerisch vollständig, "
+                "aber die EPS-Vergleichbarkeit ist wegen einer wesentlichen Corporate Action nicht freigegeben."
+            )
+        else:
+            result["note"] = "Versicherungs-Score gesperrt: vollständige versicherungsspezifische TTM-Abdeckung fehlt."
         return result
     if not (book_bridge or {}).get("available"):
         result["note"] = "Versicherungs-Score gesperrt: offizieller Buchwert-Abgleich fehlt."
@@ -17330,7 +17338,14 @@ def calculate_insurance_dual_anchor_valuation(snapshot, core_coverage, book_brid
         result["note"] = "Versicherungsbewertung gesperrt: Primärquellen-Snapshot fehlt."
         return result
     if not (core_coverage or {}).get("available"):
-        result["note"] = "Versicherungsbewertung gesperrt: versicherungsspezifische TTM-Abdeckung fehlt."
+        _ca_gate = (core_coverage or {}).get("corporate_action_gate") or {}
+        if (core_coverage or {}).get("bridge_calculated") and _ca_gate.get("blocked"):
+            result["note"] = (
+                "Versicherungsbewertung gesperrt: TTM-EPS-Brücke rechnerisch vollständig, aufgrund wesentlicher "
+                "Corporate Action jedoch nicht als vergleichbare Bewertungsbasis freigegeben."
+            )
+        else:
+            result["note"] = "Versicherungsbewertung gesperrt: versicherungsspezifische TTM-Abdeckung fehlt."
         return result
     if not (book_bridge or {}).get("available"):
         result["note"] = "Versicherungsbewertung gesperrt: offizieller Buchwert-Abgleich fehlt."
@@ -17949,7 +17964,7 @@ def build_insurance_special_model(
         "insurance_score": insurance_score,
         "insurance_valuation": insurance_valuation,
         "note": (
-            f"V216 Universal Insurance Evidence & Capital Framework Routing: {earnings_basis_label}-Ergebnisbasis, {earnings_ttm_label}-Brücke, "
+            f"V217 Universal Insurance Evidence & Capital Framework Routing: {earnings_basis_label}-Ergebnisbasis, {earnings_ttm_label}-Brücke, "
             f"RoE, {capital_ratio_label} und offizieller Buchwert werden in eine gemeinsame Versicherungs-Evidenzstruktur überführt. "
             f"Unterprofil: {'Reinsurance' if is_reinsurance_profile else 'Primary/Diversified Insurance'}; "
             "55/45-Doppelanker, Standard-FCF-Sperre und Fail-Closed-Gates bleiben unverändert."
@@ -17958,7 +17973,7 @@ def build_insurance_special_model(
 
 
 def build_insurance_special_control(base_control, insurance_model):
-    """Attach the universal V216 insurer step-3B dual-anchor gate."""
+    """Attach the universal V217 insurer step-3B dual-anchor gate."""
     control = dict(base_control or {})
     control.setdefault("router_status", control.get("status"))
     control.setdefault("router_note", control.get("note"))
@@ -17989,9 +18004,9 @@ def build_insurance_special_control(base_control, insurance_model):
             "Dividende / Kapitalrückführung / Ausschüttungsqualität",
             "Versicherungs-Score",
         ],
-        "status": "Router aktiv – V216 Universal Insurance Evidence & Capital Framework Routing & Subprofile Routing",
+        "status": "Router aktiv – V217 Universal Insurance Evidence & Capital Framework Routing & Subprofile Routing",
         "note": (
-            f"V216 trennt Yahoo-Kontextdaten von verifizierten Versicherungs-Primärdaten. {earnings_ttm_label}-EPS, "
+            f"V217 trennt Yahoo-Kontextdaten von verifizierten Versicherungs-Primärdaten. {earnings_ttm_label}-EPS, "
             f"offizieller Buchwert, RoE, {capital_ratio_label} und {earnings_multiple_label}-Korridor werden ausschließlich "
             "aus dem freigegebenen Unterprofil aufgebaut."
         ),
@@ -18088,7 +18103,7 @@ def build_insurance_special_control(base_control, insurance_model):
             "roe_metric_label": model.get("roe_metric_label"),
         },
         "note": (
-            f"V216 Schritt 3B validiert die emittenteneigene {earnings_ttm_label}-Ergebnisbasis, RoE, {capital_ratio_label}, "
+            f"V217 Schritt 3B validiert die emittenteneigene {earnings_ttm_label}-Ergebnisbasis, RoE, {capital_ratio_label}, "
             f"offiziellen Buchwert sowie getrennte P/B- und {earnings_multiple_label}-Anker. "
             "Die Bewertung wird nur bei vollständiger und konsistenter Doppelanker-Prüfung freigegeben."
         ),
@@ -64705,9 +64720,16 @@ if selected_symbol:
                             and (data.get("payments_processor_foundation_model") or {}).get("applicable")
                             and (data.get("payments_processor_foundation_model") or {}).get("fair_value_released")
                         )
+                        _insurance_model_ui = data.get("insurance_special_model") or {}
                         _insurance_evidence_released_ui = bool(
                             company_type.get("valuation_family_id") in {"insurance", "reinsurance"}
-                            and ((data.get("insurance_special_model") or {}).get("insurance_valuation") or {}).get("available")
+                            and (_insurance_model_ui.get("insurance_valuation") or {}).get("available")
+                        )
+                        _insurance_corporate_action_blocked_ui = bool(
+                            company_type.get("valuation_family_id") in {"insurance", "reinsurance"}
+                            and _insurance_model_ui.get("primary_source_complete")
+                            and (_insurance_model_ui.get("corporate_action_gate") or {}).get("blocked")
+                            and (_insurance_model_ui.get("core_coverage") or {}).get("bridge_calculated")
                         )
                         _family_status_labels = {
                             "three_issuer_valuation_zone_live_validated": "Bewertungszonen geprüft · Vergleichsgruppen-Kalibrierung V187 aktiv",
@@ -64717,9 +64739,13 @@ if selected_symbol:
                             "Familienmodell + Emittenten-Evidenz vollständig freigegeben · universeller Insurance-Doppelanker aktiv"
                             if _insurance_evidence_released_ui
                             else (
-                                "Familienmodell inkl. Bewertungszonen und Signal-Logik V1 freigegeben · Vergleichsgruppen-Kalibrierung V187 aktiv · Unabhängiger Gegencheck V2 aktiv"
-                                if _payments_processor_released_ui
-                                else _family_status_labels.get(_family_status_raw, _family_status_raw)
+                                "Emittenten-Evidenz vollständig · Bewertungsfreigabe durch Corporate-Action-/EPS-Vergleichbarkeits-Gate gesperrt"
+                                if _insurance_corporate_action_blocked_ui
+                                else (
+                                    "Familienmodell inkl. Bewertungszonen und Signal-Logik V1 freigegeben · Vergleichsgruppen-Kalibrierung V187 aktiv · Unabhängiger Gegencheck V2 aktiv"
+                                    if _payments_processor_released_ui
+                                    else _family_status_labels.get(_family_status_raw, _family_status_raw)
+                                )
                             )
                         )
                         st.caption(
