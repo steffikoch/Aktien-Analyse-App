@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.14"
+APP_BUILD_VERSION = "V2.23.15"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,13 +946,14 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Insurance Loader-Hotfix V210"
+    f"Build {APP_BUILD_VERSION} · Universal Family Eligibility & Evidence Gate V211"
 )
 
 
 # V2.22.98: Zahlungsabwickler-Sicherheitsentkopplung V194. Bei vollständig freigegebenem Zahlungsabwickler-Spezialpfad bleibt die generische TTM-/Prognose-EPS-Divergenz ausschließlich Diagnosekontext und darf die endgültige Bewertungssicherheit nicht mehr begrenzen. Maßgeblich sind Methodenobergrenze, freigegebene Familien-Gewinnbasis, Sicherheit des Familien-Ziel-KGV und Spezialkontrolle. Bewertungsmathematik, Peer-Kalibrierung, Gewinnbasis, Ziel-KGV, Fair Values und Signal-Gates bleiben unverändert.
 # V2.23.02: Unabhängiger Gegencheck V2 V198. Härtet die nicht steuernde Zahlungsabwickler-Kontrollsicht nach Live-Tests mit Global Payments, PayPal, Adyen und Fiserv: Analystenabweichungen werden richtungs- und größenordnungsspezifisch formuliert; die feste 8x/10x-Bewertung wird entfernt und das aktuelle Markt-KGV nur noch als marktimplizierter Kontext gezeigt, solange keine gleichbasige historische Eigenreihe belastbar verfügbar ist; der rohe Kern-Vergleichsgruppen-Check erhält eine Streuungs-/Vergleichbarkeitssperre und darf bei heterogener KGV-Spanne weder Bestätigung noch Widerspruch erzeugen. Das Gesamtergebnis zählt nur belastbare Kontrollen. Fair Value, Ziel-KGV, Qualität, Sicherheit, Bewertungszonen und Kaufen/Halten/Verkaufen bleiben unverändert.
 # V2.23.04: Zahlungsabwickler-Sicherheitsobergrenze V200. Die allgemeine Methoden-/Spezialkontroll-Obergrenze der vollständig freigegebenen Zahlungsabwickler-Referenzprofile wird von „Niedrig bis Mittel“ auf „Mittel“ angehoben. Die in V199 gehärtete Regel „schwächste relevante Sicherheitsstufe gewinnt“ bleibt unverändert. Emittentenspezifische niedrigere Stufen bleiben wirksam; insbesondere behält Fiserv wegen seiner Ziel-KGV-Sicherheit „Niedrig bis Mittel“ die niedrigere Gesamtbewertungssicherheit. Score, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Value, Bewertungszonen und Signal-Schwellen bleiben unverändert.
+# V2.23.15: Universal Family Eligibility & Evidence Gate V211. Härtet die Wiederverwendbarkeit der bereits freigegebenen Semiconductor-Equipment- und Payments-Processor-Familien außerhalb ihrer Referenzemittenten. Neue Semicap-Titel werden nicht mehr wegen fehlender Ticker-Whitelist als unreleased family behandelt, sondern laufen in das bestehende Familienmodell und bleiben bei fehlendem issuer-primary Snapshot sauber evidence-gated. Ein konservativer, geschäftsmodellbasierter Payments-Processor-Precedence-Guard kann Merchant-Acquiring/End-to-End-Payment-Processing gegenüber groben Provider-Branchen wie Software - Infrastructure priorisieren, ohne FOUR/Nexi als Familien-Whitelist einzubauen. Unsupported Payments-Familienmitglieder werden als released-family/evidence-pending ausgewiesen; Standard-Score, Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV, Fair Value und Signale bleiben gesperrt. Die freigegebenen Score-, Earnings-, Multiple-, Peer-, Fair-Value- und Signalformeln der vier Semicap- und vier Payments-Referenzwerte bleiben unverändert.
 # V2.23.14: Insurance Loader-Hotfix V210. Reiner Loader-Fix auf V209: initialisiert adapter_diagnostic im bestehenden Versicherungs-Spezialmodell, damit unterstützte Versicherer wie Allianz und Munich Re nicht mehr beim Return mit NameError abbrechen. Keine Änderung an Versicherungs-Score, Dual-Anchor-Bewertung, Semiconductor Equipment oder anderen eingefrorenen Bewertungsfamilien.
 # V2.23.12: Semiconductor Equipment NTM-Horizont & Datenkonsistenz V208. Ersetzt im freigegebenen Semiconductor-Equipment-Familienmodell die starre Current-FY-Gewinnbasis durch eine zeitgewichtete Next-Twelve-Months-(NTM)-EPS-Basis aus validiertem Current-FY- und Next-FY-Konsens sowie issuer-spezifischem Fiskaljahresende; bei fehlender oder abgelaufener Horizon-Evidenz fail-closed Current-FY-Fallback. Sperrt generische FCF-/Bilanzscores in der Datenpipeline, bereinigt FCF-Quellenhinweise und generische EPS-Divergenz-Warnungen, zeigt EPS-Währungen im Analystenziel-Gegencheck, priorisiert KLA Corporation auf KLAC/Nasdaq statt KLA.DE/Xetra, vereinheitlicht den KLA-FY2026-Primärdatenblock inklusive 41,7 % Operating Margin und hält 22–34x-Korridor, Scorearchitektur und Peer-Reference-only-Regel unverändert.
 # V2.23.11: Semiconductor Equipment Router & Horizon-Schutz V207. Hotfix nach dem ersten V206-Livetest: setzt den kanonischen Symbolschlüssel vor der universellen Semicap-Routerabfrage, sodass AMAT/LRCX/KLAC nach erfolgreicher Suche tatsächlich in das freigegebene Familienmodell laden; schützt die offiziellen Eigennamen ASML Holding N.V. und Lam Research vor der generischen UI-Wortübersetzung; ergänzt ASML Q2-2026 Operating Margin 37,1 %; entfernt den verbliebenen Legacy-Hinweis auf eine credibility-gewichtete ASML-Earnings-Mischbasis; und erweitert den bereits bei Defense verwendeten Analystenziel-Zeithorizontschutz auf Semiconductor Equipment, wenn Current-FY und Next-FY EPS materiell auseinanderliegen. Scorearchitektur, Current-FY-Gewinnbasis, 22–34×-Korridor, Peer-Reference-only-Regel und Fair-Value-Mathematik bleiben unverändert.
@@ -7973,6 +7974,63 @@ def _looks_like_advisory_professional_services_in_capital_markets(industry, busi
     return bool((has_advisory_identity and service_line_count >= 1) or service_line_count >= 3)
 
 
+def _looks_like_payments_processor_business_model(industry, business_summary):
+    """Conservative reusable Merchant-Acquirer / Payment-Processor detector.
+
+    Provider industry labels such as ``Software - Infrastructure`` are taxonomy
+    hints only. A business-model override requires explicit payment-processing /
+    merchant-acquiring evidence in the issuer description. This deliberately does
+    not use a ticker/name whitelist and does not override banks, card lenders or
+    pure card-network economics merely because they mention payments.
+    """
+    industry_text = str(industry or "").lower()
+    summary_text = str(business_summary or "").lower()
+    combined = f" {industry_text} {summary_text} "
+
+    # Strong processor/acquirer evidence. One explicit acquiring phrase is enough
+    # when payments are also present; otherwise require multiple independent
+    # processor/platform signals.
+    acquiring_terms = (
+        "merchant acquiring", "merchant-acquiring", "merchant acquirer",
+        "acquiring services", "acquiring solutions", "acquiring business",
+    )
+    processing_terms = (
+        "end-to-end payment processing", "end to end payment processing",
+        "payment processing", "payments processing", "transaction processing",
+        "card processing",
+    )
+    platform_terms = (
+        "payments platform", "payment platform", "paytech",
+        "merchant services", "payment acceptance", "checkout",
+    )
+    merchant_terms = (" merchant ", " merchants ", "point of sale", "pos ")
+
+    has_acquiring = any(term in combined for term in acquiring_terms)
+    processing_hits = sum(1 for term in processing_terms if term in combined)
+    platform_hits = sum(1 for term in platform_terms if term in combined)
+    has_merchant = any(term in combined for term in merchant_terms)
+    has_payments = "payment" in combined or "paytech" in combined
+
+    # Do not use this precedence rule for lending/bank economics. Existing exact
+    # Visa/Mastercard/AXP/COF specialist routes are already resolved before this
+    # rule; these terms protect generic issuers from a false processor override.
+    lending_terms = (
+        "consumer lending", "loan receivable", "credit card loans",
+        "deposit products", "bank deposits", "net interest income",
+        "banking subsidiary",
+    )
+    if any(term in combined for term in lending_terms) and not has_acquiring:
+        return False
+
+    if has_acquiring and has_payments:
+        return True
+    if processing_hits >= 1 and platform_hits >= 1 and has_merchant:
+        return True
+    if processing_hits >= 2 and has_merchant:
+        return True
+    return False
+
+
 def _infer_universal_family_from_metadata(symbol, sector, industry, business_summary):
     sym = str(symbol or "").upper().strip()
     sector_text = str(sector or "").lower()
@@ -7985,6 +8043,12 @@ def _infer_universal_family_from_metadata(symbol, sector, industry, business_sum
 
     if sym in UNIVERSAL_SECURITY_FAMILY_MASTER:
         return UNIVERSAL_SECURITY_FAMILY_MASTER[sym], "security_family_master"
+
+    # V211: explicit Merchant-Acquiring / Payment-Processing economics outrank
+    # broad provider taxonomy such as Software - Infrastructure. This is a
+    # reusable business-model rule, not a ticker whitelist.
+    if _looks_like_payments_processor_business_model(industry_text, summary_text):
+        return "payments_processor", "business_model_precedence_rule"
 
     # Financial Services is intentionally conservative: an unidentified lender,
     # broker or payments company must never inherit industrial FCF/net-debt math.
@@ -8350,7 +8414,20 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
     current_type = normalized_company_type_name(out)
 
     existing_family = _infer_universal_family_from_existing_type(out, name_text=name_text)
+    metadata_family, metadata_source = _infer_universal_family_from_metadata(
+        symbol, sector, industry, business_summary
+    )
     listed_holding_profile = _looks_like_listed_investment_holding(industry, business_summary)
+
+    # V211: high-confidence processor/acquirer business-model evidence may
+    # override broad Software/IT/general/unresolved labels. Exact bank/card/network
+    # specialist routes remain authoritative and are never displaced here.
+    if (
+        metadata_family == "payments_processor"
+        and metadata_source == "business_model_precedence_rule"
+        and existing_family in {None, "software", "it_hardware_services", "financial_unresolved", "general_corporate"}
+    ):
+        existing_family = None
     if listed_holding_profile and existing_family == "asset_manager":
         existing_family = None
     if _legacy_classification_is_family_overrideable(current_type):
@@ -8419,6 +8496,26 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
             )
             out["business_model"] = "Führender Anbieter von Halbleiterfertigungsanlagen/-prozesskontrolle mit zyklischer WFE-Nachfrage und strukturellem AI-/Leading-Edge-Treiber"
             out["focus_areas"] = "Nachfrage/Zyklus/Guidance · Gross-/Operating-Margin · Installed Base/Service · Technologie-/Tool-Mix · issuer-native FCF · Bilanz/Kapitalallokation · Execution"
+        elif family_id == "semicap":
+            # V211: the Semiconductor-Equipment architecture is family-released,
+            # not ticker-released. Unknown members enter the same specialist
+            # model; missing issuer-primary evidence blocks only that issuer's
+            # score/NTM anchor/Fair Value, never the family classification.
+            out["type"] = meta["label"]
+            out["family_model_status"] = "released_family_evidence_gate"
+            out["family_model_ready"] = True
+            out["family_model_released"] = True
+            out["family_validation_status"] = "four_reference_issuers_validated_additional_members_evidence_gated"
+            out["universal_family_fail_closed"] = False
+            out["family_evidence_pending"] = True
+            out["confidence_cap"] = "Niedrig bis Mittel"
+            out["method"] = (
+                "Freigegebenes Semiconductor-Equipment-Familienmodell mit issuer-primary Evidenz-Gate: gemeinsame 100-Punkte-Architektur + "
+                "horizon-validierter NTM-/Current-FY-Fallback + 22–34× NTM-KGV-Korridor. Ohne belastbaren Emittenten-Snapshot bleiben "
+                "Familien-Punktzahl, Gewinnbasis, Fair Value, Zonen und Signale für diesen Titel gesperrt; generische Yahoo-Standardlogik bleibt ausgeschlossen."
+            )
+            out["business_model"] = "Semiconductor-Equipment-Anbieter; Unterprofil wird erst aus belastbarer issuer-primary Produkt-/Service-/Tool-Mix-Evidenz freigegeben."
+            out["focus_areas"] = "Nachfrage/Zyklus/Guidance · Margenqualität · Installed Base/Service · Technologie-/Tool-Mix · issuer-native FCF/Cash Conversion · Bilanz/Kapitalallokation · Execution"
         elif family_id == "asset_manager":
             # V99: two independent main issuers (TROW + BLK) have passed end-to-end,
             # but the family is not yet globally released because issuer-primary
@@ -8435,9 +8532,7 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
             out.setdefault("universal_family_fail_closed", False)
         return out
 
-    family_id, source = _infer_universal_family_from_metadata(
-        symbol, sector, industry, business_summary
-    )
+    family_id, source = metadata_family, metadata_source
     family_id, meta = _universal_family_meta(family_id)
     out["valuation_family_id"] = family_id
     out["valuation_family"] = meta["label"]
@@ -8471,6 +8566,27 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
         )
         out["business_model"] = "Führender Anbieter von Halbleiterfertigungsanlagen/-prozesskontrolle mit zyklischer WFE-Nachfrage und strukturellem AI-/Leading-Edge-Treiber"
         out["focus_areas"] = "Nachfrage/Zyklus/Guidance · Gross-/Operating-Margin · Installed Base/Service · Technologie-/Tool-Mix · issuer-native FCF · Bilanz/Kapitalallokation · Execution"
+        return out
+
+    # V211 – additional Semiconductor-Equipment members use the already released
+    # family architecture and are issuer-primary evidence-gated instead of being
+    # mislabelled as an unreleased family. No ticker whitelist is required.
+    if family_id == "semicap":
+        out["type"] = meta["label"]
+        out["confidence_cap"] = "Niedrig bis Mittel"
+        out["family_model_status"] = "released_family_evidence_gate"
+        out["family_model_ready"] = True
+        out["family_model_released"] = True
+        out["family_validation_status"] = "four_reference_issuers_validated_additional_members_evidence_gated"
+        out["universal_family_fail_closed"] = False
+        out["family_evidence_pending"] = True
+        out["method"] = (
+            "Freigegebenes Semiconductor-Equipment-Familienmodell mit issuer-primary Evidenz-Gate: gemeinsame 100-Punkte-Architektur + "
+            "horizon-validierter NTM-/Current-FY-Fallback + 22–34× NTM-KGV-Korridor. Ohne belastbaren Emittenten-Snapshot bleiben "
+            "Familien-Punktzahl, Gewinnbasis, Fair Value, Zonen und Signale für diesen Titel gesperrt; generische Yahoo-Standardlogik bleibt ausgeschlossen."
+        )
+        out["business_model"] = "Semiconductor-Equipment-Anbieter; Unterprofil wird erst aus belastbarer issuer-primary Produkt-/Service-/Tool-Mix-Evidenz freigegeben."
+        out["focus_areas"] = "Nachfrage/Zyklus/Guidance · Margenqualität · Installed Base/Service · Technologie-/Tool-Mix · issuer-native FCF/Cash Conversion · Bilanz/Kapitalallokation · Execution"
         return out
 
     # V2.22.22 / V118 – two independently validated Professional & Business Services profiles.
@@ -8576,7 +8692,7 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
     # the abstract KPI contract across Wallet/PSP, integrated acquiring and a
     # diversified merchant + banking-technology model. The 100-point quality score
     # is released after the successful Fiserv live regression; valuation remains closed.
-    if family_id == "payments_processor" and _canonical_family_symbol in {"PYPL", "ADYEN.AS", "FISV"}:
+    if family_id == "payments_processor" and _canonical_family_symbol in {"PYPL", "ADYEN.AS", "FISV", "GPN"}:
         out["type"] = meta["label"]
         out["confidence_cap"] = "Mittel"
         out["family_model_status"] = "three_issuer_valuation_zone_live_validated"
@@ -8588,7 +8704,7 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
             "Primärquellenbasierter Zahlungsabwickler-Korridor V1: Zahlungsvolumen und Aktivität bleiben Volumen-/Effizienzkontext. "
             "Familien-Qualitätspunktzahl V1 und Gewinnbasis des laufenden Geschäftsjahres V1 speisen einen transparenten 8–30× KGV-Korridor auf gleicher Ergebnisbasis. "
             "Qualitätslinie, möglicher Ökonomie-Aufschlag und ausschließlich nach unten wirkende Schutzregeln bestimmen das Ziel-KGV. "
-            "Die Tests mit PayPal, Adyen und Fiserv für Multiple, fairen Wert und Bewertungszonen sind bestanden. "
+            "Die Tests mit PayPal, Adyen, Fiserv und Global Payments für Multiple, fairen Wert und Bewertungszonen sind bestanden. "
             "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 und die Zahlungsabwickler-Signal-Logik V1 sind freigegeben."
         )
         if _canonical_family_symbol == "PYPL":
@@ -8617,7 +8733,7 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
                 "FCF Conversion · CapEx-Intensität · organische vs. akquisitionsbedingte Guidance · "
                 "Talon.One/Orb-Comparability; Analystenziele nur Reality Check"
             )
-        else:
+        elif _canonical_family_symbol == "FISV":
             out["payments_processor_subprofile"] = "diversified_merchant_acquirer_banking_technology_clover"
             out["payments_processor_subprofile_label"] = "Diversified Merchant Acquirer / Banking Technology / Clover"
             out["business_model"] = (
@@ -8630,6 +8746,36 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
                 "issuer-defined FCF Conversion · CapEx-Intensität · Adjusted EPS Guidance · Guidance-Revision/Execution · "
                 "Merchant vs. Financial Solutions Mix; Analystenziele nur Reality Check"
             )
+        else:
+            out["payments_processor_subprofile"] = "pure_play_commerce_worldpay_integration"
+            out["payments_processor_subprofile_label"] = "Pure-play Commerce Solutions / Worldpay Integration"
+            out["business_model"] = "Pure-play Commerce-/Merchant-Payments-Plattform nach Worldpay-Integration und Portfolio-Neuzuschnitt."
+            out["core_segments"] = "Merchant Acquiring/Processing · Commerce Solutions · Worldpay Integration"
+            out["focus_areas"] = "Adjusted Net Revenue · Adjusted Operating Margin · Adjusted EPS · FCF Conversion · CapEx · Integration/Deleveraging"
+        return out
+
+    # V211 – additional Payment-Processor / Merchant-Acquirer members enter the
+    # released family contract by business model. The valuation remains issuer
+    # evidence-gated until a same-basis primary-source KPI mapping is complete.
+    if family_id == "payments_processor":
+        out["type"] = meta["label"]
+        out["confidence_cap"] = "Niedrig bis Mittel"
+        out["family_model_status"] = "released_family_evidence_gate"
+        out["family_model_ready"] = True
+        out["family_model_released"] = True
+        out["family_validation_status"] = "four_reference_issuers_validated_additional_members_evidence_gated"
+        # Keep the industrial/legacy path hard-locked while the existing
+        # payments specialist builder performs the issuer evidence check.
+        out["universal_family_fail_closed"] = True
+        out["family_evidence_pending"] = True
+        out["method"] = (
+            "Freigegebenes Zahlungsabwickler-/Zahlungsakquisiteur-Familienmodell mit issuer-primary Evidenz-Gate. "
+            "Die gemeinsame 100-Punkte-Architektur und der 8–30× Current-FY-KGV-Rahmen sind kalibriert; für einen neuen Emittenten "
+            "werden Score, Gewinnbasis, Ziel-KGV, Fair Value, Zonen und Signale erst nach belastbarer subprofilgerechter Primärdaten-Zuordnung freigegeben. "
+            "Yahoo-FCF, Netto-Schulden/FCF und Standard-KGV bleiben ausgeschlossen."
+        )
+        out["business_model"] = "Payments Processor / Merchant Acquirer; konkretes Unterprofil wird erst aus belastbarer issuer-primary Geschäftsmodell- und KPI-Evidenz freigegeben."
+        out["focus_areas"] = "Payment-/Processed Volume · Ertragsökonomie/Net Revenue · Margenqualität · issuer FCF/Cash Conversion · CapEx · Current-FY adjusted earnings · Kapitalstruktur · Execution"
         return out
 
     # V2.21.1: Family priority is authoritative over generic/unresolved legacy
@@ -13396,6 +13542,26 @@ def _universal_family_special_control(company_type):
             "Analystenziele ausschließlich als Plausibilitätscheck, nie als Bewertungsanker",
         ]
     if (company_type or {}).get("valuation_family_id") == "payments_processor":
+        if (company_type or {}).get("family_evidence_pending"):
+            return {
+                "required": True,
+                "implemented": True,
+                "released": False,
+                "control_key": "universal_family_model_gate",
+                "control_name": f"Universal Family / {family_label} Evidenz-Gate",
+                "planned_checks": planned_checks,
+                "status": "Familienmodell freigegeben · Emittenten-Primärdaten noch nicht ausreichend zugeordnet",
+                "router_status": "Zahlungsabwickler-Familie erkannt · issuer-primary Evidenz-Gate aktiv",
+                "confidence_cap": "Niedrig bis Mittel",
+                "note": (
+                    f"{family_label} ist als freigegebene Bewertungsfamilie erkannt. Für diesen Emittenten fehlt jedoch noch ein belastbarer, "
+                    "subprofilgerechter Primärdaten-Snapshot. Deshalb bleiben Familien-Punktzahl, Gewinnbasis, Ziel-KGV, Fair Value, "
+                    "Bewertungszonen und Signale für diesen Titel gesperrt; der industrielle Standardpfad bleibt ebenfalls ausgeschlossen."
+                ),
+                "router_note": (
+                    "Die Familienarchitektur ist freigegeben, aber die Emittenten-Evidenz noch nicht. Neue Titel werden nicht auf Software/Standard zurückgestuft und erhalten keinen erfundenen Ersatz-Fair-Value."
+                ),
+            }
         return {
             "required": True,
             "implemented": True,
@@ -28834,8 +29000,8 @@ def build_semicap_special_model(company_type, info, currency_context, symbol=Non
         "yahoo_ev_to_ebitda_context": ev,
         "readiness": "Bewertungsanker vollständig" if complete and ready and valuation.get("available") else "Unvollständig",
         "note": (
-            f"Semiconductor-Equipment Mehr-Emittenten-Familie {APP_BUILD_VERSION}: ASML, Applied Materials, Lam Research und KLA verwenden dieselbe Score-/KGV-Architektur mit issuer-spezifischen KPI-Adaptern. "
-            "Die Gewinnbasis wird auf einen gemeinsamen zeitgewichteten NTM-Horizont aus validiertem Current-FY und Next-FY ausgerichtet; bei fehlender Horizon-Evidenz bleibt die NTM-Mischung gesperrt und ausschließlich der validierte Current-FY-Anker wird verwendet. Yahoo-FCF und Yahoo-EV/EBITDA bleiben Diagnosekontext."
+            f"Semiconductor-Equipment Mehr-Emittenten-Familie {APP_BUILD_VERSION}: ASML, Applied Materials, Lam Research und KLA validieren dieselbe Score-/KGV-Architektur mit issuer-spezifischen KPI-Adaptern; weitere Familienmitglieder nutzen denselben Vertrag und bleiben bis zu belastbarer issuer-primary Evidenz fail-closed. "
+            "Die Gewinnbasis wird nur bei validiertem Current-/Next-FY-Horizont auf eine zeitgewichtete NTM-Basis ausgerichtet; fehlt die notwendige Emittenten-/Horizon-Evidenz, entstehen weder Familien-Score noch Ersatz-Fair-Value aus Yahoo-Standarddaten. Yahoo-FCF und Yahoo-EV/EBITDA bleiben Diagnosekontext."
         ),
     }
 
@@ -32286,9 +32452,9 @@ def build_payments_processor_foundation_model(company_type, fundamental_info, sy
             "family_multiple_released": False,
             "fair_value_released": False,
             "note": (
-                "Zahlungsabwickler / Zahlungsakquisiteur erkannt, aber für diesen Emittenten ist noch kein "
-                "issuer-primary Foundation Snapshot hinterlegt. PayPal, Adyen, Fiserv und Global Payments sind Foundation-Referenzen; "
-                "Standard-Score und Fair Value bleiben fail-closed."
+                "Zahlungsabwickler / Zahlungsakquisiteur erkannt. Das wiederverwendbare Familienmodell ist freigegeben, aber für diesen Emittenten ist noch kein "
+                "subprofilgerecht belegter issuer-primary Foundation Snapshot verfügbar. PayPal, Adyen, Fiserv und Global Payments sind Kalibrierungs-/Referenzprofile; "
+                "Standard-Score, Standard-KGV, Fair Value, Bewertungszonen und Signale bleiben für diesen Titel fail-closed."
             ),
         }
 
@@ -41225,8 +41391,11 @@ def get_valuation_corridor(company_type):
                  "Der industrielle Standard-KGV-Korridor bleibt absichtlich gesperrt; die Bewertung erfolgt ausschließlich über den Holding-NAV-Pfad.")
                 if _released_holding
                 else (
-                    (f"Universelle Familien-Zuordnung {APP_BUILD_VERSION}: Familien-Qualitätspunktzahl V1, Gewinnbasis des laufenden Geschäftsjahres V1, der 8–30× Zahlungsabwickler-KGV-Korridor und der eigene faire Wert sind für {family_label} praktisch geprüft und freigegeben. "
-                     "Der industrielle Standard-KGV-Korridor bleibt gesperrt; Familien-Ziel-KGV und fairer Wert werden ausschließlich im Zahlungsabwickler-Spezialmodell berechnet.")
+                    ((f"Universelle Familien-Zuordnung {APP_BUILD_VERSION}: Das Zahlungsabwickler-Familienmodell ist freigegeben, aber für diesen Emittenten ist die issuer-primary Evidenz noch nicht vollständig zugeordnet. "
+                      "Der industrielle Standard-KGV-Korridor bleibt gesperrt; ohne Familien-Snapshot wird kein Ziel-KGV oder Fair Value geschätzt.")
+                     if (company_type or {}).get("family_evidence_pending")
+                     else (f"Universelle Familien-Zuordnung {APP_BUILD_VERSION}: Familien-Qualitätspunktzahl V1, Gewinnbasis des laufenden Geschäftsjahres V1, der 8–30× Zahlungsabwickler-KGV-Korridor und der eigene faire Wert sind für {family_label} praktisch geprüft und freigegeben. "
+                           "Der industrielle Standard-KGV-Korridor bleibt gesperrt; Familien-Ziel-KGV und fairer Wert werden ausschließlich im Zahlungsabwickler-Spezialmodell berechnet."))
                     if (company_type or {}).get("valuation_family_id") == "payments_processor"
                     else (f"Universal Family Router {APP_BUILD_VERSION}: {family_label} ist erkannt, aber das wiederverwendbare Familienmodell ist noch nicht freigegeben. "
                           "Der Standard-KGV-Korridor bleibt fail-closed; es wird kein Multiple geschätzt.")
@@ -62112,20 +62281,28 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "holding_nav_model": True,
             }
         elif company_type.get("valuation_family_id") == "payments_processor":
+            _pp_evidence_pending_event = bool(company_type.get("family_evidence_pending"))
             special_event_warning = {
                 "level": "Grün",
                 "icon": "🟢",
-                "title": "Keine automatische Sonderereignis-Recherche – Zahlungsabwickler-Spezialpfad aktiv",
-                "requires_research": False,
-                "valuation_usable": True,
-                "reason": (
-                    f"{_family_label}: Familien-Qualitätspunktzahl V1, Gewinnbasis des laufenden Geschäftsjahres V1, 8–30× KGV-Korridor und eigener fairer Wert sind freigegeben. "
-                    "Die generische Standard-TTM-/Prognose-EPS-Basis bleibt Diagnosekontext und darf keine separate Sonderereignis-Recherche oder Standardbewertung auslösen."
-                    + _diagnostic_note
+                "title": (
+                    "Zahlungsabwickler-Familie erkannt – Emittenten-Evidenz-Gate aktiv"
+                    if _pp_evidence_pending_event else
+                    "Keine automatische Sonderereignis-Recherche – Zahlungsabwickler-Spezialpfad aktiv"
                 ),
+                "requires_research": False,
+                "valuation_usable": not _pp_evidence_pending_event,
+                "reason": (
+                    (f"{_family_label}: Die Familienarchitektur ist freigegeben, aber für diesen Emittenten fehlt noch die belastbare issuer-primary KPI-/Gewinnbasis. "
+                     "Standard-TTM-/Prognose-EPS, Yahoo-FCF und Standard-KGV bleiben Diagnosekontext und dürfen das Evidenz-Gate nicht umgehen.")
+                    if _pp_evidence_pending_event else
+                    (f"{_family_label}: Familien-Qualitätspunktzahl V1, Gewinnbasis des laufenden Geschäftsjahres V1, 8–30× KGV-Korridor und eigener fairer Wert sind freigegeben. "
+                     "Die generische Standard-TTM-/Prognose-EPS-Basis bleibt Diagnosekontext und darf keine separate Sonderereignis-Recherche oder Standardbewertung auslösen.")
+                ) + _diagnostic_note,
                 "action": (
-                    "Keine Sonderereignis-Recherche aus der generischen EPS-Normalisierung starten. Der Zahlungsabwickler-Spezialpfad bleibt maßgeblich. "
-                    "Bewertungszonen V1, die modellbereinigte Vergleichsgruppen-Kalibrierung V187 und die Zahlungsabwickler-Signal-Logik V1 sind freigegeben."
+                    "Keine ad-hoc Standardbewertung starten. Zuerst issuer-primary Zahlungsvolumen/Ertragsökonomie, Margenbasis, Cash Conversion/FCF, CapEx, Current-FY adjusted earnings und Kapitalstruktur subprofilgerecht belegen; bis dahin kein Fair Value oder Signal."
+                    if _pp_evidence_pending_event else
+                    "Keine Sonderereignis-Recherche aus der generischen EPS-Normalisierung starten. Der Zahlungsabwickler-Spezialpfad bleibt maßgeblich. Bewertungszonen V1, die modellbereinigte Vergleichsgruppen-Kalibrierung V187 und die Zahlungsabwickler-Signal-Logik V1 sind freigegeben."
                 ),
                 "family_model_gate": True,
                 "diagnostic_original_level": _diagnostic_level or None,
@@ -62740,6 +62917,27 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                     "berücksichtigen sie konservativ; die Bewertungsfreigabe bleibt davon getrennt."
                 ),
             }
+
+
+    if (
+        semicap_special_model.get("applicable")
+        and not semicap_special_model.get("primary_source_complete")
+    ):
+        special_event_warning = {
+            "level": "Grün",
+            "icon": "🟢",
+            "title": "Semiconductor-Equipment-Familie erkannt – Emittenten-Evidenz-Gate aktiv",
+            "requires_research": False,
+            "valuation_usable": False,
+            "reason": (
+                "Die Semiconductor-Equipment-Familienarchitektur ist freigegeben, aber für diesen Emittenten liegt noch kein frischer issuer-primary KPI-/FY-Horizont-Snapshot vor. "
+                "Generische Yahoo-Wachstums-, FCF-, Bilanz- und Standard-EPS-Metriken bleiben reine Diagnose und dürfen keinen Ersatz-Fair-Value erzeugen."
+            ),
+            "action": (
+                "Zuerst Nachfrage/Guidance, Margen, Service/Installed Base, Technologie-/Tool-Mix, issuer-native Cash Conversion/FCF, Bilanz/Kapitalallokation und Current-/Next-FY-Horizont auf Primärquellenbasis belegen. Bis dahin kein Familien-Score, NTM-KGV, Fair Value, Zone oder Signal."
+            ),
+            "family_model_gate": True,
+        }
 
 
     if (
@@ -63989,6 +64187,7 @@ if selected_symbol:
                         )
                         _family_status_labels = {
                             "three_issuer_valuation_zone_live_validated": "Bewertungszonen geprüft · Vergleichsgruppen-Kalibrierung V187 aktiv",
+                            "released_family_evidence_gate": "Familienmodell freigegeben · Emittenten-Evidenz noch nicht vollständig",
                         }
                         _family_status = (
                             "Familienmodell inkl. Bewertungszonen und Signal-Logik V1 freigegeben · Vergleichsgruppen-Kalibrierung V187 aktiv · Unabhängiger Gegencheck V2 aktiv"
@@ -64043,10 +64242,16 @@ if selected_symbol:
                                     "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 und die Zahlungsabwickler-Signal-Logik V1 sind freigegeben; der industrielle Standardpfad bleibt gesperrt."
                                 )
                             else:
-                                st.warning(
-                                    "Familie erkannt, aber das wiederverwendbare Familienmodell ist noch nicht freigegeben. "
-                                    "Die App bleibt deshalb fail-closed und verwendet nicht den industriellen Standardpfad."
-                                )
+                                if company_type.get("family_evidence_pending"):
+                                    st.info(
+                                        "Familienmodell freigegeben, aber die issuer-primary Evidenz dieses Emittenten ist noch nicht vollständig. "
+                                        "Die App bleibt deshalb für Score/Fair Value/Signal dieses Titels fail-closed und verwendet keinen industriellen Ersatzpfad."
+                                    )
+                                else:
+                                    st.warning(
+                                        "Familie erkannt, aber das wiederverwendbare Familienmodell ist noch nicht freigegeben. "
+                                        "Die App bleibt deshalb fail-closed und verwendet nicht den industriellen Standardpfad."
+                                    )
 
                     if company_type.get("business_model"):
                         st.write(f"**Geschäftsmodell:** {company_type['business_model']}")
@@ -65166,7 +65371,7 @@ if selected_symbol:
                                 if (company_type or {}).get("valuation_family_id") == "payments_processor":
                                     st.info(
                                         f"Universelle Familien-Zuordnung {APP_BUILD_VERSION}: Diese Standard-TTM/Prognose-EPS-Normalisierung bleibt ausschließlich Diagnosekontext. "
-                                        "Für Zahlungsabwickler / Zahlungsakquisiteur ist die Familien-Gewinnbasis des laufenden Geschäftsjahres V1 bereits separat in Schritt 3B freigegeben; "
+                                        "Für Zahlungsabwickler / Zahlungsakquisiteur wird die Familien-Gewinnbasis des laufenden Geschäftsjahres ausschließlich im Spezialmodell freigegeben; bei neuen Emittenten bleibt sie bis zur issuer-primary Evidenzzuordnung gesperrt; "
                                         "die hier gezeigte Standard-Normalisierung ist ausdrücklich kein Bewertungsanker."
                                     )
                                     st.caption(
@@ -65972,7 +66177,7 @@ if selected_symbol:
                             if (company_type or {}).get("valuation_family_id") == "payments_processor":
                                 st.caption(
                                     "Das oben angezeigte Standard-normalisierte EPS bleibt ausschließlich Diagnosekontext und ist keine freigegebene Bewertungsbasis. "
-                                    "Die freigegebene Familien-Gewinnbasis des laufenden Geschäftsjahres V1 wird separat im Zahlungsabwickler-Spezialmodell in Schritt 3B ausgewiesen."
+                                    "Die Familien-Gewinnbasis des laufenden Geschäftsjahres wird separat im Zahlungsabwickler-Spezialmodell ausgewiesen und bei neuen Emittenten erst nach issuer-primary Evidenzprüfung freigegeben."
                                 )
                             else:
                                 st.caption(
@@ -66641,7 +66846,7 @@ if selected_symbol:
                             "Provider-Wachstum bleibt Diagnosekontext; das freigegebene Holding-Familienmodell bewertet stattdessen issuer-primary NAV, P/NAV-Historie, Leverage, Konzentration, Kosten und Peer-Evidenz."
                             if is_released_listed_holding_family(company_type)
                             else (
-                                "Datenanbieter-Wachstum bleibt Diagnosekontext; die freigegebene Zahlungsabwickler-Familien-Qualitätspunktzahl V1 bewertet Ertragsökonomie und Umsatz-Umwandlung bereits separat in Schritt 3B."
+                                "Datenanbieter-Wachstum bleibt Diagnosekontext; bei einem neuen Zahlungsabwickler werden Ertragsökonomie und Umsatz-Umwandlung erst nach issuer-primary Evidenzzuordnung im Familien-Score freigegeben."
                                 if (company_type or {}).get("valuation_family_id") == "payments_processor"
                                 else "Provider-Wachstum bleibt Diagnosekontext; Familienkennzahlen und eine vergleichbare Primärdatenbasis müssen zuerst freigegeben werden."
                             )
@@ -66924,7 +67129,7 @@ if selected_symbol:
                             "Nettomarge und ROE bleiben Diagnosekontext; das freigegebene Holding-Familienmodell beurteilt die Bewertungsqualität über NAV-/P/NAV-Evidenz, Holding-Leverage, Konzentration, Kosten und Peers."
                             if is_released_listed_holding_family(company_type)
                             else (
-                                "Datenanbieter-Nettomarge und ROE bleiben Diagnosekontext; Margenqualität und Margentrend werden bereits in der freigegebenen Zahlungsabwickler-Familien-Qualitätspunktzahl V1 in Schritt 3B bewertet."
+                                "Datenanbieter-Nettomarge und ROE bleiben Diagnosekontext; Margenqualität und Margentrend werden bei einem neuen Zahlungsabwickler erst nach same-basis issuer-primary Evidenzzuordnung im Familien-Score freigegeben."
                                 if (company_type or {}).get("valuation_family_id") == "payments_processor"
                                 else "Profitabilität wird erst über die familiengerechten Kennzahlen des freigegebenen Family Models bewertet."
                             )
@@ -67346,7 +67551,7 @@ if selected_symbol:
                                 "Yahoo-FCF bleibt Diagnosekontext; das freigegebene Holding-Familienmodell bewertet NAV, Leverage, Konzentration, Kosten und P/NAV-Evidenz statt industrieller FCF-Margen."
                                 if is_released_listed_holding_family(company_type)
                                 else (
-                                    "Yahoo-FCF bleibt Diagnosekontext; emittenteneigene Cashflow-Umwandlung, bereinigter FCF und CapEx-Intensität werden bereits in der freigegebenen Zahlungsabwickler-Familien-Qualitätspunktzahl V1 in Schritt 3B bewertet."
+                                    "Yahoo-FCF bleibt Diagnosekontext; Cashflow-Umwandlung, bereinigter FCF und CapEx-Intensität müssen für einen neuen Zahlungsabwickler zuerst issuer-primary belegt werden, bevor der Familien-Score freigegeben wird."
                                     if (company_type or {}).get("valuation_family_id") == "payments_processor"
                                     else "Yahoo-FCF bleibt Diagnosekontext; das Family Model muss zuerst eine geschäftsmodellgerechte Cashflow-/Kapitalmetrik definieren."
                                 )
@@ -67718,7 +67923,7 @@ if selected_symbol:
                                 "Bilanz-/Kapitalqualität wird im freigegebenen Holding-Familienmodell über issuer-primary Holding-Leverage und die zugehörigen Evidenz-Gates bewertet."
                                 if is_released_listed_holding_family(company_type)
                                 else (
-                                    "Bilanz- und Kapitalqualität werden bereits subprofilgerecht im freigegebenen Zahlungsabwickler-Block Kapital/Struktur bewertet; generisches Netto-Schulden/FCF bleibt ausgeschlossen."
+                                    "Bilanz- und Kapitalqualität werden bei einem neuen Zahlungsabwickler erst nach subprofilgerechter issuer-primary Evidenzzuordnung freigegeben; generisches Netto-Schulden/FCF bleibt ausgeschlossen."
                                     if (company_type or {}).get("valuation_family_id") == "payments_processor"
                                     else "Bilanz-/Kapitalqualität wird erst mit den familiengerechten Kennzahlen des freigegebenen Family Models bewertet."
                                 )
@@ -70996,10 +71201,17 @@ if selected_symbol:
                                 "✅ Familien-Punktzahl · ✅ Gewinnbasis · ✅ Ziel-KGV vor Peer · ✅ Vergleichsgruppen-Kalibrierung V187 · ✅ Fairer Wert · ✅ Bewertungszonen · ✅ Signal-Logik V1"
                             )
                         else:
-                            st.warning(
-                                f"Bewertungsfamilie erkannt: {company_type.get('valuation_family') or company_type.get('type')}. "
-                                "Das wiederverwendbare Familienmodell ist in diesem Build noch nicht freigegeben."
-                            )
+                            if company_type.get("family_evidence_pending"):
+                                st.info(
+                                    f"Bewertungsfamilie erkannt: {company_type.get('valuation_family') or company_type.get('type')}. "
+                                    "Das Familienmodell ist freigegeben; für diesen Emittenten ist die notwendige issuer-primary Evidenz/Gewinnbasis noch nicht vollständig zugeordnet. "
+                                    "Deshalb bleiben Score, Ziel-Multiple, Fair Value, Zonen und Signale dieses Titels gesperrt."
+                                )
+                            else:
+                                st.warning(
+                                    f"Bewertungsfamilie erkannt: {company_type.get('valuation_family') or company_type.get('type')}. "
+                                    "Das wiederverwendbare Familienmodell ist in diesem Build noch nicht freigegeben."
+                                )
                         st.write(
                             "**Bewertungsschutz:** Generischer Wachstumsscore, Nettomargen-/ROE-Punktzahl, Yahoo-FCF-Marge, "
                             "Netto-Schulden/FCF und Standard-KGV bleiben ausgeschlossen. Maßgeblich sind ausschließlich die freigegebenen Bausteine der Bewertungsfamilie."
