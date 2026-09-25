@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.15"
+APP_BUILD_VERSION = "V2.23.16"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,13 +946,14 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Family Eligibility & Evidence Gate V211"
+    f"Build {APP_BUILD_VERSION} · Universal Insurance Evidence & Subprofile Routing V212"
 )
 
 
 # V2.22.98: Zahlungsabwickler-Sicherheitsentkopplung V194. Bei vollständig freigegebenem Zahlungsabwickler-Spezialpfad bleibt die generische TTM-/Prognose-EPS-Divergenz ausschließlich Diagnosekontext und darf die endgültige Bewertungssicherheit nicht mehr begrenzen. Maßgeblich sind Methodenobergrenze, freigegebene Familien-Gewinnbasis, Sicherheit des Familien-Ziel-KGV und Spezialkontrolle. Bewertungsmathematik, Peer-Kalibrierung, Gewinnbasis, Ziel-KGV, Fair Values und Signal-Gates bleiben unverändert.
 # V2.23.02: Unabhängiger Gegencheck V2 V198. Härtet die nicht steuernde Zahlungsabwickler-Kontrollsicht nach Live-Tests mit Global Payments, PayPal, Adyen und Fiserv: Analystenabweichungen werden richtungs- und größenordnungsspezifisch formuliert; die feste 8x/10x-Bewertung wird entfernt und das aktuelle Markt-KGV nur noch als marktimplizierter Kontext gezeigt, solange keine gleichbasige historische Eigenreihe belastbar verfügbar ist; der rohe Kern-Vergleichsgruppen-Check erhält eine Streuungs-/Vergleichbarkeitssperre und darf bei heterogener KGV-Spanne weder Bestätigung noch Widerspruch erzeugen. Das Gesamtergebnis zählt nur belastbare Kontrollen. Fair Value, Ziel-KGV, Qualität, Sicherheit, Bewertungszonen und Kaufen/Halten/Verkaufen bleiben unverändert.
 # V2.23.04: Zahlungsabwickler-Sicherheitsobergrenze V200. Die allgemeine Methoden-/Spezialkontroll-Obergrenze der vollständig freigegebenen Zahlungsabwickler-Referenzprofile wird von „Niedrig bis Mittel“ auf „Mittel“ angehoben. Die in V199 gehärtete Regel „schwächste relevante Sicherheitsstufe gewinnt“ bleibt unverändert. Emittentenspezifische niedrigere Stufen bleiben wirksam; insbesondere behält Fiserv wegen seiner Ziel-KGV-Sicherheit „Niedrig bis Mittel“ die niedrigere Gesamtbewertungssicherheit. Score, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Value, Bewertungszonen und Signal-Schwellen bleiben unverändert.
+# V2.23.16: Universal Insurance Evidence & Subprofile Routing V212. Generalisiert den Versicherungs-Spezialpfad auf eine gemeinsame Evidenzschicht für Core-, Underlying- und issuer-reported IFRS-Earnings, routet Primary/Diversified Insurance gegenüber Reinsurance über das erkannte Unterprofil statt über Ticker-Sonderlogik, verwendet die nicht annualisierte FY-H1+H1-TTM-Brücke universell und hält Standard-EPS/Yahoo-FCF/Net-Debt-to-FCF strikt im Diagnosekontext. AXA und Hannover Re werden als verifizierte Primärdaten-Snapshots in dieselbe Familienengine aufgenommen; Allianz und Munich Re behalten ihre eingefrorenen numerischen Inputs. Reinsurance verwendet familienweit 1,1–2,2x P/B und 7,0–11,5x TTM-KGV.
 # V2.23.15: Universal Family Eligibility & Evidence Gate V211. Härtet die Wiederverwendbarkeit der bereits freigegebenen Semiconductor-Equipment- und Payments-Processor-Familien außerhalb ihrer Referenzemittenten. Neue Semicap-Titel werden nicht mehr wegen fehlender Ticker-Whitelist als unreleased family behandelt, sondern laufen in das bestehende Familienmodell und bleiben bei fehlendem issuer-primary Snapshot sauber evidence-gated. Ein konservativer, geschäftsmodellbasierter Payments-Processor-Precedence-Guard kann Merchant-Acquiring/End-to-End-Payment-Processing gegenüber groben Provider-Branchen wie Software - Infrastructure priorisieren, ohne FOUR/Nexi als Familien-Whitelist einzubauen. Unsupported Payments-Familienmitglieder werden als released-family/evidence-pending ausgewiesen; Standard-Score, Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV, Fair Value und Signale bleiben gesperrt. Die freigegebenen Score-, Earnings-, Multiple-, Peer-, Fair-Value- und Signalformeln der vier Semicap- und vier Payments-Referenzwerte bleiben unverändert.
 # V2.23.14: Insurance Loader-Hotfix V210. Reiner Loader-Fix auf V209: initialisiert adapter_diagnostic im bestehenden Versicherungs-Spezialmodell, damit unterstützte Versicherer wie Allianz und Munich Re nicht mehr beim Return mit NameError abbrechen. Keine Änderung an Versicherungs-Score, Dual-Anchor-Bewertung, Semiconductor Equipment oder anderen eingefrorenen Bewertungsfamilien.
 # V2.23.12: Semiconductor Equipment NTM-Horizont & Datenkonsistenz V208. Ersetzt im freigegebenen Semiconductor-Equipment-Familienmodell die starre Current-FY-Gewinnbasis durch eine zeitgewichtete Next-Twelve-Months-(NTM)-EPS-Basis aus validiertem Current-FY- und Next-FY-Konsens sowie issuer-spezifischem Fiskaljahresende; bei fehlender oder abgelaufener Horizon-Evidenz fail-closed Current-FY-Fallback. Sperrt generische FCF-/Bilanzscores in der Datenpipeline, bereinigt FCF-Quellenhinweise und generische EPS-Divergenz-Warnungen, zeigt EPS-Währungen im Analystenziel-Gegencheck, priorisiert KLA Corporation auf KLAC/Nasdaq statt KLA.DE/Xetra, vereinheitlicht den KLA-FY2026-Primärdatenblock inklusive 41,7 % Operating Margin und hält 22–34x-Korridor, Scorearchitektur und Peer-Reference-only-Regel unverändert.
@@ -7775,7 +7776,7 @@ def _infer_universal_family_from_existing_type(company_type, name_text=""):
         ("asset manager / investment management", "asset_manager"),
         ("credit bureau / data & analytics", "credit_data_analytics"),
         ("bank", "bank"),
-        ("versicherung", "reinsurance" if ("munich re" in name_text or "rück" in name_text or "reinsurance" in name_text) else "insurance"),
+        ("versicherung", "reinsurance" if ("rück" in name_text or "reinsurance" in name_text or "reinsurer" in name_text) else "insurance"),
         ("reit", "reit"),
         ("immobilien", "reit"),
         ("midstream", "midstream"),
@@ -8516,6 +8517,21 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
             )
             out["business_model"] = "Semiconductor-Equipment-Anbieter; Unterprofil wird erst aus belastbarer issuer-primary Produkt-/Service-/Tool-Mix-Evidenz freigegeben."
             out["focus_areas"] = "Nachfrage/Zyklus/Guidance · Margenqualität · Installed Base/Service · Technologie-/Tool-Mix · issuer-native FCF/Cash Conversion · Bilanz/Kapitalallokation · Execution"
+        elif family_id in {"insurance", "reinsurance"}:
+            # V212: Insurance is a released family architecture. Issuer evidence is
+            # fail-closed independently; the valuation corridor is selected by subprofile.
+            out["family_model_status"] = "released_family_evidence_gate"
+            out["family_model_ready"] = True
+            out["family_model_released"] = True
+            out["family_validation_status"] = "insurance_v212_multi_issuer_subprofile_routing"
+            out["universal_family_fail_closed"] = False
+            out["insurance_subprofile"] = family_id
+            out["confidence_cap"] = "Mittel bis Hoch"
+            out["method"] = (
+                "Universelles Reinsurance-Evidenzmodell: issuer-spezifisches TTM-EPS + 1,1–2,2× P/B + 7,0–11,5× TTM-KGV Doppelanker"
+                if family_id == "reinsurance"
+                else "Universelles Insurance-Evidenzmodell: issuer-spezifisches TTM-EPS + 1,0–2,8× P/B + 8,0–14,0× TTM-KGV Doppelanker"
+            )
         elif family_id == "asset_manager":
             # V99: two independent main issuers (TROW + BLK) have passed end-to-end,
             # but the family is not yet globally released because issuer-primary
@@ -14223,23 +14239,25 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel bis Hoch"
         }
 
-    # Versicherungen
+    # Versicherungen – V212: Unterprofil nach Geschäftsmodell/Branche, nie nach Ticker.
     if (
         "insurance" in industry_text
         or "insurer" in combined
     ):
-        if symbol_text in {"MUV2.DE", "MUV2.F", "MUV2.HM", "MUV2.DU", "MUV2.BE", "MUV2.MU", "MUV2.SG"}:
-            return {
-                "type": "Versicherung",
-                "method": (
-                    "Munich-Re-Primärquellen: reported TTM EPS + Reinsurer-KGV + "
-                    "offizieller Buchwert / P-B Dual-Anchor"
-                ),
-                "confidence_cap": "Mittel bis Hoch"
-            }
+        is_reinsurance = (
+            "reinsurance" in industry_text
+            or "reinsurer" in combined
+            or "rückversicher" in combined
+            or "hannover rück" in name_text
+            or "munich re" in name_text
+        )
         return {
             "type": "Versicherung",
-            "method": "Core-TTM-EPS + Core-KGV + Buchwert / KBV",
+            "method": (
+                "Versicherungsspezifisches TTM-EPS + Reinsurance-KGV + offizieller Buchwert / P-B Doppelanker"
+                if is_reinsurance
+                else "Versicherungsspezifisches TTM-EPS + KGV + offizieller Buchwert / P-B Doppelanker"
+            ),
             "confidence_cap": "Mittel bis Hoch"
         }
 
@@ -16206,7 +16224,7 @@ def normalize_eps(
 # Versicherungs-Sondermodell V2.20.44 – Dual-Anchor Valuation
 # =========================================================
 
-def get_verified_insurance_snapshot(symbol):
+def _get_legacy_verified_insurance_snapshot(symbol):
     """
     Time-bounded official primary-source snapshot for supported insurers.
 
@@ -16441,6 +16459,211 @@ def get_verified_insurance_snapshot(symbol):
     }
 
 
+# =========================================================
+# V2.23.16 / V212 – Universal Insurance Evidence Registry
+# =========================================================
+# Issuer snapshots are data/evidence only. Valuation logic is selected by the
+# insurance subprofile (primary/diversified vs reinsurance), never by ticker.
+# This keeps AXA/Hannover Re from becoming separate valuation branches.
+INSURANCE_V212_PRIMARY_SOURCE_REGISTRY = (
+    {
+        "symbols": {"CS.PA"},
+        "snapshot": {
+            "company": "AXA SA / AXA Group",
+            "profile_key": "diversified_insurance_underlying",
+            "insurance_subprofile": "primary_diversified",
+            "integration_version": "v22316_universal_insurance_evidence_v212",
+            "earnings_basis_label": "Underlying",
+            "earnings_metric_label": "Underlying Earnings / EPS",
+            "roe_metric_label": "Underlying RoE",
+            "earnings_ttm_label": "Underlying-TTM",
+            "earnings_multiple_label": "Underlying-TTM-KGV",
+            "score_growth_label": "Underlying EPS-Wachstum",
+            "as_of_date": "30.06.2026",
+            "published_date": "31.07.2026",
+            "valid_until": "28.10.2026",
+            "next_financial_event_date": "29.10.2026",
+            "next_financial_event_label": "9M 2026 Activity Indicators",
+            "next_financial_event_source_url": "https://www.axa.com/investor/results",
+            "source_name": "AXA Half Year 2026 Earnings + Half-Year Financial Report",
+            "source_url": "https://www.axa.com/en/news/half-year-earnings-2026-news",
+            "interim_report_url": "https://www.axa.com/investor/half-year-financial-reports",
+            "period_label": "6M 2026",
+            # Schema-neutral mapping: AXA calls these Underlying Earnings/EPS/RoE.
+            "shareholders_core_net_income": 4.5e9,
+            "shareholders_core_net_income_prior": 4.5e9 / 1.04,
+            "shareholders_core_net_income_growth_pct": 4.0,
+            "shareholders_net_income": None,
+            "basic_eps_reported": None,
+            "core_eps_basic": 2.19,
+            "core_eps_basic_prior": 2.03,
+            "core_eps_growth_pct": 8.0,
+            "core_roe_annualized_pct": 18.3,
+            "solvency_ii_ratio_pct": 218.0,
+            "solvency_ii_prior_pct": 215.0,
+            "solvency_ii_change_pp": 3.0,
+            # TTM = FY2025 - H1 2025 + H1 2026. No annualisation.
+            "core_eps_fy_2025": 3.86,
+            "core_eps_h1_2025": 2.03,
+            "core_eps_h1_2026": 2.19,
+            "core_net_income_fy_2025": 8.4e9,
+            "core_net_income_h1_2025": 4.5e9,
+            "core_net_income_h1_2026": 4.5e9,
+            "fy_2025_source_name": "AXA Full Year 2025 Earnings",
+            "fy_2025_source_url": "https://www.axa.com/press/press-releases/2025-full-year-earnings",
+            "h1_2025_source_name": "AXA Half Year 2025 Earnings",
+            "h1_2025_source_url": "https://www.axa.com/press/press-releases/half-year-2025-earnings",
+            # Cross-insurer comparable Group shareholders' equity / shares outstanding.
+            # H1 2026: EUR 44.692bn / (2,090,857,868 issued - ~67.8m treasury).
+            "shareholders_equity_2026_h1": 44.692e9,
+            "shares_2026_h1": 2_023_057_868,
+            # FY2025: EUR 47.2bn / issued shares less treasury shares.
+            "shareholders_equity_2025_fy": 47.2e9,
+            "shares_2025_fy": 2_055_372_364,
+            # FY2024: EUR 49.9bn / issued shares less treasury shares.
+            "shareholders_equity_2024_fy": 49.9e9,
+            "shares_2024_fy": 2_175_367_655,
+            "capital_structure_source_name": "AXA FY2025/H1 2026 Shareholders' Equity + Capital Ownership",
+            "capital_structure_source_url": "https://www.axa.com/investor/capital-ownership",
+            "score_roe_pct": 18.3,
+            "score_eps_growth_pct": 8.0,
+            "underlying_core_roe_pct": 18.3,
+            "underlying_core_eps_growth_pct": 8.0,
+            "underlying_adjustment_active": False,
+            "dividend_2025_per_share": 2.32,
+            "book_weight": 0.55,
+            "core_pe_weight": 0.45,
+            "pb_corridor_lower": 1.00,
+            "pb_corridor_upper": 2.80,
+            "core_pe_corridor_lower": 8.00,
+            "core_pe_corridor_upper": 14.00,
+            "valuation_profile_note": (
+                "Diversified/primary-insurer corridor; 55/45 Dual-Anchor weighting unchanged."
+            ),
+            "source_note": (
+                "V212 maps AXA's issuer-defined Underlying Earnings/EPS/RoE into the common insurance evidence schema. "
+                "The valuation engine remains family-generic; Yahoo EPS/FCF/ROE are context only."
+            ),
+        },
+    },
+    {
+        "symbols": {"HNR1.DE"},
+        "snapshot": {
+            "company": "Hannover Rück SE / Hannover Re",
+            "profile_key": "reinsurance_reported_ifrs",
+            "insurance_subprofile": "reinsurance",
+            "integration_version": "v22316_universal_insurance_evidence_v212",
+            "earnings_basis_label": "issuer-reported IFRS",
+            "earnings_metric_label": "Group Net Income / EPS",
+            "roe_metric_label": "RoE",
+            "earnings_ttm_label": "Reported-TTM",
+            "earnings_multiple_label": "Reported-TTM-KGV",
+            "score_growth_label": "FY2025 EPS-Wachstum",
+            "as_of_date": "30.06.2026",
+            "published_date": "12.08.2026",
+            "valid_until": "08.11.2026",
+            "next_financial_event_date": "09.11.2026",
+            "next_financial_event_label": "Zwischenmitteilung zum 30.09.2026",
+            "next_financial_event_source_url": "https://www.hannover-re.com/en/investors/",
+            "source_name": "Hannover Re Half-Year 2026 Results",
+            "source_url": "https://www.hannover-re.com/en/news/2026/hannover-re-generates-very-good-half-year-result-and-remains-on-track-to-achieve-full-year-guidance",
+            "period_label": "6M 2026",
+            "shareholders_core_net_income": 1.4e9,
+            "shareholders_core_net_income_prior": 1.4e9 / 1.07,
+            "shareholders_core_net_income_growth_pct": 7.0,
+            "shareholders_net_income": 1.4e9,
+            "basic_eps_reported": 11.66,
+            "core_eps_basic": 11.66,
+            "core_eps_basic_prior": 10.90,
+            "core_eps_growth_pct": 7.0,
+            "core_roe_annualized_pct": 21.5,
+            "solvency_ii_ratio_pct": 254.0,
+            "solvency_ii_prior_pct": 256.0,
+            "solvency_ii_change_pp": -2.0,
+            "core_eps_fy_2025": 21.90,
+            "core_eps_h1_2025": 10.90,
+            "core_eps_h1_2026": 11.66,
+            "core_net_income_fy_2025": 2.6e9,
+            "core_net_income_h1_2025": 1.4e9 / 1.07,
+            "core_net_income_h1_2026": 1.4e9,
+            "fy_2025_source_name": "Hannover Re Annual Results 2025",
+            "fy_2025_source_url": "https://www.hannover-re.com/en/news/2026/hannover-re-increases-earnings-and-dividend-reinforces-sustained-profitability-significantly/",
+            "h1_2025_source_name": "Hannover Re Half-Year 2025 Results",
+            "h1_2025_source_url": "https://www.hannover-re.com/en/news/2025/hannover-re-increases-half-year-result-and-further-strengthens-balance-sheet-resilience/",
+            "book_value_per_share_2026_h1": 110.00,
+            "book_value_per_share_2025_fy": 107.21,
+            "book_value_per_share_2024_fy": 97.80,
+            "capital_structure_source_name": "Hannover Re H1 2026 / Annual Results 2025",
+            "capital_structure_source_url": "https://www.hannover-re.com/en/investors/results-and-reports/",
+            "score_roe_pct": 21.5,
+            "score_eps_growth_pct": 13.4,
+            "underlying_core_roe_pct": 21.5,
+            "underlying_core_eps_growth_pct": 13.4,
+            "underlying_adjustment_active": False,
+            "dividend_2025_per_share": 12.50,
+            "net_result_guidance_2026": 2.7e9,
+            "combined_ratio_pc_re_h1_pct": 83.2,
+            "pb_corridor_lower": 1.10,
+            "pb_corridor_upper": 2.20,
+            "core_pe_corridor_lower": 7.00,
+            "core_pe_corridor_upper": 11.50,
+            "book_weight": 0.55,
+            "core_pe_weight": 0.45,
+            "valuation_profile_note": (
+                "Reinsurance corridor selected by subprofile, not issuer ticker; 55/45 Dual-Anchor weighting unchanged."
+            ),
+            "source_note": (
+                "V212 maps Hannover Re's issuer-reported IFRS earnings/EPS, RoE, Solvency II and book value into the common "
+                "reinsurance evidence schema. No Hannover-Re-specific valuation branch is used."
+            ),
+        },
+    },
+)
+
+
+def get_verified_insurance_snapshot(symbol):
+    """Resolve verified insurance evidence through a data registry, then legacy snapshots.
+
+    V212 separates issuer evidence from valuation logic. The snapshot may use
+    Core, Underlying or reported IFRS earnings; downstream logic consumes the
+    common schema plus ``insurance_subprofile`` and presentation labels.
+    """
+    symbol_text = str(symbol or "").upper().strip()
+    for entry in INSURANCE_V212_PRIMARY_SOURCE_REGISTRY:
+        if symbol_text in entry.get("symbols", set()):
+            return dict(entry.get("snapshot") or {})
+
+    snapshot = _get_legacy_verified_insurance_snapshot(symbol)
+    if not isinstance(snapshot, dict):
+        return None
+
+    # Enrich frozen legacy snapshots without changing their numerical inputs.
+    snapshot = dict(snapshot)
+    if snapshot.get("profile_key") == "munich_re_reinsurance":
+        snapshot.setdefault("insurance_subprofile", "reinsurance")
+        snapshot.setdefault("earnings_ttm_label", "Reported-TTM")
+        snapshot.setdefault("earnings_multiple_label", "Reported-TTM-KGV")
+        snapshot.setdefault("earnings_basis_label", "issuer-reported IFRS")
+    else:
+        snapshot.setdefault("profile_key", "diversified_insurance_core")
+        snapshot.setdefault("insurance_subprofile", "primary_diversified")
+        snapshot.setdefault("earnings_ttm_label", "Core-TTM")
+        snapshot.setdefault("earnings_multiple_label", "Core-KGV")
+        snapshot.setdefault("earnings_basis_label", "Core")
+        snapshot.setdefault("earnings_metric_label", "Core Earnings / EPS")
+        snapshot.setdefault("roe_metric_label", "Core RoE")
+    snapshot.setdefault("integration_version", "v22316_universal_insurance_evidence_v212")
+    if snapshot.get("profile_key") == "munich_re_reinsurance":
+        snapshot.setdefault("next_financial_event_date", "12.11.2026")
+        snapshot.setdefault("next_financial_event_label", "Quartalsmitteilung zum 30.09.2026")
+        snapshot.setdefault("next_financial_event_source_url", "https://www.munichre.com/de/unternehmen/investoren/terminkalender.html")
+    elif "ALLIANZ" in str(snapshot.get("company") or "").upper():
+        snapshot.setdefault("next_financial_event_date", "12.11.2026")
+        snapshot.setdefault("next_financial_event_label", "3Q 2026 Ergebnisse")
+        snapshot.setdefault("next_financial_event_source_url", "https://www.allianz.com/de/investor_relations/konferenzen-praesentationen/finanzkalender.html")
+    return snapshot
+
+
 def _insurance_snapshot_is_fresh(snapshot):
     if not isinstance(snapshot, dict):
         return False
@@ -16607,7 +16830,7 @@ def build_insurance_book_value_bridge(snapshot, yahoo_book_value=None):
         "source_mode": book_value_source_mode,
         "note": (
             (
-                "Offizieller Buchwert-Abgleich: Der direkt von Munich Re berichtete Carrying Amount je Aktie "
+                f"Offizieller Buchwert-Abgleich: Der direkt von {snapshot.get('company') or 'dem Versicherer'} berichtete Buchwert je Aktie "
                 "wird als Buchwertanker verwendet. Für den Score wird die abgeschlossene FY2025-Entwicklung "
                 "gegenüber FY2024 verwendet; 6M 2026 wird nicht annualisiert."
             )
@@ -16797,7 +17020,7 @@ INSURANCE_VALUATION_INTEGRATION_VERSION = "v22044_insurance_dual_anchor"
 
 
 def calculate_insurance_dual_anchor_valuation(snapshot, core_coverage, book_bridge, insurance_score):
-    """V2.20.44 insurer valuation: official BV/P-B + Core-TTM EPS/Core-P-E.
+    """V212 insurer valuation: official BV/P-B + issuer-specific TTM EPS/P-E.
 
     Fail closed when the primary-source chain is incomplete or the two
     valuation anchors diverge by more than 25%.
@@ -16818,10 +17041,9 @@ def calculate_insurance_dual_anchor_valuation(snapshot, core_coverage, book_brid
         "fair_value_core_pe_financial": None,
         "book_weight": safe_float((snapshot or {}).get("book_weight")) or 0.55,
         "core_pe_weight": safe_float((snapshot or {}).get("core_pe_weight")) or 0.45,
-        "earnings_basis_label": (snapshot or {}).get("earnings_basis_label") or "Core",
-        "earnings_multiple_label": (
-            "Reported-TTM-KGV" if (snapshot or {}).get("profile_key") == "munich_re_reinsurance" else "Core-KGV"
-        ),
+        "earnings_basis_label": (snapshot or {}).get("earnings_basis_label") or "Versicherungsspezifisch",
+        "earnings_ttm_label": (snapshot or {}).get("earnings_ttm_label") or "Insurance-TTM",
+        "earnings_multiple_label": (snapshot or {}).get("earnings_multiple_label") or "Versicherungs-TTM-KGV",
         "anchor_spread_pct": None,
         "fair_value_financial": None,
         "release_reason": None,
@@ -16832,7 +17054,7 @@ def calculate_insurance_dual_anchor_valuation(snapshot, core_coverage, book_brid
         result["note"] = "Versicherungsbewertung gesperrt: Primärquellen-Snapshot fehlt."
         return result
     if not (core_coverage or {}).get("available"):
-        result["note"] = "Versicherungsbewertung gesperrt: Core-TTM-Abdeckung fehlt."
+        result["note"] = "Versicherungsbewertung gesperrt: versicherungsspezifische TTM-Abdeckung fehlt."
         return result
     if not (book_bridge or {}).get("available"):
         result["note"] = "Versicherungsbewertung gesperrt: offizieller Buchwert-Abgleich fehlt."
@@ -16847,7 +17069,7 @@ def calculate_insurance_dual_anchor_valuation(snapshot, core_coverage, book_brid
     yahoo_dev = safe_float(book_bridge.get("yahoo_book_value_deviation_pct"))
 
     if score is None or score < 0 or score > 100 or bvps is None or bvps <= 0 or core_ttm_eps is None or core_ttm_eps <= 0:
-        result["note"] = "Versicherungsbewertung gesperrt: Score, Buchwert oder Core-TTM-EPS sind nicht plausibel."
+        result["note"] = "Versicherungsbewertung gesperrt: Score, Buchwert oder versicherungsspezifisches TTM-EPS sind nicht plausibel."
         return result
 
     # The official BVPS is the valuation anchor. A material Yahoo-vs-official
@@ -16886,7 +17108,7 @@ def calculate_insurance_dual_anchor_valuation(snapshot, core_coverage, book_brid
             "anchor_spread_pct": anchor_spread_pct,
             "release_reason": "anchor_gap",
             "note": (
-                "Versicherungsbewertung gesperrt: Buchwert/P-B- und Core-KGV-Anker "
+                f"Versicherungsbewertung gesperrt: Buchwert/P-B- und {snapshot.get('earnings_multiple_label') or 'Versicherungs-TTM-KGV'}-Anker "
                 f"liegen {anchor_spread_pct:.1f} % auseinander; maximal 25 % sind zulässig."
             ),
         })
@@ -16914,23 +17136,14 @@ def calculate_insurance_dual_anchor_valuation(snapshot, core_coverage, book_brid
         "fair_value_financial": fair_value,
         "book_weight": book_weight,
         "core_pe_weight": core_pe_weight,
-        "earnings_basis_label": snapshot.get("earnings_basis_label") or "Core",
-        "earnings_multiple_label": (
-            "Reported-TTM-KGV" if snapshot.get("profile_key") == "munich_re_reinsurance" else "Core-KGV"
-        ),
+        "earnings_basis_label": snapshot.get("earnings_basis_label") or "Versicherungsspezifisch",
+        "earnings_ttm_label": snapshot.get("earnings_ttm_label") or "Insurance-TTM",
+        "earnings_multiple_label": snapshot.get("earnings_multiple_label") or "Versicherungs-TTM-KGV",
         "release_reason": "passed",
         "note": (
-            (
-                "Bewertungsfreigabe JA: Versicherungs-Score sowie offizieller P/B- und "
-                "Reported-TTM-KGV-Anker sind vollständig und ausreichend konsistent. Der "
-                "Munich-Re-Dual-Anchor-Fair-Value ist freigegeben."
-            )
-            if snapshot.get("profile_key") == "munich_re_reinsurance"
-            else (
-                "Bewertungsfreigabe JA: Versicherungs-Score sowie offizieller P/B- und "
-                "Core-KGV-Anker sind vollständig und ausreichend konsistent. Der "
-                "Dual-Anchor-Fair-Value ist freigegeben."
-            )
+            "Bewertungsfreigabe JA: Versicherungs-Score sowie offizieller P/B- und "
+            f"{snapshot.get('earnings_multiple_label') or 'Versicherungs-TTM-KGV'}-Anker sind vollständig und ausreichend konsistent. "
+            "Der universelle Versicherungs-Doppelanker ist freigegeben."
         ),
     })
     return result
@@ -16962,9 +17175,12 @@ def build_insurance_special_model(
     adapter_diagnostic = None
     snapshot_fresh = _insurance_snapshot_is_fresh(snapshot)
     insurance_profile_key = (snapshot or {}).get("profile_key")
-    is_munich_re_profile = insurance_profile_key == "munich_re_reinsurance"
-    earnings_basis_label = (snapshot or {}).get("earnings_basis_label") or "Core"
-    earnings_ttm_label = "Reported-TTM" if is_munich_re_profile else "Core-TTM"
+    insurance_subprofile = (snapshot or {}).get("insurance_subprofile") or (company_type or {}).get("insurance_subprofile")
+    is_reinsurance_profile = insurance_subprofile == "reinsurance" or (company_type or {}).get("valuation_family_id") == "reinsurance"
+    is_munich_re_profile = insurance_profile_key == "munich_re_reinsurance"  # compatibility/display only
+    earnings_basis_label = (snapshot or {}).get("earnings_basis_label") or "Versicherungsspezifisch"
+    earnings_ttm_label = (snapshot or {}).get("earnings_ttm_label") or ("Reported-TTM" if is_reinsurance_profile else "Insurance-TTM")
+    earnings_multiple_label = (snapshot or {}).get("earnings_multiple_label") or ("Reported-TTM-KGV" if is_reinsurance_profile else "Insurance-TTM-KGV")
 
     core_net_income = safe_float(
         (snapshot or {}).get("shareholders_core_net_income")
@@ -17388,9 +17604,14 @@ def build_insurance_special_model(
     return {
         "applicable": True,
         "profile_key": insurance_profile_key,
+        "insurance_subprofile": insurance_subprofile,
+        "is_reinsurance_profile": is_reinsurance_profile,
         "is_munich_re_profile": is_munich_re_profile,
         "earnings_basis_label": earnings_basis_label,
         "earnings_ttm_label": earnings_ttm_label,
+        "earnings_multiple_label": earnings_multiple_label,
+        "earnings_metric_label": (snapshot or {}).get("earnings_metric_label") or "Versicherungsergebnis / EPS",
+        "roe_metric_label": (snapshot or {}).get("roe_metric_label") or "RoE",
         "snapshot": snapshot,
         "snapshot_fresh": snapshot_fresh,
         "adapter_diagnostic": adapter_diagnostic,
@@ -17438,22 +17659,10 @@ def build_insurance_special_model(
         "insurance_score": insurance_score,
         "insurance_valuation": insurance_valuation,
         "note": (
-            (
-                "Munich Re Specialist V2.20.137 lädt issuer-reported IFRS Net Result/EPS, RoE, "
-                "Solvency II, die nicht annualisierte Reported-TTM-Brücke, offiziellen Buchwert, "
-                "Combined-Ratio-Kontext und den Versicherungs-Score. Der Dual-Anchor-Fair-Value "
-                "kombiniert 55 % offiziellen Buchwert/P-B mit 45 % Reported-TTM-EPS/KGV; "
-                "Yahoo-FCF/ROE/Buchwert bleiben reine Kontextwerte."
-            )
-            if is_munich_re_profile
-            else (
-                "Versicherungs-Sondermodell V2.20.44 lädt verifizierte Core Earnings/Core EPS, "
-                "Core RoE und Solvency II, die vollständige Core-TTM-Brücke, den offiziellen "
-                "Buchwert je Aktie und den 100-Punkte-Versicherungs-Score. Bei vollständiger "
-                "und konsistenter Datenbasis wird ein Dual-Anchor-Fair-Value aus 55 % offiziellem "
-                "Buchwert/P-B und 45 % Core-TTM-EPS/Core-KGV freigegeben. Die 6M-Daten werden "
-                "nicht annualisiert."
-            )
+            f"V212 Universal Insurance Evidence: {earnings_basis_label}-Ergebnisbasis, {earnings_ttm_label}-Brücke, "
+            "RoE, Solvency II und offizieller Buchwert werden in eine gemeinsame Versicherungs-Evidenzstruktur überführt. "
+            f"Unterprofil: {'Reinsurance' if is_reinsurance_profile else 'Primary/Diversified Insurance'}; "
+            "55/45-Doppelanker, Standard-FCF-Sperre und Fail-Closed-Gates bleiben unverändert."
         )
     }
 
@@ -17470,27 +17679,32 @@ def build_insurance_special_control(base_control, insurance_model):
     model = insurance_model if isinstance(insurance_model, dict) else {}
     snapshot = model.get("snapshot")
     is_munich_re_profile = bool(model.get("is_munich_re_profile"))
-    earnings_ttm_label = model.get("earnings_ttm_label") or "Core-TTM"
+    is_reinsurance_profile = bool(model.get("is_reinsurance_profile"))
+    earnings_ttm_label = model.get("earnings_ttm_label") or "Insurance-TTM"
+    earnings_multiple_label = model.get("earnings_multiple_label") or "Insurance-TTM-KGV"
 
-    if is_munich_re_profile:
-        control.update({
-            "control_name": "Munich Re / Reported-Earnings-, Solvency- & Kapitalprüfung",
-            "planned_checks": [
-                "Issuer-reported IFRS Net Result / Reported-TTM-EPS",
-                "H1 RoE / FY2025 EPS-Wachstum",
-                "Offizieller Buchwert / P-B",
-                "Solvency II",
-                "Combined Ratios / Reinsurance-Zyklus-Kontext",
-                "Dividende / Buyback / Ausschüttungsqualität",
-                "Munich-Re-Versicherungs-Score",
-            ],
-            "status": "Router aktiv – V2.20.137 Munich Re Reinsurance Specialist V1",
-            "note": (
-                "V2.20.137 trennt Yahoo-Kontextdaten von Munich-Re-Primärdaten. Reported-TTM-EPS, "
-                "offizieller Buchwert, RoE, Solvency II und reinsurer-spezifische Multiple-Korridore "
-                "werden nur aus verifizierten Primärquellen aufgebaut."
-            ),
-        })
+    control.update({
+        "control_name": (
+            "Reinsurance / Ergebnis-, Solvency- & Kapitalprüfung"
+            if is_reinsurance_profile
+            else "Insurance / Ergebnis-, Solvency- & Kapitalprüfung"
+        ),
+        "planned_checks": [
+            f"Versicherungsspezifisches Ergebnis / {earnings_ttm_label}-EPS",
+            "RoE / freigegebenes EPS-Wachstum",
+            "Offizieller Buchwert / P-B",
+            "Solvency II / Kapitalquote",
+            "Combined-Ratio-/Zyklus-Kontext" if is_reinsurance_profile else "Ertragsqualitäts-/Portfolio-Kontext",
+            "Dividende / Kapitalrückführung / Ausschüttungsqualität",
+            "Versicherungs-Score",
+        ],
+        "status": "Router aktiv – V212 Universal Insurance Evidence & Subprofile Routing",
+        "note": (
+            f"V212 trennt Yahoo-Kontextdaten von verifizierten Versicherungs-Primärdaten. {earnings_ttm_label}-EPS, "
+            f"offizieller Buchwert, RoE, Solvency II und {earnings_multiple_label}-Korridor werden ausschließlich "
+            "aus dem freigegebenen Unterprofil aufgebaut."
+        ),
+    })
 
     if not model.get("primary_source_complete"):
         control.update({
@@ -17501,8 +17715,8 @@ def build_insurance_special_control(base_control, insurance_model):
             "overall_status": "Nicht freigegeben",
             "snapshot": snapshot,
             "note": (
-                "Die Versicherungs-Primärdatenprüfung benötigt aktuelle Core Earnings/Core EPS, "
-                "Core RoE und Solvency II aus einer offiziellen Quelle. Fehlende Werte werden "
+                "Die Versicherungs-Primärdatenprüfung benötigt aktuelles versicherungsspezifisches Ergebnis/EPS, "
+                "RoE und Solvency II aus einer offiziellen Quelle. Fehlende Werte werden "
                 "nicht durch Nettogewinn, Standard-EPS, Yahoo-ROE oder Bilanz-Proxies ersetzt."
             ),
         })
@@ -17566,24 +17780,18 @@ def build_insurance_special_control(base_control, insurance_model):
             "insurance_valuation": insurance_valuation,
             "profile_key": model.get("profile_key"),
             "is_munich_re_profile": is_munich_re_profile,
+            "is_reinsurance_profile": is_reinsurance_profile,
+            "insurance_subprofile": model.get("insurance_subprofile"),
             "earnings_basis_label": model.get("earnings_basis_label"),
             "earnings_ttm_label": earnings_ttm_label,
+            "earnings_multiple_label": earnings_multiple_label,
+            "earnings_metric_label": model.get("earnings_metric_label"),
+            "roe_metric_label": model.get("roe_metric_label"),
         },
         "note": (
-            (
-                "Munich-Re-Schritt 3B V2.20.137 validiert issuer-reported IFRS-Earnings/EPS, "
-                "RoE, Solvency II, die nicht annualisierte Reported-TTM-Brücke, offiziellen "
-                "Buchwert sowie reinsurer-spezifische P/B- und KGV-Anker. Die Bewertung wird "
-                "nur bei vollständiger und konsistenter Dual-Anchor-Prüfung freigegeben."
-            )
-            if is_munich_re_profile
-            else (
-                "Versicherungs-Schritt 3B V2.20.44 validiert die offizielle Core-Earnings-/"
-                "Kapitalbasis, die nicht annualisierte Core-TTM-Brücke, den offiziellen "
-                "Buchwert-Abgleich, den 100-Punkte-Versicherungs-Score sowie getrennte "
-                "P/B- und Core-KGV-Anker. Die Bewertung wird nur bei vollständiger und "
-                "konsistenter Dual-Anchor-Prüfung freigegeben."
-            )
+            f"V212 Schritt 3B validiert die emittenteneigene {earnings_ttm_label}-Ergebnisbasis, RoE, Solvency II, "
+            f"offiziellen Buchwert sowie getrennte P/B- und {earnings_multiple_label}-Anker. "
+            "Die Bewertung wird nur bei vollständiger und konsistenter Doppelanker-Prüfung freigegeben."
         ),
     })
     return control
@@ -54223,7 +54431,7 @@ def calculate_fair_value_v1(
             "valuation_method": "insurance_dual_anchor",
             "normalized_eps": safe_float(insurance_valuation.get("core_ttm_eps")),
             "used_multiple": None,
-            "multiple_source": "Insurance Dual-Anchor P/B + Core-KGV",
+            "multiple_source": "Insurance Doppelanker P/B + TTM-KGV",
             "fair_value_financial": fair_value_financial,
             "fair_value_quote": fair_value_quote,
             "potential_pct": potential_pct,
@@ -54237,22 +54445,15 @@ def calculate_fair_value_v1(
             "book_weight": safe_float(insurance_valuation.get("book_weight")),
             "core_pe_weight": safe_float(insurance_valuation.get("core_pe_weight")),
             "anchor_spread_pct": safe_float(insurance_valuation.get("anchor_spread_pct")),
-            "earnings_basis_label": insurance_valuation.get("earnings_basis_label") or "Core",
-            "earnings_multiple_label": insurance_valuation.get("earnings_multiple_label") or "Core-KGV",
+            "earnings_basis_label": insurance_valuation.get("earnings_basis_label") or "Versicherungsspezifisch",
+            "earnings_ttm_label": insurance_valuation.get("earnings_ttm_label") or "Insurance-TTM",
+            "earnings_multiple_label": insurance_valuation.get("earnings_multiple_label") or "Versicherungs-TTM-KGV",
             "unit_conversion_applied": bool(unit_notes),
             "unit_note": " ".join(unit_notes) if unit_notes else None,
             "note": (
-                (
-                    "Munich-Re-Fair-Value V1 = 55 % offizieller Buchwert/P-B-Anker + "
-                    "45 % verifizierter Reported-TTM-EPS/KGV-Anker. Standard-FCF und "
-                    "klassische Netto-Schulden/FCF-Logik werden nicht verwendet."
-                )
-                if insurance_valuation.get("earnings_basis_label") == "issuer-reported IFRS"
-                else (
-                    "Versicherungs-Fair-Value V1 = 55 % offizieller Buchwert/P-B-Anker + "
-                    "45 % verifizierter Core-TTM-EPS/Core-KGV-Anker. Standard-FCF und "
-                    "klassische Netto-Schulden/FCF-Logik werden nicht verwendet."
-                )
+                "Versicherungs-Fair-Value V1 = 55 % offizieller Buchwert/P-B-Anker + 45 % verifizierter "
+                f"{insurance_valuation.get('earnings_ttm_label') or 'TTM'}-EPS/{insurance_valuation.get('earnings_multiple_label') or 'TTM-KGV'}-Anker. "
+                "Standard-FCF und klassische Netto-Schulden/FCF-Logik werden nicht verwendet."
             ),
         })
         return result
@@ -61315,8 +61516,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "multiple": None,
             "note": (
                 "Versicherungen verwenden kein einzelnes Standard-Fundamental-Multiple. "
-                "Der versicherungsspezifische Score steuert getrennte P/B- und Core-KGV-"
-                "Zielkorridore; die eigentliche Dual-Anchor-Bewertung erfolgt in Schritt 3B."
+                "Der versicherungsspezifische Score steuert getrennte P/B- und unterprofilabhängige TTM-KGV-"
+                "Zielkorridore; die eigentliche Doppelanker-Bewertung erfolgt in Schritt 3B."
             ),
         }
 
@@ -64063,8 +64264,16 @@ if selected_symbol:
                     compact_meta.append(
                         "Analystenziel " + format_currency_value(compact_target_mean, data.get("currency") or compact_quote_currency, 2) + " (nur Plausibilitätscheck)"
                     )
+                compact_insurance_snapshot = ((data.get("insurance_special_model") or {}).get("snapshot") or {})
+                compact_official_event_date = compact_insurance_snapshot.get("next_financial_event_date")
+                compact_official_event_label = compact_insurance_snapshot.get("next_financial_event_label")
                 compact_earnings_date = format_date(data.get("earnings_timestamp"))
-                if compact_earnings_date:
+                if compact_official_event_date:
+                    compact_event_text = "Nächste Quartalszahlen " + str(compact_official_event_date)
+                    if compact_official_event_label:
+                        compact_event_text += " · " + str(compact_official_event_label)
+                    compact_meta.append(compact_event_text)
+                elif compact_earnings_date:
                     compact_meta.append("Nächste Quartalszahlen voraussichtlich " + str(compact_earnings_date))
                 if compact_signal.get("available"):
                     compact_meta.append("Handlungssignal: " + text_or_dash(compact_signal.get("signal")))
@@ -65185,6 +65394,9 @@ if selected_symbol:
                         and insurance_core_coverage_ui.get("integration_version")
                         == INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION
                     )
+                    insurance_eps_context_ui = bool(
+                        insurance_model_eps_ui.get("applicable") and not insurance_core_eps_active
+                    )
 
                     utility_eps_context_ui = bool((data.get("regulated_utility_specialist_model") or {}).get("applicable"))
                     payment_network_eps_context_ui = bool((data.get("payment_network_specialist_model") or {}).get("applicable"))
@@ -65213,14 +65425,10 @@ if selected_symbol:
                         normalized_eps = safe_float(
                             insurance_core_coverage_ui.get("core_ttm_eps")
                         )
-                        normalized_eps_label = (
-                            "Versicherungs-Reported-TTM-EPS"
-                            if insurance_model_eps_ui.get("is_munich_re_profile")
-                            else "Versicherungs-Core-TTM-EPS"
-                        )
+                        normalized_eps_label = f"Versicherungs-{insurance_model_eps_ui.get('earnings_ttm_label') or 'TTM'}-EPS"
                     else:
                         normalized_eps = eps_result["normalized_eps"]
-                        normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (bank_eps_context_ui or capital_goods_eps_context_ui or exchange_eps_context_ui or universal_family_eps_context_ui or is_semicap_family_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or professional_services_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
+                        normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (bank_eps_context_ui or insurance_eps_context_ui or capital_goods_eps_context_ui or exchange_eps_context_ui or universal_family_eps_context_ui or is_semicap_family_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or professional_services_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
 
                     if normalized_eps is not None:
 
@@ -65249,18 +65457,12 @@ if selected_symbol:
                         )
                         st.info(format_bank_core_eps_note_for_display(bank_core_eps_ui, financial_currency))
                     elif insurance_core_eps_active:
-                        if insurance_model_eps_ui.get("is_munich_re_profile"):
-                            st.write(
-                                "**Verwendete Methode:** 12M 2025 reported IFRS EPS − 6M 2025 reported IFRS EPS + "
-                                "6M 2026 reported IFRS EPS; ausschließlich Munich-Re-Primärquellen, "
-                                "keine Annualisierung der Halbjahreswerte"
-                            )
-                        else:
-                            st.write(
-                                "**Verwendete Methode:** 12M 2025 Core EPS − 6M 2025 Core EPS + "
-                                "6M 2026 Core EPS; ausschließlich verifizierte Versicherungs-Primärquellen, "
-                                "keine Annualisierung der Halbjahreswerte"
-                            )
+                        basis_label_ui = insurance_model_eps_ui.get("earnings_basis_label") or "versicherungsspezifisches"
+                        st.write(
+                            f"**Verwendete Methode:** 12M 2025 {basis_label_ui} EPS − 6M 2025 {basis_label_ui} EPS + "
+                            f"6M 2026 {basis_label_ui} EPS; ausschließlich verifizierte Versicherungs-Primärquellen, "
+                            "keine Annualisierung der Halbjahreswerte"
+                        )
                         st.info(insurance_core_coverage_ui.get("note"))
                     else:
                         eps_method_display = eps_result['method']
@@ -66055,15 +66257,9 @@ if selected_symbol:
                         )
                     elif insurance_core_eps_active:
                         st.caption(
-                            (
-                                "Der Munich-Re-Reported-TTM-EPS-Wert ist die Gewinnbasis des Reinsurer-KGV-Ankers; "
-                                "die Fair-Value-Freigabe erfolgt ausschließlich über das Munich-Re-Dual-Anchor-Gate V2.20.137."
-                            )
-                            if insurance_model_eps_ui.get("is_munich_re_profile")
-                            else (
-                                "Der Versicherungs-Core-TTM-EPS-Wert ist die Gewinnbasis des Core-KGV-Ankers; "
-                                "die Fair-Value-Freigabe erfolgt ausschließlich über das Versicherungs-Dual-Anchor-Gate V2.20.44."
-                            )
+                            f"Der verifizierte {insurance_model_eps_ui.get('earnings_ttm_label') or 'Versicherungs-TTM'}-EPS-Wert ist die Gewinnbasis des "
+                            f"{insurance_model_eps_ui.get('earnings_multiple_label') or 'Versicherungs-KGV'}-Ankers; die Fair-Value-Freigabe erfolgt "
+                            "ausschließlich über das V212 Versicherungs-Doppelanker-Gate."
                         )
                     elif company_type.get("type") == "REIT / Immobilien":
                         st.caption(
@@ -66172,6 +66368,14 @@ if selected_symbol:
                             st.caption(
                                 "Das oben angezeigte Standard-normalisierte EPS bleibt ausschließlich Diagnosekontext. "
                                 "Gewinnbasis der Payment-Network-Bewertung ist nur die separat freigegebene issuer-primary Specialist Earnings Bridge."
+                            )
+                        elif insurance_eps_context_ui:
+                            insurance_eps_model_ui = data.get("insurance_special_model") or {}
+                            insurance_eps_ttm_ui = insurance_eps_model_ui.get("earnings_ttm_label") or "Insurance-TTM"
+                            st.caption(
+                                "Das oben angezeigte Standard-normalisierte EPS bleibt bei Versicherungen ausschließlich Diagnosekontext "
+                                "und ist keine freigegebene Bewertungsbasis. Gewinnbasis ist nur die separat verifizierte "
+                                f"versicherungsspezifische {insurance_eps_ttm_ui}-EPS-Brücke aus Primärquellen."
                             )
                         elif universal_family_eps_context_ui:
                             if (company_type or {}).get("valuation_family_id") == "payments_processor":
@@ -66958,21 +67162,12 @@ if selected_symbol:
                         st.caption("Standard-Wachstum, EPS, Yahoo-FCF und generischer ROE haben keinen Einfluss auf den REIT-Fair-Value.")
                     elif is_insurance_score_ui:
                         insurance_growth_model_ui = data.get("insurance_special_model") or {}
-                        insurance_growth_is_munich_re_ui = bool(insurance_growth_model_ui.get("is_munich_re_profile"))
+                        insurance_growth_is_reinsurance_ui = bool(insurance_growth_model_ui.get("is_reinsurance_profile"))
                         st.info(
-                            (
-                                "Munich-Re-Versicherungsmodell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. "
-                                "Umsatz- und Yahoo-Gewinnwachstum bleiben ausschließlich Kontext; der Versicherungs-Score "
-                                "stützt sich auf issuer-reported IFRS-Ertragskraft, H1-RoE, Solvency II, offizielle "
-                                "Buchwertentwicklung und Ausschüttungsqualität."
-                            )
-                            if insurance_growth_is_munich_re_ui
-                            else (
-                                "Versicherungsmodell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. "
-                                "Umsatz- und Yahoo-Gewinnwachstum bleiben ausschließlich Kontext; der "
-                                "Versicherungs-Score weiter unten stützt sich auf underlying Core-Ertragskraft, Core RoE, "
-                                "Solvency II, offizielle Buchwertentwicklung und Ausschüttungsqualität."
-                            )
+                            "Versicherungsmodell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. "
+                            "Umsatz- und Yahoo-Gewinnwachstum bleiben ausschließlich Kontext; der Versicherungs-Score "
+                            "stützt sich auf die emittenteneigene versicherungsspezifische Ergebnisbasis, RoE, Solvency II, "
+                            "offizielle Buchwertentwicklung und Ausschüttungsqualität."
                         )
                         st.caption(
                             "Der intern verfügbare Standard-Wachstumsscore hat bei Versicherungen keinen Einfluss "
@@ -67232,25 +67427,18 @@ if selected_symbol:
                         st.info("REIT-Modell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. Profitabilitätsqualität wird über AFFO-Deckung und operative Immobilienkennzahlen beurteilt.")
                     elif is_insurance_profitability_ui:
                         insurance_profit_model_ui = data.get("insurance_special_model") or {}
-                        insurance_profit_is_munich_re_ui = bool(insurance_profit_model_ui.get("is_munich_re_profile"))
+                        insurance_profit_is_reinsurance_ui = bool(insurance_profit_model_ui.get("is_reinsurance_profile"))
                         insurance_score_profit_ui = insurance_profit_model_ui.get("insurance_score") or {}
+                        insurance_profit_roe_label_ui = insurance_profit_model_ui.get("roe_metric_label") or "RoE"
+                        insurance_profit_growth_label_ui = (insurance_profit_model_ui.get("snapshot") or {}).get("score_growth_label") or "EPS-Wachstum"
                         st.info(
-                            (
-                                "Munich-Re-Versicherungsmodell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. "
-                                "Die Ertragskraft wird im eigenen Versicherungs-Score über H1-RoE und das konservativ verwendete "
-                                "abgeschlossene FY2025-EPS-Wachstum bewertet."
-                            )
-                            if insurance_profit_is_munich_re_ui
-                            else (
-                                "Versicherungsmodell: Die generische Nettomargen-/ROE-Punktelogik "
-                                "wird nicht verwendet. Die Ertragskraft wird im eigenen "
-                                "Versicherungs-Score über underlying Core RoE und Core-EPS-Wachstum "
-                                "bewertet."
-                            )
+                            "Versicherungsmodell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. "
+                            "Die Ertragskraft wird im eigenen Versicherungs-Score über die freigegebene RoE-Kennzahl und "
+                            "das auf gleicher Ergebnisbasis geprüfte EPS-Wachstum bewertet."
                         )
                         if insurance_score_profit_ui.get("available"):
                             st.write(
-                                ("**H1 RoE im Versicherungs-Score:** " if insurance_profit_is_munich_re_ui else "**Underlying Core RoE im Versicherungs-Score:** ")
+                                f"**{insurance_profit_roe_label_ui} im Versicherungs-Score:** "
                                 + f"{insurance_score_profit_ui.get('core_roe_points')}/30 Punkte "
                                 + f"bei {insurance_score_profit_ui.get('core_roe_pct'):.1f} %"
                             )
@@ -67671,22 +67859,14 @@ if selected_symbol:
                             )
                         elif is_insurance_model_ui:
                             insurance_fcf_model_ui = data.get("insurance_special_model") or {}
-                            insurance_fcf_is_munich_re_ui = bool(insurance_fcf_model_ui.get("is_munich_re_profile"))
+                            insurance_fcf_is_reinsurance_ui = bool(insurance_fcf_model_ui.get("is_reinsurance_profile"))
                             st.info(
                                 "ℹ️ Versicherungsmodell: Free Cashflow ist kein Bewertungsbaustein"
                             )
                             st.caption(
-                                (
-                                    "Bei Munich Re wird der konsolidierte Cashflow-Statement-FCF nur als Kontext/Rohdaten geführt. "
-                                    "Die Bewertung stützt sich stattdessen auf issuer-reported IFRS Earnings/EPS, RoE, Solvency II, "
-                                    "offiziellen Buchwert/P-B und Ausschüttungsqualität."
-                                )
-                                if insurance_fcf_is_munich_re_ui
-                                else (
-                                    "Bei Versicherungen wird der konsolidierte Cashflow-Statement-FCF nur als Kontext/Rohdaten geführt. "
-                                    "Die Versicherungsbewertung stützt sich stattdessen auf Core Earnings/Core EPS, Core RoE, "
-                                    "Solvency II, Buchwert/KBV und Ausschüttungsqualität."
-                                )
+                                "Bei Versicherungen wird der konsolidierte Cashflow-Statement-FCF nur als Kontext/Rohdaten geführt. "
+                                "Die Bewertung stützt sich stattdessen auf die verifizierte versicherungsspezifische Ergebnisbasis, "
+                                "RoE, Solvency II, offiziellen Buchwert/P-B und Ausschüttungsqualität."
                             )
                         else:
                             if fcf_result[
@@ -68060,22 +68240,14 @@ if selected_symbol:
                             )
                         elif is_insurance_balance_ui:
                             insurance_balance_model_ui = data.get("insurance_special_model") or {}
-                            insurance_balance_is_munich_re_ui = bool(insurance_balance_model_ui.get("is_munich_re_profile"))
+                            insurance_balance_is_reinsurance_ui = bool(insurance_balance_model_ui.get("is_reinsurance_profile"))
                             st.info(
                                 "ℹ️ Versicherungsmodell: Klassische Netto-Schulden/FCF-Logik wird nicht verwendet"
                             )
                             st.caption(
-                                (
-                                    "Bei Munich Re wird die Kapitalqualität nicht über industrielle Netto-Schulden/FCF bewertet. "
-                                    "Maßgeblich sind Solvency II, H1-RoE, offizieller Buchwert/P-B und Ausschüttungsfähigkeit; "
-                                    "konsolidierte Cash- und Schuldenwerte bleiben Kontext."
-                                )
-                                if insurance_balance_is_munich_re_ui
-                                else (
-                                    "Bei Versicherungen wird die Kapitalqualität nicht über industrielle Netto-Schulden/FCF bewertet. "
-                                    "Maßgeblich sind Solvency II, Core RoE, Buchwert-/KBV-Qualität und Ausschüttungsfähigkeit; "
-                                    "konsolidierte Cash- und Schuldenwerte bleiben Kontext."
-                                )
+                                "Bei Versicherungen wird die Kapitalqualität nicht über industrielle Netto-Schulden/FCF bewertet. "
+                                "Maßgeblich sind Solvency II, die freigegebene RoE-Kennzahl, offizieller Buchwert/P-B und "
+                                "Ausschüttungsfähigkeit; konsolidierte Cash- und Schuldenwerte bleiben Kontext."
                             )
                         elif is_reit_balance_ui:
                             st.info(
@@ -68167,32 +68339,42 @@ if selected_symbol:
                         st.divider()
 
                         insurance_snapshot_ui = insurance_model.get("snapshot") or {}
-                        insurance_is_munich_re_ui = bool(insurance_model.get("is_munich_re_profile"))
-                        insurance_ttm_label_ui = insurance_model.get("earnings_ttm_label") or "Core-TTM"
-                        insurance_eps_label_ui = "Reported EPS" if insurance_is_munich_re_ui else "Core EPS"
-                        insurance_income_label_ui = "Net Result" if insurance_is_munich_re_ui else "Shareholders' Core Net Income"
-                        insurance_roe_label_ui = "RoE" if insurance_is_munich_re_ui else "Core RoE"
-                        insurance_growth_label_ui = "EPS-Wachstum" if insurance_is_munich_re_ui else "Core-EPS-Wachstum"
-                        insurance_income_growth_label_ui = "Net-Result-Wachstum" if insurance_is_munich_re_ui else "Core-Net-Income-Wachstum"
+                        insurance_is_reinsurance_ui = bool(insurance_model.get("is_reinsurance_profile"))
+                        insurance_basis_ui = insurance_model.get("earnings_basis_label") or "Versicherungsspezifisch"
+                        insurance_ttm_label_ui = insurance_model.get("earnings_ttm_label") or "Insurance-TTM"
+                        if insurance_basis_ui == "issuer-reported IFRS":
+                            insurance_eps_label_ui = "Ausgewiesen EPS"
+                            insurance_income_label_ui = "Net Result"
+                            insurance_growth_label_ui = "EPS-Wachstum"
+                            insurance_income_growth_label_ui = "Net-Result-Wachstum"
+                        elif insurance_basis_ui == "Underlying":
+                            insurance_eps_label_ui = "Underlying EPS"
+                            insurance_income_label_ui = "Underlying Earnings"
+                            insurance_growth_label_ui = "Underlying-EPS-Wachstum"
+                            insurance_income_growth_label_ui = "Underlying-Earnings-Wachstum"
+                        else:
+                            insurance_eps_label_ui = "Core EPS"
+                            insurance_income_label_ui = "Shareholders' Core Net Income"
+                            insurance_growth_label_ui = "Core-EPS-Wachstum"
+                            insurance_income_growth_label_ui = "Core-Net-Income-Wachstum"
+                        insurance_roe_label_ui = insurance_model.get("roe_metric_label") or ("RoE" if insurance_is_reinsurance_ui else "Core RoE")
+                        insurance_ttm_income_label_ui = (
+                            "Reported-TTM-Net-Result" if insurance_basis_ui == "issuer-reported IFRS"
+                            else ("Underlying-TTM-Earnings" if insurance_basis_ui == "Underlying" else "Core-TTM-Net-Income")
+                        )
+                        insurance_score_growth_label_ui = insurance_snapshot_ui.get("score_growth_label") or insurance_growth_label_ui
 
                         st.subheader(
-                            "🛡️ Munich Re Reinsurance Specialist V2.20.137 – Datenbasis"
-                            if insurance_is_munich_re_ui
-                            else "🛡️ Versicherungs-Sondermodell V2.20.44 – Datenbasis"
+                            "🛡️ Reinsurance-Familienmodell V212 – Datenbasis"
+                            if insurance_is_reinsurance_ui
+                            else "🛡️ Insurance-Familienmodell V212 – Datenbasis"
                         )
 
                         st.info(
-                            (
-                                "Munich Re Specialist erkannt. V2.20.137 verwendet ausschließlich issuer-reported IFRS Net Result/EPS, "
-                                "RoE, Solvency II und offiziellen Buchwert aus Munich-Re-Primärquellen. Die TTM-Brücke wird nicht annualisiert; "
-                                "P/B und Reported-TTM-KGV bleiben getrennte Bewertungsanker."
-                            )
-                            if insurance_is_munich_re_ui
-                            else (
-                                "Versicherungsmodell erkannt. V2.20.44 übernimmt das Primärquellen-Gate, ergänzt die nicht annualisierte Core-TTM-Abdeckung "
-                                "und die Dual-Anchor-Bewertung und trennt Yahoo-Kontextdaten klar von den verifizierten Primärdaten für Core Earnings/Core EPS, "
-                                "Core RoE und Solvency II. Die Versicherungsbewertung wird nur nach vollständiger Dual-Anchor-Prüfung freigegeben."
-                            )
+                            f"V212 verwendet die emittenteneigene Ergebnisbasis ({insurance_basis_ui}), RoE, Solvency II und den "
+                            "offiziellen Buchwert aus verifizierten Primärquellen. Die TTM-Brücke wird nicht annualisiert; "
+                            f"P/B und {insurance_model.get('earnings_multiple_label') or 'Versicherungs-TTM-KGV'} bleiben getrennte Bewertungsanker. "
+                            f"Unterprofil: {'Reinsurance' if insurance_is_reinsurance_ui else 'Primary/Diversified Insurance'}."
                         )
 
                         col1, col2 = st.columns(2)
@@ -68325,16 +68507,8 @@ if selected_symbol:
 
                         if insurance_model.get("primary_source_complete"):
                             st.success(
-                                (
-                                    "Primärquellen-Gate bestanden: Munich-Re-Net-Result/EPS, RoE und Solvency II "
-                                    "sind aus aktuellen offiziellen Primärquellen verifiziert."
-                                )
-                                if insurance_is_munich_re_ui
-                                else (
-                                    "Primärquellen-Gate bestanden: Shareholders' Core Net Income, "
-                                    "Core EPS/Core RoE und Solvency II sind aus einer aktuellen "
-                                    "offiziellen Versicherer-Quelle verifiziert."
-                                )
+                                f"Primärquellen-Gate bestanden: {insurance_income_label_ui}/{insurance_eps_label_ui}, "
+                                f"{insurance_roe_label_ui} und Solvency II sind aus aktuellen offiziellen Primärquellen verifiziert."
                             )
 
                             snapshot = insurance_snapshot_ui
@@ -68389,20 +68563,26 @@ if selected_symbol:
                             if insurance_model.get("underlying_growth_note"):
                                 st.info(insurance_model.get("underlying_growth_note"))
 
-                            if insurance_is_munich_re_ui:
-                                st.write(
-                                    "**Munich-Re-H1-2026 Operating Context:** "
-                                    f"P&C Reinsurance Combined Ratio {safe_float(snapshot.get('combined_ratio_pc_re_h1_pct')):.1f} % · "
-                                    f"GSI {safe_float(snapshot.get('combined_ratio_gsi_h1_pct')):.1f} % · "
-                                    f"ERGO Deutschland {safe_float(snapshot.get('combined_ratio_ergo_de_h1_pct')):.1f} % · "
-                                    f"ERGO International {safe_float(snapshot.get('combined_ratio_ergo_int_h1_pct')):.1f} %."
-                                )
-                                st.caption(
-                                    "FY2026 Net-Result-Guidance: "
-                                    f"{format_money(safe_float(snapshot.get('net_result_guidance_2026')), financial_currency)} · "
-                                    "Ambition 2030: RoE >18 % und durchschnittliches EPS-Wachstum >8 % p.a. "
-                                    "Diese Kontextgrößen ersetzen nicht die zwei Bewertungsanker."
-                                )
+                            if insurance_is_reinsurance_ui:
+                                reinsurance_context_parts_ui = []
+                                for _key, _label in [
+                                    ("combined_ratio_pc_re_h1_pct", "P&C Reinsurance Combined Ratio"),
+                                    ("combined_ratio_gsi_h1_pct", "GSI"),
+                                    ("combined_ratio_ergo_de_h1_pct", "ERGO Deutschland"),
+                                    ("combined_ratio_ergo_int_h1_pct", "ERGO International"),
+                                ]:
+                                    _value = safe_float(snapshot.get(_key))
+                                    if _value is not None:
+                                        reinsurance_context_parts_ui.append(f"{_label} {_value:.1f} %")
+                                if reinsurance_context_parts_ui:
+                                    st.write("**Reinsurance H1 2026 Kontext:** " + " · ".join(reinsurance_context_parts_ui) + ".")
+                                _guidance = safe_float(snapshot.get("net_result_guidance_2026"))
+                                if _guidance is not None:
+                                    st.caption(
+                                        "FY2026 Net-Result-Guidance: "
+                                        f"{format_money(_guidance, financial_currency)}. "
+                                        "Diese Kontextgröße ersetzt nicht die zwei Bewertungsanker."
+                                    )
 
                             st.caption(
                                 f"Quelle: {text_or_dash(snapshot.get('source_name'))} · "
@@ -68413,11 +68593,7 @@ if selected_symbol:
                             book_bridge_ui = insurance_model.get("book_value_bridge") or {}
                             insurance_score_ui = insurance_model.get("insurance_score") or {}
 
-                            st.write(
-                                "**🧮 Munich Re Reported-Earnings Coverage Gate**"
-                                if insurance_is_munich_re_ui
-                                else "**🧮 Insurance Core-Earnings Coverage Gate**"
-                            )
+                            st.write(f"**🧮 {'Reinsurance' if insurance_is_reinsurance_ui else 'Insurance'} {insurance_ttm_label_ui}-Abdeckungsprüfung**")
                             if core_cov_ui.get("available"):
                                 c1, c2 = st.columns(2)
                                 with c1:
@@ -68458,7 +68634,7 @@ if selected_symbol:
                                         )
                                     )
                                     st.metric(
-                                        ("Reported-TTM-Net-Result" if insurance_is_munich_re_ui else "Core-TTM-Net-Income"),
+                                        insurance_ttm_income_label_ui,
                                         format_money(
                                             safe_float(core_cov_ui.get("core_ttm_net_income")),
                                             financial_currency
@@ -68537,7 +68713,7 @@ if selected_symbol:
                                     f"**Qualitätsstufe:** {text_or_dash(insurance_score_ui.get('quality_level'))}"
                                 )
                                 st.write(
-                                    f"**{'H1 RoE' if insurance_is_munich_re_ui else 'Underlying Core RoE'}:** "
+                                    f"**{insurance_roe_label_ui}:** "
                                     f"{insurance_score_ui.get('core_roe_points')}/30 Punkte "
                                     f"bei {insurance_score_ui.get('core_roe_pct'):.1f} %"
                                 )
@@ -68547,7 +68723,7 @@ if selected_symbol:
                                     f"bei {insurance_score_ui.get('solvency_ii_pct'):.0f} %"
                                 )
                                 st.write(
-                                    f"**{'FY2025 EPS-Wachstum' if insurance_is_munich_re_ui else 'Underlying Core-EPS-Wachstum'}:** "
+                                    f"**{insurance_score_growth_label_ui}:** "
                                     f"{insurance_score_ui.get('core_growth_points')}/20 Punkte "
                                     f"bei {insurance_score_ui.get('underlying_core_eps_growth_pct'):.1f} %"
                                 )
@@ -68563,7 +68739,7 @@ if selected_symbol:
                                     f"**Ausschüttungsqualität:** "
                                     f"{insurance_score_ui.get('distribution_points')}/10 Punkte "
                                     + (
-                                        f"bei Dividende/{'FY2025 EPS' if insurance_is_munich_re_ui else 'Core-EPS'} {payout_core * 100:.1f} %"
+                                        f"bei Dividende/{insurance_eps_label_ui} {payout_core * 100:.1f} %"
                                         if payout_core is not None
                                         else ""
                                     )
@@ -68577,12 +68753,12 @@ if selected_symbol:
                         elif insurance_model.get("snapshot") and not insurance_model.get("snapshot_fresh"):
                             st.warning(
                                 "Der verifizierte Versicherungs-Snapshot ist abgelaufen. "
-                                "Core Earnings/Core EPS, Core RoE und Solvency II werden nicht "
+                                "Versicherungsspezifisches Ergebnis/EPS, RoE und Solvency II werden nicht "
                                 "stillschweigend weiterverwendet."
                             )
                         else:
                             st.write(
-                                "**Core Earnings / Core EPS:** – "
+                                "**Versicherungsspezifisches Ergebnis / EPS:** – "
                                 "(kein aktueller verifizierter Primärquellen-Snapshot; wird nicht durch "
                                 "Nettogewinn oder Standard-EPS ersetzt)"
                             )
@@ -69787,8 +69963,8 @@ if selected_symbol:
                         insurance_model_m6 = data.get("insurance_special_model") or {}
                         insurance_score_m6 = insurance_model_m6.get("insurance_score") or {}
                         insurance_val_m6 = insurance_model_m6.get("insurance_valuation") or {}
-                        insurance_is_munich_re_m6 = bool(insurance_model_m6.get("is_munich_re_profile"))
-                        insurance_pe_label_m6 = "Reported-TTM-KGV" if insurance_is_munich_re_m6 else "Core-KGV"
+                        insurance_is_reinsurance_m6 = bool(insurance_model_m6.get("is_reinsurance_profile"))
+                        insurance_pe_label_m6 = insurance_model_m6.get("earnings_multiple_label") or "Versicherungs-TTM-KGV"
 
                         if insurance_score_m6.get("available"):
                             st.write(
@@ -69825,17 +70001,9 @@ if selected_symbol:
 
                         st.caption(multiple_result.get("note"))
                         st.caption(
-                            (
-                                "Bei Munich Re werden offizieller Buchwert/P-B und verifiziertes "
-                                "Reported-TTM-EPS/Reinsurer-KGV getrennt geführt. Der Dual-Anchor-Fair-Value "
-                                "folgt erst nach Schritt 3B."
-                            )
-                            if insurance_is_munich_re_m6
-                            else (
-                                "Bei Versicherungen werden offizieller Buchwert/P-B und verifiziertes "
-                                "Core-TTM-EPS/Core-KGV getrennt geführt. Der Dual-Anchor-Fair-Value "
-                                "folgt erst nach Schritt 3B."
-                            )
+                            "Bei Versicherungen werden offizieller Buchwert/P-B und verifiziertes "
+                            f"{insurance_model_m6.get('earnings_ttm_label') or 'Insurance-TTM'}-EPS/{insurance_pe_label_m6} "
+                            "getrennt geführt. Der Doppelanker-Fair-Value folgt erst nach Schritt 3B."
                         )
                     elif is_nvidia_valuation_ui:
                         nv_m6 = data.get("nvidia_special_model") or {}
@@ -74277,14 +74445,31 @@ if selected_symbol:
                         if special_control.get("implemented"):
                             checks = special_control.get("checks", {})
                             snapshot = special_control.get("snapshot") or {}
-                            insurance_is_munich_re_3b = bool(checks.get("is_munich_re_profile"))
-                            insurance_ttm_label_3b = checks.get("earnings_ttm_label") or "Core-TTM"
-                            insurance_pe_label_3b = "Reported-TTM-KGV" if insurance_is_munich_re_3b else "Core-KGV"
+                            insurance_is_reinsurance_3b = bool(checks.get("is_reinsurance_profile"))
+                            insurance_basis_3b = checks.get("earnings_basis_label") or "Versicherungsspezifisch"
+                            insurance_ttm_label_3b = checks.get("earnings_ttm_label") or "Insurance-TTM"
+                            insurance_pe_label_3b = checks.get("earnings_multiple_label") or "Versicherungs-TTM-KGV"
+                            insurance_roe_label_3b = checks.get("roe_metric_label") or "RoE"
+                            if insurance_basis_3b == "issuer-reported IFRS":
+                                insurance_income_label_3b = "Net Result attributable"
+                                insurance_eps_label_3b = "Ausgewiesen EPS"
+                                insurance_income_growth_label_3b = "Net-Result-Wachstum"
+                                insurance_eps_growth_label_3b = "EPS-Wachstum"
+                            elif insurance_basis_3b == "Underlying":
+                                insurance_income_label_3b = "Underlying Earnings"
+                                insurance_eps_label_3b = "Underlying EPS"
+                                insurance_income_growth_label_3b = "Underlying-Earnings-Wachstum"
+                                insurance_eps_growth_label_3b = "Underlying-EPS-Wachstum"
+                            else:
+                                insurance_income_label_3b = "Shareholders' Core Net Income"
+                                insurance_eps_label_3b = "Core EPS"
+                                insurance_income_growth_label_3b = "Core-Net-Income-Wachstum"
+                                insurance_eps_growth_label_3b = "Core-EPS-Wachstum"
 
                             st.subheader(
-                                "🛡️ Modul 6 – Schritt 3B: Munich-Re-Earnings-, Solvency- & Kapitalprüfung"
-                                if insurance_is_munich_re_3b
-                                else "🛡️ Modul 6 – Schritt 3B: Versicherungs-Core-Earnings- & Kapitalprüfung"
+                                "🛡️ Modul 6 – Schritt 3B: Reinsurance-Ergebnis-, Solvency- & Kapitalprüfung"
+                                if insurance_is_reinsurance_3b
+                                else "🛡️ Modul 6 – Schritt 3B: Insurance-Ergebnis-, Solvency- & Kapitalprüfung"
                             )
 
                             st.write(
@@ -74297,17 +74482,17 @@ if selected_symbol:
                             with col1:
                                 cni = safe_float(checks.get("shareholders_core_net_income"))
                                 st.metric(
-                                    ("Net Result attributable (6M)" if insurance_is_munich_re_3b else "Shareholders' Core Net Income (6M)"),
+                                    f"{insurance_income_label_3b} (6M)",
                                     format_money(cni, financial_currency) if cni is not None else "–"
                                 )
                                 ceps = safe_float(checks.get("core_eps_basic"))
                                 st.metric(
-                                    ("Reported EPS (6M)" if insurance_is_munich_re_3b else "Core EPS (6M)"),
+                                    f"{insurance_eps_label_3b} (6M)",
                                     format_eps(ceps, financial_currency) if ceps is not None else "–"
                                 )
                                 croe = safe_float(checks.get("core_roe_annualized_pct"))
                                 st.metric(
-                                    ("RoE (annualisiert)" if insurance_is_munich_re_3b else "Core RoE (annualisiert)"),
+                                    f"{insurance_roe_label_3b} (annualisiert)",
                                     f"{croe:.1f} %" if croe is not None else "–"
                                 )
                             with col2:
@@ -74318,24 +74503,24 @@ if selected_symbol:
                                 )
                                 cg = safe_float(checks.get("core_net_income_growth_pct"))
                                 st.metric(
-                                    ("Net-Result-Wachstum" if insurance_is_munich_re_3b else "Core-Net-Income-Wachstum"),
+                                    insurance_income_growth_label_3b,
                                     f"{cg:.1f} %" if cg is not None else "–"
                                 )
                                 eg = safe_float(checks.get("core_eps_growth_pct"))
                                 st.metric(
-                                    ("EPS-Wachstum" if insurance_is_munich_re_3b else "Core-EPS-Wachstum"),
+                                    insurance_eps_growth_label_3b,
                                     f"{eg:.1f} %" if eg is not None else "–"
                                 )
 
                             st.success(
                                 (
-                                    "Munich-Re-Primärdaten vollständig validiert. Reported IFRS Earnings/EPS, RoE, "
+                                    "Reinsurance-Primärdaten vollständig validiert. Emittentenausgewiesenes Ergebnis/EPS, RoE, "
                                     "Solvency II und offizieller Buchwert sind belastbar vorhanden."
                                 )
-                                if insurance_is_munich_re_3b
+                                if insurance_is_reinsurance_3b
                                 else (
-                                    "Versicherungs-Primärdaten vollständig validiert. Core Earnings/Core EPS, "
-                                    "Core RoE und Solvency II sind belastbar vorhanden."
+                                    "Versicherungs-Primärdaten vollständig validiert. Versicherungsspezifisches Ergebnis/EPS, "
+                                    "RoE und Solvency II sind belastbar vorhanden."
                                 )
                             )
 
@@ -76384,16 +76569,11 @@ if selected_symbol:
                                     f"{fair_value.get('anchor_spread_pct'):.1f} %"
                                 )
                         elif fair_value.get("valuation_method") == "insurance_dual_anchor":
-                            insurance_reported_basis_fv = fair_value.get("earnings_basis_label") == "issuer-reported IFRS"
-                            insurance_ttm_label_fv = "Reported-TTM-EPS" if insurance_reported_basis_fv else "Core-TTM-EPS"
-                            insurance_pe_label_fv = fair_value.get("earnings_multiple_label") or ("Reported-TTM-KGV" if insurance_reported_basis_fv else "Core-KGV")
+                            insurance_ttm_label_fv = (fair_value.get("earnings_ttm_label") or "Insurance-TTM") + "-EPS"
+                            insurance_pe_label_fv = fair_value.get("earnings_multiple_label") or "Versicherungs-TTM-KGV"
                             st.write(
-                                "**Bewertungsformel:** "
-                                + (
-                                    "55 % offizieller Buchwert/P-B-Anker + 45 % verifizierter Reported-TTM-EPS/Reinsurer-KGV-Anker"
-                                    if insurance_reported_basis_fv
-                                    else "55 % offizieller Buchwert/P-B-Anker + 45 % verifizierter Core-TTM-EPS/Core-KGV-Anker"
-                                )
+                                "**Bewertungsformel:** 55 % offizieller Buchwert/P-B-Anker + 45 % verifizierter "
+                                f"{insurance_ttm_label_fv}/{insurance_pe_label_fv}-Anker"
                             )
                             st.write(
                                 "**Versicherungs-Score:** "
@@ -77761,12 +77941,20 @@ if selected_symbol:
                         "📅 Nächste Quartalszahlen"
                     )
 
-                    earnings_date = format_date(
-                        data["earnings_timestamp"]
-                    )
+                    insurance_calendar_snapshot = ((data.get("insurance_special_model") or {}).get("snapshot") or {})
+                    insurance_calendar_date = insurance_calendar_snapshot.get("next_financial_event_date")
+                    insurance_calendar_label = insurance_calendar_snapshot.get("next_financial_event_label")
+                    insurance_calendar_source = insurance_calendar_snapshot.get("next_financial_event_source_url")
+                    earnings_date = format_date(data["earnings_timestamp"])
 
-                    if earnings_date:
-
+                    if insurance_calendar_date:
+                        insurance_calendar_text = f"Offizieller Versicherer-Finanzkalender: **{insurance_calendar_date}**"
+                        if insurance_calendar_label:
+                            insurance_calendar_text += f" · {insurance_calendar_label}"
+                        st.info(insurance_calendar_text)
+                        if insurance_calendar_source:
+                            st.markdown(f"[Finanzkalender / Primärquelle]({insurance_calendar_source})")
+                    elif earnings_date:
                         st.info(
                             f"Voraussichtlicher Termin: "
                             f"**{earnings_date}**"
