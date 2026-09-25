@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.16"
+APP_BUILD_VERSION = "V2.23.17"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,13 +946,14 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Insurance Evidence & Subprofile Routing V212"
+    f"Build {APP_BUILD_VERSION} · AXA Official BVPS & Insurance Copy Correction V213"
 )
 
 
 # V2.22.98: Zahlungsabwickler-Sicherheitsentkopplung V194. Bei vollständig freigegebenem Zahlungsabwickler-Spezialpfad bleibt die generische TTM-/Prognose-EPS-Divergenz ausschließlich Diagnosekontext und darf die endgültige Bewertungssicherheit nicht mehr begrenzen. Maßgeblich sind Methodenobergrenze, freigegebene Familien-Gewinnbasis, Sicherheit des Familien-Ziel-KGV und Spezialkontrolle. Bewertungsmathematik, Peer-Kalibrierung, Gewinnbasis, Ziel-KGV, Fair Values und Signal-Gates bleiben unverändert.
 # V2.23.02: Unabhängiger Gegencheck V2 V198. Härtet die nicht steuernde Zahlungsabwickler-Kontrollsicht nach Live-Tests mit Global Payments, PayPal, Adyen und Fiserv: Analystenabweichungen werden richtungs- und größenordnungsspezifisch formuliert; die feste 8x/10x-Bewertung wird entfernt und das aktuelle Markt-KGV nur noch als marktimplizierter Kontext gezeigt, solange keine gleichbasige historische Eigenreihe belastbar verfügbar ist; der rohe Kern-Vergleichsgruppen-Check erhält eine Streuungs-/Vergleichbarkeitssperre und darf bei heterogener KGV-Spanne weder Bestätigung noch Widerspruch erzeugen. Das Gesamtergebnis zählt nur belastbare Kontrollen. Fair Value, Ziel-KGV, Qualität, Sicherheit, Bewertungszonen und Kaufen/Halten/Verkaufen bleiben unverändert.
 # V2.23.04: Zahlungsabwickler-Sicherheitsobergrenze V200. Die allgemeine Methoden-/Spezialkontroll-Obergrenze der vollständig freigegebenen Zahlungsabwickler-Referenzprofile wird von „Niedrig bis Mittel“ auf „Mittel“ angehoben. Die in V199 gehärtete Regel „schwächste relevante Sicherheitsstufe gewinnt“ bleibt unverändert. Emittentenspezifische niedrigere Stufen bleiben wirksam; insbesondere behält Fiserv wegen seiner Ziel-KGV-Sicherheit „Niedrig bis Mittel“ die niedrigere Gesamtbewertungssicherheit. Score, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Value, Bewertungszonen und Signal-Schwellen bleiben unverändert.
+# V2.23.17: AXA Official BVPS & Insurance Copy Correction V213. Verwendet für AXA den vom Emittenten neu definierten und direkt berichteten Book Value per Share (FY2024 24,5 EUR; FY2025 24,0 EUR; H1 2026 23,8 EUR) statt einer abgeleiteten Gesamt-Eigenkapital/Aktienzahl-Größe. Bereinigt außerdem verbliebene sichtbare V2.20.44/Core-TTM-Texte im universellen Insurance-Pfad, aktualisiert die technischen Insurance-Integrationsbezeichner und zeigt bei vollständig freigegebener Versicherungs-Evidenz einen abgeschlossenen Familienstatus. Keine Änderung an den eingefrorenen Allianz-/Munich-Re-Inputs oder an den Insurance-/Reinsurance-Korridoren.
 # V2.23.16: Universal Insurance Evidence & Subprofile Routing V212. Generalisiert den Versicherungs-Spezialpfad auf eine gemeinsame Evidenzschicht für Core-, Underlying- und issuer-reported IFRS-Earnings, routet Primary/Diversified Insurance gegenüber Reinsurance über das erkannte Unterprofil statt über Ticker-Sonderlogik, verwendet die nicht annualisierte FY-H1+H1-TTM-Brücke universell und hält Standard-EPS/Yahoo-FCF/Net-Debt-to-FCF strikt im Diagnosekontext. AXA und Hannover Re werden als verifizierte Primärdaten-Snapshots in dieselbe Familienengine aufgenommen; Allianz und Munich Re behalten ihre eingefrorenen numerischen Inputs. Reinsurance verwendet familienweit 1,1–2,2x P/B und 7,0–11,5x TTM-KGV.
 # V2.23.15: Universal Family Eligibility & Evidence Gate V211. Härtet die Wiederverwendbarkeit der bereits freigegebenen Semiconductor-Equipment- und Payments-Processor-Familien außerhalb ihrer Referenzemittenten. Neue Semicap-Titel werden nicht mehr wegen fehlender Ticker-Whitelist als unreleased family behandelt, sondern laufen in das bestehende Familienmodell und bleiben bei fehlendem issuer-primary Snapshot sauber evidence-gated. Ein konservativer, geschäftsmodellbasierter Payments-Processor-Precedence-Guard kann Merchant-Acquiring/End-to-End-Payment-Processing gegenüber groben Provider-Branchen wie Software - Infrastructure priorisieren, ohne FOUR/Nexi als Familien-Whitelist einzubauen. Unsupported Payments-Familienmitglieder werden als released-family/evidence-pending ausgewiesen; Standard-Score, Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV, Fair Value und Signale bleiben gesperrt. Die freigegebenen Score-, Earnings-, Multiple-, Peer-, Fair-Value- und Signalformeln der vier Semicap- und vier Payments-Referenzwerte bleiben unverändert.
 # V2.23.14: Insurance Loader-Hotfix V210. Reiner Loader-Fix auf V209: initialisiert adapter_diagnostic im bestehenden Versicherungs-Spezialmodell, damit unterstützte Versicherer wie Allianz und Munich Re nicht mehr beim Return mit NameError abbrechen. Keine Änderung an Versicherungs-Score, Dual-Anchor-Bewertung, Semiconductor Equipment oder anderen eingefrorenen Bewertungsfamilien.
@@ -16513,7 +16514,16 @@ INSURANCE_V212_PRIMARY_SOURCE_REGISTRY = (
             "fy_2025_source_url": "https://www.axa.com/press/press-releases/2025-full-year-earnings",
             "h1_2025_source_name": "AXA Half Year 2025 Earnings",
             "h1_2025_source_url": "https://www.axa.com/press/press-releases/half-year-2025-earnings",
-            # Cross-insurer comparable Group shareholders' equity / shares outstanding.
+            # AXA issuer-defined Book Value per Share APM (directly reported).
+            # Definition: shareholders' equity excluding OCI and undated/deeply subordinated debt,
+            # divided by actual outstanding shares excluding treasury shares.
+            "book_value_per_share_2026_h1": 23.80,
+            "book_value_per_share_2025_fy": 24.00,
+            "book_value_per_share_2024_fy": 24.50,
+            "book_value_apm_definition": "AXA Book Value per Share APM",
+            "book_value_apm_source_name": "AXA HY2026 Financial Supplement + Investor Day 2026 Glossary",
+            "book_value_apm_source_url": "https://www.axa.com/investor/results",
+            # Legacy cross-check inputs retained as diagnostic context only; the direct issuer APM above takes precedence.
             # H1 2026: EUR 44.692bn / (2,090,857,868 issued - ~67.8m treasury).
             "shareholders_equity_2026_h1": 44.692e9,
             "shares_2026_h1": 2_023_057_868,
@@ -16523,8 +16533,8 @@ INSURANCE_V212_PRIMARY_SOURCE_REGISTRY = (
             # FY2024: EUR 49.9bn / issued shares less treasury shares.
             "shareholders_equity_2024_fy": 49.9e9,
             "shares_2024_fy": 2_175_367_655,
-            "capital_structure_source_name": "AXA FY2025/H1 2026 Shareholders' Equity + Capital Ownership",
-            "capital_structure_source_url": "https://www.axa.com/investor/capital-ownership",
+            "capital_structure_source_name": "AXA HY2026 Financial Supplement + Investor Day 2026 Book Value per Share APM",
+            "capital_structure_source_url": "https://www.axa.com/investor/results",
             "score_roe_pct": 18.3,
             "score_eps_growth_pct": 8.0,
             "underlying_core_roe_pct": 18.3,
@@ -16677,14 +16687,14 @@ def _insurance_snapshot_is_fresh(snapshot):
 
 
 
-INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION = "v22044_insurance_core_ttm"
+INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION = "v22317_insurance_ttm_bridge"
 
 def build_insurance_core_coverage(snapshot):
     """
-    Build a fail-closed Core-TTM bridge from official insurer periods.
+    Build a fail-closed insurer-specific TTM bridge from official issuer periods.
 
-    V2.20.44 deliberately does not annualize 6M data. For Allianz:
-    Core TTM = FY2025 - 6M2025 + 6M2026.
+    V212/V213 never annualizes 6M data. The common bridge is:
+    insurer-specific TTM EPS = FY2025 - 6M2025 + 6M2026.
     """
     result = {
         "available": False,
@@ -16880,7 +16890,7 @@ def calculate_insurance_score(snapshot, core_coverage, book_bridge):
 
     if not (core_coverage or {}).get("available"):
         result["note"] = (
-            "Versicherungs-Score gesperrt: vollständige Core-TTM-Abdeckung fehlt."
+            "Versicherungs-Score gesperrt: vollständige versicherungsspezifische TTM-Abdeckung fehlt."
         )
         return result
 
@@ -17016,7 +17026,7 @@ def calculate_insurance_score(snapshot, core_coverage, book_bridge):
 
 
 
-INSURANCE_VALUATION_INTEGRATION_VERSION = "v22044_insurance_dual_anchor"
+INSURANCE_VALUATION_INTEGRATION_VERSION = "v22317_insurance_dual_anchor"
 
 
 def calculate_insurance_dual_anchor_valuation(snapshot, core_coverage, book_bridge, insurance_score):
@@ -17158,9 +17168,9 @@ def build_insurance_special_model(
     """
     Conservative insurer-specific data block.
 
-    V2.20.44 adds an official Core-TTM coverage bridge, book-value quality
-    check, insurer-specific 100-point score and fail-closed dual-anchor valuation.
-    Core earnings and solvency/capital ratios are never estimated from Yahoo proxies.
+    V212/V213 uses an issuer-defined earnings basis, a non-annualized TTM bridge,
+    official book value, an insurer-specific 100-point score and fail-closed dual-anchor valuation.
+    Earnings and solvency/capital ratios are never estimated from Yahoo proxies.
     """
     type_name = str(
         company_type.get("type", "")
@@ -17659,7 +17669,7 @@ def build_insurance_special_model(
         "insurance_score": insurance_score,
         "insurance_valuation": insurance_valuation,
         "note": (
-            f"V212 Universal Insurance Evidence: {earnings_basis_label}-Ergebnisbasis, {earnings_ttm_label}-Brücke, "
+            f"V212/V213 Universal Insurance Evidence: {earnings_basis_label}-Ergebnisbasis, {earnings_ttm_label}-Brücke, "
             "RoE, Solvency II und offizieller Buchwert werden in eine gemeinsame Versicherungs-Evidenzstruktur überführt. "
             f"Unterprofil: {'Reinsurance' if is_reinsurance_profile else 'Primary/Diversified Insurance'}; "
             "55/45-Doppelanker, Standard-FCF-Sperre und Fail-Closed-Gates bleiben unverändert."
@@ -17668,7 +17678,7 @@ def build_insurance_special_model(
 
 
 def build_insurance_special_control(base_control, insurance_model):
-    """Attach the frozen V2.20.44 insurer step-3B dual-anchor gate."""
+    """Attach the universal V212/V213 insurer step-3B dual-anchor gate."""
     control = dict(base_control or {})
     control.setdefault("router_status", control.get("status"))
     control.setdefault("router_note", control.get("note"))
@@ -17698,9 +17708,9 @@ def build_insurance_special_control(base_control, insurance_model):
             "Dividende / Kapitalrückführung / Ausschüttungsqualität",
             "Versicherungs-Score",
         ],
-        "status": "Router aktiv – V212 Universal Insurance Evidence & Subprofile Routing",
+        "status": "Router aktiv – V212/V213 Universal Insurance Evidence & Subprofile Routing",
         "note": (
-            f"V212 trennt Yahoo-Kontextdaten von verifizierten Versicherungs-Primärdaten. {earnings_ttm_label}-EPS, "
+            f"V212/V213 trennt Yahoo-Kontextdaten von verifizierten Versicherungs-Primärdaten. {earnings_ttm_label}-EPS, "
             f"offizieller Buchwert, RoE, Solvency II und {earnings_multiple_label}-Korridor werden ausschließlich "
             "aus dem freigegebenen Unterprofil aufgebaut."
         ),
@@ -17789,7 +17799,7 @@ def build_insurance_special_control(base_control, insurance_model):
             "roe_metric_label": model.get("roe_metric_label"),
         },
         "note": (
-            f"V212 Schritt 3B validiert die emittenteneigene {earnings_ttm_label}-Ergebnisbasis, RoE, Solvency II, "
+            f"V212/V213 Schritt 3B validiert die emittenteneigene {earnings_ttm_label}-Ergebnisbasis, RoE, Solvency II, "
             f"offiziellen Buchwert sowie getrennte P/B- und {earnings_multiple_label}-Anker. "
             "Die Bewertung wird nur bei vollständiger und konsistenter Doppelanker-Prüfung freigegeben."
         ),
@@ -45450,23 +45460,23 @@ def get_special_control(company_type, symbol):
             "required": True,
             "control_key": "insurance_core_capital",
             "control_name": (
-                "Versicherung / Core-Earnings- & Kapitalprüfung"
+                "Insurance / Ergebnis-, Solvency- & Kapitalprüfung"
             ),
             "planned_checks": [
-                "Core Earnings / Core-TTM-EPS",
-                "Core RoE / underlying Core RoE",
-                "Buchwert / KBV",
-                "Solvency- / Kapitalquote",
+                "Versicherungsspezifisches Ergebnis / TTM-EPS",
+                "RoE / EPS-Wachstum auf gleicher Ergebnisbasis",
+                "Offizieller Buchwert / P-B",
+                "Solvency II / Kapitalquote",
                 "Ausschüttungsqualität",
                 "Versicherungs-Score"
             ],
-            "status": "Router aktiv – V2.20.44 Core-TTM + Versicherungs-Score + Dual-Anchor-Bewertung",
+            "status": "Router aktiv – V212/V213 Universal Insurance Evidence + Doppelanker-Bewertung",
             "note": (
-                "V2.20.44 trennt Yahoo-Kontextkennzahlen von verifizierten "
-                "Versicherungs-Primärdaten. Core-TTM-Abdeckung, offizieller Buchwert, "
-                "Versicherungs-Score sowie P/B- und Core-KGV-Anker werden nur aus "
-                "verifizierten Daten aufgebaut. Der Fair Value wird ausschließlich bei "
-                "vollständiger und konsistenter Dual-Anchor-Prüfung freigegeben."
+                "V212/V213 trennt Yahoo-Kontextkennzahlen von verifizierten Versicherungs-Primärdaten. "
+                "Versicherungsspezifische TTM-Abdeckung, offizieller Buchwert, RoE, Solvency II, "
+                "Versicherungs-Score sowie P/B- und unterprofilabhängige TTM-KGV-Anker werden nur aus "
+                "verifizierten Daten aufgebaut. Der Fair Value wird ausschließlich bei vollständiger "
+                "und konsistenter Doppelanker-Prüfung freigegeben."
             )
         }
 
@@ -64394,14 +64404,22 @@ if selected_symbol:
                             and (data.get("payments_processor_foundation_model") or {}).get("applicable")
                             and (data.get("payments_processor_foundation_model") or {}).get("fair_value_released")
                         )
+                        _insurance_evidence_released_ui = bool(
+                            company_type.get("valuation_family_id") in {"insurance", "reinsurance"}
+                            and ((data.get("insurance_special_model") or {}).get("insurance_valuation") or {}).get("available")
+                        )
                         _family_status_labels = {
                             "three_issuer_valuation_zone_live_validated": "Bewertungszonen geprüft · Vergleichsgruppen-Kalibrierung V187 aktiv",
                             "released_family_evidence_gate": "Familienmodell freigegeben · Emittenten-Evidenz noch nicht vollständig",
                         }
                         _family_status = (
-                            "Familienmodell inkl. Bewertungszonen und Signal-Logik V1 freigegeben · Vergleichsgruppen-Kalibrierung V187 aktiv · Unabhängiger Gegencheck V2 aktiv"
-                            if _payments_processor_released_ui
-                            else _family_status_labels.get(_family_status_raw, _family_status_raw)
+                            "Familienmodell + Emittenten-Evidenz vollständig freigegeben · universeller Insurance-Doppelanker aktiv"
+                            if _insurance_evidence_released_ui
+                            else (
+                                "Familienmodell inkl. Bewertungszonen und Signal-Logik V1 freigegeben · Vergleichsgruppen-Kalibrierung V187 aktiv · Unabhängiger Gegencheck V2 aktiv"
+                                if _payments_processor_released_ui
+                                else _family_status_labels.get(_family_status_raw, _family_status_raw)
+                            )
                         )
                         st.caption(
                             f"Universelle Familien-Zuordnung {APP_BUILD_VERSION}: {len(UNIVERSAL_VALUATION_FAMILY_CATALOG)} Bewertungsfamilien · "
