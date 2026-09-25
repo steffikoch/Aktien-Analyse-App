@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.19"
+APP_BUILD_VERSION = "V2.23.20"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,13 +946,14 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Insurance Per-Share Currency Display & Copy Cleanup V215"
+    f"Build {APP_BUILD_VERSION} · Insurance Corporate Action & EPS Comparability Guard V216"
 )
 
 
 # V2.22.98: Zahlungsabwickler-Sicherheitsentkopplung V194. Bei vollständig freigegebenem Zahlungsabwickler-Spezialpfad bleibt die generische TTM-/Prognose-EPS-Divergenz ausschließlich Diagnosekontext und darf die endgültige Bewertungssicherheit nicht mehr begrenzen. Maßgeblich sind Methodenobergrenze, freigegebene Familien-Gewinnbasis, Sicherheit des Familien-Ziel-KGV und Spezialkontrolle. Bewertungsmathematik, Peer-Kalibrierung, Gewinnbasis, Ziel-KGV, Fair Values und Signal-Gates bleiben unverändert.
 # V2.23.02: Unabhängiger Gegencheck V2 V198. Härtet die nicht steuernde Zahlungsabwickler-Kontrollsicht nach Live-Tests mit Global Payments, PayPal, Adyen und Fiserv: Analystenabweichungen werden richtungs- und größenordnungsspezifisch formuliert; die feste 8x/10x-Bewertung wird entfernt und das aktuelle Markt-KGV nur noch als marktimplizierter Kontext gezeigt, solange keine gleichbasige historische Eigenreihe belastbar verfügbar ist; der rohe Kern-Vergleichsgruppen-Check erhält eine Streuungs-/Vergleichbarkeitssperre und darf bei heterogener KGV-Spanne weder Bestätigung noch Widerspruch erzeugen. Das Gesamtergebnis zählt nur belastbare Kontrollen. Fair Value, Ziel-KGV, Qualität, Sicherheit, Bewertungszonen und Kaufen/Halten/Verkaufen bleiben unverändert.
 # V2.23.04: Zahlungsabwickler-Sicherheitsobergrenze V200. Die allgemeine Methoden-/Spezialkontroll-Obergrenze der vollständig freigegebenen Zahlungsabwickler-Referenzprofile wird von „Niedrig bis Mittel“ auf „Mittel“ angehoben. Die in V199 gehärtete Regel „schwächste relevante Sicherheitsstufe gewinnt“ bleibt unverändert. Emittentenspezifische niedrigere Stufen bleiben wirksam; insbesondere behält Fiserv wegen seiner Ziel-KGV-Sicherheit „Niedrig bis Mittel“ die niedrigere Gesamtbewertungssicherheit. Score, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Value, Bewertungszonen und Signal-Schwellen bleiben unverändert.
+# V2.23.20: Insurance Corporate Action & EPS Comparability Guard V216. Adds a universal insurer corporate-action/share-count comparability gate: material capital increases, cancellations/buybacks, acquisitions, disposals, mergers or similar perimeter changes inside the TTM window block the EPS bridge unless an issuer-verified comparable/pro-forma EPS basis exists. Also distinguishes non-EPS-basis net-income context labels.
 # V2.23.19: Insurance Per-Share Currency Display & Copy Cleanup V215. Fixes Yahoo insurer BVPS presentation for mixed quote/financial currencies by routing provider per-share book value through the verified quote-to-financial FX path before display, clarifies the mixed-currency price caption, and removes the residual Munich-Re-specific Fair-Value copy from the reusable Reinsurance path. Valuation mathematics, score thresholds, capital-framework calibration, corridors and frozen insurer inputs remain unchanged.
 # V2.23.18: Universal Insurance Capital Framework & Currency Routing V214. Adds jurisdiction-aware insurer capital frameworks (Solvency II / SST), per-share currency routing for official BVPS/dividend evidence, Swiss primary-listing/subprofile hardening, Swiss Re + Zurich issuer-primary evidence adapters and insurance-copy cleanup.
 # V2.23.17: AXA Official BVPS & Insurance Copy Correction V213. Verwendet für AXA den vom Emittenten neu definierten und direkt berichteten Book Value per Share (FY2024 24,5 EUR; FY2025 24,0 EUR; H1 2026 23,8 EUR) statt einer abgeleiteten Gesamt-Eigenkapital/Aktienzahl-Größe. Bereinigt außerdem verbliebene sichtbare V2.20.44/Core-TTM-Texte im universellen Insurance-Pfad, aktualisiert die technischen Insurance-Integrationsbezeichner und zeigt bei vollständig freigegebener Versicherungs-Evidenz einen abgeschlossenen Familienstatus. Keine Änderung an den eingefrorenen Allianz-/Munich-Re-Inputs oder an den Insurance-/Reinsurance-Korridoren.
@@ -2532,6 +2533,33 @@ def build_special_event_warning(eps_normalization, bank_special_model=None, insu
         else {}
     )
     insurance_snapshot = insurance_model.get("snapshot") or {}
+    insurance_corporate_action_gate = insurance_model.get("corporate_action_gate") or {}
+    if insurance_model.get("applicable") and insurance_corporate_action_gate.get("active"):
+        if insurance_corporate_action_gate.get("blocked"):
+            return {
+                "level": "Rot",
+                "icon": "🔴",
+                "title": "Wesentliche Corporate Action – EPS-Vergleichbarkeit nicht freigegeben",
+                "requires_research": False,
+                "valuation_usable": False,
+                "reason": str(insurance_corporate_action_gate.get("note") or "Wesentliche Corporate Action im TTM-Fenster erkannt."),
+                "action": (
+                    "Der rechnerische TTM-EPS bleibt Diagnose. Fair Value und Bewertungszonen bleiben gesperrt, "
+                    "bis eine issuer-verifizierte vergleichbare bzw. Pro-forma-EPS-Basis über die betroffenen Perioden vorliegt. "
+                    "Nicht auf Yahoo-/Standard-EPS ausweichen."
+                ),
+            }
+        if insurance_corporate_action_gate.get("level") == "Gelb":
+            return {
+                "level": "Gelb",
+                "icon": "🟡",
+                "title": "Corporate Action erkannt – EPS-Vergleichbarkeit verifiziert",
+                "requires_research": False,
+                "valuation_usable": True,
+                "reason": str(insurance_corporate_action_gate.get("note") or "Corporate Action wurde berücksichtigt."),
+                "action": "Bewertung darf mit Warnhinweis weiterlaufen; die verifizierte vergleichbare EPS-Basis bleibt maßgeblich.",
+            }
+
     headline_core_eps_growth = safe_float(
         insurance_model.get("core_eps_growth_pct")
     )
@@ -16662,7 +16690,7 @@ INSURANCE_V212_PRIMARY_SOURCE_REGISTRY = (
             "company": "Swiss Re AG / Swiss Re Group",
             "profile_key": "reinsurance_reported_ifrs",
             "insurance_subprofile": "reinsurance",
-            "integration_version": "v22319_insurance_currency_display_v215",
+            "integration_version": "v22320_insurance_corporate_action_guard_v216",
             "earnings_basis_label": "issuer-reported IFRS",
             "earnings_metric_label": "Group Net Income / EPS",
             "roe_metric_label": "RoE",
@@ -16772,7 +16800,21 @@ INSURANCE_V212_PRIMARY_SOURCE_REGISTRY = (
             "underlying_core_roe_pct": 27.1,
             "underlying_core_eps_growth_pct": 11.5,
             "underlying_adjustment_active": True,
-            "underlying_growth_note": "Zurich weist zusätzlich kapitalerhöhungsbereinigte H1-2026 Core-Kennzahlen aus. V214 nutzt für die TTM-Brücke die direkt berichteten periodengleichen Core-EPS-Werte und führt die bereinigte Wachstumsangabe nur als Kontext.",
+            "underlying_growth_note": "Zurich weist zusätzlich kapitalerhöhungsbereinigte H1-2026 Core-Kennzahlen aus. V216 behandelt die direkt berichtete FY/6M-EPS-Brücke wegen der materiellen Kapitalerhöhung nur noch als Diagnose, solange keine issuer-verifizierte vergleichbare EPS-Basis über alle Brückenperioden vorliegt.",
+            "net_income_basis_label": "NIAS",
+            "net_income_matches_eps_basis": False,
+            "corporate_action": {
+                "active": True,
+                "material": True,
+                "type": "Kapitalerhöhung zur Teilfinanzierung einer großen Akquisition",
+                "event_date": "05.03.2026",
+                "within_ttm_window": True,
+                "share_count_change_pct": 4.6,
+                "earnings_perimeter_change": True,
+                "eps_comparability_verified": False,
+                "description": "7.090.909 neue Zurich-Aktien wurden im März 2026 platziert; die Mittel dienen der Teilfinanzierung der Beazley-Übernahme. Die H1-2026 Per-Share-Kennzahlen enthalten damit eine andere Aktienzahlbasis als FY2025/H1 2025, während zusätzlich ein großer Ergebnisperimeterwechsel ansteht.",
+                "source_url": "https://www.zurich.com/media/news-releases/2026/2026-0303-01",
+            },
             "dividend_2025_per_share": 30.00,
             "combined_ratio_pc_re_h1_pct": 92.7,
             "pb_corridor_lower": 1.00,
@@ -16782,7 +16824,7 @@ INSURANCE_V212_PRIMARY_SOURCE_REGISTRY = (
             "book_weight": 0.55,
             "core_pe_weight": 0.45,
             "valuation_profile_note": "Diversified/primary-insurer corridor; official BVPS and dividend are CHF while earnings are USD and are currency-routed before anchor math.",
-            "source_note": "V214 maps Zurich Core EPS/RoE, SST and official book value into the common insurance schema with explicit per-share currencies.",
+            "source_note": "V216 maps Zurich Core EPS/RoE, SST and official book value into the common insurance schema with explicit per-share currencies and applies the universal corporate-action/EPS-comparability guard.",
         },
     },
 )
@@ -16844,7 +16886,105 @@ def _insurance_snapshot_is_fresh(snapshot):
 
 
 
-INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION = "v22318_insurance_ttm_bridge"
+
+INSURANCE_CORPORATE_ACTION_MATERIALITY_PCT = 2.0
+
+
+def build_insurance_corporate_action_gate(snapshot):
+    """Universal fail-closed guard for material share-count/perimeter changes inside an insurer TTM bridge.
+
+    The gate is issuer-agnostic. Snapshots may describe a capital increase, buyback/
+    cancellation, acquisition, disposal, merger or similar transaction through the
+    common ``corporate_action`` schema. A material event inside the TTM window blocks
+    the EPS bridge unless the issuer provides a verified comparable/per-share basis.
+    """
+    result = {
+        "active": False,
+        "material": False,
+        "blocked": False,
+        "valuation_usable": True,
+        "level": "Grün",
+        "event_type": None,
+        "event_date": None,
+        "share_count_change_pct": None,
+        "earnings_perimeter_change": False,
+        "eps_comparability_verified": False,
+        "reason": None,
+        "source_url": None,
+        "note": None,
+    }
+    if not isinstance(snapshot, dict):
+        return result
+    event = snapshot.get("corporate_action")
+    if not isinstance(event, dict) or not event.get("active"):
+        return result
+
+    event_type = str(event.get("type") or "Corporate Action").strip()
+    event_date = str(event.get("event_date") or event.get("announcement_date") or "").strip() or None
+    share_change = safe_float(event.get("share_count_change_pct"))
+    perimeter_change = bool(event.get("earnings_perimeter_change"))
+    within_ttm = bool(event.get("within_ttm_window", True))
+    comparability_verified = bool(event.get("eps_comparability_verified"))
+    explicit_material = event.get("material")
+    material = bool(explicit_material) if explicit_material is not None else bool(
+        perimeter_change or (share_change is not None and abs(share_change) >= INSURANCE_CORPORATE_ACTION_MATERIALITY_PCT)
+    )
+
+    result.update({
+        "active": True,
+        "material": material,
+        "event_type": event_type,
+        "event_date": event_date,
+        "share_count_change_pct": share_change,
+        "earnings_perimeter_change": perimeter_change,
+        "eps_comparability_verified": comparability_verified,
+        "source_url": event.get("source_url"),
+    })
+
+    share_text = f"; Aktienzahländerung ca. {share_change:+.1f} %" if share_change is not None else ""
+    date_text = f" am {event_date}" if event_date else ""
+    description = str(event.get("description") or "").strip()
+    description_text = f" {description}" if description else ""
+
+    if not within_ttm or not material:
+        result.update({
+            "level": "Gelb",
+            "valuation_usable": True,
+            "note": (
+                f"Corporate Action erkannt ({event_type}{date_text}{share_text}), aber für die aktuelle "
+                "TTM-EPS-Brücke nicht als wesentlich eingestuft."
+            ),
+        })
+        return result
+
+    if comparability_verified:
+        method = str(event.get("eps_comparability_method") or "issuer-verifizierte vergleichbare EPS-Basis").strip()
+        result.update({
+            "level": "Gelb",
+            "valuation_usable": True,
+            "note": (
+                f"Wesentliche Corporate Action erkannt ({event_type}{date_text}{share_text}). "
+                f"Die EPS-Vergleichbarkeit ist über {method} verifiziert; die Bewertung darf mit Warnhinweis weiterlaufen."
+            ),
+        })
+        return result
+
+    result.update({
+        "blocked": True,
+        "valuation_usable": False,
+        "level": "Rot",
+        "reason": "material_corporate_action_eps_denominator_or_perimeter_not_comparable",
+        "note": (
+            f"Wesentliche Corporate Action im TTM-Fenster erkannt ({event_type}{date_text}{share_text})."
+            f"{description_text} Die FY-/6M-EPS-Perioden sind dadurch nicht automatisch auf derselben Aktienzahl- "
+            "und/oder Ergebnisperimeter-Basis vergleichbar. Ohne issuer-verifizierte vergleichbare oder Pro-forma-EPS-Basis "
+            "bleibt der Versicherungs-TTM-EPS-Anker fail-closed."
+        ),
+    })
+    return result
+
+
+INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION = "v22320_insurance_ttm_corporate_action_guard_v216"
 
 def build_insurance_core_coverage(snapshot):
     """
@@ -16866,6 +17006,10 @@ def build_insurance_core_coverage(snapshot):
         "core_net_income_h2_2025": None,
         "core_net_income_h1_2026": None,
         "core_ttm_net_income": None,
+        "bridge_calculated": False,
+        "corporate_action_gate": build_insurance_corporate_action_gate(snapshot),
+        "net_income_basis_label": (snapshot or {}).get("net_income_basis_label") if isinstance(snapshot, dict) else None,
+        "net_income_matches_eps_basis": bool((snapshot or {}).get("net_income_matches_eps_basis", True)) if isinstance(snapshot, dict) else True,
         "note": None,
     }
 
@@ -16913,14 +17057,25 @@ def build_insurance_core_coverage(snapshot):
         )
         return result
 
-    # Round only presentation-sensitive bridge values; keep calculations numeric.
+    # Keep the bridge visible as a diagnostic even when a corporate-action guard blocks release.
     result.update({
-        "available": True,
         **required,
+        "bridge_calculated": True,
         "core_eps_h2_2025": core_eps_h2_2025,
         "core_ttm_eps": core_ttm_eps,
         "core_net_income_h2_2025": core_ni_h2_2025,
         "core_ttm_net_income": core_ttm_ni,
+    })
+    corporate_action_gate = result.get("corporate_action_gate") or {}
+    if corporate_action_gate.get("blocked"):
+        result["note"] = (
+            "TTM-Earnings-Brücke rechnerisch gebildet, aber nicht als Bewertungsbasis freigegeben. "
+            + str(corporate_action_gate.get("note") or "Wesentliche Corporate Action verhindert die Periodenvergleichbarkeit.")
+        )
+        return result
+
+    result.update({
+        "available": True,
         "note": (
             "TTM-Earnings-Coverage Gate bestanden: 12M 2025, 6M 2025 und 6M 2026 "
             f"stammen aus offiziellen {snapshot.get('company') or 'Versicherer'}-Primärquellen. "
@@ -17663,6 +17818,8 @@ def build_insurance_special_model(
         }
     )
 
+    corporate_action_gate = (core_coverage.get("corporate_action_gate") or build_insurance_corporate_action_gate(snapshot))
+
     book_value_bridge = (
         build_insurance_book_value_bridge(snapshot, yahoo_book_value=book_value, currency_context=currency_context)
         if snapshot_fresh
@@ -17785,11 +17942,14 @@ def build_insurance_special_model(
         "underlying_core_net_income_growth_pct": safe_float((snapshot or {}).get("underlying_core_net_income_growth_pct")) if snapshot_fresh else None,
         "underlying_core_roe_pct": safe_float((snapshot or {}).get("underlying_core_roe_pct")) if snapshot_fresh else None,
         "core_coverage": core_coverage,
+        "corporate_action_gate": corporate_action_gate,
+        "net_income_basis_label": (snapshot or {}).get("net_income_basis_label"),
+        "net_income_matches_eps_basis": bool((snapshot or {}).get("net_income_matches_eps_basis", True)),
         "book_value_bridge": book_value_bridge,
         "insurance_score": insurance_score,
         "insurance_valuation": insurance_valuation,
         "note": (
-            f"V215 Universal Insurance Evidence & Capital Framework Routing: {earnings_basis_label}-Ergebnisbasis, {earnings_ttm_label}-Brücke, "
+            f"V216 Universal Insurance Evidence & Capital Framework Routing: {earnings_basis_label}-Ergebnisbasis, {earnings_ttm_label}-Brücke, "
             f"RoE, {capital_ratio_label} und offizieller Buchwert werden in eine gemeinsame Versicherungs-Evidenzstruktur überführt. "
             f"Unterprofil: {'Reinsurance' if is_reinsurance_profile else 'Primary/Diversified Insurance'}; "
             "55/45-Doppelanker, Standard-FCF-Sperre und Fail-Closed-Gates bleiben unverändert."
@@ -17798,7 +17958,7 @@ def build_insurance_special_model(
 
 
 def build_insurance_special_control(base_control, insurance_model):
-    """Attach the universal V215 insurer step-3B dual-anchor gate."""
+    """Attach the universal V216 insurer step-3B dual-anchor gate."""
     control = dict(base_control or {})
     control.setdefault("router_status", control.get("status"))
     control.setdefault("router_note", control.get("note"))
@@ -17829,9 +17989,9 @@ def build_insurance_special_control(base_control, insurance_model):
             "Dividende / Kapitalrückführung / Ausschüttungsqualität",
             "Versicherungs-Score",
         ],
-        "status": "Router aktiv – V215 Universal Insurance Evidence & Capital Framework Routing & Subprofile Routing",
+        "status": "Router aktiv – V216 Universal Insurance Evidence & Capital Framework Routing & Subprofile Routing",
         "note": (
-            f"V215 trennt Yahoo-Kontextdaten von verifizierten Versicherungs-Primärdaten. {earnings_ttm_label}-EPS, "
+            f"V216 trennt Yahoo-Kontextdaten von verifizierten Versicherungs-Primärdaten. {earnings_ttm_label}-EPS, "
             f"offizieller Buchwert, RoE, {capital_ratio_label} und {earnings_multiple_label}-Korridor werden ausschließlich "
             "aus dem freigegebenen Unterprofil aufgebaut."
         ),
@@ -17911,6 +18071,9 @@ def build_insurance_special_control(base_control, insurance_model):
             "solvency_ii_prior_pct": model.get("solvency_ii_prior_pct"),
             "solvency_ii_change_pp": model.get("solvency_ii_change_pp"),
             "core_coverage": core_coverage,
+            "corporate_action_gate": model.get("corporate_action_gate") or {},
+            "net_income_basis_label": model.get("net_income_basis_label"),
+            "net_income_matches_eps_basis": model.get("net_income_matches_eps_basis", True),
             "book_value_bridge": book_bridge,
             "insurance_score": insurance_score,
             "insurance_valuation": insurance_valuation,
@@ -17925,7 +18088,7 @@ def build_insurance_special_control(base_control, insurance_model):
             "roe_metric_label": model.get("roe_metric_label"),
         },
         "note": (
-            f"V215 Schritt 3B validiert die emittenteneigene {earnings_ttm_label}-Ergebnisbasis, RoE, {capital_ratio_label}, "
+            f"V216 Schritt 3B validiert die emittenteneigene {earnings_ttm_label}-Ergebnisbasis, RoE, {capital_ratio_label}, "
             f"offiziellen Buchwert sowie getrennte P/B- und {earnings_multiple_label}-Anker. "
             "Die Bewertung wird nur bei vollständiger und konsistenter Doppelanker-Prüfung freigegeben."
         ),
@@ -45596,9 +45759,9 @@ def get_special_control(company_type, symbol):
                 "Ausschüttungsqualität",
                 "Versicherungs-Score"
             ],
-            "status": "Router aktiv – V215 Universal Insurance Evidence & Capital Framework Routing + Doppelanker-Bewertung",
+            "status": "Router aktiv – V216 Universal Insurance Evidence & Capital Framework Routing + Doppelanker-Bewertung",
             "note": (
-                "V215 trennt Yahoo-Kontextkennzahlen von verifizierten Versicherungs-Primärdaten. "
+                "V216 trennt Yahoo-Kontextkennzahlen von verifizierten Versicherungs-Primärdaten. "
                 "Versicherungsspezifische TTM-Abdeckung, offizieller Buchwert, RoE und regulatorische Kapitalquote, "
                 "Versicherungs-Score sowie P/B- und unterprofilabhängige TTM-KGV-Anker werden nur aus "
                 "verifizierten Daten aufgebaut. Der Fair Value wird ausschließlich bei vollständiger "
@@ -66415,7 +66578,7 @@ if selected_symbol:
                         st.caption(
                             f"Der verifizierte {insurance_model_eps_ui.get('earnings_ttm_label') or 'Versicherungs-TTM'}-EPS-Wert ist die Gewinnbasis des "
                             f"{insurance_model_eps_ui.get('earnings_multiple_label') or 'Versicherungs-KGV'}-Ankers; die Fair-Value-Freigabe erfolgt "
-                            "ausschließlich über das V215 Universal-Insurance-Doppelanker-Gate."
+                            "ausschließlich über das V216 Universal-Insurance-Doppelanker-Gate."
                         )
                     elif company_type.get("type") == "REIT / Immobilien":
                         st.caption(
@@ -68511,25 +68674,33 @@ if selected_symbol:
                             insurance_income_growth_label_ui = "Underlying-Earnings-Wachstum"
                         else:
                             insurance_eps_label_ui = "Core EPS"
-                            insurance_income_label_ui = "Shareholders' Core Net Income"
+                            if insurance_snapshot_ui.get("net_income_matches_eps_basis", True) is False:
+                                insurance_income_label_ui = insurance_snapshot_ui.get("net_income_basis_label") or "Net Income attributable to shareholders"
+                                insurance_income_growth_label_ui = f"{insurance_income_label_ui}-Wachstum"
+                            else:
+                                insurance_income_label_ui = "Shareholders' Core Net Income"
+                                insurance_income_growth_label_ui = "Core-Net-Income-Wachstum"
                             insurance_growth_label_ui = "Core-EPS-Wachstum"
-                            insurance_income_growth_label_ui = "Core-Net-Income-Wachstum"
                         insurance_roe_label_ui = insurance_model.get("roe_metric_label") or ("RoE" if insurance_is_reinsurance_ui else "Core RoE")
                         insurance_capital_label_ui = insurance_model.get("capital_ratio_label") or "Regulatorische Kapitalquote"
                         insurance_ttm_income_label_ui = (
                             "Reported-TTM-Net-Result" if insurance_basis_ui == "issuer-reported IFRS"
-                            else ("Underlying-TTM-Earnings" if insurance_basis_ui == "Underlying" else "Core-TTM-Net-Income")
+                            else ("Underlying-TTM-Earnings" if insurance_basis_ui == "Underlying" else (
+                                f"TTM-{insurance_snapshot_ui.get('net_income_basis_label') or 'Net Income'} (Kontext, nicht {insurance_ttm_label_ui}-EPS-Basis)"
+                                if insurance_snapshot_ui.get("net_income_matches_eps_basis", True) is False
+                                else "Core-TTM-Net-Income"
+                            ))
                         )
                         insurance_score_growth_label_ui = insurance_snapshot_ui.get("score_growth_label") or insurance_growth_label_ui
 
                         st.subheader(
-                            "🛡️ Reinsurance-Familienmodell V215 – Datenbasis"
+                            "🛡️ Reinsurance-Familienmodell V216 – Datenbasis"
                             if insurance_is_reinsurance_ui
-                            else "🛡️ Insurance-Familienmodell V215 – Datenbasis"
+                            else "🛡️ Insurance-Familienmodell V216 – Datenbasis"
                         )
 
                         st.info(
-                            f"V215 verwendet die emittenteneigene Ergebnisbasis ({insurance_basis_ui}), RoE, {insurance_capital_label_ui} und den "
+                            f"V216 verwendet die emittenteneigene Ergebnisbasis ({insurance_basis_ui}), RoE, {insurance_capital_label_ui} und den "
                             "offiziellen Buchwert aus verifizierten Primärquellen. Die TTM-Brücke wird nicht annualisiert; "
                             f"P/B und {insurance_model.get('earnings_multiple_label') or 'Versicherungs-TTM-KGV'} bleiben getrennte Bewertungsanker. "
                             f"Unterprofil: {'Reinsurance' if insurance_is_reinsurance_ui else 'Primary/Diversified Insurance'}."
@@ -68769,7 +68940,7 @@ if selected_symbol:
                             insurance_score_ui = insurance_model.get("insurance_score") or {}
 
                             st.write(f"**🧮 {'Reinsurance' if insurance_is_reinsurance_ui else 'Insurance'} {insurance_ttm_label_ui}-Abdeckungsprüfung**")
-                            if core_cov_ui.get("available"):
+                            if core_cov_ui.get("available") or core_cov_ui.get("bridge_calculated"):
                                 c1, c2 = st.columns(2)
                                 with c1:
                                     st.metric(
@@ -68816,10 +68987,16 @@ if selected_symbol:
                                         )
                                     )
 
-                                st.success(
-                                    f"{insurance_ttm_label_ui}-Abdeckung vollständig: 12M 2025 − 6M 2025 + 6M 2026. "
-                                    "Die Halbjahreswerte werden nicht annualisiert."
-                                )
+                                if core_cov_ui.get("available"):
+                                    st.success(
+                                        f"{insurance_ttm_label_ui}-Abdeckung vollständig und freigegeben: 12M 2025 − 6M 2025 + 6M 2026. "
+                                        "Die Halbjahreswerte werden nicht annualisiert."
+                                    )
+                                else:
+                                    st.error(
+                                        f"{insurance_ttm_label_ui}-Brücke ist nur Diagnose und nicht als Bewertungsbasis freigegeben. "
+                                        "Corporate-Action-/EPS-Vergleichbarkeits-Gate aktiv."
+                                    )
                                 st.caption(
                                     "Integrationsstand: "
                                     + text_or_dash(core_cov_ui.get("integration_version"))
@@ -74637,9 +74814,13 @@ if selected_symbol:
                                 insurance_income_growth_label_3b = "Underlying-Earnings-Wachstum"
                                 insurance_eps_growth_label_3b = "Underlying-EPS-Wachstum"
                             else:
-                                insurance_income_label_3b = "Shareholders' Core Net Income"
                                 insurance_eps_label_3b = "Core EPS"
-                                insurance_income_growth_label_3b = "Core-Net-Income-Wachstum"
+                                if snapshot.get("net_income_matches_eps_basis", True) is False:
+                                    insurance_income_label_3b = snapshot.get("net_income_basis_label") or "Net Income attributable to shareholders"
+                                    insurance_income_growth_label_3b = f"{insurance_income_label_3b}-Wachstum"
+                                else:
+                                    insurance_income_label_3b = "Shareholders' Core Net Income"
+                                    insurance_income_growth_label_3b = "Core-Net-Income-Wachstum"
                                 insurance_eps_growth_label_3b = "Core-EPS-Wachstum"
 
                             st.subheader(
@@ -74701,11 +74882,17 @@ if selected_symbol:
                             )
 
                             core_cov_3b = checks.get("core_coverage") or {}
+                            corporate_action_3b = checks.get("corporate_action_gate") or {}
+                            if corporate_action_3b.get("blocked"):
+                                st.error(
+                                    "Corporate-Action-/EPS-Vergleichbarkeits-Gate: "
+                                    + str(corporate_action_3b.get("note") or "Bewertungsbasis gesperrt.")
+                                )
                             insurance_score_3b = checks.get("insurance_score") or {}
                             book_bridge_3b = checks.get("book_value_bridge") or {}
                             insurance_val_3b = checks.get("insurance_valuation") or {}
 
-                            if core_cov_3b.get("available"):
+                            if core_cov_3b.get("available") or core_cov_3b.get("bridge_calculated"):
                                 st.write(
                                     f"**{insurance_ttm_label_3b}-EPS:** "
                                     f"{format_eps(core_cov_3b.get('core_ttm_eps'), financial_currency)} "
