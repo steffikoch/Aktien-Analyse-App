@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.11"
+APP_BUILD_VERSION = "V2.23.12"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,13 +946,14 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Semiconductor Equipment Router & Horizon-Schutz V207"
+    f"Build {APP_BUILD_VERSION} · Semiconductor Equipment NTM-Horizont & Datenkonsistenz V208"
 )
 
 
 # V2.22.98: Zahlungsabwickler-Sicherheitsentkopplung V194. Bei vollständig freigegebenem Zahlungsabwickler-Spezialpfad bleibt die generische TTM-/Prognose-EPS-Divergenz ausschließlich Diagnosekontext und darf die endgültige Bewertungssicherheit nicht mehr begrenzen. Maßgeblich sind Methodenobergrenze, freigegebene Familien-Gewinnbasis, Sicherheit des Familien-Ziel-KGV und Spezialkontrolle. Bewertungsmathematik, Peer-Kalibrierung, Gewinnbasis, Ziel-KGV, Fair Values und Signal-Gates bleiben unverändert.
 # V2.23.02: Unabhängiger Gegencheck V2 V198. Härtet die nicht steuernde Zahlungsabwickler-Kontrollsicht nach Live-Tests mit Global Payments, PayPal, Adyen und Fiserv: Analystenabweichungen werden richtungs- und größenordnungsspezifisch formuliert; die feste 8x/10x-Bewertung wird entfernt und das aktuelle Markt-KGV nur noch als marktimplizierter Kontext gezeigt, solange keine gleichbasige historische Eigenreihe belastbar verfügbar ist; der rohe Kern-Vergleichsgruppen-Check erhält eine Streuungs-/Vergleichbarkeitssperre und darf bei heterogener KGV-Spanne weder Bestätigung noch Widerspruch erzeugen. Das Gesamtergebnis zählt nur belastbare Kontrollen. Fair Value, Ziel-KGV, Qualität, Sicherheit, Bewertungszonen und Kaufen/Halten/Verkaufen bleiben unverändert.
 # V2.23.04: Zahlungsabwickler-Sicherheitsobergrenze V200. Die allgemeine Methoden-/Spezialkontroll-Obergrenze der vollständig freigegebenen Zahlungsabwickler-Referenzprofile wird von „Niedrig bis Mittel“ auf „Mittel“ angehoben. Die in V199 gehärtete Regel „schwächste relevante Sicherheitsstufe gewinnt“ bleibt unverändert. Emittentenspezifische niedrigere Stufen bleiben wirksam; insbesondere behält Fiserv wegen seiner Ziel-KGV-Sicherheit „Niedrig bis Mittel“ die niedrigere Gesamtbewertungssicherheit. Score, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Value, Bewertungszonen und Signal-Schwellen bleiben unverändert.
+# V2.23.12: Semiconductor Equipment NTM-Horizont & Datenkonsistenz V208. Ersetzt im freigegebenen Semiconductor-Equipment-Familienmodell die starre Current-FY-Gewinnbasis durch eine zeitgewichtete Next-Twelve-Months-(NTM)-EPS-Basis aus validiertem Current-FY- und Next-FY-Konsens sowie issuer-spezifischem Fiskaljahresende; bei fehlender oder abgelaufener Horizon-Evidenz fail-closed Current-FY-Fallback. Sperrt generische FCF-/Bilanzscores in der Datenpipeline, bereinigt FCF-Quellenhinweise und generische EPS-Divergenz-Warnungen, zeigt EPS-Währungen im Analystenziel-Gegencheck, priorisiert KLA Corporation auf KLAC/Nasdaq statt KLA.DE/Xetra, vereinheitlicht den KLA-FY2026-Primärdatenblock inklusive 41,7 % Operating Margin und hält 22–34x-Korridor, Scorearchitektur und Peer-Reference-only-Regel unverändert.
 # V2.23.11: Semiconductor Equipment Router & Horizon-Schutz V207. Hotfix nach dem ersten V206-Livetest: setzt den kanonischen Symbolschlüssel vor der universellen Semicap-Routerabfrage, sodass AMAT/LRCX/KLAC nach erfolgreicher Suche tatsächlich in das freigegebene Familienmodell laden; schützt die offiziellen Eigennamen ASML Holding N.V. und Lam Research vor der generischen UI-Wortübersetzung; ergänzt ASML Q2-2026 Operating Margin 37,1 %; entfernt den verbliebenen Legacy-Hinweis auf eine credibility-gewichtete ASML-Earnings-Mischbasis; und erweitert den bereits bei Defense verwendeten Analystenziel-Zeithorizontschutz auf Semiconductor Equipment, wenn Current-FY und Next-FY EPS materiell auseinanderliegen. Scorearchitektur, Current-FY-Gewinnbasis, 22–34×-Korridor, Peer-Reference-only-Regel und Fair-Value-Mathematik bleiben unverändert.
 # V2.23.10: Semiconductor Equipment Mehr-Emittenten-Familie V206. Ersetzt den alten ASML-Einzelpfad durch ein gemeinsames, primärquellenbasiertes Familienmodell für ASML, Applied Materials, Lam Research und KLA. Gemeinsame 100-Punkte-Architektur: Nachfrage/Zyklus/Guidance 20, Gross-/Operating-Margin-Qualität 20, Installed Base/Service/Recurring 15, Technologie-/Tool-Mix 15, issuer-native FCF/Cash Conversion 15, Bilanz/Kapitalallokation 5, Execution/Guidance-Erfüllung 10. Gewinnbasis ist ausschließlich der validierte Konsens des tatsächlich laufenden Geschäftsjahres; Next-FY bleibt Horizon-Watch und wird nicht gemischt. Familien-KGV-Korridor 22–34x, scorepositioniert; Peers reference-only. ASML-Suche priorisiert Euronext Amsterdam als principal trading market; Yahoo-EV/EBITDA-Ausreißer werden verworfen.
 # V2.23.09: Aerospace & Defense Abschluss & Exail-Guard V205. Ergänzt bei Thales den am 06.07.2026 angekündigten Exail-M&A-/Kapitalallokationsschutz (35,51%-Gorgé-Anteil als erster Schritt, angestrebter Erwerb von 100 %, Enterprise Value rund 3,9 Mrd. EUR, erster Closing-Schritt voraussichtlich Q3 2027). Der Guard ist kein FY2026-Strukturbruch, ändert weder Score noch Current-FY-Gewinnbasis, Ziel-KGV oder Fair Value und erzeugt keinen zweiten Multiple-Abschlag; Bewertungssicherheit bleibt Mittel. Rheinmetall und Leonardo sowie der 18–30× Familienkorridor und der Current-FY/Next-FY-Horizon-Watch bleiben unverändert.
@@ -8400,7 +8401,7 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
                 "ASML.AS": ("Halbleiterausrüstung / Lithografie", "Lithografie / EUV / High-NA"),
                 "AMAT": ("Halbleiterausrüstung / Materials Engineering", "Broad WFE / Materials Engineering"),
                 "LRCX": ("Halbleiterausrüstung / Etch & Deposition", "Etch / Deposition"),
-                "KLAC": ("Halbleiterausrüstung / Process Control", "Process Control / Inspection / Metrology"),
+                "KLAC": ("Halbleiterausrüstung / Prozesskontrolle", "Prozesskontrolle / Inspection / Metrology"),
             }
             out["type"], subprofile = profiles[sym_sc]
             out["family_model_status"] = "validated_multi_issuer_route"
@@ -8411,8 +8412,8 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
             out["confidence_cap"] = "Mittel bis Hoch"
             out["semicap_subprofile"] = subprofile
             out["method"] = (
-                "Primärquellenbasierter Semiconductor-Equipment KPI-Adapter + validierter Current-FY Adjusted/Consensus-EPS-Anker + "
-                "22–34× Familien-KGV-Korridor; Next-FY ausschließlich Horizon-Watch; generischer Standard-Score, Yahoo-FCF/Net-Debt-to-FCF "
+                "Primärquellenbasierter Semiconductor-Equipment KPI-Adapter + validierter Current-/Next-FY-Konsens + zeitgewichteter NTM-EPS-Anker + "
+                "22–34× Familien-KGV-Korridor; Current-FY und Next-FY bleiben separat sichtbar und werden bei validiertem Horizont zeitgewichtet zur NTM-EPS-Basis; generischer Standard-Score, Yahoo-FCF/Net-Debt-to-FCF "
                 "und automatische Peer-Multiple-Anpassungen bleiben gesperrt."
             )
             out["business_model"] = "Führender Anbieter von Halbleiterfertigungsanlagen/-prozesskontrolle mit zyklischer WFE-Nachfrage und strukturellem AI-/Leading-Edge-Treiber"
@@ -8452,7 +8453,7 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
             "ASML.AS": ("Halbleiterausrüstung / Lithografie", "Lithografie / EUV / High-NA"),
             "AMAT": ("Halbleiterausrüstung / Materials Engineering", "Broad WFE / Materials Engineering"),
             "LRCX": ("Halbleiterausrüstung / Etch & Deposition", "Etch / Deposition"),
-            "KLAC": ("Halbleiterausrüstung / Process Control", "Process Control / Inspection / Metrology"),
+            "KLAC": ("Halbleiterausrüstung / Prozesskontrolle", "Prozesskontrolle / Inspection / Metrology"),
         }
         out["type"], subprofile = profiles[_canonical_family_symbol]
         out["confidence_cap"] = "Mittel bis Hoch"
@@ -8463,8 +8464,8 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
         out["universal_family_fail_closed"] = False
         out["semicap_subprofile"] = subprofile
         out["method"] = (
-            "Primärquellenbasierter Semiconductor-Equipment KPI-Adapter + validierter Current-FY Adjusted/Consensus-EPS-Anker + "
-            "22–34× Familien-KGV-Korridor; Next-FY ausschließlich Horizon-Watch; generischer Standard-Score, Yahoo-FCF/Net-Debt-to-FCF "
+            "Primärquellenbasierter Semiconductor-Equipment KPI-Adapter + validierter Current-/Next-FY-Konsens + zeitgewichteter NTM-EPS-Anker + "
+            "22–34× Familien-KGV-Korridor; Current-FY und Next-FY bleiben separat sichtbar und werden bei validiertem Horizont zeitgewichtet zur NTM-EPS-Basis; generischer Standard-Score, Yahoo-FCF/Net-Debt-to-FCF "
             "und automatische Peer-Multiple-Anpassungen bleiben gesperrt."
         )
         out["business_model"] = "Führender Anbieter von Halbleiterfertigungsanlagen/-prozesskontrolle mit zyklischer WFE-Nachfrage und strukturellem AI-/Leading-Edge-Treiber"
@@ -14417,7 +14418,7 @@ def classify_company(name, symbol, sector, industry):
 # Aktiensuche / Security Identity & Primary Listing Resolver
 # =========================================================
 
-SEARCH_RESOLVER_CACHE_EPOCH = "v206_asml_euronext_primary_semicap_family"
+SEARCH_RESOLVER_CACHE_EPOCH = "v208_kla_nasdaq_primary_semicap_ntm"
 
 SEARCH_EXCHANGE_PRIORITY = {
     # US primary venues
@@ -14479,6 +14480,13 @@ PRIMARY_SEARCH_ALIASES = [
         "primary_lock": True,
         "symbol": "ASML.AS", "quoteType": "EQUITY", "longname": "ASML Holding N.V.",
         "exchange": "AMS", "exchDisp": "Amsterdam", "currency": "EUR",
+    },
+    {
+        "aliases": ["KLA", "KLAC", "KLA CORPORATION"],
+        "exact_aliases": True,
+        "primary_lock": True,
+        "symbol": "KLAC", "quoteType": "EQUITY", "longname": "KLA Corporation",
+        "exchange": "NMS", "exchDisp": "NASDAQ", "currency": "USD",
     },
     {
         "aliases": ["ADYEN", "ADYEN N.V.", "ADYEN NV", "ADYEN.AS"],
@@ -28520,14 +28528,14 @@ def build_nvidia_special_control(base_control, nvidia_model):
 
 
 # =========================================================
-# Halbleiterausrüstung / Semiconductor Equipment V2.23.10 – Mehr-Emittenten-Familie
+# Halbleiterausrüstung / Semiconductor Equipment V2.23.12 – NTM-Mehr-Emittenten-Familie
 # =========================================================
 
-SEMICAP_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22310_semicap_multiissuer_currentfy_v1"
+SEMICAP_PRIMARY_SOURCE_INTEGRATION_VERSION = "v22312_semicap_multiissuer_ntm_v1"
 
 
 def get_verified_semicap_snapshot(symbol):
-    """Time-bounded issuer-primary snapshots for the V206 Semiconductor Equipment family."""
+    """Time-bounded issuer-primary snapshots for the V208 Semiconductor Equipment NTM family."""
     sym = str(symbol or "").upper().strip()
     if sym == "ASML":
         sym = "ASML.AS"
@@ -28535,6 +28543,7 @@ def get_verified_semicap_snapshot(symbol):
         "ASML.AS": {
             "company": "ASML Holding N.V.", "symbol": "ASML.AS", "profile": "Lithografie / EUV / High-NA",
             "currency": "EUR", "as_of_date": "28.06.2026", "published_date": "15.07.2026", "valid_until": "13.10.2026",
+            "current_fy_label": "FY2026", "current_fy_end_date": "31.12.2026",
             "source_name": "ASML Q2 2026 Financial Results", "source_url": "https://www.asml.com/en/news/press-releases/2026/q2-2026-financial-results",
             "quarter_label": "Q2 2026", "quarter_sales": 9.326e9, "gross_margin_pct": 54.0, "gross_margin_label": "Q2 2026 Gross Margin", "operating_margin_pct": 37.1, "operating_margin_label": "Q2 2026 Operating Margin",
             "service_label": "Installed Base Management", "service_revenue": 2.762e9, "service_share_pct": 29.6,
@@ -28556,7 +28565,8 @@ def get_verified_semicap_snapshot(symbol):
         },
         "AMAT": {
             "company": "Applied Materials, Inc.", "symbol": "AMAT", "profile": "Broad WFE / Materials Engineering",
-            "currency": "USD", "as_of_date": "26.07.2026", "published_date": "13.08.2026", "valid_until": "11.11.2026",
+            "currency": "USD", "as_of_date": "26.07.2026", "published_date": "13.08.2026", "valid_until": "24.10.2026",
+            "current_fy_label": "FY2026", "current_fy_end_date": "25.10.2026",
             "source_name": "Applied Materials Q3 FY2026 Results", "source_url": "https://www.appliedmaterials.com/us/en/newsroom/press-releases/081326-applied-materials-announces-third-quarter-2026-results.html",
             "quarter_label": "Q3 FY2026", "quarter_sales": 9.115e9, "gross_margin_pct": 50.4, "gross_margin_label": "Q3 FY2026 Non-GAAP Gross Margin", "operating_margin_pct": 34.0, "operating_margin_label": "Q3 FY2026 Non-GAAP Operating Margin",
             "service_label": "Applied Global Services", "service_revenue": 1.781e9, "service_share_pct": 19.5,
@@ -28579,6 +28589,7 @@ def get_verified_semicap_snapshot(symbol):
         "LRCX": {
             "company": "Lam Research Corporation", "symbol": "LRCX", "profile": "Etch / Deposition",
             "currency": "USD", "as_of_date": "28.06.2026", "published_date": "29.07.2026", "valid_until": "31.10.2026",
+            "current_fy_label": "FY2027", "current_fy_end_date": "27.06.2027",
             "source_name": "Lam Research June 2026 Quarter / FY2026 Results", "source_url": "https://investor.lamresearch.com/2026-07-29-Lam-Research-Corporation-Reports-Financial-Results-for-the-Quarter-Ended-June-28%2C-2026",
             "quarter_label": "Q4 FY2026", "quarter_sales": 6.722238e9, "gross_margin_pct": 52.0, "gross_margin_label": "Q4 FY2026 Non-GAAP Gross Margin", "operating_margin_pct": 38.4, "operating_margin_label": "Q4 FY2026 Non-GAAP Operating Margin",
             "service_label": "Customer Support-related revenue", "service_revenue": 2.472390e9, "service_share_pct": 36.8,
@@ -28599,14 +28610,15 @@ def get_verified_semicap_snapshot(symbol):
             "profile_metrics": {"Systems": "4,250 Mrd. USD", "Customer Support": "2,472 Mrd. USD", "Q1 FY27 Umsatz-Guidance": "8,10 ±0,40 Mrd. USD", "Q1 FY27 EPS-Guidance": "2,15 ±0,15 USD"},
         },
         "KLAC": {
-            "company": "KLA Corporation", "symbol": "KLAC", "profile": "Process Control / Inspection / Metrology",
+            "company": "KLA Corporation", "symbol": "KLAC", "profile": "Prozesskontrolle / Inspektion / Metrologie",
             "currency": "USD", "as_of_date": "30.06.2026", "published_date": "28.07.2026", "valid_until": "31.10.2026",
+            "current_fy_label": "FY2027", "current_fy_end_date": "30.06.2027",
             "source_name": "KLA Q4/FY2026 Results", "source_url": "https://ir.kla.com/news-events/press-releases/detail/518/kla-corporation-reports-fiscal-2026-fourth-quarter-and-full",
-            "quarter_label": "Q4 FY2026", "quarter_sales": 3.657556e9, "gross_margin_pct": 61.3, "gross_margin_label": "FY2026 Gross Margin", "operating_margin_pct": None,
-            "service_label": "FY2026 Service Revenue", "service_revenue": 3.126e9, "service_share_pct": 23.0,
-            "official_fcf": 0.817142e9, "official_fcf_fy": 3.767134e9, "cash_liquidity": None,
+            "quarter_label": "FY2026", "quarter_sales": 13.579476e9, "gross_margin_pct": 61.3, "gross_margin_label": "FY2026 Gross Margin", "operating_margin_pct": 41.7, "operating_margin_label": "FY2026 Operating Margin",
+            "service_label": "FY2026 Service Revenue", "service_revenue": 3.125939e9, "service_share_pct": 23.0,
+            "official_fcf": 3.767134e9, "official_fcf_fy": 3.767134e9, "cash_liquidity": None,
             "demand_visibility_text": "AI infrastructure, leading-edge foundry/logic, memory complexity and advanced packaging strengthen process-control demand into 2027.",
-            "technology_mix_text": "FY2026 Semiconductor Process Control 12,245 Mrd. USD of 13,579 Mrd. USD total revenue; inspection/metrology/process control on critical path.",
+            "technology_mix_text": "FY2026 Semiconductor Prozesskontrolle 12,245 Mrd. USD of 13,579 Mrd. USD total revenue; inspection/metrology/process control on critical path.",
             "guidance_text": "Q1 FY2027 Umsatz 4,0 Mrd. USD ±0,2 Mrd.; Non-GAAP Gross Margin 62,5 % ±1; Non-GAAP EPS 1,16 USD ±0,10.",
             "current_fy_crosscheck_eps": None, "current_fy_crosscheck_label": "FY2027 läuft; nur Q1-Guidance, keine vollständige FY2027-EPS-Guidance",
             "score_components": {
@@ -28618,7 +28630,7 @@ def get_verified_semicap_snapshot(symbol):
                 "Bilanz & Kapitalallokation": 5,
                 "Execution / Guidance-Erfüllung": 9,
             },
-            "profile_metrics": {"FY26 Process Control": "12,245 Mrd. USD", "FY26 FCF": "3,767 Mrd. USD", "Q1 FY27 Umsatz-Guidance": "4,0 ±0,2 Mrd. USD", "Q1 FY27 GM-Guidance": "62,5 % ±1"},
+            "profile_metrics": {"FY26 Prozesskontrolle": "12,245 Mrd. USD", "FY26 FCF": "3,767 Mrd. USD", "Q1 FY27 Umsatz-Guidance": "4,0 ±0,2 Mrd. USD", "Q1 FY27 GM-Guidance": "62,5 % ±1"},
         },
     }
     return snapshots.get(sym)
@@ -28676,15 +28688,25 @@ def build_semicap_quality_score(primary_gate, snapshot):
 
 
 def build_semicap_forward_earnings_credibility_gate(primary_gate, snapshot, info, current_fy_eps=None, next_fy_eps=None):
+    """Validate FY horizons and derive a time-weighted next-twelve-month EPS basis.
+
+    V208 keeps provider Current-FY and Next-FY estimates separate, validates the
+    issuer-specific current fiscal-year end from the primary-source adapter, and
+    then aligns all supported Semiconductor-Equipment issuers to one 12-month
+    forward earnings horizon. If that horizon evidence is incomplete or stale,
+    the model falls back to the validated Current-FY consensus rather than
+    silently rolling to a different fiscal year.
+    """
     result = {"available": False, "status": None, "credibility_score": None, "earnings_reference": None, "note": None}
     if not (primary_gate or {}).get("available") or not isinstance(snapshot, dict):
-        result["note"] = "Current-FY-Ergebnis-Gate gesperrt: Primärquellenbasis fehlt."
+        result["note"] = "Semiconductor-Equipment Ergebnis-Horizont gesperrt: Primärquellenbasis fehlt."
         return result
     current = safe_float(current_fy_eps)
     nxt = safe_float(next_fy_eps)
     if current is None or current <= 0:
-        result["note"] = "Current-FY-Ergebnis-Gate gesperrt: kein positiver, horizon-validierter 0Y/current-FY Konsens verfügbar."
+        result["note"] = "Semiconductor-Equipment Ergebnis-Horizont gesperrt: kein positiver, horizon-validierter Current-FY-Konsens verfügbar."
         return result
+
     cross = safe_float(snapshot.get("current_fy_crosscheck_eps"))
     gap = abs(current / cross - 1.0) * 100.0 if cross is not None and cross > 0 else None
     if gap is not None and gap <= 5.0:
@@ -28693,21 +28715,60 @@ def build_semicap_forward_earnings_credibility_gate(primary_gate, snapshot, info
         status, cred = "Bestätigt", 85.0
     else:
         status, cred = "Horizon validiert", 80.0
+
     next_growth = (nxt / current - 1.0) * 100.0 if nxt is not None and nxt > 0 else None
+    fy_end_text = str(snapshot.get("current_fy_end_date") or "").strip()
+    fy_end = None
+    try:
+        fy_end = datetime.strptime(fy_end_text, "%d.%m.%Y").date() if fy_end_text else None
+    except Exception:
+        fy_end = None
+    today = datetime.now().date()
+    days_to_fy_end = (fy_end - today).days if fy_end is not None else None
+
+    ntm_eligible = bool(
+        nxt is not None and nxt > 0 and fy_end is not None
+        and days_to_fy_end is not None and 0 <= days_to_fy_end <= 365
+    )
+    if ntm_eligible:
+        current_weight = max(0.0, min(1.0, days_to_fy_end / 365.0))
+        next_weight = 1.0 - current_weight
+        earnings_ref = current * current_weight + nxt * next_weight
+        basis = "Zeitgewichtetes NTM-EPS"
+        ntm_status = "NTM freigegeben"
+    else:
+        current_weight, next_weight = 1.0, 0.0
+        earnings_ref = current
+        basis = "Current-FY-Fallback"
+        ntm_status = "NTM nicht freigegeben – Current-FY-Fallback"
+
     result.update({
         "available": True, "status": status, "credibility_score": cred,
-        "earnings_reference": current, "diagnostic_earnings_reference": current, "current_fy_eps": current, "next_fy_eps": nxt,
+        "earnings_reference": earnings_ref, "diagnostic_earnings_reference": earnings_ref,
+        "current_fy_eps": current, "next_fy_eps": nxt,
         "current_fy_crosscheck_eps": cross, "current_fy_crosscheck_gap_pct": gap,
         "current_fy_crosscheck_label": snapshot.get("current_fy_crosscheck_label"),
         "next_fy_growth_pct": next_growth,
+        "current_fy_label": snapshot.get("current_fy_label"),
+        "current_fy_end_date": fy_end_text or None, "days_to_current_fy_end": days_to_fy_end,
+        "ntm_eligible": ntm_eligible, "ntm_status": ntm_status,
+        "ntm_current_weight": current_weight, "ntm_next_weight": next_weight,
+        "ntm_eps": earnings_ref if ntm_eligible else None, "earnings_basis_label": basis,
         # Backward-compatible fields used by older UI/fair-value plumbing.
         "forward_eps": nxt, "fy2026_eps_proxy": cross, "forward_stretch_pct": next_growth,
-        "forward_weight": 0.0, "official_proxy_weight": 1.0,
+        "forward_weight": next_weight, "official_proxy_weight": current_weight,
     })
-    result["note"] = (
-        "V207 verwendet ausschließlich den horizon-validierten Konsens des tatsächlich laufenden Geschäftsjahres als Gewinnbasis. "
-        "Next-FY bleibt Horizon-Watch und wird niemals mit Current-FY gemischt. Ein issuer-primary Crosscheck prüft nur Plausibilität/Accounting-Basis, ersetzt aber den Current-FY-Anker nicht."
-    )
+    if ntm_eligible:
+        result["note"] = (
+            f"{APP_BUILD_VERSION} richtet Semiconductor Equipment auf einen gemeinsamen Next-Twelve-Months-Horizont aus: "
+            f"Current-FY wird mit {current_weight * 100:.1f} % und Next-FY mit {next_weight * 100:.1f} % gewichtet. "
+            "Current-FY und Next-FY bleiben separat sichtbar; die NTM-Mischung erfolgt nur bei validierter Währung, EPS-Basis und issuer-spezifischem Fiskaljahresende."
+        )
+    else:
+        result["note"] = (
+            f"{APP_BUILD_VERSION}: NTM-Horizont nicht belastbar freigegeben; die Bewertung fällt fail-closed auf den validierten Current-FY-Konsens zurück. "
+            "Es erfolgt keine automatische 100-%-Next-FY-Rollierung bei fehlender oder abgelaufener Fiskaljahres-Evidenz."
+        )
     return result
 
 
@@ -28717,7 +28778,7 @@ def build_semicap_valuation_anchor(semicap_score, earnings_gate):
     earnings_ref = safe_float((earnings_gate or {}).get("earnings_reference"))
     cred = safe_float((earnings_gate or {}).get("credibility_score"))
     if score is None or earnings_ref is None or earnings_ref <= 0 or cred is None or cred < 75:
-        result["note"] = "Semiconductor-Equipment Bewertungsanker gesperrt: Score oder Current-FY-Ergebnisbasis nicht belastbar."
+        result["note"] = "Semiconductor-Equipment Bewertungsanker gesperrt: Score oder horizon-validierte NTM-/Fallback-Ergebnisbasis nicht belastbar."
         return result
     corridor_low, corridor_high = 22.0, 34.0
     # Linear score positioning: 50/100 -> 22x; 100/100 -> 34x.
@@ -28733,8 +28794,9 @@ def build_semicap_valuation_anchor(semicap_score, earnings_gate):
         "fair_value_financial": fv, "peer_overlay_allowed": False, "peer_overlay_applied": False,
     })
     result["note"] = (
-        "V207: Current-FY Ergebnisbasis × scorepositioniertes Semiconductor-Equipment-Familien-KGV. Der 22–34×-Korridor ist für alle vier Adapter identisch; "
-        "Peers und Analystenziele bleiben Reference-only. Next-FY wird nicht in die Gewinnbasis interpoliert."
+        f"{APP_BUILD_VERSION}: horizon-validierte zeitgewichtete NTM-Ergebnisbasis × scorepositioniertes Semiconductor-Equipment-Familien-KGV. "
+        "Der 22–34×-Korridor ist für alle vier Adapter identisch; Peers und Analystenziele bleiben Reference-only. "
+        "Falls NTM nicht sicher freigegeben werden kann, greift ausschließlich der Current-FY-Fallback."
     )
     return result
 
@@ -28770,8 +28832,8 @@ def build_semicap_special_model(company_type, info, currency_context, symbol=Non
         "yahoo_ev_to_ebitda_context": ev,
         "readiness": "Bewertungsanker vollständig" if complete and ready and valuation.get("available") else "Unvollständig",
         "note": (
-            "Semiconductor-Equipment Mehr-Emittenten-Familie V207: ASML, Applied Materials, Lam Research und KLA verwenden dieselbe Score-/KGV-Architektur mit issuer-spezifischen KPI-Adaptern. "
-            "Current-FY ist die einzige Gewinnbasis; Next-FY, Yahoo-FCF und Yahoo-EV/EBITDA bleiben Diagnose-/Horizon-Kontext."
+            f"Semiconductor-Equipment Mehr-Emittenten-Familie {APP_BUILD_VERSION}: ASML, Applied Materials, Lam Research und KLA verwenden dieselbe Score-/KGV-Architektur mit issuer-spezifischen KPI-Adaptern. "
+            "Die Gewinnbasis wird auf einen gemeinsamen zeitgewichteten NTM-Horizont aus validiertem Current-FY und Next-FY ausgerichtet; bei fehlender Horizon-Evidenz greift Current-FY fail-closed. Yahoo-FCF und Yahoo-EV/EBITDA bleiben Diagnosekontext."
         ),
     }
 
@@ -28789,11 +28851,11 @@ def build_semicap_special_control(base_control, semicap_model):
         return control
     control.update({
         "implemented": True, "released": True, "confidence_cap": "Mittel",
-        "step3b_status": "Semiconductor-Equipment Familien-Score + Current-FY Earnings + KGV-Anker freigegeben",
+        "step3b_status": "Semiconductor-Equipment Familien-Score + NTM-/Fallback-Earnings + KGV-Anker freigegeben",
         "overall_status": "Bewertung freigegeben", "snapshot": snapshot, "checks": checks,
         "note": (
-            "V207 gibt die Familienbewertung nur bei frischem issuer-primary Snapshot und horizon-validierter Current-FY-EPS-Basis frei. "
-            "Next-FY bleibt Horizon-Watch; Peer-KGVs bleiben Reference-only und ändern weder Score, Ziel-KGV noch Fair Value."
+            f"{APP_BUILD_VERSION} gibt die Familienbewertung nur bei frischem issuer-primary Snapshot und validierter EPS-Horizon-Basis frei. "
+            "Bei belastbarem Current-/Next-FY-Paar wird zeitgewichtet auf NTM ausgerichtet; sonst greift Current-FY fail-closed. Peer-KGVs bleiben Reference-only."
         ),
     })
     return control
@@ -41653,7 +41715,7 @@ def get_peer_group(company_type, symbol, industry=None):
 
     own_symbol = str(symbol or "").upper()
 
-    # V206 – Semiconductor Equipment family peers are market references only.
+    # V208 – Semiconductor Equipment family peers are market references only.
     if str((company_type or {}).get("valuation_family_id") or "").lower() == "semicap" and own_symbol in {"ASML", "ASML.AS", "AMAT", "LRCX", "KLAC"}:
         universe = [
             ("ASML.AS", "ASML"),
@@ -43105,7 +43167,7 @@ def _calculate_semicap_peer_overlay(peer_group, fundamental_multiple, cache_vers
 
 
 def apply_semicap_peer_overlay(semicap_valuation, peer_check):
-    """V206 Semiconductor Equipment peers are reference-only; never alter target P/E or fair value."""
+    """V208 Semiconductor Equipment peers are reference-only; never alter target P/E or fair value."""
     sv = dict(semicap_valuation or {})
     if not sv.get("available"):
         return sv
@@ -44768,7 +44830,7 @@ def get_special_control(company_type, symbol):
         return {
             "required": True,
             "control_key": "semicap_order_visibility",
-            "control_name": "Semiconductor Equipment / Nachfrage-, Margen-, Technologie-, Cashflow- & Current-FY-Kontrolle",
+            "control_name": "Semiconductor Equipment / Nachfrage-, Margen-, Technologie-, Cashflow- & NTM-Horizont-Kontrolle",
             "planned_checks": [
                 "Issuer-native Nachfrage / Zyklus / Guidance / Visibility",
                 "Gross- & Operating-Margin-Qualität",
@@ -44777,14 +44839,14 @@ def get_special_control(company_type, symbol):
                 "Issuer-native Free Cash Flow / Cash Conversion",
                 "Bilanz & Kapitalallokation",
                 "Execution / Guidance-Erfüllung",
-                "Horizon-validierter Current-FY Adjusted/Consensus-EPS-Anker",
+                "Horizon-validierter zeitgewichteter NTM-EPS-Anker mit Current-FY-Fallback",
                 "22–34× Semiconductor-Equipment-Familienkorridor",
                 "Peers und Analystenziele ausschließlich Reference-only"
             ],
             "status": f"Router aktiv – {APP_BUILD_VERSION} Semiconductor-Equipment Mehr-Emittenten-Familienmodell",
             "note": (
                 f"{APP_BUILD_VERSION} validiert ASML, Applied Materials, Lam Research und KLA über issuer-primary KPI-Adapter unter einer gemeinsamen 100-Punkte-Architektur. "
-                "Current-FY Adjusted/Consensus EPS ist die einzige Gewinnbasis; Next-FY bleibt Horizon-Watch. Bookings/Backlog sind keine Familien-Pflichtmetrik; Peers bleiben Reference-only."
+                "Current-FY und Next-FY bleiben separat sichtbar; bei validiertem Fiskaljahresende werden beide zeitgewichtet zur NTM-EPS-Basis, andernfalls greift Current-FY fail-closed. Bookings/Backlog sind keine Familien-Pflichtmetrik; Peers bleiben Reference-only."
             )
         }
 
@@ -55466,7 +55528,7 @@ def calculate_fair_value_v1(
         })
         return result
 
-    # Semiconductor Equipment V206 – validated current-FY earnings x score-positioned family P/E.
+    # Semiconductor Equipment V208 – horizon-validierte NTM-/Current-FY-Fallback-Basis × score-positioned family P/E.
     if (
         isinstance(special_control, dict)
         and special_control.get("control_key") == "semicap_order_visibility"
@@ -55516,7 +55578,7 @@ def calculate_fair_value_v1(
             "valuation_method": "semicap_quality_adjusted_pe",
             "normalized_eps": earnings_ref,
             "used_multiple": safe_float(sv.get("target_pe")),
-            "multiple_source": f"{APP_BUILD_VERSION} Semiconductor Equipment Familien-Score → 22–34× KGV; validierter Current-FY Konsens → Gewinnbasis",
+            "multiple_source": f"{APP_BUILD_VERSION} Semiconductor Equipment Familien-Score → 22–34× KGV; zeitgewichtete NTM-/Current-FY-Fallback-Basis → Gewinnbasis",
             "fair_value_financial": fv,
             "fair_value_quote": fvq,
             "potential_pct": potential,
@@ -55525,6 +55587,13 @@ def calculate_fair_value_v1(
             "earnings_credibility_status": cred.get("status"),
             "earnings_credibility_score": safe_float(cred.get("credibility_score")),
             "semicap_earnings_reference": earnings_ref,
+            "semicap_current_fy_eps": safe_float(cred.get("current_fy_eps")),
+            "semicap_next_fy_eps": safe_float(cred.get("next_fy_eps")),
+            "semicap_ntm_eligible": bool(cred.get("ntm_eligible")),
+            "semicap_ntm_current_weight": safe_float(cred.get("ntm_current_weight")),
+            "semicap_ntm_next_weight": safe_float(cred.get("ntm_next_weight")),
+            "semicap_current_fy_end_date": cred.get("current_fy_end_date"),
+            "semicap_earnings_basis_label": cred.get("earnings_basis_label"),
             "fy2026_eps_proxy": safe_float(cred.get("fy2026_eps_proxy")),
             "forward_eps_context": safe_float(cred.get("forward_eps")),
             "forward_weight": safe_float(cred.get("forward_weight")),
@@ -55550,8 +55619,8 @@ def calculate_fair_value_v1(
             "unit_conversion_applied": bool(unit_notes),
             "unit_note": " ".join(unit_notes) if unit_notes else None,
             "note": (
-                f"{APP_BUILD_VERSION} Semiconductor-Equipment Fair Value = horizon-validierter Current-FY Adjusted/Consensus EPS × scorepositioniertes Familien-KGV. "
-                "Next-FY, Standard-EPS, Yahoo-FCF, Yahoo-EV/EBITDA, Peer-KGVs und Analystenziele bleiben außerhalb der fundamentalen Fair-Value-Rechnung."
+                f"{APP_BUILD_VERSION} Semiconductor-Equipment Fair Value = horizon-validierte zeitgewichtete NTM-/Current-FY-Fallback-EPS-Basis × scorepositioniertes Familien-KGV. "
+                "Current-FY und Next-FY bleiben transparent; Standard-EPS, Yahoo-FCF, Yahoo-EV/EBITDA, Peer-KGVs und Analystenziele bleiben außerhalb der fundamentalen Fair-Value-Rechnung."
             ),
         })
         return result
@@ -58635,12 +58704,11 @@ def _external_consensus_coherence(analyst_consensus):
 def build_analyst_target_horizon_guard(symbol, company_type, eps_horizon_alignment):
     """Flag material own-FY vs external-target horizon mismatches.
 
-    V207 applies this conservatively to validated Current-FY specialist routes
-    in Defense and Semiconductor Equipment. The own Fair Value is explicitly
-    anchored to 0Y/current-FY EPS, while Yahoo's price-target payload does not
-    verify an identical fiscal-year horizon. If next-FY consensus EPS differs
-    materially from current-FY, the raw percentage gap remains visible but is
-    not allowed to masquerade as a same-horizon valuation conflict.
+    Defense remains protected when the own valuation is explicitly anchored to
+    current-FY EPS and the external target horizon is not verified. Semiconductor
+    Equipment V208 uses a time-weighted NTM earnings basis, so its own anchor is
+    already aligned to an approximately 12-month earnings horizon and does not
+    need the older current-FY mismatch brake.
 
     Other routes remain opt-in so the generic Reality Check is unchanged by default.
     """
@@ -58655,6 +58723,7 @@ def build_analyst_target_horizon_guard(symbol, company_type, eps_horizon_alignme
         "current_fy_eps": current_eps,
         "next_fy_eps": next_eps,
         "next_fy_eps_change_pct": None,
+        "eps_currency": None,
         "conflict_brake_allowed": True,
         "reason": None,
     }
@@ -58664,6 +58733,20 @@ def build_analyst_target_horizon_guard(symbol, company_type, eps_horizon_alignme
     semicap_route = is_semicap_family_company_type(company_type) or symbol_key in {"ASML", "ASML.AS", "AMAT", "LRCX", "KLAC"}
     if not (defense_route or semicap_route):
         result["reason"] = "Für diesen Bewertungsweg ist kein spezieller Analyst-Target-Horizon-Guard aktiviert."
+        return result
+
+    if semicap_route:
+        result.update({
+            "status": "NTM-HORIZONT ANGEGLICHEN",
+            "own_horizon": "zeitgewichtetes Next-Twelve-Months-EPS",
+            "conflict_brake_allowed": True,
+            "reason": (
+                "Semiconductor Equipment verwendet in V208 eine zeitgewichtete NTM-EPS-Basis. Damit ist der eigene Bewertungsanker bereits auf einen ungefähr zwölfmonatigen Earnings-Horizont ausgerichtet; "
+                "Current-FY und Next-FY bleiben als Transparenz-/Diagnosewerte sichtbar. Der Analystenziel-Payload bleibt extern, verändert aber den Fair Value nicht."
+            ),
+        })
+        if current_eps is not None and current_eps > 0 and next_eps is not None and next_eps > 0:
+            result["next_fy_eps_change_pct"] = (next_eps / current_eps - 1.0) * 100.0
         return result
 
     if current_eps is None or current_eps <= 0 or next_eps is None or next_eps <= 0:
@@ -58769,10 +58852,9 @@ def build_external_reality_check(current_price, fair_value, analyst_consensus, t
         })
         return result
 
-    # V207: if the own valuation is Current-FY while the external target
-    # is not verified on that same horizon and next-FY earnings differ
-    # materially, keep the raw gap visible but do not classify it as a binding
-    # conflict. This is a comparison-quality guard, never a valuation input.
+    # Defense current-FY routes keep the horizon-limited conflict brake.
+    # Semiconductor Equipment V208 is already NTM-aligned and therefore does
+    # not activate this branch. This remains a comparison-quality guard only.
     if horizon_guard.get("active") and not horizon_guard.get("conflict_brake_allowed", True):
         result.update({
             "agreement": "HORIZON-EINGESCHRÄNKT",
@@ -60895,6 +60977,12 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         fcf_score = {**fcf_score, "context_score": fcf_score.get("score"), "score": None, "note": "Exchange-Spezialmodell: Yahoo-/Statement-FCF ist Diagnosekontext; issuer Operating Cash Flow/Cash-Earnings-/Capital-Allocation-Evidenz ist maßgeblich."}
         balance_score = {**balance_score, "context_score": balance_score.get("score"), "score": None, "note": "Exchange-Spezialmodell: generischer Net-Debt/FCF-Score ist gesperrt; Debt Paydown, Credit-/Funding- und Transaction/Structure-Evidenz wird separat bewertet."}
 
+    if semicap_special_model.get("applicable"):
+        growth_score = {**growth_score, "context_score": growth_score.get("score"), "score": None, "note": "Semiconductor-Equipment-Familienmodell: generisches Yahoo-Umsatz-/Gewinnwachstum bleibt Diagnosekontext; Nachfrage/Zyklus/Guidance/Visibility werden issuer-native bewertet."}
+        profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None, "brake_text": "Semiconductor-Equipment-Familienmodell: generische Nettomarge/ROE-Punkte sind gesperrt; Gross-/Operating-Margin-Qualität wird im Familien-Score bewertet."}
+        fcf_score = {**fcf_score, "context_score": fcf_score.get("score"), "score": None, "note": "Semiconductor-Equipment-Familienmodell: Yahoo-/Statement-TTM-FCF ist Diagnosekontext; ausschließlich issuer-native FCF/Cash Conversion fließt in den Familien-Score ein."}
+        balance_score = {**balance_score, "context_score": balance_score.get("score"), "score": None, "note": "Semiconductor-Equipment-Familienmodell: generischer Net-Debt/FCF-Score ist gesperrt; Bilanz/Kapitalallokation wird issuer-native im Familien-Score bewertet."}
+
     fundamental_multiple = calculate_fundamental_multiple(
         company_type,
         growth_score,
@@ -61101,8 +61189,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "available": bool(scs.get("available") and scv.get("available")),
             "earnings_basis_usable": bool(scv.get("available")),
             "note": (
-                f"{APP_BUILD_VERSION} Semiconductor Equipment verwendet kein generisches EPS-/FCF-Multiple. Der horizon-validierte Current-FY-Konsens ist die einzige Gewinnbasis; "
-                "der primärquellenbasierte Familien-Score positioniert das Ziel-KGV im 22–34× Korridor. Peers bleiben Reference-only."
+                f"{APP_BUILD_VERSION} Semiconductor Equipment verwendet kein generisches EPS-/FCF-Multiple. Bei validiertem Current-/Next-FY-Paar ist die zeitgewichtete NTM-EPS-Basis der Bewertungsanker; "
+                "bei unzureichender Horizon-Evidenz greift Current-FY fail-closed. Der primärquellenbasierte Familien-Score positioniert das Ziel-KGV im 22–34× Korridor; Peers bleiben Reference-only."
             ),
         }
 
@@ -61736,7 +61824,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             **fundamental_multiple,
             "multiple": safe_float(sv_peer.get("target_pe")),
             "note": (
-                f"{APP_BUILD_VERSION} Semiconductor Equipment: Current-FY liefert die einzige Earnings-Basis und der Familien-Score den Fundamentalaner. "
+                f"{APP_BUILD_VERSION} Semiconductor Equipment: Die horizon-validierte NTM-/Current-FY-Fallback-Basis liefert die Earnings-Basis und der Familien-Score den Fundamentalaner. "
                 "Peer-KGVs bleiben Reference-only; keine automatische Peer-Anpassung."
             ),
         }
@@ -62658,15 +62746,27 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         and str((special_event_warning or {}).get("level") or "") != "Rot"
     ):
         semicap_earn_event = semicap_special_model.get("forward_earnings_credibility") or {}
-        next_growth_event = safe_float(semicap_earn_event.get("next_fy_growth_pct"))
         snap_event_sc = semicap_special_model.get("snapshot") or {}
-        if next_growth_event is not None and next_growth_event >= 30.0:
-            special_event_warning = {
-                "level": "Gelb", "icon": "🟡", "title": "Semiconductor-Equipment FY-Horizon-Watch aktiv",
-                "requires_research": False, "valuation_usable": True,
-                "reason": (f"{snap_event_sc.get('company') or 'Semiconductor Equipment'}: Next-FY EPS liegt {next_growth_event:.1f} % über Current-FY. V207 behandelt diese Differenz als Horizon-/Zykluskontext, nicht als automatische EPS-Mischung."),
-                "action": ("Current-FY bleibt die einzige Gewinnbasis. Next-FY wird transparent als Horizon-Watch gezeigt; Score/KGV stammen separat aus der primärquellenbasierten Familienqualität."),
-            }
+        next_growth_event = safe_float(semicap_earn_event.get("next_fy_growth_pct"))
+        cw_event = safe_float(semicap_earn_event.get("ntm_current_weight"))
+        nw_event = safe_float(semicap_earn_event.get("ntm_next_weight"))
+        ntm_event = safe_float(semicap_earn_event.get("earnings_reference"))
+        ntm_ok_event = bool(semicap_earn_event.get("ntm_eligible"))
+        if ntm_ok_event:
+            reason_event = (
+                f"{snap_event_sc.get('company') or 'Semiconductor Equipment'}: Current-FY und Next-FY werden für die Bewertung auf einen gemeinsamen NTM-Horizont ausgerichtet"
+                + (f"; Next-FY liegt {next_growth_event:.1f} % über Current-FY" if next_growth_event is not None else "")
+                + f". Gewichtung: Current-FY {cw_event * 100:.1f} % / Next-FY {nw_event * 100:.1f} %."
+            )
+            action_event = "Die zeitgewichtete NTM-Basis ist der einzige EPS-Bewertungsanker; Current-FY und Next-FY bleiben separat sichtbar. Generische TTM-/Forward-EPS-Divergenzwarnungen steuern weder Score noch Sicherheit."
+        else:
+            reason_event = f"{snap_event_sc.get('company') or 'Semiconductor Equipment'}: NTM-Horizont ist nicht vollständig validiert; die Bewertung bleibt fail-closed auf Current-FY."
+            action_event = "Keine automatische Next-FY-Rollierung. Erst ein frischer Primärdaten-/FY-Horizont-Snapshot darf die NTM-Basis wieder freigeben."
+        special_event_warning = {
+            "level": "Gelb", "icon": "🟡", "title": "Semiconductor-Equipment NTM-Horizontschutz aktiv",
+            "requires_research": False, "valuation_usable": True,
+            "reason": reason_event, "action": action_event,
+        }
 
 
     if (
@@ -63754,7 +63854,7 @@ if selected_symbol:
                         if compact_method == "defense_high_growth_current_fy_pe":
                             compact_method = "Aerospace & Defense · bereinigtes KGV aktuelles Geschäftsjahr"
                         elif compact_method == "semicap_quality_adjusted_pe":
-                            compact_method = "Semiconductor Equipment · bereinigtes KGV aktuelles Geschäftsjahr"
+                            compact_method = "Semiconductor Equipment · zeitgewichtetes NTM-KGV"
                         st.metric("Bewertungsmethode", text_or_dash(compact_method))
 
                 compact_meta = []
@@ -64501,6 +64601,12 @@ if selected_symbol:
                                     f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Yahoo-Werte bleiben beim Autohersteller reine "
                                     "Kontext-/Rohdaten; maßgeblich ist der offizielle Free Cash Flow des Industriegeschäfts."
                                 )
+                            elif is_semicap_fcf_context:
+                                st.info(
+                                    "ℹ️ FCF-Quellenabweichung im Semiconductor-Equipment-Familienkontext: Yahoo Levered FCF und Cashflow-Statement-FCF bleiben beide Diagnose-/Rohdaten. "
+                                    f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Bewertungsrelevant ist ausschließlich die issuer-native FCF-/Cash-Conversion-Evidenz des jeweiligen Familienadapters; "
+                                    "keiner der beiden Yahoo-Werte steuert Score, Bilanzblock, Ziel-KGV oder Fair Value."
+                                )
                             elif is_nvidia_fcf_context:
                                 st.warning(
                                     "⚠️ FCF-Quellenabweichung erkannt: Yahoo quoteSummary/info und Cashflow-Statement liefern abweichende FCF-Kontextwerte. "
@@ -64990,7 +65096,7 @@ if selected_symbol:
                         elif is_semicap_family_company_type(company_type):
                             st.info(
                                 f"Semiconductor Equipment: Diese Standard-Normalisierung bleibt in {APP_BUILD_VERSION} ausschließlich Diagnosekontext. "
-                                "Die Familienbewertung verwendet nur den horizon-validierten Current-FY Adjusted/Consensus-EPS-Anker; Standard-EPS und Next-FY werden nicht in die Fair-Value-Gewinnbasis gemischt."
+                                "Die Familienbewertung verwendet bei validiertem Current-/Next-FY-Paar eine zeitgewichtete NTM-EPS-Basis; Standard-EPS bleibt Diagnosekontext. Falls der NTM-Horizont nicht sicher freigegeben ist, greift Current-FY fail-closed."
                             )
                         elif is_nvidia_ai_growth_company_type(company_type):
                             st.info(
@@ -65778,8 +65884,8 @@ if selected_symbol:
                     elif is_semicap_family_company_type(company_type):
                         st.caption(
                             f"Das Standard-normalisierte EPS bleibt bei Semiconductor Equipment ausschließlich Diagnosekontext. "
-                            f"{APP_BUILD_VERSION} verwendet als einzige Bewertungs-Gewinnbasis den horizon-validierten Konsens des tatsächlich laufenden Geschäftsjahres; "
-                            "Next-FY bleibt ausschließlich Horizon-Watch und wird nicht mit Current-FY gemischt."
+                            f"{APP_BUILD_VERSION} verwendet bei validiertem Current-/Next-FY-Paar die zeitgewichtete NTM-EPS-Basis als Bewertungsanker; "
+                            "Current-FY und Next-FY bleiben separat sichtbar. Bei unzureichender Horizon-Evidenz greift Current-FY fail-closed."
                         )
                     elif is_nvidia_ai_growth_company_type(company_type):
                         st.caption(
@@ -68962,7 +69068,7 @@ if selected_symbol:
                     semicap_model = data.get("semicap_special_model", {"applicable": False})
                     if semicap_model.get("applicable"):
                         st.divider()
-                        st.subheader("🔬 Semiconductor Equipment Familienmodell V2.23.11 – Qualität, Current-FY Gewinnbasis & KGV-Anker")
+                        st.subheader("🔬 Semiconductor Equipment Familienmodell V2.23.12 – Qualität, NTM-Gewinnbasis & KGV-Anker")
                         snapshot_sc = semicap_model.get("snapshot") or {}
                         gate_sc = semicap_model.get("primary_gate") or {}
                         score_sc = semicap_model.get("semicap_score") or {}
@@ -69017,9 +69123,9 @@ if selected_symbol:
                             st.caption(score_sc.get("note"))
 
                         if cred_sc.get("available"):
-                            st.write("**Current-FY Ergebnisbasis-Prüfung**")
+                            st.write("**EPS-Horizont-/NTM-Prüfung**")
                             st.write(f"**Status:** {cred_sc.get('status')} · {cred_sc.get('credibility_score'):.0f}/100")
-                            st.metric("Current-FY Gewinnbasis", format_eps(cred_sc.get("earnings_reference"), financial_currency))
+                            st.metric("Current-FY EPS", format_eps(cred_sc.get("current_fy_eps"), financial_currency))
                             cross_sc = safe_float(cred_sc.get("current_fy_crosscheck_eps"))
                             if cross_sc is not None:
                                 st.write(f"**Issuer-primary Crosscheck ({text_or_dash(cred_sc.get('current_fy_crosscheck_label'))}):** " + format_eps(cross_sc, financial_currency))
@@ -69028,23 +69134,29 @@ if selected_symbol:
                                     st.write(f"**Abweichung Current-FY vs. Crosscheck:** {gap_sc:.1f} %")
                             next_sc = safe_float(cred_sc.get("next_fy_eps"))
                             if next_sc is not None:
-                                st.write("**Next-FY EPS Horizon-Watch:** " + format_eps(next_sc, financial_currency))
+                                st.write("**Next-FY EPS:** " + format_eps(next_sc, financial_currency))
                                 ng_sc = safe_float(cred_sc.get("next_fy_growth_pct"))
                                 if ng_sc is not None:
                                     st.write(f"**Next-FY Wachstum ggü. Current-FY:** {ng_sc:+.1f} %")
-                            st.info("Keine Current-/Next-FY-Mischung: Current-FY ist die einzige Bewertungs-Gewinnbasis; Next-FY bleibt reiner Horizon-Watch.")
+                            if cred_sc.get("ntm_eligible"):
+                                st.write("**Zeitgewichtete NTM-Gewinnbasis:** " + format_eps(cred_sc.get("earnings_reference"), financial_currency))
+                                st.write(f"**NTM-Gewichtung:** Current-FY {safe_float(cred_sc.get('ntm_current_weight')) * 100:.1f} % · Next-FY {safe_float(cred_sc.get('ntm_next_weight')) * 100:.1f} %")
+                                st.write(f"**Current-FY-Ende:** {text_or_dash(cred_sc.get('current_fy_end_date'))}")
+                                st.success("NTM-Horizont freigegeben: Current-FY und Next-FY bleiben separat sichtbar; nur die zeitgewichtete NTM-Basis steuert den Fair Value.")
+                            else:
+                                st.warning("NTM-Horizont nicht vollständig freigegeben: Current-FY-Fallback bleibt Bewertungsbasis.")
                             st.caption(cred_sc.get("note"))
 
                         if val_sc.get("available"):
                             st.write(f"**Semiconductor-Equipment Familienbewertung {APP_BUILD_VERSION}**")
-                            st.write("**Einzige Gewinnbasis:** " + format_eps(val_sc.get("earnings_reference"), financial_currency))
+                            st.write("**Bewertungs-Gewinnbasis:** " + format_eps(val_sc.get("earnings_reference"), financial_currency))
                             st.write(f"**Scorepositioniertes Ziel-KGV:** {val_sc.get('target_pe'):.2f}×")
                             st.write(f"**Familien-KGV-Korridor:** {val_sc.get('corridor_low'):.2f}× – {val_sc.get('corridor_high'):.2f}×")
                             st.metric("Fundamentaler Fairer Wert", format_currency_value(val_sc.get("fair_value_financial"), financial_currency, 2))
                             ref_pe_sc = safe_float(val_sc.get("peer_reference_median_pe"))
                             if ref_pe_sc is not None:
                                 st.write(f"**Peer-Referenzmedian Prognose-KGV:** {ref_pe_sc:.2f}× · nur Referenz")
-                            st.success("Bewertungsanker freigegeben: Current-FY setzt allein die Gewinnbasis; der Familien-Qualitätsscore setzt das Ziel-KGV. Peer-KGVs verändern in V207 weder Multiple noch Fair Value.")
+                            st.success("Bewertungsanker freigegeben: Die validierte NTM-/Fallback-Basis setzt die Gewinnbasis; der Familien-Qualitätsscore setzt das Ziel-KGV. Peer-KGVs verändern in V208 weder Multiple noch Fair Value.")
                             st.caption(val_sc.get("note"))
                         else:
                             st.warning(val_sc.get("note") or "Semiconductor-Equipment Bewertungsanker noch nicht freigegeben.")
@@ -69056,7 +69168,7 @@ if selected_symbol:
                         st.write("**Yahoo EV / EBITDA:** " + (f"{yev_sc:.2f}×" if yev_sc is not None else "– / Datenanbieterwert verworfen oder nicht belastbar"))
                         st.write(f"**Datenreife Familienmodell:** {semicap_model.get('readiness')}")
                         if semicap_model.get("valuation_anchor_complete"):
-                            st.success("Bewertungsfreigabe JA: V2.23.11 gibt die validierte Current-FY Gewinnbasis und den scorepositionierten Semiconductor-Equipment-KGV-Anker frei.")
+                            st.success("Bewertungsfreigabe JA: V2.23.12 gibt die validierte NTM-/Current-FY-Fallback-Gewinnbasis und den scorepositionierten Semiconductor-Equipment-KGV-Anker frei.")
                         else:
                             st.warning("Bewertungsfreigabe noch NEIN: Der Semiconductor-Equipment Bewertungsanker ist nicht vollständig freigegeben.")
                         st.caption(semicap_model.get("note"))
@@ -69570,15 +69682,21 @@ if selected_symbol:
                         if score_sc_m6.get("available"):
                             st.write(f"**Familien-Qualitätsscore:** {score_sc_m6.get('score'):.0f}/100 · {score_sc_m6.get('quality_level')}")
                         if cred_sc_m6.get("available"):
-                            st.write(f"**Current-FY Ergebnisbasis-Plausibilität:** {cred_sc_m6.get('status')} · {cred_sc_m6.get('credibility_score'):.0f}/100")
-                            st.write("**Current-FY Gewinnbasis:** " + format_eps(cred_sc_m6.get("earnings_reference"), financial_currency))
+                            st.write(f"**EPS-Horizont-Plausibilität:** {cred_sc_m6.get('status')} · {cred_sc_m6.get('credibility_score'):.0f}/100")
+                            st.write("**Current-FY EPS:** " + format_eps(cred_sc_m6.get("current_fy_eps"), financial_currency))
                             cross_m6 = safe_float(cred_sc_m6.get("current_fy_crosscheck_eps"))
                             if cross_m6 is not None:
                                 st.write("**Issuer-primary Current-FY Crosscheck:** " + format_eps(cross_m6, financial_currency))
                             next_m6 = safe_float(cred_sc_m6.get("next_fy_eps"))
                             if next_m6 is not None:
-                                st.write("**Next-FY EPS Horizon-Watch:** " + format_eps(next_m6, financial_currency))
-                            st.write("**Horizon-Regel:** keine Current-/Next-FY-Mischung")
+                                st.write("**Next-FY EPS:** " + format_eps(next_m6, financial_currency))
+                            if cred_sc_m6.get("ntm_eligible"):
+                                st.write("**Zeitgewichtete NTM-Gewinnbasis:** " + format_eps(cred_sc_m6.get("earnings_reference"), financial_currency))
+                                st.write(f"**NTM-Gewichtung:** Current-FY {safe_float(cred_sc_m6.get('ntm_current_weight')) * 100:.1f} % · Next-FY {safe_float(cred_sc_m6.get('ntm_next_weight')) * 100:.1f} %")
+                                st.write(f"**Current-FY-Ende:** {text_or_dash(cred_sc_m6.get('current_fy_end_date'))}")
+                            else:
+                                st.write("**NTM-Status:** Current-FY-Fallback")
+                            st.write("**Horizon-Regel:** zeitgewichtetes NTM bei validiertem Current-/Next-FY-Paar; sonst Current-FY-Fallback")
                         if val_sc_m6.get("available"):
                             base_pe_sc_m6 = safe_float(val_sc_m6.get("fundamental_target_pe") or val_sc_m6.get("score_target_pe") or val_sc_m6.get("target_pe"))
                             if base_pe_sc_m6 is not None:
@@ -69589,11 +69707,11 @@ if selected_symbol:
                             if ref_pe_sc_m6 is not None:
                                 st.write(f"**Peer-Referenzmedian Prognose-KGV:** {ref_pe_sc_m6:.2f}× · ohne Bewertungswirkung")
                             st.write("**Semiconductor-Equipment Fairer Wert:** " + format_currency_value(val_sc_m6.get("fair_value_financial"), financial_currency, 2))
-                            st.success("Familien-Bewertungsanker freigegeben. Current-FY bestimmt die Gewinnbasis; Qualitätsscore bestimmt das Ziel-KGV; Peers bleiben Reference-only.")
+                            st.success("Familien-Bewertungsanker freigegeben. NTM-/Current-FY-Fallback bestimmt die Gewinnbasis; Qualitätsscore bestimmt das Ziel-KGV; Peers bleiben Reference-only.")
                         else:
                             st.warning(val_sc_m6.get("note") or "Semiconductor-Equipment Fundamental-Multiple noch nicht freigegeben.")
                         st.caption(multiple_result.get("note"))
-                        st.caption("ASML, Applied Materials, Lam Research und KLA bilden – jeweils ohne das Zielunternehmen – den Familien-Referenzcluster. Peer-KGVs verändern in V207 weder Ziel-KGV noch Fair Value.")
+                        st.caption("ASML, Applied Materials, Lam Research und KLA bilden – jeweils ohne das Zielunternehmen – den Familien-Referenzcluster. Peer-KGVs verändern in V208 weder Ziel-KGV noch Fair Value.")
 
                     elif is_auto_valuation_ui:
                         auto_m6 = data.get("auto_special_model") or {}
@@ -73083,7 +73201,7 @@ if selected_symbol:
                         "control_key"
                     ) == "semicap_order_visibility":
                         st.divider()
-                        st.subheader("🔬 Modul 6 – Schritt 3B: Semiconductor Equipment Mehr-Emittenten-Familienmodell · V2.23.11")
+                        st.subheader("🔬 Modul 6 – Schritt 3B: Semiconductor Equipment Mehr-Emittenten-Familienmodell · V2.23.12")
                         if special_control.get("implemented"):
                             checks_sc = special_control.get("checks", {})
                             snap_sc3 = special_control.get("snapshot") or {}
@@ -73108,24 +73226,30 @@ if selected_symbol:
                                 st.write(f"**Nachfrage / Visibility:** {text_or_dash(checks_sc.get('demand_visibility_text'))}")
                             st.write(f"**Guidance:** {text_or_dash(checks_sc.get('guidance_text'))}")
                             st.write(f"**Technologie-/Tool-Mix:** {text_or_dash(checks_sc.get('technology_mix_text'))}")
-                            st.success("Semiconductor-Equipment Primärdaten vollständig validiert. Familien-Score, Current-FY-Ergebnisbasis und KGV-Anker werden getrennt geprüft.")
+                            st.success("Semiconductor-Equipment Primärdaten vollständig validiert. Familien-Score, EPS-Horizont/NTM-Basis und KGV-Anker werden getrennt geprüft.")
                             if score_sc3.get("available"):
                                 st.metric("Familien-Qualitätsscore", f"{score_sc3.get('score'):.0f}/100 · {score_sc3.get('quality_level')}")
                                 for label3, points3 in (score_sc3.get("components") or {}).items():
                                     st.write(f"• {label3}: **{points3}**")
                             if cred_sc3.get("available"):
-                                st.write(f"**Current-FY Ergebnisbasis-Plausibilität:** {cred_sc3.get('status')} · {cred_sc3.get('credibility_score'):.0f}/100")
-                                st.metric("Current-FY Gewinnbasis", format_eps(cred_sc3.get("earnings_reference"), financial_currency))
+                                st.write(f"**EPS-Horizont-Plausibilität:** {cred_sc3.get('status')} · {cred_sc3.get('credibility_score'):.0f}/100")
+                                st.metric("Current-FY EPS", format_eps(cred_sc3.get("current_fy_eps"), financial_currency))
                                 cross3 = safe_float(cred_sc3.get("current_fy_crosscheck_eps"))
                                 if cross3 is not None:
                                     st.write("**Issuer-primary Current-FY Crosscheck:** " + format_eps(cross3, financial_currency))
                                 next3 = safe_float(cred_sc3.get("next_fy_eps"))
                                 if next3 is not None:
-                                    st.write("**Next-FY EPS Horizon-Watch:** " + format_eps(next3, financial_currency))
+                                    st.write("**Next-FY EPS:** " + format_eps(next3, financial_currency))
                                     ng3 = safe_float(cred_sc3.get("next_fy_growth_pct"))
                                     if ng3 is not None:
                                         st.write(f"**Next-FY Wachstum ggü. Current-FY:** {ng3:+.1f} %")
-                                st.info("Keine Current-/Next-FY-Mischung. Next-FY ist ausschließlich Horizon-Watch.")
+                                if cred_sc3.get("ntm_eligible"):
+                                    st.write("**Zeitgewichtete NTM-Gewinnbasis:** " + format_eps(cred_sc3.get("earnings_reference"), financial_currency))
+                                    st.write(f"**NTM-Gewichtung:** Current-FY {safe_float(cred_sc3.get('ntm_current_weight')) * 100:.1f} % · Next-FY {safe_float(cred_sc3.get('ntm_next_weight')) * 100:.1f} %")
+                                    st.write(f"**Current-FY-Ende:** {text_or_dash(cred_sc3.get('current_fy_end_date'))}")
+                                    st.info("NTM-Horizont aktiv; Current-FY und Next-FY bleiben separate Transparenzwerte.")
+                                else:
+                                    st.warning("NTM-Horizont nicht vollständig freigegeben; Current-FY-Fallback aktiv.")
                                 st.caption(cred_sc3.get("note"))
                             if val_sc3.get("available"):
                                 base_pe_sc3 = safe_float(val_sc3.get("fundamental_target_pe") or val_sc3.get("score_target_pe") or val_sc3.get("target_pe"))
@@ -73137,7 +73261,7 @@ if selected_symbol:
                                 if ref_pe_sc3 is not None:
                                     st.write(f"**Peer-Referenzmedian Prognose-KGV:** {ref_pe_sc3:.2f}× · nur Referenz")
                                 st.write("**Fairer Wert – Fundamentalwährung:** " + format_currency_value(val_sc3.get("fair_value_financial"), financial_currency, 2))
-                                st.success("Bewertungsfreigabe JA: V2.23.11 gibt die Semiconductor-Equipment-Familienbewertung frei. Peers bleiben Reference-only und erzeugen keine automatische Anpassung.")
+                                st.success("Bewertungsfreigabe JA: V2.23.12 gibt die Semiconductor-Equipment-Familienbewertung frei. Peers bleiben Reference-only und erzeugen keine automatische Anpassung.")
                             else:
                                 st.warning(val_sc3.get("note") or "Bewertungsfreigabe noch NEIN: Semiconductor-Equipment Bewertungsanker nicht vollständig.")
                         else:
@@ -76462,15 +76586,21 @@ if selected_symbol:
                             st.write("**Fair Enterprise Value:** " + format_money(fair_value.get("fair_enterprise_value"), fair_value["financial_currency"]))
                             st.write("**Fair Equity Value nach Net Debt:** " + format_money(fair_value.get("fair_equity_value"), fair_value["financial_currency"]))
                         elif fair_value.get("valuation_method") == "semicap_quality_adjusted_pe":
-                            st.write("**Bewertungsformel:** horizon-validierte Current-FY Gewinnbasis × scorepositioniertes Semiconductor-Equipment-Familien-KGV")
+                            st.write("**Bewertungsformel:** horizon-validierte zeitgewichtete NTM-/Current-FY-Fallback-EPS-Basis × scorepositioniertes Semiconductor-Equipment-Familien-KGV")
                             st.write(f"**Familien-Qualitätsscore:** {fair_value.get('semicap_score'):.0f}/100 · {fair_value.get('semicap_quality_level')}")
-                            st.write(f"**Current-FY Ergebnisbasis-Plausibilität:** {fair_value.get('earnings_credibility_status')} · {fair_value.get('earnings_credibility_score'):.0f}/100")
+                            st.write(f"**EPS-Horizont-Plausibilität:** {fair_value.get('earnings_credibility_status')} · {fair_value.get('earnings_credibility_score'):.0f}/100")
                             if safe_float(fair_value.get("fy2026_eps_proxy")) is not None:
                                 st.write("**Issuer-primary Current-FY Crosscheck:** " + format_eps(fair_value.get("fy2026_eps_proxy"), fair_value["financial_currency"]))
-                            st.write("**Current-FY Gewinnbasis:** " + format_eps(fair_value.get("semicap_earnings_reference"), fair_value["financial_currency"]))
+                            st.write("**Current-FY EPS:** " + format_eps(fair_value.get("semicap_current_fy_eps"), fair_value["financial_currency"]))
                             if safe_float(fair_value.get("forward_eps_context")) is not None:
-                                st.write("**Next-FY EPS Horizon-Watch:** " + format_eps(fair_value.get("forward_eps_context"), fair_value["financial_currency"]))
-                            st.write("**Horizon-Regel:** keine Current-/Next-FY-Mischung")
+                                st.write("**Next-FY EPS:** " + format_eps(fair_value.get("semicap_next_fy_eps") or fair_value.get("forward_eps_context"), fair_value["financial_currency"]))
+                            if fair_value.get("semicap_ntm_eligible"):
+                                st.write("**Zeitgewichtete NTM-Gewinnbasis:** " + format_eps(fair_value.get("semicap_earnings_reference"), fair_value["financial_currency"]))
+                                st.write(f"**NTM-Gewichtung:** Current-FY {safe_float(fair_value.get('semicap_ntm_current_weight')) * 100:.1f} % · Next-FY {safe_float(fair_value.get('semicap_ntm_next_weight')) * 100:.1f} %")
+                                st.write(f"**Current-FY-Ende:** {text_or_dash(fair_value.get('semicap_current_fy_end_date'))}")
+                            else:
+                                st.write("**Bewertungs-Gewinnbasis:** Current-FY-Fallback")
+                            st.write("**Horizon-Regel:** zeitgewichtetes NTM bei validiertem Current-/Next-FY-Paar; sonst Current-FY-Fallback")
                             cpe = safe_float(fair_value.get("current_pe_on_semicap_reference"))
                             if cpe is not None:
                                 st.write(f"**Aktuelles KGV auf Semicap-Earnings-Basis:** {cpe:.2f}×")
@@ -76484,7 +76614,7 @@ if selected_symbol:
                             if fair_value.get("peer_overlay_applied"):
                                 st.write(f"**Tatsächliche Peer-Multiple-Anpassung:** {fair_value.get('peer_adjustment_pct')*100:+.2f} %")
                                 st.write(f"**Fair-Value-Effekt nach Safety-Cap:** {fair_value.get('peer_fair_value_effect_used_pct'):+.2f} %")
-                            st.caption("ASML, Applied Materials, Lam Research und KLA bilden – jeweils ohne das Zielunternehmen – den Reference-only Familiencluster. Peer-KGVs verändern in V207 weder Ziel-KGV noch Fair Value.")
+                            st.caption("ASML, Applied Materials, Lam Research und KLA bilden – jeweils ohne das Zielunternehmen – den Reference-only Familiencluster. Peer-KGVs verändern in V208 weder Ziel-KGV noch Fair Value.")
                         elif fair_value.get("valuation_method") == "nvidia_ai_quality_operating_pe":
                             st.write("**Bewertungsformel:** Mechanischer FY27 Operating-EPS-Proxy × scoregesteuertes quality-adjustiertes NVIDIA Operating-KGV")
                             st.write(f"**NVIDIA AI-Quality-Score:** {fair_value.get('nvidia_ai_score'):.0f}/100 · {fair_value.get('nvidia_quality_level')}")
@@ -76734,8 +76864,8 @@ if selected_symbol:
                             )
                         elif fair_value.get("valuation_method") == "semicap_quality_adjusted_pe":
                             st.success(
-                                "Semiconductor-Equipment Fairer Wert V1 wurde aus der horizon-validierten Current-FY Gewinnbasis und dem "
-                                "scorepositionierten Familien-KGV berechnet. Next-FY und Peer-KGVs bleiben Reference-only."
+                                "Semiconductor-Equipment Fairer Wert V1 wurde aus der horizon-validierten zeitgewichteten NTM-/Current-FY-Fallback-Gewinnbasis und dem "
+                                "scorepositionierten Familien-KGV berechnet. Current-FY und Next-FY bleiben transparent; Peer-KGVs bleiben Reference-only."
                             )
                         elif fair_value.get("valuation_method") == "nvidia_ai_quality_operating_pe":
                             st.success(
@@ -76784,7 +76914,7 @@ if selected_symbol:
                             cred_status_conf = fair_value.get("earnings_credibility_status")
                             if cred_score_conf is not None:
                                 st.info(
-                                    f"Semiconductor-Equipment Current-FY Ergebnisbasis: {cred_status_conf} · {cred_score_conf:.0f}/100. "
+                                    f"Semiconductor-Equipment EPS-Horizont-/NTM-Basis: {cred_status_conf} · {cred_score_conf:.0f}/100. "
                                     "Diese Spezialkontrolle prüft Horizon/Währung/Accounting-Basis; die generische TTM-/Forward-EPS-Divergenz wird nicht nochmals als separater Sicherheitsabzug gewertet."
                                 )
                         elif fair_value.get("valuation_method") == "nvidia_ai_quality_operating_pe":
@@ -77237,6 +77367,20 @@ if selected_symbol:
                                 st.error("**Externe Konsens-Kohärenz: 🔴 KONFLIKT**")
                             st.caption(coherence.get("reason"))
 
+                        if fair_value.get("valuation_method") == "semicap_quality_adjusted_pe":
+                            semicap_eps_ccy = str(fair_value.get("financial_currency") or "").upper() or "–"
+                            sc_cur_ui = safe_float(fair_value.get("semicap_current_fy_eps"))
+                            sc_next_ui = safe_float(fair_value.get("semicap_next_fy_eps"))
+                            sc_ntm_ui = safe_float(fair_value.get("semicap_earnings_reference"))
+                            sc_cw_ui = safe_float(fair_value.get("semicap_ntm_current_weight"))
+                            sc_nw_ui = safe_float(fair_value.get("semicap_ntm_next_weight"))
+                            if sc_cur_ui is not None and sc_next_ui is not None and sc_ntm_ui is not None:
+                                st.info(
+                                    f"**Semiconductor-Equipment NTM-Horizont:** Current-FY EPS {sc_cur_ui:.2f} {semicap_eps_ccy} → Next-FY EPS {sc_next_ui:.2f} {semicap_eps_ccy}; "
+                                    + (f"zeitgewichtete NTM-Basis {sc_ntm_ui:.2f} {semicap_eps_ccy} ({sc_cw_ui * 100:.1f} % / {sc_nw_ui * 100:.1f} %)." if fair_value.get("semicap_ntm_eligible") and sc_cw_ui is not None and sc_nw_ui is not None else f"Current-FY-Fallback {sc_ntm_ui:.2f} {semicap_eps_ccy}.")
+                                )
+                                st.caption("Der Analystenkonsens verändert weder diese Earnings-Basis noch Ziel-KGV oder Fair Value.")
+
                         if reality_check.get("available"):
                             target_horizon_guard = reality_check.get("target_horizon_guard") or {}
                             if target_horizon_guard.get("active"):
@@ -77494,6 +77638,12 @@ if selected_symbol:
 
                         st.success(
                             "✓ US-Hauptbörse / NYSE erkannt"
+                        )
+
+                    elif symbol_upper == "KLA.DE":
+
+                        st.info(
+                            "↳ Deutsche Zweitnotierung erkannt · Hauptnotierung der KLA Corporation: KLAC / Nasdaq"
                         )
 
                     elif symbol_upper.endswith(".DE"):
