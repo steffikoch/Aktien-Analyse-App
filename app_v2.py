@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.35"
+APP_BUILD_VERSION = "V2.23.36"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Direct Candidate Fetch & Dynamic IR Fallback V231"
+    f"Build {APP_BUILD_VERSION} · Insurance Evidence Trace & Rejection Diagnostics V232"
 )
 
 
@@ -966,6 +966,7 @@ st.caption(
 # V2.23.32: Comparative Period Bridge & Dividend Fallback V228. Closes the remaining issuer-neutral insurer evidence gaps exposed by Talanx: current-H1 comparative income columns are promoted before per-share derivation so prior-H1 EPS can be derived from verified parent earnings and the stable denominator; interim balance-sheet prior columns are period-tagged and may bridge FY/prior-FY BVPS only when the source explicitly proves H1 vs previous 31-December comparatives; issuer-owned dividend/shareholder-return hubs and financial-year pages become an annual fallback when the standardized provider dividend is unavailable. The FY parent-income consistency node derived from verified FY EPS × stable shares is recognized by the displayed specialist contract. No insurer scoring, corridor, dual-anchor weights or Fair-Value mathematics change; all new bridges remain fail-closed on share-count/corporate-action or period ambiguity.
 # V2.23.33: Primary Row Pair Parser & Role Budgeting V229. Preserves explicit parenthesized prior-period values in issuer narrative rows such as “EUR 1,499 (1,373) million”, marks same-row H1 comparatives only after the document has already passed the H1 role/period gate, prioritizes current-H1 and annual/FY evidence before separate prior-H1 fallback research, and gives each resolver role a bounded budget so one large IR branch cannot starve annual book-value/dividend evidence. Adds a target-FY dividend parser for issuer tables/narratives and corrects the visible baseline version label. No insurer score, corridor, dual-anchor weights, Fair-Value or signal mathematics change; all cross-period/per-share bridges remain guarded and fail-closed.
 # V2.23.34: Hub-First Evidence Resolver & Search Fallback V230. Fixes the V229 live regression where role-local search/traversal could consume the current-H1 budget before any primary document was fetched. Resolved issuer IR hubs are now traversed and fetched first with an explicit fetch reserve; external site-search is invoked only when the role remains semantically incomplete. Current-H1 and annual evidence retain larger soft budgets, prior-H1 remains a fallback because same-row H1 comparatives may already satisfy it, and the overall resolver stays bounded/fail-closed. Row-pair parsing, period/scope guards, score, corridors, dual-anchor weights, Fair-Value and signal mathematics remain unchanged.
+# V2.23.36: Insurance Evidence Trace & Rejection Diagnostics V232. Adds transparent resolver diagnostics for accepted/rejected issuer-primary candidates without changing valuation logic.
 # V2.23.35: Direct Candidate Fetch & Dynamic IR Fallback V231. Fixes the remaining V230 live gap on modern/JS-backed IR archives: exact issuer-domain search candidates are fetched and semantically parsed before any child-link traversal can consume the fallback budget. Search queries now include issuer-neutral first-half/Solvency and target-FY dividend patterns, while hub traversal remains the preferred first phase. Financial-calendar labels are reduced to a concise reporting-event label instead of leaking surrounding filter/navigation text. No insurer metric is hard-coded; period/scope/corporate-action guards and all valuation mathematics remain unchanged.
 # V2.23.21: Insurance Corporate-Action Status & EPS-Vergleichbarkeit Cleanup V217. Copy/status-only cleanup: distinguishes complete TTM period coverage from blocked EPS comparability after material corporate actions; family status now reports complete issuer evidence with valuation blocked by the comparability gate. No valuation math, score calibration, FX route, or gate threshold changed.
 # V2.23.19: Insurance Per-Share Currency Display & Copy Cleanup V215. Fixes Yahoo insurer BVPS presentation for mixed quote/financial currencies by routing provider per-share book value through the verified quote-to-financial FX path before display, clarifies the mixed-currency price caption, and removes the residual Munich-Re-specific Fair-Value copy from the reusable Reinsurance path. Valuation mathematics, score thresholds, capital-framework calibration, corridors and frozen insurer inputs remain unchanged.
@@ -17931,6 +17932,8 @@ def discover_insurance_primary_snapshot_v222(symbol, company_name, website, insu
             relevant = ["eps", "net_income_parent", "roe_pct", "capital_ratio_pct", "bvps", "shares", "dividend_per_share"]
             if not any(parsed.get(k) is not None for k in relevant):
                 continue
+            result["resolver_stages"]["accepted_documents"] += 1
+            result["diagnostics"].append(f"V232 {role}: ACCEPT · metrics={metric_count} · period={period_detected or period_hint} · {doc.get('provenance_url') or doc.get('url')}")
             docs_by_role[role].append({
                 "url": doc.get("provenance_url") or doc.get("url"),
                 "resolved_url": doc.get("url"),
@@ -18854,7 +18857,7 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
     """
     _ = cache_epoch
     result = {
-        "version": "V231", "status": "not_run", "available": False, "complete": False,
+        "version": "V232", "status": "not_run", "available": False, "complete": False,
         "snapshot": None, "company_domain": None, "documents": {}, "diagnostics": [],
         "missing_primary": [], "calendar_event": None, "ir_hubs": {},
         "resolver_stages": {
@@ -18862,6 +18865,7 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
             "candidate_urls": 0, "documents_fetched": 0, "documents_with_metrics": 0,
             "period_role_rejections": 0, "semantic_snapshot_complete": False,
             "hub_first_documents": 0, "search_fallback_roles": 0, "direct_search_documents": 0,
+            "fetch_failures": 0, "zero_metric_documents": 0, "accepted_documents": 0,
         },
     }
     name = _clean_text(company_name) or str(symbol or "")
@@ -18963,6 +18967,8 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
                 include_tail=True, html_char_limit=6_000_000,
             )
             if not doc or not doc.get("text"):
+                result["resolver_stages"]["fetch_failures"] += 1
+                result["diagnostics"].append(f"V232 {role}: FETCH_FAIL · {url}")
                 return False
             result["resolver_stages"]["documents_fetched"] += 1
             text = doc.get("text")
@@ -18979,12 +18985,15 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
             )
             if not period_ok:
                 result["resolver_stages"]["period_role_rejections"] += 1
+                result["diagnostics"].append(f"V232 {role}: PERIOD_REJECT · erkannt={period_detected or '–'} · {doc.get('provenance_url') or doc.get('url')}")
                 return False
             parsed = _insurance_parse_primary_document_v223(text, year, period_hint=period_hint, financial_currency=financial_currency)
             parsed["resolver_period_semantic_v224"] = period_detected or period_hint
             relevant = ["eps", "net_income_parent", "roe_pct", "capital_ratio_pct", "bvps", "equity_parent", "shares", "dividend_per_share"]
             metric_count = sum(1 for k in relevant if parsed.get(k) is not None)
             if metric_count <= 0:
+                result["resolver_stages"]["zero_metric_documents"] += 1
+                result["diagnostics"].append(f"V232 {role}: ZERO_METRICS · period={period_detected or period_hint} · {doc.get('provenance_url') or doc.get('url')}")
                 return False
             result["resolver_stages"]["documents_with_metrics"] += 1
             if phase_name == "hub":
@@ -18992,6 +19001,8 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
             elif phase_name == "search_fallback":
                 result["resolver_stages"].setdefault("direct_search_documents", 0)
                 result["resolver_stages"]["direct_search_documents"] += 1
+            result["resolver_stages"]["accepted_documents"] += 1
+            result["diagnostics"].append(f"V232 {role}: ACCEPT · metrics={metric_count} · period={period_detected or period_hint} · {doc.get('provenance_url') or doc.get('url')}")
             docs_by_role[role].append({
                 "url": doc.get("provenance_url") or doc.get("url"), "resolved_url": doc.get("url"),
                 "title": item.get("title"), "document_type": doc.get("document_type"),
@@ -68970,22 +68981,36 @@ if selected_symbol:
                             _primary_v222 = evidence_v219_ui.get("insurance_primary_acquisition_v231") or evidence_v219_ui.get("insurance_primary_acquisition_v230") or evidence_v219_ui.get("insurance_primary_acquisition_v229") or evidence_v219_ui.get("insurance_primary_acquisition_v228") or evidence_v219_ui.get("insurance_primary_acquisition_v227") or evidence_v219_ui.get("insurance_primary_acquisition_v224") or evidence_v219_ui.get("insurance_primary_acquisition_v223") or evidence_v219_ui.get("insurance_primary_acquisition_v222") or {}
                             _primary_status_v222 = evidence_v219_ui.get("issuer_primary_status")
                             if _primary_status_v222 == "verified_static_issuer_snapshot":
-                                st.caption("Insurance-Primärquellen V230: bestehender verifizierter Emittenten-Snapshot aktiv.")
+                                st.caption("Insurance-Primärquellen V232: bestehender verifizierter Emittenten-Snapshot aktiv.")
                             elif _primary_status_v222 == "dynamic_issuer_primary_complete":
-                                st.success("Insurance-Primärquellen V230: dynamische issuer-eigene Primärevidenz vollständig aufgebaut; Specialist-Gates prüfen anschließend Score und Fair Value.")
+                                st.success("Insurance-Primärquellen V232: dynamische issuer-eigene Primärevidenz vollständig aufgebaut; Specialist-Gates prüfen anschließend Score und Fair Value.")
                             else:
                                 _missing_v222 = list((_primary_v222 or {}).get("missing_primary") or [])
                                 _domain_v222 = (_primary_v222 or {}).get("company_domain")
                                 _status_text_v222 = text_or_dash((_primary_v222 or {}).get("status"))
                                 _extra_v222 = (" · Emittenten-Domain: " + str(_domain_v222)) if _domain_v222 else ""
-                                st.warning("Insurance Specialist-Delta V230: " + _status_text_v222 + _extra_v222 + ". Bewertung bleibt fail-closed.")
+                                st.warning("Insurance Specialist-Delta V232: " + _status_text_v222 + _extra_v222 + ". Bewertung bleibt fail-closed.")
                             _delta_v225_top = evidence_v219_ui.get("family_specialist_delta_v231") or evidence_v219_ui.get("family_specialist_delta_v230") or evidence_v219_ui.get("family_specialist_delta_v229") or evidence_v219_ui.get("family_specialist_delta_v228") or evidence_v219_ui.get("family_specialist_delta_v227") or evidence_v219_ui.get("family_specialist_delta_v226") or evidence_v219_ui.get("family_specialist_delta_v225") or {}
                             _sat_v225_top = _delta_v225_top.get("baseline_satisfied_primary_items") or []
                             _remain_v225_top = _delta_v225_top.get("remaining_primary_missing_after_baseline") or []
                             if _sat_v225_top:
                                 st.caption("V231 Standardbasis deckt bereits: " + " · ".join(str(x.get("requirement")) for x in _sat_v225_top))
                             if _remain_v225_top:
-                                st.caption("V230 verbleibender Specialist-Delta: " + " · ".join(str(x) for x in _remain_v225_top))
+                                st.caption("V232 verbleibender Specialist-Delta: " + " · ".join(str(x) for x in _remain_v225_top))
+                            with st.expander("🧪 Insurance Evidence Trace V232", expanded=False):
+                                _stages_v232 = (_primary_v222 or {}).get("resolver_stages") or {}
+                                st.write("Resolver-Stufen:", _stages_v232)
+                                _docs_v232 = (_primary_v222 or {}).get("documents") or {}
+                                for _role_v232 in ("current_h1", "annual", "prior_h1", "calendar"):
+                                    _rows_v232 = _docs_v232.get(_role_v232) or []
+                                    st.write(f"**{_role_v232}: {len(_rows_v232)} akzeptierte Dokument(e)**")
+                                    for _row_v232 in _rows_v232[:5]:
+                                        _p_v232 = (_row_v232 or {}).get("parsed") or {}
+                                        _metrics_v232 = {k: _p_v232.get(k) for k in ("eps","net_income_parent","roe_pct","capital_ratio_pct","bvps","equity_parent","dividend_per_share") if _p_v232.get(k) is not None}
+                                        st.caption(f"{(_row_v232 or {}).get('title') or '–'} · {(_row_v232 or {}).get('url') or '–'} · {_metrics_v232}")
+                                st.write("**Diagnoseprotokoll**")
+                                for _diag_v232 in list((_primary_v222 or {}).get("diagnostics") or [])[-40:]:
+                                    st.caption(str(_diag_v232))
 
                         _family_source_labels = {
                             "security_family_master": "Stammtabelle der Bewertungsfamilien",
