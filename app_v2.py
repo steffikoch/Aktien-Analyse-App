@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.23"
+APP_BUILD_VERSION = "V2.23.24"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Evidence Normalisierung & Mapping V219"
+    f"Build {APP_BUILD_VERSION} · Universal Evidence Perioden-Semantik & Fiskalabgleich V220"
 )
 
 
@@ -955,6 +955,7 @@ st.caption(
 # V2.23.04: Zahlungsabwickler-Sicherheitsobergrenze V200. Die allgemeine Methoden-/Spezialkontroll-Obergrenze der vollständig freigegebenen Zahlungsabwickler-Referenzprofile wird von „Niedrig bis Mittel“ auf „Mittel“ angehoben. Die in V199 gehärtete Regel „schwächste relevante Sicherheitsstufe gewinnt“ bleibt unverändert. Emittentenspezifische niedrigere Stufen bleiben wirksam; insbesondere behält Fiserv wegen seiner Ziel-KGV-Sicherheit „Niedrig bis Mittel“ die niedrigere Gesamtbewertungssicherheit. Score, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Value, Bewertungszonen und Signal-Schwellen bleiben unverändert.
 # V2.23.20: Insurance Corporate Action & EPS Comparability Guard V216. Adds a universal insurer corporate-action/share-count comparability gate: material capital increases, cancellations/buybacks, acquisitions, disposals, mergers or similar perimeter changes inside the TTM window block the EPS bridge unless an issuer-verified comparable/pro-forma EPS basis exists. Also distinguishes non-EPS-basis net-income context labels.
 # V2.23.23: Universal Evidence Normalisierung & Mapping V219. Extends the V218 provider layer with a canonical cross-family evidence schema for Eulerpool secondary data, period/source metadata, book-value/ROE/share-count mapping, comparable-period diagnostics and normalized corporate-action candidates. Specialist valuation gates and all family-specific primary-source requirements remain authoritative and unchanged; secondary provider data cannot independently release a specialist Fair Value.
+# V2.23.24: Universal Evidence Perioden-Semantik & Fiskalabgleich V220. Adds explicit FY/H1/9M/Q/TTM semantics to structured secondary evidence, blocks quarterly-vs-YTD misuse in TTM bridges, aligns comparable periods, derives BVPS only from period-compatible Eulerpool equity/share data when direct BVPS is unavailable, and displays share-count units explicitly. Specialist valuation gates, family scores, Fair Values and signals remain unchanged.
 # V2.23.21: Insurance Corporate-Action Status & EPS-Vergleichbarkeit Cleanup V217. Copy/status-only cleanup: distinguishes complete TTM period coverage from blocked EPS comparability after material corporate actions; family status now reports complete issuer evidence with valuation blocked by the comparability gate. No valuation math, score calibration, FX route, or gate threshold changed.
 # V2.23.19: Insurance Per-Share Currency Display & Copy Cleanup V215. Fixes Yahoo insurer BVPS presentation for mixed quote/financial currencies by routing provider per-share book value through the verified quote-to-financial FX path before display, clarifies the mixed-currency price caption, and removes the residual Munich-Re-specific Fair-Value copy from the reusable Reinsurance path. Valuation mathematics, score thresholds, capital-framework calibration, corridors and frozen insurer inputs remain unchanged.
 # V2.23.18: Universal Insurance Capital Framework & Currency Routing V214. Adds jurisdiction-aware insurer capital frameworks (Solvency II / SST), per-share currency routing for official BVPS/dividend evidence, Swiss primary-listing/subprofile hardening, Swiss Re + Zurich issuer-primary evidence adapters and insurance-copy cleanup.
@@ -7761,7 +7762,7 @@ UNIVERSAL_VALUATION_FAMILY_CATALOG = {
 # stay compact; the rule engine below does the broad coverage work.
 
 # =========================================================
-# V219 – Universal Evidence Normalisierung & Mapping
+# V220 – Universal Evidence Perioden-Semantik & Fiskalabgleich
 # =========================================================
 
 UNIVERSAL_EVIDENCE_PROVIDER_BASELINE_V219 = (
@@ -8039,7 +8040,7 @@ def build_family_evidence_contract_v219(company_type):
                 "Sonderereignis-/Corporate-Action-Prüfung",
             )
     return {
-        "version": "V219",
+        "version": "V220",
         "family_id": family_id,
         "family_label": family_meta.get("label"),
         "family_policy": family_meta.get("policy"),
@@ -57549,7 +57550,145 @@ def _eulerpool_ratio_v219(value):
     return number
 
 
-def _eulerpool_field_v219(value, dataset, period=None, currency=None, method="reported"):
+def _eulerpool_explicit_period_token_v220(record):
+    if not isinstance(record, dict):
+        return None
+    for key in (
+        "fiscalPeriod", "fiscal_period", "periodType", "period_type",
+        "reportingPeriod", "reporting_period", "timeframe", "quarter",
+    ):
+        value = record.get(key)
+        if value is None or not str(value).strip():
+            continue
+        text = str(value).strip().upper().replace(" ", "").replace("-", "")
+        mapping = {
+            "FY": "FY", "ANNUAL": "FY", "YEAR": "FY", "12M": "FY",
+            "Q1": "Q1", "1": "Q1", "Q2": "Q2", "2": "Q2",
+            "Q3": "Q3", "3": "Q3", "Q4": "Q4", "4": "Q4",
+            "H1": "H1_YTD", "HY": "H1_YTD", "HY1": "H1_YTD",
+            "6M": "H1_YTD", "YTD6M": "H1_YTD", "YTDH1": "H1_YTD",
+            "9M": "9M_YTD", "YTD9M": "9M_YTD",
+            "TTM": "TTM", "LTM": "TTM",
+        }
+        if text in mapping:
+            return mapping[text]
+        # Common provider variants such as FY2025, Q2FY2026, H12026, 6M2026.
+        if text.startswith("FY") or text.startswith("ANNUAL") or text.startswith("12M"):
+            return "FY"
+        for q in ("Q1", "Q2", "Q3", "Q4"):
+            if text.startswith(q):
+                return q
+        if text.startswith("H1") or text.startswith("HY") or text.startswith("6M") or text.startswith("YTD6M"):
+            return "H1_YTD"
+        if text.startswith("9M") or text.startswith("YTD9M"):
+            return "9M_YTD"
+        if text.startswith("TTM") or text.startswith("LTM"):
+            return "TTM"
+    return None
+
+
+def _eulerpool_period_semantics_v220(record, dataset_kind=None):
+    token = _eulerpool_explicit_period_token_v220(record)
+    end_ts = _eulerpool_period_value_v219(record)
+    end_label = _eulerpool_period_label_v219(record)
+    kind = token
+    inferred = False
+    if not kind:
+        dataset_text = str(dataset_kind or "").lower()
+        if "annual" in dataset_text:
+            kind = "FY"
+            inferred = True
+        elif "quarter" in dataset_text or "periodic" in dataset_text:
+            # The Eulerpool quarterly income endpoint is a standalone-quarter feed.
+            # Without an explicit fiscalPeriod we deliberately do NOT reinterpret it as H1/YTD.
+            kind = "QUARTER_STANDALONE"
+            inferred = True
+        else:
+            kind = "UNKNOWN"
+
+    label_map = {
+        "FY": "Geschäftsjahr (FY)",
+        "H1_YTD": "1. Halbjahr / 6M kumuliert",
+        "9M_YTD": "9M kumuliert",
+        "TTM": "TTM / letzte 12 Monate",
+        "Q1": "Q1 Einzelquartal",
+        "Q2": "Q2 Einzelquartal",
+        "Q3": "Q3 Einzelquartal",
+        "Q4": "Q4 Einzelquartal",
+        "QUARTER_STANDALONE": "Einzelquartal",
+        "UNKNOWN": "Zeitraum nicht eindeutig",
+    }
+    is_standalone_quarter = kind in {"Q1", "Q2", "Q3", "Q4", "QUARTER_STANDALONE"}
+    is_ytd = kind in {"H1_YTD", "9M_YTD"}
+    return {
+        "kind": kind,
+        "label_de": label_map.get(kind, str(kind)),
+        "period_end": end_label,
+        "explicit": bool(token),
+        "inferred": bool(inferred),
+        "is_standalone_quarter": is_standalone_quarter,
+        "is_ytd": is_ytd,
+        "ttm_bridge_eligible": bool(kind in {"H1_YTD", "9M_YTD"}),
+    }
+
+
+def _eulerpool_same_period_basis_v220(left, right):
+    left_sem = _eulerpool_period_semantics_v220(left, "quarterly_income")
+    right_sem = _eulerpool_period_semantics_v220(right, "quarterly_income")
+    lk = left_sem.get("kind")
+    rk = right_sem.get("kind")
+    if lk in {"Q1", "Q2", "Q3", "Q4", "H1_YTD", "9M_YTD"} and rk in {"Q1", "Q2", "Q3", "Q4", "H1_YTD", "9M_YTD"}:
+        return lk == rk
+    if left_sem.get("is_standalone_quarter") and right_sem.get("is_standalone_quarter"):
+        return True
+    return lk == rk and lk not in {None, "UNKNOWN"}
+
+
+def _eulerpool_find_comparable_record_v220(records, latest_record, min_days=250, max_days=480):
+    if latest_record is None:
+        return None
+    latest_ts = _eulerpool_period_value_v219(latest_record)
+    candidates = []
+    for record in records:
+        if record is latest_record:
+            continue
+        if not _eulerpool_same_period_basis_v220(latest_record, record):
+            continue
+        ts = _eulerpool_period_value_v219(record)
+        if latest_ts is None or ts is None:
+            continue
+        days = (latest_ts - ts).days
+        if min_days <= days <= max_days:
+            candidates.append((abs(days - 365), record))
+    if candidates:
+        candidates.sort(key=lambda x: x[0])
+        return candidates[0][1]
+    # Fail closed on period semantics rather than falling back to the immediately prior quarter.
+    return None
+
+
+def _eulerpool_shares_unit_v220(value):
+    number = safe_float(value)
+    if number is None:
+        return None
+    # Eulerpool's statement/share history feeds commonly express share counts in millions.
+    # Keep absolute-looking large values as raw shares and make the unit explicit either way.
+    return "million_shares" if abs(number) < 100000 else "shares"
+
+
+def _format_eulerpool_shares_v220(value, unit=None):
+    number = safe_float(value)
+    if number is None:
+        return "–"
+    unit = unit or _eulerpool_shares_unit_v220(number)
+    if unit == "million_shares":
+        number_text = f"{number:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        return number_text + " Mio. Aktien"
+    number_text = f"{number:,.0f}".replace(",", ".")
+    return number_text + " Aktien"
+
+
+def _eulerpool_field_v219(value, dataset, period=None, currency=None, method="reported", period_semantics=None, unit=None, comparability=None):
     return {
         "value": value,
         "available": value is not None,
@@ -57559,6 +57698,9 @@ def _eulerpool_field_v219(value, dataset, period=None, currency=None, method="re
         "currency": currency,
         "evidence_level": "structured_secondary",
         "method": method,
+        "period_semantics": period_semantics or {},
+        "unit": unit,
+        "comparability": comparability or {},
         "valuation_authoritative": False,
     }
 
@@ -57594,10 +57736,12 @@ def _eulerpool_action_candidates_v219(payload):
 
 
 def normalize_eulerpool_evidence_v219(overview, datasets):
-    """Map heterogeneous Eulerpool responses into one canonical cross-family evidence schema.
+    """V220: canonical secondary evidence with explicit period semantics.
 
-    This layer intentionally stays descriptive.  It does not elevate any provider
-    value to issuer-primary status and never releases a specialist valuation.
+    The provider layer is descriptive only. Quarterly endpoint values remain
+    standalone-quarter evidence unless an explicit cumulative fiscal period is
+    supplied by the provider. They may never be silently reused as H1/9M YTD
+    values for a specialist TTM bridge.
     """
     overview = overview if isinstance(overview, dict) else {}
     datasets = datasets or {}
@@ -57614,11 +57758,17 @@ def normalize_eulerpool_evidence_v219(overview, datasets):
     latest_annual = annual_records[0] if annual_records else None
     prior_annual = annual_records[1] if len(annual_records) > 1 else None
     latest_quarter = quarterly_records[0] if quarterly_records else None
-    comparable_quarter = _eulerpool_find_comparable_record_v219(quarterly_records, latest_quarter) if latest_quarter else None
+    comparable_quarter = _eulerpool_find_comparable_record_v220(quarterly_records, latest_quarter) if latest_quarter else None
     latest_balance = balance_records[0] if balance_records else None
     prior_balance = balance_records[1] if len(balance_records) > 1 else None
     latest_shares = shares_records[0] if shares_records else None
     prior_shares = shares_records[1] if len(shares_records) > 1 else None
+
+    latest_annual_sem = _eulerpool_period_semantics_v220(latest_annual, "annual_income")
+    prior_annual_sem = _eulerpool_period_semantics_v220(prior_annual, "annual_income")
+    latest_periodic_sem = _eulerpool_period_semantics_v220(latest_quarter, "quarterly_income")
+    comparable_periodic_sem = _eulerpool_period_semantics_v220(comparable_quarter, "quarterly_income") if comparable_quarter else {}
+    latest_balance_sem = _eulerpool_period_semantics_v220(latest_balance, "annual_balance")
 
     metrics_payload = payload("metrics") or {}
     key_figures_payload = payload("key_figures") or {}
@@ -57636,14 +57786,52 @@ def normalize_eulerpool_evidence_v219(overview, datasets):
     annual_revenue = safe_float(_eulerpool_extract_first_v219(latest_annual or {}, ("revenue", "totalRevenue", "sales", "total_revenue")))
     quarterly_net_income = safe_float(_eulerpool_extract_first_v219(latest_quarter or {}, ("netIncome", "net_income", "netincome", "netIncomeToCommon")))
 
-    book_value_per_share = safe_float(_eulerpool_extract_first_v219(
-        [metrics_payload, key_figures_payload, latest_balance or {}],
-        ("bookValuePerShare", "book_value_per_share", "bookValuePS", "book_value_ps", "bvps"),
+    # Direct BVPS first, but keep ambiguous generic `bookValue` separate from
+    # explicit per-share fields. A period-aligned equity/share derivation is
+    # preferred over an ambiguous provider field whenever it is available.
+    direct_bvps = safe_float(_eulerpool_extract_first_v219(
+        [metrics_payload, key_figures_payload],
+        ("bookValuePerShare", "book_value_per_share", "bookValuePS", "book_value_ps",
+         "bookValuePerCommonShare", "book_value_per_common_share", "bvps"),
+    ))
+    ambiguous_book_value = safe_float(_eulerpool_extract_first_v219(
+        [metrics_payload, key_figures_payload],
+        ("bookValue", "book_value"),
     ))
     total_equity = safe_float(_eulerpool_extract_first_v219(
         latest_balance or {},
         ("shareholdersEquity", "shareholders_equity", "totalEquity", "total_equity", "equity", "stockholdersEquity", "stockholders_equity"),
     ))
+    annual_shares = safe_float(_eulerpool_extract_first_v219(
+        latest_annual or {},
+        ("shares", "sharesOutstanding", "shares_outstanding", "basicShares", "basic_shares", "dilutedShares", "diluted_shares"),
+    ))
+    derived_bvps = None
+    balance_ts = _eulerpool_period_value_v219(latest_balance)
+    annual_ts = _eulerpool_period_value_v219(latest_annual)
+    balance_annual_aligned = False
+    if balance_ts is not None and annual_ts is not None:
+        balance_annual_aligned = abs((balance_ts - annual_ts).days) <= 45
+    elif latest_balance_sem.get("kind") == "FY" and latest_annual_sem.get("kind") == "FY":
+        balance_annual_aligned = True
+    if total_equity is not None and annual_shares not in (None, 0) and balance_annual_aligned:
+        candidate_bvps = total_equity / annual_shares
+        if candidate_bvps > 0 and candidate_bvps < 100000:
+            derived_bvps = candidate_bvps
+
+    book_value_per_share = direct_bvps
+    bvps_method = "reported_explicit_per_share" if direct_bvps is not None else None
+    if book_value_per_share is None and derived_bvps is not None:
+        book_value_per_share = derived_bvps
+        bvps_method = "derived_total_equity_divided_by_same_period_shares"
+    if book_value_per_share is None and ambiguous_book_value is not None:
+        # Last-resort secondary context only. Do not elevate this ambiguous field
+        # to issuer-primary or valuation-authoritative status.
+        book_value_per_share = ambiguous_book_value
+        bvps_method = "provider_ambiguous_book_value_field"
+    bvps_period = _eulerpool_period_label_v219(latest_balance)
+    bvps_semantics = latest_balance_sem
+
     roe_raw = _eulerpool_extract_first_v219(
         [metrics_payload, key_figures_payload],
         ("roe", "returnOnEquity", "return_on_equity", "returnEquity"),
@@ -57675,19 +57863,43 @@ def normalize_eulerpool_evidence_v219(overview, datasets):
     if quarterly_eps is not None and comparable_quarter_eps not in (None, 0):
         periodic_eps_growth = quarterly_eps / comparable_quarter_eps - 1.0
 
+    comparable_basis_ok = bool(
+        latest_quarter is not None
+        and comparable_quarter is not None
+        and _eulerpool_same_period_basis_v220(latest_quarter, comparable_quarter)
+    )
+    ttm_bridge_compatible = bool(
+        comparable_basis_ok
+        and latest_periodic_sem.get("ttm_bridge_eligible")
+        and comparable_periodic_sem.get("kind") == latest_periodic_sem.get("kind")
+    )
+    if ttm_bridge_compatible:
+        ttm_bridge_reason = "Kumulative Vergleichsperioden gleicher Basis vorhanden."
+    elif latest_periodic_sem.get("is_standalone_quarter"):
+        ttm_bridge_reason = "Einzelquartals-EPS ist keine H1-/9M-YTD-Basis und darf nicht in die FY−Vorperiode+Aktuellperiode-TTM-Brücke eingehen."
+    elif not comparable_basis_ok:
+        ttm_bridge_reason = "Keine gleichbasige Vorjahresperiode sicher erkannt."
+    else:
+        ttm_bridge_reason = "Periodenbasis ist für eine kumulative TTM-Brücke nicht freigegeben."
+
+    share_unit = _eulerpool_shares_unit_v220(latest_share_value)
+    prior_share_unit = _eulerpool_shares_unit_v220(prior_share_value)
+    annual_share_unit = _eulerpool_shares_unit_v220(annual_shares)
+
     fields = {
-        "annual_eps": _eulerpool_field_v219(annual_eps, "annual_income", _eulerpool_period_label_v219(latest_annual), provider_currency),
-        "prior_annual_eps": _eulerpool_field_v219(prior_annual_eps, "annual_income", _eulerpool_period_label_v219(prior_annual), provider_currency),
-        "latest_periodic_eps": _eulerpool_field_v219(quarterly_eps, "quarterly_income", _eulerpool_period_label_v219(latest_quarter), provider_currency),
-        "comparable_periodic_eps": _eulerpool_field_v219(comparable_quarter_eps, "quarterly_income", _eulerpool_period_label_v219(comparable_quarter), provider_currency),
-        "annual_net_income": _eulerpool_field_v219(annual_net_income, "annual_income", _eulerpool_period_label_v219(latest_annual), provider_currency),
-        "annual_revenue": _eulerpool_field_v219(annual_revenue, "annual_income", _eulerpool_period_label_v219(latest_annual), provider_currency),
-        "latest_periodic_net_income": _eulerpool_field_v219(quarterly_net_income, "quarterly_income", _eulerpool_period_label_v219(latest_quarter), provider_currency),
-        "book_value_per_share": _eulerpool_field_v219(book_value_per_share, "metrics/key_figures/balance_sheet", _eulerpool_period_label_v219(latest_balance), provider_currency),
-        "total_equity": _eulerpool_field_v219(total_equity, "balance_sheet", _eulerpool_period_label_v219(latest_balance), provider_currency),
-        "roe": _eulerpool_field_v219(roe, "metrics/key_figures", None, None),
-        "shares_outstanding": _eulerpool_field_v219(latest_share_value, "shares_history/overview", _eulerpool_period_label_v219(latest_shares), None),
-        "prior_shares_outstanding": _eulerpool_field_v219(prior_share_value, "shares_history", _eulerpool_period_label_v219(prior_shares), None),
+        "annual_eps": _eulerpool_field_v219(annual_eps, "annual_income", _eulerpool_period_label_v219(latest_annual), provider_currency, period_semantics=latest_annual_sem),
+        "prior_annual_eps": _eulerpool_field_v219(prior_annual_eps, "annual_income", _eulerpool_period_label_v219(prior_annual), provider_currency, period_semantics=prior_annual_sem),
+        "latest_periodic_eps": _eulerpool_field_v219(quarterly_eps, "quarterly_income", _eulerpool_period_label_v219(latest_quarter), provider_currency, period_semantics=latest_periodic_sem, comparability={"same_basis_prior_available": comparable_basis_ok, "ttm_bridge_eligible": ttm_bridge_compatible}),
+        "comparable_periodic_eps": _eulerpool_field_v219(comparable_quarter_eps, "quarterly_income", _eulerpool_period_label_v219(comparable_quarter), provider_currency, period_semantics=comparable_periodic_sem, comparability={"same_basis_with_latest": comparable_basis_ok}),
+        "annual_net_income": _eulerpool_field_v219(annual_net_income, "annual_income", _eulerpool_period_label_v219(latest_annual), provider_currency, period_semantics=latest_annual_sem),
+        "annual_revenue": _eulerpool_field_v219(annual_revenue, "annual_income", _eulerpool_period_label_v219(latest_annual), provider_currency, period_semantics=latest_annual_sem),
+        "latest_periodic_net_income": _eulerpool_field_v219(quarterly_net_income, "quarterly_income", _eulerpool_period_label_v219(latest_quarter), provider_currency, period_semantics=latest_periodic_sem),
+        "book_value_per_share": _eulerpool_field_v219(book_value_per_share, "metrics/key_figures/balance_sheet", bvps_period, provider_currency, method=bvps_method, period_semantics=bvps_semantics),
+        "total_equity": _eulerpool_field_v219(total_equity, "balance_sheet", _eulerpool_period_label_v219(latest_balance), provider_currency, period_semantics=latest_balance_sem),
+        "roe": _eulerpool_field_v219(roe, "metrics/key_figures", None, None, period_semantics={"kind": "PROVIDER_RATIO", "label_de": "Provider-Verhältniskennzahl; Bezugsperiode separat prüfen"}),
+        "shares_outstanding": _eulerpool_field_v219(latest_share_value, "shares_history/overview", _eulerpool_period_label_v219(latest_shares), None, unit=share_unit),
+        "prior_shares_outstanding": _eulerpool_field_v219(prior_share_value, "shares_history", _eulerpool_period_label_v219(prior_shares), None, unit=prior_share_unit),
+        "annual_statement_shares": _eulerpool_field_v219(annual_shares, "annual_income", _eulerpool_period_label_v219(latest_annual), None, period_semantics=latest_annual_sem, unit=annual_share_unit),
     }
 
     coverage_keys = (
@@ -57697,7 +57909,7 @@ def normalize_eulerpool_evidence_v219(overview, datasets):
     mapped_count = sum(1 for key in coverage_keys if fields.get(key, {}).get("available"))
 
     return {
-        "version": "V219",
+        "version": "V220",
         "source_role": "structured_secondary_evidence",
         "identity": {
             "name": overview.get("name"),
@@ -57710,6 +57922,13 @@ def normalize_eulerpool_evidence_v219(overview, datasets):
             "website": overview.get("website"),
         },
         "fields": fields,
+        "period_alignment": {
+            "latest_periodic": latest_periodic_sem,
+            "comparable_periodic": comparable_periodic_sem,
+            "same_basis_comparable": comparable_basis_ok,
+            "ttm_bridge_compatible": ttm_bridge_compatible,
+            "ttm_bridge_reason": ttm_bridge_reason,
+        },
         "diagnostics": {
             "annual_eps_growth": annual_eps_growth,
             "periodic_eps_growth": periodic_eps_growth,
@@ -57718,6 +57937,9 @@ def normalize_eulerpool_evidence_v219(overview, datasets):
             "large_share_count_change_candidate": bool(share_change_pct is not None and abs(share_change_pct) >= 0.05),
             "corporate_actions_count": len(actions),
             "material_structure_action_candidates": len(material_actions),
+            "latest_periodic_basis": latest_periodic_sem.get("kind"),
+            "comparable_periodic_basis": comparable_periodic_sem.get("kind"),
+            "ttm_bridge_compatible": ttm_bridge_compatible,
         },
         "corporate_actions": actions,
         "material_structure_actions": material_actions[:10],
@@ -57730,8 +57952,8 @@ def normalize_eulerpool_evidence_v219(overview, datasets):
             "share_records": len(shares_records),
         },
         "release_rule": (
-            "Alle Werte dieser Struktur bleiben Eulerpool-Sekundärevidenz. Sie können Primärdaten auffinden, "
-            "periodisieren und plausibilisieren, aber kein familienentscheidendes Primärquellenfeld ersetzen."
+            "Alle Werte dieser Struktur bleiben Eulerpool-Sekundärevidenz. V220 speichert zusätzlich die Periodenbasis und verhindert insbesondere, "
+            "dass ein Einzelquartal als H1/9M-YTD-Wert in eine TTM-Brücke gelangt. Primärquellen bleiben für familienentscheidende Kennzahlen maßgeblich."
         ),
     }
 
@@ -57742,7 +57964,7 @@ def load_eulerpool_universal_evidence_v219(symbol, company_type, cache_version):
     api_key = _get_eulerpool_api_key_v219()
     contract = build_family_evidence_contract_v219(company_type)
     base = {
-        "version": "V219",
+        "version": "V220",
         "provider": "Eulerpool",
         "configured": bool(api_key),
         "available": False,
@@ -57791,7 +58013,7 @@ def load_eulerpool_universal_evidence_v219(symbol, company_type, cache_version):
     base["resolved_isin"] = resolved_isin
     identifier = resolved_isin or base.get("identifier_used") or resolved_ticker
 
-    # V219 keeps the V218 core endpoints and adds two ratio/key-figure sources so
+    # V220 keeps the V218/V219 core endpoints and adds period semantics so
     # book value, ROE and payout context can be mapped without inventing fields.
     endpoints = {
         "annual_income": f"/api/1/equity/incomestatement/{identifier}",
@@ -57809,7 +58031,7 @@ def load_eulerpool_universal_evidence_v219(symbol, company_type, cache_version):
     base["mapped_evidence"] = mapped
 
     # Keep the compact V218-style normalized keys for compatibility with any
-    # downstream display code, but source them from the canonical V219 map.
+    # downstream display code, but source them from the canonical V220 map.
     fields = mapped.get("fields") or {}
     def field_value(name):
         return (fields.get(name) or {}).get("value")
@@ -57829,10 +58051,14 @@ def load_eulerpool_universal_evidence_v219(symbol, company_type, cache_version):
         "annual_net_income": field_value("annual_net_income"),
         "annual_revenue": field_value("annual_revenue"),
         "quarterly_eps": field_value("latest_periodic_eps"),
+        "quarterly_eps_period_kind": (((fields.get("latest_periodic_eps") or {}).get("period_semantics") or {}).get("kind")),
+        "ttm_bridge_compatible": bool((mapped.get("period_alignment") or {}).get("ttm_bridge_compatible")),
         "book_value_per_share": field_value("book_value_per_share"),
+        "book_value_per_share_method": ((fields.get("book_value_per_share") or {}).get("method")),
         "total_equity": field_value("total_equity"),
         "roe": field_value("roe"),
         "shares_outstanding_latest": field_value("shares_outstanding"),
+        "shares_outstanding_unit": ((fields.get("shares_outstanding") or {}).get("unit")),
         "shares_change_pct": (mapped.get("diagnostics") or {}).get("shares_change_pct"),
         "corporate_actions_present": bool((mapped.get("corporate_actions") or [])),
         "material_structure_action_candidates": int((mapped.get("diagnostics") or {}).get("material_structure_action_candidates") or 0),
@@ -57854,7 +58080,7 @@ def load_eulerpool_universal_evidence_v219(symbol, company_type, cache_version):
     ]
     base["rate_remaining"] = rate_candidates[-1] if rate_candidates else None
     base["note"] = (
-        "Eulerpool ist als strukturierte Sekundärevidenz verbunden und in das kanonische V219-Evidenzschema normalisiert. "
+        "Eulerpool ist als strukturierte Sekundärevidenz verbunden und in das kanonische V220-Evidenzschema mit expliziter Periodenbasis normalisiert. "
         "Perioden, Aktienzahl und Corporate-Action-Kandidaten werden explizit gekennzeichnet; familienentscheidende "
         "Emittenten-Primärkennzahlen bleiben unverändert maßgeblich."
     )
@@ -57892,7 +58118,7 @@ def build_universal_evidence_layer_v219(symbol, company_type, provider_evidence,
         if isinstance(item, dict) and item.get("available")
     ]
     return {
-        "version": "V219",
+        "version": "V220",
         "contract": contract,
         "provider": provider,
         "provider_status": provider_status,
@@ -57906,7 +58132,7 @@ def build_universal_evidence_layer_v219(symbol, company_type, provider_evidence,
         "missing_primary_evidence": missing_primary,
         "valuation_impact": "none_direct",
         "release_rule": (
-            "V219 normalisiert strukturierte Provider-Daten in ein gemeinsames Evidenzschema mit Zeitraum, Quelle und Evidenzstufe. "
+            "V220 normalisiert strukturierte Provider-Daten in ein gemeinsames Evidenzschema mit Zeitraum, Fiskalperioden-Semantik, Quelle und Evidenzstufe. "
             "Die Freigabe eines Spezialmodells erfolgt weiterhin ausschließlich über die familien-spezifischen Primärquellen-/Vergleichbarkeits-Gates."
         ),
         "symbol": str(symbol or ""),
@@ -61660,7 +61886,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         free_cashflow=fundamental_info.get("freeCashflow"),
     )
 
-    # V219: family-wide normalized structured secondary evidence. This layer is intentionally
+    # V220: family-wide normalized structured secondary evidence with fiscal-period semantics. This layer is intentionally
     # non-authoritative for specialist valuation release; it supplies normalized
     # statements/share-count/corporate-action diagnostics and a family evidence contract.
     eulerpool_evidence_v219 = load_eulerpool_universal_evidence_v219(
@@ -65643,19 +65869,19 @@ if selected_symbol:
                                 if _mapped_total_top else ""
                             )
                             st.success(
-                                "Universal Evidence Ebene V219: Eulerpool verbunden · "
+                                "Universal Evidence Ebene V220: Eulerpool verbunden · "
                                 f"{int(provider_v219_ui.get('dataset_count') or 0)} Datensätze verfügbar"
                                 + _mapped_text_top
                                 + " · Primärquellen bleiben für familienentscheidende Kennzahlen maßgeblich."
                             )
                         elif provider_v219_ui.get("configured"):
                             st.warning(
-                                "Universal Evidence Ebene V219: Eulerpool ist konfiguriert, für diesen Titel aber nur teilweise bzw. nicht auflösbar. "
+                                "Universal Evidence Ebene V220: Eulerpool ist konfiguriert, für diesen Titel aber nur teilweise bzw. nicht auflösbar. "
                                 "Die Bewertung fällt nicht auf unbestätigte Provider-Daten zurück."
                             )
                         else:
                             st.caption(
-                                "Universal Evidence Ebene V219: Eulerpool optional nicht verbunden. "
+                                "Universal Evidence Ebene V220: Eulerpool optional nicht verbunden. "
                                 "Für die strukturierte Sekundärevidenz kann EULERPOOL_API_KEY als Umgebungsvariable oder Streamlit-Secret gesetzt werden; "
                                 "bestehende Primärquellen-/Yahoo-Pfade bleiben unverändert."
                             )
@@ -65806,7 +66032,7 @@ if selected_symbol:
                     if evidence_v219_ui:
                         contract_v219_ui = evidence_v219_ui.get("contract") or {}
                         provider_v219_ui = evidence_v219_ui.get("provider") or {}
-                        with st.expander("🧱 Universal Evidence Ebene V219", expanded=False):
+                        with st.expander("🧱 Universal Evidence Ebene V220", expanded=False):
                             st.write(
                                 "**Quellenpriorität:** "
                                 + " → ".join(contract_v219_ui.get("source_priority") or [])
@@ -65854,12 +66080,12 @@ if selected_symbol:
                                 mapped_fields_v219_ui = mapped_v219_ui.get("fields") or {}
                                 mapped_cov_v219_ui = mapped_v219_ui.get("coverage") or {}
                                 if mapped_v219_ui:
-                                    st.markdown("**V219 – normalisierte Evidenzfelder**")
+                                    st.markdown("**V220 – normalisierte Evidenzfelder & Periodenbasis**")
                                     _field_labels_v219 = {
                                         "annual_eps": "Jahres-EPS",
                                         "prior_annual_eps": "Vorjahres-EPS",
-                                        "latest_periodic_eps": "Letztes Perioden-EPS",
-                                        "comparable_periodic_eps": "Vergleichsperioden-EPS",
+                                        "latest_periodic_eps": "Letztes EPS (Periodenbasis)",
+                                        "comparable_periodic_eps": "Vorjahres-EPS (gleiche Periodenbasis)",
                                         "annual_net_income": "Jahresüberschuss",
                                         "annual_revenue": "Jahresumsatz",
                                         "latest_periodic_net_income": "Letztes Periodenergebnis",
@@ -65868,6 +66094,7 @@ if selected_symbol:
                                         "roe": "ROE",
                                         "shares_outstanding": "Aktienzahl",
                                         "prior_shares_outstanding": "Vorherige Aktienzahl",
+                                        "annual_statement_shares": "FY-Aktienzahl (Statement)",
                                     }
                                     _visible_rows_v219 = []
                                     for _key_v219, _label_v219 in _field_labels_v219.items():
@@ -65882,16 +66109,32 @@ if selected_symbol:
                                             _disp_v219 = format_money(_val_v219, _cur_v219) if _val_v219 is not None else "–"
                                         elif _key_v219 == "roe":
                                             _disp_v219 = f"{_val_v219 * 100:.1f} %" if _val_v219 is not None else "–"
-                                        elif _key_v219 in {"shares_outstanding", "prior_shares_outstanding"}:
-                                            _disp_v219 = format_number(_val_v219) if _val_v219 is not None else "–"
+                                        elif _key_v219 in {"shares_outstanding", "prior_shares_outstanding", "annual_statement_shares"}:
+                                            _disp_v219 = _format_eulerpool_shares_v220(_val_v219, _item_v219.get("unit"))
                                         else:
                                             _disp_v219 = str(_item_v219.get("value"))
+                                        _sem_v220 = _item_v219.get("period_semantics") or {}
+                                        _sem_label_v220 = _sem_v220.get("label_de")
                                         _meta_v219 = " · ".join(
-                                            str(x) for x in (_item_v219.get("period"), _item_v219.get("dataset"), "Sekundärevidenz") if x
+                                            str(x) for x in (_item_v219.get("period"), _sem_label_v220, _item_v219.get("dataset"), "Sekundärevidenz") if x
                                         )
                                         _visible_rows_v219.append((_label_v219, _disp_v219, _meta_v219))
                                     for _label_v219, _disp_v219, _meta_v219 in _visible_rows_v219:
                                         st.write(f"**{_label_v219}:** {_disp_v219}" + (f" · {_meta_v219}" if _meta_v219 else ""))
+
+                                    _period_align_v220 = mapped_v219_ui.get("period_alignment") or {}
+                                    if _period_align_v220:
+                                        _period_current_v220 = (_period_align_v220.get("latest_periodic") or {}).get("label_de")
+                                        _period_prior_v220 = (_period_align_v220.get("comparable_periodic") or {}).get("label_de")
+                                        _bridge_ok_v220 = bool(_period_align_v220.get("ttm_bridge_compatible"))
+                                        _bridge_reason_v220 = text_or_dash(_period_align_v220.get("ttm_bridge_reason"))
+                                        _period_text_v220 = "Periodenabgleich: " + text_or_dash(_period_current_v220)
+                                        if _period_prior_v220:
+                                            _period_text_v220 += " ↔ " + str(_period_prior_v220)
+                                        if _bridge_ok_v220:
+                                            st.success(_period_text_v220 + " · für kumulative TTM-Brücke kompatibel")
+                                        else:
+                                            st.warning(_period_text_v220 + " · nicht als kumulative TTM-Brücke freigegeben. " + _bridge_reason_v220)
 
                                     _diag_v219 = mapped_v219_ui.get("diagnostics") or {}
                                     _diag_parts_v219 = []
@@ -69923,25 +70166,35 @@ if selected_symbol:
                             _ins_secondary_parts_v219 = []
                             _ins_bvps_v219 = safe_float((_ins_fields_v219.get("book_value_per_share") or {}).get("value"))
                             _ins_annual_eps_v219 = safe_float((_ins_fields_v219.get("annual_eps") or {}).get("value"))
-                            _ins_periodic_eps_v219 = safe_float((_ins_fields_v219.get("latest_periodic_eps") or {}).get("value"))
+                            _ins_periodic_item_v220 = (_ins_fields_v219.get("latest_periodic_eps") or {})
+                            _ins_periodic_eps_v219 = safe_float(_ins_periodic_item_v220.get("value"))
+                            _ins_periodic_sem_v220 = _ins_periodic_item_v220.get("period_semantics") or {}
+                            _ins_periodic_label_v220 = _ins_periodic_sem_v220.get("label_de") or "Periodenbasis nicht eindeutig"
                             _ins_roe_v219 = safe_float((_ins_fields_v219.get("roe") or {}).get("value"))
-                            _ins_shares_v219 = safe_float((_ins_fields_v219.get("shares_outstanding") or {}).get("value"))
+                            _ins_shares_item_v220 = (_ins_fields_v219.get("shares_outstanding") or {})
+                            _ins_shares_v219 = safe_float(_ins_shares_item_v220.get("value"))
                             _ins_currency_v219 = ((_ins_mapped_v219.get("identity") or {}).get("currency") or financial_currency)
                             if _ins_bvps_v219 is not None:
                                 _ins_secondary_parts_v219.append("Buchwert/Aktie " + format_eps(_ins_bvps_v219, _ins_currency_v219))
                             if _ins_annual_eps_v219 is not None:
                                 _ins_secondary_parts_v219.append("Jahres-EPS " + format_eps(_ins_annual_eps_v219, _ins_currency_v219))
                             if _ins_periodic_eps_v219 is not None:
-                                _ins_secondary_parts_v219.append("Perioden-EPS " + format_eps(_ins_periodic_eps_v219, _ins_currency_v219))
+                                _ins_secondary_parts_v219.append(_ins_periodic_label_v220 + " EPS " + format_eps(_ins_periodic_eps_v219, _ins_currency_v219))
                             if _ins_roe_v219 is not None:
                                 _ins_secondary_parts_v219.append(f"ROE {_ins_roe_v219 * 100:.1f} %")
                             if _ins_shares_v219 is not None:
-                                _ins_secondary_parts_v219.append("Aktienzahl " + format_number(_ins_shares_v219))
+                                _ins_secondary_parts_v219.append("Aktienzahl " + _format_eulerpool_shares_v220(_ins_shares_v219, _ins_shares_item_v220.get("unit")))
                             if _ins_secondary_parts_v219:
                                 st.caption(
-                                    "Eulerpool-Sekundärevidenz V219: " + " · ".join(_ins_secondary_parts_v219)
+                                    "Eulerpool-Sekundärevidenz V220: " + " · ".join(_ins_secondary_parts_v219)
                                     + ". Diese Werte dienen nur der Evidenzbeschaffung/Plausibilisierung und ersetzen keine Versicherungs-Primärquelle."
                                 )
+                                _ins_period_alignment_v220 = _ins_mapped_v219.get("period_alignment") or {}
+                                if _ins_periodic_eps_v219 is not None and not _ins_period_alignment_v220.get("ttm_bridge_compatible"):
+                                    st.caption(
+                                        "V220 Periodenschutz: Das Eulerpool-Perioden-EPS bleibt aus der Insurance-TTM-Brücke ausgeschlossen. "
+                                        + text_or_dash(_ins_period_alignment_v220.get("ttm_bridge_reason"))
+                                    )
 
                         if data[
                             "currency_context"
