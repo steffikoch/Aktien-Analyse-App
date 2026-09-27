@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.37"
+APP_BUILD_VERSION = "V2.23.38"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Report Index Resolver V233"
+    f"Build {APP_BUILD_VERSION} · Issuer Sitemap & Period Release Resolver V234"
 )
 
 
@@ -966,7 +966,7 @@ st.caption(
 # V2.23.32: Comparative Period Bridge & Dividend Fallback V228. Closes the remaining issuer-neutral insurer evidence gaps exposed by Talanx: current-H1 comparative income columns are promoted before per-share derivation so prior-H1 EPS can be derived from verified parent earnings and the stable denominator; interim balance-sheet prior columns are period-tagged and may bridge FY/prior-FY BVPS only when the source explicitly proves H1 vs previous 31-December comparatives; issuer-owned dividend/shareholder-return hubs and financial-year pages become an annual fallback when the standardized provider dividend is unavailable. The FY parent-income consistency node derived from verified FY EPS × stable shares is recognized by the displayed specialist contract. No insurer scoring, corridor, dual-anchor weights or Fair-Value mathematics change; all new bridges remain fail-closed on share-count/corporate-action or period ambiguity.
 # V2.23.33: Primary Row Pair Parser & Role Budgeting V229. Preserves explicit parenthesized prior-period values in issuer narrative rows such as “EUR 1,499 (1,373) million”, marks same-row H1 comparatives only after the document has already passed the H1 role/period gate, prioritizes current-H1 and annual/FY evidence before separate prior-H1 fallback research, and gives each resolver role a bounded budget so one large IR branch cannot starve annual book-value/dividend evidence. Adds a target-FY dividend parser for issuer tables/narratives and corrects the visible baseline version label. No insurer score, corridor, dual-anchor weights, Fair-Value or signal mathematics change; all cross-period/per-share bridges remain guarded and fail-closed.
 # V2.23.34: Hub-First Evidence Resolver & Search Fallback V230. Fixes the V229 live regression where role-local search/traversal could consume the current-H1 budget before any primary document was fetched. Resolved issuer IR hubs are now traversed and fetched first with an explicit fetch reserve; external site-search is invoked only when the role remains semantically incomplete. Current-H1 and annual evidence retain larger soft budgets, prior-H1 remains a fallback because same-row H1 comparatives may already satisfy it, and the overall resolver stays bounded/fail-closed. Row-pair parsing, period/scope guards, score, corridors, dual-anchor weights, Fair-Value and signal mathematics remain unchanged.
-# V2.23.37: Universal Report Index Resolver V233. Treats issuer reporting/archive pages as document indexes, classifies concrete report links by explicit period/year before parsing, and tightens FY source eligibility so outlook/news/archive containers cannot masquerade as annual evidence. No issuer-specific URLs or values.
+# V2.23.38: Issuer Sitemap & Period Release Resolver V234. Adds one issuer-owned discovery layer for modern/JS-backed IR archives: the company sitemap inventory is scanned once for exact period-bound H1/FY/result/news-detail URLs. Those official URLs are then fetched and passed through the same strict period/scope parser. This avoids dependence on rendered archive cards or external search availability. Official period-bound earnings/news releases may serve as primary evidence when they contain the required metrics. No issuer-specific URLs or values.
 # V2.23.35: Direct Candidate Fetch & Dynamic IR Fallback V231. Fixes the remaining V230 live gap on modern/JS-backed IR archives: exact issuer-domain search candidates are fetched and semantically parsed before any child-link traversal can consume the fallback budget. Search queries now include issuer-neutral first-half/Solvency and target-FY dividend patterns, while hub traversal remains the preferred first phase. Financial-calendar labels are reduced to a concise reporting-event label instead of leaking surrounding filter/navigation text. No insurer metric is hard-coded; period/scope/corporate-action guards and all valuation mathematics remain unchanged.
 # V2.23.21: Insurance Corporate-Action Status & EPS-Vergleichbarkeit Cleanup V217. Copy/status-only cleanup: distinguishes complete TTM period coverage from blocked EPS comparability after material corporate actions; family status now reports complete issuer evidence with valuation blocked by the comparability gate. No valuation math, score calibration, FX route, or gate threshold changed.
 # V2.23.19: Insurance Per-Share Currency Display & Copy Cleanup V215. Fixes Yahoo insurer BVPS presentation for mixed quote/financial currencies by routing provider per-share book value through the verified quote-to-financial FX path before display, clarifies the mixed-currency price caption, and removes the residual Munich-Re-specific Fair-Value copy from the reusable Reinsurance path. Valuation mathematics, score thresholds, capital-framework calibration, corridors and frozen insurer inputs remain unchanged.
@@ -17933,7 +17933,7 @@ def discover_insurance_primary_snapshot_v222(symbol, company_name, website, insu
             if not any(parsed.get(k) is not None for k in relevant):
                 continue
             result["resolver_stages"]["accepted_documents"] += 1
-            result["diagnostics"].append(f"V232 {role}: ACCEPT · metrics={metric_count} · period={period_detected or period_hint} · {doc.get('provenance_url') or doc.get('url')}")
+            result["diagnostics"].append(f"V234 {role}: ACCEPT · metrics={metric_count} · period={period_detected or period_hint} · {doc.get('provenance_url') or doc.get('url')}")
             docs_by_role[role].append({
                 "url": doc.get("provenance_url") or doc.get("url"),
                 "resolved_url": doc.get("url"),
@@ -18585,7 +18585,7 @@ def discover_insurance_primary_snapshot_v223(symbol, company_name, website, insu
 # V224 – Universal IR Reporting Hub Resolver
 # =========================================================
 
-INSURANCE_IR_HUB_RESOLVER_VERSION_V224 = "v22337_universal_report_index_resolver_v233"
+INSURANCE_IR_HUB_RESOLVER_VERSION_V224 = "v22338_issuer_sitemap_period_release_resolver_v234"
 INSURANCE_IR_HUB_RESOLVER_TTL_SECONDS_V224 = 21600
 
 
@@ -18825,9 +18825,9 @@ def _insurance_role_period_compatible_v224(text, url, title, role, target_year):
     year_ok = year in hay
 
     # Strong report-index labels. These are issuer-neutral date/period semantics.
-    h1_date = bool(re.search(rf"(?:30\s*(?:june|juni)|30[-_/](?:06|6)|(?:results?|ergebnisse)\s+(?:as\s+(?:at|of)|zum)\s+30\s*(?:june|juni))[^\n]{{0,40}}{re.escape(year)}", hay, flags=re.I))
+    h1_date = bool(re.search(rf"(?:30[.\s_-]*(?:june|juni)|30[-_/](?:06|6)|(?:results?|ergebnisse)\s+(?:as\s+(?:at|of)|zum)\s+30[.\s_-]*(?:june|juni))[^\n]{{0,40}}{re.escape(year)}", hay, flags=re.I))
     h1_named = year_ok and any(k in hay for k in ["h1", "6m", "half-year", "half year", "half_year", "half-yearly", "zwischenbericht", "interim report"])
-    fy_date = bool(re.search(rf"(?:31\s*(?:december|dezember)|31[-_/]12|(?:results?|ergebnisse)\s+(?:as\s+(?:at|of)|zum)\s+31\s*(?:december|dezember))[^\n]{{0,40}}{re.escape(year)}", hay, flags=re.I))
+    fy_date = bool(re.search(rf"(?:31[.\s_-]*(?:december|dezember)|31[-_/]12|(?:results?|ergebnisse)\s+(?:as\s+(?:at|of)|zum)\s+31[.\s_-]*(?:december|dezember))[^\n]{{0,40}}{re.escape(year)}", hay, flags=re.I))
     fy_named = year_ok and any(k in hay for k in ["annual report", "annual-report", "annual_report", "full-year", "full year", "financial year", "geschäftsbericht", "geschaeftsbericht", "jahresbericht"])
 
     if expected == "H1" and (h1_date or h1_named):
@@ -18857,6 +18857,124 @@ def _insurance_role_period_compatible_v224(text, url, title, role, target_year):
     text_year_ok = bool(re.search(rf"\b(?:financial year|geschäftsjahr|geschaeftsjahr)\s*{target_year}\b", str(text or ""), flags=re.I))
     return bool(key_figures or (dividend_page and text_year_ok)), "FY_reference_table" if (key_figures or (dividend_page and text_year_ok)) else None
 
+
+def _insurance_extract_report_index_links_v233(index_url, company_domain, target_year, role, deadline=None):
+    """Extract exact period-bound issuer report/detail links from one reporting index."""
+    html, final_url = _fetch_html(index_url, timeout=4.2, deadline=deadline, max_chars=6_000_000)
+    if not html or not _host_belongs_to_company_family(final_url or index_url, company_domain):
+        return []
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:
+        return []
+    base = final_url or index_url
+    rows, seen = [], set()
+    for a in soup.find_all("a", href=True):
+        href = urljoin(base, a.get("href"))
+        if not href or href in seen or not _host_belongs_to_company_family(href, company_domain):
+            continue
+        label = _clean_text(" ".join(filter(None, [a.get_text(" ", strip=True), a.get("title"), a.get("aria-label")])))
+        ok, detected = _insurance_role_period_compatible_v224("", href, label, role, target_year)
+        if not ok or detected not in {"H1_by_report_index", "FY_by_report_index"}:
+            continue
+        seen.add(href)
+        score = 120 + _insurance_ir_role_score_v224(href, label, role, target_year)
+        hay = (href + " " + label).lower()
+        if any(k in hay for k in ["result", "report", "ergebnis", "bericht", "earnings", "interim", "financial"]):
+            score += 16
+        if href.lower().split("?", 1)[0].endswith(".pdf"):
+            score += 16
+        rows.append({
+            "url": href, "title": label or f"{detected} {target_year}", "score": score,
+            "rank": score, "report_index_source": base, "report_index_period": detected,
+        })
+    rows.sort(key=lambda x: x.get("rank", 0), reverse=True)
+    return rows[:14]
+
+
+def _insurance_report_index_role_seeds_v233(hubs, company_domain, role, target_year, deadline=None, diagnostics=None):
+    """Use issuer-owned result/report archives as indexes, never as metric evidence."""
+    diag = diagnostics if isinstance(diagnostics, list) else []
+    if role in {"current_h1", "prior_h1"}:
+        categories = ["reporting", "annual", "investor_root", "news"]
+    elif role == "annual":
+        categories = ["annual", "reporting", "key_figures", "dividend", "investor_root"]
+    else:
+        return []
+    pages, seen_pages = [], set()
+    direct, direct_seen = [], set()
+    for cat in categories:
+        for item in (hubs or {}).get(cat, []) or []:
+            u = str((item or {}).get("url") or "")
+            if not u or not _host_belongs_to_company_family(u, company_domain):
+                continue
+            title = (item or {}).get("title") or ""
+            ok, detected = _insurance_role_period_compatible_v224("", u, title, role, target_year)
+            if ok and detected in {"H1_by_report_index", "FY_by_report_index"} and u not in direct_seen:
+                direct_seen.add(u)
+                score = 150 + _insurance_ir_role_score_v224(u, title, role, target_year)
+                direct.append({"url": u, "title": title, "score": score, "rank": score, "report_index_period": detected})
+            if u not in seen_pages:
+                seen_pages.add(u); pages.append(u)
+    rows = list(direct)
+    seen = {r.get("url") for r in rows}
+    scanned = 0
+    for page in pages[:8]:
+        if not _research_budget_ok(deadline, reserve=0.8):
+            break
+        scanned += 1
+        for row in _insurance_extract_report_index_links_v233(page, company_domain, target_year, role, deadline=deadline):
+            u = row.get("url")
+            if not u or u in seen:
+                continue
+            seen.add(u); rows.append(row)
+    rows.sort(key=lambda x: x.get("rank", 0), reverse=True)
+    diag.append(f"V233 {role}: Report-Index {scanned} Seite(n) geprüft · {len(rows)} periodengebundene Kandidat(en).")
+    return rows[:12]
+
+
+def _insurance_sitemap_role_seeds_v234(sitemap_urls, company_domain, role, target_year, diagnostics=None):
+    """Classify issuer-owned sitemap URLs into exact H1/FY primary-document candidates.
+
+    This is intentionally URL/title-semantic only. It does not trust sitemap text as
+    financial evidence; every candidate is fetched and parsed by the existing primary
+    document pipeline before a metric can be accepted.
+    """
+    diag = diagnostics if isinstance(diagnostics, list) else []
+    if role not in {"current_h1", "prior_h1", "annual"}:
+        return []
+    rows, seen = [], set()
+    for url in sitemap_urls or []:
+        if not url or url in seen or not _host_belongs_to_company_family(url, company_domain):
+            continue
+        title = _historical_title_hint_from_url(url)
+        ok, detected = _insurance_role_period_compatible_v224("", url, title, role, target_year)
+        if not ok or detected not in {"H1_by_report_index", "FY_by_report_index"}:
+            continue
+        hay = unicodedata.normalize("NFKC", (str(url) + " " + str(title)).lower())
+        # Keep the inventory focused on actual reporting/result/news-detail surfaces.
+        # Generic archive/container URLs are discovery pages, not metric evidence.
+        if not any(k in hay for k in [
+            "result", "ergebnis", "report", "bericht", "interim", "zwischen",
+            "earnings", "press", "presse", "news", "financial", "finanz",
+        ]):
+            continue
+        seen.add(url)
+        score = 180 + _insurance_ir_role_score_v224(url, title, role, target_year)
+        if any(k in hay for k in ["press_articles", "presseartikel", "press-release", "press_release", "newsroom"]):
+            score += 22
+        if str(url).lower().split("?", 1)[0].endswith(".pdf"):
+            score += 16
+        rows.append({
+            "url": url, "title": title or f"{detected} {target_year}",
+            "score": score, "rank": score, "sitemap_period": detected,
+            "search_source": "Unternehmens-Sitemap",
+        })
+    rows.sort(key=lambda x: x.get("rank", 0), reverse=True)
+    diag.append(f"V234 {role}: Unternehmens-Sitemap · {len(rows)} eindeutige periodengebundene Kandidat(en).")
+    return rows[:14]
+
+
 def _insurance_build_dynamic_snapshot_v224(company_name, subprofile, financial_currency, docs_by_role, calendar_event=None, diagnostics=None):
     snapshot, missing = _insurance_build_dynamic_snapshot_v223(
         company_name, subprofile, financial_currency, docs_by_role,
@@ -18864,20 +18982,20 @@ def _insurance_build_dynamic_snapshot_v224(company_name, subprofile, financial_c
     )
     if isinstance(snapshot, dict):
         snapshot["integration_version"] = INSURANCE_IR_HUB_RESOLVER_VERSION_V224
-        snapshot["source_name"] = "Universal issuer-primary IR hub resolver V224"
-        snapshot["fy_2025_source_name"] = "Issuer-primary FY evidence resolved through IR hub V224"
-        snapshot["h1_2025_source_name"] = "Issuer-primary H1 evidence resolved through IR hub V224"
+        snapshot["source_name"] = "Universeller Emittenten-Sitemap-/Berichtsresolver V234"
+        snapshot["fy_2025_source_name"] = "Emittenten-Primärevidenz FY über Berichts-/Sitemapresolver V234"
+        snapshot["h1_2025_source_name"] = "Emittenten-Primärevidenz H1 über Berichts-/Sitemapresolver V234"
         snapshot["source_note"] = (
-            "V224 löst zuerst issuer-eigene Investor-Relations-Hubs (Reporting/Results, Key Figures, Annual/Financial Reports, "
-            "Risk/SFCR, News und Financial Calendar) auf und traversiert erst danach periodenspezifisch zu HTML/PDF-Primärdokumenten. "
-            "Die V223-Perioden-, Einheiten- und Scope-Prüfung bleibt unverändert; Suchtreffer/Snippets und Eulerpool sind nicht autoritativ."
+            "V234 behandelt offizielle Reporting-/Ergebnisseiten als Berichtsindex und ergänzt bei dynamischen Archiven eine issuer-eigene Sitemap-Auflösung für eindeutig periodengebundene H1/FY-/Ergebnislinks. "
+            "Erst danach wird das verlinkte Primärdokument geladen und mit den bestehenden Perioden-, Einheiten- und Scope-Prüfungen ausgewertet. "
+            "News-/Outlook-/Archivseiten bleiben reine Navigation, sofern ihr eigener Link nicht eindeutig an die Zielperiode gebunden ist; Suchtreffer/Snippets und Eulerpool sind nicht autoritativ."
         )
     return snapshot, missing
 
 
 @st.cache_data(ttl=INSURANCE_IR_HUB_RESOLVER_TTL_SECONDS_V224, show_spinner=False)
 def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insurance_subprofile, financial_currency, cache_epoch=INSURANCE_IR_HUB_RESOLVER_VERSION_V224):
-    """V231 hub-first, issuer-neutral insurer primary-evidence resolver.
+    """V234 report-index + issuer-sitemap, issuer-neutral insurer primary-evidence resolver.
 
     Critical invariant: issuer-owned IR hubs are traversed/fetched before any
     external site-search fallback. Traversal always leaves a bounded reserve for
@@ -18885,7 +19003,7 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
     """
     _ = cache_epoch
     result = {
-        "version": "V232", "status": "not_run", "available": False, "complete": False,
+        "version": "V234", "status": "not_run", "available": False, "complete": False,
         "snapshot": None, "company_domain": None, "documents": {}, "diagnostics": [],
         "missing_primary": [], "calendar_event": None, "ir_hubs": {},
         "resolver_stages": {
@@ -18894,6 +19012,8 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
             "period_role_rejections": 0, "semantic_snapshot_complete": False,
             "hub_first_documents": 0, "search_fallback_roles": 0, "direct_search_documents": 0,
             "fetch_failures": 0, "zero_metric_documents": 0, "accepted_documents": 0,
+            "report_index_candidates": 0, "report_index_documents": 0,
+            "sitemap_candidates": 0, "sitemap_documents": 0, "sitemap_sources": 0,
         },
     }
     name = _clean_text(company_name) or str(symbol or "")
@@ -18903,7 +19023,7 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
         company_domain, _ = _holding_bootstrap_company_domain(name, deadline=bootstrap_deadline)
     if not company_domain:
         result["status"] = "issuer_domain_unresolved"
-        result["diagnostics"].append("V233: Emittenten-Domain nicht verifiziert; Resolver bleibt fail-closed.")
+        result["diagnostics"].append("V234: Emittenten-Domain nicht verifiziert; Resolver bleibt fail-closed.")
         return result
     result["company_domain"] = company_domain
     result["resolver_stages"]["domain_resolved"] = True
@@ -18911,13 +19031,28 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
     current_year = datetime.now().year
     # Overall hard ceiling. Role budgets are soft local ceilings; search fallback
     # receives its own bounded extension only while the global ceiling permits it.
-    deadline = time.monotonic() + 58.0
+    deadline = time.monotonic() + 64.0
     hubs = _insurance_resolve_ir_hubs_v224(
         website, company_domain, name, deadline=deadline, diagnostics=result["diagnostics"]
     )
     result["ir_hubs"] = hubs
     hub_unique = {x.get("url") for rows in hubs.values() for x in rows if x.get("url")}
     result["resolver_stages"]["ir_hubs_resolved"] = len(hub_unique)
+
+    # V234: read the issuer-owned sitemap inventory once. This is a deterministic
+    # fallback for JS-rendered report/news archives whose period cards are absent
+    # from the raw HTML. Sitemap URLs are discovery only; fetched document content
+    # must still pass all existing period/scope/metric guards.
+    sitemap_urls_v234, sitemap_sources_v234 = [], []
+    if _research_budget_ok(deadline, reserve=5.0):
+        sitemap_deadline_v234 = min(deadline, time.monotonic() + 7.5)
+        sitemap_urls_v234, sitemap_sources_v234 = _discover_company_sitemap_inventory(
+            company_domain, deadline=sitemap_deadline_v234, max_child_sitemaps=4
+        )
+    result["resolver_stages"]["sitemap_sources"] = len(sitemap_sources_v234)
+    result["diagnostics"].append(
+        f"V234: Unternehmens-Sitemap-Inventar · {len(sitemap_urls_v234)} issuer-eigene URL(s) aus {len(sitemap_sources_v234)} Sitemap-Quelle(n)."
+    )
 
     roles = [("current_h1", current_year), ("annual", current_year - 1), ("prior_h1", current_year - 1), ("calendar", current_year)]
     role_soft_budget = {"current_h1": 16.0, "annual": 16.0, "prior_h1": 8.0, "calendar": 5.0}
@@ -18996,7 +19131,7 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
             )
             if not doc or not doc.get("text"):
                 result["resolver_stages"]["fetch_failures"] += 1
-                result["diagnostics"].append(f"V232 {role}: FETCH_FAIL · {url}")
+                result["diagnostics"].append(f"V234 {role}: FETCH_FAIL · {url}")
                 return False
             result["resolver_stages"]["documents_fetched"] += 1
             text = doc.get("text")
@@ -19013,15 +19148,21 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
             )
             if not period_ok:
                 result["resolver_stages"]["period_role_rejections"] += 1
-                result["diagnostics"].append(f"V232 {role}: PERIOD_REJECT · erkannt={period_detected or '–'} · {doc.get('provenance_url') or doc.get('url')}")
+                result["diagnostics"].append(f"V234 {role}: PERIOD_REJECT · erkannt={period_detected or '–'} · {doc.get('provenance_url') or doc.get('url')}")
                 return False
             parsed = _insurance_parse_primary_document_v223(text, year, period_hint=period_hint, financial_currency=financial_currency)
             parsed["resolver_period_semantic_v224"] = period_detected or period_hint
+            if role == "annual" and parsed.get("dividend_per_share") is not None:
+                div_status = str(parsed.get("dividend_semantic_status_v229") or "")
+                locator_low = f"{doc.get('provenance_url') or doc.get('url') or ''} {item.get('title') or ''}".lower()
+                if div_status != "explicit_target_fy_dividend" and not any(k in locator_low for k in ["dividend", "dividende"]):
+                    parsed["dividend_per_share"] = None
+                    parsed["dividend_semantic_status_v233"] = "rejected_unbound_dividend"
             relevant = ["eps", "net_income_parent", "roe_pct", "capital_ratio_pct", "bvps", "equity_parent", "shares", "dividend_per_share"]
             metric_count = sum(1 for k in relevant if parsed.get(k) is not None)
             if metric_count <= 0:
                 result["resolver_stages"]["zero_metric_documents"] += 1
-                result["diagnostics"].append(f"V232 {role}: ZERO_METRICS · period={period_detected or period_hint} · {doc.get('provenance_url') or doc.get('url')}")
+                result["diagnostics"].append(f"V234 {role}: ZERO_METRICS · period={period_detected or period_hint} · {doc.get('provenance_url') or doc.get('url')}")
                 return False
             result["resolver_stages"]["documents_with_metrics"] += 1
             if phase_name == "hub":
@@ -19029,8 +19170,12 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
             elif phase_name == "search_fallback":
                 result["resolver_stages"].setdefault("direct_search_documents", 0)
                 result["resolver_stages"]["direct_search_documents"] += 1
+            elif phase_name == "report_index":
+                result["resolver_stages"]["report_index_documents"] += 1
+            elif phase_name == "sitemap":
+                result["resolver_stages"]["sitemap_documents"] += 1
             result["resolver_stages"]["accepted_documents"] += 1
-            result["diagnostics"].append(f"V232 {role}: ACCEPT · metrics={metric_count} · period={period_detected or period_hint} · {doc.get('provenance_url') or doc.get('url')}")
+            result["diagnostics"].append(f"V234 {role}: ACCEPT · metrics={metric_count} · period={period_detected or period_hint} · {doc.get('provenance_url') or doc.get('url')}")
             docs_by_role[role].append({
                 "url": doc.get("provenance_url") or doc.get("url"), "resolved_url": doc.get("url"),
                 "title": item.get("title"), "document_type": doc.get("document_type"),
@@ -19042,12 +19187,15 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
         # navigation node. Fetch the top exact issuer-domain candidates before
         # traversing children. This is critical for JS-backed IR archives whose
         # static hub HTML does not expose the current report detail page.
-        if phase_name == "search_fallback":
-            for item in seeds[:4]:
-                fetch_candidate(item, reserve=1.8)
+        if phase_name in {"search_fallback", "report_index", "sitemap"}:
+            direct_limit = 12 if phase_name == "sitemap" else (10 if phase_name == "report_index" else 4)
+            for item in seeds[:direct_limit]:
+                fetch_candidate(item, reserve=1.0 if phase_name == "sitemap" else (1.2 if phase_name == "report_index" else 1.8))
                 if role_semantically_sufficient(role):
-                    result["diagnostics"].append(f"V233 {role}: direkter Search-Kandidat lieferte ausreichende Primärevidenz; Traversierung übersprungen.")
+                    result["diagnostics"].append(f"V234 {role}: direkte {phase_name}-Kandidat(en) lieferten ausreichende Primärevidenz; Traversierung übersprungen.")
                     return
+            if phase_name in {"report_index", "sitemap"}:
+                return
 
         queue = []
         seen_queue = set()
@@ -19092,32 +19240,59 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
 
     for role, year in roles:
         if not _research_budget_ok(deadline, reserve=1.2):
-            result["diagnostics"].append(f"V233: Gesamtbudget vor {role} erschöpft.")
+            result["diagnostics"].append(f"V234: Gesamtbudget vor {role} erschöpft.")
             break
+
+        # Phase 0 (V233): official Reporting/Results pages are document indexes.
+        # Extract exact period/year links first and fetch only those detail documents.
+        if role != "calendar":
+            index_budget = 9.0 if role == "current_h1" else (7.0 if role == "annual" else 5.5)
+            index_deadline = min(deadline, time.monotonic() + index_budget)
+            index_seeds = _insurance_report_index_role_seeds_v233(
+                hubs, company_domain, role, year, deadline=index_deadline, diagnostics=result["diagnostics"]
+            )
+            result["resolver_stages"]["report_index_candidates"] += len(index_seeds)
+            process_seed_rows(role, year, index_seeds, index_deadline, "report_index", max_nodes=0)
+            if role_semantically_sufficient(role):
+                result["diagnostics"].append(f"V234 {role}: Report-Index-Evidenz ausreichend; weitere Discovery-Pfade übersprungen.")
+                continue
+
+        # Phase 0b (V234): issuer-owned sitemap inventory. This specifically
+        # recovers concrete period-bound releases/reports hidden behind JS archives.
+        if role != "calendar" and sitemap_urls_v234 and _research_budget_ok(deadline, reserve=3.0):
+            sitemap_seeds_v234 = _insurance_sitemap_role_seeds_v234(
+                sitemap_urls_v234, company_domain, role, year, diagnostics=result["diagnostics"]
+            )
+            result["resolver_stages"]["sitemap_candidates"] += len(sitemap_seeds_v234)
+            sitemap_role_deadline_v234 = min(deadline, time.monotonic() + (7.0 if role == "current_h1" else 4.5))
+            process_seed_rows(role, year, sitemap_seeds_v234, sitemap_role_deadline_v234, "sitemap", max_nodes=0)
+            if role_semantically_sufficient(role):
+                result["diagnostics"].append(f"V234 {role}: Sitemap-Primärevidenz ausreichend; Hub-/Search-Pfade übersprungen.")
+                continue
 
         # Phase 1: issuer-owned hubs only. No external search is allowed to spend
         # this primary role budget.
         hub_deadline = min(deadline, time.monotonic() + float(role_soft_budget.get(role, 8.0)))
         hub_seeds = _insurance_role_hub_seeds_v224(hubs, role, year)
         hub_seed_total += len(hub_seeds)
-        result["diagnostics"].append(f"V233 {role}: Hub-first mit {len(hub_seeds)} Seed(s).")
+        result["diagnostics"].append(f"V234 {role}: Hub-first mit {len(hub_seeds)} Seed(s).")
         process_seed_rows(role, year, hub_seeds, hub_deadline, "hub", max_nodes=18)
 
         if role_semantically_sufficient(role):
-            result["diagnostics"].append(f"V233 {role}: Hub-first Evidenz ausreichend; externe Suche übersprungen.")
+            result["diagnostics"].append(f"V234 {role}: Hub-first Evidenz ausreichend; externe Suche übersprungen.")
             continue
 
         # Phase 2: bounded site-search only when the official hub graph did not
         # supply enough semantically usable evidence.
         if not _research_budget_ok(deadline, reserve=2.0):
-            result["diagnostics"].append(f"V233 {role}: Search-Fallback wegen Gesamtbudget übersprungen.")
+            result["diagnostics"].append(f"V234 {role}: Search-Fallback wegen Gesamtbudget übersprungen.")
             continue
         fallback_deadline = min(deadline, time.monotonic() + float(role_fallback_budget.get(role, 5.0)))
         result["resolver_stages"]["search_fallback_roles"] += 1
         search_seeds = _insurance_discover_role_documents_v223(
             company_domain, name, role, year, deadline=fallback_deadline, max_docs=6
         )
-        result["diagnostics"].append(f"V233 {role}: Search-Fallback mit {len(search_seeds)} Kandidat(en).")
+        result["diagnostics"].append(f"V234 {role}: Search-Fallback mit {len(search_seeds)} Kandidat(en).")
         process_seed_rows(role, year, search_seeds, fallback_deadline, "search_fallback", max_nodes=12)
 
     result["resolver_stages"]["hub_seed_urls"] = hub_seed_total
@@ -64965,6 +65140,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         symbol, company_type, eulerpool_evidence_v219, _insurance_primary_for_evidence_v219
     )
     if isinstance(universal_evidence_layer_v219, dict):
+        universal_evidence_layer_v219["fundamentals_baseline_v234"] = universal_fundamentals_baseline_v225
         universal_evidence_layer_v219["fundamentals_baseline_v231"] = universal_fundamentals_baseline_v225
         universal_evidence_layer_v219["fundamentals_baseline_v230"] = universal_fundamentals_baseline_v225
         universal_evidence_layer_v219["fundamentals_baseline_v229"] = universal_fundamentals_baseline_v225
@@ -64977,6 +65153,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             primary_discovery=_insurance_primary_discovery_v222,
             primary_snapshot=_insurance_primary_for_evidence_v219,
         )
+        universal_evidence_layer_v219["family_specialist_delta_v234"] = _delta_v226
         universal_evidence_layer_v219["family_specialist_delta_v231"] = _delta_v226
         universal_evidence_layer_v219["family_specialist_delta_v230"] = _delta_v226
         universal_evidence_layer_v219["family_specialist_delta_v229"] = _delta_v226
@@ -64984,6 +65161,11 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         universal_evidence_layer_v219["family_specialist_delta_v227"] = _delta_v226
         universal_evidence_layer_v219["family_specialist_delta_v226"] = _delta_v226
         universal_evidence_layer_v219["family_specialist_delta_v225"] = _delta_v226
+        universal_evidence_layer_v219["insurance_primary_acquisition_v234"] = _insurance_primary_discovery_v222
+        # Backward-compatible aliases for cached/UI paths from V233.
+        universal_evidence_layer_v219["fundamentals_baseline_v233"] = universal_fundamentals_baseline_v225
+        universal_evidence_layer_v219["family_specialist_delta_v233"] = _delta_v226
+        universal_evidence_layer_v219["insurance_primary_acquisition_v233"] = _insurance_primary_discovery_v222
         universal_evidence_layer_v219["insurance_primary_acquisition_v231"] = _insurance_primary_discovery_v222
         universal_evidence_layer_v219["insurance_primary_acquisition_v230"] = _insurance_primary_discovery_v222
         universal_evidence_layer_v219["insurance_primary_acquisition_v229"] = _insurance_primary_discovery_v222
@@ -68861,7 +69043,7 @@ if selected_symbol:
                 compact_official_event_label = compact_insurance_snapshot.get("next_financial_event_label")
                 if not compact_official_event_date:
                     _compact_ue_v224 = data.get("universal_evidence_layer_v219") or {}
-                    _compact_primary_v224 = _compact_ue_v224.get("insurance_primary_acquisition_v231") or _compact_ue_v224.get("insurance_primary_acquisition_v230") or _compact_ue_v224.get("insurance_primary_acquisition_v224") or _compact_ue_v224.get("insurance_primary_acquisition_v223") or {}
+                    _compact_primary_v224 = _compact_ue_v224.get("insurance_primary_acquisition_v234") or get("insurance_primary_acquisition_v233") or _compact_ue_v224.get("insurance_primary_acquisition_v231") or _compact_ue_v224.get("insurance_primary_acquisition_v230") or _compact_ue_v224.get("insurance_primary_acquisition_v224") or _compact_ue_v224.get("insurance_primary_acquisition_v223") or {}
                     _compact_calendar_v224 = (_compact_primary_v224 or {}).get("calendar_event") or {}
                     compact_official_event_date = _compact_calendar_v224.get("date")
                     compact_official_event_label = _compact_calendar_v224.get("label")
@@ -68989,43 +69171,43 @@ if selected_symbol:
                                 if _semantic_total_top else ""
                             )
                             st.success(
-                                "Universal Fundamentals Baseline V231: Eulerpool verbunden · "
+                                "Universal Fundamentals Baseline V234: Eulerpool verbunden · "
                                 f"{int(provider_v219_ui.get('dataset_count') or 0)} Datensätze verfügbar"
                                 + _mapped_text_top + _semantic_text_top
                                 + " · Standard-Fundamentaldaten provider-first; Primärquellen nur für familienentscheidende Spezialkennzahlen."
                             )
                         elif provider_v219_ui.get("configured"):
                             st.warning(
-                                "Universal Fundamentals Baseline V231: Eulerpool ist konfiguriert, für diesen Titel aber nur teilweise bzw. nicht auflösbar. "
+                                "Universal Fundamentals Baseline V234: Eulerpool ist konfiguriert, für diesen Titel aber nur teilweise bzw. nicht auflösbar. "
                                 "Die Bewertung fällt nicht auf unbestätigte Provider-Daten zurück."
                             )
                         else:
                             st.caption(
-                                "Universal Fundamentals Baseline V231: Eulerpool optional nicht verbunden. "
+                                "Universal Fundamentals Baseline V234: Eulerpool optional nicht verbunden. "
                                 "Für die strukturierte Sekundärevidenz kann EULERPOOL_API_KEY als Umgebungsvariable oder Streamlit-Secret gesetzt werden; "
                                 "bestehende Primärquellen-/Yahoo-Pfade bleiben unverändert."
                             )
                         if is_insurance_company_type(company_type):
-                            _primary_v222 = evidence_v219_ui.get("insurance_primary_acquisition_v231") or evidence_v219_ui.get("insurance_primary_acquisition_v230") or evidence_v219_ui.get("insurance_primary_acquisition_v229") or evidence_v219_ui.get("insurance_primary_acquisition_v228") or evidence_v219_ui.get("insurance_primary_acquisition_v227") or evidence_v219_ui.get("insurance_primary_acquisition_v224") or evidence_v219_ui.get("insurance_primary_acquisition_v223") or evidence_v219_ui.get("insurance_primary_acquisition_v222") or {}
+                            _primary_v222 = evidence_v219_ui.get("insurance_primary_acquisition_v234") or get("insurance_primary_acquisition_v233") or evidence_v219_ui.get("insurance_primary_acquisition_v231") or evidence_v219_ui.get("insurance_primary_acquisition_v230") or evidence_v219_ui.get("insurance_primary_acquisition_v229") or evidence_v219_ui.get("insurance_primary_acquisition_v228") or evidence_v219_ui.get("insurance_primary_acquisition_v227") or evidence_v219_ui.get("insurance_primary_acquisition_v224") or evidence_v219_ui.get("insurance_primary_acquisition_v223") or evidence_v219_ui.get("insurance_primary_acquisition_v222") or {}
                             _primary_status_v222 = evidence_v219_ui.get("issuer_primary_status")
                             if _primary_status_v222 == "verified_static_issuer_snapshot":
-                                st.caption("Insurance-Primärquellen V232: bestehender verifizierter Emittenten-Snapshot aktiv.")
+                                st.caption("Insurance-Primärquellen V234: bestehender verifizierter Emittenten-Snapshot aktiv.")
                             elif _primary_status_v222 == "dynamic_issuer_primary_complete":
-                                st.success("Insurance-Primärquellen V232: dynamische issuer-eigene Primärevidenz vollständig aufgebaut; Specialist-Gates prüfen anschließend Score und Fair Value.")
+                                st.success("Insurance-Primärquellen V234: dynamische issuer-eigene Primärevidenz vollständig aufgebaut; Specialist-Gates prüfen anschließend Score und Fair Value.")
                             else:
                                 _missing_v222 = list((_primary_v222 or {}).get("missing_primary") or [])
                                 _domain_v222 = (_primary_v222 or {}).get("company_domain")
                                 _status_text_v222 = text_or_dash((_primary_v222 or {}).get("status"))
                                 _extra_v222 = (" · Emittenten-Domain: " + str(_domain_v222)) if _domain_v222 else ""
-                                st.warning("Insurance Specialist-Delta V232: " + _status_text_v222 + _extra_v222 + ". Bewertung bleibt fail-closed.")
-                            _delta_v225_top = evidence_v219_ui.get("family_specialist_delta_v231") or evidence_v219_ui.get("family_specialist_delta_v230") or evidence_v219_ui.get("family_specialist_delta_v229") or evidence_v219_ui.get("family_specialist_delta_v228") or evidence_v219_ui.get("family_specialist_delta_v227") or evidence_v219_ui.get("family_specialist_delta_v226") or evidence_v219_ui.get("family_specialist_delta_v225") or {}
+                                st.warning("Versicherungs-Spezialmodell-Delta V234: " + _status_text_v222 + _extra_v222 + ". Bewertung bleibt bewusst gesperrt.")
+                            _delta_v225_top = evidence_v219_ui.get("family_specialist_delta_v234") or get("family_specialist_delta_v233") or evidence_v219_ui.get("family_specialist_delta_v231") or evidence_v219_ui.get("family_specialist_delta_v230") or evidence_v219_ui.get("family_specialist_delta_v229") or evidence_v219_ui.get("family_specialist_delta_v228") or evidence_v219_ui.get("family_specialist_delta_v227") or evidence_v219_ui.get("family_specialist_delta_v226") or evidence_v219_ui.get("family_specialist_delta_v225") or {}
                             _sat_v225_top = _delta_v225_top.get("baseline_satisfied_primary_items") or []
                             _remain_v225_top = _delta_v225_top.get("remaining_primary_missing_after_baseline") or []
                             if _sat_v225_top:
-                                st.caption("V231 Standardbasis deckt bereits: " + " · ".join(str(x.get("requirement")) for x in _sat_v225_top))
+                                st.caption("V234 Standardbasis deckt bereits: " + " · ".join(str(x.get("requirement")) for x in _sat_v225_top))
                             if _remain_v225_top:
-                                st.caption("V232 verbleibender Specialist-Delta: " + " · ".join(str(x) for x in _remain_v225_top))
-                            with st.expander("🧪 Insurance Evidence Trace V233", expanded=False):
+                                st.caption("V234 verbleibender Specialist-Delta: " + " · ".join(str(x) for x in _remain_v225_top))
+                            with st.expander("🧪 Versicherungs-Sitemap/Berichtsindex & Evidenzdiagnose V234", expanded=False):
                                 _stages_v232 = (_primary_v222 or {}).get("resolver_stages") or {}
                                 st.write("Resolver-Stufen:", _stages_v232)
                                 _docs_v232 = (_primary_v222 or {}).get("documents") or {}
@@ -69037,7 +69219,7 @@ if selected_symbol:
                                         _metrics_v232 = {k: _p_v232.get(k) for k in ("eps","net_income_parent","roe_pct","capital_ratio_pct","bvps","equity_parent","dividend_per_share") if _p_v232.get(k) is not None}
                                         st.caption(f"{(_row_v232 or {}).get('title') or '–'} · {(_row_v232 or {}).get('url') or '–'} · {_metrics_v232}")
                                 st.write("**Diagnoseprotokoll**")
-                                for _diag_v232 in list((_primary_v222 or {}).get("diagnostics") or [])[-40:]:
+                                for _diag_v232 in list((_primary_v222 or {}).get("diagnostics") or [])[-80:]:
                                     st.caption(str(_diag_v232))
 
                         _family_source_labels = {
@@ -69187,7 +69369,7 @@ if selected_symbol:
                     if evidence_v219_ui:
                         contract_v219_ui = evidence_v219_ui.get("contract") or {}
                         provider_v219_ui = evidence_v219_ui.get("provider") or {}
-                        with st.expander("🧱 Universal Fundamentals Baseline V231", expanded=False):
+                        with st.expander("🧱 Universal Fundamentals Baseline V233", expanded=False):
                             st.write(
                                 "**Quellenpriorität:** "
                                 + " → ".join(contract_v219_ui.get("source_priority") or [])
@@ -69326,7 +69508,7 @@ if selected_symbol:
                                     "Eulerpool nicht verbunden. API-Schlüssel wird nicht in der ZIP gespeichert; "
                                     "EULERPOOL_API_KEY nur über Umgebung oder Streamlit-Secrets setzen."
                                 )
-                            _baseline_v225_ui = evidence_v219_ui.get("fundamentals_baseline_v231") or evidence_v219_ui.get("fundamentals_baseline_v230") or evidence_v219_ui.get("fundamentals_baseline_v229") or evidence_v219_ui.get("fundamentals_baseline_v228") or evidence_v219_ui.get("fundamentals_baseline_v226") or evidence_v219_ui.get("fundamentals_baseline_v225") or {}
+                            _baseline_v225_ui = evidence_v219_ui.get("fundamentals_baseline_v234") or get("fundamentals_baseline_v233") or evidence_v219_ui.get("fundamentals_baseline_v231") or evidence_v219_ui.get("fundamentals_baseline_v230") or evidence_v219_ui.get("fundamentals_baseline_v229") or evidence_v219_ui.get("fundamentals_baseline_v228") or evidence_v219_ui.get("fundamentals_baseline_v226") or evidence_v219_ui.get("fundamentals_baseline_v225") or {}
                             if _baseline_v225_ui:
                                 _b_verified_v225 = _baseline_v225_ui.get("verified_standard_fields") or []
                                 _b_available_v225 = _baseline_v225_ui.get("available_fields") or []
@@ -69337,7 +69519,7 @@ if selected_symbol:
                                 )
                                 if _b_verified_v225:
                                     st.caption("Freigegebene Standardfelder: " + " · ".join(str(x) for x in _b_verified_v225))
-                            _delta_v225_ui = evidence_v219_ui.get("family_specialist_delta_v231") or evidence_v219_ui.get("family_specialist_delta_v230") or evidence_v219_ui.get("family_specialist_delta_v229") or evidence_v219_ui.get("family_specialist_delta_v228") or evidence_v219_ui.get("family_specialist_delta_v227") or evidence_v219_ui.get("family_specialist_delta_v226") or evidence_v219_ui.get("family_specialist_delta_v225") or {}
+                            _delta_v225_ui = evidence_v219_ui.get("family_specialist_delta_v234") or get("family_specialist_delta_v233") or evidence_v219_ui.get("family_specialist_delta_v231") or evidence_v219_ui.get("family_specialist_delta_v230") or evidence_v219_ui.get("family_specialist_delta_v229") or evidence_v219_ui.get("family_specialist_delta_v228") or evidence_v219_ui.get("family_specialist_delta_v227") or evidence_v219_ui.get("family_specialist_delta_v226") or evidence_v219_ui.get("family_specialist_delta_v225") or {}
                             if _delta_v225_ui:
                                 _sat_v225 = _delta_v225_ui.get("baseline_satisfied_primary_items") or []
                                 _remain_v225 = _delta_v225_ui.get("remaining_primary_missing_after_baseline") or []
@@ -69358,7 +69540,7 @@ if selected_symbol:
                                 st.caption("Gate-Abgleich: Anzeige und diagnostischer Specialist-Delta stammen aus demselben V230-Vertrag.")
                                 st.caption(text_or_dash(_delta_v225_ui.get("note")))
                             if is_insurance_company_type(company_type):
-                                _primary_v222 = evidence_v219_ui.get("insurance_primary_acquisition_v231") or evidence_v219_ui.get("insurance_primary_acquisition_v230") or evidence_v219_ui.get("insurance_primary_acquisition_v229") or evidence_v219_ui.get("insurance_primary_acquisition_v228") or evidence_v219_ui.get("insurance_primary_acquisition_v227") or evidence_v219_ui.get("insurance_primary_acquisition_v224") or evidence_v219_ui.get("insurance_primary_acquisition_v223") or evidence_v219_ui.get("insurance_primary_acquisition_v222") or {}
+                                _primary_v222 = evidence_v219_ui.get("insurance_primary_acquisition_v234") or get("insurance_primary_acquisition_v233") or evidence_v219_ui.get("insurance_primary_acquisition_v231") or evidence_v219_ui.get("insurance_primary_acquisition_v230") or evidence_v219_ui.get("insurance_primary_acquisition_v229") or evidence_v219_ui.get("insurance_primary_acquisition_v228") or evidence_v219_ui.get("insurance_primary_acquisition_v227") or evidence_v219_ui.get("insurance_primary_acquisition_v224") or evidence_v219_ui.get("insurance_primary_acquisition_v223") or evidence_v219_ui.get("insurance_primary_acquisition_v222") or {}
                                 _primary_status_v222 = evidence_v219_ui.get("issuer_primary_status")
                                 st.markdown("**Insurance Specialist-Resolver V230 (Hub-first V224 Dokumentengine + Row-Pair-/Comparative-Ableitungsgraph)**")
                                 if _primary_status_v222 == "verified_static_issuer_snapshot":
@@ -82966,7 +83148,7 @@ if selected_symbol:
                     insurance_calendar_source = insurance_calendar_snapshot.get("next_financial_event_source_url")
                     if not insurance_calendar_date:
                         _calendar_ue_v224 = data.get("universal_evidence_layer_v219") or {}
-                        _calendar_primary_v224 = _calendar_ue_v224.get("insurance_primary_acquisition_v231") or _calendar_ue_v224.get("insurance_primary_acquisition_v230") or _calendar_ue_v224.get("insurance_primary_acquisition_v224") or _calendar_ue_v224.get("insurance_primary_acquisition_v223") or {}
+                        _calendar_primary_v224 = _calendar_ue_v224.get("insurance_primary_acquisition_v234") or get("insurance_primary_acquisition_v233") or _calendar_ue_v224.get("insurance_primary_acquisition_v231") or _calendar_ue_v224.get("insurance_primary_acquisition_v230") or _calendar_ue_v224.get("insurance_primary_acquisition_v224") or _calendar_ue_v224.get("insurance_primary_acquisition_v223") or {}
                         _calendar_evt_v224 = (_calendar_primary_v224 or {}).get("calendar_event") or {}
                         insurance_calendar_date = _calendar_evt_v224.get("date")
                         insurance_calendar_label = _calendar_evt_v224.get("label")
