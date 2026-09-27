@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.36"
+APP_BUILD_VERSION = "V2.23.37"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Insurance Evidence Trace & Rejection Diagnostics V232"
+    f"Build {APP_BUILD_VERSION} · Universal Report Index Resolver V233"
 )
 
 
@@ -966,7 +966,7 @@ st.caption(
 # V2.23.32: Comparative Period Bridge & Dividend Fallback V228. Closes the remaining issuer-neutral insurer evidence gaps exposed by Talanx: current-H1 comparative income columns are promoted before per-share derivation so prior-H1 EPS can be derived from verified parent earnings and the stable denominator; interim balance-sheet prior columns are period-tagged and may bridge FY/prior-FY BVPS only when the source explicitly proves H1 vs previous 31-December comparatives; issuer-owned dividend/shareholder-return hubs and financial-year pages become an annual fallback when the standardized provider dividend is unavailable. The FY parent-income consistency node derived from verified FY EPS × stable shares is recognized by the displayed specialist contract. No insurer scoring, corridor, dual-anchor weights or Fair-Value mathematics change; all new bridges remain fail-closed on share-count/corporate-action or period ambiguity.
 # V2.23.33: Primary Row Pair Parser & Role Budgeting V229. Preserves explicit parenthesized prior-period values in issuer narrative rows such as “EUR 1,499 (1,373) million”, marks same-row H1 comparatives only after the document has already passed the H1 role/period gate, prioritizes current-H1 and annual/FY evidence before separate prior-H1 fallback research, and gives each resolver role a bounded budget so one large IR branch cannot starve annual book-value/dividend evidence. Adds a target-FY dividend parser for issuer tables/narratives and corrects the visible baseline version label. No insurer score, corridor, dual-anchor weights, Fair-Value or signal mathematics change; all cross-period/per-share bridges remain guarded and fail-closed.
 # V2.23.34: Hub-First Evidence Resolver & Search Fallback V230. Fixes the V229 live regression where role-local search/traversal could consume the current-H1 budget before any primary document was fetched. Resolved issuer IR hubs are now traversed and fetched first with an explicit fetch reserve; external site-search is invoked only when the role remains semantically incomplete. Current-H1 and annual evidence retain larger soft budgets, prior-H1 remains a fallback because same-row H1 comparatives may already satisfy it, and the overall resolver stays bounded/fail-closed. Row-pair parsing, period/scope guards, score, corridors, dual-anchor weights, Fair-Value and signal mathematics remain unchanged.
-# V2.23.36: Insurance Evidence Trace & Rejection Diagnostics V232. Adds transparent resolver diagnostics for accepted/rejected issuer-primary candidates without changing valuation logic.
+# V2.23.37: Universal Report Index Resolver V233. Treats issuer reporting/archive pages as document indexes, classifies concrete report links by explicit period/year before parsing, and tightens FY source eligibility so outlook/news/archive containers cannot masquerade as annual evidence. No issuer-specific URLs or values.
 # V2.23.35: Direct Candidate Fetch & Dynamic IR Fallback V231. Fixes the remaining V230 live gap on modern/JS-backed IR archives: exact issuer-domain search candidates are fetched and semantically parsed before any child-link traversal can consume the fallback budget. Search queries now include issuer-neutral first-half/Solvency and target-FY dividend patterns, while hub traversal remains the preferred first phase. Financial-calendar labels are reduced to a concise reporting-event label instead of leaking surrounding filter/navigation text. No insurer metric is hard-coded; period/scope/corporate-action guards and all valuation mathematics remain unchanged.
 # V2.23.21: Insurance Corporate-Action Status & EPS-Vergleichbarkeit Cleanup V217. Copy/status-only cleanup: distinguishes complete TTM period coverage from blocked EPS comparability after material corporate actions; family status now reports complete issuer evidence with valuation blocked by the comparability gate. No valuation math, score calibration, FX route, or gate threshold changed.
 # V2.23.19: Insurance Per-Share Currency Display & Copy Cleanup V215. Fixes Yahoo insurer BVPS presentation for mixed quote/financial currencies by routing provider per-share book value through the verified quote-to-financial FX path before display, clarifies the mixed-currency price caption, and removes the residual Munich-Re-specific Fair-Value copy from the reusable Reinsurance path. Valuation mathematics, score thresholds, capital-framework calibration, corridors and frozen insurer inputs remain unchanged.
@@ -18585,7 +18585,7 @@ def discover_insurance_primary_snapshot_v223(symbol, company_name, website, insu
 # V224 – Universal IR Reporting Hub Resolver
 # =========================================================
 
-INSURANCE_IR_HUB_RESOLVER_VERSION_V224 = "v22335_direct_candidate_fetch_dynamic_ir_fallback_v231"
+INSURANCE_IR_HUB_RESOLVER_VERSION_V224 = "v22337_universal_report_index_resolver_v233"
 INSURANCE_IR_HUB_RESOLVER_TTL_SECONDS_V224 = 21600
 
 
@@ -18809,25 +18809,53 @@ def _insurance_collect_child_links_v224(url, company_domain, target_year, role=N
 
 
 def _insurance_role_period_compatible_v224(text, url, title, role, target_year):
-    """Fail closed when a fetched document belongs to another fiscal period."""
+    """V233: classify the concrete report link before interpreting page-body archive/navigation text.
+
+    Modern IR pages often repeat an entire archive in every report page. Therefore a strong
+    target-period label/URL (e.g. 'Results as at 30 June 2026') outranks a noisy body detector.
+    Generic hubs, outlook pages and news indexes are never promoted to FY evidence merely
+    because their body happens to contain annual figures.
+    """
     role = str(role or "").lower()
     if role == "calendar":
         return True, "calendar"
     expected = "H1" if role in {"current_h1", "prior_h1"} else "FY"
+    hay = unicodedata.normalize("NFKC", (str(url or "") + " " + str(title or "")).lower())
+    year = str(target_year)
+    year_ok = year in hay
+
+    # Strong report-index labels. These are issuer-neutral date/period semantics.
+    h1_date = bool(re.search(rf"(?:30\s*(?:june|juni)|30[-_/](?:06|6)|(?:results?|ergebnisse)\s+(?:as\s+(?:at|of)|zum)\s+30\s*(?:june|juni))[^\n]{{0,40}}{re.escape(year)}", hay, flags=re.I))
+    h1_named = year_ok and any(k in hay for k in ["h1", "6m", "half-year", "half year", "half_year", "half-yearly", "zwischenbericht", "interim report"])
+    fy_date = bool(re.search(rf"(?:31\s*(?:december|dezember)|31[-_/]12|(?:results?|ergebnisse)\s+(?:as\s+(?:at|of)|zum)\s+31\s*(?:december|dezember))[^\n]{{0,40}}{re.escape(year)}", hay, flags=re.I))
+    fy_named = year_ok and any(k in hay for k in ["annual report", "annual-report", "annual_report", "full-year", "full year", "financial year", "geschäftsbericht", "geschaeftsbericht", "jahresbericht"])
+
+    if expected == "H1" and (h1_date or h1_named):
+        return True, "H1_by_report_index"
+    if expected == "FY" and (fy_date or fy_named):
+        return True, "FY_by_report_index"
+
+    # Generic containers are navigation/discovery sources, not metric evidence.
+    generic_container = any(k in hay for k in [
+        "/reporting", "/ergebnisse_-_berichte", "financial_reports", "finanzberichte",
+        "corporate_news", "unternehmensmeldungen", "press releases", "pressemitteilungen",
+        "/outlook", "/ausblick", "financial_calendar", "finanzkalender",
+    ])
+    # Specific annual landing pages above already returned through fy_named.
+    if generic_container and not any(k in hay for k in ["key figures", "key-figures", "key_figures", "kennzahlen", "factbook", "financial data supplement"]):
+        return False, "report_index_only"
+
     detected = _insurance_document_period_v222(text, target_year)
     if detected is not None:
         return detected == expected, detected
-    hay = unicodedata.normalize("NFKC", (str(url or "") + " " + str(title or "")).lower())
-    year_ok = str(target_year) in hay
+
     if expected == "H1":
-        strong = any(k in hay for k in ["30 june", "30-june", "30_june", "30 juni", "6m", "h1", "half-year", "half year", "half_year", "zwischenbericht"])
-        return bool(strong and year_ok), "H1_by_url" if strong and year_ok else None
-    strong_fy = any(k in hay for k in ["31 december", "31-december", "31_dezember", "31 dezember", "annual report", "annual-report", "annual_report", "full-year", "full year", "financial year", "geschäftsbericht", "geschaeftsbericht", "jahresbericht"])
+        return False, None
+
     key_figures = any(k in hay for k in ["key figures", "key-figures", "key_figures", "kennzahlen", "financial data supplement", "factbook"])
     dividend_page = any(k in hay for k in ["dividend", "dividends", "dividende", "dividenden"])
     text_year_ok = bool(re.search(rf"\b(?:financial year|geschäftsjahr|geschaeftsjahr)\s*{target_year}\b", str(text or ""), flags=re.I))
-    return bool((strong_fy and year_ok) or key_figures or (dividend_page and text_year_ok)), "FY_by_url" if ((strong_fy and year_ok) or key_figures or (dividend_page and text_year_ok)) else None
-
+    return bool(key_figures or (dividend_page and text_year_ok)), "FY_reference_table" if (key_figures or (dividend_page and text_year_ok)) else None
 
 def _insurance_build_dynamic_snapshot_v224(company_name, subprofile, financial_currency, docs_by_role, calendar_event=None, diagnostics=None):
     snapshot, missing = _insurance_build_dynamic_snapshot_v223(
@@ -18875,7 +18903,7 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
         company_domain, _ = _holding_bootstrap_company_domain(name, deadline=bootstrap_deadline)
     if not company_domain:
         result["status"] = "issuer_domain_unresolved"
-        result["diagnostics"].append("V231: Emittenten-Domain nicht verifiziert; Resolver bleibt fail-closed.")
+        result["diagnostics"].append("V233: Emittenten-Domain nicht verifiziert; Resolver bleibt fail-closed.")
         return result
     result["company_domain"] = company_domain
     result["resolver_stages"]["domain_resolved"] = True
@@ -19018,7 +19046,7 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
             for item in seeds[:4]:
                 fetch_candidate(item, reserve=1.8)
                 if role_semantically_sufficient(role):
-                    result["diagnostics"].append(f"V231 {role}: direkter Search-Kandidat lieferte ausreichende Primärevidenz; Traversierung übersprungen.")
+                    result["diagnostics"].append(f"V233 {role}: direkter Search-Kandidat lieferte ausreichende Primärevidenz; Traversierung übersprungen.")
                     return
 
         queue = []
@@ -19064,7 +19092,7 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
 
     for role, year in roles:
         if not _research_budget_ok(deadline, reserve=1.2):
-            result["diagnostics"].append(f"V231: Gesamtbudget vor {role} erschöpft.")
+            result["diagnostics"].append(f"V233: Gesamtbudget vor {role} erschöpft.")
             break
 
         # Phase 1: issuer-owned hubs only. No external search is allowed to spend
@@ -19072,24 +19100,24 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
         hub_deadline = min(deadline, time.monotonic() + float(role_soft_budget.get(role, 8.0)))
         hub_seeds = _insurance_role_hub_seeds_v224(hubs, role, year)
         hub_seed_total += len(hub_seeds)
-        result["diagnostics"].append(f"V231 {role}: Hub-first mit {len(hub_seeds)} Seed(s).")
+        result["diagnostics"].append(f"V233 {role}: Hub-first mit {len(hub_seeds)} Seed(s).")
         process_seed_rows(role, year, hub_seeds, hub_deadline, "hub", max_nodes=18)
 
         if role_semantically_sufficient(role):
-            result["diagnostics"].append(f"V231 {role}: Hub-first Evidenz ausreichend; externe Suche übersprungen.")
+            result["diagnostics"].append(f"V233 {role}: Hub-first Evidenz ausreichend; externe Suche übersprungen.")
             continue
 
         # Phase 2: bounded site-search only when the official hub graph did not
         # supply enough semantically usable evidence.
         if not _research_budget_ok(deadline, reserve=2.0):
-            result["diagnostics"].append(f"V231 {role}: Search-Fallback wegen Gesamtbudget übersprungen.")
+            result["diagnostics"].append(f"V233 {role}: Search-Fallback wegen Gesamtbudget übersprungen.")
             continue
         fallback_deadline = min(deadline, time.monotonic() + float(role_fallback_budget.get(role, 5.0)))
         result["resolver_stages"]["search_fallback_roles"] += 1
         search_seeds = _insurance_discover_role_documents_v223(
             company_domain, name, role, year, deadline=fallback_deadline, max_docs=6
         )
-        result["diagnostics"].append(f"V231 {role}: Search-Fallback mit {len(search_seeds)} Kandidat(en).")
+        result["diagnostics"].append(f"V233 {role}: Search-Fallback mit {len(search_seeds)} Kandidat(en).")
         process_seed_rows(role, year, search_seeds, fallback_deadline, "search_fallback", max_nodes=12)
 
     result["resolver_stages"]["hub_seed_urls"] = hub_seed_total
@@ -19106,9 +19134,9 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
     result["resolver_stages"]["semantic_snapshot_complete"] = result["complete"]
     result["status"] = "complete_primary_snapshot" if result["complete"] else ("partial_primary_evidence" if result["available"] else "issuer_primary_not_recovered")
     if result["complete"]:
-        result["diagnostics"].append("V231: Hub-first Primärevidenz vollständig; Specialist-Gates entscheiden über Score/Fair Value.")
+        result["diagnostics"].append("V233: Report-Index Primärevidenz vollständig; Specialist-Gates entscheiden über Score/Fair Value.")
     else:
-        result["diagnostics"].append("V231: Resolver bleibt fail-closed. Fehlende semantisch freigegebene Primärevidenz: " + ", ".join(missing or ["nicht eindeutig aufgelöst"]))
+        result["diagnostics"].append("V233: Resolver bleibt fail-closed. Fehlende semantisch freigegebene Primärevidenz: " + ", ".join(missing or ["nicht eindeutig aufgelöst"]))
     return result
 
 def _insurance_snapshot_is_fresh(snapshot):
@@ -60403,7 +60431,7 @@ def build_universal_fundamentals_baseline_v225(provider_evidence, yahoo_info=Non
     actions = (mapped.get("corporate_actions") or [])
     diag = mapped.get("diagnostics") or {}
     return {
-        "version": "V231",
+        "version": "V233",
         "integration_version": UNIVERSAL_FUNDAMENTALS_BASELINE_VERSION_V225,
         "status": "available" if provider.get("available") else (provider.get("status") or "not_available"),
         "provider_connected": bool(provider.get("configured")),
@@ -68997,7 +69025,7 @@ if selected_symbol:
                                 st.caption("V231 Standardbasis deckt bereits: " + " · ".join(str(x.get("requirement")) for x in _sat_v225_top))
                             if _remain_v225_top:
                                 st.caption("V232 verbleibender Specialist-Delta: " + " · ".join(str(x) for x in _remain_v225_top))
-                            with st.expander("🧪 Insurance Evidence Trace V232", expanded=False):
+                            with st.expander("🧪 Insurance Evidence Trace V233", expanded=False):
                                 _stages_v232 = (_primary_v222 or {}).get("resolver_stages") or {}
                                 st.write("Resolver-Stufen:", _stages_v232)
                                 _docs_v232 = (_primary_v222 or {}).get("documents") or {}
