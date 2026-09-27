@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.21"
+APP_BUILD_VERSION = "V2.23.22"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Insurance Corporate-Action Status & EPS-Vergleichbarkeit Cleanup V217"
+    f"Build {APP_BUILD_VERSION} · Universal Evidence Provider Layer V218"
 )
 
 
@@ -954,6 +954,7 @@ st.caption(
 # V2.23.02: Unabhängiger Gegencheck V2 V198. Härtet die nicht steuernde Zahlungsabwickler-Kontrollsicht nach Live-Tests mit Global Payments, PayPal, Adyen und Fiserv: Analystenabweichungen werden richtungs- und größenordnungsspezifisch formuliert; die feste 8x/10x-Bewertung wird entfernt und das aktuelle Markt-KGV nur noch als marktimplizierter Kontext gezeigt, solange keine gleichbasige historische Eigenreihe belastbar verfügbar ist; der rohe Kern-Vergleichsgruppen-Check erhält eine Streuungs-/Vergleichbarkeitssperre und darf bei heterogener KGV-Spanne weder Bestätigung noch Widerspruch erzeugen. Das Gesamtergebnis zählt nur belastbare Kontrollen. Fair Value, Ziel-KGV, Qualität, Sicherheit, Bewertungszonen und Kaufen/Halten/Verkaufen bleiben unverändert.
 # V2.23.04: Zahlungsabwickler-Sicherheitsobergrenze V200. Die allgemeine Methoden-/Spezialkontroll-Obergrenze der vollständig freigegebenen Zahlungsabwickler-Referenzprofile wird von „Niedrig bis Mittel“ auf „Mittel“ angehoben. Die in V199 gehärtete Regel „schwächste relevante Sicherheitsstufe gewinnt“ bleibt unverändert. Emittentenspezifische niedrigere Stufen bleiben wirksam; insbesondere behält Fiserv wegen seiner Ziel-KGV-Sicherheit „Niedrig bis Mittel“ die niedrigere Gesamtbewertungssicherheit. Score, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Value, Bewertungszonen und Signal-Schwellen bleiben unverändert.
 # V2.23.20: Insurance Corporate Action & EPS Comparability Guard V216. Adds a universal insurer corporate-action/share-count comparability gate: material capital increases, cancellations/buybacks, acquisitions, disposals, mergers or similar perimeter changes inside the TTM window block the EPS bridge unless an issuer-verified comparable/pro-forma EPS basis exists. Also distinguishes non-EPS-basis net-income context labels.
+# V2.23.22: Universal Evidence Provider Layer V218. Adds a family-wide evidence contract for all valuation families and an optional Eulerpool secondary-provider adapter (overview, annual/quarterly income statements, balance sheet, shares history, corporate actions). Provider access is read from EULERPOOL_API_KEY via environment or Streamlit secrets and is never embedded in the package. Eulerpool remains secondary evidence only: issuer-primary specialist metrics and all existing valuation gates/mathematics remain authoritative and unchanged.
 # V2.23.21: Insurance Corporate-Action Status & EPS-Vergleichbarkeit Cleanup V217. Copy/status-only cleanup: distinguishes complete TTM period coverage from blocked EPS comparability after material corporate actions; family status now reports complete issuer evidence with valuation blocked by the comparability gate. No valuation math, score calibration, FX route, or gate threshold changed.
 # V2.23.19: Insurance Per-Share Currency Display & Copy Cleanup V215. Fixes Yahoo insurer BVPS presentation for mixed quote/financial currencies by routing provider per-share book value through the verified quote-to-financial FX path before display, clarifies the mixed-currency price caption, and removes the residual Munich-Re-specific Fair-Value copy from the reusable Reinsurance path. Valuation mathematics, score thresholds, capital-framework calibration, corridors and frozen insurer inputs remain unchanged.
 # V2.23.18: Universal Insurance Capital Framework & Currency Routing V214. Adds jurisdiction-aware insurer capital frameworks (Solvency II / SST), per-share currency routing for official BVPS/dividend evidence, Swiss primary-listing/subprofile hardening, Swiss Re + Zurich issuer-primary evidence adapters and insurance-copy cleanup.
@@ -7758,6 +7759,300 @@ UNIVERSAL_VALUATION_FAMILY_CATALOG = {
 
 # Only high-confidence ambiguity overrides belong here.  This table is meant to
 # stay compact; the rule engine below does the broad coverage work.
+
+# =========================================================
+# V218 – Universal Evidence Provider Layer
+# =========================================================
+
+UNIVERSAL_EVIDENCE_PROVIDER_BASELINE_V218 = (
+    "Unternehmensidentität / Hauptlisting",
+    "Jahres- und Quartals-Finanzdaten",
+    "Aktienzahl / Per-Share-Nenner",
+    "Bilanz / Buchwert-Kontext",
+    "Corporate Actions / Strukturereignisse",
+    "Analysten-/Horizontkontext",
+)
+
+# The provider layer is deliberately a data/evidence contract, not a valuation
+# model.  Every family inherits the baseline and may add issuer-primary metrics.
+# This makes the acquisition layer reusable while preserving each family's own
+# score, earnings basis, corridor, special controls and fail-closed rules.
+FAMILY_PRIMARY_EVIDENCE_REQUIREMENTS_V218 = {
+    "insurance": (
+        "versicherungsspezifische FY/H1-EPS-Brücke auf gleicher Ergebnisbasis",
+        "emittentenspezifischer RoE",
+        "regulatorische Kapitalquote (z. B. Solvency II / SST)",
+        "offizieller Buchwert je Aktie",
+        "Dividende / Ausschüttungsbasis",
+        "Corporate-Action-/EPS-Vergleichbarkeit",
+    ),
+    "reinsurance": (
+        "versicherungsspezifische FY/H1-EPS-Brücke auf gleicher Ergebnisbasis",
+        "emittentenspezifischer RoE",
+        "regulatorische Kapitalquote (z. B. Solvency II / SST)",
+        "offizieller Buchwert je Aktie",
+        "Combined-Ratio-/Zykluskontext",
+        "Dividende / Ausschüttungsbasis",
+        "Corporate-Action-/EPS-Vergleichbarkeit",
+    ),
+    "semicap": (
+        "Current-FY-/Next-FY-Earnings-Horizont",
+        "Nachfrage / Zyklus / Guidance",
+        "Gross-/Operating-Margin-Qualität",
+        "Installed Base / Service / Recurring",
+        "Technologie-/Tool-Mix",
+        "issuer-native FCF / Cash Conversion",
+        "Bilanz / Kapitalallokation / Execution",
+    ),
+    "payments_processor": (
+        "Current-FY-Familien-Gewinnbasis",
+        "TPV / Transaction Margin Dollars / Organic Revenue",
+        "operative Marge / Trend",
+        "FCF-Conversion / CapEx-Intensität",
+        "Guidance / Execution",
+        "Kapitalstruktur / Aktienzahl / Buybacks",
+    ),
+    "payment_network": (
+        "issuer-adjusted Earnings Bridge",
+        "Payment Volume / Cross-Border / Transactions",
+        "Value-Added Services / Revenue Mix",
+        "Operating Margin / Cash Conversion",
+        "Kapitalrückführungen",
+        "Regulatory-/Litigation-Kontext",
+    ),
+    "aerospace_defense": (
+        "Orders / Backlog / Book-to-Bill",
+        "Current-FY Adjusted/geschützter Earnings-Anker",
+        "Guidance / Margen / Execution",
+        "FOCF / Cash Conversion",
+        "Bilanz / Kapitalstruktur",
+    ),
+    "industrials": (
+        "Current-FY Adjusted/Core-Earnings-Anker",
+        "organisches Wachstum / Orders / Guidance",
+        "Margenqualität",
+        "FCF / Cash Conversion",
+        "Bilanz / Kapitalallokation",
+        "Segment-/Portfolio-Kontext",
+    ),
+    "exchange_market_infrastructure": (
+        "Current-FY Adjusted/Cash-EPS Bridge",
+        "Net Revenue / Organic Growth",
+        "Recurring/Data/SaaS Mix",
+        "Operating Margin / Cash Generation",
+        "Debt Paydown / Capital Returns",
+        "Transaktions-/Strukturkontext",
+    ),
+    "asset_manager": (
+        "AUM / Flows",
+        "Fee Rate / Revenue Mix",
+        "Adjusted/Core Earnings",
+        "operative Marge",
+        "Kapitalrückführungen / Bilanz",
+    ),
+    "bank": (
+        "Net Interest Income / NIM",
+        "Credit Quality / Provisioning",
+        "CET1 / regulatorisches Kapital",
+        "Tangible Book Value / Share",
+        "Current-FY EPS / Guidance",
+    ),
+    "consumer_finance_card": (
+        "Receivables / Loan Growth",
+        "Net Interest Margin / Yield",
+        "Charge-offs / Delinquencies / Reserves",
+        "Kapitalquote / Funding",
+        "Current-FY EPS / Guidance",
+    ),
+    "closed_loop_card": (
+        "Spending / Billing Volume / Membership",
+        "Credit Quality",
+        "Revenue / Margin / EPS Guidance",
+        "Kapitalquote / Book Value",
+        "Capital Returns",
+    ),
+    "reit": (
+        "FFO/AFFO",
+        "Same-Store / Occupancy / Rent Growth",
+        "NAV-/Asset-Kontext",
+        "Debt Maturity / Cost of Debt",
+        "Dividend Coverage",
+    ),
+    "regulated_utility": (
+        "Rate Base / Regulatory Plan",
+        "Utility EPS / Guidance",
+        "CapEx / Funding Plan",
+        "Credit Metrics / Dividend",
+        "Regulatory Event Risk",
+    ),
+    "midstream": (
+        "Adjusted EBITDA / DCF",
+        "Volume / Contract Mix",
+        "Leverage / Coverage",
+        "CapEx / Growth Projects",
+        "Distribution / Buybacks",
+    ),
+    "integrated_oil": (
+        "Through-Cycle Earnings / CFFO",
+        "Production / Project Growth",
+        "ROACE / Margin Resilience",
+        "CapEx / Breakeven / Balance Sheet",
+        "Capital Returns",
+    ),
+    "oilfield_services": (
+        "Orders / Backlog / Activity",
+        "Revenue / Margin Guidance",
+        "Adjusted Earnings",
+        "FCF / Cash Conversion",
+        "Capital Returns / Balance Sheet",
+    ),
+    "mining": (
+        "Production / Grade / Recovery / Costs",
+        "Commodity / Realized Price Context",
+        "Reserves / Resources / Mine Life",
+        "CapEx / Project Execution",
+        "Balance Sheet / FCF",
+    ),
+    "software": (
+        "ARR / Subscription Growth",
+        "NRR / RPO / Bookings",
+        "Operating Margin / FCF Margin",
+        "Current-FY Earnings / Guidance",
+        "SBC / Dilution",
+    ),
+    "semiconductors": (
+        "Current-/Next-FY Earnings",
+        "Revenue / Gross Margin Guidance",
+        "End-Market / Inventory Cycle",
+        "FCF / CapEx",
+        "Capital Returns",
+    ),
+    "branded_staples": (
+        "Organic/Volume Growth",
+        "Adjusted/Core Margin",
+        "Current-FY Adjusted/Core EPS Guidance",
+        "FCF / Working Capital",
+        "Pricing / Commodity Context",
+    ),
+    "luxury_apparel": (
+        "Organic / Constant-Currency Growth",
+        "Regional / Brand Mix",
+        "Recurring Operating Margin",
+        "Adjusted Earnings / FCF",
+        "Inventory / Balance Sheet",
+    ),
+    "automotive": (
+        "Deliveries / Volume / Mix",
+        "Automotive Margin",
+        "Adjusted Earnings / FCF",
+        "Net Cash / Industrial Debt",
+        "Guidance / Model Cycle",
+    ),
+    "professional_business_services": (
+        "Organic Revenue Growth",
+        "Adjusted Operating Margin",
+        "Current-FY Adjusted EPS",
+        "Cash Conversion",
+        "Net Cash / Dilution / Capital Returns",
+    ),
+    "listed_investment_holding": (
+        "Look-through NAV / Portfolio Values",
+        "Holdco Net Debt / Cash",
+        "Share Count / Buybacks",
+        "Holding Discount / Premium",
+        "Material Portfolio Corporate Actions",
+    ),
+    "investment_bank_broker_dealer": (
+        "Net Revenue / Segment Mix",
+        "Trading/IB/Wealth Earnings Quality",
+        "ROE/ROTCE",
+        "CET1 / Funding / Liquidity",
+        "Tangible Book Value / Share",
+        "Capital Returns / Compensation",
+    ),
+    "credit_data_analytics": (
+        "Organic/Subscription Revenue Growth",
+        "Adjusted Operating Margin",
+        "Adjusted EPS / Guidance",
+        "FCF / Conversion",
+        "Leverage / Capital Returns",
+    ),
+    "real_estate_services": (
+        "Segment Revenue / Fee Growth",
+        "Adjusted EBITDA / EPS",
+        "Transaction/Leasing Activity",
+        "FCF / Working Capital",
+        "Net Debt / Liquidity",
+    ),
+    "specialty_chemicals": (
+        "Volume / Price / Mix",
+        "Adjusted EBITDA / Margin",
+        "Current-FY Guidance",
+        "FCF / CapEx",
+        "Leverage / Portfolio Actions",
+    ),
+    "biotech": (
+        "Pipeline / Trial / Regulatory Milestones",
+        "Approved Product Revenue / Guidance",
+        "Cash Runway / Burn",
+        "Share Count / Dilution",
+        "Probability-/Event-Risk Context",
+    ),
+    "retail": (
+        "Comparable/Same-Store Sales",
+        "Gross/Operating Margin",
+        "Inventory / Working Capital",
+        "Current-FY EPS / Guidance",
+        "Store/Unit Economics / FCF",
+    ),
+    "advertising": (
+        "Organic/Net Revenue Growth",
+        "Client/Media Mix",
+        "Adjusted Operating Margin",
+        "Current-FY Earnings / Guidance",
+        "FCF / Net Debt / Capital Returns",
+    ),
+    "financial_unresolved": (
+        "eindeutige Geschäftsmodell-/Unterprofil-Zuordnung",
+        "regulatorische bzw. bilanzielle Kernkennzahlen des Unterprofils",
+        "vergleichbare Earnings-Basis",
+        "Corporate-Action-/Strukturprüfung",
+    ),
+}
+
+
+def build_family_evidence_contract_v218(company_type):
+    family_id = str((company_type or {}).get("valuation_family_id") or "general_corporate").strip().lower()
+    family_meta = UNIVERSAL_VALUATION_FAMILY_CATALOG.get(family_id) or UNIVERSAL_VALUATION_FAMILY_CATALOG["general_corporate"]
+    primary = FAMILY_PRIMARY_EVIDENCE_REQUIREMENTS_V218.get(family_id)
+    if primary is None:
+        if family_meta.get("policy") == "specialist":
+            primary = (
+                "familien-spezifische Primärkennzahlen",
+                "vergleichbare Earnings-Basis",
+                "Guidance / Execution / Sonderereignisse",
+            )
+        else:
+            primary = (
+                "vergleichbare Finanzhistorie",
+                "Current-FY-/TTM-Earnings-Horizont",
+                "Sonderereignis-/Corporate-Action-Prüfung",
+            )
+    return {
+        "version": "V218",
+        "family_id": family_id,
+        "family_label": family_meta.get("label"),
+        "family_policy": family_meta.get("policy"),
+        "provider_baseline": list(UNIVERSAL_EVIDENCE_PROVIDER_BASELINE_V218),
+        "issuer_primary_required": list(primary),
+        "source_priority": [
+            "Emittenten-/Regulatorik-Primärquelle",
+            "Eulerpool (strukturierte Sekundärevidenz)",
+            "Yahoo/yfinance (Kontext/Fallback)",
+        ],
+        "provider_can_release_specialist_valuation": False,
+    }
+
 UNIVERSAL_SECURITY_FAMILY_MASTER = {
     # Consumer finance / card issuers
     "SYF": "consumer_finance_card",
@@ -56993,6 +57288,310 @@ def _info_payload_score(info):
     )
 
 
+
+EULERPOOL_API_ROOT_V218 = "https://api.eulerpool.com"
+
+
+def _get_eulerpool_api_key_v218():
+    """Read the optional Eulerpool key without ever embedding or returning it."""
+    value = str(os.getenv("EULERPOOL_API_KEY") or "").strip()
+    if value:
+        return value
+    try:
+        value = str(st.secrets.get("EULERPOOL_API_KEY", "") or "").strip()
+    except Exception:
+        value = ""
+    return value or None
+
+
+def _eulerpool_safe_json_v218(response):
+    try:
+        return response.json()
+    except Exception:
+        return None
+
+
+def _eulerpool_request_v218(path, api_key, params=None, timeout=8):
+    result = {
+        "ok": False,
+        "status_code": None,
+        "data": None,
+        "error": None,
+        "rate_limit": None,
+        "rate_remaining": None,
+        "rate_reset": None,
+        "url_path": path,
+    }
+    if not api_key:
+        result["error"] = "api_key_missing"
+        return result
+    url = path if str(path).startswith("http") else EULERPOOL_API_ROOT_V218 + str(path)
+    try:
+        response = requests.get(
+            url,
+            params=params or None,
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Bearer {api_key}",
+                "User-Agent": f"Aktien-Analyse-V2/{APP_BUILD_VERSION}",
+            },
+            timeout=timeout,
+        )
+        result["status_code"] = int(response.status_code)
+        result["rate_limit"] = response.headers.get("X-RateLimit-Limit")
+        result["rate_remaining"] = response.headers.get("X-RateLimit-Remaining")
+        result["rate_reset"] = response.headers.get("X-RateLimit-Reset")
+        payload = _eulerpool_safe_json_v218(response)
+        if response.status_code == 200:
+            result["ok"] = True
+            result["data"] = payload
+        else:
+            result["error"] = (
+                (payload or {}).get("message")
+                if isinstance(payload, dict)
+                else f"HTTP {response.status_code}"
+            ) or f"HTTP {response.status_code}"
+    except requests.exceptions.Timeout:
+        result["error"] = "timeout"
+    except requests.exceptions.RequestException as exc:
+        result["error"] = f"request_error:{type(exc).__name__}"
+    except Exception as exc:
+        result["error"] = f"unexpected:{type(exc).__name__}"
+    return result
+
+
+def _eulerpool_identifier_candidates_v218(symbol):
+    raw = str(symbol or "").strip().upper()
+    candidates = []
+    for value in (raw, raw.split(".")[0] if "." in raw else raw):
+        if value and value not in candidates:
+            candidates.append(value)
+    return candidates
+
+
+def _eulerpool_payload_nonempty_v218(payload):
+    if payload is None:
+        return False
+    if isinstance(payload, (list, tuple, dict, set, str)):
+        return len(payload) > 0
+    return True
+
+
+def _eulerpool_latest_record_v218(payload):
+    if isinstance(payload, dict):
+        for key in ("data", "results", "items", "history", "records"):
+            value = payload.get(key)
+            if isinstance(value, list) and value:
+                payload = value
+                break
+    if isinstance(payload, list):
+        records = [item for item in payload if isinstance(item, dict)]
+        if not records:
+            return None
+        def _date_key(item):
+            for key in ("period", "date", "asOfDate", "fiscalDateEnding", "timestamp"):
+                if item.get(key) is not None:
+                    try:
+                        return pd.Timestamp(item.get(key))
+                    except Exception:
+                        pass
+            return pd.Timestamp.min
+        records.sort(key=_date_key, reverse=True)
+        return records[0]
+    return payload if isinstance(payload, dict) else None
+
+
+def _eulerpool_extract_first_v218(payload, aliases):
+    aliases_norm = {str(a).replace("_", "").replace("-", "").lower() for a in aliases}
+    seen = set()
+    def walk(obj, depth=0):
+        if depth > 5 or id(obj) in seen:
+            return None
+        try:
+            seen.add(id(obj))
+        except Exception:
+            pass
+        if isinstance(obj, dict):
+            # Prefer direct exact-normalized keys before descending.
+            for key, value in obj.items():
+                norm = str(key).replace("_", "").replace("-", "").lower()
+                if norm in aliases_norm and not isinstance(value, (dict, list, tuple)):
+                    if value is not None:
+                        return value
+            for value in obj.values():
+                found = walk(value, depth + 1)
+                if found is not None:
+                    return found
+        elif isinstance(obj, list):
+            for item in obj[:20]:
+                found = walk(item, depth + 1)
+                if found is not None:
+                    return found
+        return None
+    return walk(payload)
+
+
+def load_eulerpool_universal_evidence_v218(symbol, company_type, cache_version):
+    """Optional structured secondary evidence; never releases a specialist valuation by itself."""
+    _ = cache_version
+    api_key = _get_eulerpool_api_key_v218()
+    contract = build_family_evidence_contract_v218(company_type)
+    base = {
+        "version": "V218",
+        "provider": "Eulerpool",
+        "configured": bool(api_key),
+        "available": False,
+        "status": "not_configured" if not api_key else "pending",
+        "identifier_used": None,
+        "resolved_ticker": None,
+        "resolved_isin": None,
+        "datasets": {},
+        "normalized": {},
+        "contract": contract,
+        "source_role": "structured_secondary_evidence",
+        "valuation_release_allowed": False,
+        "note": (
+            "Eulerpool ist nicht verbunden. Primärquellen- und Yahoo-Pfade funktionieren unverändert; "
+            "für die Universal-Evidence-Schicht kann optional EULERPOOL_API_KEY als Umgebungsvariable oder Streamlit-Secret gesetzt werden."
+            if not api_key else None
+        ),
+    }
+    if not api_key:
+        return base
+
+    overview_result = None
+    for candidate in _eulerpool_identifier_candidates_v218(symbol):
+        trial = _eulerpool_request_v218(
+            f"/api/1/equity/overview/{candidate}", api_key
+        )
+        if trial.get("ok") and _eulerpool_payload_nonempty_v218(trial.get("data")):
+            overview_result = trial
+            base["identifier_used"] = candidate
+            break
+        if overview_result is None:
+            overview_result = trial
+
+    base["datasets"]["overview"] = overview_result or {"ok": False, "error": "not_attempted"}
+    overview = (overview_result or {}).get("data") if (overview_result or {}).get("ok") else None
+    if not isinstance(overview, dict):
+        base["status"] = "provider_unavailable"
+        base["note"] = (
+            "Eulerpool ist konfiguriert, aber die Aktie konnte über den strukturierten Overview-Endpunkt nicht aufgelöst werden. "
+            "Die Bewertung fällt nicht auf Provider-Daten zurück."
+        )
+        return base
+
+    resolved_ticker = str(overview.get("ticker") or base.get("identifier_used") or symbol).strip()
+    resolved_isin = str(overview.get("isin") or "").strip() or None
+    base["resolved_ticker"] = resolved_ticker
+    base["resolved_isin"] = resolved_isin
+    identifier = resolved_isin or base.get("identifier_used") or resolved_ticker
+
+    endpoints = {
+        "annual_income": f"/api/1/equity/incomestatement/{identifier}",
+        "quarterly_income": f"/api/1/equity/income-statement-quarterly/{identifier}",
+        "balance_sheet": f"/api/1/equity/balancesheet/{identifier}",
+        "shares_history": f"/v1/equities/{resolved_ticker}/shares",
+        "corporate_actions": f"/v1/corporate-actions/{resolved_ticker}",
+    }
+    for dataset_name, path in endpoints.items():
+        base["datasets"][dataset_name] = _eulerpool_request_v218(path, api_key)
+
+    annual = base["datasets"]["annual_income"].get("data") if base["datasets"]["annual_income"].get("ok") else None
+    quarterly = base["datasets"]["quarterly_income"].get("data") if base["datasets"]["quarterly_income"].get("ok") else None
+    balance = base["datasets"]["balance_sheet"].get("data") if base["datasets"]["balance_sheet"].get("ok") else None
+    shares = base["datasets"]["shares_history"].get("data") if base["datasets"]["shares_history"].get("ok") else None
+    actions = base["datasets"]["corporate_actions"].get("data") if base["datasets"]["corporate_actions"].get("ok") else None
+
+    latest_annual = _eulerpool_latest_record_v218(annual)
+    latest_quarter = _eulerpool_latest_record_v218(quarterly)
+    latest_balance = _eulerpool_latest_record_v218(balance)
+    latest_shares = _eulerpool_latest_record_v218(shares)
+
+    normalized = {
+        "name": overview.get("name"),
+        "ticker": overview.get("ticker"),
+        "isin": overview.get("isin"),
+        "currency": overview.get("currency"),
+        "country": overview.get("country"),
+        "sector": overview.get("sector"),
+        "industry": overview.get("industry"),
+        "website": overview.get("website"),
+        "market_cap": safe_float(overview.get("marketCap")),
+        "shares_outstanding_overview": safe_float(overview.get("sharesOutstanding")),
+        "annual_eps": safe_float(_eulerpool_extract_first_v218(latest_annual or {}, ("eps", "diluted_eps", "dilutedEps", "basicEps"))),
+        "annual_net_income": safe_float(_eulerpool_extract_first_v218(latest_annual or {}, ("netIncome", "net_income", "netincome"))),
+        "annual_revenue": safe_float(_eulerpool_extract_first_v218(latest_annual or {}, ("revenue", "totalRevenue", "sales"))),
+        "quarterly_eps": safe_float(_eulerpool_extract_first_v218(latest_quarter or {}, ("eps", "diluted_eps", "dilutedEps", "basicEps"))),
+        "book_value_per_share": safe_float(_eulerpool_extract_first_v218(latest_balance or {}, ("bookValuePerShare", "book_value_per_share", "bvps"))),
+        "total_equity": safe_float(_eulerpool_extract_first_v218(latest_balance or {}, ("shareholdersEquity", "totalEquity", "equity", "stockholdersEquity"))),
+        "shares_outstanding_latest": safe_float(_eulerpool_extract_first_v218(latest_shares or {}, ("sharesOutstanding", "basicShares", "shares", "dilutedShares"))),
+        "corporate_actions_present": bool(_eulerpool_payload_nonempty_v218(actions)),
+    }
+    base["normalized"] = normalized
+
+    successful = [
+        key for key, value in base["datasets"].items()
+        if isinstance(value, dict) and value.get("ok") and _eulerpool_payload_nonempty_v218(value.get("data"))
+    ]
+    base["available"] = bool(successful)
+    base["status"] = "available" if base["available"] else "provider_partial"
+    base["successful_datasets"] = successful
+    base["dataset_count"] = len(successful)
+    rate_candidates = [
+        value.get("rate_remaining") for value in base["datasets"].values()
+        if isinstance(value, dict) and value.get("rate_remaining") is not None
+    ]
+    base["rate_remaining"] = rate_candidates[-1] if rate_candidates else None
+    base["note"] = (
+        "Eulerpool ist als strukturierte Sekundärevidenz verbunden. Die Daten dürfen Lücken markieren, Historien und Aktienzahl/Corporate Actions plausibilisieren, "
+        "ersetzen aber keine familienentscheidenden Emittenten-Primärkennzahlen und können allein keinen Specialist-Fair-Value freigeben."
+    )
+    return base
+
+
+def build_universal_evidence_layer_v218(symbol, company_type, provider_evidence, insurance_snapshot=None):
+    contract = build_family_evidence_contract_v218(company_type)
+    family_id = contract.get("family_id")
+    provider = provider_evidence or {}
+    primary_complete = None
+    primary_status = "family_specific_review"
+    missing_primary = []
+
+    if family_id in {"insurance", "reinsurance"}:
+        primary_complete = isinstance(insurance_snapshot, dict) and bool(insurance_snapshot)
+        if primary_complete:
+            primary_status = "verified_issuer_snapshot"
+        else:
+            primary_status = "issuer_primary_pending"
+            missing_primary = list(contract.get("issuer_primary_required") or [])
+    elif bool((company_type or {}).get("family_evidence_pending")):
+        primary_complete = False
+        primary_status = "issuer_primary_pending"
+        missing_primary = list(contract.get("issuer_primary_required") or [])
+    elif (company_type or {}).get("family_model_status") in {"validated_multi_issuer_route", "validated_existing_route"}:
+        primary_complete = True
+        primary_status = "existing_specialist_route"
+
+    provider_status = provider.get("status") or "not_configured"
+    return {
+        "version": "V218",
+        "contract": contract,
+        "provider": provider,
+        "provider_status": provider_status,
+        "provider_connected": bool(provider.get("configured")),
+        "provider_available": bool(provider.get("available")),
+        "issuer_primary_complete": primary_complete,
+        "issuer_primary_status": primary_status,
+        "missing_primary_evidence": missing_primary,
+        "valuation_impact": "none_direct",
+        "release_rule": (
+            "Strukturierte Provider-Daten können die Evidenzbeschaffung und Plausibilisierung unterstützen. "
+            "Die Freigabe eines Spezialmodells erfolgt weiterhin ausschließlich über die familien-spezifischen Primärquellen-/Vergleichbarkeits-Gates."
+        ),
+        "symbol": str(symbol or ""),
+    }
+
 def load_yahoo_info_resilient(symbol, ticker=None):
     """
     V2.20.2 – resilient Yahoo/yfinance info loading.
@@ -60741,6 +61340,17 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         free_cashflow=fundamental_info.get("freeCashflow"),
     )
 
+    # V218: family-wide structured secondary evidence. This layer is intentionally
+    # non-authoritative for specialist valuation release; it supplies normalized
+    # statements/share-count/corporate-action diagnostics and a family evidence contract.
+    eulerpool_evidence_v218 = load_eulerpool_universal_evidence_v218(
+        fundamental_symbol, company_type, cache_version
+    )
+    _insurance_primary_for_evidence_v218 = get_verified_insurance_snapshot(symbol) if is_insurance_company_type(company_type) else None
+    universal_evidence_layer_v218 = build_universal_evidence_layer_v218(
+        symbol, company_type, eulerpool_evidence_v218, _insurance_primary_for_evidence_v218
+    )
+
     historical = build_historical_data(
         fundamental_ticker
     )
@@ -63989,6 +64599,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         "data_recovery_fields": recovered_fundamental_fields,
 
         "company_type": company_type,
+        "universal_evidence_layer_v218": universal_evidence_layer_v218,
+        "eulerpool_evidence_v218": eulerpool_evidence_v218,
         "historical": historical,
         "structural_break": structural_break,
         "eps_normalization": eps_normalization,
@@ -64698,6 +65310,27 @@ if selected_symbol:
 
                     if company_type.get("valuation_family"):
                         st.write(f"**Bewertungsfamilie:** {company_type.get('valuation_family')}")
+
+                    evidence_v218_ui = data.get("universal_evidence_layer_v218") or {}
+                    provider_v218_ui = evidence_v218_ui.get("provider") or {}
+                    if evidence_v218_ui:
+                        if provider_v218_ui.get("configured") and provider_v218_ui.get("available"):
+                            st.success(
+                                "Universal Evidence Layer V218: Eulerpool als strukturierte Sekundärevidenz verbunden · "
+                                f"{int(provider_v218_ui.get('dataset_count') or 0)} Datensätze verfügbar · "
+                                "Primärquellen bleiben für familienentscheidende Kennzahlen maßgeblich."
+                            )
+                        elif provider_v218_ui.get("configured"):
+                            st.warning(
+                                "Universal Evidence Layer V218: Eulerpool ist konfiguriert, für diesen Titel aber nur teilweise bzw. nicht auflösbar. "
+                                "Die Bewertung fällt nicht auf unbestätigte Provider-Daten zurück."
+                            )
+                        else:
+                            st.caption(
+                                "Universal Evidence Layer V218: Eulerpool optional nicht verbunden. "
+                                "Für die strukturierte Sekundärevidenz kann EULERPOOL_API_KEY als Umgebungsvariable oder Streamlit-Secret gesetzt werden; "
+                                "bestehende Primärquellen-/Yahoo-Pfade bleiben unverändert."
+                            )
                         _family_source_labels = {
                             "security_family_master": "Stammtabelle der Bewertungsfamilien",
                             "business_summary_rule": "Geschäftsmodell-Regel",
@@ -64840,6 +65473,69 @@ if selected_symbol:
                     st.subheader(
                         "📋 Datenbasis für die Bewertung"
                     )
+
+                    evidence_v218_ui = data.get("universal_evidence_layer_v218") or {}
+                    if evidence_v218_ui:
+                        contract_v218_ui = evidence_v218_ui.get("contract") or {}
+                        provider_v218_ui = evidence_v218_ui.get("provider") or {}
+                        with st.expander("🧱 Universal Evidence Layer V218", expanded=False):
+                            st.write(
+                                "**Quellenpriorität:** "
+                                + " → ".join(contract_v218_ui.get("source_priority") or [])
+                            )
+                            st.write(
+                                "**Familien-Evidenzvertrag:** "
+                                + text_or_dash(contract_v218_ui.get("family_label"))
+                            )
+                            st.write(
+                                "**Strukturierte Provider-Basis:** "
+                                + " · ".join(contract_v218_ui.get("provider_baseline") or [])
+                            )
+                            st.write(
+                                "**Zusätzliche Primärquellen-Pflichtfelder:** "
+                                + " · ".join(contract_v218_ui.get("issuer_primary_required") or [])
+                            )
+                            if provider_v218_ui.get("configured"):
+                                st.write(
+                                    "**Eulerpool-Status:** "
+                                    + text_or_dash(provider_v218_ui.get("status"))
+                                    + (f" · Identifier: {provider_v218_ui.get('identifier_used')}" if provider_v218_ui.get("identifier_used") else "")
+                                    + (f" · ISIN: {provider_v218_ui.get('resolved_isin')}" if provider_v218_ui.get("resolved_isin") else "")
+                                )
+                                datasets_v218_ui = provider_v218_ui.get("datasets") or {}
+                                status_parts_v218 = []
+                                for ds_name_v218, ds_value_v218 in datasets_v218_ui.items():
+                                    ok_v218 = bool((ds_value_v218 or {}).get("ok"))
+                                    status_parts_v218.append(f"{ds_name_v218}: {'✓' if ok_v218 else '–'}")
+                                if status_parts_v218:
+                                    st.caption("Provider-Datensätze: " + " · ".join(status_parts_v218))
+                                norm_v218_ui = provider_v218_ui.get("normalized") or {}
+                                norm_bits_v218 = []
+                                if norm_v218_ui.get("shares_outstanding_latest") is not None:
+                                    norm_bits_v218.append("historische Aktienzahl verfügbar")
+                                if norm_v218_ui.get("annual_eps") is not None:
+                                    norm_bits_v218.append("Jahres-EPS verfügbar")
+                                if norm_v218_ui.get("quarterly_eps") is not None:
+                                    norm_bits_v218.append("Quartals-EPS verfügbar")
+                                if norm_v218_ui.get("corporate_actions_present"):
+                                    norm_bits_v218.append("Corporate-Action-Datensatz vorhanden")
+                                if norm_bits_v218:
+                                    st.caption("Sekundärevidenz: " + " · ".join(norm_bits_v218))
+                                if provider_v218_ui.get("rate_remaining") is not None:
+                                    st.caption("Eulerpool verbleibende Requests laut Response-Header: " + str(provider_v218_ui.get("rate_remaining")))
+                            else:
+                                st.caption(
+                                    "Eulerpool nicht verbunden. API-Schlüssel wird nicht in der ZIP gespeichert; "
+                                    "EULERPOOL_API_KEY nur über Umgebung oder Streamlit-Secrets setzen."
+                                )
+                            if evidence_v218_ui.get("issuer_primary_complete") is False:
+                                st.warning(
+                                    "Familien-Primärevidenz noch nicht vollständig. Provider-Daten dürfen diese Pflichtfelder nicht ersetzen; "
+                                    "Score/Fair Value bleiben gemäß bestehendem Familien-Gate gesperrt."
+                                )
+                            elif evidence_v218_ui.get("issuer_primary_complete") is True:
+                                st.success("Familien-Primärevidenz über den bestehenden Specialist-/Primärquellenpfad vorhanden.")
+                            st.caption(text_or_dash(evidence_v218_ui.get("release_rule")))
 
                     col1, col2 = st.columns(2)
 
