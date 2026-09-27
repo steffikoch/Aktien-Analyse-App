@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.39"
+APP_BUILD_VERSION = "V2.23.40"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Insurance Provider-First Core & Primary-Source Link V235"
+    f"Build {APP_BUILD_VERSION} · Insurance Provider-First Konsistenz & Safe UI V236"
 )
 
 
@@ -961,6 +961,9 @@ st.caption(
 # V2.23.27: Universal Primary Document Resolver & Semantic Extractor V223. Hardens the dynamic insurer primary-source path after the Talanx live test: large issuer HTML pages are fully resolved before text extraction, reporting/result hubs are traversed with a bounded issuer-owned document graph, PDF searches are role-aware, table/narrative metrics are parsed with explicit unit/period/entity semantics, current-period comparative columns may satisfy prior-period evidence only when the document explicitly labels the comparison, and discovery/fetch/extraction/semantic stages are exposed separately. Search snippets and Eulerpool remain non-authoritative; incomplete evidence stays fail-closed; valuation formulas and existing validated insurer snapshots remain unchanged.
 # V2.23.28: Universal IR Reporting Hub Resolver V224. Adds issuer-neutral semantic Investor-Relations hub discovery before document search: Reporting/Results, Key Figures, Annual/Financial Reports, Risk/SFCR, News/Press and Financial Calendar hubs are resolved from issuer-owned navigation and used as high-priority seeds. Role traversal is target-period aware, permits the same official page to serve different evidence roles, and broadens current-results discovery to issuer news releases where regulatory capital ratios are often published. Partial discovery may expose an official calendar event without releasing valuation evidence. Search snippets and Eulerpool remain non-authoritative; V223 period/unit/entity-scope guards and all valuation mathematics remain unchanged.
 # V2.23.29: Universal Fundamentals Baseline & Specialist Delta V225. Changes the evidence architecture from web-first duplication to provider-first standard fundamentals: semantically verified Eulerpool fields form the universal standardized baseline, Yahoo/yfinance is retained as an independent plausibility/context layer, and issuer-primary discovery is narrowed conceptually to the family-specific specialist delta. Specialist valuation release remains fail-closed: the baseline may satisfy generic FY EPS/share-count/history fields but may not substitute regulatory capital, issuer-defined adjusted/core earnings, official scope-critical book value, operating KPIs or corporate-action comparability. Existing validated specialist snapshots and valuation mathematics remain unchanged.
+# V2.23.39: Insurance Provider-First Core & Primary-Source Link V235. Generic insurer valuation no longer requires automatic issuer-report parsing. Structured provider TTM EPS, RoE, payout/dividend evidence and structured P/B/book-value evidence form the scalable core. Solvency/SST and issuer reports remain optional verification and are never estimated; without a primary-source upgrade valuation confidence is capped at Medium. Unsupported insurers resolve only an official issuer/IR link for manual review. Existing verified static insurer snapshots remain supported as enhanced primary-source paths.
+
+# V2.23.40: Insurance Provider-First Consistency & Safe UI V236. Enforces provider-only score invariants (component caps, 85/100 ceiling without primary-source upgrade), separates provider-first and issuer-primary copy throughout EPS/Step-3B UI, prevents provider book value from being labeled official, adds valuation-field integrity guards so incomplete dictionaries cannot crash the stock page, and exposes a collapsed technical error diagnostic only when an unexpected runtime exception survives. No issuer-specific hard-coded values and no return to mandatory IR-report parsing.
 # V2.23.30: Specialist Delta Contract & Gate Alignment V226. Makes the family evidence contract the single diagnostic source of truth for provider-first standard fields versus issuer-primary specialist gates. Insurance/Reinsurance now always surfaces same-basis interim EPS/parent earnings, issuer-defined RoE, regulatory capital ratio + framework, scope-critical official BVPS and conditional corporate-action comparability even when the underlying document resolver omits them from its first missing-field list. FY EPS/prior FY EPS, shares and latest annual dividend are provider-first standard fields when semantically verified; issuer-primary remains the fallback when a standard field is unavailable. Adds Eulerpool Dividend Quality as structured standard evidence. Valuation mathematics remain unchanged and specialist release stays fail-closed.
 # V2.23.31: Universal Evidence Derivation Graph V227. Adds a guarded cross-source derivation graph on top of the provider-first baseline: semantically verified standard denominators may combine with same-period issuer-primary parent earnings/equity to derive interim EPS/BVPS, while FY EPS/prior-FY EPS/dividend and stable share-count data remain provider-first. Derivations are blocked on material corporate-action/share-count alerts, require compatible period/currency/scope semantics, preserve provenance, and never infer regulatory capital/RoE. The graph can rebuild a dynamic Insurance snapshot without forcing every issuer to publish every ratio in identical form. Existing static snapshots and valuation mathematics remain unchanged; specialist release remains fail-closed.
 # V2.23.32: Comparative Period Bridge & Dividend Fallback V228. Closes the remaining issuer-neutral insurer evidence gaps exposed by Talanx: current-H1 comparative income columns are promoted before per-share derivation so prior-H1 EPS can be derived from verified parent earnings and the stable denominator; interim balance-sheet prior columns are period-tagged and may bridge FY/prior-FY BVPS only when the source explicitly proves H1 vs previous 31-December comparatives; issuer-owned dividend/shareholder-return hubs and financial-year pages become an annual fallback when the standardized provider dividend is unavailable. The FY parent-income consistency node derived from verified FY EPS × stable shares is recognized by the displayed specialist contract. No insurer scoring, corridor, dual-anchor weights or Fair-Value mathematics change; all new bridges remain fail-closed on share-count/corporate-action or period ambiguity.
@@ -2653,19 +2656,21 @@ def build_special_event_warning(eps_normalization, bank_special_model=None, insu
         }
 
     if insurance_model.get("applicable"):
+        provider_first = bool(insurance_model.get("provider_first_mode"))
+        provider_val = insurance_model.get("insurance_valuation") or {}
         return {
             "level": "Grün",
             "icon": "🟢",
-            "title": "Kein separates Sonderereignis – Versicherungs-Primärdaten noch nicht freigegeben",
+            "title": "Kein separates Sonderereignis – Provider-First Versicherungsmodell aktiv" if provider_first else "Kein separates Sonderereignis – Versicherungs-Kernmodell aktiv",
             "requires_research": False,
-            "valuation_usable": False,
+            "valuation_usable": bool(provider_val.get("available")) if provider_first else False,
             "reason": (
-                "Der Bewertungsstopp entsteht nicht durch ein erkanntes Sonderereignis, sondern durch den "
-                "fehlenden oder veralteten issuer-spezifischen Versicherungs-Primärquellen-Snapshot."
+                "V235 trennt Standardbewertung und optionale Primärquellen-Verifikation. Fehlende Unternehmensberichte oder Solvency/SST-Daten sind kein Sonderereignis und blockieren bei vollständigen strukturierten Kernankern nicht automatisch den Fair Value."
+                if provider_first else "Kein separates Sonderereignis erkannt."
             ),
             "action": (
-                "Keine zusätzliche Sonderereignis-Recherche erforderlich; zuerst den issuer-spezifischen "
-                "Versicherungs-Snapshot kalibrieren bzw. aktualisieren. Bis dahin bleibt der Dual-Anchor-Fair-Value fail-closed."
+                "Keine zusätzliche Sonderereignis-Recherche erforderlich. Unternehmensberichte können über den offiziellen Link manuell geprüft werden; ohne Primärquellen-Upgrade bleibt die Bewertungssicherheit höchstens Mittel."
+                if provider_first else "Keine zusätzliche Sonderereignis-Recherche erforderlich."
             ),
         }
 
@@ -8879,9 +8884,9 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
             out["insurance_subprofile"] = family_id
             out["confidence_cap"] = "Mittel bis Hoch"
             out["method"] = (
-                "Universelles Reinsurance-Evidenzmodell: issuer-spezifisches TTM-EPS + 1,1–2,2× P/B + 7,0–11,5× TTM-KGV Doppelanker"
+                "Provider-First Reinsurance-Modell: strukturiertes TTM-EPS + 1,1–2,2× P/B + 7,0–11,5× TTM-KGV Doppelanker; Primärquellen optionales Sicherheits-Upgrade"
                 if family_id == "reinsurance"
-                else "Universelles Insurance-Evidenzmodell: issuer-spezifisches TTM-EPS + 1,0–2,8× P/B + 8,0–14,0× TTM-KGV Doppelanker"
+                else "Provider-First Insurance-Modell: strukturiertes TTM-EPS + 1,0–2,8× P/B + 8,0–14,0× TTM-KGV Doppelanker; Primärquellen optionales Sicherheits-Upgrade"
             )
         elif family_id == "asset_manager":
             # V99: two independent main issuers (TROW + BLK) have passed end-to-end,
@@ -14911,7 +14916,7 @@ def classify_company(name, symbol, sector, industry):
         return {
             "type": "Defensiver Konsum / Packaged Foods & Snacks",
             "method": "Normalisiertes EPS + KGV + FCF/Leverage; engerer Branchen-Korridor",
-            "confidence_cap": ("Mittel" if provider_mode else "Mittel bis Hoch"),
+            "confidence_cap": "Mittel bis Hoch",
         }
 
     # Defensiver Konsum
@@ -18993,6 +18998,50 @@ def _insurance_build_dynamic_snapshot_v224(company_name, subprofile, financial_c
     return snapshot, missing
 
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def discover_insurance_official_links_v235(company_name, website):
+    """Resolve an official issuer/IR link only; never promote report metrics."""
+    result = {
+        "version": "V235", "status": "link_only", "available": False, "complete": False,
+        "snapshot": None, "company_domain": None, "official_homepage": None, "official_ir_url": None,
+        "ir_hubs": {}, "documents": {}, "missing_primary": [], "diagnostics": [],
+        "resolver_stages": {"domain_resolved": False, "ir_hubs_resolved": 0},
+    }
+    name = _clean_text(company_name) or ""
+    company_domain = _extract_company_domain(website)
+    if not company_domain:
+        company_domain, _ = _holding_bootstrap_company_domain(name, deadline=time.monotonic() + 2.5)
+    if not company_domain:
+        result["status"] = "official_domain_unresolved"
+        result["diagnostics"].append("V235: offizielle Emittenten-Domain nicht auflösbar; Provider-First-Bewertung bleibt davon unabhängig.")
+        return result
+    result["company_domain"] = company_domain
+    result["resolver_stages"]["domain_resolved"] = True
+    homepage = str(website or "").strip()
+    if not homepage.startswith("http"):
+        homepage = "https://" + company_domain
+    result["official_homepage"] = homepage
+    try:
+        hubs = _insurance_resolve_ir_hubs_v224(
+            homepage, company_domain, name, deadline=time.monotonic() + 4.0, diagnostics=result["diagnostics"]
+        )
+    except Exception as exc:
+        hubs = {}
+        result["diagnostics"].append(f"V235: IR-Link-Auflösung nicht verfügbar ({type(exc).__name__}).")
+    result["ir_hubs"] = hubs if isinstance(hubs, dict) else {}
+    flat = []
+    for rows in result["ir_hubs"].values():
+        for row in (rows or []):
+            url = str((row or {}).get("url") or "").strip()
+            if url and url not in flat:
+                flat.append(url)
+    result["official_ir_url"] = flat[0] if flat else homepage
+    result["resolver_stages"]["ir_hubs_resolved"] = len(flat)
+    result["available"] = bool(result["official_ir_url"])
+    result["diagnostics"].append("V235: nur offizieller IR-/Unternehmenslink aufgelöst; Berichtskennzahlen werden nicht automatisch übernommen.")
+    return result
+
+
 @st.cache_data(ttl=INSURANCE_IR_HUB_RESOLVER_TTL_SECONDS_V224, show_spinner=False)
 def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insurance_subprofile, financial_currency, cache_epoch=INSURANCE_IR_HUB_RESOLVER_VERSION_V224):
     """V234 report-index + issuer-sitemap, issuer-neutral insurer primary-evidence resolver.
@@ -19879,6 +19928,226 @@ def calculate_insurance_dual_anchor_valuation(snapshot, core_coverage, book_brid
     })
     return result
 
+INSURANCE_PROVIDER_FIRST_VERSION_V235 = "v22339_insurance_provider_first_core_v235"
+
+
+def _insurance_percent_value_v235(value):
+    value = safe_float(value)
+    if value is None:
+        return None
+    return value * 100.0 if abs(value) <= 2.0 else value
+
+
+def _insurance_ratio_value_v235(value):
+    value = safe_float(value)
+    if value is None:
+        return None
+    return value / 100.0 if 2.0 < abs(value) <= 200.0 else value
+
+
+def build_insurance_provider_first_bundle_v235(
+    info,
+    price_financial,
+    currency_context,
+    provider_trailing_eps=None,
+    provider_current_fy_eps=None,
+    is_reinsurance_profile=False,
+):
+    """Scalable insurer core from structured provider data only.
+
+    No Solvency/SST value is inferred. Issuer reports are an optional verification
+    layer and therefore cannot be required for the generic provider-first release.
+    """
+    info = info if isinstance(info, dict) else {}
+    ttm_eps = safe_float(provider_trailing_eps)
+    if ttm_eps is None:
+        ttm_eps = safe_float(info.get("trailingEps"))
+    current_fy_eps = safe_float(provider_current_fy_eps)
+    if current_fy_eps is None:
+        current_fy_eps = safe_float(info.get("forwardEps"))
+
+    roe_pct = _insurance_percent_value_v235(info.get("returnOnEquity"))
+    payout_ratio = _insurance_ratio_value_v235(info.get("payoutRatio"))
+    dividend_rate = safe_float(info.get("dividendRate"))
+    if payout_ratio is None and dividend_rate is not None and ttm_eps is not None and ttm_eps > 0:
+        payout_ratio = dividend_rate / ttm_eps
+
+    eps_growth_pct = None
+    if ttm_eps is not None and ttm_eps > 0 and current_fy_eps is not None and current_fy_eps > 0:
+        eps_growth_pct = (current_fy_eps / ttm_eps - 1.0) * 100.0
+    if eps_growth_pct is None:
+        eps_growth_pct = _insurance_percent_value_v235(info.get("earningsGrowth"))
+
+    # Prefer provider P/B because it also gives us a per-share book-value anchor
+    # even when the separate bookValue field is missing. The current price is
+    # first converted into financial/share units, so no listing-currency shortcut
+    # is introduced here.
+    pb = safe_float(info.get("priceToBook"))
+    provider_bvps = None
+    book_source = None
+    if price_financial is not None and price_financial > 0 and pb is not None and 0.15 <= pb <= 10.0:
+        provider_bvps = price_financial / pb
+        book_source = "provider_price_to_book"
+    if provider_bvps is None:
+        raw_bv = safe_float(info.get("bookValue"))
+        context = currency_context if isinstance(currency_context, dict) else {}
+        quote_ccy = _normalize_currency_code(context.get("quote_currency"))
+        financial_ccy = _normalize_currency_code(context.get("financial_currency"))
+        provider_bvps = _convert_insurance_per_share_to_financial(
+            raw_bv, quote_ccy or financial_ccy, context
+        )
+        if provider_bvps is not None and provider_bvps > 0:
+            book_source = "provider_book_value"
+
+    roe_points = None
+    if roe_pct is not None:
+        roe_points = 0 if roe_pct < 8 else 8 if roe_pct < 10 else 14 if roe_pct < 12 else 20 if roe_pct < 15 else 26 if roe_pct < 18 else 30
+    growth_points = None
+    if eps_growth_pct is not None:
+        growth_points = 0 if eps_growth_pct <= -10 else 4 if eps_growth_pct < 0 else 8 if eps_growth_pct < 3 else 12 if eps_growth_pct < 5 else 16 if eps_growth_pct < 8 else 20
+    distribution_points = None
+    if payout_ratio is not None and payout_ratio >= 0:
+        distribution_points = 10 if 0.30 <= payout_ratio <= 0.65 else 7 if (0.20 <= payout_ratio < 0.30 or 0.65 < payout_ratio <= 0.80) else 4 if (0.0 <= payout_ratio < 0.20 or 0.80 < payout_ratio <= 1.00) else 0
+
+    # V236 hard invariants: no component can exceed its declared maximum.
+    roe_points = None if roe_points is None else max(0.0, min(30.0, float(roe_points)))
+    growth_points = None if growth_points is None else max(0.0, min(20.0, float(growth_points)))
+    distribution_points = None if distribution_points is None else max(0.0, min(10.0, float(distribution_points)))
+    weighted = [(roe_points, 30.0), (growth_points, 20.0), (distribution_points, 10.0)]
+    available_weight = sum(max_weight for points, max_weight in weighted if points is not None)
+    earned_points = sum(float(points) for points, _ in weighted if points is not None)
+    score_pre_cap = (earned_points / available_weight * 100.0) if available_weight >= 50.0 else None
+    # Missing Solvency/SST and report-derived book-value trend do not count as zero,
+    # but a provider-only score may not occupy the very top of the scale.
+    score = max(0.0, min(float(score_pre_cap), 85.0)) if score_pre_cap is not None else None
+    quality = None
+    if score is not None:
+        quality = "Sehr stark" if score >= 90 else "Stark" if score >= 75 else "Solide" if score >= 60 else "Mittel" if score >= 45 else "Schwach"
+
+    core_coverage = {
+        "available": bool(ttm_eps is not None and ttm_eps > 0),
+        "integration_version": INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION,
+        "core_ttm_eps": ttm_eps,
+        "bridge_calculated": False,
+        "source_mode": "provider_structured_ttm",
+        "corporate_action_gate": {"active": False, "material": False, "blocked": False, "valuation_usable": True, "level": "Grün"},
+        "note": (
+            "Provider-First V236: TTM-EPS stammt aus dem strukturierten Datenanbieter. Eine FY−H1+H1-Brücke aus Unternehmensberichten ist für die Standardbewertung nicht erforderlich."
+            if ttm_eps is not None and ttm_eps > 0 else
+            "Provider-First V236: kein belastbares strukturiertes TTM-EPS verfügbar."
+        ),
+    }
+    book_bridge = {
+        "available": bool(provider_bvps is not None and provider_bvps > 0),
+        "bvps_2026_h1": provider_bvps,
+        "bvps_2025_fy": None,
+        "bvps_2024_fy": None,
+        "bvps_growth_2025_pct": None,
+        "yahoo_book_value_deviation_pct": None,
+        "yahoo_book_value_financial": provider_bvps,
+        "source_mode": book_source,
+        "note": (
+            "Provider-First V236: Buchwert je Aktie stammt aus strukturierter Book-Value/P-B-Evidenz. Unternehmensberichte sind ein optionaler Gegencheck."
+            if provider_bvps is not None and provider_bvps > 0 else
+            "Provider-First V236: kein belastbarer strukturierter Buchwert/P-B-Anker verfügbar."
+        ),
+    }
+    insurance_score = {
+        "available": score is not None,
+        "provider_first": True,
+        "score": score,
+        "quality_level": quality or "Nicht verfügbar",
+        "core_roe_points": roe_points,
+        "core_roe_pct": roe_pct,
+        "core_growth_points": growth_points,
+        "underlying_core_eps_growth_pct": eps_growth_pct,
+        "distribution_points": distribution_points,
+        "dividend_core_eps_payout_ratio": payout_ratio,
+        "capital_points": None,
+        "capital_ratio_pct": None,
+        "capital_ratio_label": "Regulatorische Kapitalquote",
+        "book_growth_points": None,
+        "book_value_growth_pct": None,
+        "provider_score_coverage_pct": available_weight / 60.0 * 100.0,
+        "provider_score_pre_cap": score_pre_cap,
+        "provider_score_cap": 85.0,
+        "note": (
+            "Provider-First Versicherungs-Score V235: strukturierte ROE-, TTM→Current-FY-EPS-Trend- und Ausschüttungsdaten. "
+            "Solvency/SST und berichtsbasierte Buchwertentwicklung werden nicht geschätzt; der Provider-only-Score ist auf 85/100 gedeckelt."
+        ),
+    }
+
+    pb_low, pb_high = ((1.1, 2.2) if is_reinsurance_profile else (1.0, 2.8))
+    pe_low, pe_high = ((7.0, 11.5) if is_reinsurance_profile else (8.0, 14.0))
+    valuation = {
+        "available": False,
+        "integration_version": INSURANCE_VALUATION_INTEGRATION_VERSION,
+        "provider_first": True,
+        "insurance_score": score,
+        "pb_corridor_lower": pb_low,
+        "pb_corridor_upper": pb_high,
+        "core_pe_corridor_lower": pe_low,
+        "core_pe_corridor_upper": pe_high,
+        "target_pb": None,
+        "target_core_pe": None,
+        "official_bvps": provider_bvps,  # compatibility field only; UI must label this structured/provider book value
+        "core_ttm_eps": ttm_eps,
+        "fair_value_book_financial": None,
+        "fair_value_core_pe_financial": None,
+        "book_weight": 0.55,
+        "core_pe_weight": 0.45,
+        "anchor_spread_pct": None,
+        "fair_value_financial": None,
+        "earnings_basis_label": "Provider-TTM",
+        "earnings_ttm_label": "Provider-TTM",
+        "earnings_multiple_label": "Provider-TTM-KGV",
+        "release_reason": None,
+        "note": None,
+    }
+    if score is None or not core_coverage["available"] or not book_bridge["available"]:
+        valuation["note"] = "Provider-First V236: Qualitätskern, TTM-EPS oder Buchwert/P-B-Anker unvollständig; Fair Value bleibt gesperrt."
+        return core_coverage, book_bridge, insurance_score, valuation
+
+    score_fraction = max(0.0, min(1.0, score / 100.0))
+    target_pb = pb_low + score_fraction * (pb_high - pb_low)
+    target_pe = pe_low + score_fraction * (pe_high - pe_low)
+    fair_book = provider_bvps * target_pb
+    fair_eps = ttm_eps * target_pe
+    anchor_spread = abs(fair_book / fair_eps - 1.0) * 100.0 if fair_eps > 0 else None
+    valuation.update({
+        "target_pb": target_pb,
+        "target_core_pe": target_pe,
+        "fair_value_book_financial": fair_book,
+        "fair_value_core_pe_financial": fair_eps,
+        "anchor_spread_pct": anchor_spread,
+    })
+    if anchor_spread is None or anchor_spread > 30.0:
+        valuation["release_reason"] = "anchor_gap"
+        valuation["note"] = (
+            f"Provider-First V236: P/B- und TTM-KGV-Anker liegen {anchor_spread:.1f} % auseinander; maximal 30 % sind ohne Primärquellen-Upgrade zulässig."
+            if anchor_spread is not None else "Provider-First V236: Ankerabstand nicht berechenbar."
+        )
+        return core_coverage, book_bridge, insurance_score, valuation
+
+    # V236 integrity gate: an available valuation must carry every numeric anchor.
+    _required_provider_values_v236 = [score, target_pb, target_pe, provider_bvps, ttm_eps, fair_book, fair_eps, anchor_spread]
+    if any(safe_float(_v) is None for _v in _required_provider_values_v236):
+        valuation["release_reason"] = "integrity_gate"
+        valuation["note"] = "V236 Provider-First: Bewertungsfelder inkonsistent/unvollständig; Fair Value bleibt sicherheitshalber gesperrt."
+        return core_coverage, book_bridge, insurance_score, valuation
+
+    valuation.update({
+        "available": True,
+        "fair_value_financial": 0.55 * fair_book + 0.45 * fair_eps,
+        "release_reason": "provider_first_passed",
+        "note": (
+            "Provider-First V236: Fair Value aus 55 % strukturiertem Buchwert/P-B-Anker und 45 % strukturiertem TTM-EPS/KGV-Anker. "
+            "Unternehmensberichte und Solvency/SST sind optionaler Primärquellen-Check; ohne diesen bleibt die Sicherheit auf Mittel begrenzt."
+        ),
+    })
+    return core_coverage, book_bridge, insurance_score, valuation
+
+
 def build_insurance_special_model(
     company_type,
     info,
@@ -19887,6 +20156,8 @@ def build_insurance_special_model(
     symbol=None,
     snapshot_override=None,
     adapter_diagnostic=None,
+    provider_trailing_eps=None,
+    provider_current_fy_eps=None,
 ):
     """
     Conservative insurer-specific data block.
@@ -19955,10 +20226,7 @@ def build_insurance_special_model(
             "Versicherungs-Primärquellen-Gate bestanden."
             if primary_source_complete
             else (
-                "Versicherungs-Primärquellen-Gate nicht freigegeben: Für diesen "
-                "Emittenten liegt kein aktueller verifizierter issuer-spezifischer "
-                "Primärquellen-Snapshot vor. Yahoo-/Standarddaten bleiben Kontext; "
-                "Versicherungs-Score und Dual-Anchor-Fair-Value bleiben fail-closed."
+                "Primärquellen-Check nicht vollständig automatisiert. V235 verwendet bei vollständigen strukturierten Kernankern den Provider-First-Pfad; Unternehmensberichte/Solvency/SST sind optionales Sicherheits-Upgrade."
             )
         ),
     }
@@ -20264,125 +20532,37 @@ def build_insurance_special_model(
         for value in anchor_values
     )
 
-    core_coverage = (
-        build_insurance_core_coverage(snapshot)
-        if snapshot_fresh
-        else {
-            "available": False,
-            "integration_version": INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION,
-            "note": "Core-TTM-Abdeckung nicht verfügbar: Versicherungs-Snapshot ist veraltet.",
-        }
-    )
-
-    corporate_action_gate = (core_coverage.get("corporate_action_gate") or build_insurance_corporate_action_gate(snapshot))
-
-    book_value_bridge = (
-        build_insurance_book_value_bridge(snapshot, yahoo_book_value=book_value, currency_context=currency_context)
-        if snapshot_fresh
-        else {
-            "available": False,
-            "note": "Offizieller Buchwert-Abgleich nicht verfügbar: Versicherungs-Snapshot ist veraltet.",
-        }
-    )
-
-    insurance_score = (
-        calculate_insurance_score(snapshot, core_coverage, book_value_bridge, currency_context=currency_context)
-        if snapshot_fresh
-        else {
-            "available": False,
-            "score": None,
-            "quality_level": "Nicht verfügbar",
-            "note": "Versicherungs-Score gesperrt: Versicherungs-Snapshot ist veraltet.",
-        }
-    )
-
-    insurance_valuation = (
-        calculate_insurance_dual_anchor_valuation(
+    provider_first_mode = not primary_source_complete
+    if provider_first_mode:
+        core_coverage, book_value_bridge, insurance_score, insurance_valuation = build_insurance_provider_first_bundle_v235(
+            info,
+            price_financial,
+            currency_context,
+            provider_trailing_eps=provider_trailing_eps,
+            provider_current_fy_eps=provider_current_fy_eps,
+            is_reinsurance_profile=is_reinsurance_profile,
+        )
+        earnings_basis_label = "Provider-TTM"
+        earnings_ttm_label = "Provider-TTM"
+        earnings_multiple_label = "Provider-TTM-KGV"
+    else:
+        core_coverage = build_insurance_core_coverage(snapshot)
+        book_value_bridge = build_insurance_book_value_bridge(
+            snapshot, yahoo_book_value=book_value, currency_context=currency_context
+        )
+        insurance_score = calculate_insurance_score(
+            snapshot, core_coverage, book_value_bridge, currency_context=currency_context
+        )
+        insurance_valuation = calculate_insurance_dual_anchor_valuation(
             snapshot, core_coverage, book_value_bridge, insurance_score
         )
-        if snapshot_fresh
-        else {
-            "available": False,
-            "integration_version": INSURANCE_VALUATION_INTEGRATION_VERSION,
-            "note": "Versicherungsbewertung gesperrt: Versicherungs-Snapshot ist veraltet.",
-        }
-    )
 
-    # V235 Provider-First Insurance Core. Structured provider data can carry the
-    # valuation when the issuer-primary snapshot is unavailable. Primary sources
-    # remain an optional verification layer and never fabricate missing solvency data.
-    provider_core_used = False
-    provider_core_complete = False
-    if not insurance_valuation.get("available"):
-        provider_bvps = book_value
-        if (provider_bvps is None or provider_bvps <= 0) and yahoo_price_to_book and yahoo_price_to_book > 0 and price_financial and price_financial > 0:
-            provider_bvps = price_financial / yahoo_price_to_book
-        provider_eps = trailing_eps
-        provider_roe_pct = (roe * 100.0) if roe is not None and abs(roe) <= 2.0 else roe
-        provider_eps_growth_pct = None
-        if provider_eps and provider_eps > 0 and forward_eps and forward_eps > 0:
-            provider_eps_growth_pct = (forward_eps / provider_eps - 1.0) * 100.0
-        provider_payout = payout_ratio
-        if provider_payout is None and dividend_rate is not None and provider_eps and provider_eps > 0:
-            provider_payout = dividend_rate / provider_eps
-        provider_pb = yahoo_price_to_book or calculated_price_to_book
-        provider_core_complete = bool(
-            price_financial and price_financial > 0 and provider_bvps and provider_bvps > 0
-            and provider_eps and provider_eps > 0 and provider_roe_pct is not None
-            and provider_eps_growth_pct is not None and provider_payout is not None
-            and provider_pb is not None and provider_pb > 0
-        )
-        if provider_core_complete:
-            roe_pts = 0 if provider_roe_pct < 8 else 10 if provider_roe_pct < 12 else 20 if provider_roe_pct < 16 else 28 if provider_roe_pct < 20 else 35
-            growth_pts = 0 if provider_eps_growth_pct <= 0 else 8 if provider_eps_growth_pct < 3 else 16 if provider_eps_growth_pct < 6 else 24 if provider_eps_growth_pct < 9 else 30
-            dist_pts = 15 if 0.30 <= provider_payout <= 0.65 else 10 if 0.20 <= provider_payout <= 0.80 else 5 if 0 <= provider_payout <= 1.0 else 0
-            pb_pts = 20 if 0.8 <= provider_pb <= 2.8 else 12 if 0.5 <= provider_pb <= 3.5 else 5
-            provider_score_value = float(roe_pts + growth_pts + dist_pts + pb_pts)
-            provider_quality = "Sehr stark" if provider_score_value >= 90 else "Stark" if provider_score_value >= 75 else "Solide" if provider_score_value >= 60 else "Mittel" if provider_score_value >= 45 else "Schwach"
-            insurance_score = {
-                "available": True, "score": provider_score_value, "quality_level": provider_quality,
-                "core_roe_pct": provider_roe_pct, "core_growth_points": growth_pts,
-                "core_roe_points": roe_pts, "distribution_points": dist_pts, "provider_pb_points": pb_pts,
-                "capital_points": None, "solvency_points": None, "capital_ratio_pct": None,
-                "capital_framework": None, "provider_first": True,
-                "note": "Provider-First Insurance Score V235: ROE, TTM-/Forward-EPS-Dynamik, Ausschüttung und P/B-Plausibilität stammen aus strukturierten Daten. Eine regulatorische Kapitalquote wird ohne Primärquellenprüfung nicht geschätzt; deshalb ist die Bewertungssicherheit höchstens Mittel."
-            }
-            pb_low, pb_high, pe_low, pe_high = 1.0, 2.8, 8.0, 14.0
-            frac = max(0.0, min(1.0, provider_score_value / 100.0))
-            target_pb = pb_low + frac * (pb_high - pb_low)
-            target_pe = pe_low + frac * (pe_high - pe_low)
-            fv_book = provider_bvps * target_pb
-            fv_eps = provider_eps * target_pe
-            spread = abs(fv_book / fv_eps - 1.0) * 100.0 if fv_eps > 0 else None
-            if spread is not None and spread <= 30.0:
-                insurance_valuation = {
-                    "available": True, "integration_version": INSURANCE_VALUATION_INTEGRATION_VERSION,
-                    "insurance_score": provider_score_value, "target_pb": target_pb, "target_core_pe": target_pe,
-                    "official_bvps": provider_bvps, "core_ttm_eps": provider_eps,
-                    "fair_value_book_financial": fv_book, "fair_value_core_pe_financial": fv_eps,
-                    "book_weight": 0.55, "core_pe_weight": 0.45, "anchor_spread_pct": spread,
-                    "fair_value_financial": 0.55 * fv_book + 0.45 * fv_eps,
-                    "earnings_basis_label": "Provider-TTM-EPS", "earnings_ttm_label": "Provider-TTM",
-                    "earnings_multiple_label": "Provider-TTM-KGV", "release_reason": "provider_first_passed",
-                    "provider_first": True,
-                    "note": "Provider-First Insurance Bewertung V235: strukturierter TTM-EPS- und Buchwert/P-B-Doppelanker. Primärquellen sind ein zusätzlicher Verifikationscheck; ohne vollständige Primärquellenprüfung ist die Bewertungssicherheit auf Mittel begrenzt."
-                }
-                provider_core_used = True
-                core_coverage = {
-                    "available": True, "integration_version": INSURANCE_CORE_COVERAGE_INTEGRATION_VERSION,
-                    "core_ttm_eps": provider_eps, "provider_first": True,
-                    "note": "TTM-EPS aus strukturiertem Datenanbieter; Primärquellen-Brücke optional."
-                }
-                book_value_bridge = {
-                    "available": True, "bvps_2026_h1": provider_bvps, "yahoo_book_value_financial": provider_bvps,
-                    "provider_first": True, "note": "Buchwert je Aktie aus strukturierten Daten bzw. P/B-Gegenrechnung; Primärquellenabgleich optional."
-                }
+    corporate_action_gate = (core_coverage.get("corporate_action_gate") or build_insurance_corporate_action_gate(snapshot))
 
     readiness = (
         f"{earnings_ttm_label} + Score + Bewertung vollständig"
         if (
-            (primary_source_complete or provider_core_used)
-            and core_coverage.get("available")
+            core_coverage.get("available")
             and book_value_bridge.get("available")
             and insurance_score.get("available")
             and insurance_valuation.get("available")
@@ -20390,8 +20570,7 @@ def build_insurance_special_model(
         else (
             f"{earnings_ttm_label} + Score vollständig"
             if (
-                (primary_source_complete or provider_core_used)
-                and core_coverage.get("available")
+                core_coverage.get("available")
                 and book_value_bridge.get("available")
                 and insurance_score.get("available")
             )
@@ -20422,9 +20601,8 @@ def build_insurance_special_model(
         "snapshot_fresh": snapshot_fresh,
         "adapter_diagnostic": adapter_diagnostic,
         "primary_source_complete": primary_source_complete,
-        "provider_core_complete": provider_core_complete,
-        "provider_core_used": provider_core_used,
-        "primary_verification_status": ("Verifiziert" if primary_source_complete else "Nicht vollständig automatisiert verifiziert"),
+        "provider_first_mode": provider_first_mode,
+        "primary_verification_optional": True,
         "primary_gate": primary_gate,
         "price_financial": price_financial,
         "book_value_per_share": book_value,
@@ -20478,10 +20656,7 @@ def build_insurance_special_model(
         "insurance_score": insurance_score,
         "insurance_valuation": insurance_valuation,
         "note": (
-            f"V235 Insurance Provider-First Core: {earnings_basis_label}-Ergebnisbasis, {earnings_ttm_label}-Brücke, "
-            f"RoE, {capital_ratio_label} und offizieller Buchwert werden in eine gemeinsame Versicherungs-Evidenzstruktur überführt. "
-            f"Unterprofil: {'Reinsurance' if is_reinsurance_profile else 'Primary/Diversified Insurance'}; "
-            "55/45-Doppelanker und Standard-FCF-Sperre bleiben erhalten; fehlende Primärquellen begrenzen die Sicherheit, blockieren aber nicht mehr allein die Bewertung."
+            (f"V235 Insurance Provider-First Core: strukturierte {earnings_ttm_label}-EPS-, RoE-, Ausschüttungs- und Buchwert/P-B-Daten bilden die Standardbewertung. Unternehmensberichte und regulatorische Kapitalquoten sind optionale Verifikation; ohne sie bleibt die Sicherheit höchstens Mittel." if provider_first_mode else f"V235 Primärquellen-Upgrade aktiv: {earnings_basis_label}, {earnings_ttm_label}, RoE, {capital_ratio_label} und offizieller Buchwert sind verifiziert.")
         )
     }
 
@@ -20526,12 +20701,28 @@ def build_insurance_special_control(base_control, insurance_model):
         ),
     })
 
-    if not model.get("primary_source_complete") and not model.get("provider_core_used"):
+    provider_first_mode = bool(model.get("provider_first_mode"))
+    if provider_first_mode:
+        control["planned_checks"] = [
+            "Strukturiertes TTM-EPS",
+            "ROE / EPS-Trend",
+            "Strukturierter Buchwert / P-B",
+            "Dividende / Ausschüttungsqualität",
+            "P/B- und TTM-KGV-Doppelanker",
+            "Optional: Solvency/SST und Unternehmensbericht als Primärquellen-Upgrade",
+        ]
+        control["status"] = "V236 Provider-First Insurance Core aktiv"
+        control["note"] = "Strukturierte Providerdaten bilden die Bewertungsbasis. Primärquellen sind optionales Sicherheits-Upgrade."
+
+    if not model.get("primary_source_complete") and not provider_first_mode:
         control.update({
-            "implemented": False, "released": False, "confidence_cap": "Niedrig",
-            "step3b_status": "Provider-Kerndaten unvollständig", "overall_status": "Nicht freigegeben",
+            "implemented": False,
+            "released": False,
+            "confidence_cap": "Niedrig",
+            "step3b_status": "Kernbewertung unvollständig",
+            "overall_status": "Nicht freigegeben",
             "snapshot": snapshot,
-            "note": "Die Insurance-Bewertung benötigt vollständige strukturierte Kerndaten. Primärquellen sind V235 optional und blockieren allein nicht mehr die Bewertung."
+            "note": "Für die Versicherungsbewertung fehlen belastbare strukturierte Kernanker.",
         })
         return control
 
@@ -20552,11 +20743,10 @@ def build_insurance_special_control(base_control, insurance_model):
         and insurance_valuation.get("integration_version") == INSURANCE_VALUATION_INTEGRATION_VERSION
     )
 
-    provider_mode = bool(model.get("provider_core_used") and not model.get("primary_source_complete"))
     control.update({
         "implemented": True,
         "released": valuation_ready,
-        "confidence_cap": "Mittel" if valuation_ready else "Niedrig",
+        "confidence_cap": ("Mittel" if valuation_ready else "Niedrig") if provider_first_mode else ("Mittel bis Hoch" if valuation_ready else "Niedrig"),
         "step3b_status": (
             "Dual-Anchor-Bewertung freigegeben"
             if valuation_ready
@@ -20600,6 +20790,8 @@ def build_insurance_special_control(base_control, insurance_model):
             "book_value_bridge": book_bridge,
             "insurance_score": insurance_score,
             "insurance_valuation": insurance_valuation,
+            "provider_first_mode": provider_first_mode,
+            "primary_source_complete": bool(model.get("primary_source_complete")),
             "profile_key": model.get("profile_key"),
             "is_munich_re_profile": is_munich_re_profile,
             "is_reinsurance_profile": is_reinsurance_profile,
@@ -20611,9 +20803,7 @@ def build_insurance_special_control(base_control, insurance_model):
             "roe_metric_label": model.get("roe_metric_label"),
         },
         "note": (
-            f"V217 Schritt 3B validiert die emittenteneigene {earnings_ttm_label}-Ergebnisbasis, RoE, {capital_ratio_label}, "
-            f"offiziellen Buchwert sowie getrennte P/B- und {earnings_multiple_label}-Anker. "
-            "Die Bewertung wird nur bei vollständiger und konsistenter Doppelanker-Prüfung freigegeben."
+            (f"V236 Provider-First: strukturierte {earnings_ttm_label}-EPS-, RoE-, Ausschüttungs- und Buchwert/P-B-Anker steuern die Bewertung. Solvency/SST und Unternehmensberichte werden nicht geschätzt; ohne Primärquellen-Check ist die Sicherheit auf Mittel begrenzt." if provider_first_mode else f"V235 Primärquellen-Upgrade: {earnings_ttm_label}, RoE, {capital_ratio_label} und offizieller Buchwert sind zusätzlich issuer-seitig verifiziert.")
         ),
     })
     return control
@@ -48284,7 +48474,7 @@ def get_special_control(company_type, symbol):
             ],
             "status": "Router aktiv – V216 Universal Insurance Evidence & Capital Framework Routing + Doppelanker-Bewertung",
             "note": (
-                "V216 trennt Yahoo-Kontextkennzahlen von verifizierten Versicherungs-Primärdaten. "
+                "V236 trennt strukturierte Provider-Bewertungsanker von optionaler Versicherungs-Primärquellen-Verifikation. "
                 "Versicherungsspezifische TTM-Abdeckung, offizieller Buchwert, RoE und regulatorische Kapitalquote, "
                 "Versicherungs-Score sowie P/B- und unterprofilabhängige TTM-KGV-Anker werden nur aus "
                 "verifizierten Daten aufgebaut. Der Fair Value wird ausschließlich bei vollständiger "
@@ -57273,9 +57463,14 @@ def calculate_fair_value_v1(
             "unit_conversion_applied": bool(unit_notes),
             "unit_note": " ".join(unit_notes) if unit_notes else None,
             "note": (
-                "Versicherungs-Fair-Value V1 = 55 % offizieller Buchwert/P-B-Anker + 45 % verifizierter "
-                f"{insurance_valuation.get('earnings_ttm_label') or 'TTM'}-EPS/{insurance_valuation.get('earnings_multiple_label') or 'TTM-KGV'}-Anker. "
-                "Standard-FCF und klassische Netto-Schulden/FCF-Logik werden nicht verwendet."
+                (
+                    "Versicherungs-Fair-Value V235 = 55 % strukturierter Buchwert/P-B-Anker + 45 % strukturierter "
+                    f"{insurance_valuation.get('earnings_ttm_label') or 'TTM'}-EPS/{insurance_valuation.get('earnings_multiple_label') or 'TTM-KGV'}-Anker. "
+                    "Unternehmensberichte sind optionaler Primärquellen-Check; Standard-FCF und klassische Netto-Schulden/FCF-Logik werden nicht verwendet."
+                ) if insurance_valuation.get("provider_first") else (
+                    "Versicherungs-Fair-Value V235 = 55 % primärquellenverifizierter Buchwert/P-B-Anker + 45 % verifizierter "
+                    f"{insurance_valuation.get('earnings_ttm_label') or 'TTM'}-EPS/{insurance_valuation.get('earnings_multiple_label') or 'TTM-KGV'}-Anker."
+                )
             ),
         })
         return result
@@ -65184,29 +65379,17 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     _insurance_primary_discovery_v222 = None
     _insurance_primary_for_evidence_v219 = _insurance_primary_static_v222
     if is_insurance_company_type(company_type) and not isinstance(_insurance_primary_static_v222, dict):
-        _insurance_primary_discovery_v222 = discover_insurance_primary_snapshot_v224(
-            fundamental_symbol,
+        # V235: no generic automatic issuer-report parsing. Resolve only the official link.
+        _insurance_primary_discovery_v222 = discover_insurance_official_links_v235(
             name,
             fundamental_info.get("website") or quote_info.get("website"),
-            (company_type or {}).get("insurance_subprofile"),
-            financial_currency,
-            cache_epoch=INSURANCE_IR_HUB_RESOLVER_VERSION_V224,
         )
-        _insurance_primary_discovery_v222 = apply_insurance_evidence_derivation_graph_v228(
-            _insurance_primary_discovery_v222,
-            universal_fundamentals_baseline_v225,
-            name,
-            (company_type or {}).get("insurance_subprofile"),
-            financial_currency,
-        )
-        _dynamic_insurance_snapshot_v222 = (_insurance_primary_discovery_v222 or {}).get("snapshot")
-        if isinstance(_dynamic_insurance_snapshot_v222, dict):
-            _insurance_primary_for_evidence_v219 = _dynamic_insurance_snapshot_v222
 
     universal_evidence_layer_v219 = build_universal_evidence_layer_v219(
         symbol, company_type, eulerpool_evidence_v219, _insurance_primary_for_evidence_v219
     )
     if isinstance(universal_evidence_layer_v219, dict):
+        universal_evidence_layer_v219["fundamentals_baseline_v235"] = universal_fundamentals_baseline_v225
         universal_evidence_layer_v219["fundamentals_baseline_v234"] = universal_fundamentals_baseline_v225
         universal_evidence_layer_v219["fundamentals_baseline_v231"] = universal_fundamentals_baseline_v225
         universal_evidence_layer_v219["fundamentals_baseline_v230"] = universal_fundamentals_baseline_v225
@@ -65220,6 +65403,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             primary_discovery=_insurance_primary_discovery_v222,
             primary_snapshot=_insurance_primary_for_evidence_v219,
         )
+        universal_evidence_layer_v219["family_specialist_delta_v235"] = _delta_v226
         universal_evidence_layer_v219["family_specialist_delta_v234"] = _delta_v226
         universal_evidence_layer_v219["family_specialist_delta_v231"] = _delta_v226
         universal_evidence_layer_v219["family_specialist_delta_v230"] = _delta_v226
@@ -65228,6 +65412,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         universal_evidence_layer_v219["family_specialist_delta_v227"] = _delta_v226
         universal_evidence_layer_v219["family_specialist_delta_v226"] = _delta_v226
         universal_evidence_layer_v219["family_specialist_delta_v225"] = _delta_v226
+        universal_evidence_layer_v219["insurance_primary_acquisition_v235"] = _insurance_primary_discovery_v222
         universal_evidence_layer_v219["insurance_primary_acquisition_v234"] = _insurance_primary_discovery_v222
         # Backward-compatible aliases for cached/UI paths from V233.
         universal_evidence_layer_v219["fundamentals_baseline_v233"] = universal_fundamentals_baseline_v225
@@ -65245,9 +65430,9 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "verified_static_issuer_snapshot"
             if isinstance(_insurance_primary_static_v222, dict)
             else (
-                "dynamic_issuer_primary_complete"
-                if isinstance(_insurance_primary_for_evidence_v219, dict)
-                else "dynamic_issuer_primary_pending"
+                "primary_link_only"
+                if isinstance(_insurance_primary_discovery_v222, dict)
+                else "primary_link_unavailable"
             )
         ) if is_insurance_company_type(company_type) else universal_evidence_layer_v219.get("issuer_primary_status")
 
@@ -65944,6 +66129,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         symbol=fundamental_symbol,
         snapshot_override=_insurance_primary_for_evidence_v219,
         adapter_diagnostic=_insurance_primary_discovery_v222,
+        provider_trailing_eps=trailing_eps,
+        provider_current_fy_eps=(eps_horizon_alignment.get("current_fy_eps") or forward_eps),
     )
 
     bank_special_model = build_legacy_specialist_if_allowed(
@@ -68479,7 +68666,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                         if is_bank_company_type(company_type)
                         else (
                             ". Bei Versicherungen wird ein wiederhergestellter Free Cashflow nur als Kontext geführt; "
-                            "Core Earnings/Core EPS, Core RoE und die regulatorische Kapitalquote werden separat aus Primärquellen geprüft."
+                            "TTM-EPS, ROE, Buchwert/P-B und Ausschüttung werden provider-first bewertet; regulatorische Kapitalquote und Unternehmensberichte sind optionaler Primärquellen-Check."
                             if is_insurance_company_type(company_type)
                             else (
                                 ". Bei American Express bleibt ein wiederhergestellter Yahoo-Free-Cashflow ausschließlich Diagnosekontext; "
@@ -69110,7 +69297,7 @@ if selected_symbol:
                 compact_official_event_label = compact_insurance_snapshot.get("next_financial_event_label")
                 if not compact_official_event_date:
                     _compact_ue_v224 = data.get("universal_evidence_layer_v219") or {}
-                    _compact_primary_v224 = _compact_ue_v224.get("insurance_primary_acquisition_v234") or get("insurance_primary_acquisition_v233") or _compact_ue_v224.get("insurance_primary_acquisition_v231") or _compact_ue_v224.get("insurance_primary_acquisition_v230") or _compact_ue_v224.get("insurance_primary_acquisition_v224") or _compact_ue_v224.get("insurance_primary_acquisition_v223") or {}
+                    _compact_primary_v224 = _compact_ue_v224.get("insurance_primary_acquisition_v234") or evidence_v219_ui.get("insurance_primary_acquisition_v233") or _compact_ue_v224.get("insurance_primary_acquisition_v231") or _compact_ue_v224.get("insurance_primary_acquisition_v230") or _compact_ue_v224.get("insurance_primary_acquisition_v224") or _compact_ue_v224.get("insurance_primary_acquisition_v223") or {}
                     _compact_calendar_v224 = (_compact_primary_v224 or {}).get("calendar_event") or {}
                     compact_official_event_date = _compact_calendar_v224.get("date")
                     compact_official_event_label = _compact_calendar_v224.get("label")
@@ -69238,24 +69425,24 @@ if selected_symbol:
                                 if _semantic_total_top else ""
                             )
                             st.success(
-                                "Universal Fundamentals Baseline V235: Eulerpool verbunden · "
+                                "Universal Fundamentals Baseline V236: Eulerpool verbunden · "
                                 f"{int(provider_v219_ui.get('dataset_count') or 0)} Datensätze verfügbar"
                                 + _mapped_text_top + _semantic_text_top
                                 + " · Standard-Fundamentaldaten provider-first; Primärquellen nur für familienentscheidende Spezialkennzahlen."
                             )
                         elif provider_v219_ui.get("configured"):
                             st.warning(
-                                "Universal Fundamentals Baseline V235: Eulerpool ist konfiguriert, für diesen Titel aber nur teilweise bzw. nicht auflösbar. "
+                                "Universal Fundamentals Baseline V236: Eulerpool ist konfiguriert, für diesen Titel aber nur teilweise bzw. nicht auflösbar. "
                                 "Die Bewertung fällt nicht auf unbestätigte Provider-Daten zurück."
                             )
                         else:
                             st.caption(
-                                "Universal Fundamentals Baseline V235: Eulerpool optional nicht verbunden. "
+                                "Universal Fundamentals Baseline V236: Eulerpool optional nicht verbunden. "
                                 "Für die strukturierte Sekundärevidenz kann EULERPOOL_API_KEY als Umgebungsvariable oder Streamlit-Secret gesetzt werden; "
                                 "bestehende Primärquellen-/Yahoo-Pfade bleiben unverändert."
                             )
                         if is_insurance_company_type(company_type):
-                            _primary_v222 = evidence_v219_ui.get("insurance_primary_acquisition_v234") or get("insurance_primary_acquisition_v233") or evidence_v219_ui.get("insurance_primary_acquisition_v231") or evidence_v219_ui.get("insurance_primary_acquisition_v230") or evidence_v219_ui.get("insurance_primary_acquisition_v229") or evidence_v219_ui.get("insurance_primary_acquisition_v228") or evidence_v219_ui.get("insurance_primary_acquisition_v227") or evidence_v219_ui.get("insurance_primary_acquisition_v224") or evidence_v219_ui.get("insurance_primary_acquisition_v223") or evidence_v219_ui.get("insurance_primary_acquisition_v222") or {}
+                            _primary_v222 = evidence_v219_ui.get("insurance_primary_acquisition_v235") or evidence_v219_ui.get("insurance_primary_acquisition_v234") or evidence_v219_ui.get("insurance_primary_acquisition_v233") or evidence_v219_ui.get("insurance_primary_acquisition_v231") or evidence_v219_ui.get("insurance_primary_acquisition_v230") or evidence_v219_ui.get("insurance_primary_acquisition_v229") or evidence_v219_ui.get("insurance_primary_acquisition_v228") or evidence_v219_ui.get("insurance_primary_acquisition_v227") or evidence_v219_ui.get("insurance_primary_acquisition_v224") or evidence_v219_ui.get("insurance_primary_acquisition_v223") or evidence_v219_ui.get("insurance_primary_acquisition_v222") or {}
                             _primary_status_v222 = evidence_v219_ui.get("issuer_primary_status")
                             if _primary_status_v222 == "verified_static_issuer_snapshot":
                                 st.caption("Insurance-Primärquellen V234: bestehender verifizierter Emittenten-Snapshot aktiv.")
@@ -69266,15 +69453,18 @@ if selected_symbol:
                                 _domain_v222 = (_primary_v222 or {}).get("company_domain")
                                 _status_text_v222 = text_or_dash((_primary_v222 or {}).get("status"))
                                 _extra_v222 = (" · Emittenten-Domain: " + str(_domain_v222)) if _domain_v222 else ""
-                                st.warning("Versicherungs-Spezialmodell-Delta V235: " + _status_text_v222 + _extra_v222 + ". Bewertung bleibt bewusst gesperrt.")
-                            _delta_v225_top = evidence_v219_ui.get("family_specialist_delta_v234") or get("family_specialist_delta_v233") or evidence_v219_ui.get("family_specialist_delta_v231") or evidence_v219_ui.get("family_specialist_delta_v230") or evidence_v219_ui.get("family_specialist_delta_v229") or evidence_v219_ui.get("family_specialist_delta_v228") or evidence_v219_ui.get("family_specialist_delta_v227") or evidence_v219_ui.get("family_specialist_delta_v226") or evidence_v219_ui.get("family_specialist_delta_v225") or {}
+                                st.info("Primärquellen-Check V236: " + _status_text_v222 + _extra_v222 + ". Unternehmensberichte sind optional; die Bewertung nutzt bei vollständigen strukturierten Kernankern den Provider-First-Pfad.")
+                                _ir_url_v235 = (_primary_v222 or {}).get("official_ir_url") or (_primary_v222 or {}).get("official_homepage")
+                                if _ir_url_v235:
+                                    st.markdown(f"[Offizielle Investor-Relations-/Unternehmensseite öffnen]({_ir_url_v235})")
+                            _delta_v225_top = evidence_v219_ui.get("family_specialist_delta_v235") or evidence_v219_ui.get("family_specialist_delta_v234") or evidence_v219_ui.get("family_specialist_delta_v233") or evidence_v219_ui.get("family_specialist_delta_v231") or evidence_v219_ui.get("family_specialist_delta_v230") or evidence_v219_ui.get("family_specialist_delta_v229") or evidence_v219_ui.get("family_specialist_delta_v228") or evidence_v219_ui.get("family_specialist_delta_v227") or evidence_v219_ui.get("family_specialist_delta_v226") or evidence_v219_ui.get("family_specialist_delta_v225") or {}
                             _sat_v225_top = _delta_v225_top.get("baseline_satisfied_primary_items") or []
                             _remain_v225_top = _delta_v225_top.get("remaining_primary_missing_after_baseline") or []
                             if _sat_v225_top:
-                                st.caption("V235 Standardbasis deckt bereits: " + " · ".join(str(x.get("requirement")) for x in _sat_v225_top))
+                                st.caption("V236 Standardbasis deckt bereits: " + " · ".join(str(x.get("requirement")) for x in _sat_v225_top))
                             if _remain_v225_top:
-                                st.caption("V234 verbleibender Specialist-Delta: " + " · ".join(str(x) for x in _remain_v225_top))
-                            with st.expander("🔗 Primärquellen-Check & offizielle Unternehmensberichte V235", expanded=False):
+                                st.caption("Optionaler Primärquellen-Delta (nicht bewertungsblockierend): " + " · ".join(str(x) for x in _remain_v225_top))
+                            with st.expander("🧪 Optionale Primärquellen-Diagnose V236", expanded=False):
                                 _stages_v232 = (_primary_v222 or {}).get("resolver_stages") or {}
                                 st.write("Resolver-Stufen:", _stages_v232)
                                 _docs_v232 = (_primary_v222 or {}).get("documents") or {}
@@ -69436,7 +69626,7 @@ if selected_symbol:
                     if evidence_v219_ui:
                         contract_v219_ui = evidence_v219_ui.get("contract") or {}
                         provider_v219_ui = evidence_v219_ui.get("provider") or {}
-                        with st.expander("🧱 Universal Fundamentals Baseline V235", expanded=False):
+                        with st.expander("🧱 Universal Fundamentals Baseline V233", expanded=False):
                             st.write(
                                 "**Quellenpriorität:** "
                                 + " → ".join(contract_v219_ui.get("source_priority") or [])
@@ -69586,12 +69776,12 @@ if selected_symbol:
                                 )
                                 if _b_verified_v225:
                                     st.caption("Freigegebene Standardfelder: " + " · ".join(str(x) for x in _b_verified_v225))
-                            _delta_v225_ui = evidence_v219_ui.get("family_specialist_delta_v234") or get("family_specialist_delta_v233") or evidence_v219_ui.get("family_specialist_delta_v231") or evidence_v219_ui.get("family_specialist_delta_v230") or evidence_v219_ui.get("family_specialist_delta_v229") or evidence_v219_ui.get("family_specialist_delta_v228") or evidence_v219_ui.get("family_specialist_delta_v227") or evidence_v219_ui.get("family_specialist_delta_v226") or evidence_v219_ui.get("family_specialist_delta_v225") or {}
+                            _delta_v225_ui = evidence_v219_ui.get("family_specialist_delta_v235") or evidence_v219_ui.get("family_specialist_delta_v234") or evidence_v219_ui.get("family_specialist_delta_v233") or evidence_v219_ui.get("family_specialist_delta_v231") or evidence_v219_ui.get("family_specialist_delta_v230") or evidence_v219_ui.get("family_specialist_delta_v229") or evidence_v219_ui.get("family_specialist_delta_v228") or evidence_v219_ui.get("family_specialist_delta_v227") or evidence_v219_ui.get("family_specialist_delta_v226") or evidence_v219_ui.get("family_specialist_delta_v225") or {}
                             if _delta_v225_ui:
                                 _sat_v225 = _delta_v225_ui.get("baseline_satisfied_primary_items") or []
                                 _remain_v225 = _delta_v225_ui.get("remaining_primary_missing_after_baseline") or []
                                 _deferred_v225 = _delta_v225_ui.get("deferred_context_requirements") or []
-                                st.markdown("**V230 – Familien-Specialist-Delta & Gate-Vertrag**")
+                                st.markdown("**V235 – Primärquellen-Check (optional)**")
                                 if _sat_v225:
                                     st.success("Standardbasis übernimmt: " + " · ".join(str(x.get("requirement")) for x in _sat_v225))
                                 _standard_contract_v226 = _delta_v225_ui.get("standard_baseline_contract") or []
@@ -69599,17 +69789,17 @@ if selected_symbol:
                                     st.caption("Provider-first Vertrag: " + " · ".join(("✅ " if x.get("satisfied") else "⚠️ ") + str(x.get("requirement")) for x in _standard_contract_v226))
                                 _hard_contract_v226 = _delta_v225_ui.get("specialist_primary_contract") or []
                                 if _hard_contract_v226:
-                                    st.caption("Issuer-primary Hard-Gates: " + " · ".join(("✅ " if x.get("satisfied") else "❌ ") + str(x.get("requirement")) for x in _hard_contract_v226))
+                                    st.caption("Optionale Primärquellen-Prüfpunkte: " + " · ".join(("✅ " if x.get("satisfied") else "❌ ") + str(x.get("requirement")) for x in _hard_contract_v226))
                                 if _remain_v225:
-                                    st.warning("Noch für denselben Release-Vertrag zu lösen: " + " · ".join(str(x) for x in _remain_v225))
+                                    st.warning("Optional noch nicht primärquellenverifiziert: " + " · ".join(str(x) for x in _remain_v225))
                                 elif _delta_v225_ui.get("specialist_release_ready"):
                                     st.success("V230 Evidenzvertrag vollständig. Das bestehende Insurance-Gate darf nun die tatsächliche Snapshot-/Score-/Fair-Value-Freigabe prüfen.")
-                                st.caption("Gate-Abgleich: Anzeige und diagnostischer Specialist-Delta stammen aus demselben V230-Vertrag.")
+                                st.caption("V235: Diese Primärquellen-Diagnose blockiert die Provider-First-Bewertung nicht.")
                                 st.caption(text_or_dash(_delta_v225_ui.get("note")))
                             if is_insurance_company_type(company_type):
-                                _primary_v222 = evidence_v219_ui.get("insurance_primary_acquisition_v234") or get("insurance_primary_acquisition_v233") or evidence_v219_ui.get("insurance_primary_acquisition_v231") or evidence_v219_ui.get("insurance_primary_acquisition_v230") or evidence_v219_ui.get("insurance_primary_acquisition_v229") or evidence_v219_ui.get("insurance_primary_acquisition_v228") or evidence_v219_ui.get("insurance_primary_acquisition_v227") or evidence_v219_ui.get("insurance_primary_acquisition_v224") or evidence_v219_ui.get("insurance_primary_acquisition_v223") or evidence_v219_ui.get("insurance_primary_acquisition_v222") or {}
+                                _primary_v222 = evidence_v219_ui.get("insurance_primary_acquisition_v235") or evidence_v219_ui.get("insurance_primary_acquisition_v234") or evidence_v219_ui.get("insurance_primary_acquisition_v233") or evidence_v219_ui.get("insurance_primary_acquisition_v231") or evidence_v219_ui.get("insurance_primary_acquisition_v230") or evidence_v219_ui.get("insurance_primary_acquisition_v229") or evidence_v219_ui.get("insurance_primary_acquisition_v228") or evidence_v219_ui.get("insurance_primary_acquisition_v227") or evidence_v219_ui.get("insurance_primary_acquisition_v224") or evidence_v219_ui.get("insurance_primary_acquisition_v223") or evidence_v219_ui.get("insurance_primary_acquisition_v222") or {}
                                 _primary_status_v222 = evidence_v219_ui.get("issuer_primary_status")
-                                st.markdown("**Insurance Specialist-Resolver V230 (Hub-first V224 Dokumentengine + Row-Pair-/Comparative-Ableitungsgraph)**")
+                                st.markdown("**Insurance Primärquellen-Link V235 (optional, keine automatische Berichtskennzahlen-Übernahme)**")
                                 if _primary_status_v222 == "verified_static_issuer_snapshot":
                                     st.write("Status: bestehender verifizierter Emittenten-Snapshot")
                                 else:
@@ -69658,7 +69848,7 @@ if selected_symbol:
                                         st.caption(text_or_dash(_graph_v227.get("release_rule")))
                                     _missing_v222 = list((_primary_v222 or {}).get("missing_primary") or [])
                                     if _missing_v222:
-                                        st.warning("Noch fehlende Primärevidenz nach V230-Ableitungsgraph: " + " · ".join(str(x) for x in _missing_v222))
+                                        st.warning("Optional nicht automatisch verifizierte Primärdaten: " + " · ".join(str(x) for x in _missing_v222))
                                     elif (_primary_v222 or {}).get("complete"):
                                         st.success("Dynamischer Primärquellen-Snapshot vollständig. Keine Eulerpool-/Yahoo-Ersatzwerte wurden zur Freigabe verwendet.")
                                     _cal_v222 = (_primary_v222 or {}).get("calendar_event") or {}
@@ -69666,10 +69856,14 @@ if selected_symbol:
                                         st.caption("Offizieller nächster Berichtstermin erkannt: " + str(_cal_v222.get("date")) + " · " + text_or_dash(_cal_v222.get("label")))
 
                             if evidence_v219_ui.get("issuer_primary_complete") is False:
-                                st.warning(
-                                    "Familien-Specialist-Evidenz noch nicht vollständig. Die V230-Standardbasis darf generische Fundamentaldaten vorbefüllen, "
-                                    "aber familienentscheidende Spezialkennzahlen nicht ersetzen; Score/Fair Value bleiben gemäß bestehendem Familien-Gate gesperrt."
-                                )
+                                if is_insurance_company_type(company_type):
+                                    st.info(
+                                        "V235 Insurance: Primärquellen-Evidenz ist optional. Strukturierte Kernanker dürfen Score/Fair Value freigeben; fehlende Solvency/SST- oder Unternehmensbericht-Verifikation begrenzt die Sicherheit auf Mittel."
+                                    )
+                                else:
+                                    st.warning(
+                                        "Familien-Specialist-Evidenz noch nicht vollständig. Die Standardbasis darf familienentscheidende Spezialkennzahlen nicht ersetzen; Score/Fair Value bleiben gemäß Familien-Gate gesperrt."
+                                    )
                             elif evidence_v219_ui.get("issuer_primary_complete") is True:
                                 st.success("Familien-Primärevidenz über einen verifizierten Specialist-/Primärquellenpfad vorhanden.")
                             st.caption(text_or_dash(evidence_v219_ui.get("release_rule")))
@@ -70635,12 +70829,18 @@ if selected_symbol:
                         )
                         st.info(format_bank_core_eps_note_for_display(bank_core_eps_ui, financial_currency))
                     elif insurance_core_eps_active:
-                        basis_label_ui = insurance_model_eps_ui.get("earnings_basis_label") or "versicherungsspezifisches"
-                        st.write(
-                            f"**Verwendete Methode:** 12M 2025 {basis_label_ui} EPS − 6M 2025 {basis_label_ui} EPS + "
-                            f"6M 2026 {basis_label_ui} EPS; ausschließlich verifizierte Versicherungs-Primärquellen, "
-                            "keine Annualisierung der Halbjahreswerte"
-                        )
+                        if insurance_model_eps_ui.get("provider_first_mode"):
+                            st.write(
+                                "**Verwendete Methode:** strukturiertes TTM-EPS des Datenanbieters als Standard-Gewinnanker; "
+                                "Current-FY-EPS dient als Trend-/Horizontkomponente. Eine FY−H1+H1-Brücke aus Unternehmensberichten ist optional."
+                            )
+                        else:
+                            basis_label_ui = insurance_model_eps_ui.get("earnings_basis_label") or "versicherungsspezifisches"
+                            st.write(
+                                f"**Verwendete Methode:** 12M 2025 {basis_label_ui} EPS − 6M 2025 {basis_label_ui} EPS + "
+                                f"6M 2026 {basis_label_ui} EPS; ausschließlich verifizierte Versicherungs-Primärquellen, "
+                                "keine Annualisierung der Halbjahreswerte"
+                            )
                         st.info(insurance_core_coverage_ui.get("note"))
                     else:
                         eps_method_display = eps_result['method']
@@ -71434,11 +71634,17 @@ if selected_symbol:
                             "Gewinnbasis des KGV-Ankers. Der P/TBV-Anker bleibt davon unabhängig."
                         )
                     elif insurance_core_eps_active:
-                        st.caption(
-                            f"Der verifizierte {insurance_model_eps_ui.get('earnings_ttm_label') or 'Versicherungs-TTM'}-EPS-Wert ist die Gewinnbasis des "
-                            f"{insurance_model_eps_ui.get('earnings_multiple_label') or 'Versicherungs-KGV'}-Ankers; die Fair-Value-Freigabe erfolgt "
-                            "ausschließlich über das V216 Universal-Insurance-Doppelanker-Gate."
-                        )
+                        if insurance_model_eps_ui.get("provider_first_mode"):
+                            st.caption(
+                                "Das strukturierte Provider-TTM-EPS ist der Gewinnanker des Provider-TTM-KGV. "
+                                "Unternehmensberichte dienen nur als optionaler Primärquellen-Gegencheck; ohne Upgrade bleibt die Bewertungssicherheit höchstens Mittel."
+                            )
+                        else:
+                            st.caption(
+                                f"Der verifizierte {insurance_model_eps_ui.get('earnings_ttm_label') or 'Versicherungs-TTM'}-EPS-Wert ist die Gewinnbasis des "
+                                f"{insurance_model_eps_ui.get('earnings_multiple_label') or 'Versicherungs-KGV'}-Ankers; die Fair-Value-Freigabe erfolgt "
+                                "ausschließlich über das Universal-Insurance-Doppelanker-Gate."
+                            )
                     elif company_type.get("type") == "REIT / Immobilien":
                         st.caption(
                             "Das normalisierte EPS wird bei REITs nur "
@@ -72611,8 +72817,7 @@ if selected_symbol:
                         insurance_profit_growth_label_ui = (insurance_profit_model_ui.get("snapshot") or {}).get("score_growth_label") or "EPS-Wachstum"
                         st.info(
                             "Versicherungsmodell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet. "
-                            "Die Ertragskraft wird im eigenen Versicherungs-Score über die freigegebene RoE-Kennzahl und "
-                            "das auf gleicher Ergebnisbasis geprüfte EPS-Wachstum bewertet."
+                            "V235 bewertet im Provider-First-Pfad strukturierte ROE-, TTM/Current-FY-EPS-Trend- und Ausschüttungsdaten; Primärquellen können die Sicherheit erhöhen."
                         )
                         if insurance_score_profit_ui.get("available"):
                             st.write(
@@ -73558,12 +73763,18 @@ if selected_symbol:
                             else "🛡️ Insurance-Familienmodell V216 – Datenbasis"
                         )
 
-                        st.info(
-                            f"V216 verwendet die emittenteneigene Ergebnisbasis ({insurance_basis_ui}), RoE, {insurance_capital_label_ui} und den "
-                            "offiziellen Buchwert aus verifizierten Primärquellen. Die TTM-Brücke wird nicht annualisiert; "
-                            f"P/B und {insurance_model.get('earnings_multiple_label') or 'Versicherungs-TTM-KGV'} bleiben getrennte Bewertungsanker. "
-                            f"Unterprofil: {'Reinsurance' if insurance_is_reinsurance_ui else 'Primary/Diversified Insurance'}."
-                        )
+                        if insurance_model.get("provider_first_mode"):
+                            st.info(
+                                "V236 Provider-First: strukturierte TTM-EPS-, ROE-, Ausschüttungs- und Buchwert/P-B-Daten bilden den Standardkern. "
+                                "Unternehmensberichte und regulatorische Kapitalquoten sind optionale Primärquellen-Kontrolle; ohne sie ist die Bewertungssicherheit höchstens Mittel. "
+                                f"Unterprofil: {'Reinsurance' if insurance_is_reinsurance_ui else 'Primary/Diversified Insurance'}."
+                            )
+                        else:
+                            st.info(
+                                f"V235 Primärquellen-Upgrade: emittenteneigene Ergebnisbasis ({insurance_basis_ui}), RoE, {insurance_capital_label_ui} und offizieller Buchwert sind verifiziert. "
+                                f"P/B und {insurance_model.get('earnings_multiple_label') or 'Versicherungs-TTM-KGV'} bleiben getrennte Bewertungsanker. "
+                                f"Unterprofil: {'Reinsurance' if insurance_is_reinsurance_ui else 'Primary/Diversified Insurance'}."
+                            )
 
                         col1, col2 = st.columns(2)
 
@@ -73689,7 +73900,7 @@ if selected_symbol:
                                 _ins_secondary_parts_v219.append("Aktienzahl " + _format_eulerpool_shares_v220(_ins_shares_v219, _ins_shares_item_v220.get("unit")))
                             if _ins_secondary_parts_v219:
                                 st.caption(
-                                    "Eulerpool-Standardbasis V231: " + " · ".join(_ins_secondary_parts_v219)
+                                    "Eulerpool-Standardbasis V235: " + " · ".join(_ins_secondary_parts_v219)
                                     + ". Diese Werte dienen nur der Evidenzbeschaffung/Plausibilisierung und ersetzen keine Versicherungs-Primärquelle."
                                 )
                                 if _ins_bvps_v219 is not None and not _ins_bvps_item_v221.get("semantic_verified"):
@@ -74007,6 +74218,37 @@ if selected_symbol:
                                     insurance_score_ui.get("note")
                                     or "Versicherungs-Score noch nicht vollständig."
                                 )
+                        elif insurance_model.get("provider_first_mode"):
+                            core_cov_ui = insurance_model.get("core_coverage") or {}
+                            book_bridge_ui = insurance_model.get("book_value_bridge") or {}
+                            insurance_score_ui = insurance_model.get("insurance_score") or {}
+                            insurance_val_ui = insurance_model.get("insurance_valuation") or {}
+                            st.success(
+                                "V236 Provider-First aktiv: Unternehmensberichte sind keine Voraussetzung für die Standardbewertung. "
+                                "Primärquellen können die Sicherheit erhöhen; fehlende Solvency/SST-Werte werden nicht geschätzt."
+                            )
+                            st.metric("Provider-TTM-EPS", format_eps(safe_float(core_cov_ui.get("core_ttm_eps")), financial_currency))
+                            _provider_bvps_ui = safe_float(book_bridge_ui.get("bvps_2026_h1"))
+                            st.metric("Strukturierter Buchwert je Aktie", format_eps(_provider_bvps_ui, financial_currency) if _provider_bvps_ui is not None else "–")
+                            if insurance_score_ui.get("available"):
+                                st.metric("Provider-First Versicherungs-Score", f"{insurance_score_ui.get('score'):.0f}/100 Punkte")
+                                _roe_pts = insurance_score_ui.get("core_roe_points")
+                                _roe_pct = safe_float(insurance_score_ui.get("core_roe_pct"))
+                                _growth_pts = insurance_score_ui.get("core_growth_points")
+                                _growth_pct = safe_float(insurance_score_ui.get("underlying_core_eps_growth_pct"))
+                                _dist_pts = insurance_score_ui.get("distribution_points")
+                                _payout = safe_float(insurance_score_ui.get("dividend_core_eps_payout_ratio"))
+                                st.write(f"**ROE-Qualität:** {_roe_pts}/30 Punkte" + (f" bei {_roe_pct:.1f} %" if _roe_pct is not None else ""))
+                                st.write(f"**TTM → aktuelles FY EPS-Trend:** {_growth_pts}/20 Punkte" + (f" bei {_growth_pct:+.1f} %" if _growth_pct is not None else ""))
+                                st.write(f"**Ausschüttungsqualität:** {_dist_pts}/10 Punkte" + (f" bei {_payout*100:.1f} %" if _payout is not None else ""))
+                                st.caption(insurance_score_ui.get("note"))
+                            else:
+                                st.warning(insurance_score_ui.get("note") or "Provider-First Qualitätskern noch unvollständig.")
+                            st.write("**Regulatorische Kapitalquote / Solvency / SST:** – (optional; nicht geschätzt)")
+                            if insurance_val_ui.get("available"):
+                                st.success(insurance_val_ui.get("note"))
+                            elif insurance_val_ui.get("note"):
+                                st.warning(insurance_val_ui.get("note"))
                         elif insurance_model.get("snapshot") and not insurance_model.get("snapshot_fresh"):
                             st.warning(
                                 "Der verifizierte Versicherungs-Snapshot ist abgelaufen. "
@@ -75258,9 +75500,12 @@ if selected_symbol:
 
                         st.caption(multiple_result.get("note"))
                         st.caption(
-                            "Bei Versicherungen werden offizieller Buchwert/P-B und verifiziertes "
-                            f"{insurance_model_m6.get('earnings_ttm_label') or 'Insurance-TTM'}-EPS/{insurance_pe_label_m6} "
-                            "getrennt geführt. Der Doppelanker-Fair-Value folgt erst nach Schritt 3B."
+                            (
+                                "Bei Versicherungen werden strukturierter Buchwert/P-B und Provider-TTM-EPS/KGV getrennt geführt. Unternehmensberichte sind ein optionaler Primärquellen-Check; der Doppelanker-Fair-Value folgt nach Schritt 3B."
+                            ) if insurance_model_m6.get("provider_first_mode") else (
+                                "Bei Versicherungen werden primärquellenverifizierter Buchwert/P-B und "
+                                f"{insurance_model_m6.get('earnings_ttm_label') or 'Insurance-TTM'}-EPS/{insurance_pe_label_m6} getrennt geführt. Der Doppelanker-Fair-Value folgt nach Schritt 3B."
+                            )
                         )
                     elif is_nvidia_valuation_ui:
                         nv_m6 = data.get("nvidia_special_model") or {}
@@ -79734,57 +79979,59 @@ if selected_symbol:
                                 else "🛡️ Modul 6 – Schritt 3B: Insurance-Ergebnis-, Kapital- & Regulatorikprüfung"
                             )
 
-                            st.write(
-                                "**Datenstand:** "
-                                f"{text_or_dash(snapshot.get('as_of_date'))} "
-                                f"(veröffentlicht {text_or_dash(snapshot.get('published_date'))})"
-                            )
-
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                cni = safe_float(checks.get("shareholders_core_net_income"))
-                                st.metric(
-                                    f"{insurance_income_label_3b} (6M)",
-                                    format_money(cni, financial_currency) if cni is not None else "–"
+                            provider_first_3b = bool(checks.get("provider_first_mode"))
+                            if provider_first_3b:
+                                st.info(
+                                    "Provider-First V236: Die Standardbewertung verwendet strukturierte TTM-EPS-, ROE-, "
+                                    "Ausschüttungs- und Buchwert/P-B-Daten. Unternehmensberichte sowie Solvency/SST sind optionaler Primärquellen-Check."
                                 )
-                                ceps = safe_float(checks.get("core_eps_basic"))
-                                st.metric(
-                                    f"{insurance_eps_label_3b} (6M)",
-                                    format_eps(ceps, financial_currency) if ceps is not None else "–"
+                                _score_pf_3b = checks.get("insurance_score") or {}
+                                _roe_pf_3b = safe_float(_score_pf_3b.get("core_roe_pct"))
+                                _growth_pf_3b = safe_float(_score_pf_3b.get("underlying_core_eps_growth_pct"))
+                                _payout_pf_3b = safe_float(_score_pf_3b.get("dividend_core_eps_payout_ratio"))
+                                _pf1, _pf2 = st.columns(2)
+                                with _pf1:
+                                    st.metric("ROE (strukturierter Anbieter)", f"{_roe_pf_3b:.1f} %" if _roe_pf_3b is not None else "–")
+                                    st.metric("TTM → aktuelles FY EPS-Trend", f"{_growth_pf_3b:+.1f} %" if _growth_pf_3b is not None else "–")
+                                with _pf2:
+                                    st.metric("Ausschüttungsquote", f"{_payout_pf_3b*100:.1f} %" if _payout_pf_3b is not None else "–")
+                                    st.metric("Solvency / SST", "– · optional, nicht geschätzt")
+                                st.caption(
+                                    "Primärquellenstatus: nicht vollständig automatisiert. Das begrenzt die Bewertungssicherheit, "
+                                    "blockiert bei vollständigen strukturierten Kernankern aber nicht den Fair Value."
                                 )
-                                croe = safe_float(checks.get("core_roe_annualized_pct"))
-                                st.metric(
-                                    f"{insurance_roe_label_3b} (annualisiert)",
-                                    f"{croe:.1f} %" if croe is not None else "–"
+                            else:
+                                st.write(
+                                    "**Datenstand:** "
+                                    f"{text_or_dash(snapshot.get('as_of_date'))} "
+                                    f"(veröffentlicht {text_or_dash(snapshot.get('published_date'))})"
                                 )
-                            with col2:
-                                capital_ratio_3b = safe_float(checks.get("capital_ratio_pct"))
-                                st.metric(
-                                    insurance_capital_label_3b,
-                                    f"{capital_ratio_3b:.0f} %" if capital_ratio_3b is not None else "–"
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    cni = safe_float(checks.get("shareholders_core_net_income"))
+                                    st.metric(f"{insurance_income_label_3b} (6M)", format_money(cni, financial_currency) if cni is not None else "–")
+                                    ceps = safe_float(checks.get("core_eps_basic"))
+                                    st.metric(f"{insurance_eps_label_3b} (6M)", format_eps(ceps, financial_currency) if ceps is not None else "–")
+                                    croe = safe_float(checks.get("core_roe_annualized_pct"))
+                                    st.metric(f"{insurance_roe_label_3b} (annualisiert)", f"{croe:.1f} %" if croe is not None else "–")
+                                with col2:
+                                    capital_ratio_3b = safe_float(checks.get("capital_ratio_pct"))
+                                    st.metric(insurance_capital_label_3b, f"{capital_ratio_3b:.0f} %" if capital_ratio_3b is not None else "–")
+                                    cg = safe_float(checks.get("core_net_income_growth_pct"))
+                                    st.metric(insurance_income_growth_label_3b, f"{cg:.1f} %" if cg is not None else "–")
+                                    eg = safe_float(checks.get("core_eps_growth_pct"))
+                                    st.metric(insurance_eps_growth_label_3b, f"{eg:.1f} %" if eg is not None else "–")
+                                st.success(
+                                    (
+                                        "Reinsurance-Primärdaten vollständig validiert. Emittentenausgewiesenes Ergebnis/EPS, RoE, "
+                                        f"{insurance_capital_label_3b} und offizieller Buchwert sind belastbar vorhanden."
+                                    )
+                                    if insurance_is_reinsurance_3b
+                                    else (
+                                        "Versicherungs-Primärdaten vollständig validiert. Versicherungsspezifisches Ergebnis/EPS, "
+                                        f"RoE und {insurance_capital_label_3b} sind belastbar vorhanden."
+                                    )
                                 )
-                                cg = safe_float(checks.get("core_net_income_growth_pct"))
-                                st.metric(
-                                    insurance_income_growth_label_3b,
-                                    f"{cg:.1f} %" if cg is not None else "–"
-                                )
-                                eg = safe_float(checks.get("core_eps_growth_pct"))
-                                st.metric(
-                                    insurance_eps_growth_label_3b,
-                                    f"{eg:.1f} %" if eg is not None else "–"
-                                )
-
-                            st.success(
-                                (
-                                    "Reinsurance-Primärdaten vollständig validiert. Emittentenausgewiesenes Ergebnis/EPS, RoE, "
-                                    f"{insurance_capital_label_3b} und offizieller Buchwert sind belastbar vorhanden."
-                                )
-                                if insurance_is_reinsurance_3b
-                                else (
-                                    "Versicherungs-Primärdaten vollständig validiert. Versicherungsspezifisches Ergebnis/EPS, "
-                                    f"RoE und {insurance_capital_label_3b} sind belastbar vorhanden."
-                                )
-                            )
 
                             core_cov_3b = checks.get("core_coverage") or {}
                             corporate_action_3b = checks.get("corporate_action_gate") or {}
@@ -79801,21 +80048,19 @@ if selected_symbol:
                                 st.write(
                                     f"**{insurance_ttm_label_3b}-EPS:** "
                                     f"{format_eps(core_cov_3b.get('core_ttm_eps'), financial_currency)} "
-                                    "· Methode: 12M 2025 − 6M 2025 + 6M 2026"
+                                    + ("· Quelle: strukturierter Datenanbieter" if core_cov_3b.get("source_mode") == "provider_structured_ttm" else "· Methode: 12M 2025 − 6M 2025 + 6M 2026")
                                 )
                                 st.caption(core_cov_3b.get("note"))
 
                             if book_bridge_3b.get("available"):
                                 bvps_now = safe_float(book_bridge_3b.get("bvps_2026_h1"))
                                 bg3 = safe_float(book_bridge_3b.get("bvps_growth_2025_pct"))
-                                st.write(
-                                    "**Offizieller Buchwert je Aktie 30.06.2026:** "
-                                    + (format_eps(bvps_now, financial_currency) if bvps_now is not None else "–")
-                                )
-                                st.write(
-                                    "**Offizielles Buchwertwachstum FY2025:** "
-                                    + (f"{bg3:.1f} %" if bg3 is not None else "–")
-                                )
+                                if provider_first_3b or insurance_val_3b.get("provider_first"):
+                                    st.write("**Strukturierter Buchwert je Aktie:** " + (format_eps(bvps_now, financial_currency) if bvps_now is not None else "–"))
+                                    st.caption("Buchwertwachstum aus Unternehmensberichten ist im Provider-First-Pfad optional und wird nicht geschätzt.")
+                                else:
+                                    st.write("**Offizieller Buchwert je Aktie 30.06.2026:** " + (format_eps(bvps_now, financial_currency) if bvps_now is not None else "–"))
+                                    st.write("**Offizielles Buchwertwachstum FY2025:** " + (f"{bg3:.1f} %" if bg3 is not None else "–"))
 
                             if insurance_score_3b.get("available"):
                                 st.metric(
@@ -79828,16 +80073,23 @@ if selected_symbol:
                                 )
 
                             if insurance_val_3b.get("available"):
-                                st.write(
-                                    "**Ziel-P/B:** "
-                                    f"{insurance_val_3b.get('target_pb'):.2f}× innerhalb "
-                                    f"{insurance_val_3b.get('pb_corridor_lower'):.1f}–{insurance_val_3b.get('pb_corridor_upper'):.1f}×"
-                                )
-                                st.write(
-                                    f"**Ziel-{insurance_pe_label_3b}:** "
-                                    f"{insurance_val_3b.get('target_core_pe'):.2f}× innerhalb "
-                                    f"{insurance_val_3b.get('core_pe_corridor_lower'):.1f}–{insurance_val_3b.get('core_pe_corridor_upper'):.1f}×"
-                                )
+                                _tpb_3b = safe_float(insurance_val_3b.get("target_pb"))
+                                _tpe_3b = safe_float(insurance_val_3b.get("target_core_pe"))
+                                _pbl_3b = safe_float(insurance_val_3b.get("pb_corridor_lower"))
+                                _pbh_3b = safe_float(insurance_val_3b.get("pb_corridor_upper"))
+                                _pel_3b = safe_float(insurance_val_3b.get("core_pe_corridor_lower"))
+                                _peh_3b = safe_float(insurance_val_3b.get("core_pe_corridor_upper"))
+                                if any(_v is None for _v in (_tpb_3b, _tpe_3b, _pbl_3b, _pbh_3b, _pel_3b, _peh_3b)):
+                                    st.error("V236 Integritäts-Gate: Bewertungsdictionary unvollständig; Detailausgabe bleibt sicherheitshalber gesperrt.")
+                                else:
+                                    st.write(
+                                        "**Ziel-P/B:** "
+                                        f"{_tpb_3b:.2f}× innerhalb {_pbl_3b:.1f}–{_pbh_3b:.1f}×"
+                                    )
+                                    st.write(
+                                        f"**Ziel-{insurance_pe_label_3b}:** "
+                                        f"{_tpe_3b:.2f}× innerhalb {_pel_3b:.1f}–{_peh_3b:.1f}×"
+                                    )
                                 st.write(
                                     "**Fair-Value-Anker Buchwert/P-B:** "
                                     f"{format_eps(insurance_val_3b.get('fair_value_book_financial'), financial_currency)}"
@@ -79853,10 +80105,11 @@ if selected_symbol:
                                 )
                                 st.success(insurance_val_3b.get("note"))
                                 st.caption(
-                                    f"Versicherungs-Freigabe bleibt fail-closed: veraltete Primärdaten, "
-                                    f"unvollständige {insurance_ttm_label_3b}-Abdeckung, Buchwert-Quellenkonflikte oder "
-                                    f"mehr als 25 % Abstand zwischen Buchwert/P-B- und {insurance_pe_label_3b}-Anker "
-                                    "sperren die Bewertung."
+                                    (
+                                        "V236 Provider-First: fehlende Unternehmensberichte/Solvency-Daten sperren die Bewertung nicht. Fehlende strukturierte Kernanker oder mehr als 30 % Abstand zwischen P/B- und TTM-KGV-Anker sperren weiterhin."
+                                    ) if insurance_val_3b.get("provider_first") else (
+                                        f"Primärquellen-Upgrade: veraltete Primärdaten, unvollständige {insurance_ttm_label_3b}-Abdeckung, Buchwert-Konflikte oder mehr als 25 % Ankerabstand sperren die verifizierte Bewertung."
+                                    )
                                 )
                             else:
                                 st.warning(
@@ -83215,7 +83468,7 @@ if selected_symbol:
                     insurance_calendar_source = insurance_calendar_snapshot.get("next_financial_event_source_url")
                     if not insurance_calendar_date:
                         _calendar_ue_v224 = data.get("universal_evidence_layer_v219") or {}
-                        _calendar_primary_v224 = _calendar_ue_v224.get("insurance_primary_acquisition_v234") or get("insurance_primary_acquisition_v233") or _calendar_ue_v224.get("insurance_primary_acquisition_v231") or _calendar_ue_v224.get("insurance_primary_acquisition_v230") or _calendar_ue_v224.get("insurance_primary_acquisition_v224") or _calendar_ue_v224.get("insurance_primary_acquisition_v223") or {}
+                        _calendar_primary_v224 = _calendar_ue_v224.get("insurance_primary_acquisition_v234") or evidence_v219_ui.get("insurance_primary_acquisition_v233") or _calendar_ue_v224.get("insurance_primary_acquisition_v231") or _calendar_ue_v224.get("insurance_primary_acquisition_v230") or _calendar_ue_v224.get("insurance_primary_acquisition_v224") or _calendar_ue_v224.get("insurance_primary_acquisition_v223") or {}
                         _calendar_evt_v224 = (_calendar_primary_v224 or {}).get("calendar_event") or {}
                         insurance_calendar_date = _calendar_evt_v224.get("date")
                         insurance_calendar_label = _calendar_evt_v224.get("label")
@@ -83360,13 +83613,14 @@ if selected_symbol:
                         "angezeigt und führen nicht zu einem Fehler."
                     )
 
-        except Exception:
+        except Exception as exc:
 
             st.error(
-                "Die Aktie konnte nicht geladen werden."
+                "Die Aktie konnte nicht vollständig dargestellt werden."
             )
 
             st.caption(
-                "Bitte Suchbegriff prüfen "
-                "und erneut versuchen."
+                "Die bereits berechneten Daten bleiben sichtbar. Öffne bei einem reproduzierbaren Fehler die technische Diagnose und sende nur diesen Abschnitt."
             )
+            with st.expander("🧪 Technische Fehlerdiagnose V236", expanded=False):
+                st.code(f"{type(exc).__name__}: {exc}")
