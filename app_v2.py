@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.28"
+APP_BUILD_VERSION = "V2.23.29"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal IR Reporting Hub Resolver V224"
+    f"Build {APP_BUILD_VERSION} · Universal Fundamentals Baseline & Specialist Delta V225"
 )
 
 
@@ -960,6 +960,7 @@ st.caption(
 # V2.23.26: Universal Insurance Primary-Source Acquisition V222. Adds an issuer-neutral, bounded insurer IR discovery layer on top of V221: official issuer-domain current-period, prior-period, FY/key-figure and financial-calendar documents are discovered and fetched; EPS/net-income/RoE/regulatory-capital/BVPS/share-count/dividend evidence is period- and scope-bound before a dynamic Insurance snapshot can be released. Search snippets remain discovery-only, secondary-provider values remain plausibility-only, and incomplete/ambiguous evidence stays fail-closed. Existing validated insurer snapshots and valuation mathematics remain unchanged.
 # V2.23.27: Universal Primary Document Resolver & Semantic Extractor V223. Hardens the dynamic insurer primary-source path after the Talanx live test: large issuer HTML pages are fully resolved before text extraction, reporting/result hubs are traversed with a bounded issuer-owned document graph, PDF searches are role-aware, table/narrative metrics are parsed with explicit unit/period/entity semantics, current-period comparative columns may satisfy prior-period evidence only when the document explicitly labels the comparison, and discovery/fetch/extraction/semantic stages are exposed separately. Search snippets and Eulerpool remain non-authoritative; incomplete evidence stays fail-closed; valuation formulas and existing validated insurer snapshots remain unchanged.
 # V2.23.28: Universal IR Reporting Hub Resolver V224. Adds issuer-neutral semantic Investor-Relations hub discovery before document search: Reporting/Results, Key Figures, Annual/Financial Reports, Risk/SFCR, News/Press and Financial Calendar hubs are resolved from issuer-owned navigation and used as high-priority seeds. Role traversal is target-period aware, permits the same official page to serve different evidence roles, and broadens current-results discovery to issuer news releases where regulatory capital ratios are often published. Partial discovery may expose an official calendar event without releasing valuation evidence. Search snippets and Eulerpool remain non-authoritative; V223 period/unit/entity-scope guards and all valuation mathematics remain unchanged.
+# V2.23.29: Universal Fundamentals Baseline & Specialist Delta V225. Changes the evidence architecture from web-first duplication to provider-first standard fundamentals: semantically verified Eulerpool fields form the universal standardized baseline, Yahoo/yfinance is retained as an independent plausibility/context layer, and issuer-primary discovery is narrowed conceptually to the family-specific specialist delta. Specialist valuation release remains fail-closed: the baseline may satisfy generic FY EPS/share-count/history fields but may not substitute regulatory capital, issuer-defined adjusted/core earnings, official scope-critical book value, operating KPIs or corporate-action comparability. Existing validated specialist snapshots and valuation mathematics remain unchanged.
 # V2.23.21: Insurance Corporate-Action Status & EPS-Vergleichbarkeit Cleanup V217. Copy/status-only cleanup: distinguishes complete TTM period coverage from blocked EPS comparability after material corporate actions; family status now reports complete issuer evidence with valuation blocked by the comparability gate. No valuation math, score calibration, FX route, or gate threshold changed.
 # V2.23.19: Insurance Per-Share Currency Display & Copy Cleanup V215. Fixes Yahoo insurer BVPS presentation for mixed quote/financial currencies by routing provider per-share book value through the verified quote-to-financial FX path before display, clarifies the mixed-currency price caption, and removes the residual Munich-Re-specific Fair-Value copy from the reusable Reinsurance path. Valuation mathematics, score thresholds, capital-framework calibration, corridors and frozen insurer inputs remain unchanged.
 # V2.23.18: Universal Insurance Capital Framework & Currency Routing V214. Adds jurisdiction-aware insurer capital frameworks (Solvency II / SST), per-share currency routing for official BVPS/dividend evidence, Swiss primary-listing/subprofile hardening, Swiss Re + Zurich issuer-primary evidence adapters and insurance-copy cleanup.
@@ -8044,17 +8045,19 @@ def build_family_evidence_contract_v219(company_type):
                 "Sonderereignis-/Corporate-Action-Prüfung",
             )
     return {
-        "version": "V220",
+        "version": "V225",
         "family_id": family_id,
         "family_label": family_meta.get("label"),
         "family_policy": family_meta.get("policy"),
         "provider_baseline": list(UNIVERSAL_EVIDENCE_PROVIDER_BASELINE_V219),
         "issuer_primary_required": list(primary),
         "source_priority": [
-            "Emittenten-/Regulatorik-Primärquelle",
-            "Eulerpool (strukturierte Sekundärevidenz)",
-            "Yahoo/yfinance (Kontext/Fallback)",
+            "Eulerpool (universelle standardisierte Fundamentaldatenbasis)",
+            "Yahoo/yfinance (unabhängiger Gegencheck / Kontext)",
+            "Emittenten-/Regulatorik-Primärquelle (familienentscheidende Spezialkennzahlen)",
         ],
+        "baseline_source_role": "structured_standard_fundamentals",
+        "specialist_source_role": "issuer_primary_family_delta",
         "provider_can_release_specialist_valuation": False,
     }
 
@@ -18707,7 +18710,7 @@ def discover_insurance_primary_snapshot_v224(symbol, company_name, website, insu
     """Hub-first, issuer-neutral insurer primary-evidence resolver."""
     _ = cache_epoch
     result = {
-        "version": "V224", "status": "not_run", "available": False, "complete": False,
+        "version": "V225", "status": "not_run", "available": False, "complete": False,
         "snapshot": None, "company_domain": None, "documents": {}, "diagnostics": [],
         "missing_primary": [], "calendar_event": None, "ir_hubs": {},
         "resolver_stages": {
@@ -59794,8 +59797,8 @@ def normalize_eulerpool_evidence_v219(overview, datasets):
     semantic_review_fields = [key for key in coverage_keys if fields.get(key, {}).get("available") and not fields.get(key, {}).get("semantic_verified")]
 
     return {
-        "version": "V222",
-        "source_role": "structured_secondary_evidence",
+        "version": "V225",
+        "source_role": "structured_standard_fundamentals",
         "identity": {
             "name": overview.get("name"),
             "ticker": overview.get("ticker"),
@@ -60009,7 +60012,7 @@ def build_universal_evidence_layer_v219(symbol, company_type, provider_evidence,
         if isinstance(item, dict) and item.get("available")
     ]
     return {
-        "version": "V224",
+        "version": "V225",
         "contract": contract,
         "provider": provider,
         "provider_status": provider_status,
@@ -60023,10 +60026,186 @@ def build_universal_evidence_layer_v219(symbol, company_type, provider_evidence,
         "missing_primary_evidence": missing_primary,
         "valuation_impact": "none_direct",
         "release_rule": (
-            "V224 kombiniert strukturierte Sekundärevidenz mit einem fail-closed, IR-Hub-basierten issuer-eigenen Dokumentresolver und der V223-Semantikprüfung für bislang nicht hinterlegte Versicherer. "
-            "Technische Normalisierung ist keine fachliche Freigabe; Spezialmodelle bleiben ausschließlich über familien-spezifische Primärquellen-/Vergleichbarkeits-Gates freigabefähig."
+            "V225 verwendet Eulerpool als universelle standardisierte Fundamentaldatenbasis und Yahoo/yfinance als unabhängigen Gegencheck/Kontext. "
+            "Issuer-Primärquellen werden auf den familienentscheidenden Specialist-Delta fokussiert; regulatorische/issuer-defined Spezialkennzahlen und Scope-/Vergleichbarkeits-Gates bleiben fail-closed."
         ),
         "symbol": str(symbol or ""),
+    }
+
+
+# =========================================================
+# V225 – Universal Fundamentals Baseline & Specialist Delta
+# =========================================================
+
+UNIVERSAL_FUNDAMENTALS_BASELINE_VERSION_V225 = "v22329_universal_fundamentals_baseline_specialist_delta_v225"
+
+
+def _baseline_field_v225(provider_fields, key, yahoo_value=None, yahoo_label=None, comparable=True):
+    item = (provider_fields or {}).get(key) or {}
+    value = safe_float(item.get("value"))
+    available = bool(item.get("available") and value is not None)
+    semantic_verified = bool(item.get("semantic_verified"))
+    yv = safe_float(yahoo_value)
+    deviation_pct = None
+    yahoo_agrees = None
+    if available and yv not in (None, 0) and value not in (None, 0) and comparable:
+        deviation_pct = abs(value - yv) / max(abs(value), abs(yv)) * 100.0
+        yahoo_agrees = deviation_pct <= 10.0
+    return {
+        "value": value,
+        "available": available,
+        "baseline_verified": bool(available and semantic_verified),
+        "semantic_verified": semantic_verified,
+        "semantic_status": item.get("semantic_status"),
+        "semantic_reason": item.get("semantic_reason"),
+        "period": item.get("period"),
+        "period_semantics": item.get("period_semantics"),
+        "currency": item.get("currency"),
+        "unit": item.get("unit"),
+        "entity_scope": item.get("entity_scope"),
+        "source_key": item.get("source_key"),
+        "provider_dataset": item.get("dataset"),
+        "provider": "Eulerpool" if available else None,
+        "yahoo_value": yv,
+        "yahoo_label": yahoo_label,
+        "yahoo_comparable": bool(comparable and yv is not None),
+        "yahoo_deviation_pct": deviation_pct,
+        "yahoo_agrees": yahoo_agrees,
+        "valuation_role": "standard_baseline" if (available and semantic_verified) else "context_or_review",
+    }
+
+
+def build_universal_fundamentals_baseline_v225(provider_evidence, yahoo_info=None):
+    """Provider-first standardized fundamentals; never releases specialist KPIs.
+
+    Eulerpool supplies the normalized standard baseline when its own period/scope
+    semantics are good enough. Yahoo is an independent plausibility/context layer
+    and is deliberately *not* used to make a non-comparable FY-vs-TTM comparison.
+    """
+    provider = provider_evidence or {}
+    yahoo = yahoo_info or {}
+    mapped = provider.get("mapped_evidence") or {}
+    pf = mapped.get("fields") or {}
+
+    fields = {
+        "annual_eps": _baseline_field_v225(pf, "annual_eps"),
+        "prior_annual_eps": _baseline_field_v225(pf, "prior_annual_eps"),
+        "annual_net_income": _baseline_field_v225(pf, "annual_net_income"),
+        "annual_revenue": _baseline_field_v225(pf, "annual_revenue"),
+        "book_value_per_share": _baseline_field_v225(
+            pf, "book_value_per_share", yahoo.get("bookValue"), "Yahoo bookValue", comparable=True
+        ),
+        "total_equity": _baseline_field_v225(pf, "total_equity"),
+        "shares_outstanding": _baseline_field_v225(
+            pf, "shares_outstanding", yahoo.get("sharesOutstanding"), "Yahoo sharesOutstanding", comparable=True
+        ),
+        "prior_shares_outstanding": _baseline_field_v225(pf, "prior_shares_outstanding"),
+        "roe": _baseline_field_v225(
+            pf, "roe", yahoo.get("returnOnEquity"), "Yahoo returnOnEquity", comparable=False
+        ),
+    }
+
+    # Yahoo's dividendRate is useful standard context, but its fiscal-period
+    # semantics are not strong enough to become a specialist payout anchor.
+    dividend_rate = safe_float(yahoo.get("dividendRate"))
+    fields["dividend_per_share_context"] = {
+        "value": dividend_rate,
+        "available": dividend_rate is not None,
+        "baseline_verified": False,
+        "semantic_verified": False,
+        "provider": "Yahoo/yfinance" if dividend_rate is not None else None,
+        "valuation_role": "context_only",
+        "semantic_reason": "DividendRate ist Standardkontext; exakte FY-/Ausschüttungsperiode bleibt für Spezialmodelle separat zu prüfen.",
+    }
+
+    verified = [k for k, v in fields.items() if isinstance(v, dict) and v.get("baseline_verified")]
+    available = [k for k, v in fields.items() if isinstance(v, dict) and v.get("available")]
+    actions = (mapped.get("corporate_actions") or [])
+    diag = mapped.get("diagnostics") or {}
+    return {
+        "version": "V225",
+        "integration_version": UNIVERSAL_FUNDAMENTALS_BASELINE_VERSION_V225,
+        "status": "available" if provider.get("available") else (provider.get("status") or "not_available"),
+        "provider_connected": bool(provider.get("configured")),
+        "provider_available": bool(provider.get("available")),
+        "fields": fields,
+        "available_fields": available,
+        "verified_standard_fields": verified,
+        "available_field_count": len(available),
+        "verified_standard_field_count": len(verified),
+        "corporate_actions": actions,
+        "material_structure_action_candidates": int(diag.get("material_structure_action_candidates") or 0),
+        "shares_change_pct": diag.get("shares_change_pct"),
+        "source_roles": {
+            "standard_baseline": "Eulerpool",
+            "independent_crosscheck": "Yahoo/yfinance",
+            "specialist_delta": "Emittenten-/Regulatorik-Primärquelle",
+        },
+        "release_rule": (
+            "V225 trennt universelle Standard-Fundamentaldaten von familienentscheidenden Spezialkennzahlen. "
+            "Semantisch verifizierte Eulerpool-Felder dürfen die Standardbasis vorbefüllen; Yahoo dient als unabhängiger Gegencheck/Kontext. "
+            "Regulatorik, issuer-defined Core/Adjusted Earnings, scope-kritischer offizieller Buchwert und operative Familien-KPIs bleiben Primärquellenpflicht."
+        ),
+    }
+
+
+def build_family_specialist_delta_v225(company_type, fundamentals_baseline, raw_primary_missing=None):
+    family_id = str((company_type or {}).get("valuation_family_id") or "general_corporate").lower()
+    base = fundamentals_baseline or {}
+    fields = base.get("fields") or {}
+    verified = {k for k, v in fields.items() if isinstance(v, dict) and v.get("baseline_verified")}
+    raw_missing = list(raw_primary_missing or [])
+
+    # Generic FY/share-count fields can be satisfied by the standardized
+    # baseline. Scope-critical specialist fields intentionally cannot.
+    aliases = {
+        "FY EPS": "annual_eps",
+        "prior FY EPS": "prior_annual_eps",
+        "FY parent net income": "annual_net_income",
+    }
+    satisfied = []
+    remaining = []
+    deferred_context = []
+    for label in raw_missing:
+        label_text = str(label)
+        key = aliases.get(label_text)
+        if key and key in verified:
+            satisfied.append({"requirement": label_text, "baseline_field": key, "source": "Eulerpool", "status": "standard_baseline_satisfied"})
+        elif family_id in {"insurance", "reinsurance"} and label_text == "FY parent net income" and "annual_eps" in verified:
+            deferred_context.append({
+                "requirement": label_text,
+                "reason": "Bei semantisch verifiziertem FY-EPS kein eigener harter Valuation-Release-Baustein; bleibt Ergebnis-/Scope-Kontext.",
+            })
+        else:
+            remaining.append(label_text)
+
+    if family_id in {"insurance", "reinsurance"}:
+        specialist_required = [
+            "gleichbasige Zwischenperioden-Earnings/EPS (aktuell + Vorjahr)",
+            "emittentenspezifischer Insurance-RoE",
+            "regulatorische Kapitalquote + Framework (Solvency II/SST)",
+            "offizieller scope-kritischer Buchwert/P-B-Anker",
+            "Corporate-Action-/EPS-Vergleichbarkeit",
+        ]
+        if family_id == "reinsurance":
+            specialist_required.append("Combined Ratio / Reinsurance-Zykluskontext")
+    else:
+        specialist_required = list((build_family_evidence_contract_v219(company_type) or {}).get("issuer_primary_required") or [])
+
+    return {
+        "version": "V225",
+        "family_id": family_id,
+        "baseline_verified_fields": sorted(verified),
+        "baseline_satisfied_primary_items": satisfied,
+        "raw_primary_missing": raw_missing,
+        "remaining_primary_missing_after_baseline": remaining,
+        "deferred_context_requirements": deferred_context,
+        "specialist_primary_required": specialist_required,
+        "specialist_release_ready": False,
+        "note": (
+            "Standard-Fundamentaldaten werden provider-first vorbefüllt. Die verbleibende Primärquellenarbeit ist auf den familienentscheidenden Specialist-Delta begrenzt; "
+            "dieser Delta bleibt bis zur semantischen Primärquellenfreigabe fail-closed."
+        ),
     }
 
 def load_yahoo_info_resilient(symbol, ticker=None):
@@ -63783,8 +63962,14 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     eulerpool_evidence_v219 = load_eulerpool_universal_evidence_v219(
         fundamental_symbol, company_type, cache_version
     )
+    universal_fundamentals_baseline_v225 = build_universal_fundamentals_baseline_v225(
+        eulerpool_evidence_v219, fundamental_info
+    )
 
-    # V224: existing validated insurer snapshots stay first priority. Unsupported insurers resolve issuer-owned IR hubs first, then traverse target-period primary documents; search metadata is discovery-only and every released metric must still pass the V223 period/unit/scope semantics.
+    # V225: existing validated insurer snapshots stay first priority. For new insurers,
+    # issuer-primary discovery now represents the specialist delta rather than a
+    # second attempt to duplicate all standardized fundamentals.
+    # V224 resolver remains the bounded specialist-document engine underneath. Unsupported insurers resolve issuer-owned IR hubs first, then traverse target-period primary documents; search metadata is discovery-only and every released metric must still pass the V223 period/unit/scope semantics.
     _insurance_primary_static_v222 = (
         get_verified_insurance_snapshot(fundamental_symbol)
         if is_insurance_company_type(company_type) else None
@@ -63808,6 +63993,11 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         symbol, company_type, eulerpool_evidence_v219, _insurance_primary_for_evidence_v219
     )
     if isinstance(universal_evidence_layer_v219, dict):
+        universal_evidence_layer_v219["fundamentals_baseline_v225"] = universal_fundamentals_baseline_v225
+        _raw_primary_missing_v225 = list((_insurance_primary_discovery_v222 or {}).get("missing_primary") or []) if is_insurance_company_type(company_type) else []
+        universal_evidence_layer_v219["family_specialist_delta_v225"] = build_family_specialist_delta_v225(
+            company_type, universal_fundamentals_baseline_v225, _raw_primary_missing_v225
+        )
         universal_evidence_layer_v219["insurance_primary_acquisition_v224"] = _insurance_primary_discovery_v222
         universal_evidence_layer_v219["insurance_primary_acquisition_v223"] = _insurance_primary_discovery_v222
         universal_evidence_layer_v219["insurance_primary_acquisition_v222"] = _insurance_primary_discovery_v222
@@ -67072,6 +67262,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
 
         "company_type": company_type,
         "universal_evidence_layer_v219": universal_evidence_layer_v219,
+        "universal_fundamentals_baseline_v225": universal_fundamentals_baseline_v225,
         "eulerpool_evidence_v219": eulerpool_evidence_v219,
         "historical": historical,
         "structural_break": structural_break,
@@ -67807,19 +67998,19 @@ if selected_symbol:
                                 if _semantic_total_top else ""
                             )
                             st.success(
-                                "Universal Evidence Ebene V224: Eulerpool verbunden · "
+                                "Universal Fundamentals Baseline V225: Eulerpool verbunden · "
                                 f"{int(provider_v219_ui.get('dataset_count') or 0)} Datensätze verfügbar"
                                 + _mapped_text_top + _semantic_text_top
-                                + " · Primärquellen bleiben für familienentscheidende Kennzahlen maßgeblich."
+                                + " · Standard-Fundamentaldaten provider-first; Primärquellen nur für familienentscheidende Spezialkennzahlen."
                             )
                         elif provider_v219_ui.get("configured"):
                             st.warning(
-                                "Universal Evidence Ebene V224: Eulerpool ist konfiguriert, für diesen Titel aber nur teilweise bzw. nicht auflösbar. "
+                                "Universal Fundamentals Baseline V225: Eulerpool ist konfiguriert, für diesen Titel aber nur teilweise bzw. nicht auflösbar. "
                                 "Die Bewertung fällt nicht auf unbestätigte Provider-Daten zurück."
                             )
                         else:
                             st.caption(
-                                "Universal Evidence Ebene V224: Eulerpool optional nicht verbunden. "
+                                "Universal Fundamentals Baseline V225: Eulerpool optional nicht verbunden. "
                                 "Für die strukturierte Sekundärevidenz kann EULERPOOL_API_KEY als Umgebungsvariable oder Streamlit-Secret gesetzt werden; "
                                 "bestehende Primärquellen-/Yahoo-Pfade bleiben unverändert."
                             )
@@ -67835,11 +68026,14 @@ if selected_symbol:
                                 _domain_v222 = (_primary_v222 or {}).get("company_domain")
                                 _status_text_v222 = text_or_dash((_primary_v222 or {}).get("status"))
                                 _extra_v222 = (" · Emittenten-Domain: " + str(_domain_v222)) if _domain_v222 else ""
-                                if _missing_v222:
-                                    _extra_v222 += " · fehlend: " + ", ".join(str(x) for x in _missing_v222[:6])
-                                    if len(_missing_v222) > 6:
-                                        _extra_v222 += " …"
-                                st.warning("Insurance-Primärquellen V224: " + _status_text_v222 + _extra_v222 + ". Bewertung bleibt fail-closed.")
+                                st.warning("Insurance Specialist-Delta V225: " + _status_text_v222 + _extra_v222 + ". Bewertung bleibt fail-closed.")
+                            _delta_v225_top = evidence_v219_ui.get("family_specialist_delta_v225") or {}
+                            _sat_v225_top = _delta_v225_top.get("baseline_satisfied_primary_items") or []
+                            _remain_v225_top = _delta_v225_top.get("remaining_primary_missing_after_baseline") or []
+                            if _sat_v225_top:
+                                st.caption("V225 Standardbasis deckt bereits: " + " · ".join(str(x.get("requirement")) for x in _sat_v225_top))
+                            if _remain_v225_top:
+                                st.caption("Verbleibender Primärquellen-Delta: " + " · ".join(str(x) for x in _remain_v225_top[:6]) + (" …" if len(_remain_v225_top) > 6 else ""))
 
                         _family_source_labels = {
                             "security_family_master": "Stammtabelle der Bewertungsfamilien",
@@ -67988,7 +68182,7 @@ if selected_symbol:
                     if evidence_v219_ui:
                         contract_v219_ui = evidence_v219_ui.get("contract") or {}
                         provider_v219_ui = evidence_v219_ui.get("provider") or {}
-                        with st.expander("🧱 Universal Evidence Ebene V224", expanded=False):
+                        with st.expander("🧱 Universal Fundamentals Baseline V225", expanded=False):
                             st.write(
                                 "**Quellenpriorität:** "
                                 + " → ".join(contract_v219_ui.get("source_priority") or [])
@@ -68126,10 +68320,34 @@ if selected_symbol:
                                     "Eulerpool nicht verbunden. API-Schlüssel wird nicht in der ZIP gespeichert; "
                                     "EULERPOOL_API_KEY nur über Umgebung oder Streamlit-Secrets setzen."
                                 )
+                            _baseline_v225_ui = evidence_v219_ui.get("fundamentals_baseline_v225") or {}
+                            if _baseline_v225_ui:
+                                _b_verified_v225 = _baseline_v225_ui.get("verified_standard_fields") or []
+                                _b_available_v225 = _baseline_v225_ui.get("available_fields") or []
+                                st.markdown("**V225 – provider-first Standard-Fundamentaldaten**")
+                                st.caption(
+                                    f"Eulerpool-Standardbasis: {len(_b_verified_v225)}/{len(_b_available_v225)} verfügbare Felder semantisch freigegeben · "
+                                    "Yahoo/yfinance bleibt unabhängiger Gegencheck/Kontext."
+                                )
+                                if _b_verified_v225:
+                                    st.caption("Freigegebene Standardfelder: " + " · ".join(str(x) for x in _b_verified_v225))
+                            _delta_v225_ui = evidence_v219_ui.get("family_specialist_delta_v225") or {}
+                            if _delta_v225_ui:
+                                _sat_v225 = _delta_v225_ui.get("baseline_satisfied_primary_items") or []
+                                _remain_v225 = _delta_v225_ui.get("remaining_primary_missing_after_baseline") or []
+                                _deferred_v225 = _delta_v225_ui.get("deferred_context_requirements") or []
+                                st.markdown("**V225 – Familien-Specialist-Delta**")
+                                if _sat_v225:
+                                    st.success("Standardbasis übernimmt: " + " · ".join(str(x.get("requirement")) for x in _sat_v225))
+                                if _deferred_v225:
+                                    st.caption("Nur noch Kontext, kein harter Release-Baustein: " + " · ".join(str(x.get("requirement")) for x in _deferred_v225))
+                                if _remain_v225:
+                                    st.warning("Noch issuer-primary zu lösen: " + " · ".join(str(x) for x in _remain_v225))
+                                st.caption(text_or_dash(_delta_v225_ui.get("note")))
                             if is_insurance_company_type(company_type):
                                 _primary_v222 = evidence_v219_ui.get("insurance_primary_acquisition_v224") or evidence_v219_ui.get("insurance_primary_acquisition_v223") or evidence_v219_ui.get("insurance_primary_acquisition_v222") or {}
                                 _primary_status_v222 = evidence_v219_ui.get("issuer_primary_status")
-                                st.markdown("**Insurance IR-Reporting-Hub-Resolver V224**")
+                                st.markdown("**Insurance Specialist-Resolver V225 (V224 Dokumentengine)**")
                                 if _primary_status_v222 == "verified_static_issuer_snapshot":
                                     st.write("Status: bestehender verifizierter Emittenten-Snapshot")
                                 else:
@@ -68165,8 +68383,8 @@ if selected_symbol:
 
                             if evidence_v219_ui.get("issuer_primary_complete") is False:
                                 st.warning(
-                                    "Familien-Primärevidenz noch nicht vollständig. Provider-Daten dürfen diese Pflichtfelder nicht ersetzen; "
-                                    "Score/Fair Value bleiben gemäß bestehendem Familien-Gate gesperrt."
+                                    "Familien-Specialist-Evidenz noch nicht vollständig. Die V225-Standardbasis darf generische Fundamentaldaten vorbefüllen, "
+                                    "aber familienentscheidende Spezialkennzahlen nicht ersetzen; Score/Fair Value bleiben gemäß bestehendem Familien-Gate gesperrt."
                                 )
                             elif evidence_v219_ui.get("issuer_primary_complete") is True:
                                 st.success("Familien-Primärevidenz über einen verifizierten Specialist-/Primärquellenpfad vorhanden.")
@@ -72187,7 +72405,7 @@ if selected_symbol:
                                 _ins_secondary_parts_v219.append("Aktienzahl " + _format_eulerpool_shares_v220(_ins_shares_v219, _ins_shares_item_v220.get("unit")))
                             if _ins_secondary_parts_v219:
                                 st.caption(
-                                    "Eulerpool-Sekundärevidenz V224: " + " · ".join(_ins_secondary_parts_v219)
+                                    "Eulerpool-Standardbasis V225: " + " · ".join(_ins_secondary_parts_v219)
                                     + ". Diese Werte dienen nur der Evidenzbeschaffung/Plausibilisierung und ersetzen keine Versicherungs-Primärquelle."
                                 )
                                 if _ins_bvps_v219 is not None and not _ins_bvps_item_v221.get("semantic_verified"):
