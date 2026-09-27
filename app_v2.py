@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.30"
+APP_BUILD_VERSION = "V2.23.31"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Specialist Delta Contract & Gate Alignment V226"
+    f"Build {APP_BUILD_VERSION} · Universal Evidence Derivation Graph V227"
 )
 
 
@@ -962,6 +962,7 @@ st.caption(
 # V2.23.28: Universal IR Reporting Hub Resolver V224. Adds issuer-neutral semantic Investor-Relations hub discovery before document search: Reporting/Results, Key Figures, Annual/Financial Reports, Risk/SFCR, News/Press and Financial Calendar hubs are resolved from issuer-owned navigation and used as high-priority seeds. Role traversal is target-period aware, permits the same official page to serve different evidence roles, and broadens current-results discovery to issuer news releases where regulatory capital ratios are often published. Partial discovery may expose an official calendar event without releasing valuation evidence. Search snippets and Eulerpool remain non-authoritative; V223 period/unit/entity-scope guards and all valuation mathematics remain unchanged.
 # V2.23.29: Universal Fundamentals Baseline & Specialist Delta V225. Changes the evidence architecture from web-first duplication to provider-first standard fundamentals: semantically verified Eulerpool fields form the universal standardized baseline, Yahoo/yfinance is retained as an independent plausibility/context layer, and issuer-primary discovery is narrowed conceptually to the family-specific specialist delta. Specialist valuation release remains fail-closed: the baseline may satisfy generic FY EPS/share-count/history fields but may not substitute regulatory capital, issuer-defined adjusted/core earnings, official scope-critical book value, operating KPIs or corporate-action comparability. Existing validated specialist snapshots and valuation mathematics remain unchanged.
 # V2.23.30: Specialist Delta Contract & Gate Alignment V226. Makes the family evidence contract the single diagnostic source of truth for provider-first standard fields versus issuer-primary specialist gates. Insurance/Reinsurance now always surfaces same-basis interim EPS/parent earnings, issuer-defined RoE, regulatory capital ratio + framework, scope-critical official BVPS and conditional corporate-action comparability even when the underlying document resolver omits them from its first missing-field list. FY EPS/prior FY EPS, shares and latest annual dividend are provider-first standard fields when semantically verified; issuer-primary remains the fallback when a standard field is unavailable. Adds Eulerpool Dividend Quality as structured standard evidence. Valuation mathematics remain unchanged and specialist release stays fail-closed.
+# V2.23.31: Universal Evidence Derivation Graph V227. Adds a guarded cross-source derivation graph on top of the provider-first baseline: semantically verified standard denominators may combine with same-period issuer-primary parent earnings/equity to derive interim EPS/BVPS, while FY EPS/prior-FY EPS/dividend and stable share-count data remain provider-first. Derivations are blocked on material corporate-action/share-count alerts, require compatible period/currency/scope semantics, preserve provenance, and never infer regulatory capital/RoE. The graph can rebuild a dynamic Insurance snapshot without forcing every issuer to publish every ratio in identical form. Existing static snapshots and valuation mathematics remain unchanged; specialist release remains fail-closed.
 # V2.23.21: Insurance Corporate-Action Status & EPS-Vergleichbarkeit Cleanup V217. Copy/status-only cleanup: distinguishes complete TTM period coverage from blocked EPS comparability after material corporate actions; family status now reports complete issuer evidence with valuation blocked by the comparability gate. No valuation math, score calibration, FX route, or gate threshold changed.
 # V2.23.19: Insurance Per-Share Currency Display & Copy Cleanup V215. Fixes Yahoo insurer BVPS presentation for mixed quote/financial currencies by routing provider per-share book value through the verified quote-to-financial FX path before display, clarifies the mixed-currency price caption, and removes the residual Munich-Re-specific Fair-Value copy from the reusable Reinsurance path. Valuation mathematics, score thresholds, capital-framework calibration, corridors and frozen insurer inputs remain unchanged.
 # V2.23.18: Universal Insurance Capital Framework & Currency Routing V214. Adds jurisdiction-aware insurer capital frameworks (Solvency II / SST), per-share currency routing for official BVPS/dividend evidence, Swiss primary-listing/subprofile hardening, Swiss Re + Zurich issuer-primary evidence adapters and insurance-copy cleanup.
@@ -8044,7 +8045,7 @@ def build_family_evidence_contract_v219(company_type):
                 "Sonderereignis-/Corporate-Action-Prüfung",
             )
     return {
-        "version": "V226",
+        "version": "V227",
         "family_id": family_id,
         "family_label": family_meta.get("label"),
         "family_policy": family_meta.get("policy"),
@@ -19950,7 +19951,7 @@ def build_insurance_special_model(
         "insurance_score": insurance_score,
         "insurance_valuation": insurance_valuation,
         "note": (
-            f"V224 Universal Insurance Primary Evidence: {earnings_basis_label}-Ergebnisbasis, {earnings_ttm_label}-Brücke, "
+            f"V227 Universal Insurance Evidence: {earnings_basis_label}-Ergebnisbasis, {earnings_ttm_label}-Brücke, "
             f"RoE, {capital_ratio_label} und offizieller Buchwert werden in eine gemeinsame Versicherungs-Evidenzstruktur überführt. "
             f"Unterprofil: {'Reinsurance' if is_reinsurance_profile else 'Primary/Diversified Insurance'}; "
             "55/45-Doppelanker, Standard-FCF-Sperre und Fail-Closed-Gates bleiben unverändert."
@@ -60151,7 +60152,7 @@ def build_universal_fundamentals_baseline_v225(provider_evidence, yahoo_info=Non
     actions = (mapped.get("corporate_actions") or [])
     diag = mapped.get("diagnostics") or {}
     return {
-        "version": "V226",
+        "version": "V227",
         "integration_version": UNIVERSAL_FUNDAMENTALS_BASELINE_VERSION_V225,
         "status": "available" if provider.get("available") else (provider.get("status") or "not_available"),
         "provider_connected": bool(provider.get("configured")),
@@ -60170,7 +60171,7 @@ def build_universal_fundamentals_baseline_v225(provider_evidence, yahoo_info=Non
             "specialist_delta": "Emittenten-/Regulatorik-Primärquelle",
         },
         "release_rule": (
-            "V226 trennt universelle Standard-Fundamentaldaten von familienentscheidenden Spezialkennzahlen und richtet Anzeige/Gate am selben Vertrag aus. "
+            "V227 trennt universelle Standard-Fundamentaldaten von familienentscheidenden Spezialkennzahlen, erlaubt nur guarded Ableitungen aus kompatiblen Evidenzknoten und richtet Anzeige/Gate am selben Vertrag aus. "
             "Semantisch verifizierte Eulerpool-Felder dürfen die Standardbasis vorbefüllen; Yahoo dient als unabhängiger Gegencheck/Kontext. "
             "Regulatorik, issuer-defined Core/Adjusted Earnings, scope-kritischer offizieller Buchwert und operative Familien-KPIs bleiben Primärquellenpflicht."
         ),
@@ -60216,7 +60217,7 @@ def build_family_specialist_delta_v226(company_type, fundamentals_baseline, prim
     if family_id not in {"insurance", "reinsurance"}:
         generic_required = list((build_family_evidence_contract_v219(company_type) or {}).get("issuer_primary_required") or [])
         return {
-            "version": "V226", "family_id": family_id,
+            "version": "V227", "family_id": family_id,
             "baseline_verified_fields": sorted(verified),
             "standard_baseline_contract": standard_status,
             "baseline_satisfied_primary_items": satisfied,
@@ -60326,11 +60327,320 @@ def build_family_specialist_delta_v226(company_type, fundamentals_baseline, prim
         "gate_alignment": "same_contract_display_and_diagnostic_gate",
         "corporate_action_screen": corp_row,
         "note": (
-            "V226 erzeugt Standardbasis, angezeigten Specialist-Delta und diagnostischen Release-Status aus demselben Vertrag. "
+            "V227 erzeugt Standardbasis, Derivation-Graph, angezeigten Specialist-Delta und diagnostischen Release-Status aus demselben Vertrag. "
             "FY-EPS, Vorjahres-FY-EPS, Aktienzahl und standardisierte Dividende sind provider-first; fehlen sie semantisch, fällt genau dieses Feld auf issuer-primary zurück. "
             "H1/9M-Earnings auf gleicher Basis, Insurance-RoE, Kapitalquote+Framework, scope-kritischer offizieller Buchwert und auffällige Corporate Actions bleiben Primärquellenpflicht."
         ),
     }
+
+
+
+# =========================================================
+# V227 – Universal Evidence Derivation Graph
+# =========================================================
+
+UNIVERSAL_EVIDENCE_DERIVATION_GRAPH_VERSION_V227 = "v22331_universal_evidence_derivation_graph_v227"
+
+
+def _v227_baseline_verified_field(baseline, key):
+    row = ((baseline or {}).get("fields") or {}).get(key) or {}
+    value = safe_float(row.get("value"))
+    if value is None or not row.get("baseline_verified"):
+        return None, row
+    return value, row
+
+
+def _v227_shares_absolute(value, unit=None):
+    number = safe_float(value)
+    if number is None or number <= 0:
+        return None
+    unit_text = str(unit or "").lower()
+    if "million" in unit_text or "mio" in unit_text:
+        return number * 1_000_000.0
+    # Defensive provider convention: very small share counts in the shares-history
+    # feed represent millions even if the unit tag was unavailable.
+    if number < 100_000:
+        return number * 1_000_000.0
+    return number
+
+
+def _v227_clone_documents(discovery):
+    docs = {}
+    for role, rows in ((discovery or {}).get("documents") or {}).items():
+        copied = []
+        for row in rows or []:
+            r = dict(row or {})
+            r["parsed"] = dict((row or {}).get("parsed") or {})
+            copied.append(r)
+        docs[role] = copied
+    for role in ("current_h1", "prior_h1", "annual", "calendar"):
+        docs.setdefault(role, [])
+    return docs
+
+
+def _v227_best_primary(docs, role, key):
+    for doc in (docs or {}).get(role, []) or []:
+        parsed = (doc or {}).get("parsed") or {}
+        value = safe_float(parsed.get(key))
+        if value is not None:
+            return value, doc
+    return None, None
+
+
+def apply_insurance_evidence_derivation_graph_v227(
+    primary_discovery,
+    fundamentals_baseline,
+    company_name,
+    insurance_subprofile,
+    financial_currency,
+):
+    """Guarded evidence graph for insurer per-share/annual standard fields.
+
+    Authoritative specialist numerators/ratios (H1 parent earnings/equity, RoE,
+    Solvency II/SST) still come from issuer documents. Semantically verified
+    provider fields may supply only standardized FY EPS/dividend/share-count
+    nodes and a stable per-share denominator. Cross-source derivations are
+    blocked when a material structure/share-count alert is present.
+    """
+    src = primary_discovery if isinstance(primary_discovery, dict) else {}
+    out = dict(src)
+    docs = _v227_clone_documents(src)
+    base = fundamentals_baseline or {}
+    fields = base.get("fields") or {}
+    derivations = []
+    blocked = []
+
+    shares_value, shares_row = _v227_baseline_verified_field(base, "shares_outstanding")
+    prior_shares_value, prior_shares_row = _v227_baseline_verified_field(base, "prior_shares_outstanding")
+    shares_abs = _v227_shares_absolute(shares_value, shares_row.get("unit")) if shares_value is not None else None
+    prior_shares_abs = _v227_shares_absolute(prior_shares_value, prior_shares_row.get("unit")) if prior_shares_value is not None else None
+
+    material_actions = int(base.get("material_structure_action_candidates") or 0)
+    shares_change_pct = safe_float(base.get("shares_change_pct"))
+    share_alert = bool(shares_change_pct is not None and abs(shares_change_pct) >= 2.0)
+    denominator_safe = bool(shares_abs and material_actions == 0 and not share_alert)
+    if not denominator_safe:
+        blocked.append(
+            "Per-Share-Ableitung gesperrt: kein semantisch freigegebener stabiler Aktienzahl-Nenner oder Struktur-/Aktienzahl-Alarm aktiv."
+        )
+
+    # If prior share history is absent but the current share count is stable and
+    # no corporate-action alert exists, the same denominator may be used for the
+    # immediately comparable prior period. This is explicitly provenance-tagged.
+    if prior_shares_abs is None and denominator_safe:
+        prior_shares_abs = shares_abs
+
+    def add_derivation(role, field, value, formula, sources, confidence="high_guarded", doc=None):
+        if value is None:
+            return
+        value = safe_float(value)
+        if value is None:
+            return
+        target_doc = doc
+        if target_doc is None:
+            target_doc = {
+                "url": None,
+                "resolved_url": None,
+                "title": "V227 derived evidence node",
+                "document_type": "derived_evidence",
+                "metric_count": 0,
+                "parsed": {},
+                "synthetic_derivation": True,
+            }
+            docs.setdefault(role, []).append(target_doc)
+        parsed = target_doc.setdefault("parsed", {})
+        if parsed.get(field) is None:
+            parsed[field] = value
+            parsed[f"{field}_method_v227"] = formula
+            parsed[f"{field}_evidence_v227"] = "derived_from_compatible_verified_nodes"
+            derivations.append({
+                "role": role,
+                "field": field,
+                "value": value,
+                "formula": formula,
+                "sources": list(sources or []),
+                "confidence": confidence,
+            })
+
+    # 1) Same-period issuer-primary numerator/equity + guarded provider share denominator.
+    if denominator_safe:
+        for role, denom in (("current_h1", shares_abs), ("prior_h1", prior_shares_abs)):
+            for doc in docs.get(role, []) or []:
+                parsed = doc.get("parsed") or {}
+                ni = safe_float(parsed.get("net_income_parent"))
+                if parsed.get("eps") is None and ni is not None and ni > 0 and denom:
+                    eps = ni / denom
+                    if 0.01 <= eps <= 500:
+                        add_derivation(
+                            role, "eps", eps,
+                            "issuer-primary parent net income / semantically verified stable shares",
+                            ["issuer-primary parent net income", "Eulerpool verified shares_outstanding"],
+                            doc=doc,
+                        )
+                eq = safe_float(parsed.get("equity_parent"))
+                if parsed.get("bvps") is None and eq is not None and eq > 0 and denom:
+                    bvps = eq / denom
+                    if 0.1 <= bvps <= 5000:
+                        add_derivation(
+                            role, "bvps", bvps,
+                            "issuer-primary parent equity / semantically verified stable shares",
+                            ["issuer-primary parent/common equity", "Eulerpool verified shares_outstanding"],
+                            doc=doc,
+                        )
+                        parsed.setdefault("bvps_scope", "parent_common_shareholders")
+                if parsed.get("shares") is None and denom:
+                    parsed["shares"] = denom
+                    parsed["shares_method_v227"] = "semantically_verified_provider_denominator"
+
+        # Annual primary rows can supply scope-critical parent equity while the
+        # provider supplies only the denominator. Prior-column equity is kept on
+        # the same official annual source and paired with a stable prior/current denominator.
+        for doc in docs.get("annual", []) or []:
+            parsed = doc.get("parsed") or {}
+            eq = safe_float(parsed.get("equity_parent"))
+            if parsed.get("bvps") is None and eq is not None and eq > 0 and shares_abs:
+                bvps = eq / shares_abs
+                if 0.1 <= bvps <= 5000:
+                    add_derivation(
+                        "annual", "bvps", bvps,
+                        "issuer-primary FY parent equity / semantically verified stable shares",
+                        ["issuer-primary FY parent/common equity", "Eulerpool verified shares_outstanding"],
+                        doc=doc,
+                    )
+                    parsed.setdefault("bvps_scope", "parent_common_shareholders")
+            eq_prior = safe_float(parsed.get("equity_parent_prior_column"))
+            if parsed.get("bvps_prior_column") is None and eq_prior is not None and eq_prior > 0 and prior_shares_abs:
+                bvps_prior = eq_prior / prior_shares_abs
+                if 0.1 <= bvps_prior <= 5000:
+                    parsed["bvps_prior_column"] = bvps_prior
+                    parsed["bvps_prior_column_method_v227"] = "issuer-primary prior-FY parent equity / stable shares"
+                    derivations.append({
+                        "role": "annual",
+                        "field": "bvps_prior_column",
+                        "value": bvps_prior,
+                        "formula": "issuer-primary prior-FY parent equity / semantically verified stable shares",
+                        "sources": ["issuer-primary prior-FY parent/common equity", "Eulerpool verified shares_outstanding"],
+                        "confidence": "high_guarded",
+                    })
+            if parsed.get("shares") is None and shares_abs:
+                parsed["shares"] = shares_abs
+                parsed["shares_method_v227"] = "semantically_verified_provider_denominator"
+            if parsed.get("shares_prior_column") is None and prior_shares_abs:
+                parsed["shares_prior_column"] = prior_shares_abs
+                parsed["shares_prior_column_method_v227"] = "semantically_verified_provider_denominator"
+
+    # 2) Provider-first standardized FY nodes. These are not relabelled as
+    # issuer-primary; they are injected as a distinct annual evidence node so the
+    # snapshot builder can consume the already-approved standard baseline.
+    annual_eps, annual_eps_row = _v227_baseline_verified_field(base, "annual_eps")
+    prior_annual_eps, prior_annual_eps_row = _v227_baseline_verified_field(base, "prior_annual_eps")
+    annual_ni, annual_ni_row = _v227_baseline_verified_field(base, "annual_net_income")
+    annual_div, annual_div_row = _v227_baseline_verified_field(base, "annual_dividend_per_share")
+    provider_annual = {
+        "period": "FY",
+        "year": datetime.now().year - 1,
+        "currency": financial_currency,
+        "semantic_extractor_version": "V227",
+        "provider_standard_baseline": True,
+    }
+    if annual_eps is not None:
+        provider_annual["eps"] = annual_eps
+        provider_annual["eps_method_v227"] = "Eulerpool semantically verified FY EPS"
+    if prior_annual_eps is not None:
+        provider_annual["eps_prior_column"] = prior_annual_eps
+        provider_annual["eps_prior_column_method_v227"] = "Eulerpool semantically verified prior-FY EPS"
+    if annual_div is not None:
+        provider_annual["dividend_per_share"] = annual_div
+        provider_annual["dividend_method_v227"] = "Eulerpool semantically verified standardized dividend"
+    if shares_abs is not None and denominator_safe:
+        provider_annual["shares"] = shares_abs
+        provider_annual["shares_method_v227"] = "Eulerpool semantically verified stable shares"
+    if prior_shares_abs is not None and denominator_safe:
+        provider_annual["shares_prior_column"] = prior_shares_abs
+    if annual_ni is not None:
+        provider_annual["net_income_parent"] = annual_ni
+        provider_annual["net_income_parent_method_v227"] = "Eulerpool semantically verified parent/common FY net income"
+    elif annual_eps is not None and shares_abs is not None and denominator_safe:
+        # This bridge is used only as the same-basis TTM net-income consistency
+        # node. It is allowed because EPS + stable denominator are already
+        # semantically verified standard fields and material structure actions are absent.
+        annual_ni_derived = annual_eps * shares_abs
+        provider_annual["net_income_parent"] = annual_ni_derived
+        provider_annual["net_income_parent_method_v227"] = "derived verified FY EPS * stable verified shares"
+        derivations.append({
+            "role": "annual",
+            "field": "net_income_parent",
+            "value": annual_ni_derived,
+            "formula": "semantically verified FY EPS × semantically verified stable shares",
+            "sources": ["Eulerpool verified FY EPS", "Eulerpool verified shares_outstanding"],
+            "confidence": "high_guarded",
+        })
+    if any(k in provider_annual for k in ("eps", "eps_prior_column", "dividend_per_share", "net_income_parent")):
+        docs.setdefault("annual", []).append({
+            "url": None,
+            "resolved_url": None,
+            "title": "V227 provider-first standardized FY baseline",
+            "document_type": "structured_secondary_baseline",
+            "metric_count": sum(1 for k in ("eps", "eps_prior_column", "dividend_per_share", "net_income_parent") if provider_annual.get(k) is not None),
+            "parsed": provider_annual,
+            "provider_standard_baseline": True,
+        })
+
+    # Rebuild the common dynamic snapshot from the enriched evidence graph. The
+    # old builder still owns the valuation schema and therefore preserves all
+    # downstream score/multiple/fair-value logic.
+    diagnostics = list(src.get("diagnostics") or [])
+    snapshot, missing = _insurance_build_dynamic_snapshot_v224(
+        company_name,
+        insurance_subprofile,
+        financial_currency,
+        docs,
+        calendar_event=src.get("calendar_event"),
+        diagnostics=diagnostics,
+    )
+
+    if isinstance(snapshot, dict):
+        snapshot["integration_version"] = UNIVERSAL_EVIDENCE_DERIVATION_GRAPH_VERSION_V227
+        snapshot["source_name"] = "Universal Evidence Derivation Graph V227"
+        snapshot["derivation_graph_v227"] = list(derivations)
+        snapshot["source_note"] = (
+            "V227 kombiniert ausschließlich semantisch kompatible Evidenzknoten: issuer-primary Specialist-Numerator/Equity/Regulatorik "
+            "mit provider-first standardisierten FY-/Aktienzahl-/Dividendenfeldern. Per-Share-Ableitungen sind bei Struktur-/Aktienzahl-Alarm gesperrt; "
+            "jede Ableitung behält Formel und Provenienz. RoE und regulatorische Kapitalquote werden nie aus Provider-Proxies abgeleitet."
+        )
+        snapshot["net_income_basis_label"] = snapshot.get("net_income_basis_label") or "Parent-shareholder result / guarded derived bridge"
+        snapshot["net_income_matches_eps_basis"] = True
+
+    out["version"] = "V227"
+    out["documents"] = docs
+    out["diagnostics"] = diagnostics
+    out["snapshot"] = snapshot
+    out["missing_primary"] = list(missing or [])
+    out["complete"] = isinstance(snapshot, dict)
+    out["available"] = bool(src.get("available") or any(docs.get(k) for k in ("current_h1", "prior_h1", "annual")))
+    out["status"] = "complete_primary_snapshot" if out["complete"] else ("partial_primary_evidence" if out["available"] else "issuer_primary_not_recovered")
+    stages = dict(src.get("resolver_stages") or {})
+    stages["derivation_graph_nodes"] = len(derivations)
+    stages["derivation_graph_blocked"] = len(blocked)
+    stages["semantic_snapshot_complete"] = bool(out["complete"])
+    out["resolver_stages"] = stages
+    out["derivation_graph_v227"] = {
+        "version": "V227",
+        "derivations": derivations,
+        "derived_field_count": len(derivations),
+        "blocked_reasons": blocked,
+        "stable_share_denominator": denominator_safe,
+        "shares_change_pct": shares_change_pct,
+        "material_structure_action_candidates": material_actions,
+        "provider_share_denominator": shares_abs,
+        "provider_prior_share_denominator": prior_shares_abs,
+        "release_rule": (
+            "Direkt berichtete Primärwerte haben Vorrang. Ableitungen benötigen kompatible Periode, Währung, Parent/Common-Shareholder-Scope und einen stabilen semantisch verifizierten Nenner. "
+            "Bei Corporate-Action-/Aktienzahl-Alarm bleibt die Ableitung fail-closed."
+        ),
+    }
+    return out
+
 
 # Backward-compatible alias for stale cached/UI references.
 def build_family_specialist_delta_v225(company_type, fundamentals_baseline, raw_primary_missing=None):
@@ -64114,6 +64424,13 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             financial_currency,
             cache_epoch=INSURANCE_IR_HUB_RESOLVER_VERSION_V224,
         )
+        _insurance_primary_discovery_v222 = apply_insurance_evidence_derivation_graph_v227(
+            _insurance_primary_discovery_v222,
+            universal_fundamentals_baseline_v225,
+            name,
+            (company_type or {}).get("insurance_subprofile"),
+            financial_currency,
+        )
         _dynamic_insurance_snapshot_v222 = (_insurance_primary_discovery_v222 or {}).get("snapshot")
         if isinstance(_dynamic_insurance_snapshot_v222, dict):
             _insurance_primary_for_evidence_v219 = _dynamic_insurance_snapshot_v222
@@ -64130,8 +64447,10 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             primary_discovery=_insurance_primary_discovery_v222,
             primary_snapshot=_insurance_primary_for_evidence_v219,
         )
+        universal_evidence_layer_v219["family_specialist_delta_v227"] = _delta_v226
         universal_evidence_layer_v219["family_specialist_delta_v226"] = _delta_v226
         universal_evidence_layer_v219["family_specialist_delta_v225"] = _delta_v226
+        universal_evidence_layer_v219["insurance_primary_acquisition_v227"] = _insurance_primary_discovery_v222
         universal_evidence_layer_v219["insurance_primary_acquisition_v224"] = _insurance_primary_discovery_v222
         universal_evidence_layer_v219["insurance_primary_acquisition_v223"] = _insurance_primary_discovery_v222
         universal_evidence_layer_v219["insurance_primary_acquisition_v222"] = _insurance_primary_discovery_v222
@@ -68132,24 +68451,24 @@ if selected_symbol:
                                 if _semantic_total_top else ""
                             )
                             st.success(
-                                "Universal Fundamentals Baseline V226: Eulerpool verbunden · "
+                                "Universal Fundamentals Baseline V227: Eulerpool verbunden · "
                                 f"{int(provider_v219_ui.get('dataset_count') or 0)} Datensätze verfügbar"
                                 + _mapped_text_top + _semantic_text_top
                                 + " · Standard-Fundamentaldaten provider-first; Primärquellen nur für familienentscheidende Spezialkennzahlen."
                             )
                         elif provider_v219_ui.get("configured"):
                             st.warning(
-                                "Universal Fundamentals Baseline V226: Eulerpool ist konfiguriert, für diesen Titel aber nur teilweise bzw. nicht auflösbar. "
+                                "Universal Fundamentals Baseline V227: Eulerpool ist konfiguriert, für diesen Titel aber nur teilweise bzw. nicht auflösbar. "
                                 "Die Bewertung fällt nicht auf unbestätigte Provider-Daten zurück."
                             )
                         else:
                             st.caption(
-                                "Universal Fundamentals Baseline V226: Eulerpool optional nicht verbunden. "
+                                "Universal Fundamentals Baseline V227: Eulerpool optional nicht verbunden. "
                                 "Für die strukturierte Sekundärevidenz kann EULERPOOL_API_KEY als Umgebungsvariable oder Streamlit-Secret gesetzt werden; "
                                 "bestehende Primärquellen-/Yahoo-Pfade bleiben unverändert."
                             )
                         if is_insurance_company_type(company_type):
-                            _primary_v222 = evidence_v219_ui.get("insurance_primary_acquisition_v224") or evidence_v219_ui.get("insurance_primary_acquisition_v223") or evidence_v219_ui.get("insurance_primary_acquisition_v222") or {}
+                            _primary_v222 = evidence_v219_ui.get("insurance_primary_acquisition_v227") or evidence_v219_ui.get("insurance_primary_acquisition_v227") or evidence_v219_ui.get("insurance_primary_acquisition_v224") or evidence_v219_ui.get("insurance_primary_acquisition_v223") or evidence_v219_ui.get("insurance_primary_acquisition_v222") or {}
                             _primary_status_v222 = evidence_v219_ui.get("issuer_primary_status")
                             if _primary_status_v222 == "verified_static_issuer_snapshot":
                                 st.caption("Insurance-Primärquellen V224: bestehender verifizierter Emittenten-Snapshot aktiv.")
@@ -68160,14 +68479,14 @@ if selected_symbol:
                                 _domain_v222 = (_primary_v222 or {}).get("company_domain")
                                 _status_text_v222 = text_or_dash((_primary_v222 or {}).get("status"))
                                 _extra_v222 = (" · Emittenten-Domain: " + str(_domain_v222)) if _domain_v222 else ""
-                                st.warning("Insurance Specialist-Delta V226: " + _status_text_v222 + _extra_v222 + ". Bewertung bleibt fail-closed.")
-                            _delta_v225_top = evidence_v219_ui.get("family_specialist_delta_v226") or evidence_v219_ui.get("family_specialist_delta_v225") or {}
+                                st.warning("Insurance Specialist-Delta V227: " + _status_text_v222 + _extra_v222 + ". Bewertung bleibt fail-closed.")
+                            _delta_v225_top = evidence_v219_ui.get("family_specialist_delta_v227") or evidence_v219_ui.get("family_specialist_delta_v226") or evidence_v219_ui.get("family_specialist_delta_v225") or {}
                             _sat_v225_top = _delta_v225_top.get("baseline_satisfied_primary_items") or []
                             _remain_v225_top = _delta_v225_top.get("remaining_primary_missing_after_baseline") or []
                             if _sat_v225_top:
-                                st.caption("V226 Standardbasis deckt bereits: " + " · ".join(str(x.get("requirement")) for x in _sat_v225_top))
+                                st.caption("V227 Standardbasis deckt bereits: " + " · ".join(str(x.get("requirement")) for x in _sat_v225_top))
                             if _remain_v225_top:
-                                st.caption("V226 verbleibender Specialist-Delta: " + " · ".join(str(x) for x in _remain_v225_top[:6]) + (" …" if len(_remain_v225_top) > 6 else ""))
+                                st.caption("V227 verbleibender Specialist-Delta: " + " · ".join(str(x) for x in _remain_v225_top))
 
                         _family_source_labels = {
                             "security_family_master": "Stammtabelle der Bewertungsfamilien",
@@ -68316,7 +68635,7 @@ if selected_symbol:
                     if evidence_v219_ui:
                         contract_v219_ui = evidence_v219_ui.get("contract") or {}
                         provider_v219_ui = evidence_v219_ui.get("provider") or {}
-                        with st.expander("🧱 Universal Fundamentals Baseline V226", expanded=False):
+                        with st.expander("🧱 Universal Fundamentals Baseline V227", expanded=False):
                             st.write(
                                 "**Quellenpriorität:** "
                                 + " → ".join(contract_v219_ui.get("source_priority") or [])
@@ -68364,7 +68683,7 @@ if selected_symbol:
                                 mapped_fields_v219_ui = mapped_v219_ui.get("fields") or {}
                                 mapped_cov_v219_ui = mapped_v219_ui.get("coverage") or {}
                                 if mapped_v219_ui:
-                                    st.markdown("**V226 – Standarddaten-Mapping, Periodenbasis & Entity-Scope**")
+                                    st.markdown("**V227 – Standarddaten-Mapping, Periodenbasis & Entity-Scope**")
                                     _field_labels_v219 = {
                                         "annual_eps": "Jahres-EPS",
                                         "prior_annual_eps": "Vorjahres-EPS",
@@ -68459,19 +68778,19 @@ if selected_symbol:
                             if _baseline_v225_ui:
                                 _b_verified_v225 = _baseline_v225_ui.get("verified_standard_fields") or []
                                 _b_available_v225 = _baseline_v225_ui.get("available_fields") or []
-                                st.markdown("**V226 – provider-first Standard-Fundamentaldaten**")
+                                st.markdown("**V227 – provider-first Standard-Fundamentaldaten**")
                                 st.caption(
                                     f"Eulerpool-Standardbasis: {len(_b_verified_v225)}/{len(_b_available_v225)} verfügbare Felder semantisch freigegeben · "
                                     "Yahoo/yfinance bleibt unabhängiger Gegencheck/Kontext."
                                 )
                                 if _b_verified_v225:
                                     st.caption("Freigegebene Standardfelder: " + " · ".join(str(x) for x in _b_verified_v225))
-                            _delta_v225_ui = evidence_v219_ui.get("family_specialist_delta_v226") or evidence_v219_ui.get("family_specialist_delta_v225") or {}
+                            _delta_v225_ui = evidence_v219_ui.get("family_specialist_delta_v227") or evidence_v219_ui.get("family_specialist_delta_v226") or evidence_v219_ui.get("family_specialist_delta_v225") or {}
                             if _delta_v225_ui:
                                 _sat_v225 = _delta_v225_ui.get("baseline_satisfied_primary_items") or []
                                 _remain_v225 = _delta_v225_ui.get("remaining_primary_missing_after_baseline") or []
                                 _deferred_v225 = _delta_v225_ui.get("deferred_context_requirements") or []
-                                st.markdown("**V226 – Familien-Specialist-Delta & Gate-Vertrag**")
+                                st.markdown("**V227 – Familien-Specialist-Delta & Gate-Vertrag**")
                                 if _sat_v225:
                                     st.success("Standardbasis übernimmt: " + " · ".join(str(x.get("requirement")) for x in _sat_v225))
                                 _standard_contract_v226 = _delta_v225_ui.get("standard_baseline_contract") or []
@@ -68483,13 +68802,13 @@ if selected_symbol:
                                 if _remain_v225:
                                     st.warning("Noch für denselben Release-Vertrag zu lösen: " + " · ".join(str(x) for x in _remain_v225))
                                 elif _delta_v225_ui.get("specialist_release_ready"):
-                                    st.success("V226 Evidenzvertrag vollständig. Das bestehende Insurance-Gate darf nun die tatsächliche Snapshot-/Score-/Fair-Value-Freigabe prüfen.")
-                                st.caption("Gate-Abgleich: Anzeige und diagnostischer Specialist-Delta stammen aus demselben V226-Vertrag.")
+                                    st.success("V227 Evidenzvertrag vollständig. Das bestehende Insurance-Gate darf nun die tatsächliche Snapshot-/Score-/Fair-Value-Freigabe prüfen.")
+                                st.caption("Gate-Abgleich: Anzeige und diagnostischer Specialist-Delta stammen aus demselben V227-Vertrag.")
                                 st.caption(text_or_dash(_delta_v225_ui.get("note")))
                             if is_insurance_company_type(company_type):
-                                _primary_v222 = evidence_v219_ui.get("insurance_primary_acquisition_v224") or evidence_v219_ui.get("insurance_primary_acquisition_v223") or evidence_v219_ui.get("insurance_primary_acquisition_v222") or {}
+                                _primary_v222 = evidence_v219_ui.get("insurance_primary_acquisition_v227") or evidence_v219_ui.get("insurance_primary_acquisition_v227") or evidence_v219_ui.get("insurance_primary_acquisition_v224") or evidence_v219_ui.get("insurance_primary_acquisition_v223") or evidence_v219_ui.get("insurance_primary_acquisition_v222") or {}
                                 _primary_status_v222 = evidence_v219_ui.get("issuer_primary_status")
-                                st.markdown("**Insurance Specialist-Resolver V226 (V224 Dokumentengine)**")
+                                st.markdown("**Insurance Specialist-Resolver V227 (V224 Dokumentengine + Ableitungsgraph)**")
                                 if _primary_status_v222 == "verified_static_issuer_snapshot":
                                     st.write("Status: bestehender verifizierter Emittenten-Snapshot")
                                 else:
@@ -68512,11 +68831,33 @@ if selected_symbol:
                                             + f" · Dokumente geladen {int(_stages_v223.get('documents_fetched') or 0)}"
                                             + f" · Dokumente mit Kennzahlen {int(_stages_v223.get('documents_with_metrics') or 0)}"
                                             + f" · Periodenrollen verworfen {int(_stages_v223.get('period_role_rejections') or 0)}"
+                                            + f" · Ableitungen {int(_stages_v223.get('derivation_graph_nodes') or 0)}"
+                                            + f" · Ableitungs-Blocks {int(_stages_v223.get('derivation_graph_blocked') or 0)}"
                                             + " · semantischer Snapshot " + ("✅" if _stages_v223.get("semantic_snapshot_complete") else "❌")
                                         )
+                                    _graph_v227 = (_primary_v222 or {}).get("derivation_graph_v227") or {}
+                                    if _graph_v227:
+                                        _deriv_v227 = _graph_v227.get("derivations") or []
+                                        st.markdown("**V227 – Evidence Derivation Graph**")
+                                        st.caption(
+                                            f"Abgeleitete Evidenzknoten: {len(_deriv_v227)} · stabiler Aktienzahl-Nenner: "
+                                            + ("✅" if _graph_v227.get("stable_share_denominator") else "❌")
+                                            + (f" · Aktienzahländerung {safe_float(_graph_v227.get('shares_change_pct')):.2f} %" if safe_float(_graph_v227.get('shares_change_pct')) is not None else "")
+                                        )
+                                        if _deriv_v227:
+                                            for _d_v227 in _deriv_v227[:12]:
+                                                _v_v227 = safe_float(_d_v227.get("value"))
+                                                _v_text_v227 = f"{_v_v227:.4f}" if _v_v227 is not None else "–"
+                                                st.caption(
+                                                    "✅ " + str(_d_v227.get("field")) + " = " + _v_text_v227
+                                                    + " · " + str(_d_v227.get("formula") or "")
+                                                )
+                                        for _b_v227 in (_graph_v227.get("blocked_reasons") or []):
+                                            st.warning(str(_b_v227))
+                                        st.caption(text_or_dash(_graph_v227.get("release_rule")))
                                     _missing_v222 = list((_primary_v222 or {}).get("missing_primary") or [])
                                     if _missing_v222:
-                                        st.warning("Noch fehlende Primärevidenz: " + " · ".join(str(x) for x in _missing_v222))
+                                        st.warning("Noch fehlende Primärevidenz nach V227-Ableitungsgraph: " + " · ".join(str(x) for x in _missing_v222))
                                     elif (_primary_v222 or {}).get("complete"):
                                         st.success("Dynamischer Primärquellen-Snapshot vollständig. Keine Eulerpool-/Yahoo-Ersatzwerte wurden zur Freigabe verwendet.")
                                     _cal_v222 = (_primary_v222 or {}).get("calendar_event") or {}
@@ -72547,7 +72888,7 @@ if selected_symbol:
                                 _ins_secondary_parts_v219.append("Aktienzahl " + _format_eulerpool_shares_v220(_ins_shares_v219, _ins_shares_item_v220.get("unit")))
                             if _ins_secondary_parts_v219:
                                 st.caption(
-                                    "Eulerpool-Standardbasis V225: " + " · ".join(_ins_secondary_parts_v219)
+                                    "Eulerpool-Standardbasis V227: " + " · ".join(_ins_secondary_parts_v219)
                                     + ". Diese Werte dienen nur der Evidenzbeschaffung/Plausibilisierung und ersetzen keine Versicherungs-Primärquelle."
                                 )
                                 if _ins_bvps_v219 is not None and not _ins_bvps_item_v221.get("semantic_verified"):
