@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.42"
+APP_BUILD_VERSION = "V2.23.43"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Insurance Corporate-Action Provider-Fallback & FX Guard V238"
+    f"Build {APP_BUILD_VERSION} · Insurance Provider-Fallback UI Priorität & Safe Corporate-Action V239"
 )
 
 
@@ -965,6 +965,7 @@ st.caption(
 
 # V2.23.41: Insurance Provider-First Abschluss & stabiler IR-Link V237. Keeps company reports optional and selects a durable issuer-owned Investor-Relations/reporting hub instead of linking to a single year-specific report. Cleans remaining provider-first UI wording so structured book value/TTM anchors are not mislabeled as official issuer evidence; primary sources remain a safety upgrade only. No issuer-specific hard-coded financial values and no return to mandatory report parsing.
 # V2.23.42: Insurance Corporate-Action Provider-Fallback & FX Guard V238. Material insurer corporate actions now block only the issuer-primary FY-H1+H1 bridge/upgrade when comparability is unverified; the structured provider-first dual anchor may still run if its own TTM-EPS, book-value/P-B and unit gates are complete. Cross-currency listing EPS is converted explicitly from the provider listing currency into financial currency through the existing verified quote/financial FX route; cross-currency EPS trend scoring uses unitless structured earningsGrowth rather than mixing per-share horizons. Primary-source bridge remains diagnostic, confidence is capped at Medium in fallback mode, and no Solvency/SST value is estimated.
+# V2.23.43: Insurance Provider-Fallback UI Priority & Safe Corporate-Action V239. When a material corporate action blocks the issuer-primary bridge, provider_first_mode now has UI precedence even if a fresh primary snapshot still exists. This prevents primary-only score fields (capital/book-growth points) from being formatted in the provider fallback, preserves the issuer snapshot as diagnostic context, and renders the corporate-action gate as a primary-upgrade warning rather than a valuation-blocking error when the independent provider dual-anchor is active. Valuation math is unchanged.
 # V2.23.30: Specialist Delta Contract & Gate Alignment V226. Makes the family evidence contract the single diagnostic source of truth for provider-first standard fields versus issuer-primary specialist gates. Insurance/Reinsurance now always surfaces same-basis interim EPS/parent earnings, issuer-defined RoE, regulatory capital ratio + framework, scope-critical official BVPS and conditional corporate-action comparability even when the underlying document resolver omits them from its first missing-field list. FY EPS/prior FY EPS, shares and latest annual dividend are provider-first standard fields when semantically verified; issuer-primary remains the fallback when a standard field is unavailable. Adds Eulerpool Dividend Quality as structured standard evidence. Valuation mathematics remain unchanged and specialist release stays fail-closed.
 # V2.23.31: Universal Evidence Derivation Graph V227. Adds a guarded cross-source derivation graph on top of the provider-first baseline: semantically verified standard denominators may combine with same-period issuer-primary parent earnings/equity to derive interim EPS/BVPS, while FY EPS/prior-FY EPS/dividend and stable share-count data remain provider-first. Derivations are blocked on material corporate-action/share-count alerts, require compatible period/currency/scope semantics, preserve provenance, and never infer regulatory capital/RoE. The graph can rebuild a dynamic Insurance snapshot without forcing every issuer to publish every ratio in identical form. Existing static snapshots and valuation mathematics remain unchanged; specialist release remains fail-closed.
 # V2.23.32: Comparative Period Bridge & Dividend Fallback V228. Closes the remaining issuer-neutral insurer evidence gaps exposed by Talanx: current-H1 comparative income columns are promoted before per-share derivation so prior-H1 EPS can be derived from verified parent earnings and the stable denominator; interim balance-sheet prior columns are period-tagged and may bridge FY/prior-FY BVPS only when the source explicitly proves H1 vs previous 31-December comparatives; issuer-owned dividend/shareholder-return hubs and financial-year pages become an annual fallback when the standardized provider dividend is unavailable. The FY parent-income consistency node derived from verified FY EPS × stable shares is recognized by the displayed specialist contract. No insurer scoring, corridor, dual-anchor weights or Fair-Value mathematics change; all new bridges remain fail-closed on share-count/corporate-action or period ambiguity.
@@ -69762,7 +69763,7 @@ if selected_symbol:
                     if evidence_v219_ui:
                         contract_v219_ui = evidence_v219_ui.get("contract") or {}
                         provider_v219_ui = evidence_v219_ui.get("provider") or {}
-                        with st.expander("🧱 Universal Fundamentals Baseline V237", expanded=False):
+                        with st.expander("🧱 Universal Fundamentals Baseline V239", expanded=False):
                             st.write(
                                 "**Quellenpriorität:** "
                                 + " → ".join(contract_v219_ui.get("source_priority") or [])
@@ -74048,7 +74049,7 @@ if selected_symbol:
                                 _ins_secondary_parts_v219.append("Aktienzahl " + _format_eulerpool_shares_v220(_ins_shares_v219, _ins_shares_item_v220.get("unit")))
                             if _ins_secondary_parts_v219:
                                 st.caption(
-                                    "Eulerpool-Standardbasis V235: " + " · ".join(_ins_secondary_parts_v219)
+                                    "Eulerpool-Standardbasis V239: " + " · ".join(_ins_secondary_parts_v219)
                                     + ". Diese Werte dienen nur der Evidenzbeschaffung/Plausibilisierung und ersetzen keine Versicherungs-Primärquelle."
                                 )
                                 if _ins_bvps_v219 is not None and not _ins_bvps_item_v221.get("semantic_verified"):
@@ -74114,7 +74115,7 @@ if selected_symbol:
                                 ]
                             )
 
-                        if insurance_model.get("primary_source_complete"):
+                        if insurance_model.get("primary_source_complete") and not insurance_model.get("provider_first_mode"):
                             st.success(
                                 f"Primärquellen-Gate bestanden: {insurance_income_label_ui}/{insurance_eps_label_ui}, "
                                 f"{insurance_roe_label_ui} und {insurance_capital_label_ui} sind aus aktuellen offiziellen Primärquellen verifiziert."
@@ -74372,7 +74373,7 @@ if selected_symbol:
                             insurance_score_ui = insurance_model.get("insurance_score") or {}
                             insurance_val_ui = insurance_model.get("insurance_valuation") or {}
                             st.success(
-                                "V236 Provider-First aktiv: Unternehmensberichte sind keine Voraussetzung für die Standardbewertung. "
+                                "V239 Provider-First aktiv: Unternehmensberichte sind keine Voraussetzung für die Standardbewertung. "
                                 "Primärquellen können die Sicherheit erhöhen; fehlende Solvency/SST-Werte werden nicht geschätzt."
                             )
                             st.metric("Provider-TTM-EPS", format_eps(safe_float(core_cov_ui.get("core_ttm_eps")), financial_currency))
@@ -80184,10 +80185,17 @@ if selected_symbol:
                             core_cov_3b = checks.get("core_coverage") or {}
                             corporate_action_3b = checks.get("corporate_action_gate") or {}
                             if corporate_action_3b.get("blocked"):
-                                st.error(
-                                    "Corporate-Action-/EPS-Vergleichbarkeits-Gate: "
-                                    + str(corporate_action_3b.get("note") or "Bewertungsbasis gesperrt.")
-                                )
+                                if provider_first_3b:
+                                    st.warning(
+                                        "Corporate-Action-/EPS-Vergleichbarkeits-Gate: Die Primärquellen-TTM-Brücke und das Upgrade auf hohe Sicherheit bleiben gesperrt. "
+                                        "Der unabhängige Datenanbieter-First-Doppelanker darf nach seinen eigenen Konsistenzprüfungen weiterlaufen. "
+                                        + str(corporate_action_3b.get("note") or "")
+                                    )
+                                else:
+                                    st.error(
+                                        "Corporate-Action-/EPS-Vergleichbarkeits-Gate: "
+                                        + str(corporate_action_3b.get("note") or "Bewertungsbasis gesperrt.")
+                                    )
                             insurance_score_3b = checks.get("insurance_score") or {}
                             book_bridge_3b = checks.get("book_value_bridge") or {}
                             insurance_val_3b = checks.get("insurance_valuation") or {}
@@ -80228,7 +80236,7 @@ if selected_symbol:
                                 _pel_3b = safe_float(insurance_val_3b.get("core_pe_corridor_lower"))
                                 _peh_3b = safe_float(insurance_val_3b.get("core_pe_corridor_upper"))
                                 if any(_v is None for _v in (_tpb_3b, _tpe_3b, _pbl_3b, _pbh_3b, _pel_3b, _peh_3b)):
-                                    st.error("V236 Integritäts-Gate: Bewertungsdictionary unvollständig; Detailausgabe bleibt sicherheitshalber gesperrt.")
+                                    st.error("V239 Integritäts-Gate: Bewertungsdictionary unvollständig; Detailausgabe bleibt sicherheitshalber gesperrt.")
                                 else:
                                     st.write(
                                         "**Ziel-P/B:** "
@@ -80254,7 +80262,7 @@ if selected_symbol:
                                 st.success(insurance_val_3b.get("note"))
                                 st.caption(
                                     (
-                                        "V236 Provider-First: fehlende Unternehmensberichte/Solvency-Daten sperren die Bewertung nicht. Fehlende strukturierte Kernanker oder mehr als 30 % Abstand zwischen P/B- und TTM-KGV-Anker sperren weiterhin."
+                                        "V239 Provider-First: fehlende Unternehmensberichte/Solvency-Daten sperren die Bewertung nicht. Fehlende strukturierte Kernanker oder mehr als 30 % Abstand zwischen P/B- und TTM-KGV-Anker sperren weiterhin."
                                     ) if insurance_val_3b.get("provider_first") else (
                                         f"Primärquellen-Upgrade: veraltete Primärdaten, unvollständige {insurance_ttm_label_3b}-Abdeckung, Buchwert-Konflikte oder mehr als 25 % Ankerabstand sperren die verifizierte Bewertung."
                                     )
@@ -83777,5 +83785,5 @@ if selected_symbol:
             st.caption(
                 "Die bereits berechneten Daten bleiben sichtbar. Öffne bei einem reproduzierbaren Fehler die technische Diagnose und sende nur diesen Abschnitt."
             )
-            with st.expander("🧪 Technische Fehlerdiagnose V236", expanded=False):
+            with st.expander("🧪 Technische Fehlerdiagnose V239", expanded=False):
                 st.code(f"{type(exc).__name__}: {exc}")
