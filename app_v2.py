@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.49"
+APP_BUILD_VERSION = "V2.23.50"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Upstream E&P Dual-Anchor Validation V245"
+    f"Build {APP_BUILD_VERSION} · Upstream E&P Zweitvalidierung & Corporate-Action-Gate V246"
 )
 
 
@@ -42736,8 +42736,8 @@ def build_integrated_oil_gas_special_control(control, specialist_model):
 
 
 # =========================================================
-# V2.23.49 – Upstream E&P Specialist Family Model V1
-# First end-to-end validation issuer: EQT Corporation (EQT)
+# V2.23.50 – Upstream E&P Specialist Family Model V1
+# Second validation: Expand Energy (EXE) + post-quarter corporate-action gate
 # =========================================================
 
 def is_upstream_ep_specialist_type(company_type, symbol=None):
@@ -42755,6 +42755,48 @@ def get_verified_upstream_ep_snapshot(symbol):
     them. PV-10 is explicitly a safety/plausibility anchor, never a direct FV.
     """
     sym = str(symbol or "").upper().strip()
+    if sym == "EXE":
+        return {
+            "company": "Expand Energy Corporation",
+            "symbol": "EXE",
+            "specialist_profile": "North American Natural Gas E&P + Marketing/Commercial; Twin Eagle seit 16.09.2026 konsolidierungsrelevante Corporate Action",
+            "reporting_currency": "USD",
+            "as_of_date": "30.06.2026",
+            "published_date": "28.07.2026",
+            "quarterly_source_name": "Expand Energy Q2 2026 Results",
+            "quarterly_source_url": "https://investors.expandenergy.com/static-files/87f5b573-eae0-4ec6-ab78-d7f50929126c",
+            "annual_source_name": "Expand Energy FY2025 Results & 2026 Outlook",
+            "annual_source_url": "https://investors.expandenergy.com/news-releases/news-release-details/expand-energy-corporation-reports-fourth-quarter-and-full-year-0",
+            "corporate_action_blocked": True,
+            "corporate_action_name": "Twin Eagle Acquisition",
+            "corporate_action_close_date": "16.09.2026",
+            "corporate_action_value_usd_bn": 1.25,
+            "corporate_action_initial_ebitda_usd_bn": 0.20,
+            "corporate_action_synergy_ebitda_usd_bn": 0.35,
+            "corporate_action_source_name": "SEC 8-K · Twin Eagle Closing",
+            "corporate_action_source_url": "https://www.sec.gov/Archives/edgar/data/895126/000089512626000053/exe-20260916.htm",
+            "corporate_action_note": "Twin Eagle wurde nach dem Q2-Stichtag abgeschlossen. Q2 Net Debt, FCF und Adjusted EBITDAX liegen damit nicht auf derselben Unternehmens-/Finanzierungsbasis wie der aktuelle Kurs. Bis pro-forma oder post-close vergleichbare Daten vorliegen, bleiben Score, Doppelanker und Fair Value gesperrt.",
+            "q2_sales_volume_bcfe": 680.862,
+            "fy2026_guidance_low_bcfe": 2701.0,
+            "fy2026_guidance_high_bcfe": 2774.0,
+            "q2_realized_price_usd_per_mcfe": 3.12,
+            "q2_basis_differential_usd_per_mcf": -0.48,
+            "q2_operating_cost_usd_per_mcfe": 0.25,
+            "h1_2026_fcf_attributable_usd_bn": 2.038,
+            "h1_2025_fcf_attributable_usd_bn": 1.198,
+            "fy2025_fcf_attributable_usd_bn": 1.839,
+            "h1_2026_adjusted_ebitda_attributable_usd_bn": 3.151,
+            "fy2025_adjusted_ebitda_attributable_usd_bn": 5.078,
+            "q2_2026_net_debt_usd_bn": 3.075,
+            "q2_2026_total_debt_usd_bn": 3.685,
+            "fy2025_net_debt_usd_bn": 4.409,
+            "q2_2026_liquidity_usd_bn": 4.0,
+            "proved_reserves_tcfe": 25.880,
+            "proved_developed_reserves_tcfe": 18.576,
+            "fy2025_production_tcfe": 2.622,
+            "pv10_usd_bn": 19.374,
+            "valuation_confidence_cap": "Mittel",
+        }
     if sym != "EQT":
         return None
     return {
@@ -43033,6 +43075,17 @@ def build_upstream_ep_specialist_model(company_type, fundamental_info, symbol):
     snap = get_verified_upstream_ep_snapshot(symbol)
     if not snap:
         out["note"] = "Upstream-E&P-Familie erkannt; noch kein verifizierter Emittenten-Primärdatenadapter verfügbar."
+        return out
+
+    # V246: a completed material acquisition after the latest operating period
+    # blocks the dual anchor until debt, cash flow and EBITDA share one scope.
+    if snap.get("corporate_action_blocked"):
+        out.update({
+            "issuer_supported": True,
+            "corporate_action_blocked": True,
+            "snapshot": snap,
+            "note": snap.get("corporate_action_note"),
+        })
         return out
 
     guide_low = safe_float(snap.get("fy2026_guidance_low_bcfe")); guide_high = safe_float(snap.get("fy2026_guidance_high_bcfe"))
@@ -77956,7 +78009,7 @@ if selected_symbol:
                             ep_metrics = upstream_ep_ui.get("metrics") or {}
                             ep_ccy = ep_snap.get("reporting_currency") or "USD"
                             st.divider()
-                            st.subheader("🛢️ Upstream E&P Primärdatenadapter V1 · EQT")
+                            st.subheader(f"🛢️ Upstream E&P Primärdatenadapter V1 · {text_or_dash(ep_snap.get('company'))}")
                             st.write(
                                 f"**Primärdatenstand:** {text_or_dash(ep_snap.get('as_of_date'))} "
                                 f"(veröffentlicht {text_or_dash(ep_snap.get('published_date'))}) · "
@@ -77968,75 +78021,93 @@ if selected_symbol:
                                 st.markdown(f"[{text_or_dash(ep_snap.get('annual_source_name'))}]({ep_snap.get('annual_source_url')})")
                             st.caption(text_or_dash(ep_snap.get("specialist_profile")))
 
-                            c1, c2, c3 = st.columns(3)
-                            with c1:
-                                st.metric(
-                                    "Q2 Sales Volume",
-                                    f"{safe_float(ep_snap.get('q2_sales_volume_bcfe')):.0f} Bcfe",
-                                    f"{safe_float(ep_metrics.get('q2_volume_growth_pct')):+.1f}% YoY",
+                            if upstream_ep_ui.get("corporate_action_blocked"):
+                                st.warning(
+                                    f"Corporate Action – E&P-Doppelanker gesperrt: {text_or_dash(ep_snap.get('corporate_action_name'))} wurde am "
+                                    f"{text_or_dash(ep_snap.get('corporate_action_close_date'))} nach dem Q2-Datenstichtag abgeschlossen. "
+                                    "Der aktuelle Kurs reflektiert damit eine andere Unternehmens-/Finanzierungsbasis als Q2 FCF, Net Debt und Adjusted EBITDAX."
                                 )
-                            with c2:
-                                st.metric(
-                                    "FY2026 Produktions-Guidance",
-                                    f"{safe_float(ep_metrics.get('fy2026_guidance_mid_bcfe')):.0f} Bcfe Mittelpunkt",
-                                    f"{safe_float(ep_metrics.get('guidance_mid_uplift_pct')):+.1f}% vs. vorheriger Mittelpunkt",
+                                if ep_snap.get("corporate_action_source_url"):
+                                    st.markdown(f"[{text_or_dash(ep_snap.get('corporate_action_source_name'))}]({ep_snap.get('corporate_action_source_url')})")
+                                st.write(
+                                    f"Transaktionswert: **{safe_float(ep_snap.get('corporate_action_value_usd_bn')):.2f} Mrd. {ep_ccy}** · "
+                                    f"anfänglich erwartetes jährliches EBITDA: **>{safe_float(ep_snap.get('corporate_action_initial_ebitda_usd_bn')):.2f} Mrd. {ep_ccy}** · "
+                                    f"inkl. angekündigter Synergien perspektivisch rund **{safe_float(ep_snap.get('corporate_action_synergy_ebitda_usd_bn')):.2f} Mrd. {ep_ccy}**."
                                 )
-                            with c3:
-                                st.metric(
-                                    "Q2 Operating Costs",
-                                    f"{safe_float(ep_snap.get('q2_operating_cost_usd_per_mcfe')):.2f} {ep_ccy}/Mcfe",
+                                st.info(text_or_dash(ep_snap.get("corporate_action_note")))
+                                st.caption(
+                                    "V246 wertet die vorhandenen Q2-/FY2025-Primärdaten als Evidenz für die Familienarchitektur, erzeugt daraus aber bewusst keinen Score, "
+                                    "kein Ziel-FCF-Yield, kein EV/Adjusted-EBITDA-Multiple und keinen Fair Value. Freigabe erst mit belastbarer pro-forma oder post-close Datenbasis."
+                                )
+                            else:
+                                c1, c2, c3 = st.columns(3)
+                                with c1:
+                                    st.metric(
+                                        "Q2 Sales Volume",
+                                        f"{safe_float(ep_snap.get('q2_sales_volume_bcfe')):.0f} Bcfe",
+                                        f"{safe_float(ep_metrics.get('q2_volume_growth_pct')):+.1f}% YoY",
+                                    )
+                                with c2:
+                                    st.metric(
+                                        "FY2026 Produktions-Guidance",
+                                        f"{safe_float(ep_metrics.get('fy2026_guidance_mid_bcfe')):.0f} Bcfe Mittelpunkt",
+                                        f"{safe_float(ep_metrics.get('guidance_mid_uplift_pct')):+.1f}% vs. vorheriger Mittelpunkt",
+                                    )
+                                with c3:
+                                    st.metric(
+                                        "Q2 Operating Costs",
+                                        f"{safe_float(ep_snap.get('q2_operating_cost_usd_per_mcfe')):.2f} {ep_ccy}/Mcfe",
+                                    )
+
+                                c4, c5, c6 = st.columns(3)
+                                with c4:
+                                    st.metric(
+                                        "H1 FCF attributable",
+                                        f"{safe_float(ep_snap.get('h1_2026_fcf_attributable_usd_bn')):.2f} Mrd. {ep_ccy}",
+                                        f"{safe_float(ep_metrics.get('h1_fcf_growth_pct')):+.1f}% YoY",
+                                    )
+                                with c5:
+                                    st.metric(
+                                        "Net Debt Q2",
+                                        f"{safe_float(ep_snap.get('q2_2026_net_debt_usd_bn')):.2f} Mrd. {ep_ccy}",
+                                        f"{safe_float(ep_metrics.get('net_debt_change_vs_fy2025_pct')):+.1f}% vs. FY2025",
+                                    )
+                                with c6:
+                                    st.metric(
+                                        "Net Debt / FY2025 Adj. EBITDA",
+                                        f"{safe_float(ep_metrics.get('net_debt_to_fy2025_adjusted_ebitda')):.2f}×",
+                                    )
+
+                                st.markdown("**Pricing / Basis / Hedges**")
+                                st.write(
+                                    f"Q2 realisierter Preis: **{safe_float(ep_snap.get('q2_realized_price_usd_per_mcfe')):.2f} {ep_ccy}/Mcfe** · "
+                                    f"Natural Gas inkl. abgerechneter Derivate: **{safe_float(ep_snap.get('q2_natural_gas_price_including_derivatives_usd_per_mcf')):.2f} {ep_ccy}/Mcf** · "
+                                    f"Basis-Differential: **{safe_float(ep_snap.get('q2_basis_differential_usd_per_mcf')):+.2f} {ep_ccy}/Mcf** · "
+                                    f"Q3/Q4 Hedged Volume: **{safe_float(ep_snap.get('q3_2026_hedged_volume_mmdth')):.0f}/{safe_float(ep_snap.get('q4_2026_hedged_volume_mmdth')):.0f} MMDth**"
                                 )
 
-                            c4, c5, c6 = st.columns(3)
-                            with c4:
-                                st.metric(
-                                    "H1 FCF attributable",
-                                    f"{safe_float(ep_snap.get('h1_2026_fcf_attributable_usd_bn')):.2f} Mrd. {ep_ccy}",
-                                    f"{safe_float(ep_metrics.get('h1_fcf_growth_pct')):+.1f}% YoY",
+                                st.markdown("**Kapitalintensität / Reserven**")
+                                st.write(
+                                    f"Maintenance-CapEx Mittelpunkt: **{safe_float(ep_metrics.get('maintenance_capex_mid_usd_bn')):.3f} Mrd. {ep_ccy}** · "
+                                    f"Growth-CapEx Mittelpunkt: **{safe_float(ep_metrics.get('growth_capex_mid_usd_bn')):.3f} Mrd. {ep_ccy}** · "
+                                    f"Growth-Anteil: **{safe_float(ep_metrics.get('growth_capex_share_pct')):.1f}%** · "
+                                    f"Maintenance-CapEx/Guidance-Volumen: **{safe_float(ep_metrics.get('maintenance_capex_usd_per_mcfe')):.2f} {ep_ccy}/Mcfe**"
                                 )
-                            with c5:
-                                st.metric(
-                                    "Net Debt Q2",
-                                    f"{safe_float(ep_snap.get('q2_2026_net_debt_usd_bn')):.2f} Mrd. {ep_ccy}",
-                                    f"{safe_float(ep_metrics.get('net_debt_change_vs_fy2025_pct')):+.1f}% vs. FY2025",
+                                st.write(
+                                    f"Proved Reserves: **{safe_float(ep_snap.get('proved_reserves_tcfe')):.1f} Tcfe** · "
+                                    f"Reserve Life: **{safe_float(ep_metrics.get('reserve_life_years')):.1f} Jahre** · "
+                                    f"Proved Developed Anteil: **{safe_float(ep_metrics.get('proved_developed_share_pct')):.1f}%** · "
+                                    f"PV-10: **{safe_float(ep_snap.get('pv10_usd_bn')):.3f} Mrd. {ep_ccy}** · "
+                                    f"PV-10 / Net Debt: **{safe_float(ep_metrics.get('pv10_to_net_debt')):.2f}×**"
                                 )
-                            with c6:
-                                st.metric(
-                                    "Net Debt / FY2025 Adj. EBITDA",
-                                    f"{safe_float(ep_metrics.get('net_debt_to_fy2025_adjusted_ebitda')):.2f}×",
+                                st.success(
+                                    "Primärdatenadapter bestanden: Production/Guidance, Pricing/Basis/Hedges, Unit Costs, Maintenance/Growth CapEx, "
+                                    "emittenteneigener FCF, Net Debt/Leverage und Reserves/PV-10 sind für den validierten Emittenten vollständig belegt."
                                 )
-
-                            st.markdown("**Pricing / Basis / Hedges**")
-                            st.write(
-                                f"Q2 realisierter Preis: **{safe_float(ep_snap.get('q2_realized_price_usd_per_mcfe')):.2f} {ep_ccy}/Mcfe** · "
-                                f"Natural Gas inkl. abgerechneter Derivate: **{safe_float(ep_snap.get('q2_natural_gas_price_including_derivatives_usd_per_mcf')):.2f} {ep_ccy}/Mcf** · "
-                                f"Basis-Differential: **{safe_float(ep_snap.get('q2_basis_differential_usd_per_mcf')):+.2f} {ep_ccy}/Mcf** · "
-                                f"Q3/Q4 Hedged Volume: **{safe_float(ep_snap.get('q3_2026_hedged_volume_mmdth')):.0f}/{safe_float(ep_snap.get('q4_2026_hedged_volume_mmdth')):.0f} MMDth**"
-                            )
-
-                            st.markdown("**Kapitalintensität / Reserven**")
-                            st.write(
-                                f"Maintenance-CapEx Mittelpunkt: **{safe_float(ep_metrics.get('maintenance_capex_mid_usd_bn')):.3f} Mrd. {ep_ccy}** · "
-                                f"Growth-CapEx Mittelpunkt: **{safe_float(ep_metrics.get('growth_capex_mid_usd_bn')):.3f} Mrd. {ep_ccy}** · "
-                                f"Growth-Anteil: **{safe_float(ep_metrics.get('growth_capex_share_pct')):.1f}%** · "
-                                f"Maintenance-CapEx/Guidance-Volumen: **{safe_float(ep_metrics.get('maintenance_capex_usd_per_mcfe')):.2f} {ep_ccy}/Mcfe**"
-                            )
-                            st.write(
-                                f"Proved Reserves: **{safe_float(ep_snap.get('proved_reserves_tcfe')):.1f} Tcfe** · "
-                                f"Reserve Life: **{safe_float(ep_metrics.get('reserve_life_years')):.1f} Jahre** · "
-                                f"Proved Developed Anteil: **{safe_float(ep_metrics.get('proved_developed_share_pct')):.1f}%** · "
-                                f"PV-10: **{safe_float(ep_snap.get('pv10_usd_bn')):.3f} Mrd. {ep_ccy}** · "
-                                f"PV-10 / Net Debt: **{safe_float(ep_metrics.get('pv10_to_net_debt')):.2f}×**"
-                            )
-                            st.success(
-                                "Primärdatenadapter bestanden: Production/Guidance, Pricing/Basis/Hedges, Unit Costs, Maintenance/Growth CapEx, "
-                                "emittenteneigener FCF, Net Debt/Leverage und Reserves/PV-10 sind für EQT vollständig belegt."
-                            )
-                            st.success(
-                                "V245 führt EQT als ersten end-to-end Validierungsissuer des wiederverwendbaren E&P-Familienmodells. "
-                                "100-Punkte-Familienqualität sowie FCF-Yield-/EV/Adjusted-EBITDA-Dual-Anchor sind für EQT freigegeben; weitere E&P-Emittenten bleiben bis zur eigenen Primärdatenvalidierung fail-closed."
-                            )
-
+                                st.success(
+                                    "V246 führt den Emittenten durch den wiederverwendbaren E&P-Familienvertrag. "
+                                    "100-Punkte-Familienqualität sowie FCF-Yield-/EV/Adjusted-EBITDA-Dual-Anchor sind für EQT freigegeben; weitere E&P-Emittenten bleiben bis zur eigenen Primärdatenvalidierung fail-closed."
+                                )
                         pp_foundation_ui = data.get("payments_processor_foundation_model") or {}
                         if pp_foundation_ui.get("applicable") and pp_foundation_ui.get("issuer_supported"):
                             pp_snap = pp_foundation_ui.get("snapshot") or {}
