@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.47"
+APP_BUILD_VERSION = "V2.23.48"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Universal Compact UI Evidence Scope Hotfix V243"
+    f"Build {APP_BUILD_VERSION} · Upstream E&P Family Safety Router V244"
 )
 
 
@@ -7768,6 +7768,7 @@ UNIVERSAL_VALUATION_FAMILY_CATALOG = {
     "midstream": {"label": "Midstream Infrastructure", "policy": "specialist"},
     "integrated_oil": {"label": "Integrated Oil & Gas Major", "policy": "specialist"},
     "oilfield_services": {"label": "Oilfield Services / Energy Technology", "policy": "specialist"},
+    "upstream_ep": {"label": "Upstream E&P / Natural Gas Producer", "policy": "specialist"},
     "oil_gas_cyclical": {"label": "Oil & Gas / Cyclical Producer", "policy": "generic_compatible"},
     "mining": {"label": "Mining / Materials", "policy": "specialist"},
     "specialty_chemicals": {"label": "Specialty Chemicals / Materials", "policy": "specialist"},
@@ -7940,6 +7941,14 @@ FAMILY_PRIMARY_EVIDENCE_REQUIREMENTS_V219 = {
         "Adjusted Earnings",
         "FCF / Cash Conversion",
         "Capital Returns / Balance Sheet",
+    ),
+    "upstream_ep": (
+        "Production / Sales Volume + Guidance",
+        "Realized Commodity Pricing / Basis / Hedge Position",
+        "Unit Operating Costs + Maintenance/Growth CapEx",
+        "Issuer-defined FCF / Cash Conversion + Scope",
+        "Net Debt / Leverage + Liquidity",
+        "Proved Reserves / Reserve Life / PV-10 or NAV context",
     ),
     "mining": (
         "Production / Grade / Recovery / Costs",
@@ -8156,6 +8165,8 @@ def _infer_universal_family_from_existing_type(company_type, name_text=""):
         ("integrated oil & gas", "integrated_oil"),
         ("oilfield services / energy technology", "oilfield_services"),
         ("energy technology / oilfield services", "oilfield_services"),
+        ("upstream e&p / natural gas producer", "upstream_ep"),
+        ("upstream e&p", "upstream_ep"),
         ("öl & gas / zyklisch", "oil_gas_cyclical"),
         ("rohstoffe", "mining"),
         ("specialty materials", "specialty_chemicals"),
@@ -8513,6 +8524,18 @@ def _infer_universal_family_from_metadata(symbol, sector, industry, business_sum
         return "software", "industry_rule"
     if any(x in industry_text for x in ["computer hardware", "information technology services", "communication equipment"]):
         return "it_hardware_services", "industry_rule"
+
+    # V244 – dedicated upstream E&P family. Provider industry labels such as
+    # "Oil & Gas E&P" are economically distinct from integrated majors, midstream
+    # infrastructure and oilfield services. Until the reusable family model is
+    # validated, this route is deliberately fail-closed instead of falling back
+    # to the generic cyclical P/E score.
+    upstream_ep_terms = (
+        "oil & gas e&p", "oil and gas e&p", "exploration & production",
+        "exploration and production", "independent oil & gas",
+    )
+    if any(term in industry_text for term in upstream_ep_terms):
+        return "upstream_ep", "industry_rule"
 
     if "utilities" in sector_text or "utility" in sector_text:
         return "regulated_utility", "sector_rule"
@@ -8906,6 +8929,23 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
                 "Provider-First Reinsurance-Modell: strukturiertes TTM-EPS + 1,1–2,2× P/B + 7,0–11,5× TTM-KGV Doppelanker; Primärquellen optionales Sicherheits-Upgrade"
                 if family_id == "reinsurance"
                 else "Provider-First Insurance-Modell: strukturiertes TTM-EPS + 1,0–2,8× P/B + 8,0–14,0× TTM-KGV Doppelanker; Primärquellen optionales Sicherheits-Upgrade"
+            )
+        elif family_id == "upstream_ep":
+            # V244: first universal Upstream E&P family routing.  The old generic
+            # Oil-&-Gas 8–13x cycle P/E and integrated-major peer set are explicitly
+            # disabled until a reusable E&P model has been validated across more
+            # than one producer.  This is a family safety gate, not an EQT exception.
+            out["type"] = "Upstream E&P / Natural Gas Producer" if "natural gas" in str(business_summary or "").lower() else "Upstream E&P / Producer"
+            out["family_model_status"] = "defined_unreleased"
+            out["family_model_ready"] = False
+            out["family_model_released"] = False
+            out["family_validation_status"] = "upstream_ep_family_v1_safety_gate"
+            out["universal_family_fail_closed"] = True
+            out["confidence_cap"] = "Mittel"
+            out["method"] = (
+                "E&P-Spezialmodell in Validierung: Production/Guidance + Realized Pricing/Basis/Hedges + Unit Costs + "
+                "Maintenance/Growth CapEx + issuer-native FCF + Net Debt/Leverage + Reserves/PV-10. "
+                "Generischer Standard-Score, 8–13× Zyklus-KGV und Integrated-Major-Peers bleiben gesperrt."
             )
         elif family_id == "asset_manager":
             # V99: two independent main issuers (TROW + BLK) have passed end-to-end,
@@ -13919,6 +13959,19 @@ def _universal_family_special_control(company_type):
         "issuer-spezifische Overrides nur bei echten Struktur-/Sonderfällen",
         "Analystenziele ausschließlich als Plausibilitätscheck, nie als Bewertungsanker",
     ]
+    if (company_type or {}).get("valuation_family_id") == "upstream_ep":
+        planned_checks = [
+            "Production/Sales Volume und FY-Guidance auf gleicher Asset-Basis",
+            "Realized Commodity Price, Basin/Basis Differential und Hedge Position",
+            "Unit Operating Costs sowie Maintenance- versus Growth-CapEx",
+            "Issuer-definierter Free Cash Flow und sauberer Equity-/NCI-Scope",
+            "Net Debt / Leverage / Liquidity statt mechanischem Net-Debt/Provider-FCF-Score",
+            "Proved Reserves, Reserve Life und PV-10/NAV-Kontext als Asset-Sicherheitsanker",
+            "Capital Returns und Verwässerung getrennt von operativer Qualität",
+            "E&P-Peers ausschließlich reference-only bis Commodity- und Asset-Basis vergleichbar sind",
+            "Analystenziele ausschließlich als Plausibilitätscheck, nie als Bewertungsanker",
+        ]
+
     if (company_type or {}).get("valuation_family_id") == "payments_processor":
         planned_checks = [
             "Zahlungsvolumen und Aktivität als Volumen- und Effizienzkontext, nicht als alleiniger Qualitätsanker",
@@ -14756,6 +14809,42 @@ def classify_company(name, symbol, sector, industry):
             "confidence_cap": "Mittel",
             "business_model": "Global integrierter Energie-Major mit Upstream plus Downstream/Refining/Marketing und ergänzenden Gas/LNG/Chemicals/Power-Aktivitäten",
             "focus_areas": "Production/Projects · CFFO Resilience · ROACE/ROCE · Leverage · CapEx Discipline · Integrated Portfolio · Shareholder Returns · Commodity/Execution Resilience",
+        }
+
+    # V244 – Upstream E&P / Natural Gas Producer.  This must run before the
+    # broad cyclical Oil & Gas bucket so producers such as EQT are not compared
+    # with integrated majors.  The family router is fail-closed until its own
+    # production/price/cost/FCF/leverage/reserve model is validated.
+    upstream_ep_terms = [
+        "oil & gas e&p",
+        "oil and gas e&p",
+        "exploration & production",
+        "exploration and production",
+        "independent oil & gas",
+    ]
+    if any(term in industry_text for term in upstream_ep_terms):
+        gas_focused = (
+            "natural gas" in combined
+            or "appalachian" in combined
+            or "marcellus" in combined
+            or "utica" in combined
+            or "haynesville" in combined
+        )
+        return {
+            "type": "Upstream E&P / Natural Gas Producer" if gas_focused else "Upstream E&P / Producer",
+            "method": (
+                "E&P-Spezialmodell: Zyklus-/Commodity-Normalisierung + issuer-native FCF + Leverage + "
+                "Produktion/Kosten/Reserven; generisches Standard-KGV bis zur Familienfreigabe gesperrt"
+            ),
+            "confidence_cap": "Mittel",
+            "business_model": (
+                "Upstream Exploration & Production; bei gaslastigen Emittenten Commodity-/Basis-/Hedge-Sensitivität "
+                "sowie Midstream-/Transportökonomie separat prüfen"
+            ),
+            "focus_areas": (
+                "Production/Guidance · Realized Pricing/Basis/Hedges · Unit Costs · Maintenance/Growth CapEx · "
+                "Issuer FCF · Net Debt/Leverage · Reserves/Reserve Life/PV-10 · Capital Returns"
+            ),
         }
 
     # Öl & Gas – nach dem spezifischen Midstream-Router.
@@ -45329,6 +45418,36 @@ def get_peer_group(company_type, symbol, industry=None):
     ]
 
     own_symbol = str(symbol or "").upper()
+
+    # V244 – Upstream E&P family reference cluster.  These are business-model
+    # peers only; no Forward-P/E median or automatic multiple adjustment is allowed
+    # while the family valuation model is still unreleased.
+    if str((company_type or {}).get("valuation_family_id") or "").lower() == "upstream_ep":
+        upstream_peers = [
+            ("EXE", "Expand Energy"),
+            ("AR", "Antero Resources"),
+            ("RRC", "Range Resources"),
+            ("CNX", "CNX Resources"),
+        ]
+        filtered = [
+            {"symbol": ps, "name": pn}
+            for ps, pn in upstream_peers
+            if not _same_canonical_issuer_symbol(ps, own_symbol)
+        ]
+        return {
+            "available": bool(filtered),
+            "peers": filtered,
+            "count": len(filtered),
+            "target_symbol": own_symbol,
+            "peer_model": "upstream_ep_reference_v1",
+            "reference_only": True,
+            "note": (
+                f"Upstream-E&P Peer Lock {APP_BUILD_VERSION}: Expand Energy, Antero Resources, Range Resources und CNX Resources "
+                "bilden den gas-/Appalachia-nahen Referenzcluster. Integrierte Majors wie Shell, ExxonMobil, Chevron und TotalEnergies "
+                "sind für diesen Pfad ausgeschlossen. Peer-KGVs verändern weder Punktzahl noch Fair Value; vor Freigabe müssen "
+                "Commodity-/Basis-/Hedge-, Kosten-, FCF-, Leverage- und Reserve-/NAV-Unterschiede normalisiert werden."
+            ),
+        }
 
     # V208 – Semiconductor Equipment family peers are market references only.
     if str((company_type or {}).get("valuation_family_id") or "").lower() == "semicap" and own_symbol in {"ASML", "ASML.AS", "AMAT", "LRCX", "KLAC"}:
