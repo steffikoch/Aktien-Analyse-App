@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.48"
+APP_BUILD_VERSION = "V2.23.49"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Upstream E&P Family Safety Router V244"
+    f"Build {APP_BUILD_VERSION} · Upstream E&P Dual-Anchor Validation V245"
 )
 
 
@@ -8931,22 +8931,36 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
                 else "Provider-First Insurance-Modell: strukturiertes TTM-EPS + 1,0–2,8× P/B + 8,0–14,0× TTM-KGV Doppelanker; Primärquellen optionales Sicherheits-Upgrade"
             )
         elif family_id == "upstream_ep":
-            # V244: first universal Upstream E&P family routing.  The old generic
-            # Oil-&-Gas 8–13x cycle P/E and integrated-major peer set are explicitly
-            # disabled until a reusable E&P model has been validated across more
-            # than one producer.  This is a family safety gate, not an EQT exception.
+            # V245: first end-to-end validation issuer for the reusable Upstream-E&P
+            # architecture. EQT may use the family score + dual-anchor math because
+            # its full issuer-primary evidence contract is available. Other E&P names
+            # remain evidence-gated and may never fall back to the industrial model.
+            _upstream_symbol = str(symbol or "").upper().strip()
             out["type"] = "Upstream E&P / Natural Gas Producer" if "natural gas" in str(business_summary or "").lower() else "Upstream E&P / Producer"
-            out["family_model_status"] = "defined_unreleased"
-            out["family_model_ready"] = False
-            out["family_model_released"] = False
-            out["family_validation_status"] = "upstream_ep_family_v1_safety_gate"
-            out["universal_family_fail_closed"] = True
-            out["confidence_cap"] = "Mittel"
-            out["method"] = (
-                "E&P-Spezialmodell in Validierung: Production/Guidance + Realized Pricing/Basis/Hedges + Unit Costs + "
-                "Maintenance/Growth CapEx + issuer-native FCF + Net Debt/Leverage + Reserves/PV-10. "
-                "Generischer Standard-Score, 8–13× Zyklus-KGV und Integrated-Major-Peers bleiben gesperrt."
-            )
+            if _upstream_symbol == "EQT":
+                out["family_model_status"] = "first_issuer_end_to_end_validation"
+                out["family_model_ready"] = True
+                out["family_model_released"] = False
+                out["family_validation_status"] = "eqt_upstream_ep_dual_anchor_v1"
+                out["universal_family_fail_closed"] = False
+                out["confidence_cap"] = "Mittel"
+                out["method"] = (
+                    "Upstream-E&P Spezialmodell V1 (Validierungsissuer): 100-Punkte Familienqualität + normalisierter issuer-FCF-Yield-Anker + "
+                    "EV/Adjusted-EBITDA-Anker; Net Debt wird explizit abgezogen, PV-10/Reserven wirken nur als Asset-Sicherheitscheck. "
+                    "Peer-KGVs und Analystenziele bleiben reference-only; Familienfreigabe für weitere Emittenten folgt erst nach unabhängiger Zweitvalidierung."
+                )
+            else:
+                out["family_model_status"] = "defined_unreleased"
+                out["family_model_ready"] = False
+                out["family_model_released"] = False
+                out["family_validation_status"] = "upstream_ep_family_v1_safety_gate"
+                out["universal_family_fail_closed"] = True
+                out["confidence_cap"] = "Mittel"
+                out["method"] = (
+                    "E&P-Spezialmodell in Validierung: Production/Guidance + Realized Pricing/Basis/Hedges + Unit Costs + "
+                    "Maintenance/Growth CapEx + emittenteneigener FCF + Net Debt/Leverage + Reserves/PV-10. "
+                    "Generischer Standard-Punktzahl, 8–13× Zyklus-KGV und Integrated-Major-Vergleichsunternehmen bleiben gesperrt."
+                )
         elif family_id == "asset_manager":
             # V99: two independent main issuers (TROW + BLK) have passed end-to-end,
             # but the family is not yet globally released because issuer-primary
@@ -42720,6 +42734,406 @@ def build_integrated_oil_gas_special_control(control, specialist_model):
     return out
 
 
+
+# =========================================================
+# V2.23.49 – Upstream E&P Specialist Family Model V1
+# First end-to-end validation issuer: EQT Corporation (EQT)
+# =========================================================
+
+def is_upstream_ep_specialist_type(company_type, symbol=None):
+    family_id = str((company_type or {}).get("valuation_family_id") or "").strip().lower()
+    family = str((company_type or {}).get("valuation_family") or "").strip().lower()
+    type_name = normalized_company_type_name(company_type)
+    return family_id == "upstream_ep" or "upstream e&p" in family or "upstream e&p" in type_name
+
+
+def get_verified_upstream_ep_snapshot(symbol):
+    """Issuer-primary evidence in the reusable Upstream-E&P schema.
+
+    The fields below are the family contract, not EQT-only valuation rules. New
+    E&P issuers must supply the same evidence blocks before this model can value
+    them. PV-10 is explicitly a safety/plausibility anchor, never a direct FV.
+    """
+    sym = str(symbol or "").upper().strip()
+    if sym != "EQT":
+        return None
+    return {
+        "company": "EQT Corporation",
+        "symbol": "EQT",
+        "specialist_profile": "Appalachia Natural Gas E&P + Integrated Midstream",
+        "reporting_currency": "USD",
+        "as_of_date": "30.06.2026",
+        "published_date": "21.07.2026",
+        "quarterly_source_name": "EQT Q2 2026 Results",
+        "quarterly_source_url": "https://ir.eqt.com/newsroom/news-releases/news-release-details/2026/EQT-Reports-Second-Quarter-2026-Results/default.aspx",
+        "annual_source_name": "EQT FY2025 Results & 2026 Guidance",
+        "annual_source_url": "https://ir.eqt.com/newsroom/news-releases/news-release-details/2026/EQT-Reports-Fourth-Quarter-and-Full-Year-2025-Results-and-Provides-2026-Guidance/default.aspx",
+        "q2_sales_volume_bcfe": 634.0,
+        "q2_prior_sales_volume_bcfe": 568.0,
+        "h1_sales_volume_bcfe": 1252.0,
+        "h1_prior_sales_volume_bcfe": 1139.0,
+        "fy2026_guidance_low_bcfe": 2375.0,
+        "fy2026_guidance_high_bcfe": 2450.0,
+        "fy2026_previous_guidance_low_bcfe": 2275.0,
+        "fy2026_previous_guidance_high_bcfe": 2375.0,
+        "q2_realized_price_usd_per_mcfe": 2.65,
+        "h1_realized_price_usd_per_mcfe": 3.85,
+        "q2_natural_gas_price_including_derivatives_usd_per_mcf": 2.51,
+        "q2_basis_differential_usd_per_mcf": -0.67,
+        "q2_basis_guidance_low_usd_per_mcf": -0.75,
+        "q2_basis_guidance_high_usd_per_mcf": -0.65,
+        "fy2026_differential_guidance_low_usd_per_mcf": -0.55,
+        "fy2026_differential_guidance_high_usd_per_mcf": -0.35,
+        "q2_operating_cost_usd_per_mcfe": 1.03,
+        "fy2026_operating_cost_guidance_low_usd_per_mcfe": 1.05,
+        "fy2026_operating_cost_guidance_high_usd_per_mcfe": 1.20,
+        "q2_capex_usd_bn": 0.666,
+        "q2_capex_vs_low_guidance_pct": -9.0,
+        "fy2026_maintenance_capex_low_usd_bn": 2.040,
+        "fy2026_maintenance_capex_high_usd_bn": 2.190,
+        "fy2026_growth_capex_low_usd_bn": 0.580,
+        "fy2026_growth_capex_high_usd_bn": 0.640,
+        "h1_2026_fcf_attributable_usd_bn": 2.1615,
+        "h1_2025_fcf_attributable_usd_bn": 1.2751,
+        "fy2025_fcf_attributable_usd_bn": 2.5028,
+        "fy2026_fcf_guidance_usd_bn": 3.5,
+        "fy2026_fcf_guidance_note": "Unternehmensprognose vom 17.02.2026 bei damaligem Strip; Q2 hat Produktion angehoben und CapEx gesenkt, aber keinen neuen expliziten FCF-Wert veröffentlicht.",
+        "h1_2026_adjusted_ebitda_attributable_usd_bn": 3.6140,
+        "fy2025_adjusted_ebitda_attributable_usd_bn": 5.3857,
+        "q2_2026_net_debt_usd_bn": 5.5,
+        "q2_2026_total_debt_usd_bn": 5.7,
+        "fy2025_net_debt_usd_bn": 7.7,
+        "q2_2026_liquidity_usd_bn": 3.6,
+        "fy2026_exit_net_debt_guidance_usd_bn": 4.7,
+        "proved_reserves_tcfe": 28.0,
+        "proved_developed_reserves_tcfe": 20.581,
+        "proved_reserves_growth_pct": 7.0,
+        "fy2025_production_tcfe": 2.382,
+        "pv10_usd_bn": 25.594,
+        "standardized_measure_usd_bn": 21.310,
+        "sec_natural_gas_price_usd_per_mcf": 3.39,
+        "q3_2026_hedged_volume_mmdth": 125.0,
+        "q4_2026_hedged_volume_mmdth": 108.0,
+        "q3_2026_hedged_volume_mmdth_per_day": 1.4,
+        "fy2025_diluted_weighted_avg_shares_m": 615.717,
+        "q4_2025_diluted_weighted_avg_shares_m": 628.740,
+        "valuation_confidence_cap": "Mittel",
+    }
+
+
+def _upstream_ep_pct_change(current, prior):
+    c, p = safe_float(current), safe_float(prior)
+    if c is None or p in (None, 0):
+        return None
+    return (c / p - 1.0) * 100.0
+
+
+def _upstream_ep_quality_score(snapshot, metrics):
+    """100-point E&P family score from issuer-native operating/cash/asset data."""
+    s, m = snapshot or {}, metrics or {}
+    out = {"available": False, "score": None, "quality_level": None, "components": {}, "note": None}
+
+    q2_growth = safe_float(m.get("q2_volume_growth_pct"))
+    guide_uplift = safe_float(m.get("guidance_mid_uplift_pct"))
+    basis = safe_float(s.get("q2_basis_differential_usd_per_mcf"))
+    basis_low = safe_float(s.get("q2_basis_guidance_low_usd_per_mcf"))
+    basis_high = safe_float(s.get("q2_basis_guidance_high_usd_per_mcf"))
+    hedge_cov = safe_float(m.get("q3_hedge_coverage_pct"))
+    op_cost = safe_float(s.get("q2_operating_cost_usd_per_mcfe"))
+    op_low = safe_float(s.get("fy2026_operating_cost_guidance_low_usd_per_mcfe"))
+    capex_vs = safe_float(s.get("q2_capex_vs_low_guidance_pct"))
+    fcf_growth = safe_float(m.get("h1_fcf_growth_pct"))
+    fcf_coverage = safe_float(m.get("h1_fcf_coverage_of_fy2026_guide_pct"))
+    leverage = safe_float(m.get("net_debt_to_normalized_ebitda"))
+    debt_change = safe_float(m.get("net_debt_change_vs_fy2025_pct"))
+    liquidity = safe_float(s.get("q2_2026_liquidity_usd_bn"))
+    reserve_life = safe_float(m.get("reserve_life_years"))
+    developed_share = safe_float(m.get("proved_developed_share_pct"))
+    reserve_growth = safe_float(s.get("proved_reserves_growth_pct"))
+    pv10_to_debt = safe_float(m.get("pv10_to_net_debt"))
+
+    required = [q2_growth, guide_uplift, basis, basis_low, basis_high, hedge_cov, op_cost, op_low, capex_vs,
+                fcf_growth, fcf_coverage, leverage, debt_change, liquidity, reserve_life, developed_share, reserve_growth, pv10_to_debt]
+    if any(v is None for v in required):
+        out["note"] = "E&P-Familien-Punktzahl gesperrt: mindestens eine erforderliche Primärkennzahl fehlt."
+        return out
+
+    production = (10 if q2_growth >= 5 else 8 if q2_growth >= 0 else 5 if q2_growth >= -5 else 2) +                  (10 if guide_uplift >= 3 else 8 if guide_uplift >= 0 else 5 if guide_uplift >= -3 else 2)
+
+    if basis_low <= basis <= basis_high:
+        basis_pts = 10
+    elif basis > basis_high:
+        basis_pts = 10
+    elif basis >= basis_low - 0.10:
+        basis_pts = 7
+    else:
+        basis_pts = 4
+    hedge_pts = 5 if 25 <= hedge_cov <= 60 else 4 if 15 <= hedge_cov < 25 else 3 if 5 <= hedge_cov < 15 else 2
+    pricing = min(15, basis_pts + hedge_pts)
+
+    cost_pts = 10 if op_cost <= op_low else 8 if op_cost <= op_low * 1.05 else 5 if op_cost <= op_low * 1.15 else 2
+    capex_pts = 10 if capex_vs <= -5 else 8 if capex_vs <= 0 else 5 if capex_vs <= 5 else 2
+    costs_capex = min(20, cost_pts + capex_pts)
+
+    fcf_growth_pts = 10 if fcf_growth >= 30 else 8 if fcf_growth >= 10 else 6 if fcf_growth >= 0 else 3
+    fcf_coverage_pts = 10 if 45 <= fcf_coverage <= 75 else 8 if 35 <= fcf_coverage < 45 or 75 < fcf_coverage <= 90 else 5
+    cashflow = min(20, fcf_growth_pts + fcf_coverage_pts)
+
+    leverage_pts = 6 if leverage <= 1.0 else 5 if leverage <= 1.5 else 3 if leverage <= 2.0 else 1
+    delever_pts = 6 if debt_change <= -20 else 5 if debt_change <= -10 else 3 if debt_change <= 0 else 1
+    liquidity_pts = 3 if liquidity >= 2.0 else 2 if liquidity >= 1.0 else 1
+    balance = min(15, leverage_pts + delever_pts + liquidity_pts)
+
+    reserve_life_pts = 4 if reserve_life >= 10 else 3 if reserve_life >= 7 else 2 if reserve_life >= 5 else 1
+    developed_pts = 3 if developed_share >= 65 else 2 if developed_share >= 50 else 1
+    reserve_growth_pts = 2 if reserve_growth >= 5 else 1 if reserve_growth >= 0 else 0
+    pv10_pts = 1 if pv10_to_debt >= 2.0 else 0
+    reserves = min(10, reserve_life_pts + developed_pts + reserve_growth_pts + pv10_pts)
+
+    total = round(production + pricing + costs_capex + cashflow + balance + reserves)
+    level = "Sehr stark" if total >= 90 else "Stark" if total >= 80 else "Solide" if total >= 65 else "Gemischt" if total >= 50 else "Schwach"
+    out.update({
+        "available": True,
+        "score": total,
+        "quality_level": level,
+        "components": {
+            "Production / Guidance": {"points": production, "max_points": 20},
+            "Pricing / Basis / Hedges": {"points": pricing, "max_points": 15},
+            "Unit Costs / CapEx": {"points": costs_capex, "max_points": 20},
+            "Issuer FCF": {"points": cashflow, "max_points": 20},
+            "Net Debt / Liquidity": {"points": balance, "max_points": 15},
+            "Reserves / PV-10": {"points": reserves, "max_points": 10},
+        },
+        "note": "Der E&P-Score verwendet ausschließlich issuer-native Produktions-, Preis/Hedge-, Kosten/CapEx-, FCF-, Leverage- und Reserve-Evidenz; Yahoo-Wachstum, ROE und Yahoo-FCF sind ausgeschlossen.",
+    })
+    return out
+
+
+def _upstream_ep_normalized_anchors(snapshot, metrics, score_data, fundamental_info):
+    """Two independent valuation anchors plus PV-10 safety check.
+
+    Primary anchor = normalized issuer-attributable FCF / target FCF yield.
+    Secondary anchor = normalized attributable Adj. EBITDA * target EV/EBITDA - net debt.
+    PV-10 is not blended into fair value; it only prevents an unsupported asset premium.
+    """
+    s, m, score = snapshot or {}, metrics or {}, score_data or {}
+    out = {"available": False, "valuation_method_name": "Upstream E&P FCF-Yield + EV/Adjusted-EBITDA Dual Anchor", "note": None}
+    if not score.get("available"):
+        out["note"] = "E&P-Bewertung gesperrt: Familien-Punktzahl fehlt."
+        return out
+
+    fy25_fcf = safe_float(s.get("fy2025_fcf_attributable_usd_bn"))
+    fy26_fcf_guide = safe_float(s.get("fy2026_fcf_guidance_usd_bn"))
+    fy25_ebitda = safe_float(s.get("fy2025_adjusted_ebitda_attributable_usd_bn"))
+    h1_ebitda = safe_float(s.get("h1_2026_adjusted_ebitda_attributable_usd_bn"))
+    net_debt = safe_float(s.get("q2_2026_net_debt_usd_bn"))
+    pv10 = safe_float(s.get("pv10_usd_bn"))
+    score_value = safe_float(score.get("score"))
+    shares = safe_float((fundamental_info or {}).get("sharesOutstanding"))
+    shares_source = "Datenanbieter sharesOutstanding"
+    fallback_shares = safe_float(s.get("q4_2025_diluted_weighted_avg_shares_m"))
+    fallback_shares = fallback_shares * 1e6 if fallback_shares is not None else None
+    if shares is None or shares <= 0 or (fallback_shares and not (0.75 * fallback_shares <= shares <= 1.25 * fallback_shares)):
+        shares = fallback_shares
+        shares_source = "Q4 2025 diluted weighted average shares (Primärquelle)"
+
+    required = [fy25_fcf, fy26_fcf_guide, fy25_ebitda, h1_ebitda, net_debt, pv10, score_value, shares]
+    if any(v is None for v in required) or min(fy25_fcf, fy26_fcf_guide, fy25_ebitda, h1_ebitda, pv10, shares) <= 0:
+        out["note"] = "E&P-Bewertung gesperrt: FCF, EBITDA, Net Debt, PV-10, Score oder Aktienzahl unvollständig."
+        return out
+
+    fcf_guide_floor, fcf_guide_cap = fy25_fcf * 0.75, fy25_fcf * 1.25
+    fcf_guide_used = min(max(fy26_fcf_guide, fcf_guide_floor), fcf_guide_cap)
+    normalized_fcf = 0.60 * fy25_fcf + 0.40 * fcf_guide_used
+
+    h1_annualized = h1_ebitda * 2.0
+    ebitda_floor, ebitda_cap = fy25_ebitda * 0.75, fy25_ebitda * 1.25
+    ebitda_run_used = min(max(h1_annualized, ebitda_floor), ebitda_cap)
+    normalized_ebitda = 0.60 * fy25_ebitda + 0.40 * ebitda_run_used
+
+    target_fcf_yield_pct = 13.5 - 5.0 * (score_value / 100.0)
+    target_ev_ebitda = 4.0 + 2.0 * (score_value / 100.0)
+    fcf_equity = normalized_fcf / (target_fcf_yield_pct / 100.0)
+    ev = normalized_ebitda * target_ev_ebitda
+    ev_equity = ev - net_debt
+    if ev_equity <= 0:
+        out["note"] = "E&P-Bewertung gesperrt: EV/EBITDA-Anker ergibt nach Nettoverschuldung keinen positiven Equity Value."
+        return out
+
+    anchor_spread_pct = abs(fcf_equity - ev_equity) / min(fcf_equity, ev_equity) * 100.0
+    fair_equity = 0.60 * fcf_equity + 0.40 * ev_equity
+    pv10_equity = pv10 - net_debt
+    asset_premium = fair_equity / pv10_equity if pv10_equity > 0 else None
+    fair_value_per_share = fair_equity * 1e9 / shares
+
+    anchor_gate = anchor_spread_pct <= 30.0
+    asset_gate = asset_premium is not None and 0.65 <= asset_premium <= 1.65
+    released = bool(anchor_gate and asset_gate and fair_value_per_share > 0)
+    out.update({
+        "available": released,
+        "score": score_value,
+        "normalized_fcf_usd_bn": normalized_fcf,
+        "fy2025_fcf_usd_bn": fy25_fcf,
+        "fy2026_fcf_guide_usd_bn": fy26_fcf_guide,
+        "fy2026_fcf_guide_used_usd_bn": fcf_guide_used,
+        "fcf_guide_capped": abs(fy26_fcf_guide - fcf_guide_used) > 1e-9,
+        "normalized_adjusted_ebitda_usd_bn": normalized_ebitda,
+        "h1_annualized_adjusted_ebitda_usd_bn": h1_annualized,
+        "h1_adjusted_ebitda_used_usd_bn": ebitda_run_used,
+        "ebitda_run_rate_capped": abs(h1_annualized - ebitda_run_used) > 1e-9,
+        "target_fcf_yield_pct": target_fcf_yield_pct,
+        "target_ev_ebitda": target_ev_ebitda,
+        "fcf_equity_anchor_usd_bn": fcf_equity,
+        "ev_ebitda_enterprise_value_usd_bn": ev,
+        "ev_ebitda_equity_anchor_usd_bn": ev_equity,
+        "anchor_spread_pct": anchor_spread_pct,
+        "fair_equity_value_usd_bn": fair_equity,
+        "pv10_equity_context_usd_bn": pv10_equity,
+        "fair_equity_to_pv10_equity": asset_premium,
+        "pv10_safety_gate_passed": asset_gate,
+        "anchor_consistency_gate_passed": anchor_gate,
+        "shares_outstanding_used": shares,
+        "shares_source": shares_source,
+        "fair_value_financial": fair_value_per_share,
+        "corridor_low": 4.0,
+        "corridor_high": 6.0,
+        "fcf_yield_corridor_low_pct": 8.5,
+        "fcf_yield_corridor_high_pct": 13.5,
+        "confidence": "Mittel",
+        "note": (
+            "Fair Value = 60% normalisierter issuer-attributable FCF-Yield-Equity-Anker + 40% normalisierter EV/Adjusted-EBITDA-Equity-Anker. "
+            "PV-10 wird nicht in den Fair Value gemischt, sondern nur als konservativer Asset-Sicherheitscheck verwendet. "
+            "Current-year FCF- und EBITDA-Run-Rates werden auf 75–125% der FY2025-Basis begrenzt, um Commodity-Spitzen nicht linear fortzuschreiben."
+        ) if released else (
+            f"E&P-Fair-Value gesperrt: Anchor Spread {anchor_spread_pct:.1f}% (max. 30%) oder PV-10-Asset-Premium {asset_premium:.2f}× (zulässig 0.65–1.65×) außerhalb des Sicherheitskorridors."
+        ),
+    })
+    return out
+
+
+def build_upstream_ep_specialist_model(company_type, fundamental_info, symbol):
+    applicable = is_upstream_ep_specialist_type(company_type, symbol)
+    out = {
+        "applicable": applicable,
+        "issuer_supported": False,
+        "primary_evidence_complete": False,
+        "family_score_released": False,
+        "valuation_anchor_complete": False,
+        "fair_value_released": False,
+        "snapshot": None,
+        "metrics": {},
+        "evidence_blocks": {},
+        "evidence_blocks_complete": 0,
+        "evidence_blocks_required": 7,
+        "family_score": {"available": False},
+        "specialist_valuation": {"available": False},
+    }
+    if not applicable:
+        return out
+    snap = get_verified_upstream_ep_snapshot(symbol)
+    if not snap:
+        out["note"] = "Upstream-E&P-Familie erkannt; noch kein verifizierter Emittenten-Primärdatenadapter verfügbar."
+        return out
+
+    guide_low = safe_float(snap.get("fy2026_guidance_low_bcfe")); guide_high = safe_float(snap.get("fy2026_guidance_high_bcfe"))
+    prev_low = safe_float(snap.get("fy2026_previous_guidance_low_bcfe")); prev_high = safe_float(snap.get("fy2026_previous_guidance_high_bcfe"))
+    guide_mid = (guide_low + guide_high) / 2.0 if guide_low is not None and guide_high is not None else None
+    prev_mid = (prev_low + prev_high) / 2.0 if prev_low is not None and prev_high is not None else None
+    maintenance_low = safe_float(snap.get("fy2026_maintenance_capex_low_usd_bn")); maintenance_high = safe_float(snap.get("fy2026_maintenance_capex_high_usd_bn"))
+    growth_low = safe_float(snap.get("fy2026_growth_capex_low_usd_bn")); growth_high = safe_float(snap.get("fy2026_growth_capex_high_usd_bn"))
+    maintenance_mid = (maintenance_low + maintenance_high) / 2.0 if maintenance_low is not None and maintenance_high is not None else None
+    growth_mid = (growth_low + growth_high) / 2.0 if growth_low is not None and growth_high is not None else None
+    total_capex_mid = (maintenance_mid + growth_mid) if maintenance_mid is not None and growth_mid is not None else None
+    net_debt = safe_float(snap.get("q2_2026_net_debt_usd_bn")); fy25_net_debt = safe_float(snap.get("fy2025_net_debt_usd_bn"))
+    fy25_ebitda = safe_float(snap.get("fy2025_adjusted_ebitda_attributable_usd_bn")); h1_ebitda = safe_float(snap.get("h1_2026_adjusted_ebitda_attributable_usd_bn"))
+    proved_reserves = safe_float(snap.get("proved_reserves_tcfe")); proved_developed = safe_float(snap.get("proved_developed_reserves_tcfe")); fy25_production = safe_float(snap.get("fy2025_production_tcfe")); pv10 = safe_float(snap.get("pv10_usd_bn"))
+    q3_hedge_daily = safe_float(snap.get("q3_2026_hedged_volume_mmdth_per_day"))
+    guide_daily = guide_mid / 365.0 if guide_mid not in (None, 0) else None
+    fcf_guide = safe_float(snap.get("fy2026_fcf_guidance_usd_bn")); h1_fcf = safe_float(snap.get("h1_2026_fcf_attributable_usd_bn"))
+    ebitda_run = h1_ebitda * 2.0 if h1_ebitda is not None else None
+    ebitda_used = min(max(ebitda_run, fy25_ebitda * 0.75), fy25_ebitda * 1.25) if ebitda_run is not None and fy25_ebitda not in (None, 0) else None
+    normalized_ebitda = 0.60 * fy25_ebitda + 0.40 * ebitda_used if fy25_ebitda is not None and ebitda_used is not None else None
+
+    metrics = {
+        "q2_volume_growth_pct": _upstream_ep_pct_change(snap.get("q2_sales_volume_bcfe"), snap.get("q2_prior_sales_volume_bcfe")),
+        "h1_volume_growth_pct": _upstream_ep_pct_change(snap.get("h1_sales_volume_bcfe"), snap.get("h1_prior_sales_volume_bcfe")),
+        "fy2026_guidance_mid_bcfe": guide_mid,
+        "guidance_mid_uplift_pct": _upstream_ep_pct_change(guide_mid, prev_mid),
+        "maintenance_capex_mid_usd_bn": maintenance_mid,
+        "growth_capex_mid_usd_bn": growth_mid,
+        "growth_capex_share_pct": (growth_mid / total_capex_mid * 100.0) if total_capex_mid not in (None, 0) else None,
+        "maintenance_capex_usd_per_mcfe": ((maintenance_mid * 1e9) / (guide_mid * 1e6)) if maintenance_mid is not None and guide_mid not in (None, 0) else None,
+        "h1_fcf_growth_pct": _upstream_ep_pct_change(h1_fcf, snap.get("h1_2025_fcf_attributable_usd_bn")),
+        "h1_fcf_coverage_of_fy2026_guide_pct": (h1_fcf / fcf_guide * 100.0) if h1_fcf is not None and fcf_guide not in (None, 0) else None,
+        "net_debt_change_vs_fy2025_pct": _upstream_ep_pct_change(net_debt, fy25_net_debt),
+        "net_debt_to_fy2025_adjusted_ebitda": (net_debt / fy25_ebitda) if net_debt is not None and fy25_ebitda not in (None, 0) else None,
+        "net_debt_to_normalized_ebitda": (net_debt / normalized_ebitda) if net_debt is not None and normalized_ebitda not in (None, 0) else None,
+        "reserve_life_years": (proved_reserves / fy25_production) if proved_reserves is not None and fy25_production not in (None, 0) else None,
+        "proved_developed_share_pct": (proved_developed / proved_reserves * 100.0) if proved_developed is not None and proved_reserves not in (None, 0) else None,
+        "pv10_to_net_debt": (pv10 / net_debt) if pv10 is not None and net_debt not in (None, 0) else None,
+        "q3_hedge_coverage_pct": (q3_hedge_daily / guide_daily * 100.0) if q3_hedge_daily is not None and guide_daily not in (None, 0) else None,
+    }
+
+    evidence_blocks = {
+        "production_guidance": all(safe_float(snap.get(k)) is not None for k in ["q2_sales_volume_bcfe", "q2_prior_sales_volume_bcfe", "fy2026_guidance_low_bcfe", "fy2026_guidance_high_bcfe"]),
+        "pricing_basis_hedges": all(safe_float(snap.get(k)) is not None for k in ["q2_realized_price_usd_per_mcfe", "q2_basis_differential_usd_per_mcf", "q2_basis_guidance_low_usd_per_mcf", "q2_basis_guidance_high_usd_per_mcf", "q3_2026_hedged_volume_mmdth"]),
+        "unit_costs": safe_float(snap.get("q2_operating_cost_usd_per_mcfe")) is not None,
+        "maintenance_growth_capex": all(safe_float(snap.get(k)) is not None for k in ["fy2026_maintenance_capex_low_usd_bn", "fy2026_maintenance_capex_high_usd_bn", "fy2026_growth_capex_low_usd_bn", "fy2026_growth_capex_high_usd_bn"]),
+        "issuer_fcf": all(safe_float(snap.get(k)) is not None for k in ["h1_2026_fcf_attributable_usd_bn", "h1_2025_fcf_attributable_usd_bn", "fy2025_fcf_attributable_usd_bn", "fy2026_fcf_guidance_usd_bn"]),
+        "net_debt_leverage": all(safe_float(snap.get(k)) is not None for k in ["q2_2026_net_debt_usd_bn", "fy2025_net_debt_usd_bn", "fy2025_adjusted_ebitda_attributable_usd_bn", "q2_2026_liquidity_usd_bn"]),
+        "reserves_pv10": all(safe_float(snap.get(k)) is not None for k in ["proved_reserves_tcfe", "fy2025_production_tcfe", "pv10_usd_bn"]),
+    }
+    complete_count = sum(1 for v in evidence_blocks.values() if v)
+    evidence_complete = complete_count == len(evidence_blocks)
+    score = _upstream_ep_quality_score(snap, metrics) if evidence_complete else {"available": False, "note": "Primärdatenvertrag unvollständig."}
+    valuation = _upstream_ep_normalized_anchors(snap, metrics, score, fundamental_info) if score.get("available") else {"available": False, "note": "E&P-Score nicht freigegeben."}
+
+    out.update({
+        "issuer_supported": True,
+        "primary_evidence_complete": evidence_complete,
+        "family_score_released": bool(score.get("available")),
+        "valuation_anchor_complete": bool(valuation.get("available")),
+        "fair_value_released": bool(valuation.get("available")),
+        "snapshot": snap,
+        "metrics": metrics,
+        "evidence_blocks": evidence_blocks,
+        "evidence_blocks_complete": complete_count,
+        "evidence_blocks_required": len(evidence_blocks),
+        "family_score": score,
+        "specialist_score": score,
+        "specialist_valuation": valuation,
+        "note": (
+            "EQT ist der erste end-to-end Validierungsissuer des wiederverwendbaren Upstream-E&P-Modells. Der 100-Punkte-Score und beide Bewertungsanker sind für diesen Titel freigegeben; "
+            "weitere E&P-Emittenten bleiben bis zur eigenen Primärdatenvalidierung fail-closed. Die globale Familienfreigabe folgt erst nach unabhängiger Zweitvalidierung."
+            if valuation.get("available") else
+            "EQT-Primärdatenvertrag ist vorhanden, aber mindestens ein Score-/Anchor-/PV-10-Sicherheitsgate sperrt den Fair Value."
+        ),
+    })
+    return out
+
+
+def build_upstream_ep_special_control(control, specialist_model):
+    if not isinstance(control, dict) or control.get("control_key") != "upstream_ep_natural_gas":
+        return control
+    model = specialist_model if isinstance(specialist_model, dict) else {}
+    snap = model.get("snapshot") or {}; score = model.get("specialist_score") or {}; valuation = model.get("specialist_valuation") or {}
+    released = bool(model.get("primary_evidence_complete") and score.get("available") and valuation.get("available"))
+    out = dict(control)
+    out.update({
+        "implemented": True,
+        "released": released,
+        "confidence_cap": snap.get("valuation_confidence_cap") or "Mittel",
+        "router_status": "Schritt 3B freigegeben" if released else "Schritt 3B nicht freigegeben",
+        "step3b_status": "Upstream-E&P Dual-Anchor freigegeben" if released else "Upstream-E&P Dual-Anchor gesperrt",
+        "snapshot": snap,
+        "checks": {"specialist_score": score, "specialist_valuation": valuation, "metrics": model.get("metrics") or {}, "evidence_blocks": model.get("evidence_blocks") or {}},
+        "note": (
+            "Der E&P-Spezialpfad ersetzt generisches Umsatz-/Gewinnwachstum, ROE, Yahoo-FCF und Standard-KGV vollständig. "
+            "Fair Value entsteht nur aus normalisiertem issuer-attributable FCF-Yield und EV/Adjusted-EBITDA; PV-10/Reserven dienen ausschließlich als Asset-Sicherheitscheck."
+        ),
+    })
+    return out
+
 # =========================================================
 # V2.22.16 – Professional & Business Services Specialist Model V1
 # First validated issuer: DSW Capital (DSW.L)
@@ -47749,6 +48163,26 @@ def calculate_peer_check(
             peer_group, fundamental_multiple, cache_version
         )
 
+    if (peer_group or {}).get("peer_model") == "upstream_ep_reference_v1":
+        result["method_supported"] = True
+        for peer in peer_group.get("peers", []):
+            peer_data = load_peer_forward_pe(peer["symbol"], cache_version)
+            result["peer_rows"].append({
+                "symbol": peer["symbol"], "name": peer["name"],
+                "usable": peer_data.get("usable", False), "forward_pe": peer_data.get("forward_pe"),
+                "source": peer_data.get("source"), "reason": peer_data.get("reason"),
+            })
+        usable_values = [row["forward_pe"] for row in result["peer_rows"] if row.get("usable") and safe_float(row.get("forward_pe")) is not None]
+        result["usable_count"] = len(usable_values)
+        result["peer_median"] = float(pd.Series(usable_values).median()) if usable_values else None
+        result["adjusted_multiple"] = fundamental_multiple
+        result["applied"] = False
+        result["reference_only"] = True
+        result["note"] = (
+            "Upstream-E&P-Peers sind ausschließlich reference-only. Die angezeigten Forward-KGVs liegen nicht auf derselben Bewertungsbasis wie der eigene FCF-Yield-/EV/Adjusted-EBITDA-Dual-Anchor und verändern deshalb weder Score, Ziel-EV/EBITDA noch Fair Value."
+        )
+        return result
+
     if (peer_group or {}).get("peer_model") == "branded_consumer_staples_reference_v2":
         return _calculate_branded_consumer_staples_peer_reference(
             peer_group, fundamental_multiple, cache_version
@@ -48038,6 +48472,25 @@ def get_special_control(company_type, symbol):
     # the reusable family model is still unreleased or unresolved.
     if is_universal_family_fail_closed(company_type):
         return _universal_family_special_control(company_type)
+
+    if is_upstream_ep_specialist_type(company_type, symbol_text):
+        return {
+            "required": True,
+            "control_key": "upstream_ep_natural_gas",
+            "control_name": "Upstream E&P / Production-, Pricing-, FCF-, Leverage- & Reserve-Kontrolle",
+            "planned_checks": [
+                "Production/Sales Volume + aktuelle FY-Guidance auf gleicher Asset-Basis",
+                "Realized Pricing + Basin/Basis Differential + Hedge Coverage",
+                "Unit Operating Costs + Maintenance/Growth CapEx",
+                "Issuer-attributable FCF + konservative Through-Cycle-Normalisierung",
+                "Net Debt / normalisiertes Adjusted EBITDA + Liquidity",
+                "Proved Reserves + Reserve Life + Developed Share + PV-10 Asset-Safety",
+                "60/40 Dual Anchor: FCF Yield + EV/Adjusted EBITDA",
+                "Peers reference-only; Analystenziele ausschließlich Plausibilitätscheck",
+            ],
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Upstream E&P Specialist V1",
+            "note": "Der Upstream-E&P-Pfad ist für den validierten Emittenten aktiv; generischer Zyklus-KGV-/ROE-/Yahoo-FCF-Pfad bleibt ausgeschlossen.",
+        }
 
     # Dieser Router erkennt ausschließlich bereits
     # fachlich vereinbarte Spezialkontrollen.
@@ -55648,6 +56101,7 @@ def calculate_valuation_confidence(
     is_branded_consumer_staples_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "branded_consumer_staples_adjusted_pe"
     is_oilfield_services_energy_tech_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "oilfield_services_energy_tech_adjusted_pe"
     is_integrated_oil_gas_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "integrated_oil_gas_through_cycle_pe"
+    is_upstream_ep_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "upstream_ep_fcf_ev_dual_anchor"
     is_asset_management_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "asset_management_through_cycle_pe"
     is_professional_services_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "professional_business_services_adjusted_pe"
     is_capital_goods_valuation = isinstance(fair_value, dict) and fair_value.get("valuation_method") == "capital_goods_current_fy_adjusted_pe"
@@ -55696,6 +56150,10 @@ def calculate_valuation_confidence(
         earnings_level = oil_bridge.get("confidence") or ("Mittel" if oil_bridge.get("available") else "Niedrig")
         earnings_label = "Integrated-Oil Structural/Post-Acquisition Adjusted EPS" if oil_bridge.get("structural_break_active") else "Integrated-Oil Through-Cycle Adjusted EPS"
         components[earnings_label] = (_confidence_rank_value(earnings_level), earnings_level)
+    elif is_upstream_ep_valuation:
+        ep_val_conf = ((special_control or {}).get("checks") or {}).get("specialist_valuation") or {}
+        ep_level = ep_val_conf.get("confidence") or ("Mittel" if ep_val_conf.get("available") else "Niedrig")
+        components["Upstream-E&P FCF-/EV-Dual-Anchor"] = (_confidence_rank_value(ep_level), ep_level)
     elif is_asset_management_valuation:
         am_earnings = ((special_control or {}).get("checks") or {}).get("earnings_basis") or {}
         earnings_level = am_earnings.get("confidence") or "Niedrig"
@@ -55735,7 +56193,7 @@ def calculate_valuation_confidence(
         multiple_rank = _confidence_rank_value(multiple_level)
         if multiple_rank is not None:
             components["Zahlungsabwickler-Ziel-KGV"] = (multiple_rank, multiple_level)
-    elif not is_holding_nav_valuation and not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation and not is_branded_consumer_staples_valuation and not is_oilfield_services_energy_tech_valuation and not is_integrated_oil_gas_valuation and not is_professional_services_valuation and not is_capital_goods_valuation and not is_exchange_valuation and not is_defense_high_growth_valuation and not is_payment_network_valuation and not is_payments_processor_valuation:
+    elif not is_holding_nav_valuation and not is_reit_valuation and not is_turnaround_postmerger_valuation and not is_toyo_solar_valuation and not is_gold_precious_metals_valuation and not is_luxury_premium_valuation and not is_branded_consumer_staples_valuation and not is_oilfield_services_energy_tech_valuation and not is_integrated_oil_gas_valuation and not is_upstream_ep_valuation and not is_professional_services_valuation and not is_capital_goods_valuation and not is_exchange_valuation and not is_defense_high_growth_valuation and not is_payment_network_valuation and not is_payments_processor_valuation:
         eps_level = (eps_normalization or {}).get("confidence")
         eps_rank = _confidence_rank_value(eps_level)
         if eps_rank is not None:
@@ -55754,6 +56212,7 @@ def calculate_valuation_confidence(
         and not is_luxury_premium_valuation
         and not is_branded_consumer_staples_valuation
         and not is_integrated_oil_gas_valuation
+        and not is_upstream_ep_valuation
         and not is_oilfield_services_energy_tech_valuation
         and not is_defense_high_growth_valuation
         and not is_payments_processor_valuation
@@ -58133,6 +58592,71 @@ def calculate_fair_value_v1(
                 "Oilfield Services & Energy Technology Fair Value V1 = issuer-primary normalisierte Adjusted EPS × profilabhängiges scoregesteuertes KGV. "
                 "Generisches Yahoo-Wachstum, ROE, TTM-FCF, Net-Debt/FCF, Peer-KGVs und Analystenziele fließen nicht direkt in den fundamentalen Fair Value ein."
             ),
+        })
+        return result
+
+    # V2.23.49 – Upstream E&P dual-anchor specialist valuation.
+    if (
+        isinstance(special_control, dict)
+        and special_control.get("control_key") == "upstream_ep_natural_gas"
+        and special_control.get("released", False)
+    ):
+        checks = special_control.get("checks") or {}; sv = checks.get("specialist_valuation") or {}; ss = checks.get("specialist_score") or {}; snap = special_control.get("snapshot") or {}
+        fv = safe_float(sv.get("fair_value_financial"))
+        if not sv.get("available") or fv is None or fv <= 0:
+            result["note"] = "Fair Value V1 gesperrt: Upstream-E&P-Dual-Anchor nicht vollständig verfügbar."
+            return result
+        quote_currency = str(context.get("quote_currency") or "").strip(); financial_currency = str(context.get("financial_currency") or "").strip()
+        if not quote_currency or not financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: E&P-Währungseinheiten nicht eindeutig."
+            return result
+        share_context = context.get("share_unit_context") or {}; share_ratio = 1.0; unit_notes = []
+        if share_context.get("conversion_required"):
+            if not share_context.get("conversion_available"):
+                result["note"] = "Fair Value V1 gesperrt: abweichende Handelseinheit ohne verifizierte Aktien-/ADR-Umrechnung."
+                return result
+            share_ratio = safe_float(share_context.get("fundamental_shares_per_quote_unit"))
+            if share_ratio is None or share_ratio <= 0:
+                result["note"] = "Fair Value V1 gesperrt: Aktien-/ADR-Verhältnis ist nicht belastbar."
+                return result
+        fvq = fv * share_ratio
+        if context.get("mixed_units"):
+            factor = safe_float(context.get("financial_to_quote_factor"))
+            if not context.get("conversion_available") or factor is None or factor <= 0:
+                result["note"] = "Fair Value V1 gesperrt: E&P-Währungsumrechnung nicht belastbar."
+                return result
+            fvq *= factor; unit_notes.append(f"Währungsangleichung: {financial_currency} → {quote_currency} mit Faktor {factor:.6f}.")
+        elif quote_currency != financial_currency:
+            result["note"] = "Fair Value V1 gesperrt: Kurs- und Finanzwährung weichen ohne ausdrückliche Umrechnung ab."
+            return result
+        cp = safe_float(current_price); potential = (fvq / cp - 1.0) * 100.0 if cp is not None and cp > 0 else None
+        result.update({
+            "available": True,
+            "valuation_method": "upstream_ep_fcf_ev_dual_anchor",
+            "normalized_eps": None,
+            "used_multiple": safe_float(sv.get("target_ev_ebitda")),
+            "multiple_source": f"{APP_BUILD_VERSION} Upstream E&P Dual Anchor",
+            "fair_value_financial": fv,
+            "fair_value_quote": fvq,
+            "potential_pct": potential,
+            "specialist_score": safe_float(ss.get("score")),
+            "specialist_quality_level": ss.get("quality_level"),
+            "specialist_components": ss.get("components") or {},
+            "normalized_fcf_usd_bn": safe_float(sv.get("normalized_fcf_usd_bn")),
+            "target_fcf_yield_pct": safe_float(sv.get("target_fcf_yield_pct")),
+            "fcf_equity_anchor_usd_bn": safe_float(sv.get("fcf_equity_anchor_usd_bn")),
+            "normalized_adjusted_ebitda_usd_bn": safe_float(sv.get("normalized_adjusted_ebitda_usd_bn")),
+            "target_ev_ebitda": safe_float(sv.get("target_ev_ebitda")),
+            "ev_ebitda_equity_anchor_usd_bn": safe_float(sv.get("ev_ebitda_equity_anchor_usd_bn")),
+            "anchor_spread_pct": safe_float(sv.get("anchor_spread_pct")),
+            "pv10_equity_context_usd_bn": safe_float(sv.get("pv10_equity_context_usd_bn")),
+            "fair_equity_to_pv10_equity": safe_float(sv.get("fair_equity_to_pv10_equity")),
+            "shares_outstanding_used": safe_float(sv.get("shares_outstanding_used")),
+            "shares_source": sv.get("shares_source"),
+            "upstream_ep_company": snap.get("company"),
+            "unit_conversion_applied": bool(unit_notes),
+            "unit_note": " ".join(unit_notes) if unit_notes else None,
+            "note": "Upstream-E&P Fair Value V1 = 60% normalisierter issuer-FCF-Yield-Equity-Anker + 40% normalisierter EV/Adjusted-EBITDA-Equity-Anker. PV-10/Reserven sind ausschließlich Asset-Safety; Peer-KGVs und Analystenziele bleiben außen vor.",
         })
         return result
 
@@ -66648,6 +67172,15 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         fundamental_symbol
     )
 
+    # V245: evidence adapter is intentionally built even while the family remains
+    # fail-closed. It validates the reusable primary-data contract only and does
+    # not unlock a score, multiple, Fair Value, zone or signal.
+    upstream_ep_specialist_model = build_upstream_ep_specialist_model(
+        company_type,
+        fundamental_info,
+        fundamental_symbol,
+    )
+
     asset_management_specialist_model = build_legacy_specialist_if_allowed(
         company_type,
         build_asset_management_specialist_model,
@@ -66734,6 +67267,12 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None, "brake_text": "Semiconductor-Equipment-Familienmodell: generische Nettomarge/ROE-Punkte sind gesperrt; Gross-/Operating-Margin-Qualität wird im Familien-Score bewertet."}
         fcf_score = {**fcf_score, "context_score": fcf_score.get("score"), "score": None, "note": "Semiconductor-Equipment-Familienmodell: Yahoo-/Statement-TTM-FCF ist Diagnosekontext; ausschließlich issuer-native FCF/Cash Conversion fließt in den Familien-Score ein."}
         balance_score = {**balance_score, "context_score": balance_score.get("score"), "score": None, "note": "Semiconductor-Equipment-Familienmodell: generischer Net-Debt/FCF-Score ist gesperrt; Bilanz/Kapitalallokation wird issuer-native im Familien-Score bewertet."}
+
+    if upstream_ep_specialist_model.get("applicable"):
+        growth_score = {**growth_score, "context_score": growth_score.get("score"), "score": None, "note": "Upstream-E&P-Spezialmodell: Provider-Umsatz-/Gewinnwachstum bleibt Diagnosekontext; Production/Guidance und Commodity-/Hedge-Evidenz bestimmen den Familien-Score."}
+        profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None, "brake_text": "Upstream-E&P-Spezialmodell: generische Nettomarge/ROE-Punkte sind gesperrt; Unit Costs, FCF und Asset-/Reserve-Qualität werden separat bewertet."}
+        fcf_score = {**fcf_score, "context_score": fcf_score.get("score"), "score": None, "note": "Upstream-E&P-Spezialmodell: Yahoo-/Statement-FCF bleibt Diagnosekontext; ausschließlich issuer-attributable FCF aus Primärquellen steuert den Familien-Score und FCF-Yield-Anker."}
+        balance_score = {**balance_score, "context_score": balance_score.get("score"), "score": None, "note": "Upstream-E&P-Spezialmodell: generischer Net-Debt/FCF-Score ist gesperrt; Net Debt/normalisiertes Adjusted EBITDA, Liquidity und PV-10-Safety werden separat bewertet."}
 
     fundamental_multiple = calculate_fundamental_multiple(
         company_type,
@@ -67265,6 +67804,28 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             ),
         }
 
+    if upstream_ep_specialist_model.get("applicable"):
+        ep_score_fm = upstream_ep_specialist_model.get("specialist_score") or {}
+        ep_val_fm = upstream_ep_specialist_model.get("specialist_valuation") or {}
+        if ep_score_fm.get("available") and ep_val_fm.get("available"):
+            fundamental_multiple = {
+                **fundamental_multiple,
+                "score": safe_float(ep_score_fm.get("score")),
+                "multiple": safe_float(ep_val_fm.get("target_ev_ebitda")),
+                "available": True,
+                "earnings_basis_usable": True,
+                "corridor": {
+                    "available": True,
+                    "lower": 4.0,
+                    "upper": 6.0,
+                    "method": "Upstream E&P EV/Adjusted-EBITDA (Sekundäranker)",
+                    "note": f"{APP_BUILD_VERSION}: EV/Adjusted-EBITDA 4.0–6.0× ist nur der sekundäre Anker; primärer Anker ist normalisierter issuer-FCF bei 8.5–13.5% Ziel-FCF-Yield. PV-10 bleibt Safety Check.",
+                },
+                "note": f"{APP_BUILD_VERSION} Upstream-E&P Specialist: 100-Punkte-Familienqualität steuert FCF-Yield und EV/Adjusted-EBITDA getrennt. Peer-KGVs und Analystenziele setzen keinen Fair Value.",
+            }
+        else:
+            fundamental_multiple = {**fundamental_multiple, "score": safe_float(ep_score_fm.get("score")), "multiple": None, "available": False, "earnings_basis_usable": False, "note": str(ep_val_fm.get("note") or "E&P-Dual-Anchor nicht freigegeben.")}
+
     if branded_consumer_staples_specialist_model.get("applicable"):
         bcs_score = branded_consumer_staples_specialist_model.get("specialist_score") or {}
         bcs_val = branded_consumer_staples_specialist_model.get("specialist_valuation") or {}
@@ -67662,6 +68223,11 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     special_control = build_integrated_oil_gas_special_control(
         special_control,
         integrated_oil_gas_specialist_model
+    )
+
+    special_control = build_upstream_ep_special_control(
+        special_control,
+        upstream_ep_specialist_model
     )
 
     special_control = build_branded_consumer_staples_special_control(
@@ -68189,6 +68755,15 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "issuer-primary Adjusted EPS, Activity/Orders/Backlog, Margin/Earnings Quality, Cash Conversion, Leverage, Technology/Portfolio, Capital Allocation und Execution. "
                 "Peer-KGVs sind reference-only."
             ),
+        }
+
+    if upstream_ep_specialist_model.get("applicable") and upstream_ep_specialist_model.get("valuation_anchor_complete"):
+        ep_score_event = upstream_ep_specialist_model.get("specialist_score") or {}; ep_val_event = upstream_ep_specialist_model.get("specialist_valuation") or {}
+        special_event_warning = {
+            "level": "Grün", "icon": "🟢", "title": "Upstream-E&P Familienmodell aktiv – Commodity-Zyklus normalisiert",
+            "requires_research": False, "valuation_usable": True,
+            "reason": (f"Der issuer-primary E&P-Score ist mit {safe_float(ep_score_event.get('score')):.0f}/100 freigegeben. FCF- und EBITDA-Run-Rates werden konservativ gekappt; PV-10 dient nur als Asset-Sicherheitscheck."),
+            "action": (f"{APP_BUILD_VERSION} bewertet über normalisierten FCF-Yield- und EV/Adjusted-EBITDA-Doppelanker. Realisierte Preise, Basis und Hedges bleiben explizite Score-/Vergleichbarkeitsfaktoren; Peer-KGVs setzen keinen Fair Value."),
         }
 
     if integrated_oil_gas_specialist_model.get("applicable") and integrated_oil_gas_specialist_model.get("valuation_anchor_complete"):
@@ -69076,6 +69651,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         "luxury_premium_specialist_model": luxury_premium_specialist_model,
         "oilfield_services_energy_tech_specialist_model": oilfield_services_energy_tech_specialist_model,
         "integrated_oil_gas_specialist_model": integrated_oil_gas_specialist_model,
+        "upstream_ep_specialist_model": upstream_ep_specialist_model,
         "branded_consumer_staples_specialist_model": branded_consumer_staples_specialist_model,
         "asset_management_specialist_model": asset_management_specialist_model,
         "professional_business_services_specialist_model": professional_business_services_specialist_model,
@@ -69639,6 +70215,8 @@ if selected_symbol:
                             compact_method = "Aerospace & Defense · bereinigtes KGV aktuelles Geschäftsjahr"
                         elif compact_method == "semicap_quality_adjusted_pe":
                             compact_method = "Semiconductor Equipment · zeitgewichtetes NTM-KGV"
+                        elif compact_method == "upstream_ep_fcf_ev_dual_anchor":
+                            compact_method = "Upstream E&P · FCF-Yield + EV/Adjusted-EBITDA Dual-Anchor"
                         st.metric("Bewertungsmethode", text_or_dash(compact_method))
 
                 compact_meta = []
@@ -69871,6 +70449,9 @@ if selected_symbol:
                         _family_status_labels = {
                             "three_issuer_valuation_zone_live_validated": "Bewertungszonen geprüft · Vergleichsgruppen-Kalibrierung V187 aktiv",
                             "released_family_evidence_gate": "Familienmodell freigegeben · Emittenten-Evidenz noch nicht vollständig",
+                            "primary_evidence_adapter_validated_valuation_unreleased": "Primärdatenadapter V1 validiert · Familien-Punktzahl und Fair Value noch nicht freigegeben",
+                            "defined_unreleased": "Familienmodell definiert · noch nicht freigegeben",
+                            "first_issuer_end_to_end_validation": "Erster End-to-End-Validierungsissuer · Dual-Anchor für EQT freigegeben · globale Familienfreigabe noch offen",
                         }
                         _family_status = (
                             "Familienmodell vollständig freigegeben · Provider-First Insurance-Doppelanker aktiv · Primärquellen optionaler Sicherheitscheck"
@@ -69921,6 +70502,11 @@ if selected_symbol:
                                 "Der gemeinsame KPI-Rahmen, die 100-Punkte-Familien-Qualitätspunktzahl, die Gewinnbasis des laufenden Geschäftsjahres, der 8–30× KGV-Korridor, der eigene faire Wert und die Bewertungszonen sind freigegeben. "
                                 "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 und die Zahlungsabwickler-Signal-Logik V1 sind freigegeben."
                             )
+                        if (company_type or {}).get("family_validation_status") == "eqt_upstream_ep_dual_anchor_v1":
+                            st.success(
+                                "Upstream-E&P First-Issuer-Validierung aktiv: EQT besitzt einen vollständigen Primärdatenadapter und darf den wiederverwendbaren Dual-Anchor end-to-end testen. "
+                                "Andere E&P-Emittenten bleiben bis zur eigenen Evidence-Validierung fail-closed; dies ist noch keine globale Familienfreigabe."
+                            )
                         if is_universal_family_fail_closed(company_type):
                             if is_released_listed_holding_family(company_type):
                                 st.success(
@@ -69939,10 +70525,20 @@ if selected_symbol:
                                         "Die App bleibt deshalb für Score/Fair Value/Signal dieses Titels fail-closed und verwendet keinen industriellen Ersatzpfad."
                                     )
                                 else:
-                                    st.warning(
-                                        "Familie erkannt, aber das wiederverwendbare Familienmodell ist noch nicht freigegeben. "
-                                        "Die App bleibt deshalb fail-closed und verwendet nicht den industriellen Standardpfad."
-                                    )
+                                    if (
+                                        company_type.get("valuation_family_id") == "upstream_ep"
+                                        and company_type.get("family_validation_status") == "eqt_primary_evidence_adapter_v1"
+                                    ):
+                                        st.info(
+                                            "Upstream-E&P Primärdatenadapter V1 für EQT vollständig validiert. "
+                                            "Die App bleibt für Familien-Punktzahl, Bewertungsanker, Fair Value, Zonen und Signale bewusst fail-closed, "
+                                            "bis mindestens ein zweiter unabhängiger Gasproduzent denselben Evidenzvertrag bestanden hat."
+                                        )
+                                    else:
+                                        st.warning(
+                                            "Familie erkannt, aber das wiederverwendbare Familienmodell ist noch nicht freigegeben. "
+                                            "Die App bleibt deshalb fail-closed und verwendet nicht den industriellen Standardpfad."
+                                        )
 
                     if company_type.get("business_model"):
                         st.write(f"**Geschäftsmodell:** {company_type['business_model']}")
@@ -70526,6 +71122,7 @@ if selected_symbol:
                     is_toyo_solar_fcf_context = bool((data.get("toyo_solar_specialist_model") or {}).get("applicable"))
                     is_luxury_premium_fcf_context = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                     is_integrated_oil_gas_fcf_context = bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
+                    is_upstream_ep_fcf_context = bool((data.get("upstream_ep_specialist_model") or {}).get("applicable"))
                     is_branded_consumer_staples_fcf_context = bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                     is_ctva_fcf_context = bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                     is_professional_services_fcf_context = bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
@@ -70535,7 +71132,19 @@ if selected_symbol:
                     is_universal_family_fcf_context = is_universal_family_fail_closed(company_type)
                     if fcf_ctx.get("score_eligible"):
                         source_text = fcf_ctx.get("accounting_source") or "Yahoo Cashflow-Statement"
-                        if is_bank_fcf_context:
+                        if is_upstream_ep_fcf_context:
+                            ep_fcf_ui = data.get("upstream_ep_specialist_model") or {}
+                            ep_fcf_snap_ui = ep_fcf_ui.get("snapshot") or {}
+                            st.caption(
+                                "FCF-Kontext/Rohdaten: " + str(source_text) + ". Beim Upstream-E&P-Modell bleiben Yahoo-/Statement-FCF reine Diagnosewerte. "
+                                "Bewertungsrelevant ist ausschließlich der emittentendefinierte, dem Anteilseigner zurechenbare FCF aus Primärquellen; er steuert Familien-Score und FCF-Yield-Anker."
+                            )
+                            if safe_float(ep_fcf_snap_ui.get("h1_2026_fcf_attributable_usd_bn")) is not None:
+                                st.caption(
+                                    f"Issuer-primary H1 2026 FCF attributable: {safe_float(ep_fcf_snap_ui.get('h1_2026_fcf_attributable_usd_bn')):.3f} Mrd. USD · "
+                                    f"FY2025: {safe_float(ep_fcf_snap_ui.get('fy2025_fcf_attributable_usd_bn')):.3f} Mrd. USD."
+                                )
+                        elif is_bank_fcf_context:
                             st.caption(
                                 "FCF-Kontext/Rohdaten: " + str(source_text) + ". "
                                 "Bei Banken wird dieser Cashflow-Statement-Wert ausschließlich als Kontext angezeigt. "
@@ -70712,7 +71321,12 @@ if selected_symbol:
                                 "Cashflow-Statement-Wert verwendet."
                             )
                         if fcf_ctx.get("material_divergence"):
-                            if is_integrated_oil_gas_fcf_context:
+                            if is_upstream_ep_fcf_context:
+                                st.info(
+                                    "ℹ️ FCF-Quellenabweichung im Upstream-E&P-Kontext: Yahoo Levered FCF und Cashflow-Statement-FCF bleiben beide Diagnose-/Rohdaten. "
+                                    f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Bewertungsrelevant ist ausschließlich der issuer-attributable FCF aus Primärquellen; die Provider-Abweichung verändert weder Familien-Score noch FCF-Yield-Anker oder Fair Value."
+                                )
+                            elif is_integrated_oil_gas_fcf_context:
                                 st.info(
                                     "FCF-Quellenabweichung im Integrated-Oil-&-Gas-Kontext: Yahoo Levered FCF und Cashflow-Statement-FCF bleiben beide Diagnose-/Rohdaten. "
                                     f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Bewertungsrelevant sind ausschließlich die issuer-spezifischen CFFO-/CapEx-/Cashflow-Primärdaten des Specialist-Modells."
@@ -71148,6 +71762,7 @@ if selected_symbol:
                     luxury_premium_eps_context_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                     oilfield_services_eps_context_ui = bool((data.get("oilfield_services_energy_tech_specialist_model") or {}).get("applicable"))
                     integrated_oil_gas_eps_context_ui = bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
+                    upstream_ep_eps_context_ui = bool((data.get("upstream_ep_specialist_model") or {}).get("applicable"))
                     branded_consumer_staples_eps_context_ui = bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                     asset_management_eps_context_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                     professional_services_eps_context_ui = bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
@@ -71168,7 +71783,7 @@ if selected_symbol:
                         normalized_eps_label = f"Versicherungs-{insurance_model_eps_ui.get('earnings_ttm_label') or 'TTM'}-EPS"
                     else:
                         normalized_eps = eps_result["normalized_eps"]
-                        normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (bank_eps_context_ui or insurance_eps_context_ui or capital_goods_eps_context_ui or exchange_eps_context_ui or universal_family_eps_context_ui or is_semicap_family_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or professional_services_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
+                        normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (bank_eps_context_ui or insurance_eps_context_ui or capital_goods_eps_context_ui or exchange_eps_context_ui or universal_family_eps_context_ui or is_semicap_family_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or upstream_ep_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or professional_services_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
 
                     if normalized_eps is not None:
 
@@ -71738,6 +72353,12 @@ if selected_symbol:
                             f"Standard-EPS-Diagnosequalität: **{ex_diag_label_ui}** · keine Bewertungsfreigabe. "
                             f"Exchange Specialist-Earnings-Basis: **{ex_eps_bridge_conf_ui}**."
                         )
+                    elif upstream_ep_eps_context_ui:
+                        ep_diag_label_ui = {"Hoch": "hoch", "Mittel": "mittel", "Niedrig": "niedrig"}.get(str(confidence or ""), "nicht bestimmt")
+                        st.info(
+                            f"Standard-EPS-Diagnosequalität: **{ep_diag_label_ui}** · nur Kontext. "
+                            "Der Upstream-E&P-Fair-Value verwendet kein EPS/KGV. Bewertungsanker sind normalisierter issuer-attributable FCF-Yield und EV/Adjusted-EBITDA; PV-10 bleibt ausschließlich Asset-Safety."
+                        )
                     elif integrated_oil_gas_eps_context_ui:
                         oil_diag_label_ui = {
                             "Hoch": "hoch",
@@ -71787,6 +72408,11 @@ if selected_symbol:
                                 "Standardpfad-Kontext: TTM-EPS und Prognose-EPS weichen um "
                                 f"{_pp_eps_deviation_text_ui} voneinander ab. Diese Abweichung bleibt ausschließlich Diagnosekontext "
                                 "und begrenzt weder die Zahlungsabwickler-Spezialmodell-Sicherheit noch Fair Value oder spätere Signal-Freigaben."
+                            )
+                        elif upstream_ep_eps_context_ui:
+                            st.caption(
+                                "Standardpfad-Kontext: " + str(eps_result["eps_divergence_note"]) +
+                                " Diese EPS-Divergenz steuert im Upstream-E&P-Modell weder Score noch Fair Value; die Bewertung nutzt issuer-FCF und EV/Adjusted-EBITDA."
                             )
                         elif universal_family_eps_context_ui:
                             st.caption(
@@ -72757,6 +73383,7 @@ if selected_symbol:
                     is_luxury_premium_score_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                     is_oilfield_services_score_ui = bool((data.get("oilfield_services_energy_tech_specialist_model") or {}).get("applicable"))
                     is_integrated_oil_gas_score_ui = bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
+                    is_upstream_ep_score_ui = bool((data.get("upstream_ep_specialist_model") or {}).get("applicable"))
                     is_branded_consumer_staples_score_ui = bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                     is_asset_management_score_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                     is_professional_services_score_ui = bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
@@ -72779,7 +73406,16 @@ if selected_symbol:
                             "Sie bestimmen weder eine Kratos-Earnings-Basis noch ein Fundamental-Multiple oder einen Fair Value. Maßgeblich ist zunächst das primärquellenbasierte Growth-/Backlog-/Owner-Operating-Earnings-Gate."
                         )
 
-                    if is_exchange_score_ui:
+                    if is_upstream_ep_score_ui:
+                        ep_score_ui = (data.get("upstream_ep_specialist_model") or {}).get("specialist_score") or {}
+                        ep_comp_ui = ep_score_ui.get("components") or {}
+                        st.info("Upstream-E&P-Spezialmodell: Generische Umsatz-/Gewinnwachstums-Punkte werden nicht verwendet.")
+                        if ep_score_ui.get("available"):
+                            p_ep = ep_comp_ui.get("Production / Guidance") or {}; h_ep = ep_comp_ui.get("Pricing / Basis / Hedges") or {}
+                            st.write(f"**Production / Guidance:** {p_ep.get('points')}/{p_ep.get('max_points')} Punkte")
+                            st.write(f"**Pricing / Basis / Hedges:** {h_ep.get('points')}/{h_ep.get('max_points')} Punkte")
+                            st.caption("Commodity-, Basis- und Hedge-Evidenz ersetzt die generische Provider-Wachstumslogik.")
+                    elif is_exchange_score_ui:
                         st.info(
                             "Exchange-Spezialmodell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet."
                         )
@@ -73009,7 +73645,7 @@ if selected_symbol:
                                 "nicht berechenbar."
                             )
 
-                    if not is_capital_goods_score_ui and not is_universal_family_score_ui and not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_payment_network_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_oilfield_services_score_ui and not is_integrated_oil_gas_score_ui and not is_branded_consumer_staples_score_ui and not is_asset_management_score_ui and not is_professional_services_score_ui and not is_defense_high_growth_score_ui and not is_exchange_score_ui:
+                    if not is_capital_goods_score_ui and not is_universal_family_score_ui and not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_payment_network_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_oilfield_services_score_ui and not is_integrated_oil_gas_score_ui and not is_upstream_ep_score_ui and not is_branded_consumer_staples_score_ui and not is_asset_management_score_ui and not is_professional_services_score_ui and not is_defense_high_growth_score_ui and not is_exchange_score_ui:
                         st.caption(
                             "Modul 5 wird schrittweise aufgebaut. "
                             "Wachstum liefert maximal 30 Punkte. "
@@ -73044,6 +73680,7 @@ if selected_symbol:
                     is_luxury_premium_profitability_ui = bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                     is_oilfield_services_profitability_ui = bool((data.get("oilfield_services_energy_tech_specialist_model") or {}).get("applicable"))
                     is_integrated_oil_gas_profitability_ui = bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
+                    is_upstream_ep_profitability_ui = bool((data.get("upstream_ep_specialist_model") or {}).get("applicable"))
                     is_branded_consumer_staples_profitability_ui = bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                     is_asset_management_profitability_ui = bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
                     is_professional_services_profitability_ui = bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
@@ -73053,7 +73690,15 @@ if selected_symbol:
                     is_exchange_profitability_ui = bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable"))
                     is_universal_family_profitability_ui = is_universal_family_fail_closed(company_type)
 
-                    if is_exchange_profitability_ui:
+                    if is_upstream_ep_profitability_ui:
+                        ep_prof_ui = (data.get("upstream_ep_specialist_model") or {}).get("specialist_score") or {}
+                        ep_prof_comp_ui = ep_prof_ui.get("components") or {}
+                        st.info("Upstream-E&P-Spezialmodell: Generische Nettomargen-/ROE-Punkte werden nicht verwendet.")
+                        if ep_prof_ui.get("available"):
+                            c_ep = ep_prof_comp_ui.get("Unit Costs / CapEx") or {}
+                            st.write(f"**Unit Costs / Maintenance-/Growth-CapEx:** {c_ep.get('points')}/{c_ep.get('max_points')} Punkte")
+                            st.caption("Profitabilitätsqualität wird über Kostenposition und Investitionsdisziplin auf issuer-primary Basis beurteilt.")
+                    elif is_exchange_profitability_ui:
                         st.info(
                             "Exchange-Spezialmodell: Die generische Nettomargen-/ROE-Punktelogik wird nicht verwendet."
                         )
@@ -73317,6 +73962,7 @@ if selected_symbol:
                         and not is_luxury_premium_profitability_ui
                         and not is_oilfield_services_profitability_ui
                         and not is_integrated_oil_gas_profitability_ui
+                        and not is_upstream_ep_profitability_ui
                         and not is_branded_consumer_staples_profitability_ui
                         and not is_asset_management_profitability_ui
                         and not is_professional_services_profitability_ui
@@ -73343,8 +73989,16 @@ if selected_symbol:
                     fcf_result = data[
                         "fcf_score"
                     ]
+                    is_upstream_ep_fcf_score_ui = bool((data.get("upstream_ep_specialist_model") or {}).get("applicable"))
 
-                    if fcf_result["score"] is not None:
+                    if is_upstream_ep_fcf_score_ui:
+                        ep_cash_ui = data.get("upstream_ep_specialist_model") or {}; ep_cash_score_ui = ep_cash_ui.get("specialist_score") or {}; ep_cash_comp_ui = ep_cash_score_ui.get("components") or {}; ep_cash_metrics_ui = ep_cash_ui.get("metrics") or {}
+                        c_ep = ep_cash_comp_ui.get("Issuer FCF") or {}
+                        st.info("Upstream-E&P-Spezialmodell: Yahoo-/Statement-FCF-Margenpunkte werden nicht verwendet.")
+                        if ep_cash_score_ui.get("available"):
+                            st.write(f"**Issuer FCF:** {c_ep.get('points')}/{c_ep.get('max_points')} Punkte")
+                            st.caption(f"H1 issuer-attributable FCF-Wachstum: {safe_float(ep_cash_metrics_ui.get('h1_fcf_growth_pct')):+.1f}% · H1-Abdeckung der FY2026-FCF-Guidance: {safe_float(ep_cash_metrics_ui.get('h1_fcf_coverage_of_fy2026_guide_pct')):.1f}%.")
+                    elif fcf_result["score"] is not None:
 
                         st.metric(
                             "FCF-Score",
@@ -73659,6 +74313,7 @@ if selected_symbol:
                         and not bool((data.get("luxury_premium_specialist_model") or {}).get("applicable"))
                         and not bool((data.get("oilfield_services_energy_tech_specialist_model") or {}).get("applicable"))
                         and not bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
+                        and not bool((data.get("upstream_ep_specialist_model") or {}).get("applicable"))
                         and not bool((data.get("branded_consumer_staples_specialist_model") or {}).get("applicable"))
                         and not bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
                         and not bool((data.get("asset_management_specialist_model") or {}).get("applicable"))
@@ -73685,8 +74340,18 @@ if selected_symbol:
                     balance_result = data[
                         "balance_score"
                     ]
+                    is_upstream_ep_balance_ui = bool((data.get("upstream_ep_specialist_model") or {}).get("applicable"))
 
-                    if balance_result["score"] is not None:
+                    if is_upstream_ep_balance_ui:
+                        ep_bal_ui = data.get("upstream_ep_specialist_model") or {}; ep_bal_score_ui = ep_bal_ui.get("specialist_score") or {}; ep_bal_comp_ui = ep_bal_score_ui.get("components") or {}; ep_bal_metrics_ui = ep_bal_ui.get("metrics") or {}
+                        st.info("Upstream-E&P-Spezialmodell: Generischer Nettoschulden/Provider-FCF-Score wird nicht verwendet.")
+                        if ep_bal_score_ui.get("available"):
+                            b_ep = ep_bal_comp_ui.get("Net Debt / Liquidity") or {}; r_ep = ep_bal_comp_ui.get("Reserves / PV-10") or {}
+                            st.write(f"**Net Debt / Liquidity:** {b_ep.get('points')}/{b_ep.get('max_points')} Punkte")
+                            st.write(f"**Reserves / PV-10:** {r_ep.get('points')}/{r_ep.get('max_points')} Punkte")
+                            st.caption(f"Net Debt / normalisiertes Adjusted EBITDA: {safe_float(ep_bal_metrics_ui.get('net_debt_to_normalized_ebitda')):.2f}× · Reserve Life: {safe_float(ep_bal_metrics_ui.get('reserve_life_years')):.1f} Jahre.")
+                            st.success(f"Upstream-E&P Familien-Qualitätspunktzahl: **{int(ep_bal_score_ui.get('score'))}/100 Punkte · {text_or_dash(ep_bal_score_ui.get('quality_level'))}**")
+                    elif balance_result["score"] is not None:
 
                         st.metric(
                             "Bilanz-Score",
@@ -74068,6 +74733,7 @@ if selected_symbol:
                         and not bool((data.get("professional_business_services_specialist_model") or {}).get("applicable"))
                         and not bool((data.get("defense_high_growth_specialist_model") or {}).get("applicable"))
                         and not bool((data.get("integrated_oil_gas_specialist_model") or {}).get("applicable"))
+                        and not bool((data.get("upstream_ep_specialist_model") or {}).get("applicable"))
                         and not bool((data.get("oilfield_services_energy_tech_specialist_model") or {}).get("applicable"))
                         and not is_baker_hughes_energy_tech_company_type(company_type)
                         and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
@@ -75738,6 +76404,7 @@ if selected_symbol:
                     is_midstream_valuation_ui = is_midstream_company_type(company_type)
                     is_auto_valuation_ui = "autohersteller" in normalized_company_type_name(company_type)
                     is_semicap_valuation_ui = is_semicap_family_company_type(company_type)
+                    is_upstream_ep_valuation_ui = bool((data.get("upstream_ep_specialist_model") or {}).get("applicable"))
                     is_nvidia_valuation_ui = is_nvidia_ai_growth_company_type(company_type)
                     is_bkr_valuation_ui = is_baker_hughes_energy_tech_company_type(company_type)
                     is_cof_card_bank_valuation_ui = bool((data.get("cof_card_bank_specialist_model") or {}).get("applicable"))
@@ -75876,6 +76543,22 @@ if selected_symbol:
                                 f"{insurance_model_m6.get('earnings_ttm_label') or 'Insurance-TTM'}-EPS/{insurance_pe_label_m6} getrennt geführt. Der Doppelanker-Fair-Value folgt nach Schritt 3B."
                             )
                         )
+                    elif is_upstream_ep_valuation_ui:
+                        ep_m6 = data.get("upstream_ep_specialist_model") or {}
+                        ep_score_m6 = ep_m6.get("specialist_score") or {}
+                        ep_val_m6 = ep_m6.get("specialist_valuation") or {}
+                        if ep_score_m6.get("available"):
+                            st.write(f"**Verwendeter Upstream-E&P Familien-Score:** {safe_float(ep_score_m6.get('score')):.0f}/100 · {text_or_dash(ep_score_m6.get('quality_level'))}")
+                        st.write("**FCF-Yield-Korridor:** 8.5 % bis 13.5 %")
+                        st.write("**EV/Adjusted-EBITDA-Korridor:** 4.0× bis 6.0×")
+                        if ep_val_m6.get("available"):
+                            st.metric("Ziel-FCF-Yield", f"{safe_float(ep_val_m6.get('target_fcf_yield_pct')):.2f} %")
+                            st.metric("Ziel-EV/Adjusted EBITDA", f"{safe_float(ep_val_m6.get('target_ev_ebitda')):.2f}×")
+                            st.success("Upstream-E&P Dual-Anchor freigegeben: FCF-Yield ist der primäre Equity-Anker; EV/Adjusted-EBITDA der unabhängige Sekundäranker. PV-10 bleibt ausschließlich Safety Check.")
+                        else:
+                            st.warning("Upstream-E&P Dual-Anchor noch nicht freigegeben.")
+                        st.caption(multiple_result.get("note"))
+                        st.caption("Peer-Forward-KGVs sind nicht same-basis und bleiben reference-only; sie verändern weder Ziel-FCF-Yield noch Ziel-EV/Adjusted-EBITDA.")
                     elif is_nvidia_valuation_ui:
                         nv_m6 = data.get("nvidia_special_model") or {}
                         nv_gate_m6 = nv_m6.get("primary_gate") or {}
@@ -77267,6 +77950,93 @@ if selected_symbol:
                             "emittentenspezifische Ausnahmen bleiben echten Sonderfällen vorbehalten."
                         )
 
+                        upstream_ep_ui = data.get("upstream_ep_specialist_model") or {}
+                        if upstream_ep_ui.get("applicable") and upstream_ep_ui.get("issuer_supported"):
+                            ep_snap = upstream_ep_ui.get("snapshot") or {}
+                            ep_metrics = upstream_ep_ui.get("metrics") or {}
+                            ep_ccy = ep_snap.get("reporting_currency") or "USD"
+                            st.divider()
+                            st.subheader("🛢️ Upstream E&P Primärdatenadapter V1 · EQT")
+                            st.write(
+                                f"**Primärdatenstand:** {text_or_dash(ep_snap.get('as_of_date'))} "
+                                f"(veröffentlicht {text_or_dash(ep_snap.get('published_date'))}) · "
+                                f"**Evidenzblöcke:** {int(upstream_ep_ui.get('evidence_blocks_complete') or 0)}/{int(upstream_ep_ui.get('evidence_blocks_required') or 0)} vollständig"
+                            )
+                            if ep_snap.get("quarterly_source_url"):
+                                st.markdown(f"[{text_or_dash(ep_snap.get('quarterly_source_name'))}]({ep_snap.get('quarterly_source_url')})")
+                            if ep_snap.get("annual_source_url"):
+                                st.markdown(f"[{text_or_dash(ep_snap.get('annual_source_name'))}]({ep_snap.get('annual_source_url')})")
+                            st.caption(text_or_dash(ep_snap.get("specialist_profile")))
+
+                            c1, c2, c3 = st.columns(3)
+                            with c1:
+                                st.metric(
+                                    "Q2 Sales Volume",
+                                    f"{safe_float(ep_snap.get('q2_sales_volume_bcfe')):.0f} Bcfe",
+                                    f"{safe_float(ep_metrics.get('q2_volume_growth_pct')):+.1f}% YoY",
+                                )
+                            with c2:
+                                st.metric(
+                                    "FY2026 Produktions-Guidance",
+                                    f"{safe_float(ep_metrics.get('fy2026_guidance_mid_bcfe')):.0f} Bcfe Mittelpunkt",
+                                    f"{safe_float(ep_metrics.get('guidance_mid_uplift_pct')):+.1f}% vs. vorheriger Mittelpunkt",
+                                )
+                            with c3:
+                                st.metric(
+                                    "Q2 Operating Costs",
+                                    f"{safe_float(ep_snap.get('q2_operating_cost_usd_per_mcfe')):.2f} {ep_ccy}/Mcfe",
+                                )
+
+                            c4, c5, c6 = st.columns(3)
+                            with c4:
+                                st.metric(
+                                    "H1 FCF attributable",
+                                    f"{safe_float(ep_snap.get('h1_2026_fcf_attributable_usd_bn')):.2f} Mrd. {ep_ccy}",
+                                    f"{safe_float(ep_metrics.get('h1_fcf_growth_pct')):+.1f}% YoY",
+                                )
+                            with c5:
+                                st.metric(
+                                    "Net Debt Q2",
+                                    f"{safe_float(ep_snap.get('q2_2026_net_debt_usd_bn')):.2f} Mrd. {ep_ccy}",
+                                    f"{safe_float(ep_metrics.get('net_debt_change_vs_fy2025_pct')):+.1f}% vs. FY2025",
+                                )
+                            with c6:
+                                st.metric(
+                                    "Net Debt / FY2025 Adj. EBITDA",
+                                    f"{safe_float(ep_metrics.get('net_debt_to_fy2025_adjusted_ebitda')):.2f}×",
+                                )
+
+                            st.markdown("**Pricing / Basis / Hedges**")
+                            st.write(
+                                f"Q2 realisierter Preis: **{safe_float(ep_snap.get('q2_realized_price_usd_per_mcfe')):.2f} {ep_ccy}/Mcfe** · "
+                                f"Natural Gas inkl. abgerechneter Derivate: **{safe_float(ep_snap.get('q2_natural_gas_price_including_derivatives_usd_per_mcf')):.2f} {ep_ccy}/Mcf** · "
+                                f"Basis-Differential: **{safe_float(ep_snap.get('q2_basis_differential_usd_per_mcf')):+.2f} {ep_ccy}/Mcf** · "
+                                f"Q3/Q4 Hedged Volume: **{safe_float(ep_snap.get('q3_2026_hedged_volume_mmdth')):.0f}/{safe_float(ep_snap.get('q4_2026_hedged_volume_mmdth')):.0f} MMDth**"
+                            )
+
+                            st.markdown("**Kapitalintensität / Reserven**")
+                            st.write(
+                                f"Maintenance-CapEx Mittelpunkt: **{safe_float(ep_metrics.get('maintenance_capex_mid_usd_bn')):.3f} Mrd. {ep_ccy}** · "
+                                f"Growth-CapEx Mittelpunkt: **{safe_float(ep_metrics.get('growth_capex_mid_usd_bn')):.3f} Mrd. {ep_ccy}** · "
+                                f"Growth-Anteil: **{safe_float(ep_metrics.get('growth_capex_share_pct')):.1f}%** · "
+                                f"Maintenance-CapEx/Guidance-Volumen: **{safe_float(ep_metrics.get('maintenance_capex_usd_per_mcfe')):.2f} {ep_ccy}/Mcfe**"
+                            )
+                            st.write(
+                                f"Proved Reserves: **{safe_float(ep_snap.get('proved_reserves_tcfe')):.1f} Tcfe** · "
+                                f"Reserve Life: **{safe_float(ep_metrics.get('reserve_life_years')):.1f} Jahre** · "
+                                f"Proved Developed Anteil: **{safe_float(ep_metrics.get('proved_developed_share_pct')):.1f}%** · "
+                                f"PV-10: **{safe_float(ep_snap.get('pv10_usd_bn')):.3f} Mrd. {ep_ccy}** · "
+                                f"PV-10 / Net Debt: **{safe_float(ep_metrics.get('pv10_to_net_debt')):.2f}×**"
+                            )
+                            st.success(
+                                "Primärdatenadapter bestanden: Production/Guidance, Pricing/Basis/Hedges, Unit Costs, Maintenance/Growth CapEx, "
+                                "emittenteneigener FCF, Net Debt/Leverage und Reserves/PV-10 sind für EQT vollständig belegt."
+                            )
+                            st.success(
+                                "V245 führt EQT als ersten end-to-end Validierungsissuer des wiederverwendbaren E&P-Familienmodells. "
+                                "100-Punkte-Familienqualität sowie FCF-Yield-/EV/Adjusted-EBITDA-Dual-Anchor sind für EQT freigegeben; weitere E&P-Emittenten bleiben bis zur eigenen Primärdatenvalidierung fail-closed."
+                            )
+
                         pp_foundation_ui = data.get("payments_processor_foundation_model") or {}
                         if pp_foundation_ui.get("applicable") and pp_foundation_ui.get("issuer_supported"):
                             pp_snap = pp_foundation_ui.get("snapshot") or {}
@@ -78040,6 +78810,56 @@ if selected_symbol:
                             else:
                                 st.warning("Professional-&-Business-Services-Spezialanker unvollständig – Fair Value bleibt gesperrt.")
                             st.caption(text_or_dash(special_control.get("note")))
+
+                    if special_control.get("control_key") == "upstream_ep_natural_gas":
+                        st.divider()
+                        ep3_model = data.get("upstream_ep_specialist_model") or {}
+                        ep3_snap = ep3_model.get("snapshot") or {}
+                        ep3_score = ep3_model.get("specialist_score") or {}
+                        ep3_val = ep3_model.get("specialist_valuation") or {}
+                        ep3_metrics = ep3_model.get("metrics") or {}
+                        st.subheader("🛢️ Modul 6 – Schritt 3B: Upstream E&P / Natural Gas Producer Spezialmodell")
+                        st.write(f"**Primärdatenstand:** {text_or_dash(ep3_snap.get('as_of_date'))} · veröffentlicht {text_or_dash(ep3_snap.get('published_date'))}")
+                        ep3_links = []
+                        if ep3_snap.get("quarterly_source_url"):
+                            ep3_links.append(f"[{text_or_dash(ep3_snap.get('quarterly_source_name'))}]({ep3_snap.get('quarterly_source_url')})")
+                        if ep3_snap.get("annual_source_url"):
+                            ep3_links.append(f"[{text_or_dash(ep3_snap.get('annual_source_name'))}]({ep3_snap.get('annual_source_url')})")
+                        if ep3_links:
+                            st.markdown(" · ".join(ep3_links))
+                        st.metric("Upstream-E&P Familien-Qualitätspunktzahl", f"{int(ep3_score.get('score'))}/100" if ep3_score.get("available") else "–")
+                        if ep3_score.get("available"):
+                            st.caption(" · ".join(f"{k}: {v.get('points')}/{v.get('max_points')}" for k, v in (ep3_score.get("components") or {}).items()))
+                        c1, c2, c3 = st.columns(3)
+                        with c1:
+                            ep3_norm_fcf = safe_float(ep3_val.get("normalized_fcf_usd_bn"))
+                            ep3_yield = safe_float(ep3_val.get("target_fcf_yield_pct"))
+                            st.metric("Normalisierter issuer-FCF", f"{ep3_norm_fcf:.2f} Mrd. USD" if ep3_norm_fcf is not None else "–")
+                            st.metric("Ziel-FCF-Yield", f"{ep3_yield:.2f}%" if ep3_yield is not None else "–")
+                        with c2:
+                            ep3_norm_ebitda = safe_float(ep3_val.get("normalized_adjusted_ebitda_usd_bn"))
+                            ep3_ev_mult = safe_float(ep3_val.get("target_ev_ebitda"))
+                            st.metric("Normalisiertes Adjusted EBITDA", f"{ep3_norm_ebitda:.2f} Mrd. USD" if ep3_norm_ebitda is not None else "–")
+                            st.metric("Ziel-EV/Adjusted EBITDA", f"{ep3_ev_mult:.2f}×" if ep3_ev_mult is not None else "–")
+                        with c3:
+                            ep3_spread = safe_float(ep3_val.get("anchor_spread_pct"))
+                            ep3_lev = safe_float(ep3_metrics.get("net_debt_to_normalized_ebitda"))
+                            st.metric("Ankerabstand", f"{ep3_spread:.1f}%" if ep3_spread is not None else "–")
+                            st.metric("Net Debt / norm. EBITDA", f"{ep3_lev:.2f}×" if ep3_lev is not None else "–")
+                        ep3_fcf_anchor = safe_float(ep3_val.get("fcf_equity_anchor_usd_bn"))
+                        ep3_ev_anchor = safe_float(ep3_val.get("ev_ebitda_equity_anchor_usd_bn"))
+                        ep3_pv10_eq = safe_float(ep3_val.get("pv10_equity_context_usd_bn"))
+                        ep3_pv_ratio = safe_float(ep3_val.get("fair_equity_to_pv10_equity"))
+                        st.write(f"**FCF-Yield Equity-Anker:** {ep3_fcf_anchor:.2f} Mrd. USD · **EV/EBITDA Equity-Anker:** {ep3_ev_anchor:.2f} Mrd. USD" if ep3_fcf_anchor is not None and ep3_ev_anchor is not None else "**Equity-Anker:** –")
+                        st.write(f"**PV-10 Equity-Kontext:** {ep3_pv10_eq:.2f} Mrd. USD · **Fair Equity / PV-10 Equity:** {ep3_pv_ratio:.2f}×" if ep3_pv10_eq is not None and ep3_pv_ratio is not None else "**PV-10 Safety:** –")
+                        st.info("PV-10 ist kein Fair-Value-Anker und wird nicht in den Fair Value gemischt. Er dient ausschließlich als Asset-/Reserve-Sicherheitscheck; SEC-Preisdeck, Midstream und weitere ökonomische Unterschiede werden dadurch nicht als Marktwert behandelt.")
+                        ep3_shares = safe_float(ep3_val.get("shares_outstanding_used"))
+                        if ep3_shares is not None:
+                            st.caption(f"Verwendete Aktienbasis: {ep3_shares/1e6:.2f} Mio. · {text_or_dash(ep3_val.get('shares_source'))}")
+                        if ep3_val.get("available"):
+                            st.success("Bewertungsfreigabe JA: Familien-Score, beide normalisierten Equity-Anker, Ankerkonsistenz und PV-10-Safety-Gate sind bestanden. Bewertungssicherheit bleibt in der First-Issuer-Validierung höchstens Mittel.")
+                        else:
+                            st.warning(text_or_dash(ep3_val.get("note")))
 
                     if special_control.get("control_key") == "oilfield_services_energy_technology":
                         st.divider()
@@ -82530,6 +83350,17 @@ if selected_symbol:
                                     "**Abstand der Bewertungsanker:** "
                                     f"{fair_value.get('anchor_spread_pct'):.1f} %"
                                 )
+                        elif fair_value.get("valuation_method") == "upstream_ep_fcf_ev_dual_anchor":
+                            st.write("**Bewertungsformel:** 60 % normalisierter issuer-attributable FCF-Yield-Equity-Anker + 40 % normalisierter EV/Adjusted-EBITDA-Equity-Anker")
+                            st.write(f"**Upstream-E&P Quality Score:** {safe_float(fair_value.get('specialist_score')):.0f}/100 · {text_or_dash(fair_value.get('specialist_quality_level'))}")
+                            st.write(f"**Normalisierter issuer-FCF:** {safe_float(fair_value.get('normalized_fcf_usd_bn')):.2f} Mrd. USD · **Ziel-FCF-Yield:** {safe_float(fair_value.get('target_fcf_yield_pct')):.2f}%")
+                            st.write(f"**FCF-Yield Equity-Anker:** {safe_float(fair_value.get('fcf_equity_anchor_usd_bn')):.2f} Mrd. USD")
+                            st.write(f"**Normalisiertes Adjusted EBITDA:** {safe_float(fair_value.get('normalized_adjusted_ebitda_usd_bn')):.2f} Mrd. USD · **Ziel-EV/Adjusted EBITDA:** {safe_float(fair_value.get('target_ev_ebitda')):.2f}×")
+                            st.write(f"**EV/Adjusted-EBITDA Equity-Anker:** {safe_float(fair_value.get('ev_ebitda_equity_anchor_usd_bn')):.2f} Mrd. USD · **Ankerabstand:** {safe_float(fair_value.get('anchor_spread_pct')):.1f}%")
+                            st.write(f"**PV-10 Equity-Kontext (nur Safety):** {safe_float(fair_value.get('pv10_equity_context_usd_bn')):.2f} Mrd. USD · **Fair Equity / PV-10 Equity:** {safe_float(fair_value.get('fair_equity_to_pv10_equity')):.2f}×")
+                            ep_fv_shares_ui = safe_float(fair_value.get("shares_outstanding_used"))
+                            if ep_fv_shares_ui is not None:
+                                st.caption(f"Aktienbasis: {ep_fv_shares_ui/1e6:.2f} Mio. · {text_or_dash(fair_value.get('shares_source'))}. PV-10 wird nicht in den Fair Value gemischt.")
                         elif fair_value.get("valuation_method") == "oilfield_services_energy_tech_adjusted_pe":
                             st.write("**Bewertungsformel:** issuer-primary normalisierte Adjusted EPS × scoregesteuertes profilabhängiges Oilfield/Energy-Tech-KGV")
                             st.write(f"**Oilfield/Energy-Tech Quality Score:** {safe_float(fair_value.get('specialist_score')):.0f}/100 · {text_or_dash(fair_value.get('specialist_quality_level'))}")
@@ -83099,7 +83930,12 @@ if selected_symbol:
                                 f"{potential:+.1f} %"
                             )
 
-                        if fair_value.get("valuation_method") == "listed_holding_nav_target":
+                        if fair_value.get("valuation_method") == "upstream_ep_fcf_ev_dual_anchor":
+                            st.success(
+                                "Upstream-E&P Fair Value V1 wurde aus zwei unabhängig normalisierten Equity-Ankern berechnet: issuer-attributable FCF-Yield und EV/Adjusted-EBITDA. "
+                                "PV-10/Reserven dienen nur als Asset-Safety; Peer-KGVs und Analystenziele bleiben reine Kontrollschichten."
+                            )
+                        elif fair_value.get("valuation_method") == "listed_holding_nav_target":
                             st.success(
                                 "Holding-Fair-Value V80 (unveränderte V78-Mathematik) wurde aus dem aktuellen issuer-primary NAV je Aktie und dem separat freigegebenen Ziel-P/NAV berechnet. "
                                 "Die Bewertungszone bleibt unverändert aus V79 freigegeben; V80 übersetzt sie jetzt separat in konservative Holding-Handlungssignale."
