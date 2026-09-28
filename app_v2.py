@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.46"
+APP_BUILD_VERSION = "V2.23.47"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Insurance/Reinsurance Stable IR Parent Freeze V242"
+    f"Build {APP_BUILD_VERSION} · Universal Compact UI Evidence Scope Hotfix V243"
 )
 
 
@@ -966,6 +966,7 @@ st.caption(
 # V2.23.41: Insurance Provider-First Abschluss & stabiler IR-Link V237. Keeps company reports optional and selects a durable issuer-owned Investor-Relations/reporting hub instead of linking to a single year-specific report. Cleans remaining provider-first UI wording so structured book value/TTM anchors are not mislabeled as official issuer evidence; primary sources remain a safety upgrade only. No issuer-specific hard-coded financial values and no return to mandatory report parsing.
 # V2.23.42: Insurance Corporate-Action Provider-Fallback & FX Guard V238. Material insurer corporate actions now block only the issuer-primary FY-H1+H1 bridge/upgrade when comparability is unverified; the structured provider-first dual anchor may still run if its own TTM-EPS, book-value/P-B and unit gates are complete. Cross-currency listing EPS is converted explicitly from the provider listing currency into financial currency through the existing verified quote/financial FX route; cross-currency EPS trend scoring uses unitless structured earningsGrowth rather than mixing per-share horizons. Primary-source bridge remains diagnostic, confidence is capped at Medium in fallback mode, and no Solvency/SST value is estimated.
 # V2.23.45: Insurance/Reinsurance Final Freeze & Stable IR Hub V241. Final UI-only freeze after the Talanx/Allianz/AXA/Zurich/Munich Re cross-case validation. Adds an issuer-neutral durable IR/reporting-hub link even when a verified static insurer snapshot exists, penalises outlook/guidance/news pages as permanent report links, and removes the last provider-first text contradictions. No score, corridor, anchor, FX, gating or signal mathematics changed.
+# V2.23.47: Universal Compact UI Evidence Scope Hotfix V243. Fixes a non-insurance compact-summary crash caused by referencing the detailed-view evidence variable before it was initialized when no insurance calendar snapshot existed. The compact metadata path now uses only its locally resolved universal-evidence dictionary. No classification, score, earnings basis, corridor, FX, Fair-Value, signal or specialist-family mathematics changed.
 # V2.23.46: Insurance/Reinsurance Stable IR Parent Freeze V242. Final link-only hardening: issuer-owned deep IR child URLs such as reporting/outlook, guidance, year-specific reports or results-detail pages are normalised to durable parent reporting/results hubs and the selected parent is reachability-checked before display. The resolver cache entry point is bumped so stale V241 link_only results cannot survive the freeze. No score, corridor, anchor, FX, gating, Fair-Value or signal mathematics changed.
 # V2.23.43: Insurance Provider-Fallback UI Priority & Safe Corporate-Action V239. When a material corporate action blocks the issuer-primary bridge, provider_first_mode now has UI precedence even if a fresh primary snapshot still exists. This prevents primary-only score fields (capital/book-growth points) from being formatted in the provider fallback, preserves the issuer snapshot as diagnostic context, and renders the corporate-action gate as a primary-upgrade warning rather than a valuation-blocking error when the independent provider dual-anchor is active. Valuation math is unchanged.
 # V2.23.30: Specialist Delta Contract & Gate Alignment V226. Makes the family evidence contract the single diagnostic source of truth for provider-first standard fields versus issuer-primary specialist gates. Insurance/Reinsurance now always surfaces same-basis interim EPS/parent earnings, issuer-defined RoE, regulatory capital ratio + framework, scope-critical official BVPS and conditional corporate-action comparability even when the underlying document resolver omits them from its first missing-field list. FY EPS/prior FY EPS, shares and latest annual dividend are provider-first standard fields when semantically verified; issuer-primary remains the fallback when a standard field is unavailable. Adds Eulerpool Dividend Quality as structured standard evidence. Valuation mathematics remain unchanged and specialist release stays fail-closed.
@@ -69532,7 +69533,7 @@ if selected_symbol:
                 compact_official_event_label = compact_insurance_snapshot.get("next_financial_event_label")
                 if not compact_official_event_date:
                     _compact_ue_v224 = data.get("universal_evidence_layer_v219") or {}
-                    _compact_primary_v224 = _compact_ue_v224.get("insurance_primary_acquisition_v234") or evidence_v219_ui.get("insurance_primary_acquisition_v233") or _compact_ue_v224.get("insurance_primary_acquisition_v231") or _compact_ue_v224.get("insurance_primary_acquisition_v230") or _compact_ue_v224.get("insurance_primary_acquisition_v224") or _compact_ue_v224.get("insurance_primary_acquisition_v223") or {}
+                    _compact_primary_v224 = _compact_ue_v224.get("insurance_primary_acquisition_v238") or _compact_ue_v224.get("insurance_primary_acquisition_v237") or _compact_ue_v224.get("insurance_primary_acquisition_v235") or _compact_ue_v224.get("insurance_primary_acquisition_v234") or _compact_ue_v224.get("insurance_primary_acquisition_v233") or _compact_ue_v224.get("insurance_primary_acquisition_v231") or _compact_ue_v224.get("insurance_primary_acquisition_v230") or _compact_ue_v224.get("insurance_primary_acquisition_v224") or _compact_ue_v224.get("insurance_primary_acquisition_v223") or {}
                     _compact_calendar_v224 = (_compact_primary_v224 or {}).get("calendar_event") or {}
                     compact_official_event_date = _compact_calendar_v224.get("date")
                     compact_official_event_label = _compact_calendar_v224.get("label")
