@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.45"
+APP_BUILD_VERSION = "V2.23.46"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Insurance/Reinsurance Final Freeze & Stable IR Hub V241"
+    f"Build {APP_BUILD_VERSION} · Insurance/Reinsurance Stable IR Parent Freeze V242"
 )
 
 
@@ -966,6 +966,7 @@ st.caption(
 # V2.23.41: Insurance Provider-First Abschluss & stabiler IR-Link V237. Keeps company reports optional and selects a durable issuer-owned Investor-Relations/reporting hub instead of linking to a single year-specific report. Cleans remaining provider-first UI wording so structured book value/TTM anchors are not mislabeled as official issuer evidence; primary sources remain a safety upgrade only. No issuer-specific hard-coded financial values and no return to mandatory report parsing.
 # V2.23.42: Insurance Corporate-Action Provider-Fallback & FX Guard V238. Material insurer corporate actions now block only the issuer-primary FY-H1+H1 bridge/upgrade when comparability is unverified; the structured provider-first dual anchor may still run if its own TTM-EPS, book-value/P-B and unit gates are complete. Cross-currency listing EPS is converted explicitly from the provider listing currency into financial currency through the existing verified quote/financial FX route; cross-currency EPS trend scoring uses unitless structured earningsGrowth rather than mixing per-share horizons. Primary-source bridge remains diagnostic, confidence is capped at Medium in fallback mode, and no Solvency/SST value is estimated.
 # V2.23.45: Insurance/Reinsurance Final Freeze & Stable IR Hub V241. Final UI-only freeze after the Talanx/Allianz/AXA/Zurich/Munich Re cross-case validation. Adds an issuer-neutral durable IR/reporting-hub link even when a verified static insurer snapshot exists, penalises outlook/guidance/news pages as permanent report links, and removes the last provider-first text contradictions. No score, corridor, anchor, FX, gating or signal mathematics changed.
+# V2.23.46: Insurance/Reinsurance Stable IR Parent Freeze V242. Final link-only hardening: issuer-owned deep IR child URLs such as reporting/outlook, guidance, year-specific reports or results-detail pages are normalised to durable parent reporting/results hubs and the selected parent is reachability-checked before display. The resolver cache entry point is bumped so stale V241 link_only results cannot survive the freeze. No score, corridor, anchor, FX, gating, Fair-Value or signal mathematics changed.
 # V2.23.43: Insurance Provider-Fallback UI Priority & Safe Corporate-Action V239. When a material corporate action blocks the issuer-primary bridge, provider_first_mode now has UI precedence even if a fresh primary snapshot still exists. This prevents primary-only score fields (capital/book-growth points) from being formatted in the provider fallback, preserves the issuer snapshot as diagnostic context, and renders the corporate-action gate as a primary-upgrade warning rather than a valuation-blocking error when the independent provider dual-anchor is active. Valuation math is unchanged.
 # V2.23.30: Specialist Delta Contract & Gate Alignment V226. Makes the family evidence contract the single diagnostic source of truth for provider-first standard fields versus issuer-primary specialist gates. Insurance/Reinsurance now always surfaces same-basis interim EPS/parent earnings, issuer-defined RoE, regulatory capital ratio + framework, scope-critical official BVPS and conditional corporate-action comparability even when the underlying document resolver omits them from its first missing-field list. FY EPS/prior FY EPS, shares and latest annual dividend are provider-first standard fields when semantically verified; issuer-primary remains the fallback when a standard field is unavailable. Adds Eulerpool Dividend Quality as structured standard evidence. Valuation mathematics remain unchanged and specialist release stays fail-closed.
 # V2.23.31: Universal Evidence Derivation Graph V227. Adds a guarded cross-source derivation graph on top of the provider-first baseline: semantically verified standard denominators may combine with same-period issuer-primary parent earnings/equity to derive interim EPS/BVPS, while FY EPS/prior-FY EPS/dividend and stable share-count data remain provider-first. Derivations are blocked on material corporate-action/share-count alerts, require compatible period/currency/scope semantics, preserve provenance, and never infer regulatory capital/RoE. The graph can rebuild a dynamic Insurance snapshot without forcing every issuer to publish every ratio in identical form. Existing static snapshots and valuation mathematics remain unchanged; specialist release remains fail-closed.
@@ -19015,12 +19016,64 @@ def _insurance_build_dynamic_snapshot_v224(company_name, subprofile, financial_c
     return snapshot, missing
 
 
-def _insurance_select_stable_ir_link_v237(hubs, homepage, company_domain):
+def _insurance_stable_parent_candidates_v242(url):
+    """Derive durable issuer-owned IR parent hubs from a deep child URL.
+
+    This is URL-structure normalisation only. It never releases metrics and never
+    hard-codes an issuer. Typical examples are reporting/outlook -> reporting and
+    results/annual_report_2025 -> results.
+    """
+    try:
+        parsed = urlparse(str(url or ""))
+    except Exception:
+        return []
+    if not parsed.scheme or not parsed.netloc:
+        return []
+    parts = [p for p in (parsed.path or "").split("/") if p]
+    if not parts:
+        return []
+    lows = [unicodedata.normalize("NFKC", p.lower()) for p in parts]
+    parents = []
+
+    # Durable reporting/results container markers. Keep the language / locale
+    # prefix exactly as supplied by the issuer.
+    container_markers = {
+        "reporting", "results", "financial_reports", "financial-reports",
+        "finanzberichte", "berichte", "ergebnisse_-_berichte",
+        "ergebnisse-berichte", "berichterstattung",
+    }
+    for i, seg in enumerate(lows):
+        if seg in container_markers and i < len(parts) - 1:
+            parent_path = "/" + "/".join(parts[: i + 1])
+            parents.append(parsed._replace(path=parent_path, params="", query="", fragment="").geturl())
+
+    # If the leaf itself is clearly ephemeral/year-specific, its direct parent
+    # is a better permanent link even when no known container token is present.
+    leaf = lows[-1]
+    ephemeral = any(k in leaf for k in [
+        "outlook", "ausblick", "guidance", "forecast", "annual_report",
+        "annual-report", "geschaeftsbericht", "geschäftsbericht", "zwischenbericht",
+        "interim", "half-year", "half_year", "q1", "q2", "q3", "q4",
+    ]) or bool(re.search(r"20\d{2}", leaf))
+    if ephemeral and len(parts) > 1:
+        parent_path = "/" + "/".join(parts[:-1])
+        parents.append(parsed._replace(path=parent_path, params="", query="", fragment="").geturl())
+
+    out = []
+    seen = set()
+    for u in parents:
+        if u and u not in seen:
+            seen.add(u)
+            out.append(u)
+    return out
+
+
+def _insurance_select_stable_ir_link_v242(hubs, homepage, company_domain):
     """Pick a durable issuer-owned IR/reporting hub, not a year-specific report.
 
-    The selector is issuer-neutral: it prefers general reporting / investor-relations
-    landing pages, penalises PDFs, explicit years, quarter/half-year labels and
-    individual annual-report URLs, and falls back to the official homepage.
+    Deep issuer-owned children may generate synthetic parent-hub candidates.
+    This lets a modern/dynamic IR site expose only ``reporting/outlook`` while
+    still producing the stable ``reporting`` landing page as the user-facing link.
     """
     candidates = []
     seen = set()
@@ -19028,21 +19081,31 @@ def _insurance_select_stable_ir_link_v237(hubs, homepage, company_domain):
         "reporting": 70, "investor_root": 60, "key_figures": 35,
         "calendar": 15, "news": 5, "annual": -10, "risk_capital": -5, "dividend": -10,
     }
+
+    def add_candidate(score, url, synthetic_parent=False):
+        if not url or not _host_belongs_to_company_family(url, company_domain):
+            return
+        key = (url, bool(synthetic_parent))
+        if key in seen:
+            return
+        seen.add(key)
+        # A derived parent of a verified issuer-owned child is preferred over the
+        # ephemeral child, but not blindly over a strong explicit stable hub.
+        bonus = 118 if synthetic_parent else 0
+        candidates.append((int(score) + bonus, -len(url), url))
+
     for cat, rows in (hubs or {}).items():
         for row in rows or []:
             url = str((row or {}).get("url") or "").strip()
             title = _clean_text((row or {}).get("title")) or ""
-            if not url or url in seen or not _host_belongs_to_company_family(url, company_domain):
+            if not url or not _host_belongs_to_company_family(url, company_domain):
                 continue
-            seen.add(url)
             low = unicodedata.normalize("NFKC", (url + " " + title).lower())
             score = int(category_bonus.get(cat, 0)) + int((row or {}).get("score") or 0)
-            # Stable hub semantics.
             if any(k in low for k in ["investor_relations", "investor-relations", "investors"]):
                 score += 28
             if any(k in low for k in ["/reporting", "financial_reports", "financial-reports", "reports", "berichte", "ergebnisse_-_berichte"]):
                 score += 26
-            # Strongly prefer durable landing/report-index pages over outlook/news content.
             path = urlparse(url).path.rstrip("/")
             if any(path.endswith(sfx) for sfx in [
                 "/reporting", "/financial_reports", "/financial-reports", "/finanzberichte",
@@ -19054,10 +19117,8 @@ def _insurance_select_stable_ir_link_v237(hubs, homepage, company_domain):
                 "/news", " corporate_news", " corporate news", "/presse", "pressemitteilungen"
             ]):
                 score -= 95
-            # Prefer a landing page over a deep content item.
             depth = len([x for x in path.split("/") if x])
             score -= max(0, depth - 3) * 4
-            # Year/period-specific documents age quickly and must not be the main link.
             if re.search(r"\b20\d{2}\b", low):
                 score -= 90
             if any(k in low for k in [
@@ -19068,7 +19129,9 @@ def _insurance_select_stable_ir_link_v237(hubs, homepage, company_domain):
                 score -= 70
             if url.lower().split("?", 1)[0].endswith(".pdf"):
                 score -= 120
-            candidates.append((score, -len(url), url))
+            add_candidate(score, url, synthetic_parent=False)
+            for parent_url in _insurance_stable_parent_candidates_v242(url):
+                add_candidate(score, parent_url, synthetic_parent=True)
     if candidates:
         candidates.sort(reverse=True)
         return candidates[0][2]
@@ -19076,10 +19139,10 @@ def _insurance_select_stable_ir_link_v237(hubs, homepage, company_domain):
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def discover_insurance_official_links_v235(company_name, website):
+def discover_insurance_official_links_v242(company_name, website):
     """Resolve an official issuer/IR link only; never promote report metrics."""
     result = {
-        "version": "V237", "status": "link_only", "available": False, "complete": False,
+        "version": "V242", "status": "link_only", "available": False, "complete": False,
         "snapshot": None, "company_domain": None, "official_homepage": None, "official_ir_url": None,
         "ir_hubs": {}, "documents": {}, "missing_primary": [], "diagnostics": [],
         "resolver_stages": {"domain_resolved": False, "ir_hubs_resolved": 0},
@@ -19112,7 +19175,23 @@ def discover_insurance_official_links_v235(company_name, website):
             url = str((row or {}).get("url") or "").strip()
             if url and url not in flat:
                 flat.append(url)
-    result["official_ir_url"] = _insurance_select_stable_ir_link_v237(result["ir_hubs"], homepage, company_domain)
+    result["official_ir_url"] = _insurance_select_stable_ir_link_v242(result["ir_hubs"], homepage, company_domain)
+    # V242: reachability-check the durable parent. A synthetically normalised
+    # parent must be a real issuer page before it is shown to the user.
+    _candidate_ir_v242 = result.get("official_ir_url")
+    if _candidate_ir_v242 and _candidate_ir_v242 != homepage:
+        try:
+            _html_v242, _final_v242 = _fetch_html(
+                _candidate_ir_v242, timeout=2.8, deadline=time.monotonic() + 3.2, max_chars=450_000
+            )
+            if _html_v242 and _host_belongs_to_company_family(_final_v242 or _candidate_ir_v242, company_domain):
+                result["official_ir_url"] = _final_v242 or _candidate_ir_v242
+            else:
+                result["official_ir_url"] = homepage
+                result["diagnostics"].append("Dauerhafter IR-Elternhub war nicht erreichbar; offizieller Emittenten-Startpunkt wird verwendet.")
+        except Exception:
+            result["official_ir_url"] = homepage
+            result["diagnostics"].append("Dauerhafter IR-Elternhub konnte nicht bestätigt werden; offizieller Emittenten-Startpunkt wird verwendet.")
     result["resolver_stages"]["ir_hubs_resolved"] = len(flat)
     result["available"] = bool(result["official_ir_url"])
     result["diagnostics"].append("Stabiler offizieller IR-/Berichts-Hub aufgelöst; einzelne Jahres-/Quartalsberichte werden nicht als dauerhafter Hauptlink verwendet und Berichtskennzahlen werden nicht automatisch übernommen.")
@@ -65524,10 +65603,10 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     _insurance_official_links_v241 = None
     _insurance_primary_for_evidence_v219 = _insurance_primary_static_v222
     if is_insurance_company_type(company_type):
-        # V241 UI-only link resolver: always resolve a durable issuer-owned IR/reporting hub,
+        # V242 link-only resolver: always resolve a durable issuer-owned IR/reporting parent hub,
         # even when a verified static insurer snapshot already exists. This link object is
         # never used to release valuation metrics.
-        _insurance_official_links_v241 = discover_insurance_official_links_v235(
+        _insurance_official_links_v241 = discover_insurance_official_links_v242(
             name,
             fundamental_info.get("website") or quote_info.get("website"),
         )
