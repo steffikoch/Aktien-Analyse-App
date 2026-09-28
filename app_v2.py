@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.44"
+APP_BUILD_VERSION = "V2.23.45"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Insurance/Reinsurance Freeze & UI Cleanup V240"
+    f"Build {APP_BUILD_VERSION} · Insurance/Reinsurance Final Freeze & Stable IR Hub V241"
 )
 
 
@@ -965,7 +965,7 @@ st.caption(
 
 # V2.23.41: Insurance Provider-First Abschluss & stabiler IR-Link V237. Keeps company reports optional and selects a durable issuer-owned Investor-Relations/reporting hub instead of linking to a single year-specific report. Cleans remaining provider-first UI wording so structured book value/TTM anchors are not mislabeled as official issuer evidence; primary sources remain a safety upgrade only. No issuer-specific hard-coded financial values and no return to mandatory report parsing.
 # V2.23.42: Insurance Corporate-Action Provider-Fallback & FX Guard V238. Material insurer corporate actions now block only the issuer-primary FY-H1+H1 bridge/upgrade when comparability is unverified; the structured provider-first dual anchor may still run if its own TTM-EPS, book-value/P-B and unit gates are complete. Cross-currency listing EPS is converted explicitly from the provider listing currency into financial currency through the existing verified quote/financial FX route; cross-currency EPS trend scoring uses unitless structured earningsGrowth rather than mixing per-share horizons. Primary-source bridge remains diagnostic, confidence is capped at Medium in fallback mode, and no Solvency/SST value is estimated.
-# V2.23.44: Insurance/Reinsurance Freeze & UI Cleanup V240. Freezes the validated valuation logic after Talanx, Allianz, AXA, Zurich and Munich Re cross-case tests. Removes legacy visible version labels, consistently distinguishes structured provider book value from issuer-official book value, preserves primary-source upgrade semantics, and carries provider-first display metadata through Fair Value rendering. No score, corridor, anchor, FX, gating or signal mathematics changed.
+# V2.23.45: Insurance/Reinsurance Final Freeze & Stable IR Hub V241. Final UI-only freeze after the Talanx/Allianz/AXA/Zurich/Munich Re cross-case validation. Adds an issuer-neutral durable IR/reporting-hub link even when a verified static insurer snapshot exists, penalises outlook/guidance/news pages as permanent report links, and removes the last provider-first text contradictions. No score, corridor, anchor, FX, gating or signal mathematics changed.
 # V2.23.43: Insurance Provider-Fallback UI Priority & Safe Corporate-Action V239. When a material corporate action blocks the issuer-primary bridge, provider_first_mode now has UI precedence even if a fresh primary snapshot still exists. This prevents primary-only score fields (capital/book-growth points) from being formatted in the provider fallback, preserves the issuer snapshot as diagnostic context, and renders the corporate-action gate as a primary-upgrade warning rather than a valuation-blocking error when the independent provider dual-anchor is active. Valuation math is unchanged.
 # V2.23.30: Specialist Delta Contract & Gate Alignment V226. Makes the family evidence contract the single diagnostic source of truth for provider-first standard fields versus issuer-primary specialist gates. Insurance/Reinsurance now always surfaces same-basis interim EPS/parent earnings, issuer-defined RoE, regulatory capital ratio + framework, scope-critical official BVPS and conditional corporate-action comparability even when the underlying document resolver omits them from its first missing-field list. FY EPS/prior FY EPS, shares and latest annual dividend are provider-first standard fields when semantically verified; issuer-primary remains the fallback when a standard field is unavailable. Adds Eulerpool Dividend Quality as structured standard evidence. Valuation mathematics remain unchanged and specialist release stays fail-closed.
 # V2.23.31: Universal Evidence Derivation Graph V227. Adds a guarded cross-source derivation graph on top of the provider-first baseline: semantically verified standard denominators may combine with same-period issuer-primary parent earnings/equity to derive interim EPS/BVPS, while FY EPS/prior-FY EPS/dividend and stable share-count data remain provider-first. Derivations are blocked on material corporate-action/share-count alerts, require compatible period/currency/scope semantics, preserve provenance, and never infer regulatory capital/RoE. The graph can rebuild a dynamic Insurance snapshot without forcing every issuer to publish every ratio in identical form. Existing static snapshots and valuation mathematics remain unchanged; specialist release remains fail-closed.
@@ -19042,8 +19042,19 @@ def _insurance_select_stable_ir_link_v237(hubs, homepage, company_domain):
                 score += 28
             if any(k in low for k in ["/reporting", "financial_reports", "financial-reports", "reports", "berichte", "ergebnisse_-_berichte"]):
                 score += 26
-            # Prefer a landing page over a deep content item.
+            # Strongly prefer durable landing/report-index pages over outlook/news content.
             path = urlparse(url).path.rstrip("/")
+            if any(path.endswith(sfx) for sfx in [
+                "/reporting", "/financial_reports", "/financial-reports", "/finanzberichte",
+                "/reports", "/berichte", "/ergebnisse_-_berichte", "/investor_relations", "/investor-relations"
+            ]):
+                score += 48
+            if any(k in low for k in [
+                "/outlook", " ausblick", "/guidance", " guidance", "/forecast", " forecast",
+                "/news", " corporate_news", " corporate news", "/presse", "pressemitteilungen"
+            ]):
+                score -= 95
+            # Prefer a landing page over a deep content item.
             depth = len([x for x in path.split("/") if x])
             score -= max(0, depth - 3) * 4
             # Year/period-specific documents age quickly and must not be the main link.
@@ -65510,13 +65521,18 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         if is_insurance_company_type(company_type) else None
     )
     _insurance_primary_discovery_v222 = None
+    _insurance_official_links_v241 = None
     _insurance_primary_for_evidence_v219 = _insurance_primary_static_v222
-    if is_insurance_company_type(company_type) and not isinstance(_insurance_primary_static_v222, dict):
-        # V235: no generic automatic issuer-report parsing. Resolve only the official link.
-        _insurance_primary_discovery_v222 = discover_insurance_official_links_v235(
+    if is_insurance_company_type(company_type):
+        # V241 UI-only link resolver: always resolve a durable issuer-owned IR/reporting hub,
+        # even when a verified static insurer snapshot already exists. This link object is
+        # never used to release valuation metrics.
+        _insurance_official_links_v241 = discover_insurance_official_links_v235(
             name,
             fundamental_info.get("website") or quote_info.get("website"),
         )
+        if not isinstance(_insurance_primary_static_v222, dict):
+            _insurance_primary_discovery_v222 = _insurance_official_links_v241
 
     universal_evidence_layer_v219 = build_universal_evidence_layer_v219(
         symbol, company_type, eulerpool_evidence_v219, _insurance_primary_for_evidence_v219
@@ -65549,6 +65565,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         universal_evidence_layer_v219["family_specialist_delta_v227"] = _delta_v226
         universal_evidence_layer_v219["family_specialist_delta_v226"] = _delta_v226
         universal_evidence_layer_v219["family_specialist_delta_v225"] = _delta_v226
+        universal_evidence_layer_v219["insurance_official_links_v241"] = _insurance_official_links_v241
         universal_evidence_layer_v219["insurance_primary_acquisition_v238"] = _insurance_primary_discovery_v222
         universal_evidence_layer_v219["insurance_primary_acquisition_v237"] = _insurance_primary_discovery_v222
         universal_evidence_layer_v219["insurance_primary_acquisition_v235"] = _insurance_primary_discovery_v222
@@ -69593,7 +69610,8 @@ if selected_symbol:
                                 _status_text_v222 = text_or_dash((_primary_v222 or {}).get("status"))
                                 _extra_v222 = (" · Emittenten-Domain: " + str(_domain_v222)) if _domain_v222 else ""
                                 st.info("Primärquellen-Verweis: " + _status_text_v222 + _extra_v222 + ". Unternehmensberichte sind optional; die Bewertung nutzt bei vollständigen strukturierten Kernankern den Provider-First-Pfad.")
-                            _ir_url_v238 = (_primary_v222 or {}).get("official_ir_url") or (_primary_v222 or {}).get("official_homepage")
+                            _official_links_v241 = evidence_v219_ui.get("insurance_official_links_v241") or {}
+                            _ir_url_v238 = (_official_links_v241 or {}).get("official_ir_url") or (_primary_v222 or {}).get("official_ir_url") or (_official_links_v241 or {}).get("official_homepage") or (_primary_v222 or {}).get("official_homepage")
                             if _ir_url_v238:
                                 st.markdown(f"[Offizielle Investor-Relations-/Berichtsseite öffnen]({_ir_url_v238})")
                             _delta_v225_top = evidence_v219_ui.get("family_specialist_delta_v238") or evidence_v219_ui.get("family_specialist_delta_v237") or evidence_v219_ui.get("family_specialist_delta_v235") or evidence_v219_ui.get("family_specialist_delta_v234") or evidence_v219_ui.get("family_specialist_delta_v233") or evidence_v219_ui.get("family_specialist_delta_v231") or evidence_v219_ui.get("family_specialist_delta_v230") or evidence_v219_ui.get("family_specialist_delta_v229") or evidence_v219_ui.get("family_specialist_delta_v228") or evidence_v219_ui.get("family_specialist_delta_v227") or evidence_v219_ui.get("family_specialist_delta_v226") or evidence_v219_ui.get("family_specialist_delta_v225") or {}
@@ -72700,9 +72718,9 @@ if selected_symbol:
                         insurance_growth_is_reinsurance_ui = bool(insurance_growth_model_ui.get("is_reinsurance_profile"))
                         st.info(
                             "Versicherungsmodell: Der generische Umsatz-/Gewinnwachstums-Score wird nicht verwendet. "
-                            "Umsatz- und Yahoo-Gewinnwachstum bleiben ausschließlich Kontext; der Versicherungs-Score "
-                            "stützt sich auf die emittenteneigene versicherungsspezifische Ergebnisbasis, RoE, die regulatorische Kapitalquote, "
-                            "offizielle Buchwertentwicklung und Ausschüttungsqualität."
+                            "Umsatz- und Yahoo-Gewinnwachstum bleiben ausschließlich Kontext. Im Datenanbieter-First-Pfad stützt sich der Versicherungs-Score "
+                            "auf strukturierten ROE, Gewinntrend und Ausschüttungsqualität; strukturierter Buchwert/P-B bildet einen separaten Bewertungsanker. "
+                            "Primärquellen können Solvency/SST, Buchwertentwicklung und Ergebnisqualität zusätzlich verifizieren."
                         )
                         st.caption(
                             "Der intern verfügbare Standard-Wachstumsscore hat bei Versicherungen keinen Einfluss "
@@ -73399,8 +73417,8 @@ if selected_symbol:
                             )
                             st.caption(
                                 "Bei Versicherungen wird der konsolidierte Cashflow-Statement-FCF nur als Kontext/Rohdaten geführt. "
-                                "Die Bewertung stützt sich stattdessen auf die verifizierte versicherungsspezifische Ergebnisbasis, "
-                                "RoE, die regulatorische Kapitalquote, offiziellen Buchwert/P-B und Ausschüttungsqualität."
+                                "Die Standardbewertung nutzt stattdessen strukturiertes TTM-EPS, ROE, Ausschüttungsdaten und den strukturierten Buchwert/P-B-Anker. "
+                                "Solvency/SST und Unternehmensberichte sind optionale Primärquellen-Verifikation."
                             )
                         else:
                             if fcf_result[
@@ -76997,6 +77015,12 @@ if selected_symbol:
                                 st.caption(
                                     "Der Zahlungsabwickler-Spezialpfad ist bis einschließlich Bewertungszonen V1 praktisch geprüft und freigegeben. "
                                     "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 und die Zahlungsabwickler-Signal-Logik V1 sind ebenfalls freigegeben."
+                                )
+                            elif is_insurance_company_type(company_type):
+                                st.caption(
+                                    "Die Insurance-/Reinsurance-Spezialkontrolle sperrt den Fair Value nur, wenn strukturierte Kernanker fehlen, "
+                                    "Währungs-/Einheitenprüfungen scheitern oder die beiden Bewertungsanker nicht ausreichend konsistent sind. "
+                                    "Fehlende optionale Unternehmensberichte oder Solvency/SST-Werte allein sperren die Datenanbieter-First-Bewertung nicht."
                                 )
                             else:
                                 st.caption(
