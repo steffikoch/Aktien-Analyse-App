@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.53"
+APP_BUILD_VERSION = "V2.23.54"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Upstream E&P Familien-Freeze & Evidenzvertrag V249"
+    f"Build {APP_BUILD_VERSION} · Upstream E&P Evidenz-Gate UI-Hotfix V250"
 )
 
 
@@ -43324,9 +43324,10 @@ def build_upstream_ep_specialist_model(company_type, fundamental_info, symbol):
         "fair_value_released": False,
         "snapshot": None,
         "metrics": {},
-        "evidence_blocks": {},
+        "evidence_blocks": {key: False for key in UPSTREAM_EP_EVIDENCE_CONTRACT_V1["blocks"]},
         "evidence_blocks_complete": 0,
         "evidence_blocks_required": 7,
+        "evidence_scope_label": "0/7 Primärdatenblöcke vollständig belegt",
         "family_score": {"available": False},
         "specialist_valuation": {"available": False},
     }
@@ -68151,7 +68152,13 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "note": f"{APP_BUILD_VERSION} Upstream-E&P Specialist: 100-Punkte-Familienqualität steuert FCF-Yield und EV/Adjusted-EBITDA getrennt. Peer-KGVs und Analystenziele setzen keinen Fair Value.",
             }
         else:
-            fundamental_multiple = {**fundamental_multiple, "score": safe_float(ep_score_fm.get("score")), "multiple": None, "available": False, "earnings_basis_usable": False, "note": str(ep_val_fm.get("note") or "E&P-Dual-Anchor nicht freigegeben.")}
+            if upstream_ep_specialist_model.get("corporate_action_blocked"):
+                _ep_fm_note = "E&P-Familien-Doppelanker ist freigegeben; für diesen Emittenten blockiert jedoch das Corporate-Action-/Scope-Gate eine vergleichbare FCF-/EBITDA-/Nettoschulden-Basis."
+            elif not upstream_ep_specialist_model.get("primary_evidence_complete"):
+                _ep_fm_note = "E&P-Familien-Doppelanker ist freigegeben und eingefroren; für diesen Emittenten fehlt noch der vollständige 7-Block-Primärdaten-Evidenzvertrag. Daher werden noch kein Ziel-FCF-Yield und kein Ziel-EV/Adjusted-EBITDA berechnet."
+            else:
+                _ep_fm_note = str(ep_val_fm.get("note") or "E&P-Familien-Doppelanker freigegeben; Emittenten-Sicherheits-Gate noch nicht bestanden.")
+            fundamental_multiple = {**fundamental_multiple, "score": safe_float(ep_score_fm.get("score")), "multiple": None, "available": False, "earnings_basis_usable": False, "note": _ep_fm_note}
 
     if branded_consumer_staples_specialist_model.get("applicable"):
         bcs_score = branded_consumer_staples_specialist_model.get("specialist_score") or {}
@@ -69089,9 +69096,39 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         special_event_warning = {
             "level": "Grün", "icon": "🟢", "title": "Upstream-E&P Familienmodell aktiv – Commodity-Zyklus normalisiert",
             "requires_research": False, "valuation_usable": True,
-            "reason": (f"Der issuer-primary E&P-Score ist mit {safe_float(ep_score_event.get('score')):.0f}/100 freigegeben. FCF- und EBITDA-Run-Rates werden konservativ gekappt; PV-10 dient nur als Asset-Sicherheitscheck."),
-            "action": (f"{APP_BUILD_VERSION} bewertet über normalisierten FCF-Yield- und EV/Adjusted-EBITDA-Doppelanker. Realisierte Preise, Basis und Hedges bleiben explizite Score-/Vergleichbarkeitsfaktoren; Peer-KGVs setzen keinen Fair Value."),
+            "reason": (f"Der primärquellenbasierte E&P-Score ist mit {safe_float(ep_score_event.get('score')):.0f}/100 freigegeben. FCF- und EBITDA-Hochrechnungen werden konservativ gekappt; PV-10 dient nur als Vermögenswert-Sicherheitscheck."),
+            "action": (f"{APP_BUILD_VERSION} bewertet über normalisierten FCF-Yield- und EV/Adjusted-EBITDA-Doppelanker. Realisierte Preise, Basis und Hedges bleiben explizite Punktzahl-/Vergleichbarkeitsfaktoren; Vergleichsgruppen-KGVs setzen keinen Fair Value."),
         }
+    elif upstream_ep_specialist_model.get("applicable"):
+        _ep_event_note = str(upstream_ep_specialist_model.get("note") or "").strip()
+        _ep_diag_level = str((special_event_warning or {}).get("level") or "").strip()
+        _ep_diag_reason = str((special_event_warning or {}).get("reason") or "").strip()
+        _ep_diag_note = (
+            f" Die generische EPS-Diagnose meldet {_ep_diag_level}: {_ep_diag_reason} "
+            "Diese Diagnose ist für die E&P-Bewertung nicht freigaberelevant."
+            if _ep_diag_level and _ep_diag_level.lower() != "grün" and _ep_diag_reason else ""
+        )
+        if upstream_ep_specialist_model.get("corporate_action_blocked"):
+            special_event_warning = {
+                "level": "Gelb", "icon": "🟡",
+                "title": "E&P Corporate-Action-Gate aktiv – Emittentenbewertung gesperrt",
+                "requires_research": False, "valuation_usable": False,
+                "reason": (_ep_event_note or "Eine materielle Corporate Action verhindert aktuell eine scope-vergleichbare FCF-/EBITDA-/Nettoschulden-Basis.") + _ep_diag_note,
+                "action": "Keine Standard-EPS-Sonderrecherche und keine Ersatzbewertung starten. Das eingefrorene E&P-Familienmodell bleibt gültig; nur dieser Emittent bleibt bis zu vergleichbaren Pro-forma- oder Post-Close-Primärdaten fail-closed.",
+                "family_model_gate": True, "issuer_evidence_gate": True,
+            }
+        else:
+            special_event_warning = {
+                "level": "Grün", "icon": "🟢",
+                "title": "Keine automatische Sonderereignis-Recherche – E&P Emittenten-Evidenz-Gate aktiv",
+                "requires_research": False, "valuation_usable": False,
+                "reason": (
+                    "Das Upstream-E&P-Familienmodell ist freigegeben und eingefroren. Für diesen Emittenten ist der universelle 7-Block-Primärdaten-Evidenzvertrag noch nicht vollständig befüllt; "
+                    "deshalb bleiben Punktzahl, Doppelanker, Fair Value, Bewertungszonen und Signale gesperrt." + _ep_diag_note
+                ),
+                "action": "Keine Bewertung aus Standard-EPS, Yahoo-FCF oder Vergleichsgruppen-KGV ableiten. Zuerst die sieben E&P-Primärdatenblöcke vollständig belegen; danach kann derselbe eingefrorene Familienpfad ohne neue Bewertungslogik freigeben.",
+                "family_model_gate": True, "issuer_evidence_gate": True,
+            }
 
     if integrated_oil_gas_specialist_model.get("applicable") and integrated_oil_gas_specialist_model.get("valuation_anchor_complete"):
         oil_snap_event = integrated_oil_gas_specialist_model.get("snapshot") or {}
@@ -76902,7 +76939,12 @@ if selected_symbol:
                             st.metric("Ziel-EV/Adjusted EBITDA", f"{safe_float(ep_val_m6.get('target_ev_ebitda')):.2f}×")
                             st.success("Upstream-E&P Dual-Anchor freigegeben: FCF-Yield ist der primäre Equity-Anker; EV/Adjusted-EBITDA der unabhängige Sekundäranker. PV-10 bleibt ausschließlich Safety Check.")
                         else:
-                            st.warning("Upstream-E&P Dual-Anchor noch nicht freigegeben.")
+                            if ep_m6.get("corporate_action_blocked"):
+                                st.warning("Der E&P-Familien-Doppelanker ist freigegeben; für diesen Emittenten ist die Bewertung wegen eines Corporate-Action-/Scope-Gates gesperrt.")
+                            elif not ep_m6.get("primary_evidence_complete"):
+                                st.info("Der E&P-Familien-Doppelanker ist freigegeben und eingefroren. Für diesen Emittenten fehlt noch die vollständige 7-Block-Primärdaten-Evidenz; deshalb werden noch keine Zielanker berechnet.")
+                            else:
+                                st.warning("Der E&P-Familien-Doppelanker ist freigegeben; das Emittenten-Sicherheits-Gate ist noch nicht bestanden.")
                         st.caption(multiple_result.get("note"))
                         st.caption("Peer-Forward-KGVs sind nicht same-basis und bleiben reference-only; sie verändern weder Ziel-FCF-Yield noch Ziel-EV/Adjusted-EBITDA.")
                     elif is_nvidia_valuation_ui:
@@ -79216,52 +79258,80 @@ if selected_symbol:
                         ep3_val = ep3_model.get("specialist_valuation") or {}
                         ep3_metrics = ep3_model.get("metrics") or {}
                         st.subheader("🛢️ Modul 6 – Schritt 3B: Upstream E&P / Natural Gas Producer Spezialmodell")
-                        st.write(f"**Primärdatenstand:** {text_or_dash(ep3_snap.get('as_of_date'))} · veröffentlicht {text_or_dash(ep3_snap.get('published_date'))}")
-                        ep3_links = []
-                        if ep3_snap.get("quarterly_source_url"):
-                            ep3_links.append(f"[{text_or_dash(ep3_snap.get('quarterly_source_name'))}]({ep3_snap.get('quarterly_source_url')})")
-                        if ep3_snap.get("annual_source_url"):
-                            ep3_links.append(f"[{text_or_dash(ep3_snap.get('annual_source_name'))}]({ep3_snap.get('annual_source_url')})")
-                        if ep3_links:
-                            st.markdown(" · ".join(ep3_links))
-                        st.metric("Upstream-E&P Familien-Qualitätspunktzahl", f"{int(ep3_score.get('score'))}/100" if ep3_score.get("available") else "–")
-                        if ep3_score.get("available"):
-                            st.caption(" · ".join(f"{k}: {v.get('points')}/{v.get('max_points')}" for k, v in (ep3_score.get("components") or {}).items()))
-                        c1, c2, c3 = st.columns(3)
-                        with c1:
-                            ep3_norm_fcf = safe_float(ep3_val.get("normalized_fcf_usd_bn"))
-                            ep3_yield = safe_float(ep3_val.get("target_fcf_yield_pct"))
-                            st.metric("Normalisierter issuer-FCF", f"{ep3_norm_fcf:.2f} Mrd. USD" if ep3_norm_fcf is not None else "–")
-                            st.metric("Ziel-FCF-Yield", f"{ep3_yield:.2f}%" if ep3_yield is not None else "–")
-                            if ep3_val.get("current_cycle_fcf_source"):
-                                st.caption("Current-Cycle-FCF-Basis: " + str(ep3_val.get("current_cycle_fcf_source")))
-                        with c2:
-                            ep3_norm_ebitda = safe_float(ep3_val.get("normalized_adjusted_ebitda_usd_bn"))
-                            ep3_ev_mult = safe_float(ep3_val.get("target_ev_ebitda"))
-                            st.metric("Normalisiertes Adjusted EBITDA", f"{ep3_norm_ebitda:.2f} Mrd. USD" if ep3_norm_ebitda is not None else "–")
-                            st.metric("Ziel-EV/Adjusted EBITDA", f"{ep3_ev_mult:.2f}×" if ep3_ev_mult is not None else "–")
-                        with c3:
-                            ep3_spread = safe_float(ep3_val.get("anchor_spread_pct"))
-                            ep3_lev = safe_float(ep3_metrics.get("net_debt_to_normalized_ebitda"))
-                            st.metric("Ankerabstand", f"{ep3_spread:.1f}%" if ep3_spread is not None else "–")
-                            st.metric("Net Debt / norm. EBITDA", f"{ep3_lev:.2f}×" if ep3_lev is not None else "–")
-                        ep3_fcf_anchor = safe_float(ep3_val.get("fcf_equity_anchor_usd_bn"))
-                        ep3_ev_anchor = safe_float(ep3_val.get("ev_ebitda_equity_anchor_usd_bn"))
-                        ep3_pv10_eq = safe_float(ep3_val.get("pv10_equity_context_usd_bn"))
-                        ep3_pv_ratio = safe_float(ep3_val.get("fair_equity_to_pv10_equity"))
-                        st.write(f"**FCF-Yield Equity-Anker:** {ep3_fcf_anchor:.2f} Mrd. USD · **EV/EBITDA Equity-Anker:** {ep3_ev_anchor:.2f} Mrd. USD" if ep3_fcf_anchor is not None and ep3_ev_anchor is not None else "**Equity-Anker:** –")
-                        _ep3_nd_adj = safe_float(ep3_val.get("valuation_net_debt_adjustment_usd_bn"))
-                        if _ep3_nd_adj not in (None, 0):
-                            st.caption(f"Bewertungs-Net-Debt: Q2 gemeldet {safe_float(ep3_val.get('reported_net_debt_usd_bn')):.3f} Mrd. USD + {_ep3_nd_adj:.3f} Mrd. USD Scope-Anpassung = {safe_float(ep3_val.get('valuation_net_debt_used_usd_bn')):.3f} Mrd. USD. {text_or_dash(ep3_val.get('valuation_net_debt_adjustment_reason'))}")
-                        st.write(f"**PV-10 Equity-Kontext:** {ep3_pv10_eq:.2f} Mrd. USD · **Fair Equity / PV-10 Equity:** {ep3_pv_ratio:.2f}×" if ep3_pv10_eq is not None and ep3_pv_ratio is not None else "**PV-10 Safety:** –")
-                        st.info("PV-10 ist kein Fair-Value-Anker und wird nicht in den Fair Value gemischt. Er dient ausschließlich als Asset-/Reserve-Sicherheitscheck; SEC-Preisdeck, Midstream und weitere ökonomische Unterschiede werden dadurch nicht als Marktwert behandelt.")
-                        ep3_shares = safe_float(ep3_val.get("shares_outstanding_used"))
-                        if ep3_shares is not None:
-                            st.caption(f"Verwendete Aktienbasis: {ep3_shares/1e6:.2f} Mio. · {text_or_dash(ep3_val.get('shares_source'))}")
-                        if ep3_val.get("available"):
-                            st.success("Bewertungsfreigabe JA: Familien-Score, beide normalisierten Equity-Anker, Ankerkonsistenz und PV-10-Safety-Gate sind bestanden. Bewertungssicherheit bleibt während der Mehr-Emittenten-Validierung höchstens Mittel.")
+
+                        if not ep3_snap:
+                            _ep3_done = int(ep3_model.get("evidence_blocks_complete") or 0)
+                            _ep3_req = int(ep3_model.get("evidence_blocks_required") or len(UPSTREAM_EP_EVIDENCE_CONTRACT_V1.get("blocks") or {}) or 7)
+                            st.info(
+                                "Familienmodell freigegeben und eingefroren · Emittenten-Evidenz noch nicht vollständig. "
+                                "Die fehlende Freigabe betrifft ausschließlich diesen Titel, nicht die E&P-Bewertungslogik."
+                            )
+                            st.write(f"**Primärdaten-Evidenzvertrag:** {_ep3_done}/{_ep3_req} Blöcke vollständig belegt")
+                            for _ep3_key, _ep3_spec in (UPSTREAM_EP_EVIDENCE_CONTRACT_V1.get("blocks") or {}).items():
+                                _ep3_ok = bool((ep3_model.get("evidence_blocks") or {}).get(_ep3_key))
+                                st.write(f"{'✅' if _ep3_ok else '⬜'} {text_or_dash(_ep3_spec.get('label'))}")
+                            st.warning(
+                                "Emittentenfreigabe NEIN: Ohne vollständige Primärdaten-Evidenz werden weder Familienpunktzahl noch Ziel-FCF-Yield, "
+                                "Ziel-EV/Adjusted-EBITDA, Fair Value, Bewertungszonen oder Signale erzeugt."
+                            )
+                            st.caption(text_or_dash(ep3_model.get("note")))
                         else:
-                            st.warning(text_or_dash(ep3_val.get("note")))
+                            st.write(f"**Primärdatenstand:** {text_or_dash(ep3_snap.get('as_of_date'))} · veröffentlicht {text_or_dash(ep3_snap.get('published_date'))}")
+                            ep3_links = []
+                            if ep3_snap.get("quarterly_source_url"):
+                                ep3_links.append(f"[{text_or_dash(ep3_snap.get('quarterly_source_name'))}]({ep3_snap.get('quarterly_source_url')})")
+                            if ep3_snap.get("annual_source_url"):
+                                ep3_links.append(f"[{text_or_dash(ep3_snap.get('annual_source_name'))}]({ep3_snap.get('annual_source_url')})")
+                            if ep3_links:
+                                st.markdown(" · ".join(ep3_links))
+                            _ep3_contract = ep3_model.get("evidence_contract") or {}
+                            _ep3_done = int(ep3_model.get("evidence_blocks_complete") or 0)
+                            _ep3_req = int(ep3_model.get("evidence_blocks_required") or 7)
+                            if ep3_model.get("corporate_action_blocked"):
+                                st.warning(f"**Evidenzstatus:** {text_or_dash(ep3_model.get('evidence_scope_label'))}")
+                            else:
+                                st.caption(f"Primärdaten-Evidenzvertrag: {_ep3_done}/{_ep3_req} Blöcke vollständig · Provenienz {'bestanden' if _ep3_contract.get('provenance_ok') else 'nicht vollständig'}")
+                            st.metric("Upstream-E&P Familien-Qualitätspunktzahl", f"{int(ep3_score.get('score'))}/100" if ep3_score.get("available") else "–")
+                            if ep3_score.get("available"):
+                                st.caption(" · ".join(f"{k}: {v.get('points')}/{v.get('max_points')}" for k, v in (ep3_score.get("components") or {}).items()))
+                            c1, c2, c3 = st.columns(3)
+                            with c1:
+                                ep3_norm_fcf = safe_float(ep3_val.get("normalized_fcf_usd_bn"))
+                                ep3_yield = safe_float(ep3_val.get("target_fcf_yield_pct"))
+                                st.metric("Normalisierter primärquellenbasierter FCF", f"{ep3_norm_fcf:.2f} Mrd. USD" if ep3_norm_fcf is not None else "–")
+                                st.metric("Ziel-FCF-Yield", f"{ep3_yield:.2f}%" if ep3_yield is not None else "–")
+                                if ep3_val.get("current_cycle_fcf_source"):
+                                    st.caption("Aktuelle Zyklus-FCF-Basis: " + str(ep3_val.get("current_cycle_fcf_source")))
+                            with c2:
+                                ep3_norm_ebitda = safe_float(ep3_val.get("normalized_adjusted_ebitda_usd_bn"))
+                                ep3_ev_mult = safe_float(ep3_val.get("target_ev_ebitda"))
+                                st.metric("Normalisiertes Adjusted EBITDA", f"{ep3_norm_ebitda:.2f} Mrd. USD" if ep3_norm_ebitda is not None else "–")
+                                st.metric("Ziel-EV/Adjusted EBITDA", f"{ep3_ev_mult:.2f}×" if ep3_ev_mult is not None else "–")
+                            with c3:
+                                ep3_spread = safe_float(ep3_val.get("anchor_spread_pct"))
+                                ep3_lev = safe_float(ep3_metrics.get("net_debt_to_normalized_ebitda"))
+                                st.metric("Ankerabstand", f"{ep3_spread:.1f}%" if ep3_spread is not None else "–")
+                                st.metric("Net Debt / norm. EBITDA", f"{ep3_lev:.2f}×" if ep3_lev is not None else "–")
+                            ep3_fcf_anchor = safe_float(ep3_val.get("fcf_equity_anchor_usd_bn"))
+                            ep3_ev_anchor = safe_float(ep3_val.get("ev_ebitda_equity_anchor_usd_bn"))
+                            ep3_pv10_eq = safe_float(ep3_val.get("pv10_equity_context_usd_bn"))
+                            ep3_pv_ratio = safe_float(ep3_val.get("fair_equity_to_pv10_equity"))
+                            st.write(f"**FCF-Yield Equity-Anker:** {ep3_fcf_anchor:.2f} Mrd. USD · **EV/EBITDA Equity-Anker:** {ep3_ev_anchor:.2f} Mrd. USD" if ep3_fcf_anchor is not None and ep3_ev_anchor is not None else "**Equity-Anker:** –")
+                            _ep3_nd_adj = safe_float(ep3_val.get("valuation_net_debt_adjustment_usd_bn"))
+                            if _ep3_nd_adj not in (None, 0):
+                                st.caption(f"Bewertungs-Net-Debt: Q2 gemeldet {safe_float(ep3_val.get('reported_net_debt_usd_bn')):.3f} Mrd. USD + {_ep3_nd_adj:.3f} Mrd. USD Scope-Anpassung = {safe_float(ep3_val.get('valuation_net_debt_used_usd_bn')):.3f} Mrd. USD. {text_or_dash(ep3_val.get('valuation_net_debt_adjustment_reason'))}")
+                            st.write(f"**PV-10 Equity-Kontext:** {ep3_pv10_eq:.2f} Mrd. USD · **Fair Equity / PV-10 Equity:** {ep3_pv_ratio:.2f}×" if ep3_pv10_eq is not None and ep3_pv_ratio is not None else "**PV-10-Sicherheit:** –")
+                            st.info("PV-10 ist kein Fair-Value-Anker und wird nicht in den Fair Value gemischt. Er dient ausschließlich als Vermögenswert-/Reserve-Sicherheitscheck; SEC-Preisdeck, Midstream und weitere ökonomische Unterschiede werden dadurch nicht als Marktwert behandelt.")
+                            ep3_shares = safe_float(ep3_val.get("shares_outstanding_used"))
+                            if ep3_shares is not None:
+                                st.caption(f"Verwendete Aktienbasis: {ep3_shares/1e6:.2f} Mio. · {text_or_dash(ep3_val.get('shares_source'))}")
+                            if ep3_val.get("available"):
+                                st.success("Bewertungsfreigabe JA: Familienpunktzahl, beide normalisierten Equity-Anker, Ankerkonsistenz und PV-10-Sicherheits-Gate sind bestanden. Bewertungssicherheit bleibt für das eingefrorene E&P-Modell höchstens Mittel.")
+                            elif ep3_model.get("corporate_action_blocked"):
+                                st.warning("Emittentenfreigabe NEIN: Das Familienmodell ist freigegeben, aber Corporate-Action-/Scope-Vergleichbarkeit blockiert den Doppelanker für diesen Titel.")
+                                st.caption(text_or_dash(ep3_model.get("note")))
+                            else:
+                                st.warning(text_or_dash(ep3_val.get("note") or ep3_model.get("note")))
 
                     if special_control.get("control_key") == "oilfield_services_energy_technology":
                         st.divider()
