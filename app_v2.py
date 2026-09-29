@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.55"
+APP_BUILD_VERSION = "V2.23.56"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Upstream E&P CNX Universal-Evidenztest V251"
+    f"Build {APP_BUILD_VERSION} · Non-Operating Earnings Distortion Safety Gate V252"
 )
 
 
@@ -2406,6 +2406,49 @@ def evaluate_cycle_eps_comparability_gate(
         "note": note,
     }
 
+
+
+def build_non_operating_income_distortion_guard(company_type, revenue, net_income, operating_income, profit_margin=None, earnings_growth=None):
+    """Generic fail-closed guard for material non-operating earnings distortions.
+
+    The guard is intentionally restricted to the ordinary Standard-Unternehmen path.
+    It does not normalize earnings and does not create a replacement valuation. It only
+    blocks the generic margin/growth/EPS×P-E chain when reported net income is materially
+    disconnected from operating income on the same TTM basis.
+    """
+    result = {
+        "active": False,
+        "net_to_operating_ratio": None,
+        "non_operating_gap_pct_revenue": None,
+        "operating_margin_pct": None,
+        "reason": None,
+    }
+    if normalized_company_type_name(company_type) != "standard-unternehmen":
+        return result
+    rev = safe_float(revenue)
+    ni = safe_float(net_income)
+    oi = safe_float(operating_income)
+    if rev is None or rev <= 0 or ni is None or oi is None or oi <= 0:
+        return result
+    ratio = ni / oi
+    gap_pct_revenue = (ni - oi) / rev * 100.0
+    op_margin_pct = oi / rev * 100.0
+    result.update({
+        "net_to_operating_ratio": ratio,
+        "non_operating_gap_pct_revenue": gap_pct_revenue,
+        "operating_margin_pct": op_margin_pct,
+    })
+    # Deliberately conservative two-dimensional gate: both the earnings gap and
+    # its size relative to revenue must be material. This catches large investment/
+    # disposal/fair-value gains without treating an ordinary tax-rate swing as a break.
+    if ratio >= 1.35 and gap_pct_revenue >= 10.0:
+        result["active"] = True
+        result["reason"] = (
+            f"TTM-Nettogewinn liegt bei {ratio:.2f}× des TTM-operativen Ergebnisses; "
+            f"die Differenz entspricht {gap_pct_revenue:.1f} % des TTM-Umsatzes. "
+            "Damit ist die GAAP-Nettoergebnis-/EPS-Basis materiell durch nicht-operative Ergebnisbeiträge verzerrt."
+        )
+    return result
 
 
 def build_special_event_warning(eps_normalization, bank_special_model=None, insurance_special_model=None, asset_management_specialist_model=None):
@@ -65782,6 +65825,10 @@ def recover_fundamentals_from_yahoo_tables(ticker):
         "Net Income",
         "Net Income Continuous Operations",
     ]
+    operating_income_rows = [
+        "Operating Income",
+        "Total Operating Income As Reported",
+    ]
     eps_rows = [
         "Diluted EPS",
         "Basic EPS",
@@ -65826,6 +65873,24 @@ def recover_fundamentals_from_yahoo_tables(ticker):
                 recovered["netIncomeToCommon"] = latest_fy_net_income
                 provenance["netIncomeToCommon"] = "letztes berichtetes Geschäftsjahr (FY-Fallback)"
                 ttm_net_income = latest_fy_net_income
+
+    # Operating income – used by the generic non-operating-earnings distortion guard.
+    ttm_operating_income = _latest_statement_value(ttm_income, operating_income_rows)
+    if ttm_operating_income is not None:
+        recovered["operatingIncome"] = ttm_operating_income
+        provenance["operatingIncome"] = "Yahoo TTM-Income-Statement"
+    else:
+        ttm_operating_income = _sum_latest_statement_values(
+            quarterly_income, operating_income_rows, required=4
+        )
+        if ttm_operating_income is not None:
+            recovered["operatingIncome"] = ttm_operating_income
+            provenance["operatingIncome"] = "4 berichtete Quartale (TTM)"
+        else:
+            latest_fy_operating_income = _latest_statement_value(annual_income, operating_income_rows)
+            if latest_fy_operating_income is not None:
+                recovered["operatingIncome"] = latest_fy_operating_income
+                provenance["operatingIncome"] = "letztes berichtetes Geschäftsjahr (FY-Fallback)"
 
     # TTM EPS.
     ttm_eps = _latest_statement_value(ttm_income, eps_rows)
@@ -66120,6 +66185,7 @@ def _analysis_missing_fields(info):
         "forwardEps": "Forward-EPS",
         "totalRevenue": "Umsatz",
         "netIncomeToCommon": "Nettogewinn",
+        "operatingIncome": "Operatives Ergebnis",
         "freeCashflow": "Free Cashflow",
         "totalCash": "Liquide Mittel",
         "totalDebt": "Gesamtschulden",
@@ -66832,6 +66898,9 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     net_income = safe_float(
         fundamental_info.get("netIncomeToCommon")
     )
+    operating_income = safe_float(
+        fundamental_info.get("operatingIncome")
+    )
     free_cashflow = safe_float(
         fundamental_info.get("freeCashflow")
     )
@@ -66865,6 +66934,15 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             net_income,
             revenue
         )
+    )
+
+    non_operating_income_guard = build_non_operating_income_distortion_guard(
+        company_type,
+        revenue,
+        net_income,
+        operating_income,
+        profit_margin=profit_margin,
+        earnings_growth=earnings_growth,
     )
 
     structural_break = resolve_structural_break(
@@ -68754,6 +68832,19 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         else:
             special_control = _universal_family_special_control(company_type)
 
+    if non_operating_income_guard.get("active"):
+        fundamental_multiple = {
+            **(fundamental_multiple or {}),
+            "score": None,
+            "multiple": None,
+            "available": False,
+            "earnings_basis_usable": False,
+            "note": (
+                "Non-Operating Earnings Distortion Safety Gate aktiv: Der generische 100-Punkte-Score und das Standard-KGV "
+                "werden nicht als Bewertungsbasis freigegeben, solange keine same-basis operative/normalisierte Gewinnbasis vorliegt."
+            ),
+        }
+
     special_event_warning = build_special_event_warning(
         eps_normalization,
         bank_special_model=bank_special_model,
@@ -69658,6 +69749,28 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         }
 
 
+    if non_operating_income_guard.get("active"):
+        _noi_ratio = safe_float(non_operating_income_guard.get("net_to_operating_ratio"))
+        _noi_gap = safe_float(non_operating_income_guard.get("non_operating_gap_pct_revenue"))
+        _noi_op_margin = safe_float(non_operating_income_guard.get("operating_margin_pct"))
+        special_event_warning = {
+            "level": "Rot",
+            "icon": "🔴",
+            "title": "Nicht-operative Ergebnisverzerrung – Standardbewertung gesperrt",
+            "requires_research": False,
+            "valuation_usable": False,
+            "reason": (
+                f"TTM-Nettogewinn / TTM-operatives Ergebnis: {_noi_ratio:.2f}× · operative TTM-Marge: {_noi_op_margin:.1f} % · "
+                f"Netto-vs.-Operating-Differenz: {_noi_gap:.1f} % des Umsatzes. "
+                "Die generische Nettomargen-, Gewinnwachstums- und GAAP-EPS-Basis ist dadurch nicht belastbar vergleichbar."
+            ),
+            "action": (
+                "Keinen generischen Score, kein Standard-KGV und keinen Fair Value veröffentlichen. Zuerst die nicht-operativen Beiträge "
+                "über Primärquellen abgrenzen und eine belastbare operative/normalisierte Earnings-Basis definieren; FCF und Bilanz bleiben Diagnosekontext."
+            ),
+            "non_operating_income_distortion_gate": True,
+        }
+
     fair_value_eps_normalization = eps_normalization
     if (
         payments_processor_foundation_model.get("applicable")
@@ -69681,6 +69794,23 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         price,
         currency_context
     )
+
+    if non_operating_income_guard.get("active"):
+        fair_value = {
+            **(fair_value or {}),
+            "available": False,
+            "normalized_eps": None,
+            "used_multiple": None,
+            "multiple_source": None,
+            "fair_value_financial": None,
+            "fair_value_quote": None,
+            "potential_pct": None,
+            "valuation_method": None,
+            "note": (
+                "Fair Value V1 gesperrt: Materiale nicht-operative Ergebnisbeiträge verzerren Nettomarge, Gewinnwachstum und GAAP-EPS. "
+                "Der Standard-EPS×KGV-Pfad darf erst nach einer same-basis operativen/normalisierten Earnings-Prüfung wieder freigegeben werden."
+            ),
+        }
 
     if (
         payments_processor_foundation_model.get("applicable")
@@ -70056,6 +70186,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         "structural_break": structural_break,
         "eps_normalization": eps_normalization,
         "special_event_warning": special_event_warning,
+        "non_operating_income_guard": non_operating_income_guard,
         "branded_consumer_family_gate": branded_consumer_family_gate,
         "growth_score": growth_score,
         "profitability_score": profitability_score,
