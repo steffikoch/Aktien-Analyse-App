@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.52"
+APP_BUILD_VERSION = "V2.23.53"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Upstream E&P Range Drittvalidierung V248"
+    f"Build {APP_BUILD_VERSION} · Upstream E&P Familien-Freeze & Evidenzvertrag V249"
 )
 
 
@@ -8931,46 +8931,35 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
                 else "Provider-First Insurance-Modell: strukturiertes TTM-EPS + 1,0–2,8× P/B + 8,0–14,0× TTM-KGV Doppelanker; Primärquellen optionales Sicherheits-Upgrade"
             )
         elif family_id == "upstream_ep":
-            # V248: EQT, Antero and Range are independent end-to-end validation issuers
-            # for the same reusable Upstream-E&P family contract. Expand has a verified
-            # adapter but remains corporate-action gated after Twin Eagle. All other
-            # names stay evidence-gated and may never fall back to the industrial model.
+            # V249: family valuation logic is released/frozen after three independent
+            # end-to-end validations (EQT, AR, RRC). Issuer evidence remains fail-closed
+            # through the universal evidence contract; no industrial fallback is allowed.
             _upstream_symbol = str(symbol or "").upper().strip()
             out["type"] = "Upstream E&P / Natural Gas Producer" if "natural gas" in str(business_summary or "").lower() else "Upstream E&P / Producer"
-            if _upstream_symbol in {"EQT", "AR", "RRC"}:
-                out["family_model_status"] = "multi_issuer_end_to_end_validation"
-                out["family_model_ready"] = True
-                out["family_model_released"] = False
-                out["family_validation_status"] = "eqt_antero_range_upstream_ep_triple_validation_v1"
-                out["universal_family_fail_closed"] = False
-                out["confidence_cap"] = "Mittel"
-                out["method"] = (
-                    "Upstream-E&P Spezialmodell V1 (Drei-Emittenten-Validierung): 100-Punkte Familienqualität + normalisierter issuer-native FCF-Yield-Anker + "
-                    "EV/Adjusted-EBITDA-Anker; Net Debt wird explizit abgezogen, PV-10/Reserven wirken nur als Asset-Sicherheitscheck. "
-                    "Peer-KGVs und Analystenziele bleiben reference-only; EQT, Antero und Range validieren denselben Familienvertrag unabhängig."
-                )
-            elif _upstream_symbol == "EXE":
-                out["family_model_status"] = "issuer_evidence_corporate_action_gate"
-                out["family_model_ready"] = False
-                out["family_model_released"] = False
+            out["family_model_status"] = "upstream_ep_family_released_evidence_contract"
+            out["family_model_ready"] = True
+            out["family_model_released"] = True
+            out["family_validation_status"] = "upstream_ep_family_v1_frozen_universal_evidence_contract_v1"
+            out["universal_family_fail_closed"] = False
+            out["confidence_cap"] = "Mittel"
+            out["method"] = (
+                "Freigegebenes Upstream-E&P-Familienmodell V1: 100-Punkte Familienqualität + normalisierter primärquellenbasierter FCF-Yield-Anker + "
+                "EV/bereinigtes-EBITDA-Anker; Nettoschulden werden explizit abgezogen, PV-10/Reserven wirken nur als Vermögenswert-Sicherheitscheck. "
+                "Score-Gewichte, 8,5–13,5-%-FCF-Yield-Korridor, 4,0–6,0× EV/bereinigtes-EBITDA-Korridor, 60/40-Doppelanker und Sicherheits-Gates sind ab V249 eingefroren. "
+                "Vergleichsgruppen-KGVs und Analystenziele bleiben reine Referenz."
+            )
+            if _upstream_symbol == "EXE":
+                out["family_evidence_pending"] = True
                 out["family_validation_status"] = "expand_twin_eagle_scope_gate_v1"
-                out["universal_family_fail_closed"] = True
-                out["confidence_cap"] = "Mittel"
-                out["method"] = (
-                    "Upstream-E&P Primärdatenadapter vorhanden; Doppelanker wegen abgeschlossener Twin-Eagle-Übernahme nach Q2 bewusst gesperrt, "
-                    "bis pro-forma oder post-close FCF/EBITDA/Net-Debt auf einheitlicher Unternehmensbasis vorliegen."
+                out["method"] += (
+                    " Expand besitzt Primärdaten, der Emittenten-Fair-Value bleibt wegen der abgeschlossenen Twin-Eagle-Übernahme nach Q2 gesperrt, "
+                    "bis Pro-forma- oder Post-Close-FCF/EBITDA/Nettoschulden auf einheitlicher Unternehmensbasis vorliegen."
                 )
-            else:
-                out["family_model_status"] = "defined_unreleased"
-                out["family_model_ready"] = False
-                out["family_model_released"] = False
-                out["family_validation_status"] = "upstream_ep_family_v1_safety_gate"
-                out["universal_family_fail_closed"] = True
-                out["confidence_cap"] = "Mittel"
-                out["method"] = (
-                    "E&P-Spezialmodell in Validierung: Production/Guidance + Realized Pricing/Basis/Hedges + Unit Costs + "
-                    "Maintenance/Growth CapEx + emittenteneigener FCF + Net Debt/Leverage + Reserves/PV-10. "
-                    "Generischer Standard-Punktzahl, 8–13× Zyklus-KGV und Integrated-Major-Vergleichsunternehmen bleiben gesperrt."
+            elif _upstream_symbol not in {"EQT", "AR", "RRC"}:
+                out["family_evidence_pending"] = True
+                out["method"] += (
+                    " Für diesen Emittenten ist der universelle Primärdaten-Evidenzvertrag noch nicht vollständig befüllt; "
+                    "Punktzahl, Doppelanker, Fair Value, Bewertungszonen und Signale bleiben bis dahin gesperrt."
                 )
         elif family_id == "asset_manager":
             # V99: two independent main issuers (TROW + BLK) have passed end-to-end,
@@ -42747,8 +42736,9 @@ def build_integrated_oil_gas_special_control(control, specialist_model):
 
 
 # =========================================================
-# V2.23.52 – Upstream E&P Specialist Family Model V1
-# Third end-to-end validation: Range Resources (RRC) + issuer-primary owner-FCF proxy fallback
+# V2.23.53 – Upstream E&P Specialist Family Model V1 FROZEN
+# V249: valuation math frozen after EQT/AR/RRC validation; universal primary-evidence contract added.
+# Score weights, FCF-yield corridor, EV/Adjusted-EBITDA corridor, 60/40 anchor weights and safety gates are unchanged from V248.
 # =========================================================
 
 def is_upstream_ep_specialist_type(company_type, symbol=None):
@@ -42756,6 +42746,93 @@ def is_upstream_ep_specialist_type(company_type, symbol=None):
     family = str((company_type or {}).get("valuation_family") or "").strip().lower()
     type_name = normalized_company_type_name(company_type)
     return family_id == "upstream_ep" or "upstream e&p" in family or "upstream e&p" in type_name
+
+
+UPSTREAM_EP_EVIDENCE_CONTRACT_V1 = {
+    "version": "upstream_ep_primary_evidence_contract_v1",
+    "blocks": {
+        "production_guidance": {
+            "label": "Produktion / Absatz + Geschäftsjahresprognose",
+            "required_all": ["q2_sales_volume_bcfe", "q2_prior_sales_volume_bcfe", "fy2026_guidance_low_bcfe", "fy2026_guidance_high_bcfe"],
+        },
+        "pricing_basis_hedges": {
+            "label": "Realisierte Preise / Basis / Absicherung",
+            "required_all": ["q2_realized_price_usd_per_mcfe", "q2_basis_differential_usd_per_mcf", "q2_basis_guidance_low_usd_per_mcf", "q2_basis_guidance_high_usd_per_mcf", "q3_2026_hedged_volume_mmdth"],
+        },
+        "unit_costs": {
+            "label": "Operative Stückkosten",
+            "required_all": ["q2_operating_cost_usd_per_mcfe"],
+        },
+        "maintenance_growth_capex": {
+            "label": "Erhaltungs- / Wachstumsinvestitionen",
+            "required_all": ["fy2026_maintenance_capex_low_usd_bn", "fy2026_maintenance_capex_high_usd_bn", "fy2026_growth_capex_low_usd_bn", "fy2026_growth_capex_high_usd_bn"],
+        },
+        "issuer_fcf": {
+            "label": "Primärquellenbasierter FCF",
+            "required_all": ["h1_2026_fcf_attributable_usd_bn", "h1_2025_fcf_attributable_usd_bn", "fy2025_fcf_attributable_usd_bn"],
+            "required_any": ["fy2026_fcf_guidance_usd_bn", "current_cycle_fcf_estimate_usd_bn"],
+        },
+        "net_debt_leverage": {
+            "label": "Nettoschulden / Verschuldung / Liquidität",
+            "required_all": ["q2_2026_net_debt_usd_bn", "fy2025_net_debt_usd_bn", "fy2025_adjusted_ebitda_attributable_usd_bn", "q2_2026_liquidity_usd_bn"],
+        },
+        "reserves_pv10": {
+            "label": "Reserven / Reservelaufzeit / PV-10",
+            "required_all": ["proved_reserves_tcfe", "fy2025_production_tcfe", "pv10_usd_bn"],
+        },
+    },
+}
+
+
+def validate_upstream_ep_evidence_contract(snapshot):
+    """Issuer-agnostic validation of the frozen Upstream-E&P evidence contract."""
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    block_results, missing = {}, {}
+    for key, spec in UPSTREAM_EP_EVIDENCE_CONTRACT_V1["blocks"].items():
+        req_all = list(spec.get("required_all") or [])
+        req_any = list(spec.get("required_any") or [])
+        missing_all = [f for f in req_all if safe_float(snap.get(f)) is None]
+        any_ok = True if not req_any else any(safe_float(snap.get(f)) is not None for f in req_any)
+        block_results[key] = (not missing_all) and any_ok
+        if missing_all or not any_ok:
+            missing[key] = {
+                "label": spec.get("label") or key,
+                "missing_all": missing_all,
+                "missing_any_of": req_any if req_any and not any_ok else [],
+            }
+    complete_count = sum(1 for ok in block_results.values() if ok)
+    source_urls = [str(snap.get("quarterly_source_url") or "").strip(), str(snap.get("annual_source_url") or "").strip()]
+    provenance_ok = bool(snap.get("as_of_date") and snap.get("published_date") and all(u.startswith("http") for u in source_urls))
+    return {
+        "contract_version": UPSTREAM_EP_EVIDENCE_CONTRACT_V1["version"],
+        "block_results": block_results,
+        "complete_count": complete_count,
+        "required_count": len(block_results),
+        "blocks_complete": complete_count == len(block_results),
+        "provenance_ok": provenance_ok,
+        "complete": complete_count == len(block_results) and provenance_ok,
+        "missing": missing,
+    }
+
+
+def resolve_upstream_ep_primary_snapshot(symbol, fundamental_info=None):
+    """Resolve standardized issuer-primary evidence independently from valuation math.
+
+    Existing validated reference adapters remain available. A future generic IR/report
+    collector can inject exactly the same contract via `upstream_ep_primary_evidence`.
+    """
+    sym = str(symbol or "").upper().strip()
+    fi = fundamental_info if isinstance(fundamental_info, dict) else {}
+    candidate = fi.get("upstream_ep_primary_evidence") or fi.get("upstream_ep_evidence_snapshot")
+    if isinstance(candidate, dict):
+        candidate_symbol = str(candidate.get("symbol") or sym).upper().strip()
+        origin = str(candidate.get("evidence_origin") or "").strip().lower()
+        if candidate_symbol == sym and origin in {"issuer_primary", "primary_source", "issuer-primary"}:
+            check = validate_upstream_ep_evidence_contract(candidate)
+            if check.get("provenance_ok"):
+                return dict(candidate), "universal_contract_input"
+    snap = get_verified_upstream_ep_snapshot(sym)
+    return (snap, "validated_reference_adapter") if isinstance(snap, dict) else (None, "missing_primary_evidence")
 
 
 def get_verified_upstream_ep_snapshot(symbol):
@@ -43255,9 +43332,14 @@ def build_upstream_ep_specialist_model(company_type, fundamental_info, symbol):
     }
     if not applicable:
         return out
-    snap = get_verified_upstream_ep_snapshot(symbol)
+    snap, evidence_adapter_source = resolve_upstream_ep_primary_snapshot(symbol, fundamental_info)
+    out["evidence_contract_version"] = UPSTREAM_EP_EVIDENCE_CONTRACT_V1["version"]
+    out["evidence_adapter_source"] = evidence_adapter_source
     if not snap:
-        out["note"] = "Upstream-E&P-Familie erkannt; noch kein verifizierter Emittenten-Primärdatenadapter verfügbar."
+        out["note"] = (
+            "Upstream-E&P-Familienlogik ist freigegeben und eingefroren; für diesen Emittenten fehlt noch ein "
+            "primärquellenbasierter Snapshot nach dem universellen Evidenzvertrag. Deshalb bleiben Punktzahl, Doppelanker und Fair Value gesperrt."
+        )
         return out
 
     # V247: a completed material acquisition after the latest operating period
@@ -43325,17 +43407,10 @@ def build_upstream_ep_specialist_model(company_type, fundamental_info, symbol):
         "q3_hedge_coverage_pct": (q3_hedge_daily / guide_daily * 100.0) if q3_hedge_daily is not None and guide_daily not in (None, 0) else None,
     }
 
-    evidence_blocks = {
-        "production_guidance": all(safe_float(snap.get(k)) is not None for k in ["q2_sales_volume_bcfe", "q2_prior_sales_volume_bcfe", "fy2026_guidance_low_bcfe", "fy2026_guidance_high_bcfe"]),
-        "pricing_basis_hedges": all(safe_float(snap.get(k)) is not None for k in ["q2_realized_price_usd_per_mcfe", "q2_basis_differential_usd_per_mcf", "q2_basis_guidance_low_usd_per_mcf", "q2_basis_guidance_high_usd_per_mcf", "q3_2026_hedged_volume_mmdth"]),
-        "unit_costs": safe_float(snap.get("q2_operating_cost_usd_per_mcfe")) is not None,
-        "maintenance_growth_capex": all(safe_float(snap.get(k)) is not None for k in ["fy2026_maintenance_capex_low_usd_bn", "fy2026_maintenance_capex_high_usd_bn", "fy2026_growth_capex_low_usd_bn", "fy2026_growth_capex_high_usd_bn"]),
-        "issuer_fcf": all(safe_float(snap.get(k)) is not None for k in ["h1_2026_fcf_attributable_usd_bn", "h1_2025_fcf_attributable_usd_bn", "fy2025_fcf_attributable_usd_bn"]) and (safe_float(snap.get("fy2026_fcf_guidance_usd_bn")) is not None or safe_float(snap.get("current_cycle_fcf_estimate_usd_bn")) is not None),
-        "net_debt_leverage": all(safe_float(snap.get(k)) is not None for k in ["q2_2026_net_debt_usd_bn", "fy2025_net_debt_usd_bn", "fy2025_adjusted_ebitda_attributable_usd_bn", "q2_2026_liquidity_usd_bn"]),
-        "reserves_pv10": all(safe_float(snap.get(k)) is not None for k in ["proved_reserves_tcfe", "fy2025_production_tcfe", "pv10_usd_bn"]),
-    }
-    complete_count = sum(1 for v in evidence_blocks.values() if v)
-    evidence_complete = complete_count == len(evidence_blocks)
+    evidence_contract = validate_upstream_ep_evidence_contract(snap)
+    evidence_blocks = evidence_contract.get("block_results") or {}
+    complete_count = int(evidence_contract.get("complete_count") or 0)
+    evidence_complete = bool(evidence_contract.get("complete"))
     score = _upstream_ep_quality_score(snap, metrics) if evidence_complete else {"available": False, "note": "Primärdatenvertrag unvollständig."}
     valuation = _upstream_ep_normalized_anchors(snap, metrics, score, fundamental_info) if score.get("available") else {"available": False, "note": "E&P-Score nicht freigegeben."}
 
@@ -43350,12 +43425,13 @@ def build_upstream_ep_specialist_model(company_type, fundamental_info, symbol):
         "evidence_blocks": evidence_blocks,
         "evidence_blocks_complete": complete_count,
         "evidence_blocks_required": len(evidence_blocks),
+        "evidence_contract": evidence_contract,
         "family_score": score,
         "specialist_score": score,
         "specialist_valuation": valuation,
         "note": (
-            f"{snap.get('company') or symbol} durchläuft denselben wiederverwendbaren Upstream-E&P-Familienvertrag. EQT, Antero und Range sind unabhängige End-to-End-Validierungsissuer; "
-            "weitere E&P-Emittenten bleiben bis zur eigenen Primärdatenvalidierung fail-closed. Die globale Familienfreigabe bleibt bis zum Abschluss der Drei-Emittenten-Validierung offen."
+            f"{snap.get('company') or symbol} erfüllt den freigegebenen Upstream-E&P-Familienvertrag. EQT, Antero und Range bilden die drei unabhängigen Referenzvalidierungen; "
+            "die Bewertungslogik ist ab V249 eingefroren. Weitere E&P-Emittenten werden ausschließlich über denselben universellen Primärdaten-Evidenzvertrag freigegeben."
             if valuation.get("available") else
             f"{snap.get('company') or symbol}: Primärdatenvertrag ist vorhanden, aber mindestens ein Score-/Anchor-/PV-10-Sicherheitsgate sperrt den Fair Value."
         ),
@@ -43380,7 +43456,7 @@ def build_upstream_ep_special_control(control, specialist_model):
         "checks": {"specialist_score": score, "specialist_valuation": valuation, "metrics": model.get("metrics") or {}, "evidence_blocks": model.get("evidence_blocks") or {}},
         "note": (
             "Der E&P-Spezialpfad ersetzt generisches Umsatz-/Gewinnwachstum, ROE, Yahoo-FCF und Standard-KGV vollständig. "
-            "Fair Value entsteht nur aus normalisiertem issuer-native FCF-Yield und EV/Adjusted-EBITDA; PV-10/Reserven dienen ausschließlich als Asset-Sicherheitscheck."
+            "Fair Value entsteht nur aus normalisiertem primärquellenbasiertem FCF-Yield und EV/Adjusted-EBITDA; PV-10/Reserven dienen ausschließlich als Vermögenswert-Sicherheitscheck."
         ),
     })
     return out
@@ -48733,11 +48809,11 @@ def get_special_control(company_type, symbol):
                 "Production/Sales Volume + aktuelle FY-Guidance auf gleicher Asset-Basis",
                 "Realized Pricing + Basin/Basis Differential + Hedge Coverage",
                 "Unit Operating Costs + Maintenance/Growth CapEx",
-                "Issuer-attributable FCF + konservative Through-Cycle-Normalisierung",
-                "Net Debt / normalisiertes Adjusted EBITDA + Liquidity",
-                "Proved Reserves + Reserve Life + Developed Share + PV-10 Asset-Safety",
-                "60/40 Dual Anchor: FCF Yield + EV/Adjusted EBITDA",
-                "Peers reference-only; Analystenziele ausschließlich Plausibilitätscheck",
+                "Primärquellenbasierter FCF nach transparenter Emittentendefinition + konservative Zyklusnormalisierung",
+                "Nettoschulden / normalisiertes bereinigtes EBITDA + Liquidität",
+                "Nachgewiesene Reserven + Reservelaufzeit + entwickelter Anteil + PV-10 als Vermögenswert-Sicherheitscheck",
+                "60/40-Doppelanker: FCF-Yield + EV/bereinigtes EBITDA",
+                "Vergleichsunternehmen nur als Referenz; Analystenziele ausschließlich Plausibilitätscheck",
             ],
             "status": f"Router aktiv – {APP_BUILD_VERSION} Upstream E&P Specialist V1",
             "note": "Der Upstream-E&P-Pfad ist für den validierten Emittenten aktiv; generischer Zyklus-KGV-/ROE-/Yahoo-FCF-Pfad bleibt ausgeschlossen.",
@@ -67522,7 +67598,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     if upstream_ep_specialist_model.get("applicable"):
         growth_score = {**growth_score, "context_score": growth_score.get("score"), "score": None, "note": "Upstream-E&P-Spezialmodell: Provider-Umsatz-/Gewinnwachstum bleibt Diagnosekontext; Production/Guidance und Commodity-/Hedge-Evidenz bestimmen den Familien-Score."}
         profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None, "brake_text": "Upstream-E&P-Spezialmodell: generische Nettomarge/ROE-Punkte sind gesperrt; Unit Costs, FCF und Asset-/Reserve-Qualität werden separat bewertet."}
-        fcf_score = {**fcf_score, "context_score": fcf_score.get("score"), "score": None, "note": "Upstream-E&P-Spezialmodell: Yahoo-/Statement-FCF bleibt Diagnosekontext; ausschließlich issuer-attributable FCF aus Primärquellen steuert den Familien-Score und FCF-Yield-Anker."}
+        fcf_score = {**fcf_score, "context_score": fcf_score.get("score"), "score": None, "note": "Upstream-E&P-Spezialmodell: Yahoo-/Statement-FCF bleibt Diagnosekontext; ausschließlich primärquellenbasierter FCF nach transparenter Emittentendefinition steuert Familienpunktzahl und FCF-Yield-Anker."}
         balance_score = {**balance_score, "context_score": balance_score.get("score"), "score": None, "note": "Upstream-E&P-Spezialmodell: generischer Net-Debt/FCF-Score ist gesperrt; Net Debt/normalisiertes Adjusted EBITDA, Liquidity und PV-10-Safety werden separat bewertet."}
 
     fundamental_multiple = calculate_fundamental_multiple(
@@ -70704,6 +70780,7 @@ if selected_symbol:
                             "defined_unreleased": "Familienmodell definiert · noch nicht freigegeben",
                             "first_issuer_end_to_end_validation": "Erster End-to-End-Validierungsissuer · Dual-Anchor für EQT freigegeben · globale Familienfreigabe noch offen",
                             "multi_issuer_end_to_end_validation": "Drei-Emittenten-End-to-End-Validierung · EQT, Antero und Range freigegeben · globale Familienfreigabe noch offen",
+                            "upstream_ep_family_released_evidence_contract": "Familienmodell freigegeben und eingefroren · universeller Primärdaten-Evidenzvertrag V1 aktiv",
                         }
                         _family_status = (
                             "Familienmodell vollständig freigegeben · Provider-First Insurance-Doppelanker aktiv · Primärquellen optionaler Sicherheitscheck"
@@ -70754,10 +70831,10 @@ if selected_symbol:
                                 "Der gemeinsame KPI-Rahmen, die 100-Punkte-Familien-Qualitätspunktzahl, die Gewinnbasis des laufenden Geschäftsjahres, der 8–30× KGV-Korridor, der eigene faire Wert und die Bewertungszonen sind freigegeben. "
                                 "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 und die Zahlungsabwickler-Signal-Logik V1 sind freigegeben."
                             )
-                        if (company_type or {}).get("family_validation_status") == "eqt_antero_range_upstream_ep_triple_validation_v1":
+                        if (company_type or {}).get("family_validation_status") == "upstream_ep_family_v1_frozen_universal_evidence_contract_v1":
                             st.success(
-                                "Upstream-E&P Drei-Emittenten-Validierung aktiv: EQT, Antero und Range besitzen unabhängige Primärdatenadapter und durchlaufen denselben FCF-Yield-/EV-EBITDA-Doppelanker. "
-                                "Expand bleibt wegen Twin Eagle Corporate-Action-geblockt; weitere E&P-Emittenten bleiben bis zur eigenen Evidenzvalidierung fail-closed. Die globale Familienfreigabe bleibt noch offen."
+                                "Upstream-E&P Familienmodell V1 freigegeben und eingefroren: EQT, Antero und Range haben denselben 100-Punkte-/FCF-Yield-/EV-EBITDA-Doppelanker unabhängig validiert. "
+                                "Weitere E&P-Emittenten nutzen denselben universellen Primärdaten-Evidenzvertrag; ohne vollständige Evidenz bleibt nur der jeweilige Emittent gesperrt, nicht die Familienlogik."
                             )
                         elif (company_type or {}).get("family_validation_status") == "expand_twin_eagle_scope_gate_v1":
                             st.warning(
@@ -71394,7 +71471,7 @@ if selected_symbol:
                             ep_fcf_snap_ui = ep_fcf_ui.get("snapshot") or {}
                             st.caption(
                                 "FCF-Kontext/Rohdaten: " + str(source_text) + ". Beim Upstream-E&P-Modell bleiben Yahoo-/Statement-FCF reine Diagnosewerte. "
-                                "Bewertungsrelevant ist ausschließlich der konsistent definierte issuer-native FCF aus Primärquellen; die konkrete Emittentendefinition wird transparent angezeigt und steuert Familien-Score sowie FCF-Yield-Anker."
+                                "Bewertungsrelevant ist ausschließlich der konsistent definierte primärquellenbasierte FCF nach transparenter Emittentendefinition; die konkrete Definition wird angezeigt und steuert Familienpunktzahl sowie FCF-Yield-Anker."
                             )
                             if safe_float(ep_fcf_snap_ui.get("h1_2026_fcf_attributable_usd_bn")) is not None:
                                 st.caption(
@@ -71582,7 +71659,7 @@ if selected_symbol:
                             if is_upstream_ep_fcf_context:
                                 st.info(
                                     "ℹ️ FCF-Quellenabweichung im Upstream-E&P-Kontext: Yahoo Levered FCF und Cashflow-Statement-FCF bleiben beide Diagnose-/Rohdaten. "
-                                    f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Bewertungsrelevant ist ausschließlich der issuer-attributable FCF aus Primärquellen; die Provider-Abweichung verändert weder Familien-Score noch FCF-Yield-Anker oder Fair Value."
+                                    f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Bewertungsrelevant ist ausschließlich der primärquellenbasierte FCF nach transparenter Emittentendefinition; die Datenanbieter-Abweichung verändert weder Familienpunktzahl noch FCF-Yield-Anker oder Fair Value."
                                 )
                             elif is_integrated_oil_gas_fcf_context:
                                 st.info(
@@ -72615,7 +72692,7 @@ if selected_symbol:
                         ep_diag_label_ui = {"Hoch": "hoch", "Mittel": "mittel", "Niedrig": "niedrig"}.get(str(confidence or ""), "nicht bestimmt")
                         st.info(
                             f"Standard-EPS-Diagnosequalität: **{ep_diag_label_ui}** · nur Kontext. "
-                            "Der Upstream-E&P-Fair-Value verwendet kein EPS/KGV. Bewertungsanker sind normalisierter issuer-native FCF-Yield und EV/Adjusted-EBITDA; PV-10 bleibt ausschließlich Asset-Safety."
+                            "Der Upstream-E&P-Fair-Value verwendet kein EPS/KGV. Bewertungsanker sind normalisierter primärquellenbasierter FCF-Yield und EV/Adjusted-EBITDA; PV-10 bleibt ausschließlich Vermögenswert-Sicherheit."
                         )
                     elif integrated_oil_gas_eps_context_ui:
                         oil_diag_label_ui = {
@@ -73016,7 +73093,7 @@ if selected_symbol:
                         elif upstream_ep_eps_context_ui:
                             st.caption(
                                 "Das oben angezeigte Standard-normalisierte EPS bleibt ausschließlich Diagnosekontext und ist keine Gewinnbasis der Upstream-E&P-Bewertung. "
-                                "Der Fair Value verwendet ausschließlich den normalisierten issuer-native FCF-Yield-Anker und den EV/Adjusted-EBITDA-Anker; PV-10 bleibt nur Asset-Sicherheitscheck."
+                                "Der Fair Value verwendet ausschließlich den normalisierten primärquellenbasierten FCF-Yield-Anker und den EV/Adjusted-EBITDA-Anker; PV-10 bleibt nur Vermögenswert-Sicherheitscheck."
                             )
                         elif universal_family_eps_context_ui:
                             if (company_type or {}).get("valuation_family_id") == "payments_processor":
@@ -74264,9 +74341,9 @@ if selected_symbol:
                             _ep_fcf_cov_ui = safe_float(ep_cash_metrics_ui.get('h1_fcf_coverage_of_fy2026_guide_pct'))
                             _ep_fcf_basis_pts_ui = safe_float(ep_cash_metrics_ui.get('fcf_forward_basis_quality_pts'))
                             if _ep_fcf_cov_ui is not None:
-                                st.caption(f"H1 issuer-attributable FCF-Wachstum: {_ep_fcf_growth_ui:+.1f}% · H1-Abdeckung der FY2026-FCF-Guidance: {_ep_fcf_cov_ui:.1f}%.")
+                                st.caption(f"H1 primärquellenbasiertes FCF-Wachstum: {_ep_fcf_growth_ui:+.1f}% · H1-Abdeckung der FY2026-FCF-Guidance: {_ep_fcf_cov_ui:.1f}%.")
                             else:
-                                st.caption(f"H1 issuer-attributable FCF-Wachstum: {_ep_fcf_growth_ui:+.1f}% · Kein explizites FY-FCF-Ziel: annualisierte H1-Forward-Basis, Quellenqualität {_ep_fcf_basis_pts_ui:.0f}/10; anschließend 75–125%-Zyklus-Cap.")
+                                st.caption(f"H1 primärquellenbasiertes FCF-Wachstum: {_ep_fcf_growth_ui:+.1f}% · Kein explizites FY-FCF-Ziel: annualisierte H1-Forward-Basis, Quellenqualität {_ep_fcf_basis_pts_ui:.0f}/10; anschließend 75–125%-Zyklus-Cap.")
                     elif fcf_result["score"] is not None:
 
                         st.metric(
@@ -77310,6 +77387,7 @@ if selected_symbol:
                             "luxury_premium_reference_v1",
                             "branded_consumer_staples_reference_v2",
                             "integrated_oil_gas_major_reference_v1",
+                            "upstream_ep_reference_v1",
                             "exchange_adjusted_eps_runrate_reference_v1",
                         }
                         if peer_group.get("peer_model") == "payments_processor_model_adjusted_calibration_v4":
@@ -77927,6 +78005,8 @@ if selected_symbol:
                         peer_explain = f"Oilfield Services & Energy Technology {APP_BUILD_VERSION}: SLB/HAL/FTI/BKR bleiben reference-only; Score, Same-Basis Adjusted-EPS-Bridge, Ziel-KGV und Fair Value bleiben issuer-/profil-spezifisch."
                     elif is_integrated_oil_gas_peer_metric:
                         peer_explain = f"Integrated Oil & Gas {APP_BUILD_VERSION}: Die anderen globalen Majors sind reine Markt-Referenzen. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Peer-Anpassung; Score, Through-Cycle-EPS, Ziel-KGV und Fair Value bleiben issuer-spezifisch."
+                    elif (peer_group or {}).get("peer_model") == "upstream_ep_reference_v1":
+                        peer_explain = f"Upstream E&P {APP_BUILD_VERSION}: Vergleichsunternehmen sind ausschließlich Markt-Referenzen. Es gibt keine Mindestanzahl als Fair-Value-Gate; fehlende oder wenige Peer-KGVs verändern weder Familienpunktzahl, Ziel-FCF-Yield, Ziel-EV/bereinigtes-EBITDA, Fair Value noch Bewertungssicherheit."
                     elif is_payments_processor_peer_metric:
                         peer_explain = (
                             "Zahlungsabwickler V187: Mindestens drei vollständig modellierte Kern-Peers. Verglichen wird Markt-KGV relativ zum jeweils eigenen freigegebenen Familien-Ziel-KGV vor Peer-Anpassung; "
@@ -78236,6 +78316,15 @@ if selected_symbol:
                                 f"(veröffentlicht {text_or_dash(ep_snap.get('published_date'))}) · "
                                 + _ep_evidence_status_text
                             )
+                            _ep_adapter_label = {
+                                "validated_reference_adapter": "validierter Referenzadapter",
+                                "universal_contract_input": "universeller Evidenzvertrag",
+                                "missing_primary_evidence": "Primärdaten noch nicht zugeordnet",
+                            }.get(str(upstream_ep_ui.get("evidence_adapter_source") or ""), text_or_dash(upstream_ep_ui.get("evidence_adapter_source")))
+                            st.caption(
+                                f"Evidenzvertrag: Upstream-E&P Primärdatenvertrag V1 · Adapter: {_ep_adapter_label}. "
+                                "Die Bewertungsformel ist vom Datenadapter getrennt und seit V249 eingefroren."
+                            )
                             if ep_snap.get("quarterly_source_url"):
                                 st.markdown(f"[{text_or_dash(ep_snap.get('quarterly_source_name'))}]({ep_snap.get('quarterly_source_url')})")
                             if ep_snap.get("annual_source_url"):
@@ -78257,7 +78346,7 @@ if selected_symbol:
                                 )
                                 st.info(text_or_dash(ep_snap.get("corporate_action_note")))
                                 st.caption(
-                                    "V248 wertet die vorhandenen Q2-/FY2025-Primärdaten als Roh-Evidenz für die Familienarchitektur, weist sie aber nicht als vergleichbare Post-Deal-Evidenz aus und erzeugt bewusst keinen Score, "
+                                    "V249 wertet die vorhandenen Q2-/FY2025-Primärdaten als Roh-Evidenz für die Familienarchitektur, weist sie aber nicht als vergleichbare Post-Deal-Evidenz aus und erzeugt bewusst keinen Score, "
                                     "kein Ziel-FCF-Yield, kein EV/Adjusted-EBITDA-Multiple und keinen Fair Value. Freigabe erst mit belastbarer pro-forma oder post-close Datenbasis."
                                 )
                             else:
@@ -83664,7 +83753,7 @@ if selected_symbol:
                                     f"{fair_value.get('anchor_spread_pct'):.1f} %"
                                 )
                         elif fair_value.get("valuation_method") == "upstream_ep_fcf_ev_dual_anchor":
-                            st.write("**Bewertungsformel:** 60 % normalisierter issuer-native FCF-Yield-Equity-Anker + 40 % normalisierter EV/Adjusted-EBITDA-Equity-Anker")
+                            st.write("**Bewertungsformel:** 60 % normalisierter primärquellenbasierter FCF-Yield-Equity-Anker + 40 % normalisierter EV/Adjusted-EBITDA-Equity-Anker")
                             st.write(f"**Upstream-E&P Quality Score:** {safe_float(fair_value.get('specialist_score')):.0f}/100 · {text_or_dash(fair_value.get('specialist_quality_level'))}")
                             st.write(f"**Normalisierter issuer-FCF:** {safe_float(fair_value.get('normalized_fcf_usd_bn')):.2f} Mrd. USD · **Ziel-FCF-Yield:** {safe_float(fair_value.get('target_fcf_yield_pct')):.2f}%")
                             st.write(f"**FCF-Yield Equity-Anker:** {safe_float(fair_value.get('fcf_equity_anchor_usd_bn')):.2f} Mrd. USD")
@@ -84245,7 +84334,7 @@ if selected_symbol:
 
                         if fair_value.get("valuation_method") == "upstream_ep_fcf_ev_dual_anchor":
                             st.success(
-                                "Upstream-E&P Fair Value V1 wurde aus zwei unabhängig normalisierten Equity-Ankern berechnet: issuer-native FCF-Yield und EV/Adjusted-EBITDA. "
+                                "Upstream-E&P Fair Value V1 wurde aus zwei unabhängig normalisierten Equity-Ankern berechnet: primärquellenbasierter FCF-Yield und EV/Adjusted-EBITDA. "
                                 "PV-10/Reserven dienen nur als Asset-Safety; Peer-KGVs und Analystenziele bleiben reine Kontrollschichten."
                             )
                         elif fair_value.get("valuation_method") == "listed_holding_nav_target":
