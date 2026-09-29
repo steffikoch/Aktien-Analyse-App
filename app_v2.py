@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.58"
+APP_BUILD_VERSION = "V2.23.59"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Nicht-operative Ergebnisverzerrung · Vergleichsbasis-Schutz V254"
+    f"Build {APP_BUILD_VERSION} · Primärquellen-Normalisierung · Vergleichsbasis-Schutz V255"
 )
 
 
@@ -956,6 +956,7 @@ st.caption(
 # V2.23.20: Insurance Corporate Action & EPS Comparability Guard V216. Adds a universal insurer corporate-action/share-count comparability gate: material capital increases, cancellations/buybacks, acquisitions, disposals, mergers or similar perimeter changes inside the TTM window block the EPS bridge unless an issuer-verified comparable/pro-forma EPS basis exists. Also distinguishes non-EPS-basis net-income context labels.
 # V2.23.23: Universal Evidence Normalisierung & Mapping V219. Extends the V218 provider layer with a canonical cross-family evidence schema for Eulerpool secondary data, period/source metadata, book-value/ROE/share-count mapping, comparable-period diagnostics and normalized corporate-action candidates. Specialist valuation gates and all family-specific primary-source requirements remain authoritative and unchanged; secondary provider data cannot independently release a specialist Fair Value.
 # V2.23.58: Non-Operating Earnings Same-Basis Hard Gate V254. Closes the two remaining V253 release leaks exposed by Alphabet: once the generic non-operating-income distortion guard is active, the pre-guard TTM/current-FY blend is retained only as a diagnostic value and no longer published as a normalized EPS or high-confidence earnings basis; the generic balance 15/15 explainer is suppressed as well. The guard now records an explicit same-basis normalization status and blocks provider-GAAP-TTM from entering any released EPS blend until a period-consistent primary-source earnings normalization exists. Duplicate guard captions are removed. No tax effect is estimated, no issuer-specific Alphabet value is hard-coded, and no family corridor, specialist score, Fair Value or signal mathematics outside the guarded Standard path changes.
+# V2.23.59: Non-Operating Equity Gain Primary-Source Normalization V255. Adds a conservative issuer-neutral SEC path for USD-reporting 10-K/10-Q filers when the generic non-operating-income guard is active. The path requires period-consistent FY / prior-YTD / current-YTD primary statements, dominant unrealized-equity-security gains, an explicit issuer statement linking those unrealized gains to deferred tax at the statutory rate, and a numeric statutory rate from the issuer annual filing. Only then is a primary-source normalized TTM EPS released; analyst Current-FY EPS remains unverified context, generic growth/profitability/FCF/balance scoring, P/E, Fair Value and signals remain blocked. Missing/ambiguous evidence stays fail-closed. V255 also removes remaining guard-state UI contradictions in Current-FY EPS labels and peer text. No issuer ticker/value is hard-coded.
 # V2.23.24: Universal Evidence Perioden-Semantik & Fiskalabgleich V220. Adds explicit FY/H1/9M/Q/TTM semantics to structured secondary evidence, blocks quarterly-vs-YTD misuse in TTM bridges, aligns comparable periods, derives BVPS only from period-compatible Eulerpool equity/share data when direct BVPS is unavailable, and displays share-count units explicitly. Specialist valuation gates, family scores, Fair Values and signals remain unchanged.
 # V2.23.25: Universal Evidence Entity-Scope & Semantic Validation Guard V221. Separates structural mapping from semantic release, records source-key/entity-scope metadata for provider fields, fail-closes ambiguous total-equity/minority-interest book-value derivations, distinguishes technically mapped from semantically verified core evidence, and keeps unverified secondary BVPS/ROE/equity context out of specialist valuation anchors. V220 period guards, all family scores, Fair Values and signal logic remain unchanged.
 # V2.23.26: Universal Insurance Primary-Source Acquisition V222. Adds an issuer-neutral, bounded insurer IR discovery layer on top of V221: official issuer-domain current-period, prior-period, FY/key-figure and financial-calendar documents are discovered and fetched; EPS/net-income/RoE/regulatory-capital/BVPS/share-count/dividend evidence is period- and scope-bound before a dynamic Insurance snapshot can be released. Search snippets remain discovery-only, secondary-provider values remain plausibility-only, and incomplete/ambiguous evidence stays fail-closed. Existing validated insurer snapshots and valuation mathematics remain unchanged.
@@ -6336,6 +6337,450 @@ def _discover_sec_primary_pages(symbol, max_filings=3, deadline=None):
         if _has_quantitative_eps_bridge(combined):
             break
     return output
+
+
+
+# =========================================================
+# V2.23.59 / V255 – Primärquellen-Normalisierung für
+# dominante nicht-operative Equity-Securities-Gewinne
+# =========================================================
+
+def _v255_parse_numeric_cell(raw):
+    """Parse one visible SEC table cell without interpreting footnote markers."""
+    s = _clean_text(raw)
+    if not s or s in {"$", "%", "—", "–", "-"}:
+        return None
+    if re.fullmatch(r"\(?\s*[1-9]\s*\)?", s):
+        # Stand-alone (1)/(2) etc. is overwhelmingly a footnote marker in SEC tables.
+        return None
+    m = re.search(r"\(?\s*-?\d[\d,]*(?:\.\d+)?\s*\)?", s)
+    if not m:
+        return None
+    token = m.group(0).strip()
+    negative = token.startswith("(") and token.endswith(")")
+    token = token.strip("() ").replace(",", "")
+    try:
+        value = float(token)
+    except Exception:
+        return None
+    if negative:
+        value = -abs(value)
+    return value
+
+
+def _v255_visible_row_candidates(html, label_regex, expected_count=None):
+    """Return visible table-row values for a label, ranked toward the requested column count."""
+    if not html:
+        return []
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:
+        return []
+    out = []
+    rx = re.compile(label_regex, flags=re.I)
+    for tr in soup.find_all("tr"):
+        cells = tr.find_all(["th", "td"])
+        if not cells:
+            continue
+        cell_texts = [_clean_text(c.get_text(" ", strip=True)) for c in cells]
+        joined = " | ".join(x for x in cell_texts if x)
+        # Match the visible label cell itself as well as the joined row. This matters
+        # for anchored labels such as ^Net income$: the joined row also contains values.
+        if not any(rx.search(cell_text) for cell_text in cell_texts if cell_text) and not rx.search(joined):
+            continue
+        label_index = 0
+        for i, cell_text in enumerate(cell_texts):
+            if rx.search(cell_text):
+                label_index = i
+                break
+        values = []
+        for cell_text in cell_texts[label_index + 1:]:
+            value = _v255_parse_numeric_cell(cell_text)
+            if value is not None:
+                values.append(value)
+        if not values:
+            continue
+        count_gap = abs(len(values) - int(expected_count)) if expected_count else 0
+        out.append({
+            "label": cell_texts[label_index] or joined,
+            "values": values,
+            "count": len(values),
+            "count_gap": count_gap,
+            "row_text": joined,
+        })
+    out.sort(key=lambda row: (row.get("count_gap", 999), abs((row.get("count") or 0) - (expected_count or row.get("count") or 0))))
+    return out
+
+
+def _v255_pick_row_values(html, label_regex, expected_count, allow_more=False):
+    rows = _v255_visible_row_candidates(html, label_regex, expected_count=expected_count)
+    for row in rows:
+        values = list(row.get("values") or [])
+        if len(values) == expected_count:
+            return values, row
+        if allow_more and len(values) > expected_count:
+            return values[:expected_count], row
+    return None, None
+
+
+def _v255_sum_unrealized_equity_rows(html, expected_count):
+    """Sum only NET unrealized equity-security rows; gross rows are deliberately excluded."""
+    if not html:
+        return None, []
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:
+        return None, []
+    matched = []
+    total = [0.0] * int(expected_count)
+    seen_labels = set()
+    for tr in soup.find_all("tr"):
+        cells = tr.find_all(["th", "td"])
+        if not cells:
+            continue
+        cell_texts = [_clean_text(c.get_text(" ", strip=True)) for c in cells]
+        label = next((x for x in cell_texts if x), "")
+        low = label.lower()
+        if "equity securit" not in low or "unrealized" not in low or "net" not in low or "gross" in low:
+            continue
+        # Accept "unrealized net gain/loss" and "net unrealized gain/loss" wording.
+        if not re.search(r"(?:unrealized.*net\s+(?:gain|loss)|net\s+unrealized\s+(?:gain|loss))", low):
+            continue
+        normalized_label = re.sub(r"\s+", " ", low).strip()
+        if normalized_label in seen_labels:
+            continue
+        values = []
+        label_idx = cell_texts.index(label)
+        for cell_text in cell_texts[label_idx + 1:]:
+            value = _v255_parse_numeric_cell(cell_text)
+            if value is not None:
+                values.append(value)
+        if len(values) != int(expected_count):
+            continue
+        seen_labels.add(normalized_label)
+        matched.append({"label": label, "values": values})
+        for i, value in enumerate(values):
+            total[i] += value
+    return (total if matched else None), matched
+
+
+def _v255_statutory_tax_rate_from_annual(html):
+    """Extract the latest explicitly labelled statutory income-tax percentage from the annual filing."""
+    if not html:
+        return None, None
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:
+        return None, None
+    candidates = []
+    for tr in soup.find_all("tr"):
+        row_text = _clean_text(tr.get_text(" ", strip=True))
+        if not re.search(r"(?:US|U\.S\.)\s+federal\s+statutory(?:\s+income)?(?:\s+tax)?\s+rate", row_text, flags=re.I):
+            continue
+        rates = [safe_float(x) for x in re.findall(r"(-?\d+(?:\.\d+)?)\s*%", row_text)]
+        rates = [x for x in rates if x is not None and 0 < x < 50]
+        if rates:
+            candidates.append((rates[-1] / 100.0, row_text))
+    return candidates[0] if candidates else (None, None)
+
+
+def _v255_sec_latest_10q_10k(symbol, deadline=None):
+    """Resolve latest SEC 10-Q and 10-K from the issuer's official submissions feed."""
+    diagnostics = []
+    cik = _sec_lookup_cik(symbol, deadline=deadline, diagnostics=diagnostics)
+    if not cik:
+        return {"available": False, "diagnostics": diagnostics, "reason": "Keine SEC-CIK-Zuordnung verfügbar."}
+    effective_timeout = _bounded_timeout(deadline, 4.0)
+    if effective_timeout is None:
+        return {"available": False, "cik": cik, "diagnostics": diagnostics, "reason": "SEC-Zeitbudget vor Submissions-Abruf erschöpft."}
+    try:
+        _sec_fair_access_pause()
+        r = requests.get(
+            f"https://data.sec.gov/submissions/CIK{cik:010d}.json",
+            headers=_request_headers(sec=True),
+            timeout=(min(1.8, effective_timeout), effective_timeout),
+        )
+        r.raise_for_status()
+        recent = (r.json().get("filings") or {}).get("recent") or {}
+    except Exception as exc:
+        diagnostics.append(f"SEC-Submissions-Abruf fehlgeschlagen: {type(exc).__name__}.")
+        return {"available": False, "cik": cik, "diagnostics": diagnostics, "reason": "SEC-Submissions konnten nicht geladen werden."}
+
+    forms = recent.get("form") or []
+    accessions = recent.get("accessionNumber") or []
+    docs = recent.get("primaryDocument") or []
+    filing_dates = recent.get("filingDate") or []
+    report_dates = recent.get("reportDate") or []
+    chosen = {}
+    for i, form in enumerate(forms):
+        if form not in {"10-Q", "10-K"} or form in chosen:
+            continue
+        if i >= len(accessions) or i >= len(docs):
+            continue
+        accession = _clean_text(accessions[i])
+        doc = _clean_text(docs[i])
+        if not accession or not doc:
+            continue
+        url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession.replace('-', '')}/{doc}"
+        chosen[form] = {
+            "form": form,
+            "url": url,
+            "filing_date": filing_dates[i] if i < len(filing_dates) else None,
+            "report_date": report_dates[i] if i < len(report_dates) else None,
+        }
+        if len(chosen) == 2:
+            break
+    if not all(x in chosen for x in ("10-Q", "10-K")):
+        return {"available": False, "cik": cik, "diagnostics": diagnostics, "reason": "Aktueller 10-Q-/10-K-Paarpfad nicht vollständig verfügbar.", "filings": chosen}
+
+    for form in ("10-Q", "10-K"):
+        if not _research_budget_ok(deadline, reserve=0.5):
+            return {"available": False, "cik": cik, "diagnostics": diagnostics, "reason": "SEC-Zeitbudget beim Filing-Abruf erschöpft.", "filings": chosen}
+        html, final_url = _fetch_html(
+            chosen[form]["url"],
+            timeout=4.2,
+            sec=True,
+            deadline=deadline,
+            max_chars=8_000_000,
+        )
+        chosen[form]["html"] = html
+        chosen[form]["final_url"] = final_url or chosen[form]["url"]
+        chosen[form]["loaded"] = bool(html)
+    if not all(chosen[x].get("loaded") for x in ("10-Q", "10-K")):
+        return {"available": False, "cik": cik, "diagnostics": diagnostics, "reason": "Mindestens ein SEC-Primärdokument konnte nicht vollständig geladen werden.", "filings": chosen}
+    return {"available": True, "cik": cik, "diagnostics": diagnostics, "filings": chosen}
+
+
+@st.cache_data(ttl=21600, show_spinner=False)
+def build_non_operating_equity_gain_primary_normalization_v255(symbol, financial_currency, cache_version="v255"):
+    """Conservative same-basis TTM EPS normalization for dominant unrealized equity-security gains.
+
+    Release conditions are intentionally strict and issuer-neutral:
+      * USD reporting currency and SEC 10-Q + 10-K primary documents.
+      * Same-basis FY / prior-YTD / current-YTD reported diluted EPS and earnings denominator proxy.
+      * Net unrealized equity-security gains explicitly disclosed for all three bridge periods.
+      * Those unrealized gains explain at least 85% of the total equity-security gain/loss TTM bridge.
+      * The current filing explicitly links unrealized equity-security gains to deferred tax liabilities at the statutory rate.
+      * The annual filing provides that numeric statutory tax rate.
+
+    The result can release an EPS basis only. It never releases the generic quality score,
+    P/E multiple, Fair Value or signal by itself.
+    """
+    result = {
+        "applicable": True,
+        "available": False,
+        "released": False,
+        "normalized_ttm_eps": None,
+        "confidence": "Niedrig",
+        "status": "primary_source_normalization_required",
+        "reason": None,
+        "diagnostics": [],
+        "source_currency": _normalize_currency_code(financial_currency),
+        "tax_effect_estimated": False,
+        "issuer_hardcoded": False,
+    }
+    if _normalize_currency_code(financial_currency) != "USD":
+        result["reason"] = "V255 SEC-Normalisierung ist derzeit nur für USD-berichtende SEC-10-K/10-Q-Emittenten freigegeben; anderer Primärquellenpfad erforderlich."
+        return result
+
+    deadline = time.monotonic() + 14.0
+    sec = _v255_sec_latest_10q_10k(symbol, deadline=deadline)
+    result["diagnostics"].extend(sec.get("diagnostics") or [])
+    result["cik"] = sec.get("cik")
+    if not sec.get("available"):
+        result["reason"] = sec.get("reason") or "SEC-Primärquellenpfad unvollständig."
+        result["filings"] = {k: {kk: vv for kk, vv in v.items() if kk != "html"} for k, v in (sec.get("filings") or {}).items()}
+        return result
+
+    filings = sec.get("filings") or {}
+    q = filings.get("10-Q") or {}
+    k = filings.get("10-K") or {}
+    q_html = q.get("html") or ""
+    k_html = k.get("html") or ""
+    q_text = _html_to_text(q_html)
+    k_text = _html_to_text(k_html)
+
+    # Q2/Q3 tables contain quarter + YTD = four values. Q1 contains only two.
+    q_total4, q_total_row4 = _v255_pick_row_values(
+        q_html,
+        r"total\s+gain\s*\(loss\)\s+on\s+equity\s+securities\s+in\s+other\s+income\s*\(expense\).*net",
+        4,
+    )
+    if q_total4:
+        q_count = 4
+        q_total = q_total4
+        q_total_row = q_total_row4
+    else:
+        q_total, q_total_row = _v255_pick_row_values(
+            q_html,
+            r"total\s+gain\s*\(loss\)\s+on\s+equity\s+securities\s+in\s+other\s+income\s*\(expense\).*net",
+            2,
+        )
+        q_count = 2 if q_total else None
+
+    k_total, k_total_row = _v255_pick_row_values(
+        k_html,
+        r"total\s+gain\s*\(loss\)\s+on\s+equity\s+securities\s+in\s+other\s+income\s*\(expense\).*net",
+        3,
+    )
+    if q_count is None or not q_total or not k_total:
+        result["reason"] = "Periodengleiche Total-Equity-Securities-Gain-Zeilen konnten in 10-Q/10-K nicht eindeutig gelesen werden."
+        return result
+
+    q_unreal, q_unreal_rows = _v255_sum_unrealized_equity_rows(q_html, q_count)
+    k_unreal, k_unreal_rows = _v255_sum_unrealized_equity_rows(k_html, 3)
+    if not q_unreal or not k_unreal:
+        result["reason"] = "Netto-unrealisierte Equity-Securities-Gewinne sind nicht periodenrein über 10-Q und 10-K verfügbar."
+        return result
+
+    q_common, q_common_row = _v255_pick_row_values(
+        q_html,
+        r"net\s+income\s+available\s+to\s+common\s+stockholders",
+        q_count,
+    )
+    if not q_common:
+        q_common, q_common_row = _v255_pick_row_values(q_html, r"^net\s+income$", q_count)
+    k_common, k_common_row = _v255_pick_row_values(
+        k_html,
+        r"net\s+income\s+available\s+to\s+common\s+stockholders",
+        3,
+    )
+    if not k_common:
+        k_common, k_common_row = _v255_pick_row_values(k_html, r"^net\s+income$", 3)
+
+    q_eps, q_eps_row = _v255_pick_row_values(
+        q_html,
+        r"diluted\s+net\s+income\s+per\s+(?:common\s+)?share",
+        q_count,
+    )
+    k_eps, k_eps_row = _v255_pick_row_values(
+        k_html,
+        r"diluted\s+net\s+income\s+per\s+(?:common\s+)?share",
+        3,
+    )
+    if not q_common or not k_common or not q_eps or not k_eps:
+        result["reason"] = "Periodengleiche Net-Income-/Diluted-EPS-Zeilen für die FY−YTD+YTD-Brücke sind nicht vollständig verfügbar."
+        return result
+
+    tax_link = bool(re.search(
+        r"unrealized\s+gains?\s+on\s+equity\s+securities.{0,420}?deferred\s+tax\s+liabilit(?:y|ies).{0,180}?statutory\s+tax\s+rate",
+        q_text,
+        flags=re.I,
+    ))
+    statutory_rate, tax_row = _v255_statutory_tax_rate_from_annual(k_html)
+    if not tax_link or statutory_rate is None:
+        result["reason"] = "Steuerwirkung nicht freigegeben: Es fehlt entweder die Primärquellen-Verknüpfung Equity-Unrealized-Gains → Deferred Tax zum statutory rate oder der numerische statutory rate."
+        return result
+
+    # Last two Q columns are prior-YTD/current-YTD for Q2/Q3; Q1's two columns are already prior/current.
+    q_total_prior, q_total_current = q_total[-2], q_total[-1]
+    q_unreal_prior, q_unreal_current = q_unreal[-2], q_unreal[-1]
+    q_common_prior, q_common_current = q_common[-2], q_common[-1]
+    q_eps_prior, q_eps_current = q_eps[-2], q_eps[-1]
+    k_total_fy = k_total[-1]
+    k_unreal_fy = k_unreal[-1]
+    k_common_fy = k_common[-1]
+    k_eps_fy = k_eps[-1]
+
+    required = [
+        q_total_prior, q_total_current, q_unreal_prior, q_unreal_current,
+        q_common_prior, q_common_current, q_eps_prior, q_eps_current,
+        k_total_fy, k_unreal_fy, k_common_fy, k_eps_fy, statutory_rate,
+    ]
+    if any(safe_float(x) is None for x in required):
+        result["reason"] = "Mindestens ein periodenentscheidender Primärquellenwert ist numerisch nicht belastbar."
+        return result
+    if min(abs(q_eps_prior), abs(q_eps_current), abs(k_eps_fy)) <= 0:
+        result["reason"] = "Diluted-EPS-Denominator ist nicht belastbar."
+        return result
+
+    total_ttm = k_total_fy - q_total_prior + q_total_current
+    unreal_ttm = k_unreal_fy - q_unreal_prior + q_unreal_current
+    if abs(total_ttm) <= 1e-9:
+        result["reason"] = "TTM-Equity-Securities-Gesamtbeitrag ist nicht materiell berechenbar."
+        return result
+    coverage_ratio = abs(unreal_ttm) / abs(total_ttm)
+    if not (0.85 <= coverage_ratio <= 1.10):
+        result["reason"] = f"Unrealisierte Equity-Securities-Gewinne erklären nur {coverage_ratio*100:.1f}% des periodenreinen TTM-Equity-Gain-Beitrags; automatische Steuer-/EPS-Normalisierung bleibt gesperrt."
+        return result
+
+    # Reported common-income / reported diluted-EPS yields a same-period diluted-share proxy.
+    # Because both numerator and EPS are from the same primary statement, no provider share count is mixed in.
+    shares_fy = k_common_fy / k_eps_fy
+    shares_prior = q_common_prior / q_eps_prior
+    shares_current = q_common_current / q_eps_current
+    shares = [shares_fy, shares_prior, shares_current]
+    if any((not math.isfinite(x) or x <= 0) for x in shares):
+        result["reason"] = "Periodengleicher Diluted-Share-Proxy ist nicht belastbar."
+        return result
+    share_spread = (max(shares) / min(shares) - 1.0) if min(shares) > 0 else None
+    if share_spread is None or share_spread > 0.10:
+        result["reason"] = f"Diluted-Share-Proxy variiert über die Brückenperioden um {share_spread*100:.1f}% und ist nicht ausreichend vergleichbar."
+        return result
+
+    after_tax_factor = 1.0 - statutory_rate
+    normalized_fy_eps = k_eps_fy - (k_unreal_fy * after_tax_factor) / shares_fy
+    normalized_prior_ytd_eps = q_eps_prior - (q_unreal_prior * after_tax_factor) / shares_prior
+    normalized_current_ytd_eps = q_eps_current - (q_unreal_current * after_tax_factor) / shares_current
+    normalized_ttm_eps = normalized_fy_eps - normalized_prior_ytd_eps + normalized_current_ytd_eps
+    reported_ttm_eps_primary = k_eps_fy - q_eps_prior + q_eps_current
+
+    if not math.isfinite(normalized_ttm_eps) or normalized_ttm_eps <= 0:
+        result["reason"] = "Primärquellen-normalisiertes TTM-EPS ist nicht positiv/belastbar."
+        return result
+    if abs(reported_ttm_eps_primary) <= 1e-9:
+        result["reason"] = "Primärquellen-TTM-EPS-Brücke ist nicht belastbar."
+        return result
+    normalized_ratio = normalized_ttm_eps / reported_ttm_eps_primary
+    if not (0.10 <= normalized_ratio <= 1.25):
+        result["reason"] = "Normalisierter TTM-EPS-Wert liegt außerhalb des konservativen Plausibilitätskorridors relativ zur periodenreinen GAAP-TTM-Brücke."
+        return result
+
+    result.update({
+        "available": True,
+        "released": True,
+        "status": "primary_source_eps_normalized_score_still_blocked",
+        "confidence": "Mittel",
+        "normalized_ttm_eps": normalized_ttm_eps,
+        "reported_ttm_eps_primary": reported_ttm_eps_primary,
+        "statutory_tax_rate": statutory_rate,
+        "tax_link_verified": True,
+        "tax_effect_estimated": False,
+        "equity_gain_ttm_total": total_ttm,
+        "unrealized_equity_gain_ttm": unreal_ttm,
+        "unrealized_coverage_ratio": coverage_ratio,
+        "share_proxy_spread": share_spread,
+        "period_bridge": {
+            "fy": {"reported_eps": k_eps_fy, "normalized_eps": normalized_fy_eps, "unrealized_equity_gain": k_unreal_fy, "common_income": k_common_fy, "diluted_share_proxy": shares_fy},
+            "prior_ytd": {"reported_eps": q_eps_prior, "normalized_eps": normalized_prior_ytd_eps, "unrealized_equity_gain": q_unreal_prior, "common_income": q_common_prior, "diluted_share_proxy": shares_prior},
+            "current_ytd": {"reported_eps": q_eps_current, "normalized_eps": normalized_current_ytd_eps, "unrealized_equity_gain": q_unreal_current, "common_income": q_common_current, "diluted_share_proxy": shares_current},
+        },
+        "sources": {
+            "quarterly_form": "10-Q",
+            "quarterly_url": q.get("final_url") or q.get("url"),
+            "quarterly_report_date": q.get("report_date"),
+            "annual_form": "10-K",
+            "annual_url": k.get("final_url") or k.get("url"),
+            "annual_report_date": k.get("report_date"),
+        },
+        "evidence": {
+            "quarterly_total_equity_gain_row": (q_total_row or {}).get("label"),
+            "annual_total_equity_gain_row": (k_total_row or {}).get("label"),
+            "quarterly_unrealized_rows": [x.get("label") for x in q_unreal_rows],
+            "annual_unrealized_rows": [x.get("label") for x in k_unreal_rows],
+            "quarterly_common_income_row": (q_common_row or {}).get("label"),
+            "annual_common_income_row": (k_common_row or {}).get("label"),
+            "quarterly_diluted_eps_row": (q_eps_row or {}).get("label"),
+            "annual_diluted_eps_row": (k_eps_row or {}).get("label"),
+            "tax_rate_row": tax_row,
+        },
+        "reason": (
+            "Periodenreine SEC-Primärquellenbrücke FY − Vorjahres-YTD + aktuelles YTD vollständig. "
+            "Dominante netto-unrealisierte Equity-Securities-Gewinne werden mit der vom Emittenten explizit verknüpften statutory-tax-rate-Wirkung bereinigt. "
+            "Freigegeben wird nur das normalisierte TTM-EPS; Qualitätspunktzahl, Standard-KGV, Fair Value und Signal bleiben gesperrt."
+        ),
+    })
+    return result
 
 
 @st.cache_data(ttl=21600, show_spinner=False)
@@ -67029,50 +67474,93 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         "eps_unit_guard_note": eps_unit_context.get("note"),
     })
 
-    # V254 – Same-Basis EPS Hard Gate. The generic normalizer necessarily
-    # runs before this final release decision. Once the non-operating distortion
-    # is known, any
-    # pre-existing TTM/current-FY blend is demoted to diagnostics. In particular,
-    # a distorted GAAP TTM must not keep a 25% weight and must not be shown as a
-    # high-confidence "normalised" earnings basis. We deliberately do not
-    # estimate an after-tax adjustment: release requires a period-consistent
-    # primary-source normalization on the same accounting basis.
+    # V255 – Same-Basis EPS Gate with conservative primary-source release.
+    # The provider blend is still never accepted after a non-operating-income distortion.
+    # V255 first attempts an issuer-neutral SEC FY−YTD+YTD normalization for dominant
+    # unrealized equity-security gains. Even when that EPS basis is released, the
+    # generic score / P-E / Fair Value path remains blocked until growth and
+    # profitability are also rebuilt on a comparable normalized basis.
+    non_operating_primary_normalization = None
     if non_operating_income_guard.get("active"):
-        _v254_diag_eps = safe_float((eps_normalization or {}).get("normalized_eps"))
-        _v254_diag_method = (eps_normalization or {}).get("method")
-        _v254_diag_confidence = (eps_normalization or {}).get("confidence")
-        eps_normalization = {
-            **(eps_normalization or {}),
-            "diagnostic_normalized_eps": _v254_diag_eps,
-            "diagnostic_normalization_method": _v254_diag_method,
-            "diagnostic_normalization_confidence": _v254_diag_confidence,
-            "normalized_eps": None,
-            "confidence": "Niedrig",
-            "method": (
-                "Vergleichsbasis-Schutz V254: Provider-GAAP-TTM und "
-                "Current-FY-Konsens werden nicht gemischt. Eine freigegebene normalisierte "
-                "EPS-Basis entsteht erst nach periodenreiner Primärquellen-Normalisierung "
-                "der materiellen nicht-operativen Ergebnisbeiträge einschließlich belastbarer Steuerwirkung."
-            ),
-            "valuation_blocked": True,
-            "non_operating_income_same_basis_gate": True,
-            "same_basis_normalization_status": "primary_source_normalization_required",
-            "eps_divergence_note": None,
-        }
-        non_operating_income_guard = {
-            **non_operating_income_guard,
-            "same_basis_gate_active": True,
-            "same_basis_normalization_status": "primary_source_normalization_required",
-            "provider_eps_blend_blocked": True,
-            "diagnostic_normalized_eps": _v254_diag_eps,
-            "diagnostic_normalization_method": _v254_diag_method,
-            "diagnostic_normalization_confidence": _v254_diag_confidence,
-            "tax_effect_estimated": False,
-            "normalization_note": (
-                "V254 schätzt keine Steuerwirkung und rechnet keine nicht-operativen Gewinne pauschal heraus. "
-                "Erst eine periodenreine Primärquellen-Brücke darf eine neue EPS-Basis freigeben."
-            ),
-        }
+        _v255_diag_eps = safe_float((eps_normalization or {}).get("normalized_eps"))
+        _v255_diag_method = (eps_normalization or {}).get("method")
+        _v255_diag_confidence = (eps_normalization or {}).get("confidence")
+        non_operating_primary_normalization = build_non_operating_equity_gain_primary_normalization_v255(
+            fundamental_symbol,
+            financial_currency,
+            cache_version,
+        )
+        _v255_released_eps = safe_float((non_operating_primary_normalization or {}).get("normalized_ttm_eps")) if (non_operating_primary_normalization or {}).get("released") else None
+        if _v255_released_eps is not None:
+            eps_normalization = {
+                **(eps_normalization or {}),
+                "diagnostic_normalized_eps": _v255_diag_eps,
+                "diagnostic_normalization_method": _v255_diag_method,
+                "diagnostic_normalization_confidence": _v255_diag_confidence,
+                "normalized_eps": _v255_released_eps,
+                "confidence": "Mittel",
+                "method": (
+                    "V255 Primärquellen-Normalisierung: periodenreine SEC-Brücke FY − Vorjahres-YTD + aktuelles YTD. "
+                    "Dominante netto-unrealisierte Equity-Securities-Gewinne werden ausschließlich bei explizit belegter "
+                    "statutory-tax-rate-Verknüpfung nach Steuern aus der EPS-Basis entfernt. Current-FY-Analystenkonsens bleibt ungeprüfter Kontext."
+                ),
+                "valuation_blocked": True,
+                "non_operating_income_same_basis_gate": True,
+                "same_basis_normalization_status": "primary_source_eps_released_score_still_blocked",
+                "eps_divergence_note": None,
+                "primary_source_normalization": non_operating_primary_normalization,
+            }
+            non_operating_income_guard = {
+                **non_operating_income_guard,
+                "same_basis_gate_active": True,
+                "same_basis_normalization_status": "primary_source_eps_released_score_still_blocked",
+                "provider_eps_blend_blocked": True,
+                "diagnostic_normalized_eps": _v255_diag_eps,
+                "diagnostic_normalization_method": _v255_diag_method,
+                "diagnostic_normalization_confidence": _v255_diag_confidence,
+                "tax_effect_estimated": False,
+                "primary_source_eps_normalization_released": True,
+                "primary_source_normalization": non_operating_primary_normalization,
+                "normalization_note": (
+                    "V255 hat eine periodenreine Primärquellen-TTM-EPS-Basis freigegeben. "
+                    "Die Gesamtbewertung bleibt trotzdem gesperrt, weil Nettomarge, Gewinnwachstum und der generische Score noch nicht auf derselben normalisierten Ergebnisbasis neu aufgebaut sind."
+                ),
+            }
+        else:
+            eps_normalization = {
+                **(eps_normalization or {}),
+                "diagnostic_normalized_eps": _v255_diag_eps,
+                "diagnostic_normalization_method": _v255_diag_method,
+                "diagnostic_normalization_confidence": _v255_diag_confidence,
+                "normalized_eps": None,
+                "confidence": "Niedrig",
+                "method": (
+                    "Vergleichsbasis-Schutz V255: Provider-GAAP-TTM und Current-FY-Konsens werden nicht gemischt. "
+                    "Eine freigegebene normalisierte EPS-Basis entsteht erst nach periodenreiner Primärquellen-Normalisierung "
+                    "materieller nicht-operativer Ergebnisbeiträge einschließlich belastbar belegter Steuerwirkung."
+                ),
+                "valuation_blocked": True,
+                "non_operating_income_same_basis_gate": True,
+                "same_basis_normalization_status": "primary_source_normalization_required",
+                "eps_divergence_note": None,
+                "primary_source_normalization": non_operating_primary_normalization,
+            }
+            non_operating_income_guard = {
+                **non_operating_income_guard,
+                "same_basis_gate_active": True,
+                "same_basis_normalization_status": "primary_source_normalization_required",
+                "provider_eps_blend_blocked": True,
+                "diagnostic_normalized_eps": _v255_diag_eps,
+                "diagnostic_normalization_method": _v255_diag_method,
+                "diagnostic_normalization_confidence": _v255_diag_confidence,
+                "tax_effect_estimated": False,
+                "primary_source_eps_normalization_released": False,
+                "primary_source_normalization": non_operating_primary_normalization,
+                "normalization_note": (
+                    "V255 schätzt keine Steuerwirkung und rechnet nicht-operative Gewinne nicht pauschal heraus. "
+                    "Fehlt die vollständige periodenreine Primärquellen-/Steuer-Kette, bleibt die EPS-Basis gesperrt."
+                ),
+            }
 
     same_basis_earnings_growth = derive_same_basis_earnings_growth(
         fundamental_symbol, eps_basis_alignment
@@ -68483,8 +68971,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "count": 0,
             "non_operating_income_guard": True,
             "note": (
-                "Non-Operating-Income-Guard aktiv: Eine Vergleichsgruppe kann die gesperrte operative/normalisierte "
-                "Gewinnbasis nicht ersetzen. Es wird weder ein Peer-Median noch eine Peer-Anpassung zur Freigabe eines "
+                "Non-Operating-Income-Guard aktiv: Eine Vergleichsgruppe kann die noch unvollständig normalisierte "
+                "Gesamtbewertungsbasis nicht ersetzen. Es wird weder ein Peer-Median noch eine Peer-Anpassung zur Freigabe eines "
                 "Standard-Multiples oder Fair Values verwendet."
             ),
         }
@@ -68512,6 +69000,23 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             False
         )
     )
+
+    if non_operating_income_guard.get("active"):
+        peer_check = {
+            **(peer_check or {}),
+            "method_supported": False,
+            "peer_rows": [],
+            "usable_count": 0,
+            "peer_median": None,
+            "adjustment_pct": 0.0,
+            "adjusted_multiple": None,
+            "applied": False,
+            "reference_only": False,
+            "note": (
+                "Vergleichsgruppen-Prüfung im Schutzregel-Zustand nicht ausgeführt: Ohne vollständig normalisierte Score-/Ergebnisbasis "
+                "dürfen Vergleichsgruppen weder ein Standard-Multiple noch einen fairen Wert freigeben."
+            ),
+        }
 
     # V2.22.59 / V155 – Exchange peer calibration is a post-peer step.
     # V154 referenced peer_check before calculate_peer_check() had run, which caused
@@ -68935,6 +69440,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             special_control = _universal_family_special_control(company_type)
 
     if non_operating_income_guard.get("active"):
+        _v255_eps_only_released = bool(non_operating_income_guard.get("primary_source_eps_normalization_released"))
         fundamental_multiple = {
             **(fundamental_multiple or {}),
             "score": None,
@@ -68942,8 +69448,16 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "available": False,
             "earnings_basis_usable": False,
             "note": (
-                "Non-Operating Earnings Distortion Safety Gate aktiv: Der generische 100-Punkte-Score und das Standard-KGV "
-                "werden nicht als Bewertungsbasis freigegeben, solange keine same-basis operative/normalisierte Gewinnbasis vorliegt."
+                (
+                    "Non-Operating Earnings Distortion Safety Gate aktiv: V255 hat ausschließlich die TTM-EPS-Gewinnbasis primärquellenbasiert normalisiert. "
+                    "Wachstum, Profitabilität und der generische 100-Punkte-Score sind noch nicht auf derselben normalisierten Basis neu aufgebaut; "
+                    "deshalb bleiben Standard-KGV, Fair Value und Signal gesperrt."
+                )
+                if _v255_eps_only_released else
+                (
+                    "Non-Operating Earnings Distortion Safety Gate aktiv: Der generische 100-Punkte-Score und das Standard-KGV "
+                    "werden nicht als Bewertungsbasis freigegeben, solange keine belastbare same-basis operative/normalisierte Gewinnbasis vorliegt."
+                )
             ),
         }
 
@@ -69855,6 +70369,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         _noi_ratio = safe_float(non_operating_income_guard.get("net_to_operating_ratio"))
         _noi_gap = safe_float(non_operating_income_guard.get("non_operating_gap_pct_revenue"))
         _noi_op_margin = safe_float(non_operating_income_guard.get("operating_margin_pct"))
+        _v255_eps_only_released = bool(non_operating_income_guard.get("primary_source_eps_normalization_released"))
         special_event_warning = {
             "level": "Rot",
             "icon": "🔴",
@@ -69867,8 +70382,16 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "Die generische Nettomargen-, Gewinnwachstums- und GAAP-EPS-Basis ist dadurch nicht belastbar vergleichbar."
             ),
             "action": (
-                "Keine generische Punktzahl, kein Standard-KGV und keinen Fair Value veröffentlichen. Zuerst die nicht-operativen Beiträge "
-                "über Primärquellen abgrenzen und eine belastbare operative/normalisierte Gewinnbasis definieren; FCF und Bilanz bleiben Diagnosekontext."
+                (
+                    "V255 hat die TTM-EPS-Basis primärquellenbasiert normalisiert. Als nächstes müssen Gewinnwachstum und Profitabilität auf derselben "
+                    "normalisierten Ergebnisbasis neu aufgebaut werden; bis dahin bleiben generische Punktzahl, Standard-KGV, Fair Value und Signal gesperrt. "
+                    "FCF und Bilanz bleiben Diagnosekontext."
+                )
+                if _v255_eps_only_released else
+                (
+                    "Keine generische Punktzahl, kein Standard-KGV und keinen Fair Value veröffentlichen. Zuerst die nicht-operativen Beiträge "
+                    "über Primärquellen abgrenzen und eine belastbare operative/normalisierte Gewinnbasis definieren; FCF und Bilanz bleiben Diagnosekontext."
+                )
             ),
             "non_operating_income_distortion_gate": True,
         }
@@ -69898,6 +70421,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     )
 
     if non_operating_income_guard.get("active"):
+        _v255_eps_only_released = bool(non_operating_income_guard.get("primary_source_eps_normalization_released"))
         fair_value = {
             **(fair_value or {}),
             "available": False,
@@ -69909,8 +70433,15 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "potential_pct": None,
             "valuation_method": None,
             "note": (
-                "Fair Value V1 gesperrt: Materiale nicht-operative Ergebnisbeiträge verzerren Nettomarge, Gewinnwachstum und GAAP-EPS. "
-                "Der Standard-EPS×KGV-Pfad darf erst nach einer Prüfung auf gleicher operativer/normalisierter Ergebnisbasis wieder freigegeben werden."
+                (
+                    "Fair Value V1 gesperrt: V255 hat die TTM-EPS-Basis primärquellenbasiert normalisiert, aber Nettomarge, Gewinnwachstum und der generische Score "
+                    "sind noch nicht auf derselben normalisierten Ergebnisbasis neu aufgebaut. Deshalb bleibt der Standard-EPS×KGV-Pfad gesperrt."
+                )
+                if _v255_eps_only_released else
+                (
+                    "Fair Value V1 gesperrt: Materiale nicht-operative Ergebnisbeiträge verzerren Nettomarge, Gewinnwachstum und GAAP-EPS. "
+                    "Der Standard-EPS×KGV-Pfad darf erst nach einer Prüfung auf gleicher operativer/normalisierter Ergebnisbasis wieder freigegeben werden."
+                )
             ),
         }
 
@@ -70289,6 +70820,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         "eps_normalization": eps_normalization,
         "special_event_warning": special_event_warning,
         "non_operating_income_guard": non_operating_income_guard,
+        "non_operating_primary_normalization": non_operating_primary_normalization,
         "branded_consumer_family_gate": branded_consumer_family_gate,
         "growth_score": growth_score,
         "profitability_score": profitability_score,
@@ -71533,7 +72065,7 @@ if selected_symbol:
                         payments_processor_provider_eps_ui = bool((data.get("payments_processor_foundation_model") or {}).get("applicable"))
                         specialist_provider_eps_ui = capital_goods_provider_eps_ui or exchange_provider_eps_ui or payment_network_provider_eps_ui or payments_processor_provider_eps_ui
                         st.metric(
-                            "Analystenkonsens laufendes Geschäftsjahr (nur Kontext)" if payments_processor_provider_eps_ui else ("EPS Provider-0Y/current-FY (Diagnosekontext)" if specialist_provider_eps_ui else "EPS Bewertungsbasis (aktuelles FY)"),
+                            "Analystenkonsens laufendes Geschäftsjahr (nur Kontext)" if payments_processor_provider_eps_ui else ("EPS Provider-0Y/current-FY (Diagnosekontext)" if specialist_provider_eps_ui else ("FY-Analystenkonsens-EPS (ungeprüfter Diagnosewert)" if bool((data.get("non_operating_income_guard") or {}).get("active")) else "EPS Bewertungsbasis (aktuelles FY)")),
                             format_eps(
                                 data.get("valuation_forward_eps"),
                                 financial_currency
@@ -72455,7 +72987,7 @@ if selected_symbol:
                         normalized_eps_label = f"Versicherungs-{insurance_model_eps_ui.get('earnings_ttm_label') or 'TTM'}-EPS"
                     else:
                         normalized_eps = eps_result["normalized_eps"]
-                        normalized_eps_label = ("Standard-normalisiertes EPS (nur Kontext)" if (bank_eps_context_ui or insurance_eps_context_ui or capital_goods_eps_context_ui or exchange_eps_context_ui or universal_family_eps_context_ui or is_semicap_family_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or upstream_ep_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or professional_services_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")
+                        normalized_eps_label = ("Primärquellen-normalisiertes TTM-EPS (nur Gewinnbasis)" if bool((data.get("non_operating_income_guard") or {}).get("primary_source_eps_normalization_released")) else ("Standard-normalisiertes EPS (nur Kontext)" if (bank_eps_context_ui or insurance_eps_context_ui or capital_goods_eps_context_ui or exchange_eps_context_ui or universal_family_eps_context_ui or is_semicap_family_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or upstream_ep_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or professional_services_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS"))
 
                     if normalized_eps is not None:
 
@@ -72474,18 +73006,20 @@ if selected_symbol:
                             "EPS berechenbar."
                         )
                         if bool((data.get("non_operating_income_guard") or {}).get("active")):
-                            _v254_guard_ui = data.get("non_operating_income_guard") or {}
-                            _v254_diag_eps_ui = safe_float(_v254_guard_ui.get("diagnostic_normalized_eps"))
+                            _v255_guard_ui = data.get("non_operating_income_guard") or {}
+                            _v255_primary_ui = data.get("non_operating_primary_normalization") or {}
+                            _v255_diag_eps_ui = safe_float(_v255_guard_ui.get("diagnostic_normalized_eps"))
                             st.info(
-                                "V254 Vergleichsbasis-Schutz: Das zuvor aus Provider-TTM und Current-FY-Konsens berechnete "
-                                "Misch-EPS wird nicht mehr als normalisierte Gewinnbasis veröffentlicht. Materielle nicht-operative "
-                                "Ergebnisbeiträge müssen zuerst periodenrein über Primärquellen normalisiert werden; eine Steuerwirkung "
-                                "wird nicht geschätzt."
+                                "V255 Vergleichsbasis-Schutz: Der frühere Provider-TTM/Current-FY-Mischwert bleibt verworfen. "
+                                "Eine Primärquellen-EPS-Basis wird nur freigegeben, wenn FY, Vorjahres-YTD und aktuelles YTD periodenrein, "
+                                "die nicht-operativen Equity-Gewinne dominant und die Steuerwirkung ausdrücklich aus Primärquellen belegt sind."
                             )
-                            if _v254_diag_eps_ui is not None:
+                            if _v255_primary_ui.get("reason"):
+                                st.caption("Primärquellenstatus: " + str(_v255_primary_ui.get("reason")))
+                            if _v255_diag_eps_ui is not None:
                                 st.caption(
-                                    "Verworfener Vor-Guard-Diagnosewert: "
-                                    + format_eps(_v254_diag_eps_ui, financial_currency)
+                                    "Verworfener Vor-Schutzregel-Diagnosewert: "
+                                    + format_eps(_v255_diag_eps_ui, financial_currency)
                                     + " · ausschließlich zur Fehlerdiagnose, nicht als Bewertungsanker."
                                 )
 
@@ -73061,9 +73595,22 @@ if selected_symbol:
 
                     elif bool((data.get("non_operating_income_guard") or {}).get("active")):
 
-                        st.error(
-                            "EPS-Normalisierung: **gesperrt** · Vergleichsbasis-Normalisierung aus Primärquellen erforderlich"
-                        )
+                        if bool((data.get("non_operating_income_guard") or {}).get("primary_source_eps_normalization_released")):
+                            st.warning(
+                                "EPS-Normalisierung: **primärquellenbasiert freigegeben** · Gesamtbewertung weiterhin gesperrt"
+                            )
+                            _v255_primary_eps_ui = data.get("non_operating_primary_normalization") or {}
+                            _v255_tax_rate_ui = safe_float(_v255_primary_eps_ui.get("statutory_tax_rate"))
+                            _v255_coverage_ui = safe_float(_v255_primary_eps_ui.get("unrealized_coverage_ratio"))
+                            if _v255_tax_rate_ui is not None and _v255_coverage_ui is not None:
+                                st.caption(
+                                    f"V255 Primärquellenprüfung: statutory tax rate {_v255_tax_rate_ui*100:.1f} % · "
+                                    f"unrealisierte Equity-Gewinne decken {_v255_coverage_ui*100:.1f} % des periodenreinen TTM-Equity-Gain-Beitrags ab."
+                                )
+                        else:
+                            st.error(
+                                "EPS-Normalisierung: **gesperrt** · periodenreine Primärquellen-Normalisierung erforderlich"
+                            )
 
                     elif confidence == "Hoch":
 
@@ -73465,11 +74012,22 @@ if selected_symbol:
                                     "Die Earnings-Basis wird erst im jeweiligen freigegebenen Family-Specialist-Modell definiert."
                                 )
                         else:
-                            st.caption(
-                                "Dieser Wert ist noch kein Fair Value. "
-                                "Er bildet nur die Gewinnbasis für die "
-                                "spätere Bewertung."
-                            )
+                            if bool((data.get("non_operating_income_guard") or {}).get("active")):
+                                if bool((data.get("non_operating_income_guard") or {}).get("primary_source_eps_normalization_released")):
+                                    st.caption(
+                                        "V255 hat ausschließlich die TTM-EPS-Gewinnbasis normalisiert. Nettomarge, Gewinnwachstum und die generische Qualitätspunktzahl "
+                                        "sind noch nicht auf derselben Basis normalisiert; deshalb bleiben KGV, fairer Wert und Signal gesperrt."
+                                    )
+                                else:
+                                    st.caption(
+                                        "Es ist weiterhin keine freigegebene Gewinnbasis vorhanden. KGV, fairer Wert und Signal bleiben vollständig gesperrt."
+                                    )
+                            else:
+                                st.caption(
+                                    "Dieser Wert ist noch kein Fair Value. "
+                                    "Er bildet nur die Gewinnbasis für die "
+                                    "spätere Bewertung."
+                                )
 
                     st.divider()
 
@@ -77819,10 +78377,15 @@ if selected_symbol:
                                 "ohne bestandenes Datengate bleibt das Familien-Ziel-KGV unverändert."
                             )
                         else:
-                            st.info(
-                                "Noch keine automatische Peer-Gruppe "
-                                "für diesen Unternehmenstyp hinterlegt."
-                            )
+                            if bool((data.get("non_operating_income_guard") or {}).get("active")):
+                                st.info(
+                                    "Vergleichsgruppe während der Schutzregel deaktiviert; sie kann die gesperrte normalisierte Score-/Ergebnisbasis nicht ersetzen."
+                                )
+                            else:
+                                st.info(
+                                    "Noch keine automatische Peer-Gruppe "
+                                    "für diesen Unternehmenstyp hinterlegt."
+                                )
 
                     st.caption(
                         peer_group["note"]
@@ -77899,12 +78462,18 @@ if selected_symbol:
                                 "Es gibt weder Peer-Gate noch übertragenen DSW-Korridor; Spezialscore, Ziel-KGV und Fair Value bleiben fail-closed."
                             )
                     else:
-                        st.caption(
-                            "Schritt 2A verändert weder Multiple Score "
-                            "noch Fundamental-Multiple. Peer-Median und "
-                            "maximale ±5-%-Anpassung folgen erst nach "
-                            "Prüfung der tatsächlichen Peer-Daten."
-                        )
+                        if bool((data.get("non_operating_income_guard") or {}).get("active")):
+                            st.caption(
+                                "Schritt 2A ist während der Schutzregel vollständig nachgeordnet. Es wird keine Vergleichsgruppe zur Freigabe von Score, "
+                                "Standard-Multiple oder fairem Wert verwendet."
+                            )
+                        else:
+                            st.caption(
+                                "Schritt 2A verändert weder Multiple Score "
+                                "noch Fundamental-Multiple. Peer-Median und "
+                                "maximale ±5-%-Anpassung folgen erst nach "
+                                "Prüfung der tatsächlichen Peer-Daten."
+                            )
 
                     st.divider()
 
@@ -78414,7 +78983,7 @@ if selected_symbol:
                             peer_explain = f"Professional & Business Services {APP_BUILD_VERSION}: Noch keine freigegebene Peer-Gruppe und noch kein issuer-primary Spezialanker für diesen Emittenten. Peer-Daten können die fehlende Spezialbasis nicht ersetzen; Fair Value bleibt fail-closed."
                     elif bool((data.get("non_operating_income_guard") or {}).get("active")):
                         peer_explain = (
-                            "Non-Operating-Income-Guard aktiv: Peer-KGVs können eine gesperrte Earnings-Basis nicht ersetzen. "
+                            "Non-Operating-Income-Guard aktiv: Peer-KGVs können eine noch unvollständig normalisierte Gesamtbewertungsbasis nicht ersetzen. "
                             "Es gilt hier keine Peer-Mindestanzahl zur Freigabe; weder Median noch Peer-Anpassung dürfen Standard-Multiple oder Fair Value erzeugen."
                         )
                     else:
@@ -78478,10 +79047,15 @@ if selected_symbol:
                                 "die Peer-Schicht erzeugt selbst keinen Fair Value."
                             )
                     else:
-                        st.caption(
-                            "Die Vergleichsgruppen-Prüfung erzeugt selbst noch keinen fairen Wert. "
-                            "Die eigentliche Berechnung des fairen Werts folgt separat."
-                        )
+                        if bool((data.get("non_operating_income_guard") or {}).get("active")):
+                            st.caption(
+                                "Im Schutzregel-Zustand findet keine freigabewirksame Vergleichsgruppen-Prüfung statt; fairer Wert und Signal bleiben gesperrt."
+                            )
+                        else:
+                            st.caption(
+                                "Die Vergleichsgruppen-Prüfung erzeugt selbst noch keinen fairen Wert. "
+                                "Die eigentliche Berechnung des fairen Werts folgt separat."
+                            )
 
                     st.divider()
 
