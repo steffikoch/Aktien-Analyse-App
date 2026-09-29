@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.56"
+APP_BUILD_VERSION = "V2.23.57"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Non-Operating Earnings Distortion Safety Gate V252"
+    f"Build {APP_BUILD_VERSION} · Non-Operating Earnings Distortion Score Isolation V253"
 )
 
 
@@ -67747,6 +67747,48 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         fcf_score = {**fcf_score, "context_score": fcf_score.get("score"), "score": None, "note": "Upstream-E&P-Spezialmodell: Yahoo-/Statement-FCF bleibt Diagnosekontext; ausschließlich primärquellenbasierter FCF nach transparenter Emittentendefinition steuert Familienpunktzahl und FCF-Yield-Anker."}
         balance_score = {**balance_score, "context_score": balance_score.get("score"), "score": None, "note": "Upstream-E&P-Spezialmodell: generischer Net-Debt/FCF-Score ist gesperrt; Net Debt/normalisiertes Adjusted EBITDA, Liquidity und PV-10-Safety werden separat bewertet."}
 
+    # V253 – a red non-operating-income distortion gate must isolate the entire
+    # generic 100-point score, not merely the final multiple/fair value. Raw
+    # provider metrics remain visible as diagnostics, but point totals cannot be
+    # mistaken for a released valuation-quality score.
+    if non_operating_income_guard.get("active"):
+        growth_score = {
+            **growth_score,
+            "context_score": growth_score.get("score"),
+            "score": None,
+            "note": (
+                "Nicht-operative Ergebnisverzerrung: Umsatzwachstum bleibt Diagnosekontext; "
+                "Gewinnwachstum und der generische Wachstums-Punktwert sind bis zur same-basis Ergebnisnormalisierung gesperrt."
+            ),
+        }
+        profitability_score = {
+            **profitability_score,
+            "context_score": profitability_score.get("score"),
+            "score": None,
+            "brake_text": (
+                "Nicht-operative Ergebnisverzerrung: Nettomarge und ROE bleiben Diagnosekontext; "
+                "der generische Profitabilitäts-Punktwert ist bis zur operativen/normalisierten Ergebnisbasis gesperrt."
+            ),
+        }
+        fcf_score = {
+            **fcf_score,
+            "context_score": fcf_score.get("score"),
+            "score": None,
+            "note": (
+                "Nicht-operative Ergebnisverzerrung: Cashflow-Statement-FCF bleibt Diagnosekontext. "
+                "Solange die Ergebnisbasis nicht same-basis normalisiert ist, wird daraus kein generischer FCF-Punktwert für ein Standard-Multiple freigegeben."
+            ),
+        }
+        balance_score = {
+            **balance_score,
+            "context_score": balance_score.get("score"),
+            "score": None,
+            "note": (
+                "Nicht-operative Ergebnisverzerrung: Cash, Debt und Netto-Cash bleiben Diagnosekontext. "
+                "Der generische Bilanz-Punktwert wird nicht mit gesperrten Ergebnis-/FCF-Punkten zu einem 100-Punkte-Score kombiniert."
+            ),
+        }
+
     fundamental_multiple = calculate_fundamental_multiple(
         company_type,
         growth_score,
@@ -68386,6 +68428,20 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         fundamental_symbol,
         fundamental_info.get("industry") or quote_info.get("industry")
     )
+
+    if non_operating_income_guard.get("active"):
+        peer_group = {
+            **(peer_group or {}),
+            "available": False,
+            "peers": [],
+            "count": 0,
+            "non_operating_income_guard": True,
+            "note": (
+                "Non-Operating-Income-Guard aktiv: Eine Vergleichsgruppe kann die gesperrte operative/normalisierte "
+                "Gewinnbasis nicht ersetzen. Es wird weder ein Peer-Median noch eine Peer-Anpassung zur Freigabe eines "
+                "Standard-Multiples oder Fair Values verwendet."
+            ),
+        }
 
     if (
         (peer_group or {}).get("peer_model") == "payments_processor_model_adjusted_calibration_v4"
@@ -73968,6 +74024,7 @@ if selected_symbol:
                     is_capital_goods_score_ui = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
                     is_exchange_score_ui = bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable"))
                     is_universal_family_score_ui = is_universal_family_fail_closed(company_type)
+                    is_non_operating_guard_score_ui = bool((data.get("non_operating_income_guard") or {}).get("active"))
 
                     if is_bkr_score_ui:
                         st.info(
@@ -74136,6 +74193,12 @@ if selected_symbol:
                             "Der intern verfügbare Standard-Wachstumsscore hat bei Versicherungen keinen Einfluss "
                             "auf Bewertungs-Multiple, Fair Value oder Signal."
                         )
+                    elif is_non_operating_guard_score_ui:
+                        st.warning(
+                            "Non-Operating-Income-Guard: Der generische Wachstums-Punktwert ist gesperrt. "
+                            "Umsatzwachstum bleibt Roh-/Diagnosekontext; Gewinnwachstum wird nicht bepunktet, bis eine same-basis operative Gewinnbasis vorliegt."
+                        )
+                        st.caption(growth_result.get("note"))
                     elif growth_result["score"] is not None:
 
                         st.metric(
@@ -74220,7 +74283,7 @@ if selected_symbol:
                                 "nicht berechenbar."
                             )
 
-                    if not is_capital_goods_score_ui and not is_universal_family_score_ui and not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_payment_network_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_oilfield_services_score_ui and not is_integrated_oil_gas_score_ui and not is_upstream_ep_score_ui and not is_branded_consumer_staples_score_ui and not is_asset_management_score_ui and not is_professional_services_score_ui and not is_defense_high_growth_score_ui and not is_exchange_score_ui:
+                    if not is_non_operating_guard_score_ui and not is_capital_goods_score_ui and not is_universal_family_score_ui and not is_bank_score_ui and not is_insurance_score_ui and not is_reit_score_ui and not is_midstream_score_ui and not is_auto_score_ui and not is_semicap_score_ui and not is_nvidia_score_ui and not is_bkr_score_ui and not is_adjusted_specialist_score_ui and not is_utility_specialist_score_ui and not is_payment_network_score_ui and not is_turnaround_postmerger_score_ui and not is_gold_precious_metals_score_ui and not is_toyo_solar_score_ui and not is_luxury_premium_score_ui and not is_oilfield_services_score_ui and not is_integrated_oil_gas_score_ui and not is_upstream_ep_score_ui and not is_branded_consumer_staples_score_ui and not is_asset_management_score_ui and not is_professional_services_score_ui and not is_defense_high_growth_score_ui and not is_exchange_score_ui:
                         st.caption(
                             "Modul 5 wird schrittweise aufgebaut. "
                             "Wachstum liefert maximal 30 Punkte. "
@@ -74264,6 +74327,7 @@ if selected_symbol:
                     is_capital_goods_profitability_ui = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
                     is_exchange_profitability_ui = bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable"))
                     is_universal_family_profitability_ui = is_universal_family_fail_closed(company_type)
+                    is_non_operating_guard_profitability_ui = bool((data.get("non_operating_income_guard") or {}).get("active"))
 
                     if is_upstream_ep_profitability_ui:
                         ep_prof_ui = (data.get("upstream_ep_specialist_model") or {}).get("specialist_score") or {}
@@ -74413,6 +74477,12 @@ if selected_symbol:
                                 + f"{insurance_score_profit_ui.get('core_roe_points')}/30 Punkte "
                                 + f"bei {insurance_score_profit_ui.get('core_roe_pct'):.1f} %"
                             )
+                    elif is_non_operating_guard_profitability_ui:
+                        st.warning(
+                            "Non-Operating-Income-Guard: Nettomarge, ROE und der generische Profitabilitäts-Punktwert bleiben Diagnosekontext. "
+                            "Sie werden nicht als Multiple-Qualität interpretiert, solange der nicht-operative Ergebnisanteil nicht bereinigt ist."
+                        )
+                        st.caption(profitability_result.get("brake_text"))
                     elif profitability_result["score"] is not None:
 
                         st.metric(
@@ -74546,6 +74616,7 @@ if selected_symbol:
                         and not is_capital_goods_profitability_ui
                         and not is_exchange_profitability_ui
                         and not is_payment_network_profitability_ui
+                        and not is_non_operating_guard_profitability_ui
                     ):
                         st.caption(
                             "Die Profitabilität basiert derzeit auf "
@@ -74565,6 +74636,7 @@ if selected_symbol:
                         "fcf_score"
                     ]
                     is_upstream_ep_fcf_score_ui = bool((data.get("upstream_ep_specialist_model") or {}).get("applicable"))
+                    is_non_operating_guard_fcf_ui = bool((data.get("non_operating_income_guard") or {}).get("active"))
 
                     if is_upstream_ep_fcf_score_ui:
                         ep_cash_ui = data.get("upstream_ep_specialist_model") or {}; ep_cash_score_ui = ep_cash_ui.get("specialist_score") or {}; ep_cash_comp_ui = ep_cash_score_ui.get("components") or {}; ep_cash_metrics_ui = ep_cash_ui.get("metrics") or {}
@@ -74579,6 +74651,12 @@ if selected_symbol:
                                 st.caption(f"H1 primärquellenbasiertes FCF-Wachstum: {_ep_fcf_growth_ui:+.1f}% · H1-Abdeckung der FY2026-FCF-Guidance: {_ep_fcf_cov_ui:.1f}%.")
                             else:
                                 st.caption(f"H1 primärquellenbasiertes FCF-Wachstum: {_ep_fcf_growth_ui:+.1f}% · Kein explizites FY-FCF-Ziel: annualisierte H1-Forward-Basis, Quellenqualität {_ep_fcf_basis_pts_ui:.0f}/10; anschließend 75–125%-Zyklus-Cap.")
+                    elif is_non_operating_guard_fcf_ui:
+                        st.warning(
+                            "Non-Operating-Income-Guard: Der Cashflow-Statement-FCF bleibt als Diagnosewert sichtbar, "
+                            "liefert aber keinen generischen 25-Punkte-Baustein und kann den gesperrten Earnings-Pfad nicht ersetzen."
+                        )
+                        st.caption(fcf_result.get("note"))
                     elif fcf_result["score"] is not None:
 
                         st.metric(
@@ -74904,6 +74982,7 @@ if selected_symbol:
                         and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                         and not bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
                         and not bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable"))
+                        and not is_non_operating_guard_fcf_ui
                     ):
                         st.caption(
                             "Die FCF-Punkte basieren auf der aktuellen "
@@ -74922,6 +75001,7 @@ if selected_symbol:
                         "balance_score"
                     ]
                     is_upstream_ep_balance_ui = bool((data.get("upstream_ep_specialist_model") or {}).get("applicable"))
+                    is_non_operating_guard_balance_ui = bool((data.get("non_operating_income_guard") or {}).get("active"))
 
                     if is_upstream_ep_balance_ui:
                         ep_bal_ui = data.get("upstream_ep_specialist_model") or {}; ep_bal_score_ui = ep_bal_ui.get("specialist_score") or {}; ep_bal_comp_ui = ep_bal_score_ui.get("components") or {}; ep_bal_metrics_ui = ep_bal_ui.get("metrics") or {}
@@ -74932,6 +75012,12 @@ if selected_symbol:
                             st.write(f"**Reserves / PV-10:** {r_ep.get('points')}/{r_ep.get('max_points')} Punkte")
                             st.caption(f"Net Debt / normalisiertes Adjusted EBITDA: {safe_float(ep_bal_metrics_ui.get('net_debt_to_normalized_ebitda')):.2f}× · Reserve Life: {safe_float(ep_bal_metrics_ui.get('reserve_life_years')):.1f} Jahre.")
                             st.success(f"Upstream-E&P Familien-Qualitätspunktzahl: **{int(ep_bal_score_ui.get('score'))}/100 Punkte · {text_or_dash(ep_bal_score_ui.get('quality_level'))}**")
+                    elif is_non_operating_guard_balance_ui:
+                        st.warning(
+                            "Non-Operating-Income-Guard: Cash, Schulden und Netto-Cash bleiben Diagnosekontext; "
+                            "es wird kein generischer Bilanz-Punktwert und kein 100-Punkte-Gesamtscore veröffentlicht."
+                        )
+                        st.caption(balance_result.get("note"))
                     elif balance_result["score"] is not None:
 
                         st.metric(
@@ -78262,6 +78348,11 @@ if selected_symbol:
                             peer_explain = f"Professional & Business Services {APP_BUILD_VERSION}: Noch keine freigegebene Peer-Gruppe. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Peer-Anpassung; der freigegebene Fair Value bleibt issuer-primary."
                         else:
                             peer_explain = f"Professional & Business Services {APP_BUILD_VERSION}: Noch keine freigegebene Peer-Gruppe und noch kein issuer-primary Spezialanker für diesen Emittenten. Peer-Daten können die fehlende Spezialbasis nicht ersetzen; Fair Value bleibt fail-closed."
+                    elif bool((data.get("non_operating_income_guard") or {}).get("active")):
+                        peer_explain = (
+                            "Non-Operating-Income-Guard aktiv: Peer-KGVs können eine gesperrte Earnings-Basis nicht ersetzen. "
+                            "Es gilt hier keine Peer-Mindestanzahl zur Freigabe; weder Median noch Peer-Anpassung dürfen Standard-Multiple oder Fair Value erzeugen."
+                        )
                     else:
                         peer_explain = "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
 
@@ -78289,7 +78380,13 @@ if selected_symbol:
                                 "fehlende/zu wenige Peer-Daten blockieren die Spezialbewertung nicht und begrenzen nicht die Bewertungssicherheit. " + peer_explain
                             )
                     else:
-                        st.caption("Die Vergleichsgruppen-Prüfung ist nur ein externer Realitätscheck. Sie verändert die 100-Punkte-Qualitätspunktzahl nicht. " + peer_explain)
+                        if bool((data.get("non_operating_income_guard") or {}).get("active")):
+                            st.warning(
+                                "Non-Operating-Income-Guard hat Vorrang: Die Peer-Schicht ist vollständig nachgeordnet und kann weder Score, "
+                                "Earnings-Basis, Standard-Multiple noch Fair Value freigeben. " + peer_explain
+                            )
+                        else:
+                            st.caption("Die Vergleichsgruppen-Prüfung ist nur ein externer Realitätscheck. Sie verändert die 100-Punkte-Qualitätspunktzahl nicht. " + peer_explain)
 
                     if peer_check.get("reference_only"):
                         if is_exchange_peer_metric:
