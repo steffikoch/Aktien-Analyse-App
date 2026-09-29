@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.50"
+APP_BUILD_VERSION = "V2.23.51"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Upstream E&P Zweitvalidierung & Corporate-Action-Gate V246"
+    f"Build {APP_BUILD_VERSION} · Upstream E&P Antero Zweitvalidierung V247"
 )
 
 
@@ -8931,23 +8931,34 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
                 else "Provider-First Insurance-Modell: strukturiertes TTM-EPS + 1,0–2,8× P/B + 8,0–14,0× TTM-KGV Doppelanker; Primärquellen optionales Sicherheits-Upgrade"
             )
         elif family_id == "upstream_ep":
-            # V245: first end-to-end validation issuer for the reusable Upstream-E&P
-            # architecture. EQT may use the family score + dual-anchor math because
-            # its full issuer-primary evidence contract is available. Other E&P names
-            # remain evidence-gated and may never fall back to the industrial model.
+            # V247: EQT and Antero are independent end-to-end validation issuers
+            # for the same reusable Upstream-E&P family contract. Expand has a verified
+            # adapter but remains corporate-action gated after Twin Eagle. All other
+            # names stay evidence-gated and may never fall back to the industrial model.
             _upstream_symbol = str(symbol or "").upper().strip()
             out["type"] = "Upstream E&P / Natural Gas Producer" if "natural gas" in str(business_summary or "").lower() else "Upstream E&P / Producer"
-            if _upstream_symbol == "EQT":
-                out["family_model_status"] = "first_issuer_end_to_end_validation"
+            if _upstream_symbol in {"EQT", "AR"}:
+                out["family_model_status"] = "multi_issuer_end_to_end_validation"
                 out["family_model_ready"] = True
                 out["family_model_released"] = False
-                out["family_validation_status"] = "eqt_upstream_ep_dual_anchor_v1"
+                out["family_validation_status"] = "eqt_antero_upstream_ep_dual_anchor_v1"
                 out["universal_family_fail_closed"] = False
                 out["confidence_cap"] = "Mittel"
                 out["method"] = (
-                    "Upstream-E&P Spezialmodell V1 (Validierungsissuer): 100-Punkte Familienqualität + normalisierter issuer-FCF-Yield-Anker + "
+                    "Upstream-E&P Spezialmodell V1 (Mehr-Emittenten-Validierung): 100-Punkte Familienqualität + normalisierter issuer-FCF-Yield-Anker + "
                     "EV/Adjusted-EBITDA-Anker; Net Debt wird explizit abgezogen, PV-10/Reserven wirken nur als Asset-Sicherheitscheck. "
-                    "Peer-KGVs und Analystenziele bleiben reference-only; Familienfreigabe für weitere Emittenten folgt erst nach unabhängiger Zweitvalidierung."
+                    "Peer-KGVs und Analystenziele bleiben reference-only; EQT und Antero validieren denselben Familienvertrag unabhängig."
+                )
+            elif _upstream_symbol == "EXE":
+                out["family_model_status"] = "issuer_evidence_corporate_action_gate"
+                out["family_model_ready"] = False
+                out["family_model_released"] = False
+                out["family_validation_status"] = "expand_twin_eagle_scope_gate_v1"
+                out["universal_family_fail_closed"] = True
+                out["confidence_cap"] = "Mittel"
+                out["method"] = (
+                    "Upstream-E&P Primärdatenadapter vorhanden; Doppelanker wegen abgeschlossener Twin-Eagle-Übernahme nach Q2 bewusst gesperrt, "
+                    "bis pro-forma oder post-close FCF/EBITDA/Net-Debt auf einheitlicher Unternehmensbasis vorliegen."
                 )
             else:
                 out["family_model_status"] = "defined_unreleased"
@@ -42736,8 +42747,8 @@ def build_integrated_oil_gas_special_control(control, specialist_model):
 
 
 # =========================================================
-# V2.23.50 – Upstream E&P Specialist Family Model V1
-# Second validation: Expand Energy (EXE) + post-quarter corporate-action gate
+# V2.23.51 – Upstream E&P Specialist Family Model V1
+# Second end-to-end validation: Antero Resources (AR) + reusable scope-normalization gate
 # =========================================================
 
 def is_upstream_ep_specialist_type(company_type, symbol=None):
@@ -42795,6 +42806,78 @@ def get_verified_upstream_ep_snapshot(symbol):
             "proved_developed_reserves_tcfe": 18.576,
             "fy2025_production_tcfe": 2.622,
             "pv10_usd_bn": 19.374,
+            "valuation_confidence_cap": "Mittel",
+        }
+    if sym == "AR":
+        return {
+            "company": "Antero Resources Corporation",
+            "symbol": "AR",
+            "specialist_profile": "Appalachian Natural Gas/NGL E&P; HG Energy seit 03.02.2026 integriert, Juli-2026 Marcellus-Zukäufe in aktualisierter Guidance enthalten",
+            "reporting_currency": "USD",
+            "as_of_date": "30.06.2026",
+            "published_date": "29.07.2026",
+            "quarterly_source_name": "Antero Resources Q2 2026 Results",
+            "quarterly_source_url": "https://www.anteroresources.com/investors/press-releases/detail/259/antero-resources-announces-second-quarter-2026-financial",
+            "annual_source_name": "Antero Resources FY2025 Results & 2026 Guidance",
+            "annual_source_url": "https://www.anteroresources.com/investors/press-releases/detail/255/antero-resources-announces-fourth-quarter-2025-results-and",
+            "scope_normalization_note": "Die im Juli 2026 abgeschlossenen Marcellus-Zukäufe über rund 315 Mio. USD sind in der am 29.07.2026 angehobenen Produktions-Guidance enthalten. Für den EV-Anker wird der bekannte Kaufpreis konservativ vollständig zur Q2-Net-Debt-Basis addiert; H1 FCF/EBITDAX erhalten keinen Akquisitionsbonus.",
+            "scope_comparability_note": "Die HG-Energy-Übernahme wurde am 03.02.2026 abgeschlossen. Deshalb sind YoY-Produktionswachstum, YoY-FCF-Wachstum und die Net-Debt-Veränderung gegenüber FY2025 nicht auf gleicher Unternehmensbasis. Diese drei Veränderungskennzahlen werden im Familien-Score neutral bepunktet statt als organisches Wachstum bzw. Deleveraging gewertet.",
+            "production_growth_scope_comparable": False,
+            "fcf_growth_scope_comparable": False,
+            "net_debt_change_scope_comparable": False,
+            "post_period_acquisition_value_usd_bn": 0.315,
+            "valuation_net_debt_adjustment_usd_bn": 0.315,
+            "valuation_net_debt_adjustment_reason": "Konservative Vollzurechnung der nach Q2 abgeschlossenen Juli-2026 Marcellus-Zukäufe; aktualisierte Guidance enthält 125 MMcfe/d zusätzliche Produktion.",
+            "q2_sales_volume_bcfe": 377.104,
+            "q2_prior_sales_volume_bcfe": 312.130,
+            "h1_sales_volume_bcfe": 723.8,
+            "h1_prior_sales_volume_bcfe": 618.0,
+            "fy2026_guidance_low_bcfe": 1514.75,
+            "fy2026_guidance_high_bcfe": 1533.00,
+            "fy2026_previous_guidance_low_bcfe": 1496.50,
+            "fy2026_previous_guidance_high_bcfe": 1496.50,
+            "q2_realized_price_usd_per_mcfe": 3.54,
+            "q2_natural_gas_price_including_derivatives_usd_per_mcf": 3.18,
+            "q2_basis_differential_usd_per_mcf": -0.24,
+            "q2_basis_guidance_low_usd_per_mcf": 0.05,
+            "q2_basis_guidance_high_usd_per_mcf": 0.15,
+            "fy2026_differential_guidance_low_usd_per_mcf": 0.05,
+            "fy2026_differential_guidance_high_usd_per_mcf": 0.15,
+            "q2_operating_cost_usd_per_mcfe": 2.22,
+            "fy2026_operating_cost_guidance_low_usd_per_mcfe": 2.20,
+            "fy2026_operating_cost_guidance_high_usd_per_mcfe": 2.30,
+            "q2_capex_usd_bn": 0.296502,
+            "h1_core_capex_usd_bn": 0.518126,
+            "fy2026_core_capex_guidance_usd_bn": 1.000,
+            "h1_capex_plan_coverage_pct": 51.8126,
+            "fy2026_maintenance_capex_low_usd_bn": 0.900,
+            "fy2026_maintenance_capex_high_usd_bn": 0.900,
+            "fy2026_growth_capex_low_usd_bn": 0.100,
+            "fy2026_growth_capex_high_usd_bn": 0.300,
+            "h1_2026_fcf_attributable_usd_bn": 0.653076,
+            "h1_2025_fcf_attributable_usd_bn": 0.492916,
+            "fy2025_fcf_attributable_usd_bn": 0.766437,
+            "issuer_fcf_definition": "Adjusted Free Cash Flow before Changes in Working Capital",
+            "current_cycle_fcf_estimate_usd_bn": 1.306152,
+            "current_cycle_fcf_basis_type": "h1_annualized_before_working_capital",
+            "current_cycle_fcf_basis_note": "Kein explizites FY2026-FCF-Ziel veröffentlicht. Deshalb wird H1 2026 issuer-definierter Adjusted FCF vor Working Capital annualisiert und anschließend wie jede Current-Cycle-Basis auf 75–125% von FY2025 gedeckelt.",
+            "h1_2026_adjusted_ebitda_attributable_usd_bn": 1.318855,
+            "fy2025_adjusted_ebitda_attributable_usd_bn": 1.669277,
+            "q2_2026_net_debt_usd_bn": 2.614258,
+            "q2_2026_total_debt_usd_bn": 2.614258,
+            "fy2025_net_debt_usd_bn": 1.187976,
+            "q2_2026_liquidity_usd_bn": 1.4653,
+            "liquidity_note": "Konservativ: 1,65 Mrd. USD Revolver-Commitment minus 2,7 Mio. USD Revolver-Inanspruchnahme minus 182 Mio. USD Commercial-Paper-Backstop.",
+            "proved_reserves_tcfe": 19.149,
+            "proved_developed_reserves_tcfe": 14.400,
+            "proved_reserves_growth_pct": 7.0,
+            "fy2025_production_tcfe": 1.241,
+            "pv10_usd_bn": 9.679,
+            "q3_2026_hedged_volume_mmdth": 178.997,
+            "q4_2026_hedged_volume_mmdth": 180.964,
+            "q3_2026_hedged_volume_mmdth_per_day": 1.967,
+            "hedge_reference_gas_bcf_per_day": 2.800,
+            "current_shares_outstanding_m": 307.439,
             "valuation_confidence_cap": "Mittel",
         }
     if sym != "EQT":
@@ -42884,8 +42967,10 @@ def _upstream_ep_quality_score(snapshot, metrics):
     op_cost = safe_float(s.get("q2_operating_cost_usd_per_mcfe"))
     op_low = safe_float(s.get("fy2026_operating_cost_guidance_low_usd_per_mcfe"))
     capex_vs = safe_float(s.get("q2_capex_vs_low_guidance_pct"))
+    capex_plan_coverage = safe_float(m.get("h1_capex_plan_coverage_pct"))
     fcf_growth = safe_float(m.get("h1_fcf_growth_pct"))
     fcf_coverage = safe_float(m.get("h1_fcf_coverage_of_fy2026_guide_pct"))
+    fcf_forward_quality_pts = safe_float(m.get("fcf_forward_basis_quality_pts"))
     leverage = safe_float(m.get("net_debt_to_normalized_ebitda"))
     debt_change = safe_float(m.get("net_debt_change_vs_fy2025_pct"))
     liquidity = safe_float(s.get("q2_2026_liquidity_usd_bn"))
@@ -42894,13 +42979,21 @@ def _upstream_ep_quality_score(snapshot, metrics):
     reserve_growth = safe_float(s.get("proved_reserves_growth_pct"))
     pv10_to_debt = safe_float(m.get("pv10_to_net_debt"))
 
-    required = [q2_growth, guide_uplift, basis, basis_low, basis_high, hedge_cov, op_cost, op_low, capex_vs,
-                fcf_growth, fcf_coverage, leverage, debt_change, liquidity, reserve_life, developed_share, reserve_growth, pv10_to_debt]
-    if any(v is None for v in required):
+    capex_evidence_ok = capex_vs is not None or capex_plan_coverage is not None
+    fcf_forward_evidence_ok = fcf_coverage is not None or fcf_forward_quality_pts is not None
+    required = [q2_growth, guide_uplift, basis, basis_low, basis_high, hedge_cov, op_cost, op_low,
+                fcf_growth, leverage, debt_change, liquidity, reserve_life, developed_share, reserve_growth, pv10_to_debt]
+    if any(v is None for v in required) or not capex_evidence_ok or not fcf_forward_evidence_ok:
         out["note"] = "E&P-Familien-Punktzahl gesperrt: mindestens eine erforderliche Primärkennzahl fehlt."
         return out
 
-    production = (10 if q2_growth >= 5 else 8 if q2_growth >= 0 else 5 if q2_growth >= -5 else 2) +                  (10 if guide_uplift >= 3 else 8 if guide_uplift >= 0 else 5 if guide_uplift >= -3 else 2)
+    production_growth_scope_comparable = s.get("production_growth_scope_comparable") is not False
+    fcf_growth_scope_comparable = s.get("fcf_growth_scope_comparable") is not False
+    debt_change_scope_comparable = s.get("net_debt_change_scope_comparable") is not False
+
+    q2_growth_pts = (10 if q2_growth >= 5 else 8 if q2_growth >= 0 else 5 if q2_growth >= -5 else 2) if production_growth_scope_comparable else 8
+    guide_uplift_pts = 10 if guide_uplift >= 3 else 8 if guide_uplift >= 0 else 5 if guide_uplift >= -3 else 2
+    production = q2_growth_pts + guide_uplift_pts
 
     if basis_low <= basis <= basis_high:
         basis_pts = 10
@@ -42910,19 +43003,25 @@ def _upstream_ep_quality_score(snapshot, metrics):
         basis_pts = 7
     else:
         basis_pts = 4
-    hedge_pts = 5 if 25 <= hedge_cov <= 60 else 4 if 15 <= hedge_cov < 25 else 3 if 5 <= hedge_cov < 15 else 2
+    hedge_pts = 5 if 25 <= hedge_cov <= 75 else 4 if 15 <= hedge_cov < 25 or 75 < hedge_cov <= 90 else 3 if 5 <= hedge_cov < 15 else 2
     pricing = min(15, basis_pts + hedge_pts)
 
     cost_pts = 10 if op_cost <= op_low else 8 if op_cost <= op_low * 1.05 else 5 if op_cost <= op_low * 1.15 else 2
-    capex_pts = 10 if capex_vs <= -5 else 8 if capex_vs <= 0 else 5 if capex_vs <= 5 else 2
+    if capex_plan_coverage is not None:
+        capex_pts = 10 if 45 <= capex_plan_coverage <= 55 else 8 if 40 <= capex_plan_coverage <= 60 else 5 if 30 <= capex_plan_coverage <= 70 else 2
+    else:
+        capex_pts = 10 if capex_vs <= -5 else 8 if capex_vs <= 0 else 5 if capex_vs <= 5 else 2
     costs_capex = min(20, cost_pts + capex_pts)
 
-    fcf_growth_pts = 10 if fcf_growth >= 30 else 8 if fcf_growth >= 10 else 6 if fcf_growth >= 0 else 3
-    fcf_coverage_pts = 10 if 45 <= fcf_coverage <= 75 else 8 if 35 <= fcf_coverage < 45 or 75 < fcf_coverage <= 90 else 5
+    fcf_growth_pts = (10 if fcf_growth >= 30 else 8 if fcf_growth >= 10 else 6 if fcf_growth >= 0 else 3) if fcf_growth_scope_comparable else 6
+    if fcf_coverage is not None:
+        fcf_coverage_pts = 10 if 45 <= fcf_coverage <= 75 else 8 if 35 <= fcf_coverage < 45 or 75 < fcf_coverage <= 90 else 5
+    else:
+        fcf_coverage_pts = int(max(0, min(10, fcf_forward_quality_pts)))
     cashflow = min(20, fcf_growth_pts + fcf_coverage_pts)
 
     leverage_pts = 6 if leverage <= 1.0 else 5 if leverage <= 1.5 else 3 if leverage <= 2.0 else 1
-    delever_pts = 6 if debt_change <= -20 else 5 if debt_change <= -10 else 3 if debt_change <= 0 else 1
+    delever_pts = (6 if debt_change <= -20 else 5 if debt_change <= -10 else 3 if debt_change <= 0 else 1) if debt_change_scope_comparable else 3
     liquidity_pts = 3 if liquidity >= 2.0 else 2 if liquidity >= 1.0 else 1
     balance = min(15, leverage_pts + delever_pts + liquidity_pts)
 
@@ -42946,7 +43045,12 @@ def _upstream_ep_quality_score(snapshot, metrics):
             "Net Debt / Liquidity": {"points": balance, "max_points": 15},
             "Reserves / PV-10": {"points": reserves, "max_points": 10},
         },
-        "note": "Der E&P-Score verwendet ausschließlich issuer-native Produktions-, Preis/Hedge-, Kosten/CapEx-, FCF-, Leverage- und Reserve-Evidenz; Yahoo-Wachstum, ROE und Yahoo-FCF sind ausgeschlossen.",
+        "scope_adjustments": {
+            "production_growth_neutralized": not production_growth_scope_comparable,
+            "fcf_growth_neutralized": not fcf_growth_scope_comparable,
+            "net_debt_change_neutralized": not debt_change_scope_comparable,
+        },
+        "note": "Der E&P-Score verwendet ausschließlich issuer-native Produktions-, Preis/Hedge-, Kosten/CapEx-, FCF-, Leverage- und Reserve-Evidenz; Yahoo-Wachstum, ROE und Yahoo-FCF sind ausgeschlossen. Bei nicht vergleichbarer Konzernbasis werden Veränderungskennzahlen neutral bepunktet, statt Akquisitionswachstum zu belohnen oder akquisitionsbedingten Schuldenanstieg doppelt zu bestrafen.",
     })
     return out
 
@@ -42966,26 +43070,34 @@ def _upstream_ep_normalized_anchors(snapshot, metrics, score_data, fundamental_i
 
     fy25_fcf = safe_float(s.get("fy2025_fcf_attributable_usd_bn"))
     fy26_fcf_guide = safe_float(s.get("fy2026_fcf_guidance_usd_bn"))
+    current_cycle_fcf = fy26_fcf_guide if fy26_fcf_guide is not None else safe_float(s.get("current_cycle_fcf_estimate_usd_bn"))
+    current_cycle_fcf_source = "Explizite FY-Unternehmensprognose" if fy26_fcf_guide is not None else text_or_dash(s.get("current_cycle_fcf_basis_note"))
     fy25_ebitda = safe_float(s.get("fy2025_adjusted_ebitda_attributable_usd_bn"))
     h1_ebitda = safe_float(s.get("h1_2026_adjusted_ebitda_attributable_usd_bn"))
-    net_debt = safe_float(s.get("q2_2026_net_debt_usd_bn"))
+    net_debt_reported = safe_float(s.get("q2_2026_net_debt_usd_bn"))
+    net_debt_adjustment = safe_float(s.get("valuation_net_debt_adjustment_usd_bn")) or 0.0
+    net_debt = (net_debt_reported + net_debt_adjustment) if net_debt_reported is not None else None
     pv10 = safe_float(s.get("pv10_usd_bn"))
     score_value = safe_float(score.get("score"))
     shares = safe_float((fundamental_info or {}).get("sharesOutstanding"))
     shares_source = "Datenanbieter sharesOutstanding"
-    fallback_shares = safe_float(s.get("q4_2025_diluted_weighted_avg_shares_m"))
+    fallback_shares = safe_float(s.get("current_shares_outstanding_m"))
+    fallback_label = "Aktuelle ausstehende Aktien (Primärquelle)"
+    if fallback_shares is None:
+        fallback_shares = safe_float(s.get("q4_2025_diluted_weighted_avg_shares_m"))
+        fallback_label = "Q4 2025 diluted weighted average shares (Primärquelle)"
     fallback_shares = fallback_shares * 1e6 if fallback_shares is not None else None
     if shares is None or shares <= 0 or (fallback_shares and not (0.75 * fallback_shares <= shares <= 1.25 * fallback_shares)):
         shares = fallback_shares
-        shares_source = "Q4 2025 diluted weighted average shares (Primärquelle)"
+        shares_source = fallback_label
 
-    required = [fy25_fcf, fy26_fcf_guide, fy25_ebitda, h1_ebitda, net_debt, pv10, score_value, shares]
-    if any(v is None for v in required) or min(fy25_fcf, fy26_fcf_guide, fy25_ebitda, h1_ebitda, pv10, shares) <= 0:
+    required = [fy25_fcf, current_cycle_fcf, fy25_ebitda, h1_ebitda, net_debt, pv10, score_value, shares]
+    if any(v is None for v in required) or min(fy25_fcf, current_cycle_fcf, fy25_ebitda, h1_ebitda, pv10, shares) <= 0:
         out["note"] = "E&P-Bewertung gesperrt: FCF, EBITDA, Net Debt, PV-10, Score oder Aktienzahl unvollständig."
         return out
 
     fcf_guide_floor, fcf_guide_cap = fy25_fcf * 0.75, fy25_fcf * 1.25
-    fcf_guide_used = min(max(fy26_fcf_guide, fcf_guide_floor), fcf_guide_cap)
+    fcf_guide_used = min(max(current_cycle_fcf, fcf_guide_floor), fcf_guide_cap)
     normalized_fcf = 0.60 * fy25_fcf + 0.40 * fcf_guide_used
 
     h1_annualized = h1_ebitda * 2.0
@@ -43017,8 +43129,10 @@ def _upstream_ep_normalized_anchors(snapshot, metrics, score_data, fundamental_i
         "normalized_fcf_usd_bn": normalized_fcf,
         "fy2025_fcf_usd_bn": fy25_fcf,
         "fy2026_fcf_guide_usd_bn": fy26_fcf_guide,
+        "current_cycle_fcf_input_usd_bn": current_cycle_fcf,
+        "current_cycle_fcf_source": current_cycle_fcf_source,
         "fy2026_fcf_guide_used_usd_bn": fcf_guide_used,
-        "fcf_guide_capped": abs(fy26_fcf_guide - fcf_guide_used) > 1e-9,
+        "fcf_guide_capped": abs(current_cycle_fcf - fcf_guide_used) > 1e-9,
         "normalized_adjusted_ebitda_usd_bn": normalized_ebitda,
         "h1_annualized_adjusted_ebitda_usd_bn": h1_annualized,
         "h1_adjusted_ebitda_used_usd_bn": ebitda_run_used,
@@ -43027,6 +43141,10 @@ def _upstream_ep_normalized_anchors(snapshot, metrics, score_data, fundamental_i
         "target_ev_ebitda": target_ev_ebitda,
         "fcf_equity_anchor_usd_bn": fcf_equity,
         "ev_ebitda_enterprise_value_usd_bn": ev,
+        "reported_net_debt_usd_bn": net_debt_reported,
+        "valuation_net_debt_adjustment_usd_bn": net_debt_adjustment,
+        "valuation_net_debt_used_usd_bn": net_debt,
+        "valuation_net_debt_adjustment_reason": s.get("valuation_net_debt_adjustment_reason"),
         "ev_ebitda_equity_anchor_usd_bn": ev_equity,
         "anchor_spread_pct": anchor_spread_pct,
         "fair_equity_value_usd_bn": fair_equity,
@@ -43045,7 +43163,7 @@ def _upstream_ep_normalized_anchors(snapshot, metrics, score_data, fundamental_i
         "note": (
             "Fair Value = 60% normalisierter issuer-attributable FCF-Yield-Equity-Anker + 40% normalisierter EV/Adjusted-EBITDA-Equity-Anker. "
             "PV-10 wird nicht in den Fair Value gemischt, sondern nur als konservativer Asset-Sicherheitscheck verwendet. "
-            "Current-year FCF- und EBITDA-Run-Rates werden auf 75–125% der FY2025-Basis begrenzt, um Commodity-Spitzen nicht linear fortzuschreiben."
+            "Die Current-Cycle-FCF-Basis (explizite Guidance oder transparent annualisierter issuer-native H1-FCF, falls keine FCF-Guidance existiert) und die EBITDA-Run-Rate werden auf 75–125% der FY2025-Basis begrenzt, um Commodity-Spitzen nicht linear fortzuschreiben."
         ) if released else (
             f"E&P-Fair-Value gesperrt: Anchor Spread {anchor_spread_pct:.1f}% (max. 30%) oder PV-10-Asset-Premium {asset_premium:.2f}× (zulässig 0.65–1.65×) außerhalb des Sicherheitskorridors."
         ),
@@ -43077,13 +43195,17 @@ def build_upstream_ep_specialist_model(company_type, fundamental_info, symbol):
         out["note"] = "Upstream-E&P-Familie erkannt; noch kein verifizierter Emittenten-Primärdatenadapter verfügbar."
         return out
 
-    # V246: a completed material acquisition after the latest operating period
+    # V247: a completed material acquisition after the latest operating period
     # blocks the dual anchor until debt, cash flow and EBITDA share one scope.
     if snap.get("corporate_action_blocked"):
         out.update({
             "issuer_supported": True,
             "corporate_action_blocked": True,
             "snapshot": snap,
+            "raw_primary_evidence_present": True,
+            "evidence_blocks_complete": 0,
+            "evidence_blocks_required": 7,
+            "evidence_scope_label": "0/7 auf vergleichbarer Post-Deal-Basis freigegeben",
             "note": snap.get("corporate_action_note"),
         })
         return out
@@ -43097,12 +43219,16 @@ def build_upstream_ep_specialist_model(company_type, fundamental_info, symbol):
     maintenance_mid = (maintenance_low + maintenance_high) / 2.0 if maintenance_low is not None and maintenance_high is not None else None
     growth_mid = (growth_low + growth_high) / 2.0 if growth_low is not None and growth_high is not None else None
     total_capex_mid = (maintenance_mid + growth_mid) if maintenance_mid is not None and growth_mid is not None else None
-    net_debt = safe_float(snap.get("q2_2026_net_debt_usd_bn")); fy25_net_debt = safe_float(snap.get("fy2025_net_debt_usd_bn"))
+    net_debt_reported = safe_float(snap.get("q2_2026_net_debt_usd_bn")); net_debt_adjustment = safe_float(snap.get("valuation_net_debt_adjustment_usd_bn")) or 0.0
+    net_debt = (net_debt_reported + net_debt_adjustment) if net_debt_reported is not None else None; fy25_net_debt = safe_float(snap.get("fy2025_net_debt_usd_bn"))
     fy25_ebitda = safe_float(snap.get("fy2025_adjusted_ebitda_attributable_usd_bn")); h1_ebitda = safe_float(snap.get("h1_2026_adjusted_ebitda_attributable_usd_bn"))
     proved_reserves = safe_float(snap.get("proved_reserves_tcfe")); proved_developed = safe_float(snap.get("proved_developed_reserves_tcfe")); fy25_production = safe_float(snap.get("fy2025_production_tcfe")); pv10 = safe_float(snap.get("pv10_usd_bn"))
     q3_hedge_daily = safe_float(snap.get("q3_2026_hedged_volume_mmdth_per_day"))
-    guide_daily = guide_mid / 365.0 if guide_mid not in (None, 0) else None
+    guide_daily = safe_float(snap.get("hedge_reference_gas_bcf_per_day"))
+    if guide_daily in (None, 0):
+        guide_daily = guide_mid / 365.0 if guide_mid not in (None, 0) else None
     fcf_guide = safe_float(snap.get("fy2026_fcf_guidance_usd_bn")); h1_fcf = safe_float(snap.get("h1_2026_fcf_attributable_usd_bn"))
+    current_cycle_fcf = fcf_guide if fcf_guide is not None else safe_float(snap.get("current_cycle_fcf_estimate_usd_bn"))
     ebitda_run = h1_ebitda * 2.0 if h1_ebitda is not None else None
     ebitda_used = min(max(ebitda_run, fy25_ebitda * 0.75), fy25_ebitda * 1.25) if ebitda_run is not None and fy25_ebitda not in (None, 0) else None
     normalized_ebitda = 0.60 * fy25_ebitda + 0.40 * ebitda_used if fy25_ebitda is not None and ebitda_used is not None else None
@@ -43118,6 +43244,9 @@ def build_upstream_ep_specialist_model(company_type, fundamental_info, symbol):
         "maintenance_capex_usd_per_mcfe": ((maintenance_mid * 1e9) / (guide_mid * 1e6)) if maintenance_mid is not None and guide_mid not in (None, 0) else None,
         "h1_fcf_growth_pct": _upstream_ep_pct_change(h1_fcf, snap.get("h1_2025_fcf_attributable_usd_bn")),
         "h1_fcf_coverage_of_fy2026_guide_pct": (h1_fcf / fcf_guide * 100.0) if h1_fcf is not None and fcf_guide not in (None, 0) else None,
+        "fcf_forward_basis_quality_pts": (8.0 if fcf_guide is None and current_cycle_fcf not in (None, 0) and str(snap.get("current_cycle_fcf_basis_type") or "").startswith("h1_annualized") else None),
+        "current_cycle_fcf_input_usd_bn": current_cycle_fcf,
+        "h1_capex_plan_coverage_pct": safe_float(snap.get("h1_capex_plan_coverage_pct")),
         "net_debt_change_vs_fy2025_pct": _upstream_ep_pct_change(net_debt, fy25_net_debt),
         "net_debt_to_fy2025_adjusted_ebitda": (net_debt / fy25_ebitda) if net_debt is not None and fy25_ebitda not in (None, 0) else None,
         "net_debt_to_normalized_ebitda": (net_debt / normalized_ebitda) if net_debt is not None and normalized_ebitda not in (None, 0) else None,
@@ -43132,7 +43261,7 @@ def build_upstream_ep_specialist_model(company_type, fundamental_info, symbol):
         "pricing_basis_hedges": all(safe_float(snap.get(k)) is not None for k in ["q2_realized_price_usd_per_mcfe", "q2_basis_differential_usd_per_mcf", "q2_basis_guidance_low_usd_per_mcf", "q2_basis_guidance_high_usd_per_mcf", "q3_2026_hedged_volume_mmdth"]),
         "unit_costs": safe_float(snap.get("q2_operating_cost_usd_per_mcfe")) is not None,
         "maintenance_growth_capex": all(safe_float(snap.get(k)) is not None for k in ["fy2026_maintenance_capex_low_usd_bn", "fy2026_maintenance_capex_high_usd_bn", "fy2026_growth_capex_low_usd_bn", "fy2026_growth_capex_high_usd_bn"]),
-        "issuer_fcf": all(safe_float(snap.get(k)) is not None for k in ["h1_2026_fcf_attributable_usd_bn", "h1_2025_fcf_attributable_usd_bn", "fy2025_fcf_attributable_usd_bn", "fy2026_fcf_guidance_usd_bn"]),
+        "issuer_fcf": all(safe_float(snap.get(k)) is not None for k in ["h1_2026_fcf_attributable_usd_bn", "h1_2025_fcf_attributable_usd_bn", "fy2025_fcf_attributable_usd_bn"]) and (safe_float(snap.get("fy2026_fcf_guidance_usd_bn")) is not None or safe_float(snap.get("current_cycle_fcf_estimate_usd_bn")) is not None),
         "net_debt_leverage": all(safe_float(snap.get(k)) is not None for k in ["q2_2026_net_debt_usd_bn", "fy2025_net_debt_usd_bn", "fy2025_adjusted_ebitda_attributable_usd_bn", "q2_2026_liquidity_usd_bn"]),
         "reserves_pv10": all(safe_float(snap.get(k)) is not None for k in ["proved_reserves_tcfe", "fy2025_production_tcfe", "pv10_usd_bn"]),
     }
@@ -43156,10 +43285,10 @@ def build_upstream_ep_specialist_model(company_type, fundamental_info, symbol):
         "specialist_score": score,
         "specialist_valuation": valuation,
         "note": (
-            "EQT ist der erste end-to-end Validierungsissuer des wiederverwendbaren Upstream-E&P-Modells. Der 100-Punkte-Score und beide Bewertungsanker sind für diesen Titel freigegeben; "
-            "weitere E&P-Emittenten bleiben bis zur eigenen Primärdatenvalidierung fail-closed. Die globale Familienfreigabe folgt erst nach unabhängiger Zweitvalidierung."
+            f"{snap.get('company') or symbol} durchläuft denselben wiederverwendbaren Upstream-E&P-Familienvertrag. EQT und Antero sind unabhängige End-to-End-Validierungsissuer; "
+            "weitere E&P-Emittenten bleiben bis zur eigenen Primärdatenvalidierung fail-closed. Die globale Familienfreigabe bleibt bis zum Abschluss der Zweitvalidierung offen."
             if valuation.get("available") else
-            "EQT-Primärdatenvertrag ist vorhanden, aber mindestens ein Score-/Anchor-/PV-10-Sicherheitsgate sperrt den Fair Value."
+            f"{snap.get('company') or symbol}: Primärdatenvertrag ist vorhanden, aber mindestens ein Score-/Anchor-/PV-10-Sicherheitsgate sperrt den Fair Value."
         ),
     })
     return out
@@ -70555,10 +70684,15 @@ if selected_symbol:
                                 "Der gemeinsame KPI-Rahmen, die 100-Punkte-Familien-Qualitätspunktzahl, die Gewinnbasis des laufenden Geschäftsjahres, der 8–30× KGV-Korridor, der eigene faire Wert und die Bewertungszonen sind freigegeben. "
                                 "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 und die Zahlungsabwickler-Signal-Logik V1 sind freigegeben."
                             )
-                        if (company_type or {}).get("family_validation_status") == "eqt_upstream_ep_dual_anchor_v1":
+                        if (company_type or {}).get("family_validation_status") == "eqt_antero_upstream_ep_dual_anchor_v1":
                             st.success(
-                                "Upstream-E&P First-Issuer-Validierung aktiv: EQT besitzt einen vollständigen Primärdatenadapter und darf den wiederverwendbaren Dual-Anchor end-to-end testen. "
-                                "Andere E&P-Emittenten bleiben bis zur eigenen Evidence-Validierung fail-closed; dies ist noch keine globale Familienfreigabe."
+                                "Upstream-E&P Mehr-Emittenten-Validierung aktiv: EQT und Antero besitzen unabhängige vollständige Primärdatenadapter und durchlaufen denselben FCF-Yield-/EV-EBITDA-Doppelanker. "
+                                "Andere E&P-Emittenten bleiben bis zur eigenen Evidenzvalidierung fail-closed; die globale Familienfreigabe bleibt noch offen."
+                            )
+                        elif (company_type or {}).get("family_validation_status") == "expand_twin_eagle_scope_gate_v1":
+                            st.warning(
+                                "Expand Energy besitzt einen Primärdatenadapter, bleibt nach der abgeschlossenen Twin-Eagle-Übernahme aber auf vergleichbarer Post-Deal-Basis gesperrt. "
+                                "Rohdaten werden angezeigt; Score, Doppelanker und Fair Value bleiben fail-closed."
                             )
                         if is_universal_family_fail_closed(company_type):
                             if is_released_listed_holding_family(company_type):
@@ -71190,12 +71324,13 @@ if selected_symbol:
                             ep_fcf_snap_ui = ep_fcf_ui.get("snapshot") or {}
                             st.caption(
                                 "FCF-Kontext/Rohdaten: " + str(source_text) + ". Beim Upstream-E&P-Modell bleiben Yahoo-/Statement-FCF reine Diagnosewerte. "
-                                "Bewertungsrelevant ist ausschließlich der emittentendefinierte, dem Anteilseigner zurechenbare FCF aus Primärquellen; er steuert Familien-Score und FCF-Yield-Anker."
+                                "Bewertungsrelevant ist ausschließlich der konsistent definierte issuer-native FCF aus Primärquellen; die konkrete Emittentendefinition wird transparent angezeigt und steuert Familien-Score sowie FCF-Yield-Anker."
                             )
                             if safe_float(ep_fcf_snap_ui.get("h1_2026_fcf_attributable_usd_bn")) is not None:
                                 st.caption(
-                                    f"Issuer-primary H1 2026 FCF attributable: {safe_float(ep_fcf_snap_ui.get('h1_2026_fcf_attributable_usd_bn')):.3f} Mrd. USD · "
-                                    f"FY2025: {safe_float(ep_fcf_snap_ui.get('fy2025_fcf_attributable_usd_bn')):.3f} Mrd. USD."
+                                    f"Issuer-primary H1 2026 FCF: {safe_float(ep_fcf_snap_ui.get('h1_2026_fcf_attributable_usd_bn')):.3f} Mrd. USD · "
+                                    f"FY2025: {safe_float(ep_fcf_snap_ui.get('fy2025_fcf_attributable_usd_bn')):.3f} Mrd. USD" +
+                                    (f" · Definition: {ep_fcf_snap_ui.get('issuer_fcf_definition')}" if ep_fcf_snap_ui.get('issuer_fcf_definition') else "") + "."
                                 )
                         elif is_bank_fcf_context:
                             st.caption(
@@ -74050,7 +74185,13 @@ if selected_symbol:
                         st.info("Upstream-E&P-Spezialmodell: Yahoo-/Statement-FCF-Margenpunkte werden nicht verwendet.")
                         if ep_cash_score_ui.get("available"):
                             st.write(f"**Issuer FCF:** {c_ep.get('points')}/{c_ep.get('max_points')} Punkte")
-                            st.caption(f"H1 issuer-attributable FCF-Wachstum: {safe_float(ep_cash_metrics_ui.get('h1_fcf_growth_pct')):+.1f}% · H1-Abdeckung der FY2026-FCF-Guidance: {safe_float(ep_cash_metrics_ui.get('h1_fcf_coverage_of_fy2026_guide_pct')):.1f}%.")
+                            _ep_fcf_growth_ui = safe_float(ep_cash_metrics_ui.get('h1_fcf_growth_pct'))
+                            _ep_fcf_cov_ui = safe_float(ep_cash_metrics_ui.get('h1_fcf_coverage_of_fy2026_guide_pct'))
+                            _ep_fcf_basis_pts_ui = safe_float(ep_cash_metrics_ui.get('fcf_forward_basis_quality_pts'))
+                            if _ep_fcf_cov_ui is not None:
+                                st.caption(f"H1 issuer-attributable FCF-Wachstum: {_ep_fcf_growth_ui:+.1f}% · H1-Abdeckung der FY2026-FCF-Guidance: {_ep_fcf_cov_ui:.1f}%.")
+                            else:
+                                st.caption(f"H1 issuer-attributable FCF-Wachstum: {_ep_fcf_growth_ui:+.1f}% · Kein explizites FY-FCF-Ziel: annualisierte H1-Forward-Basis, Quellenqualität {_ep_fcf_basis_pts_ui:.0f}/10; anschließend 75–125%-Zyklus-Cap.")
                     elif fcf_result["score"] is not None:
 
                         st.metric(
@@ -78010,10 +78151,15 @@ if selected_symbol:
                             ep_ccy = ep_snap.get("reporting_currency") or "USD"
                             st.divider()
                             st.subheader(f"🛢️ Upstream E&P Primärdatenadapter V1 · {text_or_dash(ep_snap.get('company'))}")
+                            _ep_evidence_status_text = (
+                                f"**Evidenzstatus:** {text_or_dash(upstream_ep_ui.get('evidence_scope_label'))}"
+                                if upstream_ep_ui.get("corporate_action_blocked") else
+                                f"**Evidenzblöcke:** {int(upstream_ep_ui.get('evidence_blocks_complete') or 0)}/{int(upstream_ep_ui.get('evidence_blocks_required') or 0)} vollständig"
+                            )
                             st.write(
                                 f"**Primärdatenstand:** {text_or_dash(ep_snap.get('as_of_date'))} "
                                 f"(veröffentlicht {text_or_dash(ep_snap.get('published_date'))}) · "
-                                f"**Evidenzblöcke:** {int(upstream_ep_ui.get('evidence_blocks_complete') or 0)}/{int(upstream_ep_ui.get('evidence_blocks_required') or 0)} vollständig"
+                                + _ep_evidence_status_text
                             )
                             if ep_snap.get("quarterly_source_url"):
                                 st.markdown(f"[{text_or_dash(ep_snap.get('quarterly_source_name'))}]({ep_snap.get('quarterly_source_url')})")
@@ -78036,10 +78182,14 @@ if selected_symbol:
                                 )
                                 st.info(text_or_dash(ep_snap.get("corporate_action_note")))
                                 st.caption(
-                                    "V246 wertet die vorhandenen Q2-/FY2025-Primärdaten als Evidenz für die Familienarchitektur, erzeugt daraus aber bewusst keinen Score, "
+                                    "V247 wertet die vorhandenen Q2-/FY2025-Primärdaten als Roh-Evidenz für die Familienarchitektur, weist sie aber nicht als vergleichbare Post-Deal-Evidenz aus und erzeugt bewusst keinen Score, "
                                     "kein Ziel-FCF-Yield, kein EV/Adjusted-EBITDA-Multiple und keinen Fair Value. Freigabe erst mit belastbarer pro-forma oder post-close Datenbasis."
                                 )
                             else:
+                                if ep_snap.get("scope_normalization_note"):
+                                    st.info("Scope-Normalisierung: " + str(ep_snap.get("scope_normalization_note")))
+                                if ep_snap.get("scope_comparability_note"):
+                                    st.info("Scope-Vergleichbarkeit: " + str(ep_snap.get("scope_comparability_note")))
                                 c1, c2, c3 = st.columns(3)
                                 with c1:
                                     st.metric(
@@ -78062,19 +78212,31 @@ if selected_symbol:
                                 c4, c5, c6 = st.columns(3)
                                 with c4:
                                     st.metric(
-                                        "H1 FCF attributable",
+                                        "H1 issuer-FCF",
                                         f"{safe_float(ep_snap.get('h1_2026_fcf_attributable_usd_bn')):.2f} Mrd. {ep_ccy}",
                                         f"{safe_float(ep_metrics.get('h1_fcf_growth_pct')):+.1f}% YoY",
                                     )
+                                    if ep_snap.get("issuer_fcf_definition"):
+                                        st.caption(text_or_dash(ep_snap.get("issuer_fcf_definition")))
                                 with c5:
-                                    st.metric(
-                                        "Net Debt Q2",
-                                        f"{safe_float(ep_snap.get('q2_2026_net_debt_usd_bn')):.2f} Mrd. {ep_ccy}",
-                                        f"{safe_float(ep_metrics.get('net_debt_change_vs_fy2025_pct')):+.1f}% vs. FY2025",
+                                    _ep_nd_reported_ui = safe_float(ep_snap.get('q2_2026_net_debt_usd_bn'))
+                                    _ep_nd_adj_ui = safe_float(ep_snap.get('valuation_net_debt_adjustment_usd_bn')) or 0.0
+                                    _ep_nd_used_ui = (_ep_nd_reported_ui + _ep_nd_adj_ui) if _ep_nd_reported_ui is not None else None
+                                    _ep_debt_delta_ui = (
+                                        "FY2025 nicht scope-vergleichbar"
+                                        if ep_snap.get("net_debt_change_scope_comparable") is False
+                                        else f"{safe_float(ep_metrics.get('net_debt_change_vs_fy2025_pct')):+.1f}% vs. FY2025"
                                     )
+                                    st.metric(
+                                        "Bewertungs-Net-Debt" if _ep_nd_adj_ui else "Net Debt Q2",
+                                        f"{_ep_nd_used_ui:.2f} Mrd. {ep_ccy}" if _ep_nd_used_ui is not None else "–",
+                                        _ep_debt_delta_ui,
+                                    )
+                                    if _ep_nd_adj_ui:
+                                        st.caption(f"Q2 gemeldet {_ep_nd_reported_ui:.3f} + Scope-Anpassung {_ep_nd_adj_ui:.3f} Mrd. {ep_ccy}")
                                 with c6:
                                     st.metric(
-                                        "Net Debt / FY2025 Adj. EBITDA",
+                                        "Net Debt / FY2025 Adj. EBITDA (Kontext)",
                                         f"{safe_float(ep_metrics.get('net_debt_to_fy2025_adjusted_ebitda')):.2f}×",
                                     )
 
@@ -78105,8 +78267,8 @@ if selected_symbol:
                                     "emittenteneigener FCF, Net Debt/Leverage und Reserves/PV-10 sind für den validierten Emittenten vollständig belegt."
                                 )
                                 st.success(
-                                    "V246 führt den Emittenten durch den wiederverwendbaren E&P-Familienvertrag. "
-                                    "100-Punkte-Familienqualität sowie FCF-Yield-/EV/Adjusted-EBITDA-Dual-Anchor sind für EQT freigegeben; weitere E&P-Emittenten bleiben bis zur eigenen Primärdatenvalidierung fail-closed."
+                                    "V247 führt den Emittenten durch denselben wiederverwendbaren E&P-Familienvertrag. "
+                                    "EQT und Antero sind unabhängige End-to-End-Validierungsissuer; weitere E&P-Emittenten bleiben bis zur eigenen Primärdatenvalidierung fail-closed."
                                 )
                         pp_foundation_ui = data.get("payments_processor_foundation_model") or {}
                         if pp_foundation_ui.get("applicable") and pp_foundation_ui.get("issuer_supported"):
@@ -78907,6 +79069,8 @@ if selected_symbol:
                             ep3_yield = safe_float(ep3_val.get("target_fcf_yield_pct"))
                             st.metric("Normalisierter issuer-FCF", f"{ep3_norm_fcf:.2f} Mrd. USD" if ep3_norm_fcf is not None else "–")
                             st.metric("Ziel-FCF-Yield", f"{ep3_yield:.2f}%" if ep3_yield is not None else "–")
+                            if ep3_val.get("current_cycle_fcf_source"):
+                                st.caption("Current-Cycle-FCF-Basis: " + str(ep3_val.get("current_cycle_fcf_source")))
                         with c2:
                             ep3_norm_ebitda = safe_float(ep3_val.get("normalized_adjusted_ebitda_usd_bn"))
                             ep3_ev_mult = safe_float(ep3_val.get("target_ev_ebitda"))
@@ -78922,13 +79086,16 @@ if selected_symbol:
                         ep3_pv10_eq = safe_float(ep3_val.get("pv10_equity_context_usd_bn"))
                         ep3_pv_ratio = safe_float(ep3_val.get("fair_equity_to_pv10_equity"))
                         st.write(f"**FCF-Yield Equity-Anker:** {ep3_fcf_anchor:.2f} Mrd. USD · **EV/EBITDA Equity-Anker:** {ep3_ev_anchor:.2f} Mrd. USD" if ep3_fcf_anchor is not None and ep3_ev_anchor is not None else "**Equity-Anker:** –")
+                        _ep3_nd_adj = safe_float(ep3_val.get("valuation_net_debt_adjustment_usd_bn"))
+                        if _ep3_nd_adj not in (None, 0):
+                            st.caption(f"Bewertungs-Net-Debt: Q2 gemeldet {safe_float(ep3_val.get('reported_net_debt_usd_bn')):.3f} Mrd. USD + {_ep3_nd_adj:.3f} Mrd. USD Scope-Anpassung = {safe_float(ep3_val.get('valuation_net_debt_used_usd_bn')):.3f} Mrd. USD. {text_or_dash(ep3_val.get('valuation_net_debt_adjustment_reason'))}")
                         st.write(f"**PV-10 Equity-Kontext:** {ep3_pv10_eq:.2f} Mrd. USD · **Fair Equity / PV-10 Equity:** {ep3_pv_ratio:.2f}×" if ep3_pv10_eq is not None and ep3_pv_ratio is not None else "**PV-10 Safety:** –")
                         st.info("PV-10 ist kein Fair-Value-Anker und wird nicht in den Fair Value gemischt. Er dient ausschließlich als Asset-/Reserve-Sicherheitscheck; SEC-Preisdeck, Midstream und weitere ökonomische Unterschiede werden dadurch nicht als Marktwert behandelt.")
                         ep3_shares = safe_float(ep3_val.get("shares_outstanding_used"))
                         if ep3_shares is not None:
                             st.caption(f"Verwendete Aktienbasis: {ep3_shares/1e6:.2f} Mio. · {text_or_dash(ep3_val.get('shares_source'))}")
                         if ep3_val.get("available"):
-                            st.success("Bewertungsfreigabe JA: Familien-Score, beide normalisierten Equity-Anker, Ankerkonsistenz und PV-10-Safety-Gate sind bestanden. Bewertungssicherheit bleibt in der First-Issuer-Validierung höchstens Mittel.")
+                            st.success("Bewertungsfreigabe JA: Familien-Score, beide normalisierten Equity-Anker, Ankerkonsistenz und PV-10-Safety-Gate sind bestanden. Bewertungssicherheit bleibt während der Mehr-Emittenten-Validierung höchstens Mittel.")
                         else:
                             st.warning(text_or_dash(ep3_val.get("note")))
 
