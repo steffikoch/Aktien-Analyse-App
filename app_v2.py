@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.54"
+APP_BUILD_VERSION = "V2.23.55"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Upstream E&P Evidenz-Gate UI-Hotfix V250"
+    f"Build {APP_BUILD_VERSION} · Upstream E&P CNX Universal-Evidenztest V251"
 )
 
 
@@ -8955,7 +8955,7 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
                     " Expand besitzt Primärdaten, der Emittenten-Fair-Value bleibt wegen der abgeschlossenen Twin-Eagle-Übernahme nach Q2 gesperrt, "
                     "bis Pro-forma- oder Post-Close-FCF/EBITDA/Nettoschulden auf einheitlicher Unternehmensbasis vorliegen."
                 )
-            elif _upstream_symbol not in {"EQT", "AR", "RRC"}:
+            elif _upstream_symbol not in {"EQT", "AR", "RRC", "CNX"}:
                 out["family_evidence_pending"] = True
                 out["method"] += (
                     " Für diesen Emittenten ist der universelle Primärdaten-Evidenzvertrag noch nicht vollständig befüllt; "
@@ -42736,8 +42736,8 @@ def build_integrated_oil_gas_special_control(control, specialist_model):
 
 
 # =========================================================
-# V2.23.53 – Upstream E&P Specialist Family Model V1 FROZEN
-# V249: valuation math frozen after EQT/AR/RRC validation; universal primary-evidence contract added.
+# V2.23.55 – Upstream E&P Specialist Family Model V1 FROZEN
+# V249: valuation math frozen after EQT/AR/RRC validation; V251 adds CNX only through the universal primary-evidence contract.
 # Score weights, FCF-yield corridor, EV/Adjusted-EBITDA corridor, 60/40 anchor weights and safety gates are unchanged from V248.
 # =========================================================
 
@@ -43020,6 +43020,73 @@ def get_verified_upstream_ep_snapshot(symbol):
             "q3_2026_hedged_volume_mmdth_per_day": 1.967,
             "hedge_reference_gas_bcf_per_day": 2.800,
             "current_shares_outstanding_m": 307.439,
+            "valuation_confidence_cap": "Mittel",
+        }
+    if sym == "CNX":
+        return {
+            "company": "CNX Resources Corporation",
+            "symbol": "CNX",
+            "specialist_profile": "Appalachian Natural Gas E&P + Midstream/Technology; erster Post-Freeze-Universalitätsnachweis über den unveränderten 7-Block-Evidenzvertrag",
+            "reporting_currency": "USD",
+            "as_of_date": "30.06.2026",
+            "published_date": "30.07.2026",
+            "quarterly_source_name": "CNX Q2 2026 Earnings Results & Supplemental Information",
+            "quarterly_source_url": "https://investors.cnx.com/~/media/Files/C/CNX-Resources-IR-V2/events/2026/cnx-earnings-results-and-supplemental-information-q2-2026.pdf",
+            "annual_source_name": "CNX FY2025 Form 10-K / Q4 2025 Supplemental",
+            "annual_source_url": "https://www.sec.gov/Archives/edgar/data/1070412/000107041226000038/cnx-20251231.htm",
+            "evidence_contract_role": "first_post_freeze_universal_contract_promotion",
+            "scope_comparability_note": "Kein materieller 2026-Scope-Bruch bis Q2. Die Apex-Energy-Übernahme wurde am 27.01.2025 abgeschlossen; Q2-2025, FY2025 und Q2-2026 liegen für die Kernanker auf vergleichbarer Unternehmensbasis.",
+            "q2_sales_volume_bcfe": 151.5,
+            "q2_prior_sales_volume_bcfe": 167.6,
+            "h1_sales_volume_bcfe": 303.9,
+            "h1_prior_sales_volume_bcfe": 315.4,
+            "fy2026_guidance_low_bcfe": 605.0,
+            "fy2026_guidance_high_bcfe": 620.0,
+            "fy2026_previous_guidance_low_bcfe": 605.0,
+            "fy2026_previous_guidance_high_bcfe": 620.0,
+            "q2_realized_price_usd_per_mcfe": 2.87,
+            "q2_natural_gas_price_including_derivatives_usd_per_mcf": 2.73,
+            "q2_basis_differential_usd_per_mcf": -0.62,
+            "q2_basis_guidance_low_usd_per_mcf": -0.59,
+            "q2_basis_guidance_high_usd_per_mcf": -0.59,
+            "fy2026_differential_guidance_low_usd_per_mcf": -0.59,
+            "fy2026_differential_guidance_high_usd_per_mcf": -0.59,
+            "q2_operating_cost_usd_per_mcfe": 1.19,
+            "fy2026_operating_cost_guidance_low_usd_per_mcfe": 1.15,
+            "fy2026_operating_cost_guidance_high_usd_per_mcfe": 1.15,
+            "issuer_cost_definition": "Fully Burdened Cash Costs before DD&A; FY2026 cost reference ~1.15 USD/Mcfe from issuer earnings materials.",
+            "q2_capex_usd_bn": 0.142,
+            "h1_core_capex_usd_bn": 0.312,
+            "fy2026_core_capex_guidance_usd_bn": 0.571,
+            "h1_capex_plan_coverage_pct": 54.6409807356,
+            "fy2026_maintenance_capex_low_usd_bn": 0.540,
+            "fy2026_maintenance_capex_high_usd_bn": 0.570,
+            "fy2026_growth_capex_low_usd_bn": 0.016,
+            "fy2026_growth_capex_high_usd_bn": 0.016,
+            "capex_scope_note": "CNX veröffentlicht keinen separaten Maintenance/Growth-Split. Der 540–570 Mio.-USD Base-Capital-Plan wird als Maintenance-of-Production-Proxy geführt; die separate 16-Mio.-USD Utica-Rechtezahlung ist strategisches/non-maintenance Kapital. Diese Zuordnung ändert keine eingefrorene Bewertungsformel.",
+            "h1_2026_fcf_attributable_usd_bn": 0.277,
+            "h1_2025_fcf_attributable_usd_bn": 0.288,
+            "fy2025_fcf_attributable_usd_bn": 0.646,
+            "fy2026_fcf_guidance_usd_bn": 0.525,
+            "issuer_fcf_definition": "CNX Free Cash Flow = Net Cash Provided by Operating Activities minus Capital Expenditures plus Proceeds from Asset Sales minus Investments in Equity Affiliates.",
+            "fy2026_fcf_guidance_note": "Q2-2026 Guidance ca. 525 Mio. USD; enthält ca. 45 Mio. USD erwartete Asset Sales und ca. 30 Mio. USD aus 45Z-Tax-Credit-Verkäufen.",
+            "h1_2026_adjusted_ebitda_attributable_usd_bn": 0.690,
+            "fy2025_adjusted_ebitda_attributable_usd_bn": 1.247,
+            "q2_2026_net_debt_usd_bn": 2.215,
+            "q2_2026_total_debt_usd_bn": 2.224,
+            "fy2025_net_debt_usd_bn": 2.408,
+            "q2_2026_liquidity_usd_bn": 1.726353,
+            "liquidity_note": "Unbenutzte Kapazität zum 30.06.2026: 1.216353 Mrd. USD CNX Credit Facility + 0.510 Mrd. USD CNXM Credit Facility; Cash/Restricted Cash wird nicht zusätzlich als Liquiditätsbonus angesetzt.",
+            "proved_reserves_tcfe": 9.662144,
+            "proved_developed_reserves_tcfe": 6.972410,
+            "proved_reserves_growth_pct": 13.1671176535,
+            "fy2025_production_tcfe": 0.628960,
+            "pv10_usd_bn": 6.830,
+            "q3_2026_hedged_volume_mmdth": 123.308,
+            "q3_2026_hedged_volume_mmdth_per_day": 1.3403043478,
+            "hedge_reference_gas_bcf_per_day": 1.6780821918,
+            "hedge_reference_note": "Konservative Hedge-Abdeckung: Q3-Hedgevolumen wird gegen das gesamte FY2026-Guidance-Mittel pro Tag gestellt, nicht nur gegen den Gasanteil.",
+            "current_shares_outstanding_m": 147.943637,
             "valuation_confidence_cap": "Mittel",
         }
     if sym != "EQT":
@@ -43431,8 +43498,8 @@ def build_upstream_ep_specialist_model(company_type, fundamental_info, symbol):
         "specialist_score": score,
         "specialist_valuation": valuation,
         "note": (
-            f"{snap.get('company') or symbol} erfüllt den freigegebenen Upstream-E&P-Familienvertrag. EQT, Antero und Range bilden die drei unabhängigen Referenzvalidierungen; "
-            "die Bewertungslogik ist ab V249 eingefroren. Weitere E&P-Emittenten werden ausschließlich über denselben universellen Primärdaten-Evidenzvertrag freigegeben."
+            f"{snap.get('company') or symbol} erfüllt den freigegebenen Upstream-E&P-Familienvertrag. EQT, Antero und Range bilden die drei unabhängigen Referenzvalidierungen der eingefrorenen Bewertungsmathematik; "
+            "CNX bestätigt als erster Post-Freeze-Emittent die Freigabe ausschließlich über denselben universellen Primärdaten-Evidenzvertrag, ohne Rekalibrierung."
             if valuation.get("available") else
             f"{snap.get('company') or symbol}: Primärdatenvertrag ist vorhanden, aber mindestens ein Score-/Anchor-/PV-10-Sicherheitsgate sperrt den Fair Value."
         ),
@@ -70870,8 +70937,8 @@ if selected_symbol:
                             )
                         if (company_type or {}).get("family_validation_status") == "upstream_ep_family_v1_frozen_universal_evidence_contract_v1":
                             st.success(
-                                "Upstream-E&P Familienmodell V1 freigegeben und eingefroren: EQT, Antero und Range haben denselben 100-Punkte-/FCF-Yield-/EV-EBITDA-Doppelanker unabhängig validiert. "
-                                "Weitere E&P-Emittenten nutzen denselben universellen Primärdaten-Evidenzvertrag; ohne vollständige Evidenz bleibt nur der jeweilige Emittent gesperrt, nicht die Familienlogik."
+                                "Upstream-E&P Familienmodell V1 freigegeben und eingefroren: EQT, Antero und Range haben die Bewertungsmathematik unabhängig validiert. "
+                                "CNX ist der erste Post-Freeze-Universalitätstest: vollständige 7/7-Evidenz darf denselben unveränderten Familienpfad automatisch freigeben; ohne vollständige Evidenz bleibt nur der jeweilige Emittent gesperrt."
                             )
                         elif (company_type or {}).get("family_validation_status") == "expand_twin_eagle_scope_gate_v1":
                             st.warning(
@@ -78447,11 +78514,16 @@ if selected_symbol:
                                     )
 
                                 st.markdown("**Pricing / Basis / Hedges**")
+                                _ep_realized_ui = format_optional_number(ep_snap.get('q2_realized_price_usd_per_mcfe'), 2)
+                                _ep_gas_realized_ui = format_optional_number(ep_snap.get('q2_natural_gas_price_including_derivatives_usd_per_mcf'), 2)
+                                _ep_basis_ui = format_optional_number(ep_snap.get('q2_basis_differential_usd_per_mcf'), 2, signed=True)
+                                _ep_q3_hedge_ui = format_optional_number(ep_snap.get('q3_2026_hedged_volume_mmdth'), 0)
+                                _ep_q4_hedge_ui = format_optional_number(ep_snap.get('q4_2026_hedged_volume_mmdth'), 0)
                                 st.write(
-                                    f"Q2 realisierter Preis: **{safe_float(ep_snap.get('q2_realized_price_usd_per_mcfe')):.2f} {ep_ccy}/Mcfe** · "
-                                    f"Natural Gas inkl. abgerechneter Derivate: **{safe_float(ep_snap.get('q2_natural_gas_price_including_derivatives_usd_per_mcf')):.2f} {ep_ccy}/Mcf** · "
-                                    f"Basis-Differential: **{safe_float(ep_snap.get('q2_basis_differential_usd_per_mcf')):+.2f} {ep_ccy}/Mcf** · "
-                                    f"Q3/Q4 Hedged Volume: **{safe_float(ep_snap.get('q3_2026_hedged_volume_mmdth')):.0f}/{safe_float(ep_snap.get('q4_2026_hedged_volume_mmdth')):.0f} MMDth**"
+                                    f"Q2 realisierter Preis: **{_ep_realized_ui} {ep_ccy}/Mcfe** · "
+                                    f"Natural Gas inkl. abgerechneter Derivate: **{_ep_gas_realized_ui} {ep_ccy}/Mcf** · "
+                                    f"Basis-Differential: **{_ep_basis_ui} {ep_ccy}/Mcf** · "
+                                    f"Q3/Q4 Hedged Volume: **{_ep_q3_hedge_ui}/{_ep_q4_hedge_ui} MMDth**"
                                 )
 
                                 st.markdown("**Kapitalintensität / Reserven**")
@@ -78461,6 +78533,8 @@ if selected_symbol:
                                     f"Growth-Anteil: **{safe_float(ep_metrics.get('growth_capex_share_pct')):.1f}%** · "
                                     f"Maintenance-CapEx/Guidance-Volumen: **{safe_float(ep_metrics.get('maintenance_capex_usd_per_mcfe')):.2f} {ep_ccy}/Mcfe**"
                                 )
+                                if ep_snap.get("capex_scope_note"):
+                                    st.caption(text_or_dash(ep_snap.get("capex_scope_note")))
                                 st.write(
                                     f"Proved Reserves: **{safe_float(ep_snap.get('proved_reserves_tcfe')):.1f} Tcfe** · "
                                     f"Reserve Life: **{safe_float(ep_metrics.get('reserve_life_years')):.1f} Jahre** · "
@@ -78473,8 +78547,8 @@ if selected_symbol:
                                     "emittenteneigener FCF, Net Debt/Leverage und Reserves/PV-10 sind für den validierten Emittenten vollständig belegt."
                                 )
                                 st.success(
-                                    "V247 führt den Emittenten durch denselben wiederverwendbaren E&P-Familienvertrag. "
-                                    "EQT, Antero und Range sind unabhängige End-to-End-Validierungsissuer; weitere E&P-Emittenten bleiben bis zur eigenen Primärdatenvalidierung fail-closed."
+                                    f"{APP_BUILD_VERSION} führt den Emittenten durch denselben eingefrorenen E&P-Familienvertrag. "
+                                    "EQT, Antero und Range bleiben die Referenzvalidierungen der Mathematik; CNX prüft zusätzlich die post-freeze Universalität des 7-Block-Evidenzvertrags."
                                 )
                         pp_foundation_ui = data.get("payments_processor_foundation_model") or {}
                         if pp_foundation_ui.get("applicable") and pp_foundation_ui.get("issuer_supported"):
