@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.57"
+APP_BUILD_VERSION = "V2.23.58"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Non-Operating Earnings Distortion Score Isolation V253"
+    f"Build {APP_BUILD_VERSION} · Nicht-operative Ergebnisverzerrung · Vergleichsbasis-Schutz V254"
 )
 
 
@@ -955,6 +955,7 @@ st.caption(
 # V2.23.04: Zahlungsabwickler-Sicherheitsobergrenze V200. Die allgemeine Methoden-/Spezialkontroll-Obergrenze der vollständig freigegebenen Zahlungsabwickler-Referenzprofile wird von „Niedrig bis Mittel“ auf „Mittel“ angehoben. Die in V199 gehärtete Regel „schwächste relevante Sicherheitsstufe gewinnt“ bleibt unverändert. Emittentenspezifische niedrigere Stufen bleiben wirksam; insbesondere behält Fiserv wegen seiner Ziel-KGV-Sicherheit „Niedrig bis Mittel“ die niedrigere Gesamtbewertungssicherheit. Score, Gewinnbasis, Ziel-KGV, Peer-Kalibrierung, Fair Value, Bewertungszonen und Signal-Schwellen bleiben unverändert.
 # V2.23.20: Insurance Corporate Action & EPS Comparability Guard V216. Adds a universal insurer corporate-action/share-count comparability gate: material capital increases, cancellations/buybacks, acquisitions, disposals, mergers or similar perimeter changes inside the TTM window block the EPS bridge unless an issuer-verified comparable/pro-forma EPS basis exists. Also distinguishes non-EPS-basis net-income context labels.
 # V2.23.23: Universal Evidence Normalisierung & Mapping V219. Extends the V218 provider layer with a canonical cross-family evidence schema for Eulerpool secondary data, period/source metadata, book-value/ROE/share-count mapping, comparable-period diagnostics and normalized corporate-action candidates. Specialist valuation gates and all family-specific primary-source requirements remain authoritative and unchanged; secondary provider data cannot independently release a specialist Fair Value.
+# V2.23.58: Non-Operating Earnings Same-Basis Hard Gate V254. Closes the two remaining V253 release leaks exposed by Alphabet: once the generic non-operating-income distortion guard is active, the pre-guard TTM/current-FY blend is retained only as a diagnostic value and no longer published as a normalized EPS or high-confidence earnings basis; the generic balance 15/15 explainer is suppressed as well. The guard now records an explicit same-basis normalization status and blocks provider-GAAP-TTM from entering any released EPS blend until a period-consistent primary-source earnings normalization exists. Duplicate guard captions are removed. No tax effect is estimated, no issuer-specific Alphabet value is hard-coded, and no family corridor, specialist score, Fair Value or signal mathematics outside the guarded Standard path changes.
 # V2.23.24: Universal Evidence Perioden-Semantik & Fiskalabgleich V220. Adds explicit FY/H1/9M/Q/TTM semantics to structured secondary evidence, blocks quarterly-vs-YTD misuse in TTM bridges, aligns comparable periods, derives BVPS only from period-compatible Eulerpool equity/share data when direct BVPS is unavailable, and displays share-count units explicitly. Specialist valuation gates, family scores, Fair Values and signals remain unchanged.
 # V2.23.25: Universal Evidence Entity-Scope & Semantic Validation Guard V221. Separates structural mapping from semantic release, records source-key/entity-scope metadata for provider fields, fail-closes ambiguous total-equity/minority-interest book-value derivations, distinguishes technically mapped from semantically verified core evidence, and keeps unverified secondary BVPS/ROE/equity context out of specialist valuation anchors. V220 period guards, all family scores, Fair Values and signal logic remain unchanged.
 # V2.23.26: Universal Insurance Primary-Source Acquisition V222. Adds an issuer-neutral, bounded insurer IR discovery layer on top of V221: official issuer-domain current-period, prior-period, FY/key-figure and financial-calendar documents are discovered and fetched; EPS/net-income/RoE/regulatory-capital/BVPS/share-count/dividend evidence is period- and scope-bound before a dynamic Insurance snapshot can be released. Search snippets remain discovery-only, secondary-provider values remain plausibility-only, and incomplete/ambiguous evidence stays fail-closed. Existing validated insurer snapshots and valuation mathematics remain unchanged.
@@ -67028,6 +67029,51 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         "eps_unit_guard_note": eps_unit_context.get("note"),
     })
 
+    # V254 – Same-Basis EPS Hard Gate. The generic normalizer necessarily
+    # runs before this final release decision. Once the non-operating distortion
+    # is known, any
+    # pre-existing TTM/current-FY blend is demoted to diagnostics. In particular,
+    # a distorted GAAP TTM must not keep a 25% weight and must not be shown as a
+    # high-confidence "normalised" earnings basis. We deliberately do not
+    # estimate an after-tax adjustment: release requires a period-consistent
+    # primary-source normalization on the same accounting basis.
+    if non_operating_income_guard.get("active"):
+        _v254_diag_eps = safe_float((eps_normalization or {}).get("normalized_eps"))
+        _v254_diag_method = (eps_normalization or {}).get("method")
+        _v254_diag_confidence = (eps_normalization or {}).get("confidence")
+        eps_normalization = {
+            **(eps_normalization or {}),
+            "diagnostic_normalized_eps": _v254_diag_eps,
+            "diagnostic_normalization_method": _v254_diag_method,
+            "diagnostic_normalization_confidence": _v254_diag_confidence,
+            "normalized_eps": None,
+            "confidence": "Niedrig",
+            "method": (
+                "Vergleichsbasis-Schutz V254: Provider-GAAP-TTM und "
+                "Current-FY-Konsens werden nicht gemischt. Eine freigegebene normalisierte "
+                "EPS-Basis entsteht erst nach periodenreiner Primärquellen-Normalisierung "
+                "der materiellen nicht-operativen Ergebnisbeiträge einschließlich belastbarer Steuerwirkung."
+            ),
+            "valuation_blocked": True,
+            "non_operating_income_same_basis_gate": True,
+            "same_basis_normalization_status": "primary_source_normalization_required",
+            "eps_divergence_note": None,
+        }
+        non_operating_income_guard = {
+            **non_operating_income_guard,
+            "same_basis_gate_active": True,
+            "same_basis_normalization_status": "primary_source_normalization_required",
+            "provider_eps_blend_blocked": True,
+            "diagnostic_normalized_eps": _v254_diag_eps,
+            "diagnostic_normalization_method": _v254_diag_method,
+            "diagnostic_normalization_confidence": _v254_diag_confidence,
+            "tax_effect_estimated": False,
+            "normalization_note": (
+                "V254 schätzt keine Steuerwirkung und rechnet keine nicht-operativen Gewinne pauschal heraus. "
+                "Erst eine periodenreine Primärquellen-Brücke darf eine neue EPS-Basis freigeben."
+            ),
+        }
+
     same_basis_earnings_growth = derive_same_basis_earnings_growth(
         fundamental_symbol, eps_basis_alignment
     )
@@ -69817,12 +69863,12 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "valuation_usable": False,
             "reason": (
                 f"TTM-Nettogewinn / TTM-operatives Ergebnis: {_noi_ratio:.2f}× · operative TTM-Marge: {_noi_op_margin:.1f} % · "
-                f"Netto-vs.-Operating-Differenz: {_noi_gap:.1f} % des Umsatzes. "
+                f"Netto-vs.-operativ-Differenz: {_noi_gap:.1f} % des Umsatzes. "
                 "Die generische Nettomargen-, Gewinnwachstums- und GAAP-EPS-Basis ist dadurch nicht belastbar vergleichbar."
             ),
             "action": (
-                "Keinen generischen Score, kein Standard-KGV und keinen Fair Value veröffentlichen. Zuerst die nicht-operativen Beiträge "
-                "über Primärquellen abgrenzen und eine belastbare operative/normalisierte Earnings-Basis definieren; FCF und Bilanz bleiben Diagnosekontext."
+                "Keine generische Punktzahl, kein Standard-KGV und keinen Fair Value veröffentlichen. Zuerst die nicht-operativen Beiträge "
+                "über Primärquellen abgrenzen und eine belastbare operative/normalisierte Gewinnbasis definieren; FCF und Bilanz bleiben Diagnosekontext."
             ),
             "non_operating_income_distortion_gate": True,
         }
@@ -69864,7 +69910,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "valuation_method": None,
             "note": (
                 "Fair Value V1 gesperrt: Materiale nicht-operative Ergebnisbeiträge verzerren Nettomarge, Gewinnwachstum und GAAP-EPS. "
-                "Der Standard-EPS×KGV-Pfad darf erst nach einer same-basis operativen/normalisierten Earnings-Prüfung wieder freigegeben werden."
+                "Der Standard-EPS×KGV-Pfad darf erst nach einer Prüfung auf gleicher operativer/normalisierter Ergebnisbasis wieder freigegeben werden."
             ),
         }
 
@@ -72427,6 +72473,21 @@ if selected_symbol:
                             "Kein zuverlässiges normalisiertes "
                             "EPS berechenbar."
                         )
+                        if bool((data.get("non_operating_income_guard") or {}).get("active")):
+                            _v254_guard_ui = data.get("non_operating_income_guard") or {}
+                            _v254_diag_eps_ui = safe_float(_v254_guard_ui.get("diagnostic_normalized_eps"))
+                            st.info(
+                                "V254 Vergleichsbasis-Schutz: Das zuvor aus Provider-TTM und Current-FY-Konsens berechnete "
+                                "Misch-EPS wird nicht mehr als normalisierte Gewinnbasis veröffentlicht. Materielle nicht-operative "
+                                "Ergebnisbeiträge müssen zuerst periodenrein über Primärquellen normalisiert werden; eine Steuerwirkung "
+                                "wird nicht geschätzt."
+                            )
+                            if _v254_diag_eps_ui is not None:
+                                st.caption(
+                                    "Verworfener Vor-Guard-Diagnosewert: "
+                                    + format_eps(_v254_diag_eps_ui, financial_currency)
+                                    + " · ausschließlich zur Fehlerdiagnose, nicht als Bewertungsanker."
+                                )
 
                     if bank_core_eps_active:
                         st.write(
@@ -72996,6 +73057,12 @@ if selected_symbol:
                         st.info(
                             f"Standard-EPS-Diagnosequalität: **{oil_diag_label_ui}** · nur Kontext. "
                             f"Integrated-Oil Specialist-Earnings-Basis: **{oil_special_conf_ui}**."
+                        )
+
+                    elif bool((data.get("non_operating_income_guard") or {}).get("active")):
+
+                        st.error(
+                            "EPS-Normalisierung: **gesperrt** · Vergleichsbasis-Normalisierung aus Primärquellen erforderlich"
                         )
 
                     elif confidence == "Hoch":
@@ -74198,7 +74265,6 @@ if selected_symbol:
                             "Non-Operating-Income-Guard: Der generische Wachstums-Punktwert ist gesperrt. "
                             "Umsatzwachstum bleibt Roh-/Diagnosekontext; Gewinnwachstum wird nicht bepunktet, bis eine same-basis operative Gewinnbasis vorliegt."
                         )
-                        st.caption(growth_result.get("note"))
                     elif growth_result["score"] is not None:
 
                         st.metric(
@@ -74482,7 +74548,6 @@ if selected_symbol:
                             "Non-Operating-Income-Guard: Nettomarge, ROE und der generische Profitabilitäts-Punktwert bleiben Diagnosekontext. "
                             "Sie werden nicht als Multiple-Qualität interpretiert, solange der nicht-operative Ergebnisanteil nicht bereinigt ist."
                         )
-                        st.caption(profitability_result.get("brake_text"))
                     elif profitability_result["score"] is not None:
 
                         st.metric(
@@ -74656,7 +74721,6 @@ if selected_symbol:
                             "Non-Operating-Income-Guard: Der Cashflow-Statement-FCF bleibt als Diagnosewert sichtbar, "
                             "liefert aber keinen generischen 25-Punkte-Baustein und kann den gesperrten Earnings-Pfad nicht ersetzen."
                         )
-                        st.caption(fcf_result.get("note"))
                     elif fcf_result["score"] is not None:
 
                         st.metric(
@@ -75015,9 +75079,8 @@ if selected_symbol:
                     elif is_non_operating_guard_balance_ui:
                         st.warning(
                             "Non-Operating-Income-Guard: Cash, Schulden und Netto-Cash bleiben Diagnosekontext; "
-                            "es wird kein generischer Bilanz-Punktwert und kein 100-Punkte-Gesamtscore veröffentlicht."
+                            "es wird kein generischer Bilanz-Punktwert und keine 100-Punkte-Gesamtpunktzahl veröffentlicht."
                         )
-                        st.caption(balance_result.get("note"))
                     elif balance_result["score"] is not None:
 
                         st.metric(
@@ -75406,6 +75469,7 @@ if selected_symbol:
                         and not bool((data.get("ctva_separation_pre_gate_model") or {}).get("applicable"))
                         and not bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
                         and not bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable"))
+                        and not is_non_operating_guard_balance_ui
                     ):
                         st.caption(
                             "Bilanzpunkte: Netto-Cash 15/15; "
