@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.66"
+APP_BUILD_VERSION = "V2.23.67"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -327,8 +327,8 @@ _UI_DE_REPLACEMENTS = [
     ("Levered Free Cashflow", "freier Cashflow nach Finanzierung"),
     ("Adjusted Free Cash Flow", "bereinigter freier Cashflow"),
     ("Adjusted FCF", "bereinigter FCF"),
-    ("Cash Conversion", "Cashflow-Umwandlung"),
-    ("Cash-Conversion", "Cashflow-Umwandlung"),
+    ("Cash Conversion", "Cashflow-Konversion"),
+    ("Cash-Conversion", "Cashflow-Konversion"),
     ("FCF Conversion", "FCF-Umwandlung"),
     ("Bereinigte operative Marge", "bereinigte operative Marge"),
     ("Adjusted Operating Income", "bereinigtes operatives Ergebnis"),
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Normalisierter Common-ROE · Qualitätsscore-Freigabe V262"
+    f"Build {APP_BUILD_VERSION} · Guard-State-Bereinigung · Familienbewertung offen V263"
 )
 
 
@@ -958,6 +958,7 @@ st.caption(
 # V2.23.58: Non-Operating Earnings Same-Basis Hard Gate V254. Closes the two remaining V253 release leaks exposed by Alphabet: once the generic non-operating-income distortion guard is active, the pre-guard TTM/current-FY blend is retained only as a diagnostic value and no longer published as a normalized EPS or high-confidence earnings basis; the generic balance 15/15 explainer is suppressed as well. The guard now records an explicit same-basis normalization status and blocks provider-GAAP-TTM from entering any released EPS blend until a period-consistent primary-source earnings normalization exists. Duplicate guard captions are removed. No tax effect is estimated, no issuer-specific Alphabet value is hard-coded, and no family corridor, specialist score, Fair Value or signal mathematics outside the guarded Standard path changes.
 # V2.23.63: Helper Scope Fix V259. Defines the previously missing fail-soft safe_int helper used by the deterministic SEC/Yahoo filing mirror constructor. This fixes the runtime NameError exposed by V258 without changing identifier identity checks, filing transport, primary-source normalization, tax logic, score/multiple/Fair-Value gates or signal logic. V258 fail-closed containment remains active.
 # V2.23.64: Tax Evidence Full-Filing Parser V260. Keeps the global generic HTML-to-text cap unchanged, but evaluates the narrow deferred-tax/statutory-rate evidence against the complete identified SEC filing instead of the 160k generic text preview. This fixes late-filing tax-evidence false negatives without issuer hard-coding or estimated tax effects. Annual statutory-rate extraction gains a conservative full-text fallback around an explicitly labelled federal statutory-rate row. The score/P-E/Fair-Value/signal gates remain unchanged and fail closed.
+# V2.23.67: Guard State Transition Cleanup V263. After the same-basis primary-source quality basis is fully released, the non-operating distortion state transitions from unresolved/red to normalized/yellow. Score math, EPS normalization, FCF and balance math are unchanged; P/E, Fair Value and signals remain fail-closed until the Media / Internet / Platforms family corridor is separately validated.
 # V2.23.66: Normalized Common ROE & Quality Score Release V262. Extends the released V260 primary-source EPS bridge to a current normalized TTM net-income/revenue basis and, when a comparable prior-year 10-Q is unambiguously resolved, a prior-TTM normalized earnings bridge. Current normalized net margin and normalized TTM earnings growth are released only when period structure, dominant unrealized-equity coverage and statutory-rate evidence remain consistent. ROE, the generic 100-point score, P/E, Fair Value and signal remain fail-closed for a later validation step. No issuer-specific ticker or financial value is hard-coded.
 # V2.23.62: Primary-Source Runtime Containment V258. Wraps the V257 SEC same-basis normalization call in a fail-closed exception boundary so an unexpected filing/parser structure can never abort the complete stock view. The exact exception class/message is retained only as technical primary-source diagnostics; no EPS, score, multiple, Fair Value or signal is released on exception. Valuation mathematics and V257 transport rules remain unchanged.
 # V2.23.61: Universal SEC Filing Transport Resilience V257. Extends V256 after GOOG resolved CIK and the official 10-Q/10-K pair but at least one identified document could not be transported within budget. Adds a deterministic Yahoo-CDN mirror URL derived only from verified CIK + accession + SEC primaryDocument, prioritizes the mirror after SEC access has already shown a 403/transport block, and shortens per-document direct SEC attempts so one blocked archive request cannot starve the other filing. Valuation/normalization gates remain unchanged.
@@ -69700,6 +69701,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     )
 
     if non_operating_income_guard.get("active"):
+        _v263_quality_released_for_peers = bool(non_operating_income_guard.get("primary_source_quality_score_released"))
         peer_group = {
             **(peer_group or {}),
             "available": False,
@@ -69707,9 +69709,12 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "count": 0,
             "non_operating_income_guard": True,
             "note": (
-                "Non-Operating-Income-Guard aktiv: Eine Vergleichsgruppe kann die noch unvollständig normalisierte "
-                "Gesamtbewertungsbasis nicht ersetzen. Es wird weder ein Peer-Median noch eine Peer-Anpassung zur Freigabe eines "
-                "Standard-Multiples oder Fair Values verwendet."
+                "V263: Die normalisierte Ergebnisbasis und die Qualitätspunktzahl sind vollständig freigegeben. "
+                "Die Vergleichsgruppe bleibt dennoch deaktiviert, bis der Media-/Internet-/Platforms-Familienkorridor separat definiert und validiert ist; "
+                "Peer-Median und Peer-Anpassung dürfen diesen fehlenden Familienanker nicht ersetzen."
+                if _v263_quality_released_for_peers else
+                "Non-Operating-Income-Guard aktiv: Eine Vergleichsgruppe kann die noch unvollständig normalisierte Gesamtbewertungsbasis nicht ersetzen. "
+                "Es wird weder ein Peer-Median noch eine Peer-Anpassung zur Freigabe eines Standard-Multiples oder Fair Values verwendet."
             ),
         }
 
@@ -69738,6 +69743,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     )
 
     if non_operating_income_guard.get("active"):
+        _v263_quality_released_for_peer_check = bool(non_operating_income_guard.get("primary_source_quality_score_released"))
         peer_check = {
             **(peer_check or {}),
             "method_supported": False,
@@ -69749,8 +69755,10 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "applied": False,
             "reference_only": False,
             "note": (
-                "Vergleichsgruppen-Prüfung im Schutzregel-Zustand nicht ausgeführt: Ohne vollständig normalisierte Score-/Ergebnisbasis "
-                "dürfen Vergleichsgruppen weder ein Standard-Multiple noch einen fairen Wert freigeben."
+                "V263 Vergleichsgruppen-Prüfung bewusst noch nicht ausgeführt: Die Same-Basis-Ergebnisgrundlage und die Qualitätspunktzahl sind vollständig freigegeben, "
+                "aber der Media-/Internet-/Platforms-Familienkorridor ist noch nicht validiert. Peers dürfen diesen fehlenden Familienanker nicht selbst erzeugen."
+                if _v263_quality_released_for_peer_check else
+                "Vergleichsgruppen-Prüfung im Schutzregel-Zustand nicht ausgeführt: Ohne vollständig normalisierte Score-/Ergebnisbasis dürfen Vergleichsgruppen weder ein Standard-Multiple noch einen fairen Wert freigeben."
             ),
         }
 
@@ -71119,35 +71127,46 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         _noi_gap = safe_float(non_operating_income_guard.get("non_operating_gap_pct_revenue"))
         _noi_op_margin = safe_float(non_operating_income_guard.get("operating_margin_pct"))
         _v255_eps_only_released = bool(non_operating_income_guard.get("primary_source_eps_normalization_released"))
-        special_event_warning = {
-            "level": "Rot",
-            "icon": "🔴",
-            "title": "Nicht-operative Ergebnisverzerrung – Standardbewertung gesperrt",
-            "requires_research": False,
-            "valuation_usable": False,
-            "reason": (
-                f"TTM-Nettogewinn / TTM-operatives Ergebnis: {_noi_ratio:.2f}× · operative TTM-Marge: {_noi_op_margin:.1f} % · "
-                f"Netto-vs.-operativ-Differenz: {_noi_gap:.1f} % des Umsatzes. "
-                "Die generische Nettomargen-, Gewinnwachstums- und GAAP-EPS-Basis ist dadurch nicht belastbar vergleichbar."
-            ),
-            "action": (
-                (
-                    (
-                        "V262 hat EPS, Nettomarge, TTM-Gewinnwachstum und Common-ROE primärquellenbasiert normalisiert; der Qualitätsscore ist freigegeben. "
-                        "Als nächstes muss der Media-/Internet-/Platforms-Bewertungskorridor separat validiert werden; bis dahin bleiben KGV, Fair Value und Signal gesperrt."
-                        if bool(non_operating_income_guard.get("primary_source_quality_score_released")) else
-                        "V262 hat EPS sowie – sofern periodenrein verfügbar – Nettomarge und Gewinnwachstum primärquellenbasiert normalisiert. "
-                        "Common-ROE und Qualitätsscore bleiben noch gesperrt."
-                    )
-                )
-                if _v255_eps_only_released else
-                (
-                    "Keine generische Punktzahl, kein Standard-KGV und keinen Fair Value veröffentlichen. Zuerst die nicht-operativen Beiträge "
-                    "über Primärquellen abgrenzen und eine belastbare operative/normalisierte Gewinnbasis definieren; FCF und Bilanz bleiben Diagnosekontext."
-                )
-            ),
-            "non_operating_income_distortion_gate": True,
-        }
+        _v263_quality_released = bool(non_operating_income_guard.get("primary_source_quality_score_released"))
+        if _v263_quality_released:
+            special_event_warning = {
+                "level": "Gelb",
+                "icon": "🟡",
+                "title": "Nicht-operative Ergebnisverzerrung normalisiert – Familienbewertung noch offen",
+                "requires_research": False,
+                "valuation_usable": False,
+                "reason": (
+                    f"Die rohe GAAP-Basis bleibt durch den nicht-operativen Effekt verzerrt (TTM-Nettogewinn / TTM-operatives Ergebnis {_noi_ratio:.2f}×; "
+                    f"Netto-vs.-operativ-Differenz {_noi_gap:.1f} % des Umsatzes). V263 verwendet deshalb weiterhin nicht die rohen GAAP-Ergebniskennzahlen. "
+                    "EPS, Nettomarge, TTM-Gewinnwachstum und Common-ROE sind jedoch primärquellenbasiert normalisiert und die 100-Punkte-Qualitätspunktzahl ist freigegeben."
+                ),
+                "action": (
+                    "Die Ergebnisvergleichbarkeit ist geklärt. Als nächster, davon getrennter Schritt muss der Media-/Internet-/Platforms-Bewertungskorridor validiert werden. "
+                    "Bis dahin bleiben KGV, Fair Value, Bewertungszonen und Handlungssignal gesperrt."
+                ),
+                "non_operating_income_distortion_gate": True,
+                "non_operating_income_normalized": True,
+                "family_valuation_pending": True,
+            }
+        else:
+            special_event_warning = {
+                "level": "Rot",
+                "icon": "🔴",
+                "title": "Nicht-operative Ergebnisverzerrung – Standardbewertung gesperrt",
+                "requires_research": False,
+                "valuation_usable": False,
+                "reason": (
+                    f"TTM-Nettogewinn / TTM-operatives Ergebnis: {_noi_ratio:.2f}× · operative TTM-Marge: {_noi_op_margin:.1f} % · "
+                    f"Netto-vs.-operativ-Differenz: {_noi_gap:.1f} % des Umsatzes. "
+                    "Die generische Nettomargen-, Gewinnwachstums- und GAAP-EPS-Basis ist dadurch nicht belastbar vergleichbar."
+                ),
+                "action": (
+                    "V263 hält die Bewertung fail-closed, bis die periodenreine Primärquellen-Normalisierung vollständig bestanden ist."
+                    if _v255_eps_only_released else
+                    "Keine generische Punktzahl, kein Standard-KGV und keinen Fair Value veröffentlichen. Zuerst die nicht-operativen Beiträge über Primärquellen abgrenzen und eine belastbare operative/normalisierte Gewinnbasis definieren."
+                ),
+                "non_operating_income_distortion_gate": True,
+            }
 
     fair_value_eps_normalization = eps_normalization
     if (
@@ -71188,7 +71207,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "note": (
                 (
                     (
-                        "Fair Value V1 gesperrt: V262 hat die vollständige Same-Basis-Ergebnisgrundlage und den Qualitätsscore freigegeben. "
+                        "Fair Value V1 gesperrt: V263 hat die vollständige Ergebnisgrundlage auf gleicher Basis und die Qualitätspunktzahl freigegeben. "
                         "Der Standard-EPS×KGV-Pfad bleibt dennoch gesperrt, bis der Media-/Internet-/Platforms-Bewertungskorridor separat validiert ist."
                         if bool(non_operating_income_guard.get("primary_source_quality_score_released")) else
                         "Fair Value V1 gesperrt: Die Same-Basis-Ergebnisnormalisierung ist noch nicht vollständig."
@@ -73458,7 +73477,7 @@ if selected_symbol:
                                         f"einen verschuldungsbereinigten freien Cashflow von {format_money(fcf_ctx.get('levered_fcf_reference'), financial_currency)}, "
                                         f"während das Cashflow-Statement {format_money(fcf_ctx.get('accounting_fcf'), financial_currency)} ergibt. "
                                         f"Abweichung: {fcf_ctx.get('gap_pct'):.1f} %. Beide Datenanbieter-Werte bleiben reine Diagnose-/Rohdaten. "
-                                        "Familien-Punktzahl und praktisch geprüftes Ziel-KGV verwenden ausschließlich unternehmenseigene Angaben zur Cashflow-Umwandlung und zum bereinigten FCF; "
+                                        "Familien-Punktzahl und praktisch geprüftes Ziel-KGV verwenden ausschließlich unternehmenseigene Angaben zur Cashflow-Konversion und zum bereinigten FCF; "
                                         "auch der eigene faire Wert verwendet diese Datenanbieter-FCF-Werte nicht als Bewertungsanker."
                                     )
                                 else:
@@ -74808,10 +74827,17 @@ if selected_symbol:
                             if bool((data.get("non_operating_income_guard") or {}).get("active")):
                                 if bool((data.get("non_operating_income_guard") or {}).get("primary_source_eps_normalization_released")):
                                     _v261_guard_caption_ui = data.get("non_operating_primary_normalization") or {}
-                                    if _v261_guard_caption_ui.get("same_basis_profitability_released") and _v261_guard_caption_ui.get("same_basis_growth_released"):
+                                    if (_v261_guard_caption_ui.get("same_basis_profitability_released")
+                                        and _v261_guard_caption_ui.get("same_basis_growth_released")
+                                        and _v261_guard_caption_ui.get("roe_same_basis_released")):
                                         st.caption(
-                                            "V262 hat TTM-EPS, TTM-Nettomarge, TTM-Gewinnwachstum und Common-ROE primärquellenbasiert auf derselben Ergebnisbasis normalisiert. "
-                                            "ROE und die generische Gesamtpunktzahl sind noch nicht same-basis freigegeben; deshalb bleiben KGV, fairer Wert und Signal gesperrt."
+                                            "V263 Status: TTM-EPS, TTM-Nettomarge, TTM-Gewinnwachstum und Common-ROE sind primärquellenbasiert auf derselben Ergebnisbasis normalisiert; "
+                                            "die 100-Punkte-Qualitätspunktzahl ist freigegeben. KGV, fairer Wert und Signal bleiben ausschließlich bis zur separaten Validierung des Media-/Internet-/Platforms-Bewertungskorridors gesperrt."
+                                        )
+                                    elif _v261_guard_caption_ui.get("same_basis_profitability_released") and _v261_guard_caption_ui.get("same_basis_growth_released"):
+                                        st.caption(
+                                            "V263 Status: TTM-EPS, TTM-Nettomarge und TTM-Gewinnwachstum sind normalisiert; Common-ROE und Qualitätspunktzahl sind noch nicht vollständig freigegeben. "
+                                            "KGV, fairer Wert und Signal bleiben gesperrt."
                                         )
                                     else:
                                         st.caption(
@@ -76225,7 +76251,7 @@ if selected_symbol:
                                 "Yahoo-FCF bleibt Diagnosekontext; das freigegebene Holding-Familienmodell bewertet NAV, Leverage, Konzentration, Kosten und P/NAV-Evidenz statt industrieller FCF-Margen."
                                 if is_released_listed_holding_family(company_type)
                                 else (
-                                    "Yahoo-FCF bleibt Diagnosekontext; Cashflow-Umwandlung, bereinigter FCF und CapEx-Intensität müssen für einen neuen Zahlungsabwickler zuerst issuer-primary belegt werden, bevor der Familien-Score freigegeben wird."
+                                    "Yahoo-FCF bleibt Diagnosekontext; Cashflow-Konversion, bereinigter FCF und CapEx-Intensität müssen für einen neuen Zahlungsabwickler zuerst issuer-primary belegt werden, bevor der Familien-Score freigegeben wird."
                                     if (company_type or {}).get("valuation_family_id") == "payments_processor"
                                     else "Yahoo-FCF bleibt Diagnosekontext; das Family Model muss zuerst eine geschäftsmodellgerechte Cashflow-/Kapitalmetrik definieren."
                                 )
@@ -79782,10 +79808,16 @@ if selected_symbol:
                         else:
                             peer_explain = f"Professional & Business Services {APP_BUILD_VERSION}: Noch keine freigegebene Peer-Gruppe und noch kein issuer-primary Spezialanker für diesen Emittenten. Peer-Daten können die fehlende Spezialbasis nicht ersetzen; Fair Value bleibt fail-closed."
                     elif bool((data.get("non_operating_income_guard") or {}).get("active")):
-                        peer_explain = (
-                            "Non-Operating-Income-Guard aktiv: Peer-KGVs können eine noch unvollständig normalisierte Gesamtbewertungsbasis nicht ersetzen. "
-                            "Es gilt hier keine Peer-Mindestanzahl zur Freigabe; weder Median noch Peer-Anpassung dürfen Standard-Multiple oder Fair Value erzeugen."
-                        )
+                        if bool((data.get("non_operating_income_guard") or {}).get("primary_source_quality_score_released")):
+                            peer_explain = (
+                                "V263: Ergebnisbasis und 100-Punkte-Qualitätspunktzahl sind vollständig freigegeben. Die Vergleichsgruppe bleibt bis zur separaten Validierung des "
+                                "Media-/Internet-/Platforms-Familienkorridors ohne Freigabewirkung; weder Median noch Peer-Anpassung dürfen den noch fehlenden Familienanker ersetzen."
+                            )
+                        else:
+                            peer_explain = (
+                                "Non-Operating-Income-Guard aktiv: Peer-KGVs können eine noch unvollständig normalisierte Gesamtbewertungsbasis nicht ersetzen. "
+                                "Es gilt hier keine Peer-Mindestanzahl zur Freigabe; weder Median noch Peer-Anpassung dürfen Standard-Multiple oder Fair Value erzeugen."
+                            )
                     else:
                         peer_explain = "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
 
@@ -79814,10 +79846,14 @@ if selected_symbol:
                             )
                     else:
                         if bool((data.get("non_operating_income_guard") or {}).get("active")):
-                            st.warning(
-                                "Non-Operating-Income-Guard hat Vorrang: Die Peer-Schicht ist vollständig nachgeordnet und kann weder Score, "
-                                "Earnings-Basis, Standard-Multiple noch Fair Value freigeben. " + peer_explain
-                            )
+                            if bool((data.get("non_operating_income_guard") or {}).get("primary_source_quality_score_released")):
+                                st.warning(
+                                    "V263 Familienbewertung noch offen: Die Peer-Schicht ist nachgeordnet und darf weder den noch nicht validierten Familien-Korridor noch Standard-Multiple oder Fair Value erzeugen. " + peer_explain
+                                )
+                            else:
+                                st.warning(
+                                    "Non-Operating-Income-Guard hat Vorrang: Die Peer-Schicht ist vollständig nachgeordnet und kann weder Score, Earnings-Basis, Standard-Multiple noch Fair Value freigeben. " + peer_explain
+                                )
                         else:
                             st.caption("Die Vergleichsgruppen-Prüfung ist nur ein externer Realitätscheck. Sie verändert die 100-Punkte-Qualitätspunktzahl nicht. " + peer_explain)
 
@@ -79876,6 +79912,7 @@ if selected_symbol:
                         or bool(event_warning.get("requires_research"))
                         and event_warning.get("valuation_usable") is False
                     )
+                    non_operating_normalized_pending = bool(event_warning.get("non_operating_income_normalized") and event_warning.get("family_valuation_pending"))
                     family_calibration_gate = data.get("branded_consumer_family_gate", {}) or {}
                     family_calibration_blocked = bool(
                         family_calibration_gate.get("active") and family_calibration_gate.get("blocked")
@@ -79899,6 +79936,14 @@ if selected_symbol:
                                 "**Status der regulären Spezialkontrolle:** "
                                 f"{special_control.get('router_status', special_control.get('status'))}"
                             )
+                    elif non_operating_normalized_pending:
+                        st.warning(
+                            "**Ergebnisverzerrung erfolgreich normalisiert – Familienbewertung noch offen.**"
+                        )
+                        st.write(
+                            "**Status:** Qualitätspunktzahl freigegeben · Familien-Korridor, KGV, Fair Value und Handlungssignal noch gesperrt"
+                        )
+                        st.info(event_warning.get("action"))
                     elif special_event_red:
                         st.error(
                             "**Sonderereignis-Prüfung durch Warnampel ausgelöst – "
@@ -79980,11 +80025,13 @@ if selected_symbol:
                             "Die Sperre stammt ausschließlich aus dem noch nicht kalibrierten Family-Specialist-Profil. "
                             "Sie ist kein Sonderereignis-Gate und benötigt keine automatische Ursachenrecherche."
                         )
+                    elif non_operating_normalized_pending:
+                        st.caption(
+                            "Die Ergebnisvergleichbarkeit ist bereits freigegeben. Die verbleibende Sperre stammt ausschließlich aus der noch nicht validierten Familienbewertung und ist kein ungeklärtes Sonderereignis mehr."
+                        )
                     elif special_event_red:
                         st.caption(
-                            "Die Sonderereignis-Warnampel wirkt hier als vorgeschaltete "
-                            "Bewertungssperre. Erst nach Klärung der Ursache darf die "
-                            "Vergleichbarkeit wieder freigegeben werden."
+                            "Die Sonderereignis-Warnampel wirkt hier als vorgeschaltete Bewertungssperre. Erst nach Klärung der Ursache darf die Vergleichbarkeit wieder freigegeben werden."
                         )
                     else:
                         if is_released_listed_holding_family(company_type):
@@ -80253,7 +80300,7 @@ if selected_symbol:
                                 with sc4:
                                     b = pp_blocks.get("cash") or {}
                                     st.metric("Cashflow / Kapitalintensität", f"{int(b.get('points'))}/{int(b.get('max_points'))}")
-                                    st.caption(f"Cashflow-Umwandlung: {safe_float(b.get('cash_conversion_pct')):.1f}% · CapEx-Intensität: {safe_float(b.get('capex_intensity_pct')):.1f}%")
+                                    st.caption(f"Cashflow-Konversion: {safe_float(b.get('cash_conversion_pct')):.1f}% · CapEx-Intensität: {safe_float(b.get('capex_intensity_pct')):.1f}%")
                                 with sc5:
                                     b = pp_blocks.get("execution") or {}
                                     st.metric("Ergebnis / Umsetzung", f"{int(b.get('points'))}/{int(b.get('max_points'))}")
@@ -80265,7 +80312,7 @@ if selected_symbol:
                                 st.info(text_or_dash(pp_score.get("note")))
                                 st.caption(
                                     "Punktzahl-Gewichte: Ertragsökonomie/Umsatz-Umwandlung 25 · Margenqualität/Trend 20 · "
-                                    "Cashflow-Umwandlung/Kapitalintensität 20 · Ergebnis/Unternehmensprognose/Umsetzung 20 · Kapital/Struktur 15."
+                                    "Cashflow-Konversion/Kapitalintensität 20 · Ergebnis/Unternehmensprognose/Umsetzung 20 · Kapital/Struktur 15."
                                 )
                                 pp_earnings = pp_foundation_ui.get("earnings_basis") or {}
                                 if pp_foundation_ui.get("family_earnings_basis_released") and pp_earnings.get("available"):
