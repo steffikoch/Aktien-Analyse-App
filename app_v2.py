@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.64"
+APP_BUILD_VERSION = "V2.23.65"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Steuer-Evidenz-Volltextparser · Primärquellen-Normalisierung V260"
+    f"Build {APP_BUILD_VERSION} · Same-Basis Profitabilität & Wachstum · Primärquellen-Normalisierung V261"
 )
 
 
@@ -958,6 +958,7 @@ st.caption(
 # V2.23.58: Non-Operating Earnings Same-Basis Hard Gate V254. Closes the two remaining V253 release leaks exposed by Alphabet: once the generic non-operating-income distortion guard is active, the pre-guard TTM/current-FY blend is retained only as a diagnostic value and no longer published as a normalized EPS or high-confidence earnings basis; the generic balance 15/15 explainer is suppressed as well. The guard now records an explicit same-basis normalization status and blocks provider-GAAP-TTM from entering any released EPS blend until a period-consistent primary-source earnings normalization exists. Duplicate guard captions are removed. No tax effect is estimated, no issuer-specific Alphabet value is hard-coded, and no family corridor, specialist score, Fair Value or signal mathematics outside the guarded Standard path changes.
 # V2.23.63: Helper Scope Fix V259. Defines the previously missing fail-soft safe_int helper used by the deterministic SEC/Yahoo filing mirror constructor. This fixes the runtime NameError exposed by V258 without changing identifier identity checks, filing transport, primary-source normalization, tax logic, score/multiple/Fair-Value gates or signal logic. V258 fail-closed containment remains active.
 # V2.23.64: Tax Evidence Full-Filing Parser V260. Keeps the global generic HTML-to-text cap unchanged, but evaluates the narrow deferred-tax/statutory-rate evidence against the complete identified SEC filing instead of the 160k generic text preview. This fixes late-filing tax-evidence false negatives without issuer hard-coding or estimated tax effects. Annual statutory-rate extraction gains a conservative full-text fallback around an explicitly labelled federal statutory-rate row. The score/P-E/Fair-Value/signal gates remain unchanged and fail closed.
+# V2.23.65: Same-Basis Profitability & Growth V261. Extends the released V260 primary-source EPS bridge to a current normalized TTM net-income/revenue basis and, when a comparable prior-year 10-Q is unambiguously resolved, a prior-TTM normalized earnings bridge. Current normalized net margin and normalized TTM earnings growth are released only when period structure, dominant unrealized-equity coverage and statutory-rate evidence remain consistent. ROE, the generic 100-point score, P/E, Fair Value and signal remain fail-closed for a later validation step. No issuer-specific ticker or financial value is hard-coded.
 # V2.23.62: Primary-Source Runtime Containment V258. Wraps the V257 SEC same-basis normalization call in a fail-closed exception boundary so an unexpected filing/parser structure can never abort the complete stock view. The exact exception class/message is retained only as technical primary-source diagnostics; no EPS, score, multiple, Fair Value or signal is released on exception. Valuation mathematics and V257 transport rules remain unchanged.
 # V2.23.61: Universal SEC Filing Transport Resilience V257. Extends V256 after GOOG resolved CIK and the official 10-Q/10-K pair but at least one identified document could not be transported within budget. Adds a deterministic Yahoo-CDN mirror URL derived only from verified CIK + accession + SEC primaryDocument, prioritizes the mirror after SEC access has already shown a 403/transport block, and shortens per-document direct SEC attempts so one blocked archive request cannot starve the other filing. Valuation/normalization gates remain unchanged.
 # V2.23.60: Universal SEC Identifier Bootstrap & Filing-Mirror Fallback V256. Hardens the V255 non-operating-equity normalization after GOOG reached the guard but failed before primary-source parsing because the official SEC ticker→CIK association stage was unavailable in that runtime. SEC ticker.txt/company_tickers mappings remain first choice. If they fail, V256 may recover CIK and accession only from Yahoo secFilings metadata whose EDGAR/CDN URLs cryptographically/structurally embed the same 10-digit CIK and accession. The latest 10-Q/10-K filing pair may then be fetched from SEC directly; only if the same identified SEC document is not retrievable directly may its Yahoo CDN filing mirror be used as a transport fallback. No financial value, ticker, issuer or CIK is hard-coded. A mirror document must match form, CIK and accession before it can feed the unchanged V255 same-basis tables/tax gates. V256 also prevents the active guard UI from calling Current-FY analyst EPS a valuation basis and cleans remaining generic-score wording.
@@ -6562,6 +6563,33 @@ def _v260_quarterly_tax_link_evidence(html):
     return False, None
 
 
+def _v261_statutory_tax_rate_series_from_annual(html):
+    """Return explicitly labelled annual federal statutory tax rates in visible column order."""
+    if not html:
+        return [], None
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:
+        return [], None
+    label_rx = re.compile(r"(?:US|U\.S\.)\s+federal\s+statutory(?:\s+income)?(?:\s+tax)?\s+rate", flags=re.I)
+    for tr in soup.find_all("tr"):
+        row_text = _clean_text(tr.get_text(" ", strip=True))
+        if not label_rx.search(row_text):
+            continue
+        rates = [safe_float(x) for x in re.findall(r"(-?\d+(?:\.\d+)?)\s*%", row_text)]
+        rates = [x / 100.0 for x in rates if x is not None and 0 < x < 50]
+        if len(rates) >= 2:
+            return rates, row_text
+    full_text = _clean_text(soup.get_text(" ", strip=True))
+    m = label_rx.search(full_text)
+    if not m:
+        return [], None
+    window = full_text[m.start(): m.start() + 420]
+    rates = [safe_float(x) for x in re.findall(r"(-?\d+(?:\.\d+)?)\s*%", window)]
+    rates = [x / 100.0 for x in rates if x is not None and 0 < x < 50]
+    return (rates if len(rates) >= 2 else []), window
+
+
 @st.cache_data(ttl=21600, show_spinner=False)
 def _v256_yahoo_sec_filing_bootstrap(symbol, cache_version="v256"):
     """Recover SEC filing identity from Yahoo's secFilings metadata without trusting Yahoo financial values.
@@ -6732,6 +6760,97 @@ def _v256_fetch_identified_filing(row, deadline=None, prefer_mirror=False):
     return None, None, None
 
 
+def _v261_parse_iso_date(value):
+    value = _clean_text(value)
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value[:10], "%Y-%m-%d").date()
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=21600, show_spinner=False)
+def _v261_fetch_prior_year_comparable_10q(cik, current_report_date, current_filing_date, current_accession, prefer_mirror=False, cache_version="v261"):
+    """Resolve exactly one prior-year comparable 10-Q by SEC filing identity and date distance.
+
+    This helper is deliberately optional: failure blocks normalized growth only and never revokes
+    an already valid current-TTM EPS/profitability bridge.
+    """
+    out = {"available": False, "filing": None, "diagnostics": []}
+    cik = safe_int(cik)
+    current_date = _v261_parse_iso_date(current_report_date) or _v261_parse_iso_date(current_filing_date)
+    current_acc = re.sub(r"\D", "", _clean_text(current_accession))
+    if not cik or current_date is None:
+        out["diagnostics"].append("V261 Vorjahres-10-Q: aktuelle Vergleichsperiode nicht eindeutig datierbar.")
+        return out
+    deadline = time.monotonic() + 6.0
+    try:
+        _sec_fair_access_pause()
+        timeout = _bounded_timeout(deadline, 3.8)
+        if timeout is None:
+            raise TimeoutError("Zeitbudget erschöpft")
+        r = requests.get(
+            f"https://data.sec.gov/submissions/CIK{int(cik):010d}.json",
+            headers=_request_headers(sec=True),
+            timeout=(min(1.8, timeout), timeout),
+        )
+        r.raise_for_status()
+        recent = (r.json().get("filings") or {}).get("recent") or {}
+        forms = recent.get("form") or []
+        accessions = recent.get("accessionNumber") or []
+        docs = recent.get("primaryDocument") or []
+        filing_dates = recent.get("filingDate") or []
+        report_dates = recent.get("reportDate") or []
+        candidates = []
+        for i, form in enumerate(forms):
+            if form != "10-Q" or i >= len(accessions) or i >= len(docs):
+                continue
+            acc = _clean_text(accessions[i])
+            acc_nodash = acc.replace("-", "")
+            if not acc_nodash or acc_nodash == current_acc:
+                continue
+            report_date = report_dates[i] if i < len(report_dates) else None
+            filing_date = filing_dates[i] if i < len(filing_dates) else None
+            cand_date = _v261_parse_iso_date(report_date) or _v261_parse_iso_date(filing_date)
+            if cand_date is None:
+                continue
+            delta = (current_date - cand_date).days
+            if not (300 <= delta <= 430):
+                continue
+            doc = _clean_text(docs[i])
+            row = {
+                "form": "10-Q",
+                "url": f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc_nodash}/{doc}",
+                "mirror_url": None,
+                "accession_nodash": acc_nodash,
+                "filing_date": filing_date,
+                "report_date": report_date,
+                "identity_source": "SEC submissions · V261 comparable prior-year 10-Q",
+                "cik": int(cik),
+                "primary_document": doc,
+            }
+            candidates.append((abs(delta - 365), 0 if report_date else 1, row))
+        if not candidates:
+            out["diagnostics"].append("V261 Vorjahres-10-Q: keine eindeutige 300–430-Tage-Vergleichsperiode in SEC submissions.")
+            return out
+        candidates.sort(key=lambda x: (x[0], x[1]))
+        row = candidates[0][2]
+        html, final_url, transport = _v256_fetch_identified_filing(row, deadline=deadline, prefer_mirror=bool(prefer_mirror))
+        if not html:
+            out["diagnostics"].append("V261 Vorjahres-10-Q: identifiziert, aber Dokumenttransport fehlgeschlagen.")
+            return out
+        row.update({"html": html, "final_url": final_url or row.get("url"), "transport": transport, "loaded": True})
+        out.update({"available": True, "filing": row})
+        out["diagnostics"].append(
+            f"V261 Vorjahres-10-Q: vergleichbare Periode {row.get('report_date') or row.get('filing_date')} eindeutig geladen."
+        )
+        return out
+    except Exception as exc:
+        out["diagnostics"].append(f"V261 Vorjahres-10-Q: {type(exc).__name__}; normalisiertes Gewinnwachstum bleibt fail-closed.")
+        return out
+
+
 def _v256_sec_latest_10q_10k(symbol, deadline=None):
     """Resolve latest 10-Q/10-K with SEC-first CIK mapping plus a strict Yahoo filing-identity fallback."""
     diagnostics = []
@@ -6896,7 +7015,7 @@ def build_non_operating_equity_gain_primary_normalization_v256(symbol, financial
         result["reason"] = "V256 SEC-Normalisierung ist derzeit nur für USD-berichtende SEC-10-K/10-Q-Emittenten freigegeben; anderer Primärquellenpfad erforderlich."
         return result
 
-    deadline = time.monotonic() + 20.0
+    deadline = time.monotonic() + 25.0
     sec = _v256_sec_latest_10q_10k(symbol, deadline=deadline)
     result["diagnostics"].extend(sec.get("diagnostics") or [])
     result["cik"] = sec.get("cik")
@@ -7057,10 +7176,126 @@ def build_non_operating_equity_gain_primary_normalization_v256(symbol, financial
         result["reason"] = "Normalisierter TTM-EPS-Wert liegt außerhalb des konservativen Plausibilitätskorridors relativ zur periodenreinen GAAP-TTM-Brücke."
         return result
 
+    # V261 – extend the same primary-source basis from EPS to current TTM profitability
+    # and, when a comparable prior-year 10-Q is available, normalized TTM earnings growth.
+    # These metrics are diagnostic/released result bases only; generic score remains blocked until ROE is normalized.
+    same_basis_metrics = {
+        "profitability_released": False,
+        "growth_released": False,
+        "normalized_ttm_net_income": None,
+        "normalized_ttm_revenue": None,
+        "normalized_ttm_net_margin": None,
+        "normalized_prior_ttm_net_income": None,
+        "normalized_prior_ttm_revenue": None,
+        "normalized_ttm_earnings_growth": None,
+        "prior_ttm_unrealized_coverage_ratio": None,
+        "roe_released": False,
+        "diagnostics": [],
+    }
+    q_revenue, q_revenue_row = _v255_pick_row_values(q_html, r"^(?:total\s+)?revenues?$", q_count)
+    k_revenue, k_revenue_row = _v255_pick_row_values(k_html, r"^(?:total\s+)?revenues?$", 3)
+    normalized_fy_income = k_common_fy - k_unreal_fy * after_tax_factor
+    normalized_prior_ytd_income = q_common_prior - q_unreal_prior * after_tax_factor
+    normalized_current_ytd_income = q_common_current - q_unreal_current * after_tax_factor
+    normalized_ttm_income = normalized_fy_income - normalized_prior_ytd_income + normalized_current_ytd_income
+    current_ttm_revenue = None
+    if q_revenue and k_revenue:
+        current_ttm_revenue = k_revenue[-1] - q_revenue[-2] + q_revenue[-1]
+    if (
+        safe_float(normalized_ttm_income) is not None and normalized_ttm_income > 0
+        and safe_float(current_ttm_revenue) is not None and current_ttm_revenue > 0
+    ):
+        normalized_margin = normalized_ttm_income / current_ttm_revenue
+        if math.isfinite(normalized_margin) and -0.20 <= normalized_margin <= 0.80:
+            same_basis_metrics.update({
+                "profitability_released": True,
+                "normalized_ttm_net_income": normalized_ttm_income,
+                "normalized_ttm_revenue": current_ttm_revenue,
+                "normalized_ttm_net_margin": normalized_margin,
+            })
+        else:
+            same_basis_metrics["diagnostics"].append("V261 Profitabilität: normalisierte TTM-Nettomarge außerhalb des konservativen Plausibilitätskorridors.")
+    else:
+        same_basis_metrics["diagnostics"].append("V261 Profitabilität: periodenreine TTM-Umsatz-/Nettogewinnbrücke nicht vollständig.")
+
+    prior_q = _v261_fetch_prior_year_comparable_10q(
+        result.get("cik"),
+        q.get("report_date"),
+        q.get("filing_date"),
+        q.get("accession_nodash"),
+        prefer_mirror=("Yahoo CDN" in _clean_text(q.get("transport"))),
+        cache_version=cache_version,
+    )
+    same_basis_metrics["diagnostics"].extend(prior_q.get("diagnostics") or [])
+    if same_basis_metrics.get("profitability_released") and prior_q.get("available"):
+        pq = prior_q.get("filing") or {}
+        pq_html = pq.get("html") or ""
+        pq_total, pq_total_row = _v255_pick_row_values(
+            pq_html,
+            r"total\s+gain\s*\(loss\)\s+on\s+equity\s+securities\s+in\s+other\s+income\s*\(expense\).*net",
+            q_count,
+        )
+        pq_unreal, pq_unreal_rows = _v255_sum_unrealized_equity_rows(pq_html, q_count)
+        pq_common, pq_common_row = _v255_pick_row_values(pq_html, r"net\s+income\s+available\s+to\s+common\s+stockholders", q_count)
+        if not pq_common:
+            pq_common, pq_common_row = _v255_pick_row_values(pq_html, r"^net\s+income$", q_count)
+        pq_revenue, pq_revenue_row = _v255_pick_row_values(pq_html, r"^(?:total\s+)?revenues?$", q_count)
+        tax_rates, tax_rate_series_row = _v261_statutory_tax_rate_series_from_annual(k_html)
+        if (
+            pq_total and pq_unreal and pq_common and pq_revenue
+            and len(k_total) >= 2 and len(k_unreal) >= 2 and len(k_common) >= 2 and len(k_revenue or []) >= 2
+            and len(tax_rates) >= 2
+        ):
+            prior_rate = tax_rates[-2]
+            current_rate = tax_rates[-1]
+            if abs(current_rate - statutory_rate) <= 0.005:
+                prior_total_ttm = k_total[-2] - pq_total[-2] + pq_total[-1]
+                prior_unreal_ttm = k_unreal[-2] - pq_unreal[-2] + pq_unreal[-1]
+                prior_coverage = abs(prior_unreal_ttm) / abs(prior_total_ttm) if abs(prior_total_ttm) > 1e-9 else None
+                same_basis_metrics["prior_ttm_unrealized_coverage_ratio"] = prior_coverage
+                if prior_coverage is not None and 0.85 <= prior_coverage <= 1.10:
+                    normalized_fy_prior_income = k_common[-2] - k_unreal[-2] * (1.0 - prior_rate)
+                    normalized_pq_prior_income = pq_common[-2] - pq_unreal[-2] * (1.0 - prior_rate)
+                    normalized_pq_current_income = pq_common[-1] - pq_unreal[-1] * (1.0 - current_rate)
+                    normalized_prior_ttm_income = normalized_fy_prior_income - normalized_pq_prior_income + normalized_pq_current_income
+                    prior_ttm_revenue = k_revenue[-2] - pq_revenue[-2] + pq_revenue[-1]
+                    if normalized_prior_ttm_income > 0 and prior_ttm_revenue > 0:
+                        normalized_growth = normalized_ttm_income / normalized_prior_ttm_income - 1.0
+                        if math.isfinite(normalized_growth) and -0.80 <= normalized_growth <= 3.00:
+                            same_basis_metrics.update({
+                                "growth_released": True,
+                                "normalized_prior_ttm_net_income": normalized_prior_ttm_income,
+                                "normalized_prior_ttm_revenue": prior_ttm_revenue,
+                                "normalized_ttm_earnings_growth": normalized_growth,
+                                "prior_year_quarterly_url": pq.get("final_url") or pq.get("url"),
+                                "prior_year_quarterly_report_date": pq.get("report_date"),
+                                "prior_year_quarterly_transport": pq.get("transport"),
+                                "annual_statutory_rate_series_row": tax_rate_series_row,
+                            })
+                        else:
+                            same_basis_metrics["diagnostics"].append("V261 Wachstum: normalisiertes TTM-Gewinnwachstum außerhalb des konservativen Plausibilitätskorridors.")
+                    else:
+                        same_basis_metrics["diagnostics"].append("V261 Wachstum: normalisierte Vorjahres-TTM-Ergebnis-/Umsatzbasis nicht positiv belastbar.")
+                else:
+                    same_basis_metrics["diagnostics"].append(
+                        "V261 Wachstum: Vorjahres-TTM-Equity-Gain-Brücke wird nicht dominant durch netto-unrealisierte Gewinne erklärt."
+                    )
+            else:
+                same_basis_metrics["diagnostics"].append("V261 Wachstum: statutory-rate-Reihe ist zwischen Vergleichsjahren nicht konsistent mit der freigegebenen Steuerbasis.")
+        else:
+            same_basis_metrics["diagnostics"].append("V261 Wachstum: vergleichbare Vorjahres-10-Q-/Annual-Zeilen nicht vollständig periodenrein verfügbar.")
+
+    result["same_basis_metrics"] = same_basis_metrics
+    result["diagnostics"].extend(same_basis_metrics.get("diagnostics") or [])
+
     result.update({
         "available": True,
         "released": True,
-        "status": "primary_source_eps_normalized_score_still_blocked",
+        "status": (
+            "primary_source_eps_profit_growth_normalized_score_still_blocked"
+            if same_basis_metrics.get("profitability_released") and same_basis_metrics.get("growth_released")
+            else "primary_source_eps_normalized_score_still_blocked"
+        ),
         "confidence": "Mittel",
         "normalized_ttm_eps": normalized_ttm_eps,
         "reported_ttm_eps_primary": reported_ttm_eps_primary,
@@ -7071,6 +7306,15 @@ def build_non_operating_equity_gain_primary_normalization_v256(symbol, financial
         "unrealized_equity_gain_ttm": unreal_ttm,
         "unrealized_coverage_ratio": coverage_ratio,
         "share_proxy_spread": share_spread,
+        "same_basis_profitability_released": bool(same_basis_metrics.get("profitability_released")),
+        "same_basis_growth_released": bool(same_basis_metrics.get("growth_released")),
+        "normalized_ttm_net_income": same_basis_metrics.get("normalized_ttm_net_income"),
+        "normalized_ttm_revenue": same_basis_metrics.get("normalized_ttm_revenue"),
+        "normalized_ttm_net_margin": same_basis_metrics.get("normalized_ttm_net_margin"),
+        "normalized_prior_ttm_net_income": same_basis_metrics.get("normalized_prior_ttm_net_income"),
+        "normalized_ttm_earnings_growth": same_basis_metrics.get("normalized_ttm_earnings_growth"),
+        "prior_ttm_unrealized_coverage_ratio": same_basis_metrics.get("prior_ttm_unrealized_coverage_ratio"),
+        "roe_same_basis_released": False,
         "period_bridge": {
             "fy": {"reported_eps": k_eps_fy, "normalized_eps": normalized_fy_eps, "unrealized_equity_gain": k_unreal_fy, "common_income": k_common_fy, "diluted_share_proxy": shares_fy},
             "prior_ytd": {"reported_eps": q_eps_prior, "normalized_eps": normalized_prior_ytd_eps, "unrealized_equity_gain": q_unreal_prior, "common_income": q_common_prior, "diluted_share_proxy": shares_prior},
@@ -7087,6 +7331,9 @@ def build_non_operating_equity_gain_primary_normalization_v256(symbol, financial
             "annual_transport": k.get("transport"),
             "quarterly_identity_source": q.get("identity_source"),
             "annual_identity_source": k.get("identity_source"),
+            "prior_year_quarterly_url": same_basis_metrics.get("prior_year_quarterly_url"),
+            "prior_year_quarterly_report_date": same_basis_metrics.get("prior_year_quarterly_report_date"),
+            "prior_year_quarterly_transport": same_basis_metrics.get("prior_year_quarterly_transport"),
         },
         "evidence": {
             "quarterly_tax_link_excerpt": tax_link_evidence,
@@ -7104,7 +7351,8 @@ def build_non_operating_equity_gain_primary_normalization_v256(symbol, financial
         "reason": (
             "Periodenreine SEC-Primärquellenbrücke FY − Vorjahres-YTD + aktuelles YTD vollständig. "
             "Dominante netto-unrealisierte Equity-Securities-Gewinne werden mit der vom Emittenten explizit verknüpften statutory-tax-rate-Wirkung bereinigt. "
-            "Freigegeben wird nur das normalisierte TTM-EPS; Qualitätspunktzahl, Standard-KGV, Fair Value und Signal bleiben gesperrt."
+            "V261 kann zusätzlich normalisierte TTM-Nettomarge und – bei eindeutigem Vorjahres-10-Q – normalisiertes TTM-Gewinnwachstum freigeben. "
+            "ROE, Qualitätspunktzahl, Standard-KGV, Fair Value und Signal bleiben weiterhin gesperrt."
         ),
     })
     return result
@@ -67846,7 +68094,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "normalized_eps": _v255_released_eps,
                 "confidence": "Mittel",
                 "method": (
-                    "V260 Primärquellen-Normalisierung: periodenreine SEC-Brücke FY − Vorjahres-YTD + aktuelles YTD. "
+                    "V261 Primärquellen-Normalisierung: periodenreine SEC-Brücke FY − Vorjahres-YTD + aktuelles YTD. "
                     "Dominante netto-unrealisierte Equity-Securities-Gewinne werden ausschließlich bei explizit belegter "
                     "statutory-tax-rate-Verknüpfung nach Steuern aus der EPS-Basis entfernt. Current-FY-Analystenkonsens bleibt ungeprüfter Kontext."
                 ),
@@ -67866,10 +68114,13 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "diagnostic_normalization_confidence": _v255_diag_confidence,
                 "tax_effect_estimated": False,
                 "primary_source_eps_normalization_released": True,
+                "primary_source_profitability_normalization_released": bool((non_operating_primary_normalization or {}).get("same_basis_profitability_released")),
+                "primary_source_growth_normalization_released": bool((non_operating_primary_normalization or {}).get("same_basis_growth_released")),
+                "primary_source_roe_normalization_released": False,
                 "primary_source_normalization": non_operating_primary_normalization,
                 "normalization_note": (
-                    "V260 hat eine periodenreine Primärquellen-TTM-EPS-Basis freigegeben. "
-                    "Die Gesamtbewertung bleibt trotzdem gesperrt, weil Nettomarge, Gewinnwachstum und der generische Score noch nicht auf derselben normalisierten Ergebnisbasis neu aufgebaut sind."
+                    "V261 hat die Primärquellen-TTM-EPS-Basis freigegeben und prüft Nettomarge/Gewinnwachstum auf derselben Ergebnisbasis. "
+                    "Die Gesamtbewertung bleibt trotzdem gesperrt, solange ROE und die generische Gesamtpunktzahl nicht ebenfalls same-basis freigegeben sind."
                 ),
             }
         else:
@@ -67881,7 +68132,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "normalized_eps": None,
                 "confidence": "Niedrig",
                 "method": (
-                    "Vergleichsbasis-Schutz V260: Provider-GAAP-TTM und Current-FY-Konsens werden nicht gemischt. "
+                    "Vergleichsbasis-Schutz V261: Provider-GAAP-TTM und Current-FY-Konsens werden nicht gemischt. "
                     "Eine freigegebene normalisierte EPS-Basis entsteht erst nach periodenreiner Primärquellen-Normalisierung "
                     "materieller nicht-operativer Ergebnisbeiträge einschließlich belastbar belegter Steuerwirkung."
                 ),
@@ -67901,9 +68152,12 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "diagnostic_normalization_confidence": _v255_diag_confidence,
                 "tax_effect_estimated": False,
                 "primary_source_eps_normalization_released": False,
+                "primary_source_profitability_normalization_released": False,
+                "primary_source_growth_normalization_released": False,
+                "primary_source_roe_normalization_released": False,
                 "primary_source_normalization": non_operating_primary_normalization,
                 "normalization_note": (
-                    "V260 schätzt keine Steuerwirkung und rechnet nicht-operative Gewinne nicht pauschal heraus. "
+                    "V261 schätzt keine Steuerwirkung und rechnet nicht-operative Gewinne nicht pauschal heraus. "
                     "Fehlt die vollständige periodenreine Primärquellen-/Steuer-Kette, bleibt die EPS-Basis gesperrt."
                 ),
             }
@@ -69795,9 +70049,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "earnings_basis_usable": False,
             "note": (
                 (
-                    "Non-Operating Earnings Distortion Safety Gate aktiv: V257 hat ausschließlich die TTM-EPS-Gewinnbasis primärquellenbasiert normalisiert. "
-                    "Wachstum, Profitabilität und der generische 100-Punkte-Score sind noch nicht auf derselben normalisierten Basis neu aufgebaut; "
-                    "deshalb bleiben Standard-KGV, Fair Value und Signal gesperrt."
+                    "Non-Operating Earnings Distortion Safety Gate aktiv: V261 hat EPS sowie – sofern periodenrein verfügbar – Nettomarge und Gewinnwachstum primärquellenbasiert normalisiert. "
+                    "ROE und die generische 100-Punkte-Gesamtpunktzahl sind noch nicht same-basis freigegeben; deshalb bleiben Standard-KGV, Fair Value und Signal gesperrt."
                 )
                 if _v255_eps_only_released else
                 (
@@ -70729,8 +70982,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             ),
             "action": (
                 (
-                    "V257 hat die TTM-EPS-Basis primärquellenbasiert normalisiert. Als nächstes müssen Gewinnwachstum und Profitabilität auf derselben "
-                    "normalisierten Ergebnisbasis neu aufgebaut werden; bis dahin bleiben generische Punktzahl, Standard-KGV, Fair Value und Signal gesperrt. "
+                    "V261 hat EPS sowie – sofern periodenrein verfügbar – Nettomarge und Gewinnwachstum primärquellenbasiert normalisiert. "
+                    "ROE und die generische Gesamtpunktzahl bleiben noch gesperrt; bis zu ihrer Same-Basis-Freigabe bleiben Standard-KGV, Fair Value und Signal gesperrt. "
                     "FCF und Bilanz bleiben Diagnosekontext."
                 )
                 if _v255_eps_only_released else
@@ -70780,8 +71033,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "valuation_method": None,
             "note": (
                 (
-                    "Fair Value V1 gesperrt: V256 hat die TTM-EPS-Basis primärquellenbasiert normalisiert, aber Nettomarge, Gewinnwachstum und der generische Score "
-                    "sind noch nicht auf derselben normalisierten Ergebnisbasis neu aufgebaut. Deshalb bleibt der Standard-EPS×KGV-Pfad gesperrt."
+                    "Fair Value V1 gesperrt: V261 hat die TTM-EPS-Basis und – sofern periodenrein verfügbar – Nettomarge/Gewinnwachstum primärquellenbasiert normalisiert. "
+                    "ROE und die generische Gesamtpunktzahl sind noch nicht same-basis freigegeben. Deshalb bleibt der Standard-EPS×KGV-Pfad gesperrt."
                 )
                 if _v255_eps_only_released else
                 (
@@ -73152,7 +73405,7 @@ if selected_symbol:
                         ] is not None:
 
                             st.metric(
-                                "Nettomarge",
+                                "Nettomarge (Yahoo/GAAP · Diagnosewert)" if bool((data.get("non_operating_income_guard") or {}).get("active")) else "Nettomarge",
                                 f"{data['profit_margin'] * 100:.1f} %"
                             )
 
@@ -73170,7 +73423,7 @@ if selected_symbol:
                         ] is not None:
 
                             st.metric(
-                                "Gewinnwachstum (Yahoo/GAAP)" if data.get("same_basis_earnings_growth_active") else "Gewinnwachstum",
+                                "Gewinnwachstum (Yahoo/GAAP · Diagnosewert)" if bool((data.get("non_operating_income_guard") or {}).get("active")) else ("Gewinnwachstum (Yahoo/GAAP)" if data.get("same_basis_earnings_growth_active") else "Gewinnwachstum"),
                                 f"{data['earnings_growth'] * 100:.1f} %"
                             )
 
@@ -73184,7 +73437,7 @@ if selected_symbol:
                         if data["roe"] is not None:
 
                             st.metric(
-                                "Eigenkapitalrendite",
+                                "Eigenkapitalrendite (Yahoo/GAAP · Diagnosewert)" if bool((data.get("non_operating_income_guard") or {}).get("active")) else "Eigenkapitalrendite",
                                 f"{data['roe'] * 100:.1f} %"
                             )
 
@@ -73213,6 +73466,24 @@ if selected_symbol:
                             f"{_momentum_ui_text} "
                             "Das oben gezeigte Yahoo-/GAAP-Gewinnwachstum bleibt reine Rohdaten-/Diagnoseinformation."
                         )
+
+                    _v261_primary_metrics_ui = data.get("non_operating_primary_normalization") or {}
+                    if bool((data.get("non_operating_income_guard") or {}).get("active")) and _v261_primary_metrics_ui.get("released"):
+                        _v261_margin_ui = safe_float(_v261_primary_metrics_ui.get("normalized_ttm_net_margin"))
+                        _v261_growth_ui = safe_float(_v261_primary_metrics_ui.get("normalized_ttm_earnings_growth"))
+                        _v261_prior_cov_ui = safe_float(_v261_primary_metrics_ui.get("prior_ttm_unrealized_coverage_ratio"))
+                        _v261_parts = []
+                        if _v261_margin_ui is not None:
+                            _v261_parts.append(f"normalisierte TTM-Nettomarge **{_v261_margin_ui*100:.1f} %**")
+                        if _v261_growth_ui is not None:
+                            _v261_parts.append(f"normalisiertes TTM-Gewinnwachstum **{_v261_growth_ui*100:.1f} %**")
+                        if _v261_parts:
+                            st.info(
+                                "🧮 **V261 Same-Basis Ergebnisnormalisierung:** " + " · ".join(_v261_parts) + ". "
+                                "ROE ist noch nicht same-basis normalisiert; deshalb bleiben Profitabilitätspunktzahl, Gesamtpunktzahl, KGV, fairer Wert und Signal gesperrt."
+                            )
+                        if _v261_prior_cov_ui is not None:
+                            st.caption(f"V261 Vorjahres-TTM-Prüfung: netto-unrealisierte Equity-Gewinne decken {_v261_prior_cov_ui*100:.1f} % des periodenreinen Equity-Gain-Beitrags ab.")
 
                     if data.get("profit_margin_note"):
                         st.warning(
@@ -73364,7 +73635,7 @@ if selected_symbol:
                             _v255_primary_ui = data.get("non_operating_primary_normalization") or {}
                             _v255_diag_eps_ui = safe_float(_v255_guard_ui.get("diagnostic_normalized_eps"))
                             st.info(
-                                "V260 Vergleichsbasis-Schutz: Der frühere Provider-TTM/Current-FY-Mischwert bleibt verworfen. "
+                                "V261 Vergleichsbasis-Schutz: Der frühere Provider-TTM/Current-FY-Mischwert bleibt verworfen. "
                                 "Eine Primärquellen-EPS-Basis wird nur freigegeben, wenn FY, Vorjahres-YTD und aktuelles YTD periodenrein, "
                                 "die nicht-operativen Equity-Gewinne dominant und die Steuerwirkung ausdrücklich aus Primärquellen belegt sind."
                             )
@@ -73961,7 +74232,7 @@ if selected_symbol:
                             _v255_coverage_ui = safe_float(_v255_primary_eps_ui.get("unrealized_coverage_ratio"))
                             if _v255_tax_rate_ui is not None and _v255_coverage_ui is not None:
                                 st.caption(
-                                    f"V260 Primärquellenprüfung: statutory tax rate {_v255_tax_rate_ui*100:.1f} % · "
+                                    f"V261 Primärquellenprüfung: statutory tax rate {_v255_tax_rate_ui*100:.1f} % · "
                                     f"unrealisierte Equity-Gewinne decken {_v255_coverage_ui*100:.1f} % des periodenreinen TTM-Equity-Gain-Beitrags ab."
                                 )
                         else:
@@ -74371,10 +74642,17 @@ if selected_symbol:
                         else:
                             if bool((data.get("non_operating_income_guard") or {}).get("active")):
                                 if bool((data.get("non_operating_income_guard") or {}).get("primary_source_eps_normalization_released")):
-                                    st.caption(
-                                        "V257 hat ausschließlich die TTM-EPS-Gewinnbasis normalisiert. Nettomarge, Gewinnwachstum und die generische Qualitätspunktzahl "
-                                        "sind noch nicht auf derselben Basis normalisiert; deshalb bleiben KGV, fairer Wert und Signal gesperrt."
-                                    )
+                                    _v261_guard_caption_ui = data.get("non_operating_primary_normalization") or {}
+                                    if _v261_guard_caption_ui.get("same_basis_profitability_released") and _v261_guard_caption_ui.get("same_basis_growth_released"):
+                                        st.caption(
+                                            "V261 hat TTM-EPS, TTM-Nettomarge und TTM-Gewinnwachstum primärquellenbasiert auf derselben Ergebnisbasis normalisiert. "
+                                            "ROE und die generische Gesamtpunktzahl sind noch nicht same-basis freigegeben; deshalb bleiben KGV, fairer Wert und Signal gesperrt."
+                                        )
+                                    else:
+                                        st.caption(
+                                            "V261 hat die TTM-EPS-Gewinnbasis normalisiert; weitere Same-Basis-Ergebniskennzahlen sind noch unvollständig. "
+                                            "KGV, fairer Wert und Signal bleiben gesperrt."
+                                        )
                                 else:
                                     st.caption(
                                         "Es ist weiterhin keine freigegebene Gewinnbasis vorhanden. KGV, fairer Wert und Signal bleiben vollständig gesperrt."
