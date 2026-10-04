@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.67"
+APP_BUILD_VERSION = "V2.23.68"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Guard-State-Bereinigung · Familienbewertung offen V263"
+    f"Build {APP_BUILD_VERSION} · Internet-Platform-KGV-Korridor · Live-Validierung V264"
 )
 
 
@@ -959,6 +959,8 @@ st.caption(
 # V2.23.63: Helper Scope Fix V259. Defines the previously missing fail-soft safe_int helper used by the deterministic SEC/Yahoo filing mirror constructor. This fixes the runtime NameError exposed by V258 without changing identifier identity checks, filing transport, primary-source normalization, tax logic, score/multiple/Fair-Value gates or signal logic. V258 fail-closed containment remains active.
 # V2.23.64: Tax Evidence Full-Filing Parser V260. Keeps the global generic HTML-to-text cap unchanged, but evaluates the narrow deferred-tax/statutory-rate evidence against the complete identified SEC filing instead of the 160k generic text preview. This fixes late-filing tax-evidence false negatives without issuer hard-coding or estimated tax effects. Annual statutory-rate extraction gains a conservative full-text fallback around an explicitly labelled federal statutory-rate row. The score/P-E/Fair-Value/signal gates remain unchanged and fail closed.
 # V2.23.67: Guard State Transition Cleanup V263. After the same-basis primary-source quality basis is fully released, the non-operating distortion state transitions from unresolved/red to normalized/yellow. Score math, EPS normalization, FCF and balance math are unchanged; P/E, Fair Value and signals remain fail-closed until the Media / Internet / Platforms family corridor is separately validated.
+
+# V2.23.68: Internet-Platform Family Corridor V264. Adds a reusable Media/Internet subprofile for Internet Content & Information platforms and releases an 18–32x normalized-TTM P/E corridor for mature profitable platform economics only. Eligibility is score/evidence based (quality >=80, growth >=20/30, profitability >=20/30, FCF >=16/25, balance >=10/15, positive normalized earnings basis). The target line is 50 points -> 18x and 100 points -> 32x, with no extra growth premium to avoid double counting. V264 is corridor/target-multiple live-validation only: peer adjustment, Fair Value, valuation zones and signals remain fail-closed pending a second-issuer live regression (Meta). Alphabet non-operating normalization and 92/100 score math are unchanged.
 # V2.23.66: Normalized Common ROE & Quality Score Release V262. Extends the released V260 primary-source EPS bridge to a current normalized TTM net-income/revenue basis and, when a comparable prior-year 10-Q is unambiguously resolved, a prior-TTM normalized earnings bridge. Current normalized net margin and normalized TTM earnings growth are released only when period structure, dominant unrealized-equity coverage and statutory-rate evidence remain consistent. ROE, the generic 100-point score, P/E, Fair Value and signal remain fail-closed for a later validation step. No issuer-specific ticker or financial value is hard-coded.
 # V2.23.62: Primary-Source Runtime Containment V258. Wraps the V257 SEC same-basis normalization call in a fail-closed exception boundary so an unexpected filing/parser structure can never abort the complete stock view. The exact exception class/message is retained only as technical primary-source diagnostics; no EPS, score, multiple, Fair Value or signal is released on exception. Valuation mathematics and V257 transport rules remain unchanged.
 # V2.23.61: Universal SEC Filing Transport Resilience V257. Extends V256 after GOOG resolved CIK and the official 10-Q/10-K pair but at least one identified document could not be transported within budget. Adds a deterministic Yahoo-CDN mirror URL derived only from verified CIK + accession + SEC primaryDocument, prioritizes the mirror after SEC access has already shown a 403/transport block, and shortens per-document direct SEC attempts so one blocked archive request cannot starve the other filing. Valuation/normalization gates remain unchanged.
@@ -10144,6 +10146,50 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
 
     # V207 – canonical symbol must exist before any universal-family specialist routing.
     _canonical_family_symbol = str(symbol or "").upper().strip()
+
+    # V264 – Media / Internet / Platforms subprofile split. The broad Communication
+    # Services family remains heterogeneous; only Internet Content & Information receives
+    # the mature digital-platform corridor candidate. Streaming/content and other media
+    # economics remain separate/fail-closed for this family corridor.
+    if family_id == "media_internet":
+        _mi_industry = str(industry or "").strip().lower()
+        _mi_summary = str(business_summary or "").strip().lower()
+        if "internet content & information" in _mi_industry or "internet content and information" in _mi_industry:
+            out["media_internet_subprofile"] = "internet_content_platform"
+            out["media_internet_subprofile_label"] = "Internet Content / Digital Platform"
+            out["family_model_status"] = "corridor_live_validation_v264"
+            out["family_model_ready"] = True
+            out["family_model_released"] = False
+            out["family_validation_status"] = "internet_content_platform_corridor_v264_first_issuer"
+            out["universal_family_fail_closed"] = False
+            out["confidence_cap"] = "Mittel"
+            out["method"] = (
+                "V264 Internet-Platform-Familienpfad: 100-Punkte-Qualität + positive normalisierte TTM-Gewinnbasis; "
+                "18–32× normalisiertes TTM-KGV, score-positioniert von 50→18× bis 100→32×. "
+                "Nur reife profitable Plattformprofile mit bestandenem Qualitäts-/FCF-/Bilanz-Gate sind corridor-eligible. "
+                "Peer-Anpassung, Fair Value, Bewertungszonen und Signal bleiben bis zum zweiten Live-Emittenten-Gegentest gesperrt."
+            )
+            out["business_model"] = "Internet Content / Search / Social / Digital Platform"
+            out["focus_areas"] = "Umsatz- und Earnings-Wachstum · normalisierte Marge/ROE · FCF-Marge/Cash Conversion · Bilanz · Plattform-Skalierung"
+        elif "entertainment" in _mi_industry or "streaming" in _mi_summary:
+            out["media_internet_subprofile"] = "content_streaming"
+            out["media_internet_subprofile_label"] = "Content / Streaming"
+            out["family_model_status"] = "subprofile_not_calibrated"
+            out["family_model_ready"] = False
+            out["family_model_released"] = False
+            out["universal_family_fail_closed"] = True
+            out["confidence_cap"] = "Niedrig bis Mittel"
+            out["method"] = "Content-/Streaming-Unterprofil erkannt; kein Internet-Platform-KGV-Korridor wird übertragen. Eigene Familienkalibrierung erforderlich."
+        else:
+            out["media_internet_subprofile"] = "media_communication_other"
+            out["media_internet_subprofile_label"] = "Media / Communication Services – sonstig"
+            out["family_model_status"] = "subprofile_not_calibrated"
+            out["family_model_ready"] = False
+            out["family_model_released"] = False
+            out["universal_family_fail_closed"] = True
+            out["confidence_cap"] = "Niedrig bis Mittel"
+            out["method"] = "Breites Media-/Communication-Services-Unterprofil; kein Internet-Platform-KGV-Korridor wird übertragen."
+        return out
 
     # V206/V207 – Semiconductor Equipment: four independently validated issuer-primary adapters.
     if family_id == "semicap" and _canonical_family_symbol in {"ASML", "ASML.AS", "AMAT", "LRCX", "KLAC"}:
@@ -46873,6 +46919,85 @@ def build_ctva_separation_special_control(control, separation_model):
 # Modul 6 – Schritt 1: Bewertungs-Korridor & Fundamental-Multiple
 # =========================================================
 
+def build_media_internet_platform_corridor_v264(company_type, growth_score, profitability_score, fcf_score, balance_score, eps_normalization, non_operating_income_guard=None):
+    """V264 corridor-only calibration for mature Internet Content / Digital Platforms.
+
+    This is intentionally a staging model: it can release the family corridor and target
+    multiple, but never Fair Value or a signal.  The second-issuer live regression must
+    pass before downstream valuation is unlocked.
+    """
+    ct = company_type if isinstance(company_type, dict) else {}
+    if str(ct.get("valuation_family_id") or "").strip().lower() != "media_internet":
+        return {"applicable": False}
+    if str(ct.get("media_internet_subprofile") or "").strip().lower() != "internet_content_platform":
+        return {"applicable": False}
+
+    components = {
+        "growth": safe_float((growth_score or {}).get("score")),
+        "profitability": safe_float((profitability_score or {}).get("score")),
+        "fcf": safe_float((fcf_score or {}).get("score")),
+        "balance": safe_float((balance_score or {}).get("score")),
+    }
+    if any(v is None for v in components.values()):
+        return {
+            "applicable": True, "eligible": False, "corridor_released": False,
+            "reason": "V264 Reifegrad-Gate: mindestens eine Qualitätspunktzahl-Komponente fehlt; kein Familien-KGV wird freigegeben.",
+            "components": components,
+        }
+    total = sum(components.values())
+    normalized_eps = safe_float((eps_normalization or {}).get("normalized_eps"))
+    noi = non_operating_income_guard if isinstance(non_operating_income_guard, dict) else {}
+    earnings_ok = bool(
+        normalized_eps is not None and normalized_eps > 0 and (
+            not bool((eps_normalization or {}).get("valuation_blocked"))
+            or bool(noi.get("primary_source_quality_score_released"))
+        )
+    )
+    maturity_ok = bool(
+        total >= 80.0
+        and components["growth"] >= 20.0
+        and components["profitability"] >= 20.0
+        and components["fcf"] >= 16.0
+        and components["balance"] >= 10.0
+        and earnings_ok
+    )
+    if not maturity_ok:
+        return {
+            "applicable": True, "eligible": False, "corridor_released": False,
+            "score": total, "components": components, "earnings_basis_usable": earnings_ok,
+            "reason": (
+                "V264 Reifegrad-Gate nicht bestanden. Für den 18–32× Internet-Platform-Korridor sind mindestens "
+                "80/100 Gesamtqualität, Wachstum 20/30, Profitabilität 20/30, FCF 16/25, Bilanz 10/15 und eine positive "
+                "normalisierte Gewinnbasis erforderlich. Niedrigere/noch nicht profitable Plattformen benötigen ein separates Unterprofil."
+            ),
+        }
+
+    low, high = 18.0, 32.0
+    score_for_line = min(100.0, max(50.0, total))
+    target = low + ((score_for_line - 50.0) / 50.0) * (high - low)
+    return {
+        "applicable": True,
+        "eligible": True,
+        "corridor_released": True,
+        "fair_value_released": False,
+        "score": total,
+        "components": components,
+        "earnings_basis_usable": earnings_ok,
+        "earnings_basis_eps": normalized_eps,
+        "corridor_low": low,
+        "corridor_high": high,
+        "target_multiple": target,
+        "valuation_method_name": "Internet Content / Digital Platform · normalisiertes TTM-KGV",
+        "stage": "corridor_only_live_validation",
+        "confidence": "Mittel",
+        "note": (
+            "V264 kalibriert den reifen Internet-Platform-Korridor auf 18–32× normalisiertes TTM-KGV. "
+            "Der 100-Punkte-Score positioniert das Ziel von 50→18× bis 100→32×; es gibt keinen zusätzlichen Wachstumsaufschlag, "
+            "weil Wachstum bereits 30/100 Punkte ausmacht. Peer-Median, Fair Value, Bewertungszonen und Signal bleiben bis zum zweiten Live-Emittenten-Gegentest gesperrt."
+        ),
+    }
+
+
 def get_valuation_corridor(company_type):
     type_name = str(
         company_type.get("type", "")
@@ -69731,6 +69856,19 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "target_corridor_high": safe_float(pp_protection.get("corridor_high")),
         }
 
+    if bool((fundamental_multiple or {}).get("media_internet_corridor_stage_only")):
+        peer_group = {
+            **(peer_group or {}),
+            "available": False,
+            "peers": [],
+            "count": 0,
+            "media_internet_v264": True,
+            "note": (
+                "V264 Internet-Platform-Korridor ist zur Live-Validierung freigegeben. Die Peer-Schicht bleibt noch ohne Freigabewirkung; "
+                "zuerst muss ein zweiter geeigneter Emittent denselben Reifegrad-/Score-/Korridorpfad praktisch bestehen."
+            ),
+        }
+
     peer_check = calculate_peer_check(
         company_type,
         peer_group,
@@ -69759,6 +69897,23 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "aber der Media-/Internet-/Platforms-Familienkorridor ist noch nicht validiert. Peers dürfen diesen fehlenden Familienanker nicht selbst erzeugen."
                 if _v263_quality_released_for_peer_check else
                 "Vergleichsgruppen-Prüfung im Schutzregel-Zustand nicht ausgeführt: Ohne vollständig normalisierte Score-/Ergebnisbasis dürfen Vergleichsgruppen weder ein Standard-Multiple noch einen fairen Wert freigeben."
+            ),
+        }
+
+    if bool((fundamental_multiple or {}).get("media_internet_corridor_stage_only")):
+        peer_check = {
+            **(peer_check or {}),
+            "method_supported": False,
+            "peer_rows": [],
+            "usable_count": 0,
+            "peer_median": None,
+            "adjustment_pct": 0.0,
+            "adjusted_multiple": None,
+            "applied": False,
+            "reference_only": True,
+            "note": (
+                "V264 Korridor-Livevalidierung: keine automatische Peer-Anpassung. Meta/weitere reife Internet-Plattformen dienen zunächst nur dem unabhängigen Gegentest; "
+                "sie dürfen den 18–32× Familienanker weder erzeugen noch anheben."
             ),
         }
 
@@ -70217,6 +70372,47 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 )
             ),
         }
+
+    media_internet_platform_v264 = build_media_internet_platform_corridor_v264(
+        company_type, growth_score, profitability_score, fcf_score, balance_score, eps_normalization,
+        non_operating_income_guard=non_operating_income_guard,
+    )
+    if media_internet_platform_v264.get("applicable"):
+        if media_internet_platform_v264.get("corridor_released"):
+            fundamental_multiple = {
+                **(fundamental_multiple or {}),
+                "score": safe_float(media_internet_platform_v264.get("score")),
+                "corridor": {
+                    "available": True,
+                    "lower": safe_float(media_internet_platform_v264.get("corridor_low")),
+                    "upper": safe_float(media_internet_platform_v264.get("corridor_high")),
+                    "method": media_internet_platform_v264.get("valuation_method_name"),
+                    "note": media_internet_platform_v264.get("note"),
+                },
+                "multiple": safe_float(media_internet_platform_v264.get("target_multiple")),
+                "available": True,
+                "earnings_basis_usable": True,
+                "media_internet_corridor_stage_only": True,
+                "media_internet_platform_v264": media_internet_platform_v264,
+                "note": media_internet_platform_v264.get("note"),
+            }
+            if non_operating_income_guard.get("active"):
+                non_operating_income_guard = {
+                    **non_operating_income_guard,
+                    "media_internet_family_corridor_released": True,
+                    "family_valuation_pending": True,
+                    "family_corridor_stage": "corridor_only_live_validation",
+                }
+        else:
+            fundamental_multiple = {
+                **(fundamental_multiple or {}),
+                "score": safe_float(media_internet_platform_v264.get("score")),
+                "multiple": None,
+                "available": False,
+                "media_internet_corridor_stage_only": True,
+                "media_internet_platform_v264": media_internet_platform_v264,
+                "note": media_internet_platform_v264.get("reason"),
+            }
 
     special_event_warning = build_special_event_warning(
         eps_normalization,
@@ -71132,7 +71328,11 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             special_event_warning = {
                 "level": "Gelb",
                 "icon": "🟡",
-                "title": "Nicht-operative Ergebnisverzerrung normalisiert – Familienbewertung noch offen",
+                "title": (
+                    "Nicht-operative Ergebnisverzerrung normalisiert – Familien-KGV im Live-Gegentest"
+                    if bool(non_operating_income_guard.get("media_internet_family_corridor_released"))
+                    else "Nicht-operative Ergebnisverzerrung normalisiert – Familienbewertung noch offen"
+                ),
                 "requires_research": False,
                 "valuation_usable": False,
                 "reason": (
@@ -71141,12 +71341,19 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                     "EPS, Nettomarge, TTM-Gewinnwachstum und Common-ROE sind jedoch primärquellenbasiert normalisiert und die 100-Punkte-Qualitätspunktzahl ist freigegeben."
                 ),
                 "action": (
+                    (
+                        "Die Ergebnisvergleichbarkeit ist geklärt und V264 hat den 18–32× Internet-Platform-KGV-Korridor samt score-positioniertem Ziel-KGV freigegeben. "
+                        "Als nächster Schritt muss ein zweiter reifer Internet-Platform-Emittent denselben Pfad live bestehen; Fair Value, Bewertungszonen und Handlungssignal bleiben bis dahin gesperrt."
+                    )
+                    if bool(non_operating_income_guard.get("media_internet_family_corridor_released"))
+                    else
                     "Die Ergebnisvergleichbarkeit ist geklärt. Als nächster, davon getrennter Schritt muss der Media-/Internet-/Platforms-Bewertungskorridor validiert werden. "
                     "Bis dahin bleiben KGV, Fair Value, Bewertungszonen und Handlungssignal gesperrt."
                 ),
                 "non_operating_income_distortion_gate": True,
                 "non_operating_income_normalized": True,
                 "family_valuation_pending": True,
+                "family_corridor_released": bool(non_operating_income_guard.get("media_internet_family_corridor_released")),
             }
         else:
             special_event_warning = {
@@ -71218,6 +71425,23 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                     "Fair Value V1 gesperrt: Materiale nicht-operative Ergebnisbeiträge verzerren Nettomarge, Gewinnwachstum und GAAP-EPS. "
                     "Der Standard-EPS×KGV-Pfad darf erst nach einer Prüfung auf gleicher operativer/normalisierter Ergebnisbasis wieder freigegeben werden."
                 )
+            ),
+        }
+
+    if bool((fundamental_multiple or {}).get("media_internet_corridor_stage_only")):
+        fair_value = {
+            **(fair_value or {}),
+            "available": False,
+            "normalized_eps": None,
+            "used_multiple": None,
+            "multiple_source": None,
+            "fair_value_financial": None,
+            "fair_value_quote": None,
+            "potential_pct": None,
+            "valuation_method": None,
+            "note": (
+                "Fair Value V1 bewusst noch gesperrt: V264 hat ausschließlich den 18–32× Internet-Platform-Familienkorridor und das score-positionierte Ziel-KGV zur Live-Validierung freigegeben. "
+                "Ein zweiter geeigneter Internet-Platform-Emittent muss denselben Reifegrad-/Korridorpfad praktisch bestehen, bevor Fair Value, Bewertungszonen oder Signale freigegeben werden."
             ),
         }
 
@@ -74831,12 +75055,18 @@ if selected_symbol:
                                         and _v261_guard_caption_ui.get("same_basis_growth_released")
                                         and _v261_guard_caption_ui.get("roe_same_basis_released")):
                                         st.caption(
-                                            "V263 Status: TTM-EPS, TTM-Nettomarge, TTM-Gewinnwachstum und Common-ROE sind primärquellenbasiert auf derselben Ergebnisbasis normalisiert; "
-                                            "die 100-Punkte-Qualitätspunktzahl ist freigegeben. KGV, fairer Wert und Signal bleiben ausschließlich bis zur separaten Validierung des Media-/Internet-/Platforms-Bewertungskorridors gesperrt."
+                                            (
+                                                "V264 Status: TTM-EPS, TTM-Nettomarge, TTM-Gewinnwachstum und Common-ROE sind primärquellenbasiert auf derselben Ergebnisbasis normalisiert; "
+                                                "die 100-Punkte-Qualitätspunktzahl sowie der 18–32× Internet-Platform-Familienkorridor und das score-positionierte Ziel-KGV sind freigegeben. "
+                                                "Fair Value, Bewertungszonen und Signal bleiben bis zum zweiten Live-Emittenten-Gegentest gesperrt."
+                                                if bool((data.get("non_operating_income_guard") or {}).get("media_internet_family_corridor_released")) else
+                                                "V264 Status: TTM-EPS, TTM-Nettomarge, TTM-Gewinnwachstum und Common-ROE sind primärquellenbasiert auf derselben Ergebnisbasis normalisiert; "
+                                                "die 100-Punkte-Qualitätspunktzahl ist freigegeben. KGV, fairer Wert und Signal bleiben bis zur Familien-Korridorprüfung gesperrt."
+                                            )
                                         )
                                     elif _v261_guard_caption_ui.get("same_basis_profitability_released") and _v261_guard_caption_ui.get("same_basis_growth_released"):
                                         st.caption(
-                                            "V263 Status: TTM-EPS, TTM-Nettomarge und TTM-Gewinnwachstum sind normalisiert; Common-ROE und Qualitätspunktzahl sind noch nicht vollständig freigegeben. "
+                                            "V264 Status: TTM-EPS, TTM-Nettomarge und TTM-Gewinnwachstum sind normalisiert; Common-ROE und Qualitätspunktzahl sind noch nicht vollständig freigegeben. "
                                             "KGV, fairer Wert und Signal bleiben gesperrt."
                                         )
                                     else:
@@ -79204,9 +79434,15 @@ if selected_symbol:
                             )
                         else:
                             if bool((data.get("non_operating_income_guard") or {}).get("active")):
-                                st.info(
-                                    "Vergleichsgruppe während der Schutzregel deaktiviert; sie kann die gesperrte normalisierte Score-/Ergebnisbasis nicht ersetzen."
-                                )
+                                if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
+                                    st.info(
+                                        "V264 Korridor-Livevalidierung: Der 18–32× Internet-Platform-Familienkorridor und das score-positionierte Ziel-KGV sind freigegeben. "
+                                        "Die Vergleichsgruppe bleibt bis zum zweiten Live-Emittenten-Gegentest ohne Bewertungswirkung."
+                                    )
+                                else:
+                                    st.info(
+                                        "Vergleichsgruppe während der Schutzregel deaktiviert; sie kann die gesperrte normalisierte Score-/Ergebnisbasis nicht ersetzen."
+                                    )
                             else:
                                 st.info(
                                     "Noch keine automatische Peer-Gruppe "
@@ -79289,10 +79525,15 @@ if selected_symbol:
                             )
                     else:
                         if bool((data.get("non_operating_income_guard") or {}).get("active")):
-                            st.caption(
-                                "Schritt 2A ist während der Schutzregel vollständig nachgeordnet. Es wird keine Vergleichsgruppe zur Freigabe von Score, "
-                                "Standard-Multiple oder fairem Wert verwendet."
-                            )
+                            if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
+                                st.caption(
+                                    "Schritt 2A ist in V264 ein reiner Live-Gegentest. Der Familienkorridor und das Ziel-KGV stehen bereits fest; Peers dürfen sie weder erzeugen noch anheben und geben noch keinen fairen Wert frei."
+                                )
+                            else:
+                                st.caption(
+                                    "Schritt 2A ist während der Schutzregel vollständig nachgeordnet. Es wird keine Vergleichsgruppe zur Freigabe von Score, "
+                                    "Standard-Multiple oder fairem Wert verwendet."
+                                )
                         else:
                             st.caption(
                                 "Schritt 2A verändert weder Multiple Score "
@@ -79808,7 +80049,12 @@ if selected_symbol:
                         else:
                             peer_explain = f"Professional & Business Services {APP_BUILD_VERSION}: Noch keine freigegebene Peer-Gruppe und noch kein issuer-primary Spezialanker für diesen Emittenten. Peer-Daten können die fehlende Spezialbasis nicht ersetzen; Fair Value bleibt fail-closed."
                     elif bool((data.get("non_operating_income_guard") or {}).get("active")):
-                        if bool((data.get("non_operating_income_guard") or {}).get("primary_source_quality_score_released")):
+                        if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
+                            peer_explain = (
+                                "V264: Ergebnisbasis, 92/100-Qualitätspunktzahl, 18–32× Familienkorridor und score-positioniertes Ziel-KGV sind freigegeben. "
+                                "Die Vergleichsgruppe dient nur dem zweiten Live-Gegentest; Median oder Peer-Anpassung dürfen den Familienanker nicht verändern."
+                            )
+                        elif bool((data.get("non_operating_income_guard") or {}).get("primary_source_quality_score_released")):
                             peer_explain = (
                                 "V263: Ergebnisbasis und 100-Punkte-Qualitätspunktzahl sind vollständig freigegeben. Die Vergleichsgruppe bleibt bis zur separaten Validierung des "
                                 "Media-/Internet-/Platforms-Familienkorridors ohne Freigabewirkung; weder Median noch Peer-Anpassung dürfen den noch fehlenden Familienanker ersetzen."
@@ -79840,10 +80086,16 @@ if selected_symbol:
                                     "Der Median erzeugt selbst kein Premium und verändert den Operational Score nicht; er darf das score-basierte Ziel-KGV ausschließlich nach unten begrenzen, niemals anheben."
                                 )
                         else:
-                            st.caption(
-                                "Der Peer-Check ist eine reine Markt-Referenz. Er verändert weder Spezialscore noch Ziel-Multiple oder Fair Value; "
-                                "fehlende/zu wenige Peer-Daten blockieren die Spezialbewertung nicht und begrenzen nicht die Bewertungssicherheit. " + peer_explain
-                            )
+                            if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
+                                st.caption(
+                                    "V264 Live-Gegentest: Der Peer-Check verändert weder Qualitätspunktzahl noch 18–32× Familienkorridor oder Ziel-KGV. "
+                                    "Fair Value bleibt gerade deshalb noch gesperrt, bis ein zweiter geeigneter Internet-Platform-Emittent denselben Familienpfad praktisch bestätigt. " + peer_explain
+                                )
+                            else:
+                                st.caption(
+                                    "Der Peer-Check ist eine reine Markt-Referenz. Er verändert weder Spezialscore noch Ziel-Multiple oder Fair Value; "
+                                    "fehlende/zu wenige Peer-Daten blockieren die Spezialbewertung nicht und begrenzen nicht die Bewertungssicherheit. " + peer_explain
+                                )
                     else:
                         if bool((data.get("non_operating_income_guard") or {}).get("active")):
                             if bool((data.get("non_operating_income_guard") or {}).get("primary_source_quality_score_released")):
@@ -79878,10 +80130,15 @@ if selected_symbol:
                                     "Der Median wirkt anschließend nur als downside-only Ceiling."
                                 )
                         else:
-                            st.caption(
-                                "Der Spezial-Fair-Value wird unabhängig von der Verfügbarkeit dieser Referenz-Peers berechnet; "
-                                "die Peer-Schicht erzeugt selbst keinen Fair Value."
-                            )
+                            if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
+                                st.caption(
+                                    "V264: Die Peer-Schicht erzeugt keinen fairen Wert. Der Fair Value bleibt absichtlich gesperrt, bis der zweite Internet-Platform-Live-Gegentest bestanden ist."
+                                )
+                            else:
+                                st.caption(
+                                    "Der Spezial-Fair-Value wird unabhängig von der Verfügbarkeit dieser Referenz-Peers berechnet; "
+                                    "die Peer-Schicht erzeugt selbst keinen Fair Value."
+                                )
                     else:
                         if bool((data.get("non_operating_income_guard") or {}).get("active")):
                             st.caption(
@@ -79913,6 +80170,7 @@ if selected_symbol:
                         and event_warning.get("valuation_usable") is False
                     )
                     non_operating_normalized_pending = bool(event_warning.get("non_operating_income_normalized") and event_warning.get("family_valuation_pending"))
+                    media_internet_corridor_live = bool(event_warning.get("family_corridor_released"))
                     family_calibration_gate = data.get("branded_consumer_family_gate", {}) or {}
                     family_calibration_blocked = bool(
                         family_calibration_gate.get("active") and family_calibration_gate.get("blocked")
@@ -79936,6 +80194,14 @@ if selected_symbol:
                                 "**Status der regulären Spezialkontrolle:** "
                                 f"{special_control.get('router_status', special_control.get('status'))}"
                             )
+                    elif media_internet_corridor_live:
+                        st.warning(
+                            "**Ergebnisverzerrung erfolgreich normalisiert – Internet-Platform-KGV im Live-Gegentest.**"
+                        )
+                        st.write(
+                            "**Status:** Qualitätspunktzahl + 18–32× Familienkorridor + Ziel-KGV freigegeben · Fair Value und Handlungssignal noch gesperrt"
+                        )
+                        st.info(event_warning.get("action"))
                     elif non_operating_normalized_pending:
                         st.warning(
                             "**Ergebnisverzerrung erfolgreich normalisiert – Familienbewertung noch offen.**"
@@ -80024,6 +80290,10 @@ if selected_symbol:
                         st.caption(
                             "Die Sperre stammt ausschließlich aus dem noch nicht kalibrierten Family-Specialist-Profil. "
                             "Sie ist kein Sonderereignis-Gate und benötigt keine automatische Ursachenrecherche."
+                        )
+                    elif media_internet_corridor_live:
+                        st.caption(
+                            "Die Ergebnisvergleichbarkeit und der V264-Familienkorridor sind freigegeben. Die verbleibende Sperre betrifft ausschließlich die zweite Live-Validierung vor Fair-Value-/Signal-Freigabe."
                         )
                     elif non_operating_normalized_pending:
                         st.caption(
