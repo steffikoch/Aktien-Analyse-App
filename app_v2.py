@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.60"
+APP_BUILD_VERSION = "V2.23.61"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · SEC-Identifier-Fallback · Primärquellen-Normalisierung V256"
+    f"Build {APP_BUILD_VERSION} · SEC-Filing-Transport · Primärquellen-Normalisierung V257"
 )
 
 
@@ -956,6 +956,7 @@ st.caption(
 # V2.23.20: Insurance Corporate Action & EPS Comparability Guard V216. Adds a universal insurer corporate-action/share-count comparability gate: material capital increases, cancellations/buybacks, acquisitions, disposals, mergers or similar perimeter changes inside the TTM window block the EPS bridge unless an issuer-verified comparable/pro-forma EPS basis exists. Also distinguishes non-EPS-basis net-income context labels.
 # V2.23.23: Universal Evidence Normalisierung & Mapping V219. Extends the V218 provider layer with a canonical cross-family evidence schema for Eulerpool secondary data, period/source metadata, book-value/ROE/share-count mapping, comparable-period diagnostics and normalized corporate-action candidates. Specialist valuation gates and all family-specific primary-source requirements remain authoritative and unchanged; secondary provider data cannot independently release a specialist Fair Value.
 # V2.23.58: Non-Operating Earnings Same-Basis Hard Gate V254. Closes the two remaining V253 release leaks exposed by Alphabet: once the generic non-operating-income distortion guard is active, the pre-guard TTM/current-FY blend is retained only as a diagnostic value and no longer published as a normalized EPS or high-confidence earnings basis; the generic balance 15/15 explainer is suppressed as well. The guard now records an explicit same-basis normalization status and blocks provider-GAAP-TTM from entering any released EPS blend until a period-consistent primary-source earnings normalization exists. Duplicate guard captions are removed. No tax effect is estimated, no issuer-specific Alphabet value is hard-coded, and no family corridor, specialist score, Fair Value or signal mathematics outside the guarded Standard path changes.
+# V2.23.61: Universal SEC Filing Transport Resilience V257. Extends V256 after GOOG resolved CIK and the official 10-Q/10-K pair but at least one identified document could not be transported within budget. Adds a deterministic Yahoo-CDN mirror URL derived only from verified CIK + accession + SEC primaryDocument, prioritizes the mirror after SEC access has already shown a 403/transport block, and shortens per-document direct SEC attempts so one blocked archive request cannot starve the other filing. Valuation/normalization gates remain unchanged.
 # V2.23.60: Universal SEC Identifier Bootstrap & Filing-Mirror Fallback V256. Hardens the V255 non-operating-equity normalization after GOOG reached the guard but failed before primary-source parsing because the official SEC ticker→CIK association stage was unavailable in that runtime. SEC ticker.txt/company_tickers mappings remain first choice. If they fail, V256 may recover CIK and accession only from Yahoo secFilings metadata whose EDGAR/CDN URLs cryptographically/structurally embed the same 10-digit CIK and accession. The latest 10-Q/10-K filing pair may then be fetched from SEC directly; only if the same identified SEC document is not retrievable directly may its Yahoo CDN filing mirror be used as a transport fallback. No financial value, ticker, issuer or CIK is hard-coded. A mirror document must match form, CIK and accession before it can feed the unchanged V255 same-basis tables/tax gates. V256 also prevents the active guard UI from calling Current-FY analyst EPS a valuation basis and cleans remaining generic-score wording.
 # V2.23.59: Non-Operating Equity Gain Primary-Source Normalization V255. Adds a conservative issuer-neutral SEC path for USD-reporting 10-K/10-Q filers when the generic non-operating-income guard is active. The path requires period-consistent FY / prior-YTD / current-YTD primary statements, dominant unrealized-equity-security gains, an explicit issuer statement linking those unrealized gains to deferred tax at the statutory rate, and a numeric statutory rate from the issuer annual filing. Only then is a primary-source normalized TTM EPS released; analyst Current-FY EPS remains unverified context, generic growth/profitability/FCF/balance scoring, P/E, Fair Value and signals remain blocked. Missing/ambiguous evidence stays fail-closed. V255 also removes remaining guard-state UI contradictions in Current-FY EPS labels and peer text. No issuer ticker/value is hard-coded.
 # V2.23.24: Universal Evidence Perioden-Semantik & Fiskalabgleich V220. Adds explicit FY/H1/9M/Q/TTM semantics to structured secondary evidence, blocks quarterly-vs-YTD misuse in TTM bridges, aligns comparable periods, derives BVPS only from period-compatible Eulerpool equity/share data when direct BVPS is unavailable, and displays share-count units explicitly. Specialist valuation gates, family scores, Fair Values and signals remain unchanged.
@@ -6607,20 +6608,51 @@ def _v256_yahoo_sec_filing_bootstrap(symbol, cache_version="v256"):
     return out
 
 
-def _v256_fetch_identified_filing(row, deadline=None):
-    """Fetch the same identified SEC filing, preferring SEC and using Yahoo CDN only as transport fallback."""
+def _v257_deterministic_yahoo_mirror(row):
+    """Build Yahoo's SEC CDN transport URL from an already verified SEC filing identity.
+
+    This is transport-only: CIK, accession and primary document must already come from SEC submissions
+    or structurally verified filing metadata. No issuer-specific constant is used.
+    """
+    if not isinstance(row, dict):
+        return None
+    cik = safe_int(row.get("cik"))
+    acc = re.sub(r"\D", "", _clean_text(row.get("accession_nodash")))
+    doc = _clean_text(row.get("primary_document") or row.get("document"))
+    if not doc:
+        src = _clean_text(row.get("url") or row.get("sec_url"))
+        try:
+            doc = urlparse(src).path.rsplit("/", 1)[-1]
+        except Exception:
+            doc = ""
+    if not cik or len(acc) != 18 or not doc or not re.search(r"\.html?$", doc, flags=re.I):
+        return None
+    return f"https://cdn.yahoofinance.com/prod/sec-filings/{int(cik):010d}/{acc}/{doc}"
+
+
+def _v256_fetch_identified_filing(row, deadline=None, prefer_mirror=False):
+    """Fetch one already-identified SEC filing with bounded, transport-only fallbacks (V257)."""
     if not isinstance(row, dict):
         return None, None, None
     sec_url = _clean_text(row.get("sec_url") or row.get("url"))
-    mirror_url = _clean_text(row.get("mirror_url"))
-    if sec_url and _research_budget_ok(deadline, reserve=0.2):
-        html, final_url = _fetch_html(sec_url, timeout=4.2, sec=True, deadline=deadline, max_chars=8_000_000)
+    mirror_url = _clean_text(row.get("mirror_url")) or _v257_deterministic_yahoo_mirror(row)
+
+    attempts = []
+    if prefer_mirror and mirror_url:
+        attempts.append((mirror_url, False, 2.8, "SEC-Filing-Spiegel via Yahoo CDN"))
+    if sec_url:
+        attempts.append((sec_url, True, 1.6, "SEC direkt"))
+    if mirror_url and not prefer_mirror:
+        attempts.append((mirror_url, False, 2.8, "SEC-Filing-Spiegel via Yahoo CDN"))
+
+    seen = set()
+    for url, is_sec, timeout, label in attempts:
+        if not url or url in seen or not _research_budget_ok(deadline, reserve=0.15):
+            continue
+        seen.add(url)
+        html, final_url = _fetch_html(url, timeout=timeout, sec=is_sec, deadline=deadline, max_chars=8_000_000)
         if html:
-            return html, (final_url or sec_url), "SEC direkt"
-    if mirror_url and _research_budget_ok(deadline, reserve=0.2):
-        html, final_url = _fetch_html(mirror_url, timeout=4.2, sec=False, deadline=deadline, max_chars=8_000_000)
-        if html:
-            return html, (final_url or mirror_url), "SEC-Filing-Spiegel via Yahoo CDN"
+            return html, (final_url or url), label
     return None, None, None
 
 
@@ -6648,6 +6680,8 @@ def _v256_sec_latest_10q_10k(symbol, deadline=None):
                     "filing_date": row.get("filing_date"),
                     "report_date": None,
                     "identity_source": "Yahoo secFilings metadata",
+                    "cik": int(cik),
+                    "primary_document": urlparse(_clean_text(row.get("sec_url"))).path.rsplit("/", 1)[-1] if row.get("sec_url") else None,
                 }
     if not cik:
         return {"available": False, "diagnostics": diagnostics, "reason": "Keine belastbare SEC-CIK-Zuordnung verfügbar."}
@@ -6689,6 +6723,8 @@ def _v256_sec_latest_10q_10k(symbol, deadline=None):
                         "filing_date": filing_dates[i] if i < len(filing_dates) else None,
                         "report_date": report_dates[i] if i < len(report_dates) else None,
                         "identity_source": "SEC submissions",
+                        "cik": int(cik),
+                        "primary_document": doc,
                     }
                     if len(official) == 2:
                         break
@@ -6730,6 +6766,8 @@ def _v256_sec_latest_10q_10k(symbol, deadline=None):
                     "filing_date": row.get("filing_date"),
                     "report_date": None,
                     "identity_source": "Yahoo secFilings metadata",
+                    "cik": int(cik),
+                    "primary_document": urlparse(_clean_text(row.get("sec_url"))).path.rsplit("/", 1)[-1] if row.get("sec_url") else None,
                 }
             diagnostics.append("V256 Filing-Paar: SEC-Submissions nicht verfügbar; strukturell verifiziertes 10-Q-/10-K-Paar aus Filing-Metadaten verwendet.")
 
@@ -6739,7 +6777,8 @@ def _v256_sec_latest_10q_10k(symbol, deadline=None):
     for form in ("10-Q", "10-K"):
         if not _research_budget_ok(deadline, reserve=0.2):
             return {"available": False, "cik": cik, "diagnostics": diagnostics, "reason": "Primärquellen-Zeitbudget beim Filing-Abruf erschöpft.", "filings": chosen}
-        html, final_url, transport = _v256_fetch_identified_filing(chosen[form], deadline=deadline)
+        sec_transport_blocked = any("HTTP 403" in _clean_text(x) for x in diagnostics)
+        html, final_url, transport = _v256_fetch_identified_filing(chosen[form], deadline=deadline, prefer_mirror=sec_transport_blocked)
         chosen[form]["html"] = html
         chosen[form]["final_url"] = final_url or chosen[form].get("url") or chosen[form].get("mirror_url")
         chosen[form]["transport"] = transport
@@ -67702,7 +67741,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "normalized_eps": _v255_released_eps,
                 "confidence": "Mittel",
                 "method": (
-                    "V256 Primärquellen-Normalisierung: periodenreine SEC-Brücke FY − Vorjahres-YTD + aktuelles YTD. "
+                    "V257 Primärquellen-Normalisierung: periodenreine SEC-Brücke FY − Vorjahres-YTD + aktuelles YTD. "
                     "Dominante netto-unrealisierte Equity-Securities-Gewinne werden ausschließlich bei explizit belegter "
                     "statutory-tax-rate-Verknüpfung nach Steuern aus der EPS-Basis entfernt. Current-FY-Analystenkonsens bleibt ungeprüfter Kontext."
                 ),
@@ -67724,7 +67763,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "primary_source_eps_normalization_released": True,
                 "primary_source_normalization": non_operating_primary_normalization,
                 "normalization_note": (
-                    "V256 hat eine periodenreine Primärquellen-TTM-EPS-Basis freigegeben. "
+                    "V257 hat eine periodenreine Primärquellen-TTM-EPS-Basis freigegeben. "
                     "Die Gesamtbewertung bleibt trotzdem gesperrt, weil Nettomarge, Gewinnwachstum und der generische Score noch nicht auf derselben normalisierten Ergebnisbasis neu aufgebaut sind."
                 ),
             }
@@ -67737,7 +67776,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "normalized_eps": None,
                 "confidence": "Niedrig",
                 "method": (
-                    "Vergleichsbasis-Schutz V256: Provider-GAAP-TTM und Current-FY-Konsens werden nicht gemischt. "
+                    "Vergleichsbasis-Schutz V257: Provider-GAAP-TTM und Current-FY-Konsens werden nicht gemischt. "
                     "Eine freigegebene normalisierte EPS-Basis entsteht erst nach periodenreiner Primärquellen-Normalisierung "
                     "materieller nicht-operativer Ergebnisbeiträge einschließlich belastbar belegter Steuerwirkung."
                 ),
@@ -67759,7 +67798,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "primary_source_eps_normalization_released": False,
                 "primary_source_normalization": non_operating_primary_normalization,
                 "normalization_note": (
-                    "V256 schätzt keine Steuerwirkung und rechnet nicht-operative Gewinne nicht pauschal heraus. "
+                    "V257 schätzt keine Steuerwirkung und rechnet nicht-operative Gewinne nicht pauschal heraus. "
                     "Fehlt die vollständige periodenreine Primärquellen-/Steuer-Kette, bleibt die EPS-Basis gesperrt."
                 ),
             }
@@ -69651,7 +69690,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "earnings_basis_usable": False,
             "note": (
                 (
-                    "Non-Operating Earnings Distortion Safety Gate aktiv: V256 hat ausschließlich die TTM-EPS-Gewinnbasis primärquellenbasiert normalisiert. "
+                    "Non-Operating Earnings Distortion Safety Gate aktiv: V257 hat ausschließlich die TTM-EPS-Gewinnbasis primärquellenbasiert normalisiert. "
                     "Wachstum, Profitabilität und der generische 100-Punkte-Score sind noch nicht auf derselben normalisierten Basis neu aufgebaut; "
                     "deshalb bleiben Standard-KGV, Fair Value und Signal gesperrt."
                 )
@@ -70585,7 +70624,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             ),
             "action": (
                 (
-                    "V256 hat die TTM-EPS-Basis primärquellenbasiert normalisiert. Als nächstes müssen Gewinnwachstum und Profitabilität auf derselben "
+                    "V257 hat die TTM-EPS-Basis primärquellenbasiert normalisiert. Als nächstes müssen Gewinnwachstum und Profitabilität auf derselben "
                     "normalisierten Ergebnisbasis neu aufgebaut werden; bis dahin bleiben generische Punktzahl, Standard-KGV, Fair Value und Signal gesperrt. "
                     "FCF und Bilanz bleiben Diagnosekontext."
                 )
@@ -73220,7 +73259,7 @@ if selected_symbol:
                             _v255_primary_ui = data.get("non_operating_primary_normalization") or {}
                             _v255_diag_eps_ui = safe_float(_v255_guard_ui.get("diagnostic_normalized_eps"))
                             st.info(
-                                "V256 Vergleichsbasis-Schutz: Der frühere Provider-TTM/Current-FY-Mischwert bleibt verworfen. "
+                                "V257 Vergleichsbasis-Schutz: Der frühere Provider-TTM/Current-FY-Mischwert bleibt verworfen. "
                                 "Eine Primärquellen-EPS-Basis wird nur freigegeben, wenn FY, Vorjahres-YTD und aktuelles YTD periodenrein, "
                                 "die nicht-operativen Equity-Gewinne dominant und die Steuerwirkung ausdrücklich aus Primärquellen belegt sind."
                             )
@@ -73817,7 +73856,7 @@ if selected_symbol:
                             _v255_coverage_ui = safe_float(_v255_primary_eps_ui.get("unrealized_coverage_ratio"))
                             if _v255_tax_rate_ui is not None and _v255_coverage_ui is not None:
                                 st.caption(
-                                    f"V256 Primärquellenprüfung: statutory tax rate {_v255_tax_rate_ui*100:.1f} % · "
+                                    f"V257 Primärquellenprüfung: statutory tax rate {_v255_tax_rate_ui*100:.1f} % · "
                                     f"unrealisierte Equity-Gewinne decken {_v255_coverage_ui*100:.1f} % des periodenreinen TTM-Equity-Gain-Beitrags ab."
                                 )
                         else:
@@ -74228,7 +74267,7 @@ if selected_symbol:
                             if bool((data.get("non_operating_income_guard") or {}).get("active")):
                                 if bool((data.get("non_operating_income_guard") or {}).get("primary_source_eps_normalization_released")):
                                     st.caption(
-                                        "V256 hat ausschließlich die TTM-EPS-Gewinnbasis normalisiert. Nettomarge, Gewinnwachstum und die generische Qualitätspunktzahl "
+                                        "V257 hat ausschließlich die TTM-EPS-Gewinnbasis normalisiert. Nettomarge, Gewinnwachstum und die generische Qualitätspunktzahl "
                                         "sind noch nicht auf derselben Basis normalisiert; deshalb bleiben KGV, fairer Wert und Signal gesperrt."
                                     )
                                 else:
