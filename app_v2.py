@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.62"
+APP_BUILD_VERSION = "V2.23.63"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Primärquellen-Laufzeitsicherung · Diagnose V258"
+    f"Build {APP_BUILD_VERSION} · Helper-Scope-Fix · Primärquellen-Normalisierung V259"
 )
 
 
@@ -956,6 +956,7 @@ st.caption(
 # V2.23.20: Insurance Corporate Action & EPS Comparability Guard V216. Adds a universal insurer corporate-action/share-count comparability gate: material capital increases, cancellations/buybacks, acquisitions, disposals, mergers or similar perimeter changes inside the TTM window block the EPS bridge unless an issuer-verified comparable/pro-forma EPS basis exists. Also distinguishes non-EPS-basis net-income context labels.
 # V2.23.23: Universal Evidence Normalisierung & Mapping V219. Extends the V218 provider layer with a canonical cross-family evidence schema for Eulerpool secondary data, period/source metadata, book-value/ROE/share-count mapping, comparable-period diagnostics and normalized corporate-action candidates. Specialist valuation gates and all family-specific primary-source requirements remain authoritative and unchanged; secondary provider data cannot independently release a specialist Fair Value.
 # V2.23.58: Non-Operating Earnings Same-Basis Hard Gate V254. Closes the two remaining V253 release leaks exposed by Alphabet: once the generic non-operating-income distortion guard is active, the pre-guard TTM/current-FY blend is retained only as a diagnostic value and no longer published as a normalized EPS or high-confidence earnings basis; the generic balance 15/15 explainer is suppressed as well. The guard now records an explicit same-basis normalization status and blocks provider-GAAP-TTM from entering any released EPS blend until a period-consistent primary-source earnings normalization exists. Duplicate guard captions are removed. No tax effect is estimated, no issuer-specific Alphabet value is hard-coded, and no family corridor, specialist score, Fair Value or signal mathematics outside the guarded Standard path changes.
+# V2.23.63: Helper Scope Fix V259. Defines the previously missing fail-soft safe_int helper used by the deterministic SEC/Yahoo filing mirror constructor. This fixes the runtime NameError exposed by V258 without changing identifier identity checks, filing transport, primary-source normalization, tax logic, score/multiple/Fair-Value gates or signal logic. V258 fail-closed containment remains active.
 # V2.23.62: Primary-Source Runtime Containment V258. Wraps the V257 SEC same-basis normalization call in a fail-closed exception boundary so an unexpected filing/parser structure can never abort the complete stock view. The exact exception class/message is retained only as technical primary-source diagnostics; no EPS, score, multiple, Fair Value or signal is released on exception. Valuation mathematics and V257 transport rules remain unchanged.
 # V2.23.61: Universal SEC Filing Transport Resilience V257. Extends V256 after GOOG resolved CIK and the official 10-Q/10-K pair but at least one identified document could not be transported within budget. Adds a deterministic Yahoo-CDN mirror URL derived only from verified CIK + accession + SEC primaryDocument, prioritizes the mirror after SEC access has already shown a 403/transport block, and shortens per-document direct SEC attempts so one blocked archive request cannot starve the other filing. Valuation/normalization gates remain unchanged.
 # V2.23.60: Universal SEC Identifier Bootstrap & Filing-Mirror Fallback V256. Hardens the V255 non-operating-equity normalization after GOOG reached the guard but failed before primary-source parsing because the official SEC ticker→CIK association stage was unavailable in that runtime. SEC ticker.txt/company_tickers mappings remain first choice. If they fail, V256 may recover CIK and accession only from Yahoo secFilings metadata whose EDGAR/CDN URLs cryptographically/structurally embed the same 10-digit CIK and accession. The latest 10-Q/10-K filing pair may then be fetched from SEC directly; only if the same identified SEC document is not retrievable directly may its Yahoo CDN filing mirror be used as a transport fallback. No financial value, ticker, issuer or CIK is hard-coded. A mirror document must match form, CIK and accession before it can feed the unchanged V255 same-basis tables/tax gates. V256 also prevents the active guard UI from calling Current-FY analyst EPS a valuation basis and cleans remaining generic-score wording.
@@ -1406,6 +1407,31 @@ def safe_float(value):
 
         return value
 
+    except Exception:
+        return None
+
+
+def safe_int(value):
+    """Fail-soft integer converter for identifiers/count-like fields.
+
+    Accepts ints, integral floats and digit strings (including leading zeros).
+    Returns None for missing, NaN, booleans, non-integral numerics or other text.
+    """
+    try:
+        if value is None or isinstance(value, bool):
+            return None
+        if isinstance(value, str):
+            raw = value.strip()
+            if not raw:
+                return None
+            if re.fullmatch(r"[+-]?\d+", raw):
+                return int(raw)
+            numeric = float(raw)
+        else:
+            numeric = float(value)
+        if not math.isfinite(numeric) or not numeric.is_integer():
+            return None
+        return int(numeric)
     except Exception:
         return None
 
@@ -67742,11 +67768,11 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "confidence": "Niedrig",
                 "status": "primary_source_runtime_error_fail_closed",
                 "reason": (
-                    "V258 Laufzeitsicherung: Der Primärquellen-Normalisierungspfad wurde wegen eines "
+                    "V259 Laufzeitsicherung: Der Primärquellen-Normalisierungspfad wurde wegen eines "
                     "unerwarteten Parser-/Filing-Fehlers fail-closed beendet; die Gesamtansicht bleibt erhalten."
                 ),
                 "diagnostics": [
-                    f"V258 Parserdiagnose: {type(_v258_primary_exc).__name__}: {_v258_primary_exc}"
+                    f"V259 Parserdiagnose: {type(_v258_primary_exc).__name__}: {_v258_primary_exc}"
                 ],
                 "tax_effect_estimated": False,
                 "issuer_hardcoded": False,
@@ -67761,7 +67787,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "normalized_eps": _v255_released_eps,
                 "confidence": "Mittel",
                 "method": (
-                    "V257 Primärquellen-Normalisierung: periodenreine SEC-Brücke FY − Vorjahres-YTD + aktuelles YTD. "
+                    "V259 Primärquellen-Normalisierung: periodenreine SEC-Brücke FY − Vorjahres-YTD + aktuelles YTD. "
                     "Dominante netto-unrealisierte Equity-Securities-Gewinne werden ausschließlich bei explizit belegter "
                     "statutory-tax-rate-Verknüpfung nach Steuern aus der EPS-Basis entfernt. Current-FY-Analystenkonsens bleibt ungeprüfter Kontext."
                 ),
@@ -67783,7 +67809,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "primary_source_eps_normalization_released": True,
                 "primary_source_normalization": non_operating_primary_normalization,
                 "normalization_note": (
-                    "V257 hat eine periodenreine Primärquellen-TTM-EPS-Basis freigegeben. "
+                    "V259 hat eine periodenreine Primärquellen-TTM-EPS-Basis freigegeben. "
                     "Die Gesamtbewertung bleibt trotzdem gesperrt, weil Nettomarge, Gewinnwachstum und der generische Score noch nicht auf derselben normalisierten Ergebnisbasis neu aufgebaut sind."
                 ),
             }
@@ -67796,7 +67822,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "normalized_eps": None,
                 "confidence": "Niedrig",
                 "method": (
-                    "Vergleichsbasis-Schutz V257: Provider-GAAP-TTM und Current-FY-Konsens werden nicht gemischt. "
+                    "Vergleichsbasis-Schutz V259: Provider-GAAP-TTM und Current-FY-Konsens werden nicht gemischt. "
                     "Eine freigegebene normalisierte EPS-Basis entsteht erst nach periodenreiner Primärquellen-Normalisierung "
                     "materieller nicht-operativer Ergebnisbeiträge einschließlich belastbar belegter Steuerwirkung."
                 ),
@@ -67818,7 +67844,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "primary_source_eps_normalization_released": False,
                 "primary_source_normalization": non_operating_primary_normalization,
                 "normalization_note": (
-                    "V257 schätzt keine Steuerwirkung und rechnet nicht-operative Gewinne nicht pauschal heraus. "
+                    "V259 schätzt keine Steuerwirkung und rechnet nicht-operative Gewinne nicht pauschal heraus. "
                     "Fehlt die vollständige periodenreine Primärquellen-/Steuer-Kette, bleibt die EPS-Basis gesperrt."
                 ),
             }
