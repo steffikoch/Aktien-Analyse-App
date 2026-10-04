@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.65"
+APP_BUILD_VERSION = "V2.23.66"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Same-Basis Profitabilität & Wachstum · Primärquellen-Normalisierung V261"
+    f"Build {APP_BUILD_VERSION} · Normalisierter Common-ROE · Qualitätsscore-Freigabe V262"
 )
 
 
@@ -958,7 +958,7 @@ st.caption(
 # V2.23.58: Non-Operating Earnings Same-Basis Hard Gate V254. Closes the two remaining V253 release leaks exposed by Alphabet: once the generic non-operating-income distortion guard is active, the pre-guard TTM/current-FY blend is retained only as a diagnostic value and no longer published as a normalized EPS or high-confidence earnings basis; the generic balance 15/15 explainer is suppressed as well. The guard now records an explicit same-basis normalization status and blocks provider-GAAP-TTM from entering any released EPS blend until a period-consistent primary-source earnings normalization exists. Duplicate guard captions are removed. No tax effect is estimated, no issuer-specific Alphabet value is hard-coded, and no family corridor, specialist score, Fair Value or signal mathematics outside the guarded Standard path changes.
 # V2.23.63: Helper Scope Fix V259. Defines the previously missing fail-soft safe_int helper used by the deterministic SEC/Yahoo filing mirror constructor. This fixes the runtime NameError exposed by V258 without changing identifier identity checks, filing transport, primary-source normalization, tax logic, score/multiple/Fair-Value gates or signal logic. V258 fail-closed containment remains active.
 # V2.23.64: Tax Evidence Full-Filing Parser V260. Keeps the global generic HTML-to-text cap unchanged, but evaluates the narrow deferred-tax/statutory-rate evidence against the complete identified SEC filing instead of the 160k generic text preview. This fixes late-filing tax-evidence false negatives without issuer hard-coding or estimated tax effects. Annual statutory-rate extraction gains a conservative full-text fallback around an explicitly labelled federal statutory-rate row. The score/P-E/Fair-Value/signal gates remain unchanged and fail closed.
-# V2.23.65: Same-Basis Profitability & Growth V261. Extends the released V260 primary-source EPS bridge to a current normalized TTM net-income/revenue basis and, when a comparable prior-year 10-Q is unambiguously resolved, a prior-TTM normalized earnings bridge. Current normalized net margin and normalized TTM earnings growth are released only when period structure, dominant unrealized-equity coverage and statutory-rate evidence remain consistent. ROE, the generic 100-point score, P/E, Fair Value and signal remain fail-closed for a later validation step. No issuer-specific ticker or financial value is hard-coded.
+# V2.23.66: Normalized Common ROE & Quality Score Release V262. Extends the released V260 primary-source EPS bridge to a current normalized TTM net-income/revenue basis and, when a comparable prior-year 10-Q is unambiguously resolved, a prior-TTM normalized earnings bridge. Current normalized net margin and normalized TTM earnings growth are released only when period structure, dominant unrealized-equity coverage and statutory-rate evidence remain consistent. ROE, the generic 100-point score, P/E, Fair Value and signal remain fail-closed for a later validation step. No issuer-specific ticker or financial value is hard-coded.
 # V2.23.62: Primary-Source Runtime Containment V258. Wraps the V257 SEC same-basis normalization call in a fail-closed exception boundary so an unexpected filing/parser structure can never abort the complete stock view. The exact exception class/message is retained only as technical primary-source diagnostics; no EPS, score, multiple, Fair Value or signal is released on exception. Valuation mathematics and V257 transport rules remain unchanged.
 # V2.23.61: Universal SEC Filing Transport Resilience V257. Extends V256 after GOOG resolved CIK and the official 10-Q/10-K pair but at least one identified document could not be transported within budget. Adds a deterministic Yahoo-CDN mirror URL derived only from verified CIK + accession + SEC primaryDocument, prioritizes the mirror after SEC access has already shown a 403/transport block, and shortens per-document direct SEC attempts so one blocked archive request cannot starve the other filing. Valuation/normalization gates remain unchanged.
 # V2.23.60: Universal SEC Identifier Bootstrap & Filing-Mirror Fallback V256. Hardens the V255 non-operating-equity normalization after GOOG reached the guard but failed before primary-source parsing because the official SEC ticker→CIK association stage was unavailable in that runtime. SEC ticker.txt/company_tickers mappings remain first choice. If they fail, V256 may recover CIK and accession only from Yahoo secFilings metadata whose EDGAR/CDN URLs cryptographically/structurally embed the same 10-digit CIK and accession. The latest 10-Q/10-K filing pair may then be fetched from SEC directly; only if the same identified SEC document is not retrievable directly may its Yahoo CDN filing mirror be used as a transport fallback. No financial value, ticker, issuer or CIK is hard-coded. A mirror document must match form, CIK and accession before it can feed the unchanged V255 same-basis tables/tax gates. V256 also prevents the active guard UI from calling Current-FY analyst EPS a valuation basis and cleans remaining generic-score wording.
@@ -6782,7 +6782,7 @@ def _v261_fetch_prior_year_comparable_10q(cik, current_report_date, current_fili
     current_date = _v261_parse_iso_date(current_report_date) or _v261_parse_iso_date(current_filing_date)
     current_acc = re.sub(r"\D", "", _clean_text(current_accession))
     if not cik or current_date is None:
-        out["diagnostics"].append("V261 Vorjahres-10-Q: aktuelle Vergleichsperiode nicht eindeutig datierbar.")
+        out["diagnostics"].append("V262 Vorjahres-10-Q: aktuelle Vergleichsperiode nicht eindeutig datierbar.")
         return out
     deadline = time.monotonic() + 6.0
     try:
@@ -6826,28 +6826,28 @@ def _v261_fetch_prior_year_comparable_10q(cik, current_report_date, current_fili
                 "accession_nodash": acc_nodash,
                 "filing_date": filing_date,
                 "report_date": report_date,
-                "identity_source": "SEC submissions · V261 comparable prior-year 10-Q",
+                "identity_source": "SEC submissions · V262 comparable prior-year 10-Q",
                 "cik": int(cik),
                 "primary_document": doc,
             }
             candidates.append((abs(delta - 365), 0 if report_date else 1, row))
         if not candidates:
-            out["diagnostics"].append("V261 Vorjahres-10-Q: keine eindeutige 300–430-Tage-Vergleichsperiode in SEC submissions.")
+            out["diagnostics"].append("V262 Vorjahres-10-Q: keine eindeutige 300–430-Tage-Vergleichsperiode in SEC submissions.")
             return out
         candidates.sort(key=lambda x: (x[0], x[1]))
         row = candidates[0][2]
         html, final_url, transport = _v256_fetch_identified_filing(row, deadline=deadline, prefer_mirror=bool(prefer_mirror))
         if not html:
-            out["diagnostics"].append("V261 Vorjahres-10-Q: identifiziert, aber Dokumenttransport fehlgeschlagen.")
+            out["diagnostics"].append("V262 Vorjahres-10-Q: identifiziert, aber Dokumenttransport fehlgeschlagen.")
             return out
         row.update({"html": html, "final_url": final_url or row.get("url"), "transport": transport, "loaded": True})
         out.update({"available": True, "filing": row})
         out["diagnostics"].append(
-            f"V261 Vorjahres-10-Q: vergleichbare Periode {row.get('report_date') or row.get('filing_date')} eindeutig geladen."
+            f"V262 Vorjahres-10-Q: vergleichbare Periode {row.get('report_date') or row.get('filing_date')} eindeutig geladen."
         )
         return out
     except Exception as exc:
-        out["diagnostics"].append(f"V261 Vorjahres-10-Q: {type(exc).__name__}; normalisiertes Gewinnwachstum bleibt fail-closed.")
+        out["diagnostics"].append(f"V262 Vorjahres-10-Q: {type(exc).__name__}; normalisiertes Gewinnwachstum bleibt fail-closed.")
         return out
 
 
@@ -7176,7 +7176,7 @@ def build_non_operating_equity_gain_primary_normalization_v256(symbol, financial
         result["reason"] = "Normalisierter TTM-EPS-Wert liegt außerhalb des konservativen Plausibilitätskorridors relativ zur periodenreinen GAAP-TTM-Brücke."
         return result
 
-    # V261 – extend the same primary-source basis from EPS to current TTM profitability
+    # V262 – extend the same primary-source basis from EPS to current TTM profitability
     # and, when a comparable prior-year 10-Q is available, normalized TTM earnings growth.
     # These metrics are diagnostic/released result bases only; generic score remains blocked until ROE is normalized.
     same_basis_metrics = {
@@ -7190,6 +7190,9 @@ def build_non_operating_equity_gain_primary_normalization_v256(symbol, financial
         "normalized_ttm_earnings_growth": None,
         "prior_ttm_unrealized_coverage_ratio": None,
         "roe_released": False,
+        "normalized_common_roe": None,
+        "common_equity_current": None,
+        "common_equity_prior": None,
         "diagnostics": [],
     }
     q_revenue, q_revenue_row = _v255_pick_row_values(q_html, r"^(?:total\s+)?revenues?$", q_count)
@@ -7214,9 +7217,9 @@ def build_non_operating_equity_gain_primary_normalization_v256(symbol, financial
                 "normalized_ttm_net_margin": normalized_margin,
             })
         else:
-            same_basis_metrics["diagnostics"].append("V261 Profitabilität: normalisierte TTM-Nettomarge außerhalb des konservativen Plausibilitätskorridors.")
+            same_basis_metrics["diagnostics"].append("V262 Profitabilität: normalisierte TTM-Nettomarge außerhalb des konservativen Plausibilitätskorridors.")
     else:
-        same_basis_metrics["diagnostics"].append("V261 Profitabilität: periodenreine TTM-Umsatz-/Nettogewinnbrücke nicht vollständig.")
+        same_basis_metrics["diagnostics"].append("V262 Profitabilität: periodenreine TTM-Umsatz-/Nettogewinnbrücke nicht vollständig.")
 
     prior_q = _v261_fetch_prior_year_comparable_10q(
         result.get("cik"),
@@ -7273,17 +7276,100 @@ def build_non_operating_equity_gain_primary_normalization_v256(symbol, financial
                                 "annual_statutory_rate_series_row": tax_rate_series_row,
                             })
                         else:
-                            same_basis_metrics["diagnostics"].append("V261 Wachstum: normalisiertes TTM-Gewinnwachstum außerhalb des konservativen Plausibilitätskorridors.")
+                            same_basis_metrics["diagnostics"].append("V262 Wachstum: normalisiertes TTM-Gewinnwachstum außerhalb des konservativen Plausibilitätskorridors.")
                     else:
-                        same_basis_metrics["diagnostics"].append("V261 Wachstum: normalisierte Vorjahres-TTM-Ergebnis-/Umsatzbasis nicht positiv belastbar.")
+                        same_basis_metrics["diagnostics"].append("V262 Wachstum: normalisierte Vorjahres-TTM-Ergebnis-/Umsatzbasis nicht positiv belastbar.")
                 else:
                     same_basis_metrics["diagnostics"].append(
-                        "V261 Wachstum: Vorjahres-TTM-Equity-Gain-Brücke wird nicht dominant durch netto-unrealisierte Gewinne erklärt."
+                        "V262 Wachstum: Vorjahres-TTM-Equity-Gain-Brücke wird nicht dominant durch netto-unrealisierte Gewinne erklärt."
                     )
             else:
-                same_basis_metrics["diagnostics"].append("V261 Wachstum: statutory-rate-Reihe ist zwischen Vergleichsjahren nicht konsistent mit der freigegebenen Steuerbasis.")
+                same_basis_metrics["diagnostics"].append("V262 Wachstum: statutory-rate-Reihe ist zwischen Vergleichsjahren nicht konsistent mit der freigegebenen Steuerbasis.")
         else:
-            same_basis_metrics["diagnostics"].append("V261 Wachstum: vergleichbare Vorjahres-10-Q-/Annual-Zeilen nicht vollständig periodenrein verfügbar.")
+            same_basis_metrics["diagnostics"].append("V262 Wachstum: vergleichbare Vorjahres-10-Q-/Annual-Zeilen nicht vollständig periodenrein verfügbar.")
+
+    # V262 – conservative same-basis Common ROE.
+    # Numerator: normalized current TTM common income already derived above.
+    # Denominator: average reported common stockholders' equity at the two
+    # comparable quarter-end dates (current 10-Q and prior-year comparable 10-Q).
+    # No provider ROE fallback is permitted while the distortion guard is active.
+    if same_basis_metrics.get("profitability_released") and prior_q.get("available"):
+        pq = prior_q.get("filing") or {}
+        pq_html_for_roe = pq.get("html") or ""
+        q_equity, q_equity_row = _v255_pick_row_values(
+            q_html,
+            r"^(?:total\s+)?(?:alphabet\s+inc\.?\s+)?stockholders[’'\s]+equity$",
+            2,
+        )
+        pq_equity, pq_equity_row = _v255_pick_row_values(
+            pq_html_for_roe,
+            r"^(?:total\s+)?(?:alphabet\s+inc\.?\s+)?stockholders[’'\s]+equity$",
+            2,
+        )
+        # Generic preferred-equity carrying-value rows are subtracted only when
+        # separately reported as an equity amount. Par-value/share-description
+        # rows are deliberately ignored by requiring an equity/carrying-value label.
+        q_pref, q_pref_row = _v255_pick_row_values(
+            q_html,
+            r"^(?:total\s+)?preferred\s+(?:stock|equity)(?:\s+carrying\s+value|\s+equity)?$",
+            2,
+        )
+        pq_pref, pq_pref_row = _v255_pick_row_values(
+            pq_html_for_roe,
+            r"^(?:total\s+)?preferred\s+(?:stock|equity)(?:\s+carrying\s+value|\s+equity)?$",
+            2,
+        )
+        if q_equity and pq_equity:
+            equity_current = safe_float(q_equity[-1])
+            equity_prior = safe_float(pq_equity[-1])
+            pref_current = safe_float(q_pref[-1]) if q_pref else 0.0
+            pref_prior = safe_float(pq_pref[-1]) if pq_pref else 0.0
+            if pref_current is None:
+                pref_current = 0.0
+            if pref_prior is None:
+                pref_prior = 0.0
+            common_equity_current = equity_current - pref_current if equity_current is not None else None
+            common_equity_prior = equity_prior - pref_prior if equity_prior is not None else None
+            avg_common_equity = (
+                (common_equity_current + common_equity_prior) / 2.0
+                if common_equity_current is not None and common_equity_prior is not None
+                else None
+            )
+            normalized_income_for_roe = safe_float(same_basis_metrics.get("normalized_ttm_net_income"))
+            normalized_common_roe = (
+                normalized_income_for_roe / avg_common_equity
+                if normalized_income_for_roe is not None and avg_common_equity is not None and avg_common_equity > 0
+                else None
+            )
+            if (
+                normalized_common_roe is not None
+                and math.isfinite(normalized_common_roe)
+                and -0.20 <= normalized_common_roe <= 1.00
+                and common_equity_current > 0
+                and common_equity_prior > 0
+            ):
+                same_basis_metrics.update({
+                    "roe_released": True,
+                    "normalized_common_roe": normalized_common_roe,
+                    "common_equity_current": common_equity_current,
+                    "common_equity_prior": common_equity_prior,
+                    "preferred_equity_current": pref_current,
+                    "preferred_equity_prior": pref_prior,
+                    "common_equity_current_row": (q_equity_row or {}).get("label"),
+                    "common_equity_prior_row": (pq_equity_row or {}).get("label"),
+                })
+            else:
+                same_basis_metrics["diagnostics"].append(
+                    "V262 Common-ROE: normalisiertes TTM-Ergebnis bzw. durchschnittliches Common Equity außerhalb des konservativen Plausibilitätskorridors."
+                )
+        else:
+            same_basis_metrics["diagnostics"].append(
+                "V262 Common-ROE: vergleichbare Quartalsstichtage für Stockholders’ Equity nicht eindeutig aus Primärquellen verfügbar."
+            )
+    elif same_basis_metrics.get("profitability_released"):
+        same_basis_metrics["diagnostics"].append(
+            "V262 Common-ROE: vergleichbares Vorjahres-10-Q fehlt; kein Provider-ROE-Fallback."
+        )
 
     result["same_basis_metrics"] = same_basis_metrics
     result["diagnostics"].extend(same_basis_metrics.get("diagnostics") or [])
@@ -7292,9 +7378,13 @@ def build_non_operating_equity_gain_primary_normalization_v256(symbol, financial
         "available": True,
         "released": True,
         "status": (
-            "primary_source_eps_profit_growth_normalized_score_still_blocked"
-            if same_basis_metrics.get("profitability_released") and same_basis_metrics.get("growth_released")
-            else "primary_source_eps_normalized_score_still_blocked"
+            "primary_source_quality_basis_complete"
+            if same_basis_metrics.get("profitability_released") and same_basis_metrics.get("growth_released") and same_basis_metrics.get("roe_released")
+            else (
+                "primary_source_eps_profit_growth_normalized_score_still_blocked"
+                if same_basis_metrics.get("profitability_released") and same_basis_metrics.get("growth_released")
+                else "primary_source_eps_normalized_score_still_blocked"
+            )
         ),
         "confidence": "Mittel",
         "normalized_ttm_eps": normalized_ttm_eps,
@@ -7314,7 +7404,10 @@ def build_non_operating_equity_gain_primary_normalization_v256(symbol, financial
         "normalized_prior_ttm_net_income": same_basis_metrics.get("normalized_prior_ttm_net_income"),
         "normalized_ttm_earnings_growth": same_basis_metrics.get("normalized_ttm_earnings_growth"),
         "prior_ttm_unrealized_coverage_ratio": same_basis_metrics.get("prior_ttm_unrealized_coverage_ratio"),
-        "roe_same_basis_released": False,
+         "roe_same_basis_released": bool(same_basis_metrics.get("roe_released")),
+        "normalized_common_roe": same_basis_metrics.get("normalized_common_roe"),
+        "common_equity_current": same_basis_metrics.get("common_equity_current"),
+        "common_equity_prior": same_basis_metrics.get("common_equity_prior"),
         "period_bridge": {
             "fy": {"reported_eps": k_eps_fy, "normalized_eps": normalized_fy_eps, "unrealized_equity_gain": k_unreal_fy, "common_income": k_common_fy, "diluted_share_proxy": shares_fy},
             "prior_ytd": {"reported_eps": q_eps_prior, "normalized_eps": normalized_prior_ytd_eps, "unrealized_equity_gain": q_unreal_prior, "common_income": q_common_prior, "diluted_share_proxy": shares_prior},
@@ -7351,7 +7444,7 @@ def build_non_operating_equity_gain_primary_normalization_v256(symbol, financial
         "reason": (
             "Periodenreine SEC-Primärquellenbrücke FY − Vorjahres-YTD + aktuelles YTD vollständig. "
             "Dominante netto-unrealisierte Equity-Securities-Gewinne werden mit der vom Emittenten explizit verknüpften statutory-tax-rate-Wirkung bereinigt. "
-            "V261 kann zusätzlich normalisierte TTM-Nettomarge und – bei eindeutigem Vorjahres-10-Q – normalisiertes TTM-Gewinnwachstum freigeben. "
+            "V262 kann zusätzlich normalisierte TTM-Nettomarge und – bei eindeutigem Vorjahres-10-Q – normalisiertes TTM-Gewinnwachstum freigeben. "
             "ROE, Qualitätspunktzahl, Standard-KGV, Fair Value und Signal bleiben weiterhin gesperrt."
         ),
     })
@@ -68094,7 +68187,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "normalized_eps": _v255_released_eps,
                 "confidence": "Mittel",
                 "method": (
-                    "V261 Primärquellen-Normalisierung: periodenreine SEC-Brücke FY − Vorjahres-YTD + aktuelles YTD. "
+                    "V262 Primärquellen-Normalisierung: periodenreine SEC-Brücke FY − Vorjahres-YTD + aktuelles YTD. "
                     "Dominante netto-unrealisierte Equity-Securities-Gewinne werden ausschließlich bei explizit belegter "
                     "statutory-tax-rate-Verknüpfung nach Steuern aus der EPS-Basis entfernt. Current-FY-Analystenkonsens bleibt ungeprüfter Kontext."
                 ),
@@ -68116,11 +68209,15 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "primary_source_eps_normalization_released": True,
                 "primary_source_profitability_normalization_released": bool((non_operating_primary_normalization or {}).get("same_basis_profitability_released")),
                 "primary_source_growth_normalization_released": bool((non_operating_primary_normalization or {}).get("same_basis_growth_released")),
-                "primary_source_roe_normalization_released": False,
+                 "primary_source_roe_normalization_released": bool((non_operating_primary_normalization or {}).get("roe_same_basis_released")),
                 "primary_source_normalization": non_operating_primary_normalization,
                 "normalization_note": (
-                    "V261 hat die Primärquellen-TTM-EPS-Basis freigegeben und prüft Nettomarge/Gewinnwachstum auf derselben Ergebnisbasis. "
-                    "Die Gesamtbewertung bleibt trotzdem gesperrt, solange ROE und die generische Gesamtpunktzahl nicht ebenfalls same-basis freigegeben sind."
+                    "V262 hat EPS, Nettomarge, TTM-Gewinnwachstum und Common-ROE primärquellenbasiert auf derselben Ergebnisbasis freigegeben. "
+                    "Der Qualitätsscore darf berechnet werden; KGV, Fair Value und Signal bleiben bis zur separaten Familien-Korridorprüfung gesperrt."
+                    if bool((non_operating_primary_normalization or {}).get("roe_same_basis_released"))
+                    else
+                    "V262 hat die Primärquellen-TTM-EPS-Basis freigegeben und prüft Nettomarge/Gewinnwachstum auf derselben Ergebnisbasis. "
+                    "Die Gesamtbewertung bleibt gesperrt, solange Common-ROE und Qualitätsscore nicht ebenfalls freigegeben sind."
                 ),
             }
         else:
@@ -68132,7 +68229,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "normalized_eps": None,
                 "confidence": "Niedrig",
                 "method": (
-                    "Vergleichsbasis-Schutz V261: Provider-GAAP-TTM und Current-FY-Konsens werden nicht gemischt. "
+                    "Vergleichsbasis-Schutz V262: Provider-GAAP-TTM und Current-FY-Konsens werden nicht gemischt. "
                     "Eine freigegebene normalisierte EPS-Basis entsteht erst nach periodenreiner Primärquellen-Normalisierung "
                     "materieller nicht-operativer Ergebnisbeiträge einschließlich belastbar belegter Steuerwirkung."
                 ),
@@ -68157,7 +68254,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "primary_source_roe_normalization_released": False,
                 "primary_source_normalization": non_operating_primary_normalization,
                 "normalization_note": (
-                    "V261 schätzt keine Steuerwirkung und rechnet nicht-operative Gewinne nicht pauschal heraus. "
+                    "V262 schätzt keine Steuerwirkung und rechnet nicht-operative Gewinne nicht pauschal heraus. "
                     "Fehlt die vollständige periodenreine Primärquellen-/Steuer-Kette, bleibt die EPS-Basis gesperrt."
                 ),
             }
@@ -68173,10 +68270,35 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             earnings_growth_for_score = aligned_growth
             same_basis_earnings_growth_active = True
 
+    # V262: once the full same-basis result set is released, use it only for
+    # the generic quality score. Valuation multiple / Fair Value remain blocked.
+    _v262_primary = non_operating_primary_normalization or {}
+    _v262_score_basis_released = bool(
+        non_operating_income_guard.get("active")
+        and _v262_primary.get("released")
+        and _v262_primary.get("same_basis_profitability_released")
+        and _v262_primary.get("same_basis_growth_released")
+        and _v262_primary.get("roe_same_basis_released")
+    )
+    if _v262_score_basis_released:
+        _v262_growth = safe_float(_v262_primary.get("normalized_ttm_earnings_growth"))
+        _v262_margin = safe_float(_v262_primary.get("normalized_ttm_net_margin"))
+        _v262_roe = safe_float(_v262_primary.get("normalized_common_roe"))
+        if _v262_growth is not None:
+            earnings_growth_for_score = _v262_growth
+        if _v262_margin is not None:
+            profit_margin_for_score = _v262_margin
+        else:
+            profit_margin_for_score = profit_margin
+        roe_for_score = _v262_roe
+    else:
+        profit_margin_for_score = profit_margin
+        roe_for_score = roe
+
     growth_score = calculate_growth_score(
         revenue_growth,
         earnings_growth_for_score,
-        profit_margin=profit_margin,
+        profit_margin=profit_margin_for_score,
         eps_normalization=eps_normalization,
     )
     growth_score.update({
@@ -68214,8 +68336,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
 
     profitability_score = calculate_profitability_score(
         company_type,
-        profit_margin,
-        roe,
+        profit_margin_for_score,
+        roe_for_score,
         earnings_growth_for_score
     )
 
@@ -68460,12 +68582,19 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         else free_cashflow_for_standard_score
     )
 
+    _v262_normalized_net_income_for_fcf = (
+        revenue * safe_float(_v262_primary.get("normalized_ttm_net_margin"))
+        if _v262_score_basis_released
+        and revenue is not None
+        and safe_float(_v262_primary.get("normalized_ttm_net_margin")) is not None
+        else net_income
+    )
     fcf_score = calculate_fcf_score(
         company_type,
         revenue,
         score_fcf_input,
         historical.get("fcf", []),
-        net_income=net_income,
+        net_income=_v262_normalized_net_income_for_fcf,
         fcf_source_context=fcf_source_context,
     )
 
@@ -68886,42 +69015,49 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     # provider metrics remain visible as diagnostics, but point totals cannot be
     # mistaken for a released valuation-quality score.
     if non_operating_income_guard.get("active"):
-        growth_score = {
-            **growth_score,
-            "context_score": growth_score.get("score"),
-            "score": None,
-            "note": (
-                "Nicht-operative Ergebnisverzerrung: Umsatzwachstum bleibt Diagnosekontext; "
-                "Gewinnwachstum und der generische Wachstums-Punktwert sind bis zur same-basis Ergebnisnormalisierung gesperrt."
-            ),
-        }
-        profitability_score = {
-            **profitability_score,
-            "context_score": profitability_score.get("score"),
-            "score": None,
-            "brake_text": (
-                "Nicht-operative Ergebnisverzerrung: Nettomarge und ROE bleiben Diagnosekontext; "
-                "der generische Profitabilitäts-Punktwert ist bis zur operativen/normalisierten Ergebnisbasis gesperrt."
-            ),
-        }
-        fcf_score = {
-            **fcf_score,
-            "context_score": fcf_score.get("score"),
-            "score": None,
-            "note": (
-                "Nicht-operative Ergebnisverzerrung: Cashflow-Statement-FCF bleibt Diagnosekontext. "
-                "Solange die Ergebnisbasis nicht same-basis normalisiert ist, wird daraus kein generischer FCF-Punktwert für ein Standard-Multiple freigegeben."
-            ),
-        }
-        balance_score = {
-            **balance_score,
-            "context_score": balance_score.get("score"),
-            "score": None,
-            "note": (
-                "Nicht-operative Ergebnisverzerrung: Cash, Debt und Netto-Cash bleiben Diagnosekontext. "
-                "Der generische Bilanz-Punktwert wird nicht mit gesperrten Ergebnis-/FCF-Punkten zu einem 100-Punkte-Score kombiniert."
-            ),
-        }
+        if _v262_score_basis_released:
+            # V262 releases the quality score only. The valuation layer remains blocked below.
+            growth_score["note"] = (
+                (growth_score.get("note") or "")
+                + " V262: Gewinnwachstum stammt aus der primärquellen-normalisierten TTM-vs.-TTM-Vergleichsbasis."
+            )
+            profitability_score["brake_text"] = (
+                "V262: Nettomarge und Common-ROE sind auf derselben primärquellen-normalisierten Ergebnisbasis freigegeben."
+            )
+            fcf_score["note"] = (
+                (fcf_score.get("note") or "")
+                + " V262: Cash-Conversion wird gegen den normalisierten TTM-Nettogewinn geprüft; der verzerrte GAAP-Nettogewinn wird nicht verwendet."
+            )
+            balance_score["note"] = (
+                (balance_score.get("note") or "")
+                + " V262: Bilanzpunkte werden ausschließlich für den Qualitätsscore freigegeben; sie geben kein Bewertungsmultiple frei."
+            )
+            non_operating_income_guard = {
+                **non_operating_income_guard,
+                "primary_source_quality_score_released": True,
+                "same_basis_normalization_status": "primary_source_quality_score_released_valuation_still_blocked",
+                "normalization_note": (
+                    "V262 hat EPS, Nettomarge, TTM-Gewinnwachstum und Common-ROE auf belastbarer Primärquellenbasis normalisiert. "
+                    "Der generische Qualitätsscore darf wieder berechnet werden; Bewertungs-KGV, Fair Value und Signal bleiben bis zur separaten Familien-Korridorprüfung gesperrt."
+                ),
+            }
+        else:
+            growth_score = {
+                **growth_score, "context_score": growth_score.get("score"), "score": None,
+                "note": "Nicht-operative Ergebnisverzerrung: Der Wachstums-Punktwert bleibt bis zur vollständigen Same-Basis-Ergebnisnormalisierung gesperrt.",
+            }
+            profitability_score = {
+                **profitability_score, "context_score": profitability_score.get("score"), "score": None,
+                "brake_text": "Nicht-operative Ergebnisverzerrung: Nettomarge und ROE bleiben bis zur vollständigen Same-Basis-Ergebnisnormalisierung gesperrt.",
+            }
+            fcf_score = {
+                **fcf_score, "context_score": fcf_score.get("score"), "score": None,
+                "note": "Nicht-operative Ergebnisverzerrung: FCF bleibt Diagnosekontext, bis die vollständige Same-Basis-Ergebnisnormalisierung freigegeben ist.",
+            }
+            balance_score = {
+                **balance_score, "context_score": balance_score.get("score"), "score": None,
+                "note": "Nicht-operative Ergebnisverzerrung: Bilanzpunkte bleiben gesperrt, solange der Qualitätsscore nicht vollständig Same-Basis-freigegeben ist.",
+            }
 
     fundamental_multiple = calculate_fundamental_multiple(
         company_type,
@@ -70041,16 +70177,30 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
 
     if non_operating_income_guard.get("active"):
         _v255_eps_only_released = bool(non_operating_income_guard.get("primary_source_eps_normalization_released"))
+        _v262_quality_score = (
+            sum(x for x in [
+                safe_float((growth_score or {}).get("score")),
+                safe_float((profitability_score or {}).get("score")),
+                safe_float((fcf_score or {}).get("score")),
+                safe_float((balance_score or {}).get("score")),
+            ] if x is not None)
+            if _v262_score_basis_released else None
+        )
         fundamental_multiple = {
             **(fundamental_multiple or {}),
-            "score": None,
+            "score": _v262_quality_score,
             "multiple": None,
             "available": False,
             "earnings_basis_usable": False,
             "note": (
                 (
-                    "Non-Operating Earnings Distortion Safety Gate aktiv: V261 hat EPS sowie – sofern periodenrein verfügbar – Nettomarge und Gewinnwachstum primärquellenbasiert normalisiert. "
-                    "ROE und die generische 100-Punkte-Gesamtpunktzahl sind noch nicht same-basis freigegeben; deshalb bleiben Standard-KGV, Fair Value und Signal gesperrt."
+                    (
+                        "V262 Qualitätsscore freigegeben: Die Ergebnisbasis einschließlich Common-ROE ist primärquellenbasiert normalisiert. "
+                        "Standard-KGV, Fair Value und Signal bleiben ausschließlich wegen der noch nicht separat validierten Media-/Internet-/Platforms-Bewertungsfamilie gesperrt."
+                        if _v262_score_basis_released else
+                        "V262 Same-Basis-Schutz: EPS sowie – sofern periodenrein verfügbar – Nettomarge und Gewinnwachstum sind normalisiert; "
+                        "Common-ROE und Qualitätsscore sind noch nicht vollständig freigegeben."
+                    )
                 )
                 if _v255_eps_only_released else
                 (
@@ -70982,9 +71132,13 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             ),
             "action": (
                 (
-                    "V261 hat EPS sowie – sofern periodenrein verfügbar – Nettomarge und Gewinnwachstum primärquellenbasiert normalisiert. "
-                    "ROE und die generische Gesamtpunktzahl bleiben noch gesperrt; bis zu ihrer Same-Basis-Freigabe bleiben Standard-KGV, Fair Value und Signal gesperrt. "
-                    "FCF und Bilanz bleiben Diagnosekontext."
+                    (
+                        "V262 hat EPS, Nettomarge, TTM-Gewinnwachstum und Common-ROE primärquellenbasiert normalisiert; der Qualitätsscore ist freigegeben. "
+                        "Als nächstes muss der Media-/Internet-/Platforms-Bewertungskorridor separat validiert werden; bis dahin bleiben KGV, Fair Value und Signal gesperrt."
+                        if bool(non_operating_income_guard.get("primary_source_quality_score_released")) else
+                        "V262 hat EPS sowie – sofern periodenrein verfügbar – Nettomarge und Gewinnwachstum primärquellenbasiert normalisiert. "
+                        "Common-ROE und Qualitätsscore bleiben noch gesperrt."
+                    )
                 )
                 if _v255_eps_only_released else
                 (
@@ -71033,8 +71187,12 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "valuation_method": None,
             "note": (
                 (
-                    "Fair Value V1 gesperrt: V261 hat die TTM-EPS-Basis und – sofern periodenrein verfügbar – Nettomarge/Gewinnwachstum primärquellenbasiert normalisiert. "
-                    "ROE und die generische Gesamtpunktzahl sind noch nicht same-basis freigegeben. Deshalb bleibt der Standard-EPS×KGV-Pfad gesperrt."
+                    (
+                        "Fair Value V1 gesperrt: V262 hat die vollständige Same-Basis-Ergebnisgrundlage und den Qualitätsscore freigegeben. "
+                        "Der Standard-EPS×KGV-Pfad bleibt dennoch gesperrt, bis der Media-/Internet-/Platforms-Bewertungskorridor separat validiert ist."
+                        if bool(non_operating_income_guard.get("primary_source_quality_score_released")) else
+                        "Fair Value V1 gesperrt: Die Same-Basis-Ergebnisnormalisierung ist noch nicht vollständig."
+                    )
                 )
                 if _v255_eps_only_released else
                 (
@@ -73472,18 +73630,25 @@ if selected_symbol:
                         _v261_margin_ui = safe_float(_v261_primary_metrics_ui.get("normalized_ttm_net_margin"))
                         _v261_growth_ui = safe_float(_v261_primary_metrics_ui.get("normalized_ttm_earnings_growth"))
                         _v261_prior_cov_ui = safe_float(_v261_primary_metrics_ui.get("prior_ttm_unrealized_coverage_ratio"))
+                        _v262_roe_ui = safe_float(_v261_primary_metrics_ui.get("normalized_common_roe"))
                         _v261_parts = []
                         if _v261_margin_ui is not None:
                             _v261_parts.append(f"normalisierte TTM-Nettomarge **{_v261_margin_ui*100:.1f} %**")
                         if _v261_growth_ui is not None:
                             _v261_parts.append(f"normalisiertes TTM-Gewinnwachstum **{_v261_growth_ui*100:.1f} %**")
+                        if _v262_roe_ui is not None:
+                            _v261_parts.append(f"normalisierter Common-ROE **{_v262_roe_ui*100:.1f} %**")
                         if _v261_parts:
                             st.info(
-                                "🧮 **V261 Same-Basis Ergebnisnormalisierung:** " + " · ".join(_v261_parts) + ". "
-                                "ROE ist noch nicht same-basis normalisiert; deshalb bleiben Profitabilitätspunktzahl, Gesamtpunktzahl, KGV, fairer Wert und Signal gesperrt."
+                                "🧮 **V262 Ergebnisnormalisierung auf gleicher Basis:** " + " · ".join(_v261_parts) + ". "
+                                + (
+                                    "Die Ergebnisbasis für den Qualitätsscore ist vollständig freigegeben; KGV, fairer Wert und Signal bleiben bis zur separaten Familien-Korridorprüfung gesperrt."
+                                    if _v261_primary_metrics_ui.get("roe_same_basis_released")
+                                    else "Common-ROE ist noch nicht auf gleicher Basis freigegeben; deshalb bleiben Qualitätsscore, KGV, fairer Wert und Signal gesperrt."
+                                )
                             )
                         if _v261_prior_cov_ui is not None:
-                            st.caption(f"V261 Vorjahres-TTM-Prüfung: netto-unrealisierte Equity-Gewinne decken {_v261_prior_cov_ui*100:.1f} % des periodenreinen Equity-Gain-Beitrags ab.")
+                            st.caption(f"V262 Vorjahres-TTM-Prüfung: netto-unrealisierte Equity-Gewinne decken {_v261_prior_cov_ui*100:.1f} % des periodenreinen Equity-Gain-Beitrags ab.")
 
                     if data.get("profit_margin_note"):
                         st.warning(
@@ -73635,7 +73800,7 @@ if selected_symbol:
                             _v255_primary_ui = data.get("non_operating_primary_normalization") or {}
                             _v255_diag_eps_ui = safe_float(_v255_guard_ui.get("diagnostic_normalized_eps"))
                             st.info(
-                                "V261 Vergleichsbasis-Schutz: Der frühere Provider-TTM/Current-FY-Mischwert bleibt verworfen. "
+                                "V262 Vergleichsbasis-Schutz: Der frühere Provider-TTM/Current-FY-Mischwert bleibt verworfen. "
                                 "Eine Primärquellen-EPS-Basis wird nur freigegeben, wenn FY, Vorjahres-YTD und aktuelles YTD periodenrein, "
                                 "die nicht-operativen Equity-Gewinne dominant und die Steuerwirkung ausdrücklich aus Primärquellen belegt sind."
                             )
@@ -74232,7 +74397,7 @@ if selected_symbol:
                             _v255_coverage_ui = safe_float(_v255_primary_eps_ui.get("unrealized_coverage_ratio"))
                             if _v255_tax_rate_ui is not None and _v255_coverage_ui is not None:
                                 st.caption(
-                                    f"V261 Primärquellenprüfung: statutory tax rate {_v255_tax_rate_ui*100:.1f} % · "
+                                    f"V262 Primärquellenprüfung: statutory tax rate {_v255_tax_rate_ui*100:.1f} % · "
                                     f"unrealisierte Equity-Gewinne decken {_v255_coverage_ui*100:.1f} % des periodenreinen TTM-Equity-Gain-Beitrags ab."
                                 )
                         else:
@@ -74645,12 +74810,12 @@ if selected_symbol:
                                     _v261_guard_caption_ui = data.get("non_operating_primary_normalization") or {}
                                     if _v261_guard_caption_ui.get("same_basis_profitability_released") and _v261_guard_caption_ui.get("same_basis_growth_released"):
                                         st.caption(
-                                            "V261 hat TTM-EPS, TTM-Nettomarge und TTM-Gewinnwachstum primärquellenbasiert auf derselben Ergebnisbasis normalisiert. "
+                                            "V262 hat TTM-EPS, TTM-Nettomarge, TTM-Gewinnwachstum und Common-ROE primärquellenbasiert auf derselben Ergebnisbasis normalisiert. "
                                             "ROE und die generische Gesamtpunktzahl sind noch nicht same-basis freigegeben; deshalb bleiben KGV, fairer Wert und Signal gesperrt."
                                         )
                                     else:
                                         st.caption(
-                                            "V261 hat die TTM-EPS-Gewinnbasis normalisiert; weitere Same-Basis-Ergebniskennzahlen sind noch unvollständig. "
+                                            "V262 hat die TTM-EPS-Gewinnbasis normalisiert; weitere Same-Basis-Ergebniskennzahlen sind noch unvollständig. "
                                             "KGV, fairer Wert und Signal bleiben gesperrt."
                                         )
                                 else:
@@ -75284,7 +75449,7 @@ if selected_symbol:
                     is_capital_goods_score_ui = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
                     is_exchange_score_ui = bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable"))
                     is_universal_family_score_ui = is_universal_family_fail_closed(company_type)
-                    is_non_operating_guard_score_ui = bool((data.get("non_operating_income_guard") or {}).get("active"))
+                    is_non_operating_guard_score_ui = bool((data.get("non_operating_income_guard") or {}).get("active") and not (data.get("non_operating_income_guard") or {}).get("primary_source_quality_score_released"))
 
                     if is_bkr_score_ui:
                         st.info(
@@ -75586,7 +75751,7 @@ if selected_symbol:
                     is_capital_goods_profitability_ui = bool((data.get("industrials_capital_goods_specialist_model") or {}).get("applicable"))
                     is_exchange_profitability_ui = bool((data.get("exchange_market_infrastructure_specialist_model") or {}).get("applicable"))
                     is_universal_family_profitability_ui = is_universal_family_fail_closed(company_type)
-                    is_non_operating_guard_profitability_ui = bool((data.get("non_operating_income_guard") or {}).get("active"))
+                    is_non_operating_guard_profitability_ui = bool((data.get("non_operating_income_guard") or {}).get("active") and not (data.get("non_operating_income_guard") or {}).get("primary_source_quality_score_released"))
 
                     if is_upstream_ep_profitability_ui:
                         ep_prof_ui = (data.get("upstream_ep_specialist_model") or {}).get("specialist_score") or {}
@@ -75894,7 +76059,7 @@ if selected_symbol:
                         "fcf_score"
                     ]
                     is_upstream_ep_fcf_score_ui = bool((data.get("upstream_ep_specialist_model") or {}).get("applicable"))
-                    is_non_operating_guard_fcf_ui = bool((data.get("non_operating_income_guard") or {}).get("active"))
+                    is_non_operating_guard_fcf_ui = bool((data.get("non_operating_income_guard") or {}).get("active") and not (data.get("non_operating_income_guard") or {}).get("primary_source_quality_score_released"))
 
                     if is_upstream_ep_fcf_score_ui:
                         ep_cash_ui = data.get("upstream_ep_specialist_model") or {}; ep_cash_score_ui = ep_cash_ui.get("specialist_score") or {}; ep_cash_comp_ui = ep_cash_score_ui.get("components") or {}; ep_cash_metrics_ui = ep_cash_ui.get("metrics") or {}
@@ -76258,7 +76423,7 @@ if selected_symbol:
                         "balance_score"
                     ]
                     is_upstream_ep_balance_ui = bool((data.get("upstream_ep_specialist_model") or {}).get("applicable"))
-                    is_non_operating_guard_balance_ui = bool((data.get("non_operating_income_guard") or {}).get("active"))
+                    is_non_operating_guard_balance_ui = bool((data.get("non_operating_income_guard") or {}).get("active") and not (data.get("non_operating_income_guard") or {}).get("primary_source_quality_score_released"))
 
                     if is_upstream_ep_balance_ui:
                         ep_bal_ui = data.get("upstream_ep_specialist_model") or {}; ep_bal_score_ui = ep_bal_ui.get("specialist_score") or {}; ep_bal_comp_ui = ep_bal_score_ui.get("components") or {}; ep_bal_metrics_ui = ep_bal_ui.get("metrics") or {}
