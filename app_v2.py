@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.68"
+APP_BUILD_VERSION = "V2.23.69"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Internet-Platform-KGV-Korridor · Live-Validierung V264"
+    f"Build {APP_BUILD_VERSION} · Primärquellen-Ergebnisbasis · Meta-Gegentest V265"
 )
 
 
@@ -960,6 +960,7 @@ st.caption(
 # V2.23.64: Tax Evidence Full-Filing Parser V260. Keeps the global generic HTML-to-text cap unchanged, but evaluates the narrow deferred-tax/statutory-rate evidence against the complete identified SEC filing instead of the 160k generic text preview. This fixes late-filing tax-evidence false negatives without issuer hard-coding or estimated tax effects. Annual statutory-rate extraction gains a conservative full-text fallback around an explicitly labelled federal statutory-rate row. The score/P-E/Fair-Value/signal gates remain unchanged and fail closed.
 # V2.23.67: Guard State Transition Cleanup V263. After the same-basis primary-source quality basis is fully released, the non-operating distortion state transitions from unresolved/red to normalized/yellow. Score math, EPS normalization, FCF and balance math are unchanged; P/E, Fair Value and signals remain fail-closed until the Media / Internet / Platforms family corridor is separately validated.
 
+# V2.23.69: Internet-Platform Primary Earnings Basis Trigger V265. For the V264 Internet Content / Digital Platform live-validation subprofile, materially positive revenue growth paired with negative provider earnings growth now triggers the existing issuer-primary adjusted/core TTM discovery even when the raw-TTM/current-FY EPS gap is below the legacy 25% discovery threshold. The existing reconstructor remains fail-closed: only period-complete same-company primary releases and a consistent adjusted/core EPS family may replace provider GAAP. No issuer ticker, tax amount, EPS value or Meta-specific financial constant is hard-coded; legal/severance costs are not automatically removed. The 18–32x corridor, score thresholds and Fair-Value/signal gates are unchanged.
 # V2.23.68: Internet-Platform Family Corridor V264. Adds a reusable Media/Internet subprofile for Internet Content & Information platforms and releases an 18–32x normalized-TTM P/E corridor for mature profitable platform economics only. Eligibility is score/evidence based (quality >=80, growth >=20/30, profitability >=20/30, FCF >=16/25, balance >=10/15, positive normalized earnings basis). The target line is 50 points -> 18x and 100 points -> 32x, with no extra growth premium to avoid double counting. V264 is corridor/target-multiple live-validation only: peer adjustment, Fair Value, valuation zones and signals remain fail-closed pending a second-issuer live regression (Meta). Alphabet non-operating normalization and 92/100 score math are unchanged.
 # V2.23.66: Normalized Common ROE & Quality Score Release V262. Extends the released V260 primary-source EPS bridge to a current normalized TTM net-income/revenue basis and, when a comparable prior-year 10-Q is unambiguously resolved, a prior-TTM normalized earnings bridge. Current normalized net margin and normalized TTM earnings growth are released only when period structure, dominant unrealized-equity coverage and statutory-rate evidence remain consistent. ROE, the generic 100-point score, P/E, Fair Value and signal remain fail-closed for a later validation step. No issuer-specific ticker or financial value is hard-coded.
 # V2.23.62: Primary-Source Runtime Containment V258. Wraps the V257 SEC same-basis normalization call in a fail-closed exception boundary so an unexpected filing/parser structure can never abort the complete stock view. The exact exception class/message is retained only as technical primary-source diagnostics; no EPS, score, multiple, Fair Value or signal is released on exception. Valuation mathematics and V257 transport rules remain unchanged.
@@ -65730,7 +65731,7 @@ def discover_generic_primary_adjusted_ttm(
     })
     return {"available": False, "generic_reconstructor": True, "company_domain": domain, "diagnostics": diag}
 
-def _should_try_generic_adjusted_ttm(company_type, raw_ttm, current_fy_eps, website, symbol):
+def _should_try_generic_adjusted_ttm(company_type, raw_ttm, current_fy_eps, website, symbol, revenue_growth=None, earnings_growth=None):
     if _verified_adjusted_ttm_snapshot(symbol) is not None:
         return False
     # V2.20.122 – Branded Consumer Staples has an explicit issuer-specific owner
@@ -65752,7 +65753,21 @@ def _should_try_generic_adjusted_ttm(company_type, raw_ttm, current_fy_eps, webs
     if raw is None or fwd is None or raw <= 0 or fwd <= 0 or not website:
         return False
     gap = abs(fwd / raw - 1.0)
-    if gap < 0.25:
+    # V265: Internet-platform second-issuer validation exposed a blind spot in the
+    # legacy discovery trigger. A discrete tax/accounting item can depress provider
+    # earnings growth materially without creating a >=25% TTM-vs-current-FY EPS gap.
+    # For the already-routed Internet Content / Digital Platform subprofile, a
+    # strong revenue/earnings divergence is therefore sufficient to *start* the
+    # existing primary-source discovery. It never releases an adjustment by itself.
+    rg = safe_float(revenue_growth)
+    eg = safe_float(earnings_growth)
+    platform_divergence_trigger = bool(
+        company_type.get("valuation_family_id") == "media_internet"
+        and company_type.get("media_internet_subprofile") == "internet_content_platform"
+        and rg is not None and rg >= 0.10
+        and eg is not None and eg < 0.0
+    )
+    if gap < 0.25 and not platform_divergence_trigger:
         return False
     name = normalized_company_type_name(company_type)
     # Existing dedicated owner-earnings models retain their own frozen paths.
@@ -68067,7 +68082,9 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         current_fy_for_generic = datetime.now().year
 
     if _should_try_generic_adjusted_ttm(
-        company_type, trailing_eps, valuation_forward_eps, company_website_for_eps, fundamental_symbol
+        company_type, trailing_eps, valuation_forward_eps, company_website_for_eps, fundamental_symbol,
+        revenue_growth=fundamental_info.get("revenueGrowth"),
+        earnings_growth=fundamental_info.get("earningsGrowth"),
     ) and current_fy_for_generic is not None:
         generic_adjusted_ttm_snapshot = discover_generic_primary_adjusted_ttm(
             fundamental_symbol,
@@ -69912,7 +69929,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "applied": False,
             "reference_only": True,
             "note": (
-                "V264 Korridor-Livevalidierung: keine automatische Peer-Anpassung. Meta/weitere reife Internet-Plattformen dienen zunächst nur dem unabhängigen Gegentest; "
+                "V265 Korridor-Livevalidierung: keine automatische Peer-Anpassung. Meta/weitere reife Internet-Plattformen dienen zunächst nur dem unabhängigen Gegentest; "
                 "sie dürfen den 18–32× Familienanker weder erzeugen noch anheben."
             ),
         }
@@ -79436,7 +79453,7 @@ if selected_symbol:
                             if bool((data.get("non_operating_income_guard") or {}).get("active")):
                                 if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
                                     st.info(
-                                        "V264 Korridor-Livevalidierung: Der 18–32× Internet-Platform-Familienkorridor und das score-positionierte Ziel-KGV sind freigegeben. "
+                                        "V265 Korridor-Livevalidierung: Der 18–32× Internet-Platform-Familienkorridor und das score-positionierte Ziel-KGV sind freigegeben. "
                                         "Die Vergleichsgruppe bleibt bis zum zweiten Live-Emittenten-Gegentest ohne Bewertungswirkung."
                                     )
                                 else:
