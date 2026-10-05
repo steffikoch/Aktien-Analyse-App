@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.69"
+APP_BUILD_VERSION = "V2.23.70"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Primärquellen-Ergebnisbasis · Meta-Gegentest V265"
+    f"Build {APP_BUILD_VERSION} · Diskreter Steuer-Sondereffekt · Same-Basis V266"
 )
 
 
@@ -961,6 +961,8 @@ st.caption(
 # V2.23.67: Guard State Transition Cleanup V263. After the same-basis primary-source quality basis is fully released, the non-operating distortion state transitions from unresolved/red to normalized/yellow. Score math, EPS normalization, FCF and balance math are unchanged; P/E, Fair Value and signals remain fail-closed until the Media / Internet / Platforms family corridor is separately validated.
 
 # V2.23.69: Internet-Platform Primary Earnings Basis Trigger V265. For the V264 Internet Content / Digital Platform live-validation subprofile, materially positive revenue growth paired with negative provider earnings growth now triggers the existing issuer-primary adjusted/core TTM discovery even when the raw-TTM/current-FY EPS gap is below the legacy 25% discovery threshold. The existing reconstructor remains fail-closed: only period-complete same-company primary releases and a consistent adjusted/core EPS family may replace provider GAAP. No issuer ticker, tax amount, EPS value or Meta-specific financial constant is hard-coded; legal/severance costs are not automatically removed. The 18–32x corridor, score thresholds and Fair-Value/signal gates are unchanged.
+
+# V2.23.70: Discrete Tax Special-Item Same-Basis Guard V266. Adds an issuer-neutral SEC 10-K/10-Q normalizer for explicitly identified material discrete/one-time/non-cash income-tax charges or benefits. The guard reconstructs current and prior TTM revenue, net income and diluted EPS using FY−YTD+YTD, removes only the explicitly quantified tax effects from the periods in which the issuer says they occurred, and derives same-basis earnings growth, net margin and ROE. Legal, severance and other operating costs are never adjusted automatically. Missing filing identity, ambiguous period attribution, missing statement rows or inconsistent tax evidence fail closed. The Internet-Platform 18–32x corridor and 80/100 maturity thresholds are unchanged.
 # V2.23.68: Internet-Platform Family Corridor V264. Adds a reusable Media/Internet subprofile for Internet Content & Information platforms and releases an 18–32x normalized-TTM P/E corridor for mature profitable platform economics only. Eligibility is score/evidence based (quality >=80, growth >=20/30, profitability >=20/30, FCF >=16/25, balance >=10/15, positive normalized earnings basis). The target line is 50 points -> 18x and 100 points -> 32x, with no extra growth premium to avoid double counting. V264 is corridor/target-multiple live-validation only: peer adjustment, Fair Value, valuation zones and signals remain fail-closed pending a second-issuer live regression (Meta). Alphabet non-operating normalization and 92/100 score math are unchanged.
 # V2.23.66: Normalized Common ROE & Quality Score Release V262. Extends the released V260 primary-source EPS bridge to a current normalized TTM net-income/revenue basis and, when a comparable prior-year 10-Q is unambiguously resolved, a prior-TTM normalized earnings bridge. Current normalized net margin and normalized TTM earnings growth are released only when period structure, dominant unrealized-equity coverage and statutory-rate evidence remain consistent. ROE, the generic 100-point score, P/E, Fair Value and signal remain fail-closed for a later validation step. No issuer-specific ticker or financial value is hard-coded.
 # V2.23.62: Primary-Source Runtime Containment V258. Wraps the V257 SEC same-basis normalization call in a fail-closed exception boundary so an unexpected filing/parser structure can never abort the complete stock view. The exact exception class/message is retained only as technical primary-source diagnostics; no EPS, score, multiple, Fair Value or signal is released on exception. Valuation mathematics and V257 transport rules remain unchanged.
@@ -10158,14 +10160,14 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
         if "internet content & information" in _mi_industry or "internet content and information" in _mi_industry:
             out["media_internet_subprofile"] = "internet_content_platform"
             out["media_internet_subprofile_label"] = "Internet Content / Digital Platform"
-            out["family_model_status"] = "corridor_live_validation_v264"
+            out["family_model_status"] = "corridor_live_validation_v266"
             out["family_model_ready"] = True
             out["family_model_released"] = False
-            out["family_validation_status"] = "internet_content_platform_corridor_v264_first_issuer"
+            out["family_validation_status"] = "internet_content_platform_corridor_v266_second_issuer_validation"
             out["universal_family_fail_closed"] = False
             out["confidence_cap"] = "Mittel"
             out["method"] = (
-                "V264 Internet-Platform-Familienpfad: 100-Punkte-Qualität + positive normalisierte TTM-Gewinnbasis; "
+                "V266 Internet-Platform-Familienpfad: 100-Punkte-Qualität + positive normalisierte TTM-Gewinnbasis; "
                 "18–32× normalisiertes TTM-KGV, score-positioniert von 50→18× bis 100→32×. "
                 "Nur reife profitable Plattformprofile mit bestandenem Qualitäts-/FCF-/Bilanz-Gate sind corridor-eligible. "
                 "Peer-Anpassung, Fair Value, Bewertungszonen und Signal bleiben bis zum zweiten Live-Emittenten-Gegentest gesperrt."
@@ -46942,7 +46944,7 @@ def build_media_internet_platform_corridor_v264(company_type, growth_score, prof
     if any(v is None for v in components.values()):
         return {
             "applicable": True, "eligible": False, "corridor_released": False,
-            "reason": "V264 Reifegrad-Gate: mindestens eine Qualitätspunktzahl-Komponente fehlt; kein Familien-KGV wird freigegeben.",
+            "reason": "V266 Reifegrad-Gate: mindestens eine Qualitätspunktzahl-Komponente fehlt; kein Familien-KGV wird freigegeben.",
             "components": components,
         }
     total = sum(components.values())
@@ -46967,7 +46969,7 @@ def build_media_internet_platform_corridor_v264(company_type, growth_score, prof
             "applicable": True, "eligible": False, "corridor_released": False,
             "score": total, "components": components, "earnings_basis_usable": earnings_ok,
             "reason": (
-                "V264 Reifegrad-Gate nicht bestanden. Für den 18–32× Internet-Platform-Korridor sind mindestens "
+                "V266 Reifegrad-Gate nicht bestanden. Für den 18–32× Internet-Platform-Korridor sind mindestens "
                 "80/100 Gesamtqualität, Wachstum 20/30, Profitabilität 20/30, FCF 16/25, Bilanz 10/15 und eine positive "
                 "normalisierte Gewinnbasis erforderlich. Niedrigere/noch nicht profitable Plattformen benötigen ein separates Unterprofil."
             ),
@@ -46992,7 +46994,7 @@ def build_media_internet_platform_corridor_v264(company_type, growth_score, prof
         "stage": "corridor_only_live_validation",
         "confidence": "Mittel",
         "note": (
-            "V264 kalibriert den reifen Internet-Platform-Korridor auf 18–32× normalisiertes TTM-KGV. "
+            "V266 bestätigt den unveränderten reifen Internet-Platform-Korridor auf 18–32× normalisiertes TTM-KGV. "
             "Der 100-Punkte-Score positioniert das Ziel von 50→18× bis 100→32×; es gibt keinen zusätzlichen Wachstumsaufschlag, "
             "weil Wachstum bereits 30/100 Punkte ausmacht. Peer-Median, Fair Value, Bewertungszonen und Signal bleiben bis zum zweiten Live-Emittenten-Gegentest gesperrt."
         ),
@@ -65731,6 +65733,344 @@ def discover_generic_primary_adjusted_ttm(
     })
     return {"available": False, "generic_reconstructor": True, "company_domain": domain, "diagnostics": diag}
 
+
+# =========================================================
+# V2.23.70 / V266 – Diskreter Steuer-Sondereffekt
+# Same-Basis-Primärquellen-Normalisierung
+# =========================================================
+
+def _v266_table_row_values(html, label_regex, expected_count, value_mode=None):
+    """Pick one visible filing row with conservative numeric-shape filtering."""
+    if not html:
+        return None, None
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:
+        return None, None
+    rx = re.compile(label_regex, flags=re.I)
+    candidates = []
+    for tr in soup.find_all("tr"):
+        cells = tr.find_all(["th", "td"])
+        if not cells:
+            continue
+        texts = [_clean_text(c.get_text(" ", strip=True)) for c in cells]
+        label_idx = None
+        for i, txt in enumerate(texts):
+            if txt and rx.fullmatch(txt.strip()):
+                label_idx = i
+                break
+        if label_idx is None:
+            continue
+        vals = []
+        for txt in texts[label_idx + 1:]:
+            v = _v255_parse_numeric_cell(txt)
+            if v is not None:
+                vals.append(v)
+        if len(vals) != int(expected_count):
+            continue
+        if value_mode == "eps" and (not vals or max(abs(v) for v in vals) > 100.0):
+            continue
+        if value_mode == "shares" and (not vals or max(abs(v) for v in vals) < 100.0):
+            continue
+        candidates.append((vals, {"label": texts[label_idx], "values": vals, "row_text": _clean_text(tr.get_text(" ", strip=True))}))
+    if not candidates:
+        return None, None
+    return candidates[0]
+
+
+def _v266_statement_snapshot(html, annual=False):
+    count = 3 if annual else 4
+    out = {"available": False, "annual": bool(annual)}
+    revenue, revenue_row = _v266_table_row_values(html, r"(?:total\s+)?revenue", count)
+    net_income, net_income_row = _v266_table_row_values(html, r"net\s+income", count)
+    diluted_eps, diluted_eps_row = _v266_table_row_values(html, r"diluted", count, value_mode="eps")
+    diluted_shares, diluted_shares_row = _v266_table_row_values(html, r"diluted", count, value_mode="shares")
+    equity, equity_row = _v266_table_row_values(html, r"total\s+stockholders[’']?\s+equity", 2)
+    out.update({
+        "revenue": revenue,
+        "net_income": net_income,
+        "diluted_eps": diluted_eps,
+        "diluted_shares": diluted_shares,
+        "stockholders_equity": equity,
+        "rows": {
+            "revenue": revenue_row, "net_income": net_income_row,
+            "diluted_eps": diluted_eps_row, "diluted_shares": diluted_shares_row,
+            "stockholders_equity": equity_row,
+        },
+    })
+    out["available"] = all(x is not None for x in (revenue, net_income, diluted_eps, diluted_shares))
+    return out
+
+
+def _v266_quarter_number_from_context(text):
+    low = _clean_text(text).lower()
+    mapping = {
+        "first quarter": 1, "1st quarter": 1, "q1": 1,
+        "second quarter": 2, "2nd quarter": 2, "q2": 2,
+        "third quarter": 3, "3rd quarter": 3, "q3": 3,
+        "fourth quarter": 4, "4th quarter": 4, "q4": 4,
+    }
+    hits = [(low.find(k), v) for k, v in mapping.items() if low.find(k) >= 0]
+    return min(hits, default=(None, None), key=lambda x: x[0])[1]
+
+
+def _v266_discrete_tax_effects(html, target_year):
+    """Extract only explicitly quantified issuer-described discrete tax charges/benefits.
+
+    Return signed net-income effects in statement units (USD millions): benefit positive,
+    charge negative. Ordinary tax provisions/effective-rate movements are deliberately ignored.
+    """
+    if not html or not target_year:
+        return []
+    try:
+        full = _clean_text(BeautifulSoup(html, "html.parser").get_text(" ", strip=True))
+    except Exception:
+        return []
+    patterns = [
+        # Amount first: "$8.03 billion income tax benefit" or "$15.93 billion non-cash tax charge".
+        re.compile(r"\$\s*([0-9]+(?:\.[0-9]+)?)\s*(billion|million)\s+(?:[A-Za-z-]+\s+){0,4}?(?:income\s+)?tax\s+(benefit|charge)", re.I),
+        # Tax label first: "income tax charge of $15.93 billion". Keep the bridge narrow so
+        # a benefit phrase cannot accidentally capture a later charge amount in the same paragraph.
+        re.compile(r"(?:income\s+)?tax\s+(benefit|charge)(?:\s+(?:of|recognized|recorded|totaling|amounting\s+to)){0,2}\s*\$\s*([0-9]+(?:\.[0-9]+)?)\s*(billion|million)", re.I),
+    ]
+    candidates = []
+    for pidx, pat in enumerate(patterns):
+        for m in pat.finditer(full):
+            if pidx == 0:
+                amount, unit, kind = m.group(1), m.group(2), m.group(3)
+            else:
+                kind, amount, unit = m.group(1), m.group(2), m.group(3)
+            start, end = max(0, m.start()-520), min(len(full), m.end()+520)
+            window = full[start:end]
+            low = window.lower()
+            # Explicit special-item language is mandatory. A normal tax provision is never enough.
+            special = any(k in low for k in [
+                "one-time", "one time", "non-cash", "noncash", "discrete",
+                "valuation allowance", "partially offsets", "enactment", "implementation",
+                "tax landscape", "treasury notice",
+            ])
+            if not special:
+                continue
+            assoc_start, assoc_end = max(0, m.start()-160), min(len(full), m.end()+220)
+            assoc = full[assoc_start:assoc_end]
+            assoc_mid = ((m.start() + m.end()) // 2) - assoc_start
+            period_hits = []
+            period_rx = re.compile(r"\b(first|second|third|fourth|1st|2nd|3rd|4th)\s+quarter(?:\s+of)?\s+(20\d{2})\b", re.I)
+            qmap = {"first":1,"1st":1,"second":2,"2nd":2,"third":3,"3rd":3,"fourth":4,"4th":4}
+            for pm in period_rx.finditer(assoc):
+                period_hits.append((pm.start(), qmap.get(pm.group(1).lower()), int(pm.group(2))))
+            nearest_period = min(period_hits, key=lambda item: abs(item[0] - assoc_mid)) if period_hits else None
+            if nearest_period is not None:
+                if nearest_period[2] != int(target_year):
+                    continue
+            else:
+                year_hits = [(ym.start(), int(ym.group(1))) for ym in re.finditer(r"\b(20\d{2})\b", assoc)]
+                if year_hits:
+                    nearest_year = min(year_hits, key=lambda item: abs(item[0] - assoc_mid))[1]
+                    if nearest_year != int(target_year):
+                        continue
+            value = safe_float(amount)
+            if value is None or value <= 0:
+                continue
+            value_m = value * (1000.0 if unit.lower().startswith("billion") else 1.0)
+            sign = 1.0 if kind.lower() == "benefit" else -1.0
+            if nearest_period is not None:
+                qnum = nearest_period[1]
+            else:
+                q_patterns = [(r"first\s+quarter|1st\s+quarter|\bq1\b", 1), (r"second\s+quarter|2nd\s+quarter|\bq2\b", 2), (r"third\s+quarter|3rd\s+quarter|\bq3\b", 3), (r"fourth\s+quarter|4th\s+quarter|\bq4\b", 4)]
+                qhits = []
+                for qpat, qv in q_patterns:
+                    for qm in re.finditer(qpat, assoc, flags=re.I):
+                        qhits.append((qm.start(), qv))
+                qnum = min(qhits, key=lambda item: abs(item[0] - assoc_mid))[1] if qhits else None
+            candidates.append({
+                "amount_m": value_m,
+                "signed_net_income_effect_m": sign * value_m,
+                "kind": kind.lower(),
+                "quarter": qnum,
+                "target_year": int(target_year),
+                "evidence": window[:1000],
+            })
+    # Deduplicate repeated narrative mentions of the same quantified item.
+    dedup = []
+    seen = set()
+    for row in candidates:
+        key = (round(row["amount_m"], 2), row["kind"], row.get("quarter"), row["target_year"])
+        if key in seen:
+            continue
+        seen.add(key)
+        dedup.append(row)
+    return dedup
+
+
+def _v266_effect_sum_for_ytd(effects, completed_quarter):
+    total = 0.0
+    used = []
+    for row in effects or []:
+        q = safe_int(row.get("quarter"))
+        # If the filing names a quarter, enforce period inclusion. If no quarter is
+        # named, the effect may be used only in an annual period; YTD remains fail-closed.
+        if q is None:
+            continue
+        if q <= int(completed_quarter):
+            total += safe_float(row.get("signed_net_income_effect_m")) or 0.0
+            used.append(row)
+    return total, used
+
+
+def _v266_effect_sum_annual(effects):
+    if not effects:
+        return 0.0, []
+    return sum((safe_float(r.get("signed_net_income_effect_m")) or 0.0) for r in effects), list(effects)
+
+
+@st.cache_data(ttl=21600, show_spinner=False)
+def build_discrete_tax_primary_normalization_v266(symbol, financial_currency, cache_version="v266"):
+    result = {
+        "applicable": True, "available": False, "released": False,
+        "normalized_ttm_eps": None, "normalized_ttm_net_income": None,
+        "normalized_ttm_net_margin": None, "normalized_ttm_earnings_growth": None,
+        "normalized_common_roe": None, "confidence": "Niedrig",
+        "status": "discrete_tax_primary_source_required", "reason": None,
+        "diagnostics": [], "issuer_hardcoded": False, "legal_costs_adjusted": False,
+        "severance_costs_adjusted": False, "source_currency": _normalize_currency_code(financial_currency),
+    }
+    if _normalize_currency_code(financial_currency) != "USD":
+        result["reason"] = "V266 SEC-Steuer-Sondereffekt-Normalisierung ist derzeit nur für USD-berichtende SEC-Emittenten freigegeben."
+        return result
+    deadline = time.monotonic() + 26.0
+    sec = _v256_sec_latest_10q_10k(symbol, deadline=deadline)
+    result["diagnostics"].extend(sec.get("diagnostics") or [])
+    result["cik"] = sec.get("cik")
+    if not sec.get("available"):
+        result["reason"] = sec.get("reason") or "SEC-Primärquellenpfad unvollständig."
+        return result
+    filings = sec.get("filings") or {}
+    q = filings.get("10-Q") or {}; k = filings.get("10-K") or {}
+    q_html = q.get("html") or ""; k_html = k.get("html") or ""
+    q_date = _v261_parse_iso_date(q.get("report_date") or q.get("filing_date"))
+    k_date = _v261_parse_iso_date(k.get("report_date") or k.get("filing_date"))
+    if q_date is None or k_date is None or q_date.year != k_date.year + 1 or q_date.month not in (3, 6, 9):
+        result["reason"] = "V266 Perioden-Gate: aktuelles 10-Q und letztes 10-K bilden keine eindeutige FY−YTD+YTD-Brücke."
+        return result
+    completed_q = {3: 1, 6: 2, 9: 3}.get(q_date.month)
+    current = _v266_statement_snapshot(q_html, annual=False)
+    annual = _v266_statement_snapshot(k_html, annual=True)
+    if not current.get("available") or not annual.get("available"):
+        result["reason"] = "V266 Statement-Gate: Revenue/Net Income/Diluted EPS/Diluted Shares fehlen in 10-Q oder 10-K."
+        return result
+    prior = _v261_fetch_prior_year_comparable_10q(
+        sec.get("cik"), q.get("report_date"), q.get("filing_date"), q.get("accession_nodash"),
+        prefer_mirror=bool(q.get("transport") and "Yahoo" in str(q.get("transport"))), cache_version="v266"
+    )
+    result["diagnostics"].extend(prior.get("diagnostics") or [])
+    if not prior.get("available"):
+        result["reason"] = "V266 Vergleichsperioden-Gate: Vorjahres-10-Q für TTM-vs.-TTM fehlt."
+        return result
+    pq = prior.get("filing") or {}; pq_html = pq.get("html") or ""
+    prior_stmt = _v266_statement_snapshot(pq_html, annual=False)
+    if not prior_stmt.get("available"):
+        result["reason"] = "V266 Vergleichsperioden-Gate: Vorjahres-10-Q-Statements nicht vollständig lesbar."
+        return result
+
+    current_year, annual_year, prior_year = q_date.year, k_date.year, k_date.year - 1
+    current_effects = _v266_discrete_tax_effects(q_html, current_year)
+    annual_effects = _v266_discrete_tax_effects(k_html, annual_year)
+    annual_prior_effects = _v266_discrete_tax_effects(k_html, prior_year)
+    prior_ytd_effects = _v266_discrete_tax_effects(pq_html, annual_year)
+    prior_prior_ytd_effects = _v266_discrete_tax_effects(pq_html, prior_year)
+    if not current_effects or not annual_effects:
+        result["reason"] = "V266 Steuer-Evidenz-Gate: aktueller YTD- und FY-Sondereffekt sind nicht beide explizit quantitativ belegt."
+        result["effects"] = {"current_ytd": current_effects, "annual": annual_effects}
+        return result
+
+    ann_eff, ann_used = _v266_effect_sum_annual(annual_effects)
+    curr_eff, curr_used = _v266_effect_sum_for_ytd(current_effects, completed_q)
+    ann_prior_eff, ann_prior_used = _v266_effect_sum_annual(annual_prior_effects)
+    prior_ytd_eff, prior_ytd_used = _v266_effect_sum_for_ytd(prior_ytd_effects, completed_q)
+    prior_prior_ytd_eff, prior_prior_ytd_used = _v266_effect_sum_for_ytd(prior_prior_ytd_effects, completed_q)
+    if not curr_used:
+        result["reason"] = "V266 Periodenattribution-Gate: aktueller Steuer-Sondereffekt lässt sich keinem enthaltenen Quartal eindeutig zuordnen."
+        return result
+
+    ar, ani, aeps, ashares = annual["revenue"], annual["net_income"], annual["diluted_eps"], annual["diluted_shares"]
+    qr, qni, qeps, qshares = current["revenue"], current["net_income"], current["diluted_eps"], current["diluted_shares"]
+    pr, pni, peps, pshares = prior_stmt["revenue"], prior_stmt["net_income"], prior_stmt["diluted_eps"], prior_stmt["diluted_shares"]
+    # Q2/Q3 rows: [quarter current, quarter prior, YTD current, YTD prior].
+    # Q1 rows from this parser are intentionally unsupported until the four-column bridge exists.
+    if len(qr) != 4 or len(pr) != 4:
+        result["reason"] = "V266 YTD-Gate: für die diskrete Steuerbrücke wird derzeit ein 4-Spalten-Q2/Q3-Statement benötigt."
+        return result
+
+    norm_ann_ni = ani[0] - ann_eff
+    norm_ann_prior_ni = ani[1] - ann_prior_eff
+    norm_curr_ytd_ni = qni[2] - curr_eff
+    norm_prior_ytd_ni = qni[3] - prior_ytd_eff
+    norm_pq_curr_ytd_ni = pni[2] - prior_ytd_eff
+    norm_pq_prior_ytd_ni = pni[3] - prior_prior_ytd_eff
+
+    # Convert explicitly quantified tax amount into per-share effect with the
+    # issuer's own diluted weighted-average shares for that same period.
+    norm_ann_eps = aeps[0] - (ann_eff / ashares[0])
+    norm_ann_prior_eps = aeps[1] - (ann_prior_eff / ashares[1])
+    norm_curr_ytd_eps = qeps[2] - (curr_eff / qshares[2])
+    norm_prior_ytd_eps = qeps[3] - (prior_ytd_eff / qshares[3])
+    norm_pq_curr_ytd_eps = peps[2] - (prior_ytd_eff / pshares[2])
+    norm_pq_prior_ytd_eps = peps[3] - (prior_prior_ytd_eff / pshares[3])
+
+    current_ttm_ni = norm_ann_ni - norm_prior_ytd_ni + norm_curr_ytd_ni
+    prior_ttm_ni = norm_ann_prior_ni - norm_pq_prior_ytd_ni + norm_pq_curr_ytd_ni
+    current_ttm_eps = norm_ann_eps - norm_prior_ytd_eps + norm_curr_ytd_eps
+    prior_ttm_eps = norm_ann_prior_eps - norm_pq_prior_ytd_eps + norm_pq_curr_ytd_eps
+    current_ttm_rev = ar[0] - qr[3] + qr[2]
+    prior_ttm_rev = ar[1] - pr[3] + pr[2]
+    if min(current_ttm_ni, prior_ttm_ni, current_ttm_eps, prior_ttm_eps, current_ttm_rev, prior_ttm_rev) <= 0:
+        result["reason"] = "V266 Plausibilitäts-Gate: rekonstruierte TTM-Basis enthält nichtpositive Kernwerte."
+        return result
+    growth = current_ttm_ni / prior_ttm_ni - 1.0
+    margin = current_ttm_ni / current_ttm_rev
+    if not (-0.50 <= growth <= 2.0 and 0.0 < margin < 0.80 and 0.0 < current_ttm_eps < 200.0):
+        result["reason"] = "V266 Plausibilitäts-Gate: normalisierte TTM-Werte liegen außerhalb konservativer Grenzen."
+        return result
+
+    # ROE: current and comparable prior-quarter total stockholders' equity. Use
+    # total equity only when no separate material preferred-equity carrying row is present.
+    curr_eq = (current.get("stockholders_equity") or [None])[0]
+    prior_eq = (prior_stmt.get("stockholders_equity") or [None])[0]
+    normalized_roe = None
+    roe_released = False
+    if curr_eq and prior_eq and curr_eq > 0 and prior_eq > 0:
+        avg_eq = (curr_eq + prior_eq) / 2.0
+        normalized_roe = current_ttm_ni / avg_eq
+        roe_released = bool(math.isfinite(normalized_roe) and -0.20 <= normalized_roe <= 1.00)
+    if not roe_released:
+        result["reason"] = "V266 ROE-Gate: vergleichbares positives Stockholders' Equity fehlt oder ROE ist unplausibel."
+        return result
+
+    result.update({
+        "available": True, "released": True, "status": "discrete_tax_same_basis_released",
+        "confidence": "Mittel", "normalized_ttm_eps": current_ttm_eps,
+        "prior_normalized_ttm_eps": prior_ttm_eps,
+        "normalized_ttm_net_income": current_ttm_ni, "prior_normalized_ttm_net_income": prior_ttm_ni,
+        "normalized_ttm_revenue": current_ttm_rev, "prior_ttm_revenue": prior_ttm_rev,
+        "normalized_ttm_net_margin": margin, "normalized_ttm_earnings_growth": growth,
+        "normalized_common_roe": normalized_roe, "roe_same_basis_released": True,
+        "same_basis_profitability_released": True, "same_basis_growth_released": True,
+        "current_common_equity": curr_eq, "prior_common_equity": prior_eq,
+        "annual_tax_effect_m": ann_eff, "current_ytd_tax_effect_m": curr_eff,
+        "annual_prior_tax_effect_m": ann_prior_eff, "prior_ytd_tax_effect_m": prior_ytd_eff,
+        "effects": {"annual": ann_used, "current_ytd": curr_used, "annual_prior": ann_prior_used,
+                    "prior_ytd": prior_ytd_used, "prior_prior_ytd": prior_prior_ytd_used},
+        "method": "V266 SEC Same-Basis: FY − Vorjahres-YTD + aktuelles YTD; ausschließlich explizit quantifizierte diskrete/one-time Steuer-Sondereffekte werden periodenrein neutralisiert.",
+        "reason": "Diskreter Steuer-Sondereffekt vollständig auf gleicher Primärquellenbasis normalisiert.",
+        "filings": {
+            "10-K": {k0:v for k0,v in k.items() if k0 != "html"},
+            "10-Q": {k0:v for k0,v in q.items() if k0 != "html"},
+            "prior_10-Q": {k0:v for k0,v in pq.items() if k0 != "html"},
+        },
+    })
+    return result
+
 def _should_try_generic_adjusted_ttm(company_type, raw_ttm, current_fy_eps, website, symbol, revenue_growth=None, earnings_growth=None):
     if _verified_adjusted_ttm_snapshot(symbol) is not None:
         return False
@@ -68202,6 +68542,32 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         earnings_growth=earnings_growth,
     )
 
+    # V266: separate from Alphabet's non-operating-income guard. A strong
+    # revenue/earnings divergence in the released Internet-Platform subprofile
+    # starts a narrow primary-source check for explicitly quantified discrete
+    # tax charges/benefits. No legal/severance or other operating item is removed.
+    discrete_tax_primary_normalization = None
+    _v266_tax_trigger = bool(
+        not non_operating_income_guard.get("active")
+        and company_type.get("valuation_family_id") == "media_internet"
+        and company_type.get("media_internet_subprofile") == "internet_content_platform"
+        and revenue_growth is not None and revenue_growth >= 0.10
+        and earnings_growth is not None and earnings_growth < 0.0
+    )
+    if _v266_tax_trigger:
+        try:
+            discrete_tax_primary_normalization = build_discrete_tax_primary_normalization_v266(
+                fundamental_symbol, financial_currency, cache_version
+            )
+        except Exception as _v266_exc:
+            discrete_tax_primary_normalization = {
+                "applicable": True, "available": False, "released": False,
+                "status": "discrete_tax_runtime_error_fail_closed", "confidence": "Niedrig",
+                "reason": "V266 Laufzeitsicherung: diskreter Steuer-Normalisierungspfad wurde fail-closed beendet.",
+                "diagnostics": [f"V266 Parserdiagnose: {type(_v266_exc).__name__}: {_v266_exc}"],
+                "issuer_hardcoded": False, "legal_costs_adjusted": False, "severance_costs_adjusted": False,
+            }
+
     structural_break = resolve_structural_break(
         fundamental_symbol,
         company_type
@@ -68402,6 +68768,30 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 ),
             }
 
+    _v266_tax_released = bool((discrete_tax_primary_normalization or {}).get("released"))
+    if _v266_tax_trigger:
+        if _v266_tax_released:
+            _v266_eps = safe_float((discrete_tax_primary_normalization or {}).get("normalized_ttm_eps"))
+            eps_normalization = {
+                **(eps_normalization or {}),
+                "diagnostic_normalized_eps": safe_float((eps_normalization or {}).get("normalized_eps")),
+                "diagnostic_normalization_method": (eps_normalization or {}).get("method"),
+                "normalized_eps": _v266_eps, "confidence": "Mittel",
+                "method": (discrete_tax_primary_normalization or {}).get("method"),
+                "valuation_blocked": False, "discrete_tax_same_basis_released": True,
+                "primary_source_normalization": discrete_tax_primary_normalization,
+                "eps_divergence_note": None,
+            }
+        else:
+            eps_normalization = {
+                **(eps_normalization or {}), "diagnostic_normalized_eps": safe_float((eps_normalization or {}).get("normalized_eps")),
+                "diagnostic_normalization_method": (eps_normalization or {}).get("method"),
+                "normalized_eps": None, "confidence": "Niedrig", "valuation_blocked": True,
+                "discrete_tax_same_basis_required": True, "primary_source_normalization": discrete_tax_primary_normalization,
+                "method": "V266 Vergleichsbasis-Schutz: materieller diskreter Steuer-Sondereffekt vermutet; keine TTM/Forward-Mischung bis zur vollständigen Primärquellen-Brücke.",
+                "eps_basis_comparability_reason": (discrete_tax_primary_normalization or {}).get("reason"),
+            }
+
     same_basis_earnings_growth = derive_same_basis_earnings_growth(
         fundamental_symbol, eps_basis_alignment
     )
@@ -68423,17 +68813,25 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         and _v262_primary.get("same_basis_growth_released")
         and _v262_primary.get("roe_same_basis_released")
     )
+    _v266_primary = discrete_tax_primary_normalization or {}
+    _v266_score_basis_released = bool(
+        _v266_tax_released
+        and _v266_primary.get("same_basis_profitability_released")
+        and _v266_primary.get("same_basis_growth_released")
+        and _v266_primary.get("roe_same_basis_released")
+    )
     if _v262_score_basis_released:
         _v262_growth = safe_float(_v262_primary.get("normalized_ttm_earnings_growth"))
         _v262_margin = safe_float(_v262_primary.get("normalized_ttm_net_margin"))
         _v262_roe = safe_float(_v262_primary.get("normalized_common_roe"))
         if _v262_growth is not None:
             earnings_growth_for_score = _v262_growth
-        if _v262_margin is not None:
-            profit_margin_for_score = _v262_margin
-        else:
-            profit_margin_for_score = profit_margin
+        profit_margin_for_score = _v262_margin if _v262_margin is not None else profit_margin
         roe_for_score = _v262_roe
+    elif _v266_score_basis_released:
+        earnings_growth_for_score = safe_float(_v266_primary.get("normalized_ttm_earnings_growth"))
+        profit_margin_for_score = safe_float(_v266_primary.get("normalized_ttm_net_margin"))
+        roe_for_score = safe_float(_v266_primary.get("normalized_common_roe"))
     else:
         profit_margin_for_score = profit_margin
         roe_for_score = roe
@@ -68726,11 +69124,15 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     )
 
     _v262_normalized_net_income_for_fcf = (
-        revenue * safe_float(_v262_primary.get("normalized_ttm_net_margin"))
-        if _v262_score_basis_released
-        and revenue is not None
-        and safe_float(_v262_primary.get("normalized_ttm_net_margin")) is not None
-        else net_income
+        safe_float(_v266_primary.get("normalized_ttm_net_income"))
+        if _v266_score_basis_released and safe_float(_v266_primary.get("normalized_ttm_net_income")) is not None
+        else (
+            revenue * safe_float(_v262_primary.get("normalized_ttm_net_margin"))
+            if _v262_score_basis_released
+            and revenue is not None
+            and safe_float(_v262_primary.get("normalized_ttm_net_margin")) is not None
+            else net_income
+        )
     )
     fcf_score = calculate_fcf_score(
         company_type,
@@ -69152,6 +69554,18 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None, "brake_text": "Upstream-E&P-Spezialmodell: generische Nettomarge/ROE-Punkte sind gesperrt; Unit Costs, FCF und Asset-/Reserve-Qualität werden separat bewertet."}
         fcf_score = {**fcf_score, "context_score": fcf_score.get("score"), "score": None, "note": "Upstream-E&P-Spezialmodell: Yahoo-/Statement-FCF bleibt Diagnosekontext; ausschließlich primärquellenbasierter FCF nach transparenter Emittentendefinition steuert Familienpunktzahl und FCF-Yield-Anker."}
         balance_score = {**balance_score, "context_score": balance_score.get("score"), "score": None, "note": "Upstream-E&P-Spezialmodell: generischer Net-Debt/FCF-Score ist gesperrt; Net Debt/normalisiertes Adjusted EBITDA, Liquidity und PV-10-Safety werden separat bewertet."}
+
+    # V266: same-basis discrete-tax normalization restores the generic quality score
+    # only after all EPS/margin/growth/ROE gates are released.
+    if _v266_tax_trigger:
+        if _v266_score_basis_released:
+            growth_score["note"] = (growth_score.get("note") or "") + " V266: Gewinnwachstum stammt aus der diskreten-Steuer-bereinigten Primärquellen-TTM-vs.-TTM-Basis."
+            profitability_score["brake_text"] = "V266: Nettomarge und ROE verwenden dieselbe periodenrein um explizite diskrete Steuer-Sondereffekte bereinigte Primärquellenbasis."
+        else:
+            growth_score = {**growth_score, "context_score": growth_score.get("score"), "score": None, "note": "V266 Steuer-Sondereffekt-Gate: Wachstum bleibt bis zur vollständigen Same-Basis-Primärquellenbrücke gesperrt."}
+            profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None, "brake_text": "V266 Steuer-Sondereffekt-Gate: Nettomarge und ROE bleiben bis zur vollständigen Same-Basis-Primärquellenbrücke gesperrt."}
+            fcf_score = {**fcf_score, "context_score": fcf_score.get("score"), "score": None, "note": "V266 Steuer-Sondereffekt-Gate: FCF bleibt Diagnosekontext, solange der normalisierte Nettogewinn nicht freigegeben ist."}
+            balance_score = {**balance_score, "context_score": balance_score.get("score"), "score": None, "note": "V266 Steuer-Sondereffekt-Gate: Gesamtqualität bleibt fail-closed; Bilanzpunkte werden nicht isoliert freigegeben."}
 
     # V253 – a red non-operating-income distortion gate must isolate the entire
     # generic 100-point score, not merely the final multiple/fair value. Raw
@@ -69881,7 +70295,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "count": 0,
             "media_internet_v264": True,
             "note": (
-                "V264 Internet-Platform-Korridor ist zur Live-Validierung freigegeben. Die Peer-Schicht bleibt noch ohne Freigabewirkung; "
+                "V266 Internet-Platform-Korridor ist zur Live-Validierung freigegeben. Die Peer-Schicht bleibt noch ohne Freigabewirkung; "
                 "zuerst muss ein zweiter geeigneter Emittent denselben Reifegrad-/Score-/Korridorpfad praktisch bestehen."
             ),
         }
@@ -69929,7 +70343,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "applied": False,
             "reference_only": True,
             "note": (
-                "V265 Korridor-Livevalidierung: keine automatische Peer-Anpassung. Meta/weitere reife Internet-Plattformen dienen zunächst nur dem unabhängigen Gegentest; "
+                "V266 Korridor-Livevalidierung: keine automatische Peer-Anpassung. Meta/weitere reife Internet-Plattformen dienen zunächst nur dem unabhängigen Gegentest; "
                 "sie dürfen den 18–32× Familienanker weder erzeugen noch anheben."
             ),
         }
@@ -70437,6 +70851,27 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         insurance_special_model=insurance_special_model,
         asset_management_specialist_model=asset_management_specialist_model,
     )
+    if _v266_tax_trigger:
+        if _v266_tax_released:
+            special_event_warning = {
+                "level": "Gelb", "icon": "🟡",
+                "title": "Diskreter Steuer-Sondereffekt primärquellenbasiert normalisiert",
+                "requires_research": False, "valuation_usable": True,
+                "reason": (
+                    "V266 hat den ausdrücklich quantifizierten diskreten Steuer-Sondereffekt periodenrein neutralisiert. "
+                    f"Normalisiertes TTM-Gewinnwachstum {safe_float(_v266_primary.get('normalized_ttm_earnings_growth'))*100:.1f} %, "
+                    f"TTM-Nettomarge {safe_float(_v266_primary.get('normalized_ttm_net_margin'))*100:.1f} % und ROE {safe_float(_v266_primary.get('normalized_common_roe'))*100:.1f} %. "
+                    "Rechts-/Abfindungs- oder andere operative Kosten wurden nicht bereinigt."
+                ),
+                "action": "Ergebnisvergleichbarkeit ist freigegeben; die Internet-Platform-Familienvalidierung bleibt als separater Bewertungsschritt maßgeblich.",
+            }
+        else:
+            special_event_warning = {
+                "level": "Rot", "icon": "🔴", "title": "Diskreter Steuer-Sondereffekt – Same-Basis-Normalisierung unvollständig",
+                "requires_research": False, "valuation_usable": False,
+                "reason": (discrete_tax_primary_normalization or {}).get("reason") or "Primärquellenbrücke unvollständig.",
+                "action": "Keine Provider-Gewinnwachstums-/TTM-Forward-Mischung verwenden; Score, KGV und Fair Value bleiben fail-closed.",
+            }
 
     if professional_business_services_specialist_model.get("applicable"):
         if professional_business_services_specialist_model.get("valuation_anchor_complete"):
@@ -71457,7 +71892,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "potential_pct": None,
             "valuation_method": None,
             "note": (
-                "Fair Value V1 bewusst noch gesperrt: V264 hat ausschließlich den 18–32× Internet-Platform-Familienkorridor und das score-positionierte Ziel-KGV zur Live-Validierung freigegeben. "
+                "Fair Value V1 bewusst noch gesperrt: V266 hat ausschließlich den 18–32× Internet-Platform-Familienkorridor und das score-positionierte Ziel-KGV zur Live-Validierung freigegeben. "
                 "Ein zweiter geeigneter Internet-Platform-Emittent muss denselben Reifegrad-/Korridorpfad praktisch bestehen, bevor Fair Value, Bewertungszonen oder Signale freigegeben werden."
             ),
         }
@@ -71838,6 +72273,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         "special_event_warning": special_event_warning,
         "non_operating_income_guard": non_operating_income_guard,
         "non_operating_primary_normalization": non_operating_primary_normalization,
+        "discrete_tax_primary_normalization_v266": discrete_tax_primary_normalization,
         "branded_consumer_family_gate": branded_consumer_family_gate,
         "growth_score": growth_score,
         "profitability_score": profitability_score,
@@ -73823,7 +74259,7 @@ if selected_symbol:
                         ] is not None:
 
                             st.metric(
-                                "Nettomarge (Yahoo/GAAP · Diagnosewert)" if bool((data.get("non_operating_income_guard") or {}).get("active")) else "Nettomarge",
+                                "Nettomarge (Yahoo/GAAP · Diagnosewert)" if (bool((data.get("non_operating_income_guard") or {}).get("active")) or bool(data.get("discrete_tax_primary_normalization_v266"))) else "Nettomarge",
                                 f"{data['profit_margin'] * 100:.1f} %"
                             )
 
@@ -73841,7 +74277,7 @@ if selected_symbol:
                         ] is not None:
 
                             st.metric(
-                                "Gewinnwachstum (Yahoo/GAAP · Diagnosewert)" if bool((data.get("non_operating_income_guard") or {}).get("active")) else ("Gewinnwachstum (Yahoo/GAAP)" if data.get("same_basis_earnings_growth_active") else "Gewinnwachstum"),
+                                "Gewinnwachstum (Yahoo/GAAP · Diagnosewert)" if (bool((data.get("non_operating_income_guard") or {}).get("active")) or bool(data.get("discrete_tax_primary_normalization_v266"))) else ("Gewinnwachstum (Yahoo/GAAP)" if data.get("same_basis_earnings_growth_active") else "Gewinnwachstum"),
                                 f"{data['earnings_growth'] * 100:.1f} %"
                             )
 
@@ -73855,7 +74291,7 @@ if selected_symbol:
                         if data["roe"] is not None:
 
                             st.metric(
-                                "Eigenkapitalrendite (Yahoo/GAAP · Diagnosewert)" if bool((data.get("non_operating_income_guard") or {}).get("active")) else "Eigenkapitalrendite",
+                                "Eigenkapitalrendite (Yahoo/GAAP · Diagnosewert)" if (bool((data.get("non_operating_income_guard") or {}).get("active")) or bool(data.get("discrete_tax_primary_normalization_v266"))) else "Eigenkapitalrendite",
                                 f"{data['roe'] * 100:.1f} %"
                             )
 
@@ -73909,6 +74345,21 @@ if selected_symbol:
                             )
                         if _v261_prior_cov_ui is not None:
                             st.caption(f"V262 Vorjahres-TTM-Prüfung: netto-unrealisierte Equity-Gewinne decken {_v261_prior_cov_ui*100:.1f} % des periodenreinen Equity-Gain-Beitrags ab.")
+
+                    _v266_tax_ui = data.get("discrete_tax_primary_normalization_v266") or {}
+                    if _v266_tax_ui.get("released"):
+                        _v266_growth_ui = safe_float(_v266_tax_ui.get("normalized_ttm_earnings_growth"))
+                        _v266_margin_ui = safe_float(_v266_tax_ui.get("normalized_ttm_net_margin"))
+                        _v266_roe_ui = safe_float(_v266_tax_ui.get("normalized_common_roe"))
+                        st.info(
+                            "🧮 **V266 diskreter Steuer-Sondereffekt · gleiche Ergebnisbasis:** "
+                            f"normalisiertes TTM-Gewinnwachstum **{_v266_growth_ui*100:.1f} %** · "
+                            f"normalisierte TTM-Nettomarge **{_v266_margin_ui*100:.1f} %** · "
+                            f"normalisierter ROE **{_v266_roe_ui*100:.1f} %**. "
+                            "Bereinigt wurden ausschließlich ausdrücklich quantifizierte diskrete Steuerwirkungen; Rechts-, Abfindungs- und andere operative Kosten bleiben vollständig enthalten."
+                        )
+                    elif _v266_tax_ui:
+                        st.warning("V266 Steuer-Sondereffekt-Prüfung fail-closed: " + text_or_dash(_v266_tax_ui.get("reason")))
 
                     if data.get("profit_margin_note"):
                         st.warning(
@@ -74037,7 +74488,7 @@ if selected_symbol:
                         normalized_eps_label = f"Versicherungs-{insurance_model_eps_ui.get('earnings_ttm_label') or 'TTM'}-EPS"
                     else:
                         normalized_eps = eps_result["normalized_eps"]
-                        normalized_eps_label = ("Primärquellen-normalisiertes TTM-EPS (nur Gewinnbasis)" if bool((data.get("non_operating_income_guard") or {}).get("primary_source_eps_normalization_released")) else ("Standard-normalisiertes EPS (nur Kontext)" if (bank_eps_context_ui or insurance_eps_context_ui or capital_goods_eps_context_ui or exchange_eps_context_ui or universal_family_eps_context_ui or is_semicap_family_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or upstream_ep_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or professional_services_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS"))
+                        normalized_eps_label = ("Primärquellen-normalisiertes TTM-EPS (diskreter Steuer-Sondereffekt)" if bool((data.get("discrete_tax_primary_normalization_v266") or {}).get("released")) else ("Primärquellen-normalisiertes TTM-EPS (nur Gewinnbasis)" if bool((data.get("non_operating_income_guard") or {}).get("primary_source_eps_normalization_released")) else ("Standard-normalisiertes EPS (nur Kontext)" if (bank_eps_context_ui or insurance_eps_context_ui or capital_goods_eps_context_ui or exchange_eps_context_ui or universal_family_eps_context_ui or is_semicap_family_company_type(company_type) or is_nvidia_ai_growth_company_type(company_type) or is_baker_hughes_energy_tech_company_type(company_type) or oilfield_services_eps_context_ui or utility_eps_context_ui or payment_network_eps_context_ui or cof_card_bank_eps_context_ui or axp_closed_loop_eps_context_ui or turnaround_postmerger_eps_context_ui or gold_precious_metals_eps_context_ui or toyo_solar_eps_context_ui or luxury_premium_eps_context_ui or integrated_oil_gas_eps_context_ui or upstream_ep_eps_context_ui or branded_consumer_staples_eps_context_ui or asset_management_eps_context_ui or professional_services_eps_context_ui or defense_high_growth_eps_context_ui or ctva_eps_context_ui) else "Normalisiertes EPS")))
 
                     if normalized_eps is not None:
 
@@ -79453,7 +79904,7 @@ if selected_symbol:
                             if bool((data.get("non_operating_income_guard") or {}).get("active")):
                                 if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
                                     st.info(
-                                        "V265 Korridor-Livevalidierung: Der 18–32× Internet-Platform-Familienkorridor und das score-positionierte Ziel-KGV sind freigegeben. "
+                                        "V266 Korridor-Livevalidierung: Der 18–32× Internet-Platform-Familienkorridor und das score-positionierte Ziel-KGV sind freigegeben. "
                                         "Die Vergleichsgruppe bleibt bis zum zweiten Live-Emittenten-Gegentest ohne Bewertungswirkung."
                                     )
                                 else:
@@ -79544,7 +79995,7 @@ if selected_symbol:
                         if bool((data.get("non_operating_income_guard") or {}).get("active")):
                             if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
                                 st.caption(
-                                    "Schritt 2A ist in V264 ein reiner Live-Gegentest. Der Familienkorridor und das Ziel-KGV stehen bereits fest; Peers dürfen sie weder erzeugen noch anheben und geben noch keinen fairen Wert frei."
+                                    "Schritt 2A ist in V266 ein reiner Live-Gegentest. Der Familienkorridor und das Ziel-KGV stehen bereits fest; Peers dürfen sie weder erzeugen noch anheben und geben noch keinen fairen Wert frei."
                                 )
                             else:
                                 st.caption(
@@ -80068,7 +80519,7 @@ if selected_symbol:
                     elif bool((data.get("non_operating_income_guard") or {}).get("active")):
                         if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
                             peer_explain = (
-                                "V264: Ergebnisbasis, 92/100-Qualitätspunktzahl, 18–32× Familienkorridor und score-positioniertes Ziel-KGV sind freigegeben. "
+                                "V266: Ergebnisbasis, 92/100-Qualitätspunktzahl, 18–32× Familienkorridor und score-positioniertes Ziel-KGV sind freigegeben. "
                                 "Die Vergleichsgruppe dient nur dem zweiten Live-Gegentest; Median oder Peer-Anpassung dürfen den Familienanker nicht verändern."
                             )
                         elif bool((data.get("non_operating_income_guard") or {}).get("primary_source_quality_score_released")):
@@ -80105,7 +80556,7 @@ if selected_symbol:
                         else:
                             if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
                                 st.caption(
-                                    "V264 Live-Gegentest: Der Peer-Check verändert weder Qualitätspunktzahl noch 18–32× Familienkorridor oder Ziel-KGV. "
+                                    "V266 Live-Gegentest: Der Peer-Check verändert weder Qualitätspunktzahl noch 18–32× Familienkorridor oder Ziel-KGV. "
                                     "Fair Value bleibt gerade deshalb noch gesperrt, bis ein zweiter geeigneter Internet-Platform-Emittent denselben Familienpfad praktisch bestätigt. " + peer_explain
                                 )
                             else:
@@ -80149,7 +80600,7 @@ if selected_symbol:
                         else:
                             if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
                                 st.caption(
-                                    "V264: Die Peer-Schicht erzeugt keinen fairen Wert. Der Fair Value bleibt absichtlich gesperrt, bis der zweite Internet-Platform-Live-Gegentest bestanden ist."
+                                    "V266: Die Peer-Schicht erzeugt keinen fairen Wert. Der Fair Value bleibt absichtlich gesperrt, bis der zweite Internet-Platform-Live-Gegentest bestanden ist."
                                 )
                             else:
                                 st.caption(
@@ -80310,7 +80761,7 @@ if selected_symbol:
                         )
                     elif media_internet_corridor_live:
                         st.caption(
-                            "Die Ergebnisvergleichbarkeit und der V264-Familienkorridor sind freigegeben. Die verbleibende Sperre betrifft ausschließlich die zweite Live-Validierung vor Fair-Value-/Signal-Freigabe."
+                            "Die Ergebnisvergleichbarkeit und der V266-Familienkorridor sind freigegeben. Die verbleibende Sperre betrifft ausschließlich die zweite Live-Validierung vor Fair-Value-/Signal-Freigabe."
                         )
                     elif non_operating_normalized_pending:
                         st.caption(
