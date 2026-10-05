@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.70"
+APP_BUILD_VERSION = "V2.23.71"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Diskreter Steuer-Sondereffekt · Same-Basis V266"
+    f"Build {APP_BUILD_VERSION} · Steuer-Evidenz-Parser · gleiche Ergebnisbasis V267"
 )
 
 
@@ -962,6 +962,7 @@ st.caption(
 
 # V2.23.69: Internet-Platform Primary Earnings Basis Trigger V265. For the V264 Internet Content / Digital Platform live-validation subprofile, materially positive revenue growth paired with negative provider earnings growth now triggers the existing issuer-primary adjusted/core TTM discovery even when the raw-TTM/current-FY EPS gap is below the legacy 25% discovery threshold. The existing reconstructor remains fail-closed: only period-complete same-company primary releases and a consistent adjusted/core EPS family may replace provider GAAP. No issuer ticker, tax amount, EPS value or Meta-specific financial constant is hard-coded; legal/severance costs are not automatically removed. The 18–32x corridor, score thresholds and Fair-Value/signal gates are unchanged.
 
+# V2.23.71: Discrete Tax Evidence Parser Hardening V267. Extends the issuer-neutral tax-special-item parser to annual filings that state an already tax-contextualized item as "$X billion charge/benefit" without repeating the word tax immediately beside the amount. The generic amount form is accepted only inside a narrow strong tax-context window and still requires explicit special-item language plus unambiguous period attribution. No valuation thresholds, family corridor, score math or Fair-Value/signal gates change. Cache keys are advanced to avoid stale V266 evidence results.
 # V2.23.70: Discrete Tax Special-Item Same-Basis Guard V266. Adds an issuer-neutral SEC 10-K/10-Q normalizer for explicitly identified material discrete/one-time/non-cash income-tax charges or benefits. The guard reconstructs current and prior TTM revenue, net income and diluted EPS using FY−YTD+YTD, removes only the explicitly quantified tax effects from the periods in which the issuer says they occurred, and derives same-basis earnings growth, net margin and ROE. Legal, severance and other operating costs are never adjusted automatically. Missing filing identity, ambiguous period attribution, missing statement rows or inconsistent tax evidence fail closed. The Internet-Platform 18–32x corridor and 80/100 maturity thresholds are unchanged.
 # V2.23.68: Internet-Platform Family Corridor V264. Adds a reusable Media/Internet subprofile for Internet Content & Information platforms and releases an 18–32x normalized-TTM P/E corridor for mature profitable platform economics only. Eligibility is score/evidence based (quality >=80, growth >=20/30, profitability >=20/30, FCF >=16/25, balance >=10/15, positive normalized earnings basis). The target line is 50 points -> 18x and 100 points -> 32x, with no extra growth premium to avoid double counting. V264 is corridor/target-multiple live-validation only: peer adjustment, Fair Value, valuation zones and signals remain fail-closed pending a second-issuer live regression (Meta). Alphabet non-operating normalization and 92/100 score math are unchanged.
 # V2.23.66: Normalized Common ROE & Quality Score Release V262. Extends the released V260 primary-source EPS bridge to a current normalized TTM net-income/revenue basis and, when a comparable prior-year 10-Q is unambiguously resolved, a prior-TTM normalized earnings bridge. Current normalized net margin and normalized TTM earnings growth are released only when period structure, dominant unrealized-equity coverage and statutory-rate evidence remain consistent. ROE, the generic 100-point score, P/E, Fair Value and signal remain fail-closed for a later validation step. No issuer-specific ticker or financial value is hard-coded.
@@ -10160,14 +10161,14 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
         if "internet content & information" in _mi_industry or "internet content and information" in _mi_industry:
             out["media_internet_subprofile"] = "internet_content_platform"
             out["media_internet_subprofile_label"] = "Internet Content / Digital Platform"
-            out["family_model_status"] = "corridor_live_validation_v266"
+            out["family_model_status"] = "corridor_live_validation_v267"
             out["family_model_ready"] = True
             out["family_model_released"] = False
-            out["family_validation_status"] = "internet_content_platform_corridor_v266_second_issuer_validation"
+            out["family_validation_status"] = "internet_content_platform_corridor_v267_second_issuer_validation"
             out["universal_family_fail_closed"] = False
             out["confidence_cap"] = "Mittel"
             out["method"] = (
-                "V266 Internet-Platform-Familienpfad: 100-Punkte-Qualität + positive normalisierte TTM-Gewinnbasis; "
+                "V267 Internet-Platform-Familienpfad: 100-Punkte-Qualität + positive normalisierte TTM-Gewinnbasis; "
                 "18–32× normalisiertes TTM-KGV, score-positioniert von 50→18× bis 100→32×. "
                 "Nur reife profitable Plattformprofile mit bestandenem Qualitäts-/FCF-/Bilanz-Gate sind corridor-eligible. "
                 "Peer-Anpassung, Fair Value, Bewertungszonen und Signal bleiben bis zum zweiten Live-Emittenten-Gegentest gesperrt."
@@ -46944,7 +46945,7 @@ def build_media_internet_platform_corridor_v264(company_type, growth_score, prof
     if any(v is None for v in components.values()):
         return {
             "applicable": True, "eligible": False, "corridor_released": False,
-            "reason": "V266 Reifegrad-Gate: mindestens eine Qualitätspunktzahl-Komponente fehlt; kein Familien-KGV wird freigegeben.",
+            "reason": "V267 Reifegrad-Gate: mindestens eine Qualitätspunktzahl-Komponente fehlt; kein Familien-KGV wird freigegeben.",
             "components": components,
         }
     total = sum(components.values())
@@ -46969,7 +46970,7 @@ def build_media_internet_platform_corridor_v264(company_type, growth_score, prof
             "applicable": True, "eligible": False, "corridor_released": False,
             "score": total, "components": components, "earnings_basis_usable": earnings_ok,
             "reason": (
-                "V266 Reifegrad-Gate nicht bestanden. Für den 18–32× Internet-Platform-Korridor sind mindestens "
+                "V267 Reifegrad-Gate nicht bestanden. Für den 18–32× Internet-Platform-Korridor sind mindestens "
                 "80/100 Gesamtqualität, Wachstum 20/30, Profitabilität 20/30, FCF 16/25, Bilanz 10/15 und eine positive "
                 "normalisierte Gewinnbasis erforderlich. Niedrigere/noch nicht profitable Plattformen benötigen ein separates Unterprofil."
             ),
@@ -46994,7 +46995,7 @@ def build_media_internet_platform_corridor_v264(company_type, growth_score, prof
         "stage": "corridor_only_live_validation",
         "confidence": "Mittel",
         "note": (
-            "V266 bestätigt den unveränderten reifen Internet-Platform-Korridor auf 18–32× normalisiertes TTM-KGV. "
+            "V267 bestätigt den unveränderten reifen Internet-Platform-Korridor auf 18–32× normalisiertes TTM-KGV. "
             "Der 100-Punkte-Score positioniert das Ziel von 50→18× bis 100→32×; es gibt keinen zusätzlichen Wachstumsaufschlag, "
             "weil Wachstum bereits 30/100 Punkte ausmacht. Peer-Median, Fair Value, Bewertungszonen und Signal bleiben bis zum zweiten Live-Emittenten-Gegentest gesperrt."
         ),
@@ -65735,7 +65736,7 @@ def discover_generic_primary_adjusted_ttm(
 
 
 # =========================================================
-# V2.23.70 / V266 – Diskreter Steuer-Sondereffekt
+# V2.23.70 / V267 – Diskreter Steuer-Sondereffekt
 # Same-Basis-Primärquellen-Normalisierung
 # =========================================================
 
@@ -65828,15 +65829,19 @@ def _v266_discrete_tax_effects(html, target_year):
         return []
     patterns = [
         # Amount first: "$8.03 billion income tax benefit" or "$15.93 billion non-cash tax charge".
-        re.compile(r"\$\s*([0-9]+(?:\.[0-9]+)?)\s*(billion|million)\s+(?:[A-Za-z-]+\s+){0,4}?(?:income\s+)?tax\s+(benefit|charge)", re.I),
+        (re.compile(r"\$\s*([0-9]+(?:\.[0-9]+)?)\s*(billion|million)\s+(?:[A-Za-z-]+\s+){0,4}?(?:income\s+)?tax\s+(benefit|charge)", re.I), "amount_tax"),
         # Tax label first: "income tax charge of $15.93 billion". Keep the bridge narrow so
         # a benefit phrase cannot accidentally capture a later charge amount in the same paragraph.
-        re.compile(r"(?:income\s+)?tax\s+(benefit|charge)(?:\s+(?:of|recognized|recorded|totaling|amounting\s+to)){0,2}\s*\$\s*([0-9]+(?:\.[0-9]+)?)\s*(billion|million)", re.I),
+        (re.compile(r"(?:income\s+)?tax\s+(benefit|charge)(?:\s+(?:of|recognized|recorded|totaling|amounting\s+to)){0,2}\s*\$\s*([0-9]+(?:\.[0-9]+)?)\s*(billion|million)", re.I), "tax_amount"),
+        # Some issuer 10-Ks shorten the already-established tax item to e.g.
+        # "we recorded a $15.93 billion charge" inside an unambiguously tax/CAMT paragraph.
+        # This generic form is accepted only with a strong nearby tax context below.
+        (re.compile(r"\$\s*([0-9]+(?:\.[0-9]+)?)\s*(billion|million)\s+(?:[A-Za-z-]+\s+){0,3}?(benefit|charge)\b", re.I), "amount_generic"),
     ]
     candidates = []
-    for pidx, pat in enumerate(patterns):
+    for pat, pattern_kind in patterns:
         for m in pat.finditer(full):
-            if pidx == 0:
+            if pattern_kind in ("amount_tax", "amount_generic"):
                 amount, unit, kind = m.group(1), m.group(2), m.group(3)
             else:
                 kind, amount, unit = m.group(1), m.group(2), m.group(3)
@@ -65851,6 +65856,17 @@ def _v266_discrete_tax_effects(html, target_year):
             ])
             if not special:
                 continue
+            # The generic "$... charge/benefit" form is permitted only when the same narrow
+            # evidence window is unmistakably about income taxes. This prevents legal,
+            # restructuring, impairment or other operating charges from entering the bridge.
+            if pattern_kind == "amount_generic":
+                strong_tax_context = any(k in low for k in [
+                    "provision for income taxes", "effective tax rate",
+                    "deferred tax", "valuation allowance", "corporate alternative minimum tax",
+                    "camt", "tax provision", "tax benefit", "tax charge",
+                ])
+                if not strong_tax_context:
+                    continue
             assoc_start, assoc_end = max(0, m.start()-160), min(len(full), m.end()+220)
             assoc = full[assoc_start:assoc_end]
             assoc_mid = ((m.start() + m.end()) // 2) - assoc_start
@@ -65925,7 +65941,7 @@ def _v266_effect_sum_annual(effects):
 
 
 @st.cache_data(ttl=21600, show_spinner=False)
-def build_discrete_tax_primary_normalization_v266(symbol, financial_currency, cache_version="v266"):
+def build_discrete_tax_primary_normalization_v266(symbol, financial_currency, cache_version="v267"):
     result = {
         "applicable": True, "available": False, "released": False,
         "normalized_ttm_eps": None, "normalized_ttm_net_income": None,
@@ -65936,7 +65952,7 @@ def build_discrete_tax_primary_normalization_v266(symbol, financial_currency, ca
         "severance_costs_adjusted": False, "source_currency": _normalize_currency_code(financial_currency),
     }
     if _normalize_currency_code(financial_currency) != "USD":
-        result["reason"] = "V266 SEC-Steuer-Sondereffekt-Normalisierung ist derzeit nur für USD-berichtende SEC-Emittenten freigegeben."
+        result["reason"] = "V267 SEC-Steuer-Sondereffekt-Normalisierung ist derzeit nur für USD-berichtende SEC-Emittenten freigegeben."
         return result
     deadline = time.monotonic() + 26.0
     sec = _v256_sec_latest_10q_10k(symbol, deadline=deadline)
@@ -65951,26 +65967,26 @@ def build_discrete_tax_primary_normalization_v266(symbol, financial_currency, ca
     q_date = _v261_parse_iso_date(q.get("report_date") or q.get("filing_date"))
     k_date = _v261_parse_iso_date(k.get("report_date") or k.get("filing_date"))
     if q_date is None or k_date is None or q_date.year != k_date.year + 1 or q_date.month not in (3, 6, 9):
-        result["reason"] = "V266 Perioden-Gate: aktuelles 10-Q und letztes 10-K bilden keine eindeutige FY−YTD+YTD-Brücke."
+        result["reason"] = "V267 Perioden-Gate: aktuelles 10-Q und letztes 10-K bilden keine eindeutige FY−YTD+YTD-Brücke."
         return result
     completed_q = {3: 1, 6: 2, 9: 3}.get(q_date.month)
     current = _v266_statement_snapshot(q_html, annual=False)
     annual = _v266_statement_snapshot(k_html, annual=True)
     if not current.get("available") or not annual.get("available"):
-        result["reason"] = "V266 Statement-Gate: Revenue/Net Income/Diluted EPS/Diluted Shares fehlen in 10-Q oder 10-K."
+        result["reason"] = "V267 Statement-Gate: Revenue/Net Income/Diluted EPS/Diluted Shares fehlen in 10-Q oder 10-K."
         return result
     prior = _v261_fetch_prior_year_comparable_10q(
         sec.get("cik"), q.get("report_date"), q.get("filing_date"), q.get("accession_nodash"),
-        prefer_mirror=bool(q.get("transport") and "Yahoo" in str(q.get("transport"))), cache_version="v266"
+        prefer_mirror=bool(q.get("transport") and "Yahoo" in str(q.get("transport"))), cache_version="v267"
     )
     result["diagnostics"].extend(prior.get("diagnostics") or [])
     if not prior.get("available"):
-        result["reason"] = "V266 Vergleichsperioden-Gate: Vorjahres-10-Q für TTM-vs.-TTM fehlt."
+        result["reason"] = "V267 Vergleichsperioden-Gate: Vorjahres-10-Q für TTM-vs.-TTM fehlt."
         return result
     pq = prior.get("filing") or {}; pq_html = pq.get("html") or ""
     prior_stmt = _v266_statement_snapshot(pq_html, annual=False)
     if not prior_stmt.get("available"):
-        result["reason"] = "V266 Vergleichsperioden-Gate: Vorjahres-10-Q-Statements nicht vollständig lesbar."
+        result["reason"] = "V267 Vergleichsperioden-Gate: Vorjahres-10-Q-Statements nicht vollständig lesbar."
         return result
 
     current_year, annual_year, prior_year = q_date.year, k_date.year, k_date.year - 1
@@ -65980,7 +65996,7 @@ def build_discrete_tax_primary_normalization_v266(symbol, financial_currency, ca
     prior_ytd_effects = _v266_discrete_tax_effects(pq_html, annual_year)
     prior_prior_ytd_effects = _v266_discrete_tax_effects(pq_html, prior_year)
     if not current_effects or not annual_effects:
-        result["reason"] = "V266 Steuer-Evidenz-Gate: aktueller YTD- und FY-Sondereffekt sind nicht beide explizit quantitativ belegt."
+        result["reason"] = "V267 Steuer-Evidenz-Gate: aktueller YTD- und FY-Sondereffekt sind nicht beide explizit quantitativ belegt."
         result["effects"] = {"current_ytd": current_effects, "annual": annual_effects}
         return result
 
@@ -65990,7 +66006,7 @@ def build_discrete_tax_primary_normalization_v266(symbol, financial_currency, ca
     prior_ytd_eff, prior_ytd_used = _v266_effect_sum_for_ytd(prior_ytd_effects, completed_q)
     prior_prior_ytd_eff, prior_prior_ytd_used = _v266_effect_sum_for_ytd(prior_prior_ytd_effects, completed_q)
     if not curr_used:
-        result["reason"] = "V266 Periodenattribution-Gate: aktueller Steuer-Sondereffekt lässt sich keinem enthaltenen Quartal eindeutig zuordnen."
+        result["reason"] = "V267 Periodenattribution-Gate: aktueller Steuer-Sondereffekt lässt sich keinem enthaltenen Quartal eindeutig zuordnen."
         return result
 
     ar, ani, aeps, ashares = annual["revenue"], annual["net_income"], annual["diluted_eps"], annual["diluted_shares"]
@@ -65999,7 +66015,7 @@ def build_discrete_tax_primary_normalization_v266(symbol, financial_currency, ca
     # Q2/Q3 rows: [quarter current, quarter prior, YTD current, YTD prior].
     # Q1 rows from this parser are intentionally unsupported until the four-column bridge exists.
     if len(qr) != 4 or len(pr) != 4:
-        result["reason"] = "V266 YTD-Gate: für die diskrete Steuerbrücke wird derzeit ein 4-Spalten-Q2/Q3-Statement benötigt."
+        result["reason"] = "V267 YTD-Gate: für die diskrete Steuerbrücke wird derzeit ein 4-Spalten-Q2/Q3-Statement benötigt."
         return result
 
     norm_ann_ni = ani[0] - ann_eff
@@ -66025,12 +66041,12 @@ def build_discrete_tax_primary_normalization_v266(symbol, financial_currency, ca
     current_ttm_rev = ar[0] - qr[3] + qr[2]
     prior_ttm_rev = ar[1] - pr[3] + pr[2]
     if min(current_ttm_ni, prior_ttm_ni, current_ttm_eps, prior_ttm_eps, current_ttm_rev, prior_ttm_rev) <= 0:
-        result["reason"] = "V266 Plausibilitäts-Gate: rekonstruierte TTM-Basis enthält nichtpositive Kernwerte."
+        result["reason"] = "V267 Plausibilitäts-Gate: rekonstruierte TTM-Basis enthält nichtpositive Kernwerte."
         return result
     growth = current_ttm_ni / prior_ttm_ni - 1.0
     margin = current_ttm_ni / current_ttm_rev
     if not (-0.50 <= growth <= 2.0 and 0.0 < margin < 0.80 and 0.0 < current_ttm_eps < 200.0):
-        result["reason"] = "V266 Plausibilitäts-Gate: normalisierte TTM-Werte liegen außerhalb konservativer Grenzen."
+        result["reason"] = "V267 Plausibilitäts-Gate: normalisierte TTM-Werte liegen außerhalb konservativer Grenzen."
         return result
 
     # ROE: current and comparable prior-quarter total stockholders' equity. Use
@@ -66044,7 +66060,7 @@ def build_discrete_tax_primary_normalization_v266(symbol, financial_currency, ca
         normalized_roe = current_ttm_ni / avg_eq
         roe_released = bool(math.isfinite(normalized_roe) and -0.20 <= normalized_roe <= 1.00)
     if not roe_released:
-        result["reason"] = "V266 ROE-Gate: vergleichbares positives Stockholders' Equity fehlt oder ROE ist unplausibel."
+        result["reason"] = "V267 ROE-Gate: vergleichbares positives Stockholders' Equity fehlt oder ROE ist unplausibel."
         return result
 
     result.update({
@@ -66061,7 +66077,7 @@ def build_discrete_tax_primary_normalization_v266(symbol, financial_currency, ca
         "annual_prior_tax_effect_m": ann_prior_eff, "prior_ytd_tax_effect_m": prior_ytd_eff,
         "effects": {"annual": ann_used, "current_ytd": curr_used, "annual_prior": ann_prior_used,
                     "prior_ytd": prior_ytd_used, "prior_prior_ytd": prior_prior_ytd_used},
-        "method": "V266 SEC Same-Basis: FY − Vorjahres-YTD + aktuelles YTD; ausschließlich explizit quantifizierte diskrete/one-time Steuer-Sondereffekte werden periodenrein neutralisiert.",
+        "method": "V267 SEC Same-Basis: FY − Vorjahres-YTD + aktuelles YTD; ausschließlich explizit quantifizierte diskrete/one-time Steuer-Sondereffekte werden periodenrein neutralisiert.",
         "reason": "Diskreter Steuer-Sondereffekt vollständig auf gleicher Primärquellenbasis normalisiert.",
         "filings": {
             "10-K": {k0:v for k0,v in k.items() if k0 != "html"},
@@ -68542,7 +68558,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         earnings_growth=earnings_growth,
     )
 
-    # V266: separate from Alphabet's non-operating-income guard. A strong
+    # V267: separate from Alphabet's non-operating-income guard. A strong
     # revenue/earnings divergence in the released Internet-Platform subprofile
     # starts a narrow primary-source check for explicitly quantified discrete
     # tax charges/benefits. No legal/severance or other operating item is removed.
@@ -68563,8 +68579,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             discrete_tax_primary_normalization = {
                 "applicable": True, "available": False, "released": False,
                 "status": "discrete_tax_runtime_error_fail_closed", "confidence": "Niedrig",
-                "reason": "V266 Laufzeitsicherung: diskreter Steuer-Normalisierungspfad wurde fail-closed beendet.",
-                "diagnostics": [f"V266 Parserdiagnose: {type(_v266_exc).__name__}: {_v266_exc}"],
+                "reason": "V267 Laufzeitsicherung: diskreter Steuer-Normalisierungspfad wurde fail-closed beendet.",
+                "diagnostics": [f"V267 Parserdiagnose: {type(_v266_exc).__name__}: {_v266_exc}"],
                 "issuer_hardcoded": False, "legal_costs_adjusted": False, "severance_costs_adjusted": False,
             }
 
@@ -68788,7 +68804,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "diagnostic_normalization_method": (eps_normalization or {}).get("method"),
                 "normalized_eps": None, "confidence": "Niedrig", "valuation_blocked": True,
                 "discrete_tax_same_basis_required": True, "primary_source_normalization": discrete_tax_primary_normalization,
-                "method": "V266 Vergleichsbasis-Schutz: materieller diskreter Steuer-Sondereffekt vermutet; keine TTM/Forward-Mischung bis zur vollständigen Primärquellen-Brücke.",
+                "method": "V267 Vergleichsbasis-Schutz: materieller diskreter Steuer-Sondereffekt vermutet; keine TTM/Forward-Mischung bis zur vollständigen Primärquellen-Brücke.",
                 "eps_basis_comparability_reason": (discrete_tax_primary_normalization or {}).get("reason"),
             }
 
@@ -69555,17 +69571,17 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         fcf_score = {**fcf_score, "context_score": fcf_score.get("score"), "score": None, "note": "Upstream-E&P-Spezialmodell: Yahoo-/Statement-FCF bleibt Diagnosekontext; ausschließlich primärquellenbasierter FCF nach transparenter Emittentendefinition steuert Familienpunktzahl und FCF-Yield-Anker."}
         balance_score = {**balance_score, "context_score": balance_score.get("score"), "score": None, "note": "Upstream-E&P-Spezialmodell: generischer Net-Debt/FCF-Score ist gesperrt; Net Debt/normalisiertes Adjusted EBITDA, Liquidity und PV-10-Safety werden separat bewertet."}
 
-    # V266: same-basis discrete-tax normalization restores the generic quality score
+    # V267: same-basis discrete-tax normalization restores the generic quality score
     # only after all EPS/margin/growth/ROE gates are released.
     if _v266_tax_trigger:
         if _v266_score_basis_released:
-            growth_score["note"] = (growth_score.get("note") or "") + " V266: Gewinnwachstum stammt aus der diskreten-Steuer-bereinigten Primärquellen-TTM-vs.-TTM-Basis."
-            profitability_score["brake_text"] = "V266: Nettomarge und ROE verwenden dieselbe periodenrein um explizite diskrete Steuer-Sondereffekte bereinigte Primärquellenbasis."
+            growth_score["note"] = (growth_score.get("note") or "") + " V267: Gewinnwachstum stammt aus der diskreten-Steuer-bereinigten Primärquellen-TTM-vs.-TTM-Basis."
+            profitability_score["brake_text"] = "V267: Nettomarge und ROE verwenden dieselbe periodenrein um explizite diskrete Steuer-Sondereffekte bereinigte Primärquellenbasis."
         else:
-            growth_score = {**growth_score, "context_score": growth_score.get("score"), "score": None, "note": "V266 Steuer-Sondereffekt-Gate: Wachstum bleibt bis zur vollständigen Same-Basis-Primärquellenbrücke gesperrt."}
-            profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None, "brake_text": "V266 Steuer-Sondereffekt-Gate: Nettomarge und ROE bleiben bis zur vollständigen Same-Basis-Primärquellenbrücke gesperrt."}
-            fcf_score = {**fcf_score, "context_score": fcf_score.get("score"), "score": None, "note": "V266 Steuer-Sondereffekt-Gate: FCF bleibt Diagnosekontext, solange der normalisierte Nettogewinn nicht freigegeben ist."}
-            balance_score = {**balance_score, "context_score": balance_score.get("score"), "score": None, "note": "V266 Steuer-Sondereffekt-Gate: Gesamtqualität bleibt fail-closed; Bilanzpunkte werden nicht isoliert freigegeben."}
+            growth_score = {**growth_score, "context_score": growth_score.get("score"), "score": None, "note": "V267 Steuer-Sondereffekt-Gate: Wachstum bleibt bis zur vollständigen Same-Basis-Primärquellenbrücke gesperrt."}
+            profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None, "brake_text": "V267 Steuer-Sondereffekt-Gate: Nettomarge und ROE bleiben bis zur vollständigen Same-Basis-Primärquellenbrücke gesperrt."}
+            fcf_score = {**fcf_score, "context_score": fcf_score.get("score"), "score": None, "note": "V267 Steuer-Sondereffekt-Gate: FCF bleibt Diagnosekontext, solange der normalisierte Nettogewinn nicht freigegeben ist."}
+            balance_score = {**balance_score, "context_score": balance_score.get("score"), "score": None, "note": "V267 Steuer-Sondereffekt-Gate: Gesamtqualität bleibt fail-closed; Bilanzpunkte werden nicht isoliert freigegeben."}
 
     # V253 – a red non-operating-income distortion gate must isolate the entire
     # generic 100-point score, not merely the final multiple/fair value. Raw
@@ -70295,7 +70311,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "count": 0,
             "media_internet_v264": True,
             "note": (
-                "V266 Internet-Platform-Korridor ist zur Live-Validierung freigegeben. Die Peer-Schicht bleibt noch ohne Freigabewirkung; "
+                "V267 Internet-Platform-Korridor ist zur Live-Validierung freigegeben. Die Peer-Schicht bleibt noch ohne Freigabewirkung; "
                 "zuerst muss ein zweiter geeigneter Emittent denselben Reifegrad-/Score-/Korridorpfad praktisch bestehen."
             ),
         }
@@ -70343,7 +70359,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "applied": False,
             "reference_only": True,
             "note": (
-                "V266 Korridor-Livevalidierung: keine automatische Peer-Anpassung. Meta/weitere reife Internet-Plattformen dienen zunächst nur dem unabhängigen Gegentest; "
+                "V267 Korridor-Livevalidierung: keine automatische Peer-Anpassung. Meta/weitere reife Internet-Plattformen dienen zunächst nur dem unabhängigen Gegentest; "
                 "sie dürfen den 18–32× Familienanker weder erzeugen noch anheben."
             ),
         }
@@ -70858,7 +70874,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "title": "Diskreter Steuer-Sondereffekt primärquellenbasiert normalisiert",
                 "requires_research": False, "valuation_usable": True,
                 "reason": (
-                    "V266 hat den ausdrücklich quantifizierten diskreten Steuer-Sondereffekt periodenrein neutralisiert. "
+                    "V267 hat den ausdrücklich quantifizierten diskreten Steuer-Sondereffekt periodenrein neutralisiert. "
                     f"Normalisiertes TTM-Gewinnwachstum {safe_float(_v266_primary.get('normalized_ttm_earnings_growth'))*100:.1f} %, "
                     f"TTM-Nettomarge {safe_float(_v266_primary.get('normalized_ttm_net_margin'))*100:.1f} % und ROE {safe_float(_v266_primary.get('normalized_common_roe'))*100:.1f} %. "
                     "Rechts-/Abfindungs- oder andere operative Kosten wurden nicht bereinigt."
@@ -71892,7 +71908,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "potential_pct": None,
             "valuation_method": None,
             "note": (
-                "Fair Value V1 bewusst noch gesperrt: V266 hat ausschließlich den 18–32× Internet-Platform-Familienkorridor und das score-positionierte Ziel-KGV zur Live-Validierung freigegeben. "
+                "Fair Value V1 bewusst noch gesperrt: V267 hat ausschließlich den 18–32× Internet-Platform-Familienkorridor und das score-positionierte Ziel-KGV zur Live-Validierung freigegeben. "
                 "Ein zweiter geeigneter Internet-Platform-Emittent muss denselben Reifegrad-/Korridorpfad praktisch bestehen, bevor Fair Value, Bewertungszonen oder Signale freigegeben werden."
             ),
         }
@@ -74352,14 +74368,14 @@ if selected_symbol:
                         _v266_margin_ui = safe_float(_v266_tax_ui.get("normalized_ttm_net_margin"))
                         _v266_roe_ui = safe_float(_v266_tax_ui.get("normalized_common_roe"))
                         st.info(
-                            "🧮 **V266 diskreter Steuer-Sondereffekt · gleiche Ergebnisbasis:** "
+                            "🧮 **V267 diskreter Steuer-Sondereffekt · gleiche Ergebnisbasis:** "
                             f"normalisiertes TTM-Gewinnwachstum **{_v266_growth_ui*100:.1f} %** · "
                             f"normalisierte TTM-Nettomarge **{_v266_margin_ui*100:.1f} %** · "
                             f"normalisierter ROE **{_v266_roe_ui*100:.1f} %**. "
                             "Bereinigt wurden ausschließlich ausdrücklich quantifizierte diskrete Steuerwirkungen; Rechts-, Abfindungs- und andere operative Kosten bleiben vollständig enthalten."
                         )
                     elif _v266_tax_ui:
-                        st.warning("V266 Steuer-Sondereffekt-Prüfung fail-closed: " + text_or_dash(_v266_tax_ui.get("reason")))
+                        st.warning("V267 Steuer-Sondereffekt-Prüfung fail-closed: " + text_or_dash(_v266_tax_ui.get("reason")))
 
                     if data.get("profit_margin_note"):
                         st.warning(
@@ -79904,7 +79920,7 @@ if selected_symbol:
                             if bool((data.get("non_operating_income_guard") or {}).get("active")):
                                 if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
                                     st.info(
-                                        "V266 Korridor-Livevalidierung: Der 18–32× Internet-Platform-Familienkorridor und das score-positionierte Ziel-KGV sind freigegeben. "
+                                        "V267 Korridor-Livevalidierung: Der 18–32× Internet-Platform-Familienkorridor und das score-positionierte Ziel-KGV sind freigegeben. "
                                         "Die Vergleichsgruppe bleibt bis zum zweiten Live-Emittenten-Gegentest ohne Bewertungswirkung."
                                     )
                                 else:
@@ -79995,7 +80011,7 @@ if selected_symbol:
                         if bool((data.get("non_operating_income_guard") or {}).get("active")):
                             if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
                                 st.caption(
-                                    "Schritt 2A ist in V266 ein reiner Live-Gegentest. Der Familienkorridor und das Ziel-KGV stehen bereits fest; Peers dürfen sie weder erzeugen noch anheben und geben noch keinen fairen Wert frei."
+                                    "Schritt 2A ist in V267 ein reiner Live-Gegentest. Der Familienkorridor und das Ziel-KGV stehen bereits fest; Peers dürfen sie weder erzeugen noch anheben und geben noch keinen fairen Wert frei."
                                 )
                             else:
                                 st.caption(
@@ -80519,7 +80535,7 @@ if selected_symbol:
                     elif bool((data.get("non_operating_income_guard") or {}).get("active")):
                         if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
                             peer_explain = (
-                                "V266: Ergebnisbasis, 92/100-Qualitätspunktzahl, 18–32× Familienkorridor und score-positioniertes Ziel-KGV sind freigegeben. "
+                                "V267: Ergebnisbasis, 92/100-Qualitätspunktzahl, 18–32× Familienkorridor und score-positioniertes Ziel-KGV sind freigegeben. "
                                 "Die Vergleichsgruppe dient nur dem zweiten Live-Gegentest; Median oder Peer-Anpassung dürfen den Familienanker nicht verändern."
                             )
                         elif bool((data.get("non_operating_income_guard") or {}).get("primary_source_quality_score_released")):
@@ -80556,7 +80572,7 @@ if selected_symbol:
                         else:
                             if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
                                 st.caption(
-                                    "V266 Live-Gegentest: Der Peer-Check verändert weder Qualitätspunktzahl noch 18–32× Familienkorridor oder Ziel-KGV. "
+                                    "V267 Live-Gegentest: Der Peer-Check verändert weder Qualitätspunktzahl noch 18–32× Familienkorridor oder Ziel-KGV. "
                                     "Fair Value bleibt gerade deshalb noch gesperrt, bis ein zweiter geeigneter Internet-Platform-Emittent denselben Familienpfad praktisch bestätigt. " + peer_explain
                                 )
                             else:
@@ -80600,7 +80616,7 @@ if selected_symbol:
                         else:
                             if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
                                 st.caption(
-                                    "V266: Die Peer-Schicht erzeugt keinen fairen Wert. Der Fair Value bleibt absichtlich gesperrt, bis der zweite Internet-Platform-Live-Gegentest bestanden ist."
+                                    "V267: Die Peer-Schicht erzeugt keinen fairen Wert. Der Fair Value bleibt absichtlich gesperrt, bis der zweite Internet-Platform-Live-Gegentest bestanden ist."
                                 )
                             else:
                                 st.caption(
@@ -80761,7 +80777,7 @@ if selected_symbol:
                         )
                     elif media_internet_corridor_live:
                         st.caption(
-                            "Die Ergebnisvergleichbarkeit und der V266-Familienkorridor sind freigegeben. Die verbleibende Sperre betrifft ausschließlich die zweite Live-Validierung vor Fair-Value-/Signal-Freigabe."
+                            "Die Ergebnisvergleichbarkeit und der V267-Familienkorridor sind freigegeben. Die verbleibende Sperre betrifft ausschließlich die zweite Live-Validierung vor Fair-Value-/Signal-Freigabe."
                         )
                     elif non_operating_normalized_pending:
                         st.caption(
