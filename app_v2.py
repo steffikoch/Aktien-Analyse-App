@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.71"
+APP_BUILD_VERSION = "V2.23.72"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Steuer-Evidenz-Parser · gleiche Ergebnisbasis V267"
+    f"Build {APP_BUILD_VERSION} · FCF-Same-Basis-Einheiten · Meta-Gegentest V268"
 )
 
 
@@ -963,6 +963,8 @@ st.caption(
 # V2.23.69: Internet-Platform Primary Earnings Basis Trigger V265. For the V264 Internet Content / Digital Platform live-validation subprofile, materially positive revenue growth paired with negative provider earnings growth now triggers the existing issuer-primary adjusted/core TTM discovery even when the raw-TTM/current-FY EPS gap is below the legacy 25% discovery threshold. The existing reconstructor remains fail-closed: only period-complete same-company primary releases and a consistent adjusted/core EPS family may replace provider GAAP. No issuer ticker, tax amount, EPS value or Meta-specific financial constant is hard-coded; legal/severance costs are not automatically removed. The 18–32x corridor, score thresholds and Fair-Value/signal gates are unchanged.
 
 # V2.23.71: Discrete Tax Evidence Parser Hardening V267. Extends the issuer-neutral tax-special-item parser to annual filings that state an already tax-contextualized item as "$X billion charge/benefit" without repeating the word tax immediately beside the amount. The generic amount form is accepted only inside a narrow strong tax-context window and still requires explicit special-item language plus unambiguous period attribution. No valuation thresholds, family corridor, score math or Fair-Value/signal gates change. Cache keys are advanced to avoid stale V266 evidence results.
+
+# V2.23.72: FCF Same-Basis Unit Continuity V268. When a primary-source normalized tax-special-item result is released, the FCF quality gate reconstructs normalized net income in the provider revenue/FCF unit via revenue × normalized TTM margin instead of passing SEC statement values expressed in millions. This preserves the same economics while preventing unit/currency-scale mismatches. Profitability warning UI now reads the earnings-growth basis actually used by the score. No tax-normalization, score thresholds, family corridor, target-P/E mapping, Fair-Value or signal rules change.
 # V2.23.70: Discrete Tax Special-Item Same-Basis Guard V266. Adds an issuer-neutral SEC 10-K/10-Q normalizer for explicitly identified material discrete/one-time/non-cash income-tax charges or benefits. The guard reconstructs current and prior TTM revenue, net income and diluted EPS using FY−YTD+YTD, removes only the explicitly quantified tax effects from the periods in which the issuer says they occurred, and derives same-basis earnings growth, net margin and ROE. Legal, severance and other operating costs are never adjusted automatically. Missing filing identity, ambiguous period attribution, missing statement rows or inconsistent tax evidence fail closed. The Internet-Platform 18–32x corridor and 80/100 maturity thresholds are unchanged.
 # V2.23.68: Internet-Platform Family Corridor V264. Adds a reusable Media/Internet subprofile for Internet Content & Information platforms and releases an 18–32x normalized-TTM P/E corridor for mature profitable platform economics only. Eligibility is score/evidence based (quality >=80, growth >=20/30, profitability >=20/30, FCF >=16/25, balance >=10/15, positive normalized earnings basis). The target line is 50 points -> 18x and 100 points -> 32x, with no extra growth premium to avoid double counting. V264 is corridor/target-multiple live-validation only: peer adjustment, Fair Value, valuation zones and signals remain fail-closed pending a second-issuer live regression (Meta). Alphabet non-operating normalization and 92/100 score math are unchanged.
 # V2.23.66: Normalized Common ROE & Quality Score Release V262. Extends the released V260 primary-source EPS bridge to a current normalized TTM net-income/revenue basis and, when a comparable prior-year 10-Q is unambiguously resolved, a prior-TTM normalized earnings bridge. Current normalized net margin and normalized TTM earnings growth are released only when period structure, dominant unrealized-equity coverage and statutory-rate evidence remain consistent. ROE, the generic 100-point score, P/E, Fair Value and signal remain fail-closed for a later validation step. No issuer-specific ticker or financial value is hard-coded.
@@ -10161,14 +10163,14 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
         if "internet content & information" in _mi_industry or "internet content and information" in _mi_industry:
             out["media_internet_subprofile"] = "internet_content_platform"
             out["media_internet_subprofile_label"] = "Internet Content / Digital Platform"
-            out["family_model_status"] = "corridor_live_validation_v267"
+            out["family_model_status"] = "corridor_live_validation_v268"
             out["family_model_ready"] = True
             out["family_model_released"] = False
             out["family_validation_status"] = "internet_content_platform_corridor_v267_second_issuer_validation"
             out["universal_family_fail_closed"] = False
             out["confidence_cap"] = "Mittel"
             out["method"] = (
-                "V267 Internet-Platform-Familienpfad: 100-Punkte-Qualität + positive normalisierte TTM-Gewinnbasis; "
+                "V268 Internet-Platform-Familienpfad: 100-Punkte-Qualität + positive normalisierte TTM-Gewinnbasis; "
                 "18–32× normalisiertes TTM-KGV, score-positioniert von 50→18× bis 100→32×. "
                 "Nur reife profitable Plattformprofile mit bestandenem Qualitäts-/FCF-/Bilanz-Gate sind corridor-eligible. "
                 "Peer-Anpassung, Fair Value, Bewertungszonen und Signal bleiben bis zum zweiten Live-Emittenten-Gegentest gesperrt."
@@ -46945,7 +46947,7 @@ def build_media_internet_platform_corridor_v264(company_type, growth_score, prof
     if any(v is None for v in components.values()):
         return {
             "applicable": True, "eligible": False, "corridor_released": False,
-            "reason": "V267 Reifegrad-Gate: mindestens eine Qualitätspunktzahl-Komponente fehlt; kein Familien-KGV wird freigegeben.",
+            "reason": "V268 Reifegrad-Gate: mindestens eine Qualitätspunktzahl-Komponente fehlt; kein Familien-KGV wird freigegeben.",
             "components": components,
         }
     total = sum(components.values())
@@ -46970,7 +46972,7 @@ def build_media_internet_platform_corridor_v264(company_type, growth_score, prof
             "applicable": True, "eligible": False, "corridor_released": False,
             "score": total, "components": components, "earnings_basis_usable": earnings_ok,
             "reason": (
-                "V267 Reifegrad-Gate nicht bestanden. Für den 18–32× Internet-Platform-Korridor sind mindestens "
+                "V268 Reifegrad-Gate nicht bestanden. Für den 18–32× Internet-Platform-Korridor sind mindestens "
                 "80/100 Gesamtqualität, Wachstum 20/30, Profitabilität 20/30, FCF 16/25, Bilanz 10/15 und eine positive "
                 "normalisierte Gewinnbasis erforderlich. Niedrigere/noch nicht profitable Plattformen benötigen ein separates Unterprofil."
             ),
@@ -46995,7 +46997,7 @@ def build_media_internet_platform_corridor_v264(company_type, growth_score, prof
         "stage": "corridor_only_live_validation",
         "confidence": "Mittel",
         "note": (
-            "V267 bestätigt den unveränderten reifen Internet-Platform-Korridor auf 18–32× normalisiertes TTM-KGV. "
+            "V268 bestätigt den unveränderten reifen Internet-Platform-Korridor auf 18–32× normalisiertes TTM-KGV. "
             "Der 100-Punkte-Score positioniert das Ziel von 50→18× bis 100→32×; es gibt keinen zusätzlichen Wachstumsaufschlag, "
             "weil Wachstum bereits 30/100 Punkte ausmacht. Peer-Median, Fair Value, Bewertungszonen und Signal bleiben bis zum zweiten Live-Emittenten-Gegentest gesperrt."
         ),
@@ -69139,9 +69141,15 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         else free_cashflow_for_standard_score
     )
 
+    # V268: SEC tax-special-item statement values are stored in filing units (millions),
+    # while provider revenue/FCF values are in provider currency units.  Rebuild the
+    # normalized NI denominator from revenue × normalized margin so FCF conversion
+    # is economically identical but unit/currency-scale consistent.
     _v262_normalized_net_income_for_fcf = (
-        safe_float(_v266_primary.get("normalized_ttm_net_income"))
-        if _v266_score_basis_released and safe_float(_v266_primary.get("normalized_ttm_net_income")) is not None
+        revenue * safe_float(_v266_primary.get("normalized_ttm_net_margin"))
+        if _v266_score_basis_released
+        and revenue is not None
+        and safe_float(_v266_primary.get("normalized_ttm_net_margin")) is not None
         else (
             revenue * safe_float(_v262_primary.get("normalized_ttm_net_margin"))
             if _v262_score_basis_released
@@ -70311,7 +70319,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "count": 0,
             "media_internet_v264": True,
             "note": (
-                "V267 Internet-Platform-Korridor ist zur Live-Validierung freigegeben. Die Peer-Schicht bleibt noch ohne Freigabewirkung; "
+                "V268 Internet-Platform-Korridor ist zur Live-Validierung freigegeben. Die Peer-Schicht bleibt noch ohne Freigabewirkung; "
                 "zuerst muss ein zweiter geeigneter Emittent denselben Reifegrad-/Score-/Korridorpfad praktisch bestehen."
             ),
         }
@@ -76695,9 +76703,14 @@ if selected_symbol:
                                     "nicht verfügbar"
                                 )
 
+                        # V268: warning state must use the same earnings-growth basis
+                        # that actually drove the profitability score, not the raw provider
+                        # diagnostic value when a primary-source same-basis bridge is active.
                         earnings_growth_value = safe_float(
-                            data.get("earnings_growth")
+                            (data.get("growth_score") or {}).get("earnings_growth_used")
                         )
+                        if earnings_growth_value is None:
+                            earnings_growth_value = safe_float(data.get("earnings_growth"))
 
                         if profitability_result[
                             "brake_active"
