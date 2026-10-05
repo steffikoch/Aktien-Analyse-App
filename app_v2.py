@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.75"
+APP_BUILD_VERSION = "V2.23.76"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Corporate-IR-Discovery · Amundi-Gegentest V271"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Host-Fairness-Discovery · Amundi-Gegentest V272"
 )
 
 
@@ -1103,6 +1103,7 @@ st.caption(
 # V2.22.41: Asset-Manager Annual-History Candidate Merge V137. Fixes a de-duplication/ranking defect in generic same-basis Asset-Manager EPS-history recovery. The same issuer-primary report can be discovered once for each requested target year; prior builds kept the first URL occurrence and therefore preserved the score from the first target year instead of the best score across all requested years. V117 now merges duplicate URLs by their strongest year-aware score, explicitly recognizes the discovered document_class even when the download URL/anchor is opaque, and prioritizes the latest completed-FY Financial Data Supplement/annual report because such reports often contain the full 3Y same-basis EPS series in one table. Current-period AUM/flow/fee/CIR evidence, specialist score weights, 9–18x corridor, peer/historical guards and signal thresholds are unchanged.
 # V2.22.37: Asset-Manager Structured XLSX Period Binding V133. Fixes wide issuer-primary financial supplements whose comparison headers (for example “Q2 2026 vs. Q1 2026 / Q2 2025”) precede the actual multi-period data-header row. XLSX extraction now preserves explicit worksheet-row boundaries, period detection ranks the real multi-period header row ahead of comparison captions, and KPI rows are parsed only within their own workbook row so comparison columns cannot shift AUM/flow/fee/CIR/EPS values onto the wrong period. Same-scope guards, same-basis earnings requirements, score weights, 9–18x corridor, peer/historical guards and signal thresholds remain unchanged; no issuer ticker, URL or KPI value is hard-coded.
 # V2.22.34: Development-Stage EPS Copy Isolation Cleanup V130. Copy/UI-only change. Keeps V128 subprofile routing and V121 financial-stage detection unchanged, but isolates Development-Stage Mining / Materials from the generic Universal-Family EPS wording: Standard TTM/Forward EPS remains diagnosis-only and is explicitly not a Fair-Value anchor; Mineral Explorer / Mine Developer points instead to a technical/economic project and Project-NAV basis, while Battery Materials / Processing / Technology points to resource/feedstock, process/pilot/scale-up, qualification/offtake, funding and commercialisation evidence. The terminal EPS caption is profile-aware for the same reason. All scores, corridors, guard states, V127 Net-Cash logic, LOM logic and valuation mathematics remain unchanged.
+# V2.23.76: Universal Asset-Management Host-Fairness Discovery Guard V272. V271 added about.<issuer-domain>, but the consumer probed only the first 12 generated URLs; multiple paths for group./investors./ir./corporate. could therefore exhaust the slice before about. or the bare issuer host was ever tried. V272 changes only candidate ordering: one high-value route per issuer-owned host family is emitted first, then the provider website/root and only then secondary routes. This prevents path-count starvation for any valid corporate/IR subdomain while preserving the existing bounded deadline, issuer-family ownership checks, parser, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds.
 # V2.23.75: Universal Asset-Management Corporate-About-Host Discovery Guard V271. Amundi exposed that a provider marketing/root domain can coexist with the issuer-owned financial-results hub on an about.<domain> corporate subdomain. The generic Asset-Management issuer-primary bootstrap now probes about.<issuer-domain> with bounded financial-results, shareholder-hub, regulated-information and investor-relations routes before the marketing root. All accepted KPI values still must come from issuer-owned fetched content; search snippets remain discovery-only. No Amundi ticker, URL, KPI value, Asset-Management score weight, 9–18x corridor, Premium-Unlock, peer/historical guard, Through-Cycle earnings math, Fair Value or signal threshold is changed.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
@@ -38397,7 +38398,7 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V120"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V121"
 ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22240_asset_manager_historical_year_discovery_isolation_v136"
 
 
@@ -41060,12 +41061,15 @@ def _asset_manager_v108_period_table_snapshot(text, source_url, company_name, fu
 
 
 def _asset_manager_ir_root_candidates(website, company_domain):
-    """V110: prioritize likely corporate/result hubs without issuer hard-coding.
+    """V121: fairly interleave likely corporate/result hosts without issuer hard-coding.
 
-    A provider website can be a product/marketing domain.  If the supplied URL is
-    already an IR/results URL it keeps first priority; otherwise generic group,
-    investors, ir and corporate result routes are tried before the marketing
-    root.  Failed probes are harmless and bounded by the existing deadline.
+    A provider website can be a product/marketing domain and any individual
+    corporate host can expose several plausible routes.  Emitting every route
+    for one host before trying the next host can starve later issuer-owned
+    hosts under the bounded discovery slice/deadline.  V121 therefore emits
+    one highest-value route per host family first, then the supplied website,
+    then secondary routes round-robin.  Ownership checks and all evidence
+    acceptance rules remain unchanged.
     """
     family = _asset_manager_domain_family_root(company_domain)
     if not family:
@@ -41077,24 +41081,35 @@ def _asset_manager_ir_root_candidates(website, company_domain):
     raw_fold = _asset_manager_v108_fold(raw or "")
     raw_is_ir = any(t in raw_fold for t in ["/ir/", "investor", "financial-result", "quarterly-result", "financial-report"])
 
-    focused = []
     host_paths = [
         (f"group.{family}", ["/ir/reports-and-events/financial-results/", "/ir/financial-results/", "/ir/"]),
         (f"investors.{family}", ["/financial-results/", "/reports-and-events/financial-results/", "/"]),
         (f"ir.{family}", ["/financial-results/", "/reports-and-events/financial-results/", "/"]),
         (f"corporate.{family}", ["/investor-relations/financial-results/", "/investor-relations/", "/ir/"]),
-        # V271: many issuers place the corporate/IR estate on an issuer-owned
-        # about.<domain> host while the bare/www domain remains product-facing.
-        # These are discovery routes only; KPI evidence is still accepted only
-        # after fetching and parsing issuer-owned content.
         (f"about.{family}", ["/financial-results/", "/shareholder-hub/", "/regulated-information/", "/investor-relations/", "/"]),
         (family, ["/financial-results/", "/shareholder-hub/", "/regulated-information/", "/investor-relations/financial-results/", "/investor-relations/", "/ir/", "/"]),
     ]
-    for host, paths in host_paths:
-        for path in paths:
-            focused.append(f"https://{host}{path}")
 
-    rows = ([raw] if raw and raw_is_ir else []) + focused + ([raw] if raw and not raw_is_ir else [])
+    rows = []
+    if raw and raw_is_ir:
+        rows.append(raw)
+
+    # Host-fair first pass: every plausible issuer-owned host gets one
+    # high-value results route before any host receives a second route.
+    for host, paths in host_paths:
+        if paths:
+            rows.append(f"https://{host}{paths[0]}")
+
+    if raw and not raw_is_ir:
+        rows.append(raw)
+
+    # Secondary routes are interleaved by route depth for the same reason.
+    max_depth = max((len(paths) for _, paths in host_paths), default=0)
+    for depth in range(1, max_depth):
+        for host, paths in host_paths:
+            if depth < len(paths):
+                rows.append(f"https://{host}{paths[depth]}")
+
     out, seen = [], set()
     for u in rows:
         if not u or u in seen or not _host_belongs_to_company_family(u, family):
@@ -82369,7 +82384,7 @@ if selected_symbol:
 
                     elif special_control.get("control_key") == "asset_management_specialist":
                         st.divider()
-                        st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Corporate-IR Discovery Guard V120")
+                        st.subheader(f"🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Host-Fairness Discovery Guard {ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION}")
                         if special_control.get("implemented"):
                             checks_am = special_control.get("checks") or {}
                             snap_am = special_control.get("snapshot") or {}
@@ -82388,7 +82403,7 @@ if selected_symbol:
                                         st.caption("Noch fehlende aktuelle Primärdaten: " + " · ".join(str(x) for x in missing_am))
                                     failure_reason_am = discovery_am.get("evidence_failure_reason")
                                     if failure_reason_am:
-                                        st.caption("Evidence-Status V120: " + str(failure_reason_am))
+                                        st.caption(f"Evidence-Status {ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION}: {failure_reason_am}")
                                     partial_bits = []
                                     for key, label in [
                                         ("total_aum", "Total AUM"),
