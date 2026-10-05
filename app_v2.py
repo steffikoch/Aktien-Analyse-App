@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.72"
+APP_BUILD_VERSION = "V2.23.73"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -53,7 +53,7 @@ _UI_DE_EXACT = {
 
 _UI_DE_REPLACEMENTS = [
     # V190: gezielte Vollständigkeitsbereinigung der Börseninfrastruktur-Anzeige.
-    ("issuer-adjustiertes Current-FY Adjusted/Cash EPS × score-positioniertes Exchange-Family-KGV; FY2025-Peer-Median nur downside-only Ceiling", "vom Emittenten bereinigtes/cashflow-basiertes EPS des aktuellen Geschäftsjahres × punktzahlpositioniertes Börseninfrastruktur-Familien-KGV; FY2025-Vergleichsgruppen-Median nur als Abwärts-Obergrenze"),
+    ("issuer-adjustiertes Current-FY Adjusted/Cash EPS × punktzahlpositioniertes Exchange-Family-KGV; FY2025-Vergleichsgruppen-Median nur downside-only Ceiling", "vom Emittenten bereinigtes/cashflow-basiertes EPS des aktuellen Geschäftsjahres × punktzahlpositioniertes Börseninfrastruktur-Familien-KGV; FY2025-Vergleichsgruppen-Median nur als Abwärts-Obergrenze"),
     ("Exchange-Sicherheitsisolierung: Provider/GAAP-TTM-/Forward-Divergenz, Yahoo-FCF und generischer Net-Debt/FCF-Score begrenzen die Specialist-Sicherheit nicht separat.", "Sicherheitsisolierung der Börseninfrastruktur: Datenanbieter-/GAAP-TTM-/Prognose-Abweichungen, Yahoo-FCF und die generische Nettoschulden/FCF-Punktzahl begrenzen die Sicherheit des Spezialmodells nicht separat."),
     ("Maßgeblich sind die issuer-adjusted Current-FY Earnings Bridge, Exchange-Spezialkontrolle und das Dual-Anchor Peer Gate; H1-Run-Rate bleibt nur Cycle-/Reality-Check.", "Maßgeblich sind die vom Emittenten bereinigte Ergebnisbrücke des aktuellen Geschäftsjahres, die Börseninfrastruktur-Spezialkontrolle und die Doppelanker-Vergleichsgruppenprüfung; die H1-Hochrechnung bleibt ausschließlich Zyklus-/Plausibilitätscheck."),
     ("Current-FY Cash-EPS Bridge", "Ergebnisbrücke für Cash-EPS des aktuellen Geschäftsjahres"),
@@ -73,7 +73,7 @@ _UI_DE_REPLACEMENTS = [
     ("Family-Korridor", "Familien-Korridor"),
     ("Score-positioniertes Roh-KGV", "punktzahlpositioniertes Roh-KGV"),
     ("FY2025 Adjusted-EPS Peer-Referenzmedian", "FY2025-Vergleichsgruppen-Referenzmedian auf Basis bereinigter EPS"),
-    ("Full-Year-Peer-Median", "Gesamtjahres-Vergleichsgruppen-Median"),
+    ("Full-Year-Vergleichsgruppen-Median", "Gesamtjahres-Vergleichsgruppen-Median"),
     ("Premium-Multiple", "Aufschlags-Multiple"),
     ("H1-2026 Run-Rate-Referenzmedian", "H1-2026-Hochrechnungs-Referenzmedian"),
     ("Run-Rate nur Cycle-/Reality-Check; nicht als FY2026-Guidance oder Current-FY-Peer-Denominator verwendet.", "Hochrechnung nur als Zyklus-/Plausibilitätscheck; nicht als FY2026-Unternehmensprognose oder Vergleichsgruppen-Ergebnisbasis des aktuellen Geschäftsjahres verwendet."),
@@ -300,7 +300,7 @@ _UI_DE_REPLACEMENTS = [
     ("Peer Adjustment", "Vergleichsgruppen-Anpassung"),
     ("Peer-Adjustment", "Vergleichsgruppen-Anpassung"),
     ("Peer Median", "Vergleichsgruppen-Median"),
-    ("Peer-Median", "Vergleichsgruppen-Median"),
+    ("Vergleichsgruppen-Median", "Vergleichsgruppen-Median"),
     ("Peer-Evidenz", "Vergleichsgruppen-Evidenz"),
     ("Multi-Issuer", "Mehr-Emittenten"),
     ("end-to-end", "durchgängig"),
@@ -366,7 +366,7 @@ _UI_DE_REPLACEMENTS = [
     ("Primärquelle normalized Eigentümerertrag", "primärquellenbasierter normalisierter Eigentümerertrag"),
     ("Emittent-adjusted", "vom Emittenten bereinigt"),
     ("quality-adjustiert", "qualitätsbereinigt"),
-    ("score-positioniert", "punktzahlpositioniert"),
+    ("punktzahlpositioniert", "punktzahlpositioniert"),
     ("score-gesteuert", "punktzahlgesteuert"),
     ("Fail-closed", "bewusst gesperrt"),
     ("Recovery", "Erholung"),
@@ -698,7 +698,7 @@ def _de_ui_text(value):
     out = out.replace("Current-FY", "aktuelles Geschäftsjahr")
     out = out.replace("Adjusted/Cash EPS", "bereinigtes/cashflow-basiertes EPS")
     out = out.replace("Adjusted-EPS", "bereinigtes EPS")
-    out = out.replace("score-positioniertes", "punktzahlpositioniertes")
+    out = out.replace("punktzahlpositioniertes", "punktzahlpositioniertes")
     out = out.replace("Score-positioniertes", "punktzahlpositioniertes")
     out = out.replace("issuer-adjustiertes", "vom Emittenten bereinigtes")
     # V190: Varianten, die erst durch frühere Ersetzungen entstehen.
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · FCF-Same-Basis-Einheiten · Meta-Gegentest V268"
+    f"Build {APP_BUILD_VERSION} · Internet-Platform-Familienfreigabe · Fair Value V269"
 )
 
 
@@ -965,6 +965,8 @@ st.caption(
 # V2.23.71: Discrete Tax Evidence Parser Hardening V267. Extends the issuer-neutral tax-special-item parser to annual filings that state an already tax-contextualized item as "$X billion charge/benefit" without repeating the word tax immediately beside the amount. The generic amount form is accepted only inside a narrow strong tax-context window and still requires explicit special-item language plus unambiguous period attribution. No valuation thresholds, family corridor, score math or Fair-Value/signal gates change. Cache keys are advanced to avoid stale V266 evidence results.
 
 # V2.23.72: FCF Same-Basis Unit Continuity V268. When a primary-source normalized tax-special-item result is released, the FCF quality gate reconstructs normalized net income in the provider revenue/FCF unit via revenue × normalized TTM margin instead of passing SEC statement values expressed in millions. This preserves the same economics while preventing unit/currency-scale mismatches. Profitability warning UI now reads the earnings-growth basis actually used by the score. No tax-normalization, score thresholds, family corridor, target-P/E mapping, Fair-Value or signal rules change.
+
+# V2.23.73: Internet-Platform Multi-Issuer Release V269. Alphabet and Meta have passed the unchanged 18–32x normalized-TTM-P/E family path with separate primary-source normalization guards. The second-issuer live-validation lock is removed for eligible Internet Content / Digital Platform issuers. Fair Value, valuation zones and generic action signals may now use the already-released normalized TTM EPS and score-positioned family multiple. Peers remain reference-only and cannot adjust the family multiple. No corridor, eligibility threshold, score formula, tax/non-operating normalization mathematics or signal thresholds changed. Visible stale V264/V267/V268 validation wording is aligned to the released family state.
 # V2.23.70: Discrete Tax Special-Item Same-Basis Guard V266. Adds an issuer-neutral SEC 10-K/10-Q normalizer for explicitly identified material discrete/one-time/non-cash income-tax charges or benefits. The guard reconstructs current and prior TTM revenue, net income and diluted EPS using FY−YTD+YTD, removes only the explicitly quantified tax effects from the periods in which the issuer says they occurred, and derives same-basis earnings growth, net margin and ROE. Legal, severance and other operating costs are never adjusted automatically. Missing filing identity, ambiguous period attribution, missing statement rows or inconsistent tax evidence fail closed. The Internet-Platform 18–32x corridor and 80/100 maturity thresholds are unchanged.
 # V2.23.68: Internet-Platform Family Corridor V264. Adds a reusable Media/Internet subprofile for Internet Content & Information platforms and releases an 18–32x normalized-TTM P/E corridor for mature profitable platform economics only. Eligibility is score/evidence based (quality >=80, growth >=20/30, profitability >=20/30, FCF >=16/25, balance >=10/15, positive normalized earnings basis). The target line is 50 points -> 18x and 100 points -> 32x, with no extra growth premium to avoid double counting. V264 is corridor/target-multiple live-validation only: peer adjustment, Fair Value, valuation zones and signals remain fail-closed pending a second-issuer live regression (Meta). Alphabet non-operating normalization and 92/100 score math are unchanged.
 # V2.23.66: Normalized Common ROE & Quality Score Release V262. Extends the released V260 primary-source EPS bridge to a current normalized TTM net-income/revenue basis and, when a comparable prior-year 10-Q is unambiguously resolved, a prior-TTM normalized earnings bridge. Current normalized net margin and normalized TTM earnings growth are released only when period structure, dominant unrealized-equity coverage and statutory-rate evidence remain consistent. ROE, the generic 100-point score, P/E, Fair Value and signal remain fail-closed for a later validation step. No issuer-specific ticker or financial value is hard-coded.
@@ -10163,17 +10165,17 @@ def apply_universal_valuation_family_router(base_classification, name, symbol, s
         if "internet content & information" in _mi_industry or "internet content and information" in _mi_industry:
             out["media_internet_subprofile"] = "internet_content_platform"
             out["media_internet_subprofile_label"] = "Internet Content / Digital Platform"
-            out["family_model_status"] = "corridor_live_validation_v268"
+            out["family_model_status"] = "family_released_v269"
             out["family_model_ready"] = True
-            out["family_model_released"] = False
-            out["family_validation_status"] = "internet_content_platform_corridor_v267_second_issuer_validation"
+            out["family_model_released"] = True
+            out["family_validation_status"] = "internet_content_platform_multi_issuer_released_v269"
             out["universal_family_fail_closed"] = False
             out["confidence_cap"] = "Mittel"
             out["method"] = (
-                "V268 Internet-Platform-Familienpfad: 100-Punkte-Qualität + positive normalisierte TTM-Gewinnbasis; "
-                "18–32× normalisiertes TTM-KGV, score-positioniert von 50→18× bis 100→32×. "
-                "Nur reife profitable Plattformprofile mit bestandenem Qualitäts-/FCF-/Bilanz-Gate sind corridor-eligible. "
-                "Peer-Anpassung, Fair Value, Bewertungszonen und Signal bleiben bis zum zweiten Live-Emittenten-Gegentest gesperrt."
+                "V269 Internet-Platform-Familienpfad: 100-Punkte-Qualität + positive normalisierte TTM-Gewinnbasis; "
+                "18–32× normalisiertes TTM-KGV, punktzahlpositioniert von 50→18× bis 100→32×. "
+                "Nur reife profitable Plattformprofile mit bestandenem Qualitäts-/FCF-/Bilanz-Gate sind bewertungsfähig. "
+                "Alphabet und Meta haben den unveränderten Familienpfad live validiert; Peers bleiben Referenz und verändern das Ziel-KGV nicht."
             )
             out["business_model"] = "Internet Content / Search / Social / Digital Platform"
             out["focus_areas"] = "Umsatz- und Earnings-Wachstum · normalisierte Marge/ROE · FCF-Marge/Cash Conversion · Bilanz · Plattform-Skalierung"
@@ -14823,7 +14825,7 @@ def _holding_build_justified_nav_target_diagnostic(historical_calibration, debt_
         "release_blockers": blockers,
         "double_count_guard": (
             "Historischer Median enthält normale Holdingkosten und Struktur bereits teilweise. "
-            "V77 verwendet die issuer-primary Kostenquote deshalb nur als Abweichungs-Guard gegen die eigene Mehrjahresnorm. Der Holding-Peer-Median ist ebenfalls nur ein Plausibilitäts-Guard; "
+            "V77 verwendet die issuer-primary Kostenquote deshalb nur als Abweichungs-Guard gegen die eigene Mehrjahresnorm. Der Holding-Vergleichsgruppen-Median ist ebenfalls nur ein Plausibilitäts-Guard; "
             "eine normale/niedrige Kostenquote erhält 0,00 pp und wird nicht nochmals kapitalisiert."
         ),
         "method": "Historical median + bounded current-risk overlays + issuer-primary own-history management-cost guard + family peer NAV plausibility guard",
@@ -15245,7 +15247,7 @@ def _universal_family_special_control(company_type):
                 "Familien-Qualitätspunktzahl V1, Gewinnbasis des laufenden Geschäftsjahres V1 und der 8–30× Zahlungsabwickler-KGV-Korridor sind praktisch geprüft und freigegeben. "
                 "Der eigene faire Wert und die familienbezogenen Bewertungszonen V1 sind ebenfalls praktisch geprüft; der Test mit PayPal, Adyen und Fiserv ist bestanden. "
                 "Die Zonenbreite startet bei der Bewertungssicherheit und wird bei niedrigerer operativer Qualität sowie schwächerer Sicherheit von Gewinnbasis oder Ziel-KGV konservativ verbreitert. "
-                "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 ist freigegeben und verwendet ausschließlich Ziel-KGVs der Peers vor deren eigener Peer-Anpassung; bestehende Schutzgrenzen bleiben vorrangig. Historische Durchschnitts-KGVs und Analystenziele bleiben reine Vergleichsschichten. Die Zahlungsabwickler-Signal-Logik V1 ist nach separater Kalibrierung freigegeben."
+                "Die modellbereinigte Vergleichsgruppen-Kalibrierung V187 ist freigegeben und verwendet ausschließlich Ziel-KGVs der Peers vor deren eigener Vergleichsgruppen-Anpassung; bestehende Schutzgrenzen bleiben vorrangig. Historische Durchschnitts-KGVs und Analystenziele bleiben reine Vergleichsschichten. Die Zahlungsabwickler-Signal-Logik V1 ist nach separater Kalibrierung freigegeben."
             ),
             "router_note": (
                 f"{family_label} wurde durch die universelle Unternehmensklassifizierung und Bewertungsfamilien-Zuordnung erkannt. "
@@ -31551,7 +31553,7 @@ def apply_midstream_peer_overlay(midstream_valuation, peer_check):
     mv["note"] = (
         "V2.20.133 Midstream Peer Lock: WMB/OKE/KMI/EPD/MPLX können als Markt-Referenzen gezeigt werden, "
         "aber unterschiedliche C-Corp/MLP-Strukturen, issuer-definierte Cashflow-Metriken und EBITDA-/"
-        "Kapitalstrukturbasen verhindern eine automatische Peer-Anpassung. Eigener Score, Zielmultiple und "
+        "Kapitalstrukturbasen verhindern eine automatische Vergleichsgruppen-Anpassung. Eigener Score, Zielmultiple und "
         "Fair Value bleiben issuer-spezifisch."
     )
     return mv
@@ -37185,7 +37187,7 @@ def build_payments_processor_family_multiple(snapshot, family_score, earnings_ba
         "note": (
             "Das praktisch geprüfte Ziel-KGV wird aus zwei transparenten Familientreibern abgeleitet: Qualitätspunktzahl plus ein begrenzter Aufschlag nur bei sehr starker emittenteneigener Ertragsökonomie. "
             "Emittentenbezogene Schutzregeln wirken ausschließlich nach unten. Historisches Durchschnitts-KGV, aktueller Aktienkurs, Analystenziele, Yahoo-FCF und Standard-KGV setzen oder erhöhen das Ziel-KGV nicht. "
-            "Ziel-KGV vor Peer-Anpassung, eigener fairer Wert und Bewertungszonen bleiben freigegeben; V187 kalibriert das Ziel nach bestandenem 3-Peer-Gate modellbereinigt um maximal ±5 %, während bestehende Schutzregeln vorrangig bleiben. Die Zahlungsabwickler-Signal-Logik V1 ist freigegeben."
+            "Ziel-KGV vor Vergleichsgruppen-Anpassung, eigener fairer Wert und Bewertungszonen bleiben freigegeben; V187 kalibriert das Ziel nach bestandenem 3-Peer-Gate modellbereinigt um maximal ±5 %, während bestehende Schutzregeln vorrangig bleiben. Die Zahlungsabwickler-Signal-Logik V1 ist freigegeben."
         ),
     }
 
@@ -37291,7 +37293,7 @@ def build_payments_processor_foundation_model(company_type, fundamental_info, sy
         ),
         "note": (
             "Familien-Punktzahl, Gewinnbasis für das laufende Geschäftsjahr und der praktisch geprüfte 8–30× Zahlungsabwickler-KGV-Korridor bleiben unverändert. "
-            "V187 verwendet das freigegebene Familien-Ziel-KGV als Ausgangswert vor Peer-Anpassung; nach bestandenem 3-Peer-Gate wirkt die modellbereinigte Kalibrierung mit maximal ±5 %, anschließend greifen bestehende Schutzgrenzen erneut vorrangig. Historische KGV-Anker und Analystenziele bleiben ausgeschlossen."
+            "V187 verwendet das freigegebene Familien-Ziel-KGV als Ausgangswert vor Vergleichsgruppen-Anpassung; nach bestandenem 3-Peer-Gate wirkt die modellbereinigte Kalibrierung mit maximal ±5 %, anschließend greifen bestehende Schutzgrenzen erneut vorrangig. Historische KGV-Anker und Analystenziele bleiben ausgeschlossen."
         ),
     }
 
@@ -46420,7 +46422,7 @@ def build_capital_goods_family_valuation(snapshot, operational_score, earnings_b
         "Der externe Vergleichsgruppen-Median wirkt ausschließlich nach unten und kann das Ziel-KGV nicht erhöhen. Cognite ist bereits in Bilanz- und Kapitalallokationsqualität berücksichtigt und wirkt deshalb als Sicherheits-/Verschuldungs-Schutzregel statt als zweiter KGV-Abschlag."
         if profile == "energy_technology_automation" else
         "Der faire Wert von ABB verwendet die geschützte Current-FY-USD-Konsensbrücke und den punktzahlpositionierten 22–32×-Investitionsgüter-Korridor. "
-        "Der Peer-Median wirkt nur nach unten. Robotics-Verkauf und Rotork-Übernahme sind bereits in Kapitalallokation und Bewertungssicherheit berücksichtigt und werden nicht als zweiter KGV-Abschlag doppelt gezählt."
+        "Der Vergleichsgruppen-Median wirkt nur nach unten. Robotics-Verkauf und Rotork-Übernahme sind bereits in Kapitalallokation und Bewertungssicherheit berücksichtigt und werden nicht als zweiter KGV-Abschlag doppelt gezählt."
     )
     out.update({
         "available": True,
@@ -46926,11 +46928,11 @@ def build_ctva_separation_special_control(control, separation_model):
 # =========================================================
 
 def build_media_internet_platform_corridor_v264(company_type, growth_score, profitability_score, fcf_score, balance_score, eps_normalization, non_operating_income_guard=None):
-    """V264 corridor-only calibration for mature Internet Content / Digital Platforms.
+    """V269 released family model for mature Internet Content / Digital Platforms.
 
-    This is intentionally a staging model: it can release the family corridor and target
-    multiple, but never Fair Value or a signal.  The second-issuer live regression must
-    pass before downstream valuation is unlocked.
+    Alphabet and Meta independently passed the same score/earnings/corridor contract.
+    Eligible issuers may therefore use normalized TTM EPS × score-positioned family P/E
+    for Fair Value. Peer observations remain reference-only and never alter the target P/E.
     """
     ct = company_type if isinstance(company_type, dict) else {}
     if str(ct.get("valuation_family_id") or "").strip().lower() != "media_internet":
@@ -46947,7 +46949,7 @@ def build_media_internet_platform_corridor_v264(company_type, growth_score, prof
     if any(v is None for v in components.values()):
         return {
             "applicable": True, "eligible": False, "corridor_released": False,
-            "reason": "V268 Reifegrad-Gate: mindestens eine Qualitätspunktzahl-Komponente fehlt; kein Familien-KGV wird freigegeben.",
+            "reason": "V269 Reifegrad-Gate: mindestens eine Qualitätspunktzahl-Komponente fehlt; kein Familien-KGV wird freigegeben.",
             "components": components,
         }
     total = sum(components.values())
@@ -46972,7 +46974,7 @@ def build_media_internet_platform_corridor_v264(company_type, growth_score, prof
             "applicable": True, "eligible": False, "corridor_released": False,
             "score": total, "components": components, "earnings_basis_usable": earnings_ok,
             "reason": (
-                "V268 Reifegrad-Gate nicht bestanden. Für den 18–32× Internet-Platform-Korridor sind mindestens "
+                "V269 Reifegrad-Gate nicht bestanden. Für den 18–32× Internet-Platform-Korridor sind mindestens "
                 "80/100 Gesamtqualität, Wachstum 20/30, Profitabilität 20/30, FCF 16/25, Bilanz 10/15 und eine positive "
                 "normalisierte Gewinnbasis erforderlich. Niedrigere/noch nicht profitable Plattformen benötigen ein separates Unterprofil."
             ),
@@ -46985,7 +46987,8 @@ def build_media_internet_platform_corridor_v264(company_type, growth_score, prof
         "applicable": True,
         "eligible": True,
         "corridor_released": True,
-        "fair_value_released": False,
+        "fair_value_released": True,
+        "family_model_released": True,
         "score": total,
         "components": components,
         "earnings_basis_usable": earnings_ok,
@@ -46994,12 +46997,12 @@ def build_media_internet_platform_corridor_v264(company_type, growth_score, prof
         "corridor_high": high,
         "target_multiple": target,
         "valuation_method_name": "Internet Content / Digital Platform · normalisiertes TTM-KGV",
-        "stage": "corridor_only_live_validation",
+        "stage": "multi_issuer_family_released",
         "confidence": "Mittel",
         "note": (
-            "V268 bestätigt den unveränderten reifen Internet-Platform-Korridor auf 18–32× normalisiertes TTM-KGV. "
+            "V269 gibt den mit Alphabet und Meta live validierten Internet-Platform-Korridor von 18–32× normalisiertem TTM-KGV frei. "
             "Der 100-Punkte-Score positioniert das Ziel von 50→18× bis 100→32×; es gibt keinen zusätzlichen Wachstumsaufschlag, "
-            "weil Wachstum bereits 30/100 Punkte ausmacht. Peer-Median, Fair Value, Bewertungszonen und Signal bleiben bis zum zweiten Live-Emittenten-Gegentest gesperrt."
+            "weil Wachstum bereits 30/100 Punkte ausmacht. Peer-KGVs bleiben reine Referenz und verändern weder Familienanker noch Ziel-KGV."
         ),
     }
 
@@ -47629,7 +47632,7 @@ def get_peer_group(company_type, symbol, industry=None):
             "peer_model": "defense_high_growth_prime_reference_v2",
             "note": (
                 f"Aerospace-&-Defense Peer Lock {APP_BUILD_VERSION}: Rheinmetall, BAE Systems, Leonardo, Thales und Saab bilden – jeweils ohne das Zielunternehmen – einen reinen Markt-Referenzcluster. "
-                "Ohne normalisierte Gleichheit von Current-FY-Horizont, Wachstumsphase, Order Visibility und bereinigter Earnings-Basis darf der Peer-Median das Familien-Ziel-KGV weder anheben noch absenken."
+                "Ohne normalisierte Gleichheit von Current-FY-Horizont, Wachstumsphase, Order Visibility und bereinigter Earnings-Basis darf der Vergleichsgruppen-Median das Familien-Ziel-KGV weder anheben noch absenken."
             ),
         }
 
@@ -47645,7 +47648,7 @@ def get_peer_group(company_type, symbol, industry=None):
             "reference_only": True,
             "note": (
                 f"Oilfield Services & Energy Technology Peer Lock {APP_BUILD_VERSION}: SLB, Halliburton, TechnipFMC und Baker Hughes bilden den Referenzcluster. "
-                "Unterschiede bei Subsea-/Digital-/Completion-/IET-Mix, Projektvisibilität, Akquisitionen und Earnings-Basis verhindern jede automatische Peer-Anpassung."
+                "Unterschiede bei Subsea-/Digital-/Completion-/IET-Mix, Projektvisibilität, Akquisitionen und Earnings-Basis verhindern jede automatische Vergleichsgruppen-Anpassung."
             ),
         }
 
@@ -47727,8 +47730,8 @@ def get_peer_group(company_type, symbol, industry=None):
             "reference_only": True,
             "note": (
                 f"Branded Consumer Staples Peer Lock {APP_BUILD_VERSION}: Family-Peers sind ausschließlich Markt-Referenzen. "
-                "Unterschiede bei Snacks-/Getränke-/Food-Mix, Margen, Rohstoffexponierung, Franchise-/Bottling-Struktur, Reporting-Horizont und Accounting-Basis verhindern jede automatische Peer-Anpassung. "
-                "Der Peer-Median verändert weder Quality Score noch Ziel-KGV noch Fair Value."
+                "Unterschiede bei Snacks-/Getränke-/Food-Mix, Margen, Rohstoffexponierung, Franchise-/Bottling-Struktur, Reporting-Horizont und Accounting-Basis verhindern jede automatische Vergleichsgruppen-Anpassung. "
+                "Der Vergleichsgruppen-Median verändert weder Quality Score noch Ziel-KGV noch Fair Value."
             ),
         }
 
@@ -47791,7 +47794,7 @@ def get_peer_group(company_type, symbol, industry=None):
             "target_symbol": own_symbol,
             "note": (
                 "Baker-Hughes-Component-Peer-Lock aktiv: SLB, Halliburton, TechnipFMC und GE Vernova bilden nur Teilaspekte von OFSE bzw. IET ab. "
-                "Ohne normalisierte Post-Chart Earnings-, Segmentmix- und Kapitalstruktur-Vergleichbarkeit darf kein Peer-Median das BKR-Multiple oder einen Fair Value verändern."
+                "Ohne normalisierte Post-Chart Earnings-, Segmentmix- und Kapitalstruktur-Vergleichbarkeit darf kein Vergleichsgruppen-Median das BKR-Multiple oder einen Fair Value verändern."
             ),
         }
 
@@ -47953,7 +47956,7 @@ def get_peer_group(company_type, symbol, industry=None):
             "note": (
                 "Standard-Unternehmen bilden keine homogene Peer-Gruppe. "
                 "Deshalb wird ohne branchenspezifische Zuordnung keine "
-                "automatische Peer-Anpassung erzwungen. Das Fundamental-"
+                "automatische Vergleichsgruppen-Anpassung erzwungen. Das Fundamental-"
                 "Multiple bleibt unverändert und kann als Fair-Value-Basis "
                 "verwendet werden."
             )
@@ -47981,7 +47984,7 @@ def peer_forward_pe_is_supported(company_type):
 
     # Autozulieferer erhalten bewusst einen eng begrenzten Forward-KGV-
     # Realitätscheck. Die eigentliche Gewinnbasis der Aktie bleibt
-    # zyklus-normalisiert; der Peer-Median darf das Multiple nur um
+    # zyklus-normalisiert; der Vergleichsgruppen-Median darf das Multiple nur um
     # maximal ±5 % bewegen und ersetzt die Zyklus-Normalisierung nicht.
     if "autozulieferer / zyklisch" in type_name:
         return True
@@ -48599,7 +48602,7 @@ def _calculate_midstream_peer_overlay(peer_group, fundamental_multiple, cache_ve
     result["applied"] = True
     result["note"] = (
         "Comparability Gate bestanden: mindestens 3 voll vergleichbare Peers verfügbar. "
-        "Der Peer-Median darf den scoregesteuerten Multiple-Anker zunächst maximal um ±5 % bewegen. "
+        "Der Vergleichsgruppen-Median darf den scoregesteuerten Multiple-Anker zunächst maximal um ±5 % bewegen. "
         "Im anschließenden Equity-Value-Bridge greift zusätzlich ein ±5-%-Fair-Value-Safety-Cap."
     )
     return result
@@ -48748,7 +48751,7 @@ def _calculate_automotive_peer_overlay(peer_group, fundamental_multiple, cache_v
     result["applied"] = True
     result["note"] = (
         "Automotive Comparability Gate bestanden: mindestens 3 voll vergleichbare normalisierte Peers. "
-        "Der Peer-Median darf das scoregesteuerte Ziel-KGV zunächst maximal um ±5 % verändern; im anschließenden "
+        "Der Vergleichsgruppen-Median darf das scoregesteuerte Ziel-KGV zunächst maximal um ±5 % verändern; im anschließenden "
         "Automotive-Fair-Value-Overlay gilt zusätzlich ein ±5-%-Equity-Fair-Value-Safety-Cap und das Downside-only "
         "Industrie-FCF-Gate bleibt wirksam."
     )
@@ -48992,7 +48995,7 @@ def _calculate_semicap_peer_overlay(peer_group, fundamental_multiple, cache_vers
     result["applied"] = True
     result["note"] = (
         "Semicap Comparability Gate bestanden: mindestens 3 voll vergleichbare normalisierte Peers. "
-        "Der Peer-Median darf den scoregesteuerten Ziel-KGV-Anker maximal um ±5 % verändern; im anschließenden "
+        "Der Vergleichsgruppen-Median darf den scoregesteuerten Ziel-KGV-Anker maximal um ±5 % verändern; im anschließenden "
         "Semicap-Fair-Value-Overlay gilt zusätzlich ein ±5-%-Fair-Value-Safety-Cap."
     )
     return result
@@ -49082,7 +49085,7 @@ def _calculate_nvidia_peer_overlay(peer_group, fundamental_multiple, cache_versi
     result.update({"adjustment_pct":adj,"adjusted_multiple":base*(1+adj),"applied":True})
     result["note"]=(
         "NVIDIA Normalized Comparability Gate bestanden: mindestens 3 voll vergleichbare normalisierte AI-Peers. "
-        "Der Peer-Median darf das Ziel-KGV maximal ±5% verändern; der resultierende Fair-Value-Effekt ist unabhängig ebenfalls auf ±5% begrenzt."
+        "Der Vergleichsgruppen-Median darf das Ziel-KGV maximal ±5% verändern; der resultierende Fair-Value-Effekt ist unabhängig ebenfalls auf ±5% begrenzt."
     )
     return result
 
@@ -49306,8 +49309,8 @@ def _calculate_asset_management_peer_reference(peer_group, fundamental_multiple,
         f"Asset-Management Peer Guard {APP_BUILD_VERSION}: Der Median wird nur bei mindestens drei aktiven traditionellen Core-Peers freigegeben. "
         + premium_note
         + "Janus Henderson ist nach dem Take-private vom 30.06.2026 ausgeschlossen. "
-        "Bei weniger als drei brauchbaren Core-Peers bleibt der Peer-Median gesperrt; der 3Y-Historical-Guard darf weiterhin downside-only prüfen. "
-        "Der Peer-Median setzt keinen Fair Value; er dient zusammen mit dem 3Y-Historical-Median nur als Premium-Safety-Guard."
+        "Bei weniger als drei brauchbaren Core-Peers bleibt der Vergleichsgruppen-Median gesperrt; der 3Y-Historical-Guard darf weiterhin downside-only prüfen. "
+        "Der Vergleichsgruppen-Median setzt keinen Fair Value; er dient zusammen mit dem 3Y-Historical-Median nur als Premium-Safety-Guard."
     )
     return result
 
@@ -49343,7 +49346,7 @@ def _calculate_luxury_premium_peer_reference(peer_group, fundamental_multiple, c
     result["note"] = (
         f"Luxury-Family Peer Horizon & Accounting-Basis Lock {APP_BUILD_VERSION} aktiv: Die geladenen Forward-KGVs sind Markt-Referenzen. "
         "Für die Peers werden Current-FY-Horizont und dieselbe Primary-source Owner-Earnings-Basis noch nicht gleichzeitig verifiziert; "
-        "deshalb erfolgt unabhängig von Anzahl oder Median keine automatische Peer-Anpassung."
+        "deshalb erfolgt unabhängig von Anzahl oder Median keine automatische Vergleichsgruppen-Anpassung."
     )
     return result
 
@@ -49418,7 +49421,7 @@ def _calculate_oilfield_services_energy_tech_peer_reference(peer_group, fundamen
         result["peer_median"] = float(pd.Series(vals).median())
     result["note"] = (
         f"Oilfield Services & Energy Technology Peer Lock {APP_BUILD_VERSION}: Forward-KGVs sind reine Markt-Referenzen. "
-        "Der eigene Fair Value verwendet issuer-primary Adjusted-EPS-Brücke und einen profilabhängigen scoregesteuerten Korridor; keine automatische Peer-Anpassung."
+        "Der eigene Fair Value verwendet issuer-primary Adjusted-EPS-Brücke und einen profilabhängigen scoregesteuerten Korridor; keine automatische Vergleichsgruppen-Anpassung."
     )
     return result
 
@@ -49459,7 +49462,7 @@ def _calculate_integrated_oil_gas_peer_reference(peer_group, fundamental_multipl
     result["note"] = (
         f"Integrated Oil & Gas Major Peer Lock {APP_BUILD_VERSION}: Forward-KGVs der anderen Majors sind reine Markt-Referenzen. "
         "Der eigene Fair Value verwendet issuer-spezifische Through-Cycle Adjusted EPS und einen scoregesteuerten Korridor; "
-        "unterschiedliche Commodity-Mixe, LNG-/Refining-/Chemicals-/Power-Anteile, Leverage und Accounting-Basen verhindern jede automatische Peer-Anpassung."
+        "unterschiedliche Commodity-Mixe, LNG-/Refining-/Chemicals-/Power-Anteile, Leverage und Accounting-Basen verhindern jede automatische Vergleichsgruppen-Anpassung."
     )
     return result
 
@@ -49693,7 +49696,7 @@ def _calculate_payments_processor_peer_calibration(peer_group, fundamental_multi
     out["comparability_gate_passed"] = True
     if base_multiple is None or base_multiple <= 0:
         out["reference_only"] = True
-        out["note"] = "Modellbereinigter Peer-Median verfügbar, aber kein belastbares Familien-Ziel-KGV vor Peer-Anpassung als Ausgangsbasis."
+        out["note"] = "Modellbereinigter Vergleichsgruppen-Median verfügbar, aber kein belastbares Familien-Ziel-KGV vor Vergleichsgruppen-Anpassung als Ausgangsbasis."
         return out
 
     raw_gap = median_ratio - 1.0
@@ -49738,7 +49741,7 @@ def _calculate_payments_processor_peer_calibration(peer_group, fundamental_multi
     )
     out["note"] = (
         f"V187 freigegeben: {len(eligible_ratios)} vollständig modellierte Kern-Peers, Median Markt/Modell {median_ratio:.3f}. "
-        f"Ziel-KGV vor Peer-Anpassung {base_multiple:.2f}×; Peer-Faktor {peer_factor:.3f} ({peer_adjustment_pct*100:+.1f} %); "
+        f"Ziel-KGV vor Vergleichsgruppen-Anpassung {base_multiple:.2f}×; Peer-Faktor {peer_factor:.3f} ({peer_adjustment_pct*100:+.1f} %); "
         f"endgültiges Ziel-KGV {final_multiple:.2f}×." + protection_text
     )
     return out
@@ -49944,7 +49947,7 @@ def calculate_peer_check(
         result["note"] = (
             "Weniger als 3 brauchbare Peer-KGVs verfügbar. "
             "Nach unserer Regel erfolgt deshalb keine "
-            "automatische Peer-Anpassung."
+            "automatische Vergleichsgruppen-Anpassung."
         )
 
         if fundamental_multiple is not None:
@@ -49965,7 +49968,7 @@ def calculate_peer_check(
         or fundamental_multiple <= 0
     ):
         result["note"] = (
-            "Peer-Median vorhanden, aber kein belastbares "
+            "Vergleichsgruppen-Median vorhanden, aber kein belastbares "
             "Fundamental-Multiple als Ausgangsbasis."
         )
         return result
@@ -49995,14 +49998,14 @@ def calculate_peer_check(
 
     if abs(raw_difference) <= 0.05:
         result["note"] = (
-            "Der Peer-Median liegt nahe am eigenen "
+            "Der Vergleichsgruppen-Median liegt nahe am eigenen "
             "Fundamental-Multiple. Die tatsächliche "
             "Abweichung wird vollständig berücksichtigt."
         )
     else:
         result["note"] = (
-            "Der Abstand zum Peer-Median ist größer als "
-            "5 %. Die automatische Peer-Anpassung wird "
+            "Der Abstand zum Vergleichsgruppen-Median ist größer als "
+            "5 %. Die automatische Vergleichsgruppen-Anpassung wird "
             "deshalb strikt auf maximal ±5 % begrenzt."
         )
 
@@ -60034,7 +60037,7 @@ def calculate_fair_value_v1(
                 "unit_conversion_applied": bool(unit_notes),
                 "unit_note": " ".join(unit_notes) if unit_notes else None,
                 "note": (
-                    "Aerospace-&-Defense Fair Value V1 = geschütztes 0Y/Current-FY EPS × score-positioniertes Familien-KGV. "
+                    "Aerospace-&-Defense Fair Value V1 = geschütztes 0Y/Current-FY EPS × punktzahlpositioniertes Familien-KGV. "
                     "Generisches Yahoo-Gewinnwachstum, TTM-FCF/Net-Debt-to-FCF, Peer-KGVs und Analystenziele fließen nicht direkt in den Fair Value ein."
                 ),
             })
@@ -61771,8 +61774,8 @@ def calculate_fair_value_v1(
             "unit_conversion_applied": bool(unit_notes),
             "unit_note": " ".join(unit_notes) if unit_notes else None,
             "note": (
-                "Exchange Fair Value V1 = issuer-adjusted Current-FY Adjusted/Cash EPS × score-positioniertes Spezial-KGV im stabilen 18–26× Family-Korridor. "
-                "Der verifizierte FY2025 Adjusted-EPS Peer-Median kann das Ziel nur nach unten begrenzen; der H1-2026 Run-Rate-Median bleibt Cycle/Reality-Check. Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV und Analystenziele fließen nicht direkt in den Fair Value ein."
+                "Exchange Fair Value V1 = issuer-adjusted Current-FY Adjusted/Cash EPS × punktzahlpositioniertes Spezial-KGV im stabilen 18–26× Family-Korridor. "
+                "Der verifizierte FY2025 Adjusted-EPS Vergleichsgruppen-Median kann das Ziel nur nach unten begrenzen; der H1-2026 Run-Rate-Median bleibt Cycle/Reality-Check. Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV und Analystenziele fließen nicht direkt in den Fair Value ein."
             ),
         })
         return result
@@ -61848,8 +61851,8 @@ def calculate_fair_value_v1(
             "unit_conversion_applied": bool(unit_notes),
             "unit_note": " ".join(unit_notes) if unit_notes else None,
             "note": (
-                "Capital-Goods Fair Value V1 = issuer-adjusted Current-FY EPS × score-positioniertes Spezial-KGV im stabilen 22–32× Family-Korridor. "
-                "Der Live-Peer-Median kann das Ziel nur nach unten begrenzen, niemals erhöhen. Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV und Analystenziele fließen nicht direkt in den Fair Value ein."
+                "Capital-Goods Fair Value V1 = issuer-adjusted Current-FY EPS × punktzahlpositioniertes Spezial-KGV im stabilen 22–32× Family-Korridor. "
+                "Der Live-Vergleichsgruppen-Median kann das Ziel nur nach unten begrenzen, niemals erhöhen. Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV und Analystenziele fließen nicht direkt in den Fair Value ein."
             ),
         })
         return result
@@ -69583,8 +69586,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     # only after all EPS/margin/growth/ROE gates are released.
     if _v266_tax_trigger:
         if _v266_score_basis_released:
-            growth_score["note"] = (growth_score.get("note") or "") + " V267: Gewinnwachstum stammt aus der diskreten-Steuer-bereinigten Primärquellen-TTM-vs.-TTM-Basis."
-            profitability_score["brake_text"] = "V267: Nettomarge und ROE verwenden dieselbe periodenrein um explizite diskrete Steuer-Sondereffekte bereinigte Primärquellenbasis."
+            growth_score["note"] = (growth_score.get("note") or "") + " Gewinnwachstum stammt aus der diskreten-Steuer-bereinigten Primärquellen-TTM-vs.-TTM-Basis."
+            profitability_score["brake_text"] = "Nettomarge und ROE verwenden dieselbe periodenrein um explizite diskrete Steuer-Sondereffekte bereinigte Primärquellenbasis."
         else:
             growth_score = {**growth_score, "context_score": growth_score.get("score"), "score": None, "note": "V267 Steuer-Sondereffekt-Gate: Wachstum bleibt bis zur vollständigen Same-Basis-Primärquellenbrücke gesperrt."}
             profitability_score = {**profitability_score, "context_score": profitability_score.get("score"), "score": None, "brake_text": "V267 Steuer-Sondereffekt-Gate: Nettomarge und ROE bleiben bis zur vollständigen Same-Basis-Primärquellenbrücke gesperrt."}
@@ -69676,7 +69679,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             },
             "note": (
                 f"{APP_BUILD_VERSION} Zahlungsabwickler-Spezialmodell: Familien-Qualitätspunktzahl + Gewinnbasis des laufenden Geschäftsjahres → 8–30× Familien-Korridor. "
-                "Das Familien-Ziel-KGV vor Peer-Anpassung ist praktisch geprüft und freigegeben. In V187 darf die modellbereinigte Vergleichsgruppe dieses Ziel nach bestandenem 3-Peer-Gate um maximal ±5 % kalibrieren; bestehende Schutzgrenzen bleiben vorrangig."
+                "Das Familien-Ziel-KGV vor Vergleichsgruppen-Anpassung ist praktisch geprüft und freigegeben. In V187 darf die modellbereinigte Vergleichsgruppe dieses Ziel nach bestandenem 3-Peer-Gate um maximal ±5 % kalibrieren; bestehende Schutzgrenzen bleiben vorrangig."
             ),
         }
 
@@ -70291,10 +70294,10 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "note": (
                 "V263: Die normalisierte Ergebnisbasis und die Qualitätspunktzahl sind vollständig freigegeben. "
                 "Die Vergleichsgruppe bleibt dennoch deaktiviert, bis der Media-/Internet-/Platforms-Familienkorridor separat definiert und validiert ist; "
-                "Peer-Median und Peer-Anpassung dürfen diesen fehlenden Familienanker nicht ersetzen."
+                "Vergleichsgruppen-Median und Vergleichsgruppen-Anpassung dürfen diesen fehlenden Familienanker nicht ersetzen."
                 if _v263_quality_released_for_peers else
                 "Non-Operating-Income-Guard aktiv: Eine Vergleichsgruppe kann die noch unvollständig normalisierte Gesamtbewertungsbasis nicht ersetzen. "
-                "Es wird weder ein Peer-Median noch eine Peer-Anpassung zur Freigabe eines Standard-Multiples oder Fair Values verwendet."
+                "Es wird weder ein Vergleichsgruppen-Median noch eine Vergleichsgruppen-Anpassung zur Freigabe eines Standard-Multiples oder Fair Values verwendet."
             ),
         }
 
@@ -70311,16 +70314,17 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "target_corridor_high": safe_float(pp_protection.get("corridor_high")),
         }
 
-    if bool((fundamental_multiple or {}).get("media_internet_corridor_stage_only")):
+    if bool((fundamental_multiple or {}).get("media_internet_family_released")):
         peer_group = {
             **(peer_group or {}),
             "available": False,
             "peers": [],
             "count": 0,
-            "media_internet_v264": True,
+            "media_internet_v269": True,
+            "reference_only": True,
             "note": (
-                "V268 Internet-Platform-Korridor ist zur Live-Validierung freigegeben. Die Peer-Schicht bleibt noch ohne Freigabewirkung; "
-                "zuerst muss ein zweiter geeigneter Emittent denselben Reifegrad-/Score-/Korridorpfad praktisch bestehen."
+                "V269 Internet-Platform-Familie ist nach den Live-Validierungen mit Alphabet und Meta freigegeben. "
+                "Peer-KGVs bleiben Referenz; es gibt keine automatische Vergleichsgruppen-Anpassung des 18–32× Familienkorridors oder des punktzahlpositionierten Ziel-KGVs."
             ),
         }
 
@@ -70335,7 +70339,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         )
     )
 
-    if non_operating_income_guard.get("active"):
+    if non_operating_income_guard.get("active") and not bool((fundamental_multiple or {}).get("media_internet_family_released")):
         _v263_quality_released_for_peer_check = bool(non_operating_income_guard.get("primary_source_quality_score_released"))
         peer_check = {
             **(peer_check or {}),
@@ -70355,7 +70359,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             ),
         }
 
-    if bool((fundamental_multiple or {}).get("media_internet_corridor_stage_only")):
+    if bool((fundamental_multiple or {}).get("media_internet_family_released")):
         peer_check = {
             **(peer_check or {}),
             "method_supported": False,
@@ -70367,8 +70371,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "applied": False,
             "reference_only": True,
             "note": (
-                "V267 Korridor-Livevalidierung: keine automatische Peer-Anpassung. Meta/weitere reife Internet-Plattformen dienen zunächst nur dem unabhängigen Gegentest; "
-                "sie dürfen den 18–32× Familienanker weder erzeugen noch anheben."
+                "V269 Familienfreigabe: Alphabet und Meta haben denselben unveränderten Internet-Platform-Pfad live bestanden. "
+                "Peers bleiben ausschließlich Plausibilitätsreferenz und dürfen das 18–32× Familien-KGV oder das punktzahlpositionierte Ziel-KGV nicht verändern."
             ),
         }
 
@@ -70394,7 +70398,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                     "lower": safe_float(ex_val_fm.get("corridor_low")),
                     "upper": safe_float(ex_val_fm.get("corridor_high")),
                     "method": ex_val_fm.get("valuation_method_name") or "Exchange Current-FY Adjusted/Cash-EPS P/E",
-                    "note": f"{APP_BUILD_VERSION}: 18–26× Exchange-Family-Korridor; Operational Score positioniert das Ziel, verifizierter FY2025 Adjusted-EPS Peer-Median ist ausschließlich downside-only Ceiling; H1-Run-Rate bleibt Cycle/Reality-Check.",
+                    "note": f"{APP_BUILD_VERSION}: 18–26× Exchange-Family-Korridor; Operational Score positioniert das Ziel, verifizierter FY2025 Adjusted-EPS Vergleichsgruppen-Median ist ausschließlich downside-only Ceiling; H1-Run-Rate bleibt Cycle/Reality-Check.",
                 },
                 "note": (
                     f"{APP_BUILD_VERSION} Exchange Specialist: Structural Growth, Operating Leverage, Mix/Resilience, Revenue Quality/Normalization, Earnings Quality, Capital Allocation und Structure bestimmen den 100-Punkte-Qualitätsscore. "
@@ -70440,7 +70444,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                     "lower": safe_float(cg_val_fm.get("corridor_low")),
                     "upper": safe_float(cg_val_fm.get("corridor_high")),
                     "method": cg_val_fm.get("valuation_method_name") or "Capital Goods Current-FY Adjusted/pre-PPA P/E",
-                    "note": f"{APP_BUILD_VERSION}: 22–32× Capital-Goods Family-Korridor; Operational Score positioniert das Ziel, Peer-Median ist ausschließlich downside-only Ceiling/Reality-Check.",
+                    "note": f"{APP_BUILD_VERSION}: 22–32× Capital-Goods Family-Korridor; Operational Score positioniert das Ziel, Vergleichsgruppen-Median ist ausschließlich downside-only Ceiling/Reality-Check.",
                 },
                 "note": (
                     f"{APP_BUILD_VERSION} Capital-Goods Specialist: issuer-native Demand/Visibility, Growth, Margin/ROCE, Cash Conversion, Balance, Capital Allocation und Earnings/Structure bestimmen den 100-Punkte-Qualitätsscore. "
@@ -70475,7 +70479,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         fundamental_multiple = {
             **fundamental_multiple,
             "multiple": safe_float(of_val_peer.get("target_multiple")),
-            "note": (fundamental_multiple.get("note") or "") + " Oilfield/Energy-Tech-Peer-Lock geprüft; keine automatische Peer-Anpassung.",
+            "note": (fundamental_multiple.get("note") or "") + " Oilfield/Energy-Tech-Peer-Lock geprüft; keine automatische Vergleichsgruppen-Anpassung.",
         }
 
     if integrated_oil_gas_specialist_model.get("applicable"):
@@ -70486,7 +70490,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         fundamental_multiple = {
             **fundamental_multiple,
             "multiple": safe_float(oil_val_peer.get("target_multiple")),
-            "note": (fundamental_multiple.get("note") or "") + " Integrated-Major-Peer-Lock geprüft; keine automatische Peer-Anpassung.",
+            "note": (fundamental_multiple.get("note") or "") + " Integrated-Major-Peer-Lock geprüft; keine automatische Vergleichsgruppen-Anpassung.",
         }
 
     if branded_consumer_staples_specialist_model.get("applicable"):
@@ -70497,7 +70501,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         fundamental_multiple = {
             **fundamental_multiple,
             "multiple": safe_float(bcs_val_peer.get("target_multiple")),
-            "note": (fundamental_multiple.get("note") or "") + " Branded-Staples-Peer-Lock geprüft; keine automatische Peer-Anpassung.",
+            "note": (fundamental_multiple.get("note") or "") + " Branded-Staples-Peer-Lock geprüft; keine automatische Vergleichsgruppen-Anpassung.",
         }
 
     # V2.20.109 – Asset-management peer/historical guard must run only AFTER
@@ -70533,7 +70537,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         fundamental_multiple = {
             **fundamental_multiple,
             "multiple": safe_float(df_val_peer.get("target_multiple")),
-            "note": (fundamental_multiple.get("note") or "") + " Defense-Peer-Lock geprüft; keine automatische Peer-Anpassung.",
+            "note": (fundamental_multiple.get("note") or "") + " Defense-Peer-Lock geprüft; keine automatische Vergleichsgruppen-Anpassung.",
         }
 
     if midstream_special_model.get("applicable"):
@@ -70547,7 +70551,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "multiple": safe_float(mv_peer.get("target_ev_adjusted_ebitda")),
             "note": (
                 "Midstream verwendet den issuer-spezifischen 100-Punkte-Quality-Score als Fundamentalaner. "
-                "V2.20.133 hält Midstream-Peers reference-only; es gibt keine automatische Peer-Anpassung."
+                "V2.20.133 hält Midstream-Peers reference-only; es gibt keine automatische Vergleichsgruppen-Anpassung."
             ),
         }
 
@@ -70578,7 +70582,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "multiple": safe_float(sv_peer.get("target_pe")),
             "note": (
                 f"{APP_BUILD_VERSION} Semiconductor Equipment: Die horizon-validierte NTM-/Current-FY-Fallback-Basis liefert die Earnings-Basis und der Familien-Score den Fundamentalaner. "
-                "Peer-KGVs bleiben Reference-only; keine automatische Peer-Anpassung."
+                "Peer-KGVs bleiben Reference-only; keine automatische Vergleichsgruppen-Anpassung."
             ),
         }
 
@@ -70847,7 +70851,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "multiple": safe_float(media_internet_platform_v264.get("target_multiple")),
                 "available": True,
                 "earnings_basis_usable": True,
-                "media_internet_corridor_stage_only": True,
+                "media_internet_corridor_stage_only": False,
+                "media_internet_family_released": True,
                 "media_internet_platform_v264": media_internet_platform_v264,
                 "note": media_internet_platform_v264.get("note"),
             }
@@ -70855,8 +70860,9 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 non_operating_income_guard = {
                     **non_operating_income_guard,
                     "media_internet_family_corridor_released": True,
-                    "family_valuation_pending": True,
-                    "family_corridor_stage": "corridor_only_live_validation",
+                    "media_internet_family_model_released": True,
+                    "family_valuation_pending": False,
+                    "family_corridor_stage": "multi_issuer_family_released",
                 }
         else:
             fundamental_multiple = {
@@ -70864,7 +70870,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 "score": safe_float(media_internet_platform_v264.get("score")),
                 "multiple": None,
                 "available": False,
-                "media_internet_corridor_stage_only": True,
+                "media_internet_corridor_stage_only": False,
+                "media_internet_family_released": False,
                 "media_internet_platform_v264": media_internet_platform_v264,
                 "note": media_internet_platform_v264.get("reason"),
             }
@@ -70877,17 +70884,28 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     )
     if _v266_tax_trigger:
         if _v266_tax_released:
+            _v269_tax_family_released = bool((fundamental_multiple or {}).get("media_internet_family_released"))
             special_event_warning = {
                 "level": "Gelb", "icon": "🟡",
-                "title": "Diskreter Steuer-Sondereffekt primärquellenbasiert normalisiert",
+                "title": (
+                    "Diskreter Steuer-Sondereffekt normalisiert – Familienbewertung freigegeben"
+                    if _v269_tax_family_released else
+                    "Diskreter Steuer-Sondereffekt primärquellenbasiert normalisiert"
+                ),
                 "requires_research": False, "valuation_usable": True,
+                "family_model_released": bool(_v269_tax_family_released),
+                "family_corridor_released": bool(_v269_tax_family_released),
                 "reason": (
-                    "V267 hat den ausdrücklich quantifizierten diskreten Steuer-Sondereffekt periodenrein neutralisiert. "
+                    "Die Primärquellen-Normalisierung hat den ausdrücklich quantifizierten diskreten Steuer-Sondereffekt periodenrein neutralisiert. "
                     f"Normalisiertes TTM-Gewinnwachstum {safe_float(_v266_primary.get('normalized_ttm_earnings_growth'))*100:.1f} %, "
                     f"TTM-Nettomarge {safe_float(_v266_primary.get('normalized_ttm_net_margin'))*100:.1f} % und ROE {safe_float(_v266_primary.get('normalized_common_roe'))*100:.1f} %. "
                     "Rechts-/Abfindungs- oder andere operative Kosten wurden nicht bereinigt."
                 ),
-                "action": "Ergebnisvergleichbarkeit ist freigegeben; die Internet-Platform-Familienvalidierung bleibt als separater Bewertungsschritt maßgeblich.",
+                "action": (
+                    "Ergebnisvergleichbarkeit und Internet-Platform-Familienmodell sind freigegeben; Fair Value, Bewertungszone und Signal folgen aus dem validierten Familienpfad."
+                    if _v269_tax_family_released else
+                    "Ergebnisvergleichbarkeit ist freigegeben; die Familienbewertung bleibt separat zu prüfen."
+                ),
             }
         else:
             special_event_warning = {
@@ -71048,7 +71066,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                 ),
                 "action": (
                     "Kein generisches KGV verwenden. Current-FY Non-GAAP-EPS Bridge, Dual-Anchor CME/ICE/Cboe Peer Gate und der 18–26× Exchange-Family-Korridor sind freigegeben. "
-                    "Nasdaq wird ausschließlich über die Specialist Bridge × score-positioniertes Family-KGV bewertet; der verifizierte FY2025-Peer-Median wirkt downside-only und die H1-2026-Run-Rate bleibt Cycle-/Reality-Kontext."
+                    "Nasdaq wird ausschließlich über die Specialist Bridge × punktzahlpositioniertes Family-KGV bewertet; der verifizierte FY2025-Vergleichsgruppen-Median wirkt downside-only und die H1-2026-Run-Rate bleibt Cycle-/Reality-Kontext."
                 ),
                 "family_model_gate": True,
                 "transaction_guard": False,
@@ -71087,7 +71105,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                     "Die angekündigte Cognite-Übernahme bleibt ein Capital-Allocation/Leverage- und Confidence-Guard, nicht ein EPS-Structural-Break."
                 ),
                 "action": (
-                    "Kein generisches KGV verwenden. Der Schneider-Fair-Value darf ausschließlich aus issuer-adjusted FY2026 EPS × score-positioniertem Family-KGV entstehen; der Peer-Median darf nur downside-only begrenzen und Analystenziele bleiben Reality Check."
+                    "Kein generisches KGV verwenden. Der Schneider-Fair-Value darf ausschließlich aus issuer-adjusted FY2026 EPS × punktzahlpositioniertem Family-KGV entstehen; der Vergleichsgruppen-Median darf nur downside-only begrenzen und Analystenziele bleiben Reality Check."
                 ),
                 "family_model_gate": True,
                 "second_issuer_validation": True,
@@ -71104,7 +71122,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                     "Robotics-Verkauf und Rotork-Übernahme bleiben Kapitalallokations-/Verschuldungs- und Sicherheits-Schutz, nicht ein SOTP-Strukturbruch."
                 ),
                 "action": (
-                    "Kein generisches KGV verwenden. Der ABB-Fair-Value darf ausschließlich aus der Cross-Currency-geschützten Current-FY Gewinnbasis × score-positioniertem 22–32× Familien-KGV entstehen; der Peer-Median darf nur nach unten begrenzen und Analystenziele bleiben Plausibilitätscheck."
+                    "Kein generisches KGV verwenden. Der ABB-Fair-Value darf ausschließlich aus der Cross-Currency-geschützten Current-FY Gewinnbasis × punktzahlpositioniertem 22–32× Familien-KGV entstehen; der Vergleichsgruppen-Median darf nur nach unten begrenzen und Analystenziele bleiben Plausibilitätscheck."
                 ),
                 "family_model_gate": True,
                 "third_issuer_validation": True,
@@ -71801,35 +71819,41 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         _v255_eps_only_released = bool(non_operating_income_guard.get("primary_source_eps_normalization_released"))
         _v263_quality_released = bool(non_operating_income_guard.get("primary_source_quality_score_released"))
         if _v263_quality_released:
+            _v269_media_family_released = bool(non_operating_income_guard.get("media_internet_family_model_released"))
             special_event_warning = {
                 "level": "Gelb",
                 "icon": "🟡",
                 "title": (
-                    "Nicht-operative Ergebnisverzerrung normalisiert – Familien-KGV im Live-Gegentest"
-                    if bool(non_operating_income_guard.get("media_internet_family_corridor_released"))
-                    else "Nicht-operative Ergebnisverzerrung normalisiert – Familienbewertung noch offen"
+                    "Nicht-operative Ergebnisverzerrung normalisiert – Familienbewertung freigegeben"
+                    if _v269_media_family_released
+                    else ("Nicht-operative Ergebnisverzerrung normalisiert – Familien-KGV in Validierung"
+                          if bool(non_operating_income_guard.get("media_internet_family_corridor_released"))
+                          else "Nicht-operative Ergebnisverzerrung normalisiert – Familienbewertung noch offen")
                 ),
                 "requires_research": False,
-                "valuation_usable": False,
+                "valuation_usable": bool(_v269_media_family_released),
                 "reason": (
                     f"Die rohe GAAP-Basis bleibt durch den nicht-operativen Effekt verzerrt (TTM-Nettogewinn / TTM-operatives Ergebnis {_noi_ratio:.2f}×; "
-                    f"Netto-vs.-operativ-Differenz {_noi_gap:.1f} % des Umsatzes). V263 verwendet deshalb weiterhin nicht die rohen GAAP-Ergebniskennzahlen. "
-                    "EPS, Nettomarge, TTM-Gewinnwachstum und Common-ROE sind jedoch primärquellenbasiert normalisiert und die 100-Punkte-Qualitätspunktzahl ist freigegeben."
+                    f"Netto-vs.-operativ-Differenz {_noi_gap:.1f} % des Umsatzes). Die Bewertung verwendet deshalb weiterhin nicht die rohen GAAP-Ergebniskennzahlen. "
+                    "EPS, Nettomarge, TTM-Gewinnwachstum und Common-ROE sind primärquellenbasiert normalisiert und der 100-Punkte-Qualitätsscore ist freigegeben."
                 ),
                 "action": (
+                    "V269: Ergebnisvergleichbarkeit und 18–32× Internet-Platform-Familienmodell sind nach Alphabet- und Meta-Livevalidierung freigegeben; "
+                    "Fair Value, Bewertungszonen und Handlungssignale dürfen ausschließlich auf der normalisierten TTM-Basis und dem unveränderten Familien-KGV aufbauen."
+                    if _v269_media_family_released else
                     (
-                        "Die Ergebnisvergleichbarkeit ist geklärt und V264 hat den 18–32× Internet-Platform-KGV-Korridor samt score-positioniertem Ziel-KGV freigegeben. "
-                        "Als nächster Schritt muss ein zweiter reifer Internet-Platform-Emittent denselben Pfad live bestehen; Fair Value, Bewertungszonen und Handlungssignal bleiben bis dahin gesperrt."
+                        "Die Ergebnisvergleichbarkeit ist geklärt und der 18–32× Internet-Platform-KGV-Korridor samt punktzahlpositioniertem Ziel-KGV ist freigegeben. "
+                        "Die nachgelagerte Familienvalidierung ist noch offen."
                     )
                     if bool(non_operating_income_guard.get("media_internet_family_corridor_released"))
                     else
-                    "Die Ergebnisvergleichbarkeit ist geklärt. Als nächster, davon getrennter Schritt muss der Media-/Internet-/Platforms-Bewertungskorridor validiert werden. "
-                    "Bis dahin bleiben KGV, Fair Value, Bewertungszonen und Handlungssignal gesperrt."
+                    "Die Ergebnisvergleichbarkeit ist geklärt; die Familienbewertung bleibt bis zur separaten Korridorvalidierung gesperrt."
                 ),
                 "non_operating_income_distortion_gate": True,
                 "non_operating_income_normalized": True,
-                "family_valuation_pending": True,
+                "family_valuation_pending": not bool(_v269_media_family_released),
                 "family_corridor_released": bool(non_operating_income_guard.get("media_internet_family_corridor_released")),
+                "family_model_released": bool(_v269_media_family_released),
             }
         else:
             special_event_warning = {
@@ -71875,7 +71899,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         currency_context
     )
 
-    if non_operating_income_guard.get("active"):
+    if non_operating_income_guard.get("active") and not bool((fundamental_multiple or {}).get("media_internet_family_released")):
         _v255_eps_only_released = bool(non_operating_income_guard.get("primary_source_eps_normalization_released"))
         fair_value = {
             **(fair_value or {}),
@@ -71904,7 +71928,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             ),
         }
 
-    if bool((fundamental_multiple or {}).get("media_internet_corridor_stage_only")):
+    if bool((fundamental_multiple or {}).get("media_internet_corridor_stage_only")) and not bool((fundamental_multiple or {}).get("media_internet_family_released")):
         fair_value = {
             **(fair_value or {}),
             "available": False,
@@ -71916,10 +71940,22 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "potential_pct": None,
             "valuation_method": None,
             "note": (
-                "Fair Value V1 bewusst noch gesperrt: V267 hat ausschließlich den 18–32× Internet-Platform-Familienkorridor und das score-positionierte Ziel-KGV zur Live-Validierung freigegeben. "
-                "Ein zweiter geeigneter Internet-Platform-Emittent muss denselben Reifegrad-/Korridorpfad praktisch bestehen, bevor Fair Value, Bewertungszonen oder Signale freigegeben werden."
+                "Fair Value V1 bleibt nur gesperrt, solange der Internet-Platform-Familienpfad nicht vollständig freigegeben ist."
             ),
         }
+
+    if bool((fundamental_multiple or {}).get("media_internet_family_released")) and fair_value.get("available"):
+        fair_value.update({
+            "valuation_method": "media_internet_platform_normalized_ttm_pe",
+            "multiple_source": "V269 Internet-Platform 18–32× Familien-KGV · punktzahlpositioniert · Peer-adjustment-free",
+            "family_corridor_low": safe_float(((fundamental_multiple or {}).get("corridor") or {}).get("lower")),
+            "family_corridor_high": safe_float(((fundamental_multiple or {}).get("corridor") or {}).get("upper")),
+            "media_internet_family_released": True,
+            "note": (
+                "V269 Internet-Platform Fair Value = primärquellen-/same-basis normalisiertes TTM-EPS × punktzahlpositioniertes Ziel-KGV im live validierten 18–32× Familienkorridor. "
+                "Alphabet und Meta haben denselben Familienvertrag bestanden. Peer-KGVs, Analystenziele und historische Durchschnitts-KGVs verändern den Fair Value nicht."
+            ),
+        })
 
     if (
         payments_processor_foundation_model.get("applicable")
@@ -71957,7 +71993,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             "analyst_target_anchor_used": False,
             "note": (
                 "Zahlungsabwickler Fairer Wert V187 = freigegebene Familien-Gewinnbasis des laufenden Geschäftsjahres × endgültiges Ziel-KGV. "
-                "Das Ziel-KGV vor Peer-Anpassung stammt ausschließlich aus dem Familienmodell. Nach bestandenem 3-Peer-Gate kalibriert der Median der Markt/Modell-Verhältnisse dieses Ziel um höchstens ±5 %; "
+                "Das Ziel-KGV vor Vergleichsgruppen-Anpassung stammt ausschließlich aus dem Familienmodell. Nach bestandenem 3-Peer-Gate kalibriert der Median der Markt/Modell-Verhältnisse dieses Ziel um höchstens ±5 %; "
                 "danach werden Familien-Korridor und bestehende issuer-spezifische Schutzgrenzen erneut vorrangig angewendet. Historische Durchschnitts-KGVs und Analystenziele bleiben reine Vergleichsschichten."
             ),
         })
@@ -72828,9 +72864,9 @@ if selected_symbol:
                     if pp_multiple_compact.get("guard_applied") and guard_cap_compact is not None:
                         path_parts.append(f"Schutzgrenze {guard_cap_compact:.2f}×")
                     if compact_peer_released and compact_target_multiple_before_peer is not None:
-                        path_parts.append(f"Ziel-KGV vor Peer-Anpassung {compact_target_multiple_before_peer:.2f}×")
+                        path_parts.append(f"Ziel-KGV vor Vergleichsgruppen-Anpassung {compact_target_multiple_before_peer:.2f}×")
                         if compact_peer_adjustment_pct is not None:
-                            path_parts.append(f"Peer-Anpassung {compact_peer_adjustment_pct * 100:+.1f} %")
+                            path_parts.append(f"Vergleichsgruppen-Anpassung {compact_peer_adjustment_pct * 100:+.1f} %")
                     if compact_target_multiple is not None:
                         path_parts.append(f"Ziel-KGV {compact_target_multiple:.2f}×")
                     if compact_fair is not None:
@@ -74376,7 +74412,7 @@ if selected_symbol:
                         _v266_margin_ui = safe_float(_v266_tax_ui.get("normalized_ttm_net_margin"))
                         _v266_roe_ui = safe_float(_v266_tax_ui.get("normalized_common_roe"))
                         st.info(
-                            "🧮 **V267 diskreter Steuer-Sondereffekt · gleiche Ergebnisbasis:** "
+                            "🧮 **Primärquellen-Normalisierung diskreter Steuer-Sondereffekt · gleiche Ergebnisbasis:** "
                             f"normalisiertes TTM-Gewinnwachstum **{_v266_growth_ui*100:.1f} %** · "
                             f"normalisierte TTM-Nettomarge **{_v266_margin_ui*100:.1f} %** · "
                             f"normalisierter ROE **{_v266_roe_ui*100:.1f} %**. "
@@ -74961,7 +74997,7 @@ if selected_symbol:
                             st.info(
                                 f"Standard-EPS-Normalisierung: **nur Diagnosekontext** · Universelle Familien-Zuordnung {APP_BUILD_VERSION}: "
                                 "Familien-Qualitätspunktzahl V1, Familien-Gewinnbasis des laufenden Geschäftsjahres V1 und der 8–30× Familien-KGV-Korridor sind freigegeben. "
-                                "Die Standard-EPS-Normalisierung bleibt ausgeschlossen; Ziel-KGV vor Peer-Anpassung, modellbereinigte Vergleichsgruppen-Kalibrierung V187, fairer Wert, Bewertungszonen V1 und Zahlungsabwickler-Signal-Logik V1 sind freigegeben."
+                                "Die Standard-EPS-Normalisierung bleibt ausgeschlossen; Ziel-KGV vor Vergleichsgruppen-Anpassung, modellbereinigte Vergleichsgruppen-Kalibrierung V187, fairer Wert, Bewertungszonen V1 und Zahlungsabwickler-Signal-Logik V1 sind freigegeben."
                             )
                         else:
                             st.info(
@@ -75428,7 +75464,7 @@ if selected_symbol:
                     elif str(data.get("symbol") or "").upper() == "KTOS":
                         st.caption(
                             "Das Standard-normalisierte EPS ist bei Kratos in V2.20.72 ausschließlich Kontext. Q2/H1 GAAP-/Adjusted-EPS und die einzelnen Addbacks werden im Primary-Source Owner-Operating Earnings Gate getrennt. "
-                            "Bis eine eigene operative Kratos-Earnings-Basis freigegeben ist, steuert dieses Standard-EPS weder Peer-Anpassung noch Fair Value."
+                            "Bis eine eigene operative Kratos-Earnings-Basis freigegeben ist, steuert dieses Standard-EPS weder Vergleichsgruppen-Anpassung noch Fair Value."
                         )
                     elif is_semicap_family_company_type(company_type):
                         st.caption(
@@ -75548,17 +75584,17 @@ if selected_symbol:
                                         and _v261_guard_caption_ui.get("roe_same_basis_released")):
                                         st.caption(
                                             (
-                                                "V264 Status: TTM-EPS, TTM-Nettomarge, TTM-Gewinnwachstum und Common-ROE sind primärquellenbasiert auf derselben Ergebnisbasis normalisiert; "
-                                                "die 100-Punkte-Qualitätspunktzahl sowie der 18–32× Internet-Platform-Familienkorridor und das score-positionierte Ziel-KGV sind freigegeben. "
-                                                "Fair Value, Bewertungszonen und Signal bleiben bis zum zweiten Live-Emittenten-Gegentest gesperrt."
-                                                if bool((data.get("non_operating_income_guard") or {}).get("media_internet_family_corridor_released")) else
-                                                "V264 Status: TTM-EPS, TTM-Nettomarge, TTM-Gewinnwachstum und Common-ROE sind primärquellenbasiert auf derselben Ergebnisbasis normalisiert; "
-                                                "die 100-Punkte-Qualitätspunktzahl ist freigegeben. KGV, fairer Wert und Signal bleiben bis zur Familien-Korridorprüfung gesperrt."
+                                                "V269 Status: TTM-EPS, TTM-Nettomarge, TTM-Gewinnwachstum und Common-ROE sind primärquellenbasiert auf derselben Ergebnisbasis normalisiert; "
+                                                "Qualitätsscore, 18–32× Internet-Platform-Familienkorridor und punktzahlpositioniertes Ziel-KGV sind freigegeben. "
+                                                "Nach bestandener Alphabet-/Meta-Livevalidierung sind Fair Value, Bewertungszonen und Signal ebenfalls freigegeben."
+                                                if bool((data.get("non_operating_income_guard") or {}).get("media_internet_family_model_released")) else
+                                                "Status: TTM-EPS, TTM-Nettomarge, TTM-Gewinnwachstum und Common-ROE sind primärquellenbasiert auf derselben Ergebnisbasis normalisiert; "
+                                                "der 100-Punkte-Qualitätsscore ist freigegeben. KGV, fairer Wert und Signal bleiben bis zur Familien-Korridorprüfung gesperrt."
                                             )
                                         )
                                     elif _v261_guard_caption_ui.get("same_basis_profitability_released") and _v261_guard_caption_ui.get("same_basis_growth_released"):
                                         st.caption(
-                                            "V264 Status: TTM-EPS, TTM-Nettomarge und TTM-Gewinnwachstum sind normalisiert; Common-ROE und Qualitätspunktzahl sind noch nicht vollständig freigegeben. "
+                                            "Status: TTM-EPS, TTM-Nettomarge und TTM-Gewinnwachstum sind normalisiert; Common-ROE und Qualitätsscore sind noch nicht vollständig freigegeben. "
                                             "KGV, fairer Wert und Signal bleiben gesperrt."
                                         )
                                     else:
@@ -78820,7 +78856,7 @@ if selected_symbol:
                         st.info(
                             "V2.20.57 trennt EPS-Basis, Quality-Multiple, Industrie-FCF-Plausibilitätsgate und Peer-Comparability. "
                             "Yahoo-Forward-KGVs bleiben ohne mindestens 3 voll vergleichbare cycle-normalisierte Peers reine Referenz. "
-                            "Eine spätere Peer-Anpassung ist auf ±5 % beim Multiple und Fair Value begrenzt; das FCF-Gate bleibt Downside-only."
+                            "Eine spätere Vergleichsgruppen-Anpassung ist auf ±5 % beim Multiple und Fair Value begrenzt; das FCF-Gate bleibt Downside-only."
                         )
                         st.caption(auto_model.get("note"))
 
@@ -79609,7 +79645,7 @@ if selected_symbol:
                         st.caption(
                             "Yahoo-EV/EBITDA bleibt außerhalb der Kernbewertung. Schritt 2B zeigt generische Peer-Werte "
                             "ausschließlich als Markt-/Plausibilitätsreferenz. In V2.20.133 gibt es für Midstream keine "
-                            "automatische Peer-Anpassung; Peer-Median, Zielmultiple und Fair Value bleiben strikt getrennt."
+                            "automatische Vergleichsgruppen-Anpassung; Vergleichsgruppen-Median, Zielmultiple und Fair Value bleiben strikt getrennt."
                         )
                     elif is_reit_valuation_ui:
                         reit_model_m6 = data.get("reit_special_model") or {}
@@ -79743,7 +79779,7 @@ if selected_symbol:
                                     )
                                 st.caption(
                                     "Schritt 1 zeigt ausschließlich das aus Exchange Operational Score und 18–26× Family-Korridor abgeleitete Roh-KGV. "
-                                    "Der FY2025 Full-Year-Peer-Median wird erst in Schritt 2B als downside-only Ceiling geprüft; das verwendete Ziel-KGV entsteht erst danach."
+                                    "Der FY2025 Full-Year-Vergleichsgruppen-Median wird erst in Schritt 2B als downside-only Ceiling geprüft; das verwendete Ziel-KGV entsteht erst danach."
                                 )
                             elif bool((data.get("payment_network_specialist_model") or {}).get("applicable")):
                                 pn_val_step1 = (data.get("payment_network_specialist_model") or {}).get("specialist_valuation") or {}
@@ -79917,7 +79953,7 @@ if selected_symbol:
                             st.warning(
                                 "Weniger als 3 vorgesehene Peers. "
                                 "Damit wäre später keine automatische "
-                                "Peer-Anpassung zulässig."
+                                "Vergleichsgruppen-Anpassung zulässig."
                             )
 
                     else:
@@ -79930,16 +79966,15 @@ if selected_symbol:
                                 "ohne bestandenes Datengate bleibt das Familien-Ziel-KGV unverändert."
                             )
                         else:
-                            if bool((data.get("non_operating_income_guard") or {}).get("active")):
-                                if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
-                                    st.info(
-                                        "V267 Korridor-Livevalidierung: Der 18–32× Internet-Platform-Familienkorridor und das score-positionierte Ziel-KGV sind freigegeben. "
-                                        "Die Vergleichsgruppe bleibt bis zum zweiten Live-Emittenten-Gegentest ohne Bewertungswirkung."
-                                    )
-                                else:
-                                    st.info(
-                                        "Vergleichsgruppe während der Schutzregel deaktiviert; sie kann die gesperrte normalisierte Score-/Ergebnisbasis nicht ersetzen."
-                                    )
+                            if bool((data.get("fundamental_multiple") or {}).get("media_internet_family_released")):
+                                st.info(
+                                    "V269 Familienfreigabe: Alphabet und Meta haben den unveränderten Internet-Platform-Pfad live validiert. "
+                                    "Es gibt keine automatische Vergleichsgruppen-Anpassung; Peer-KGVs bleiben reine Plausibilitätsreferenz."
+                                )
+                            elif bool((data.get("non_operating_income_guard") or {}).get("active")):
+                                st.info(
+                                    "Vergleichsgruppe während der Schutzregel deaktiviert; sie kann eine gesperrte normalisierte Ergebnisbasis nicht ersetzen."
+                                )
                             else:
                                 st.info(
                                     "Noch keine automatische Peer-Gruppe "
@@ -79966,7 +80001,7 @@ if selected_symbol:
                         st.caption(
                             "Schritt 2A verändert weder Branded-Consumer-Staples Quality Score noch Fundamental-Multiple. "
                             "Die Family-Peers werden ausschließlich als Markt-Referenz geladen; es gibt keine Mindestanzahl als "
-                            "Fair-Value-Gate, keine automatische Peer-Anpassung und keinen Peer-bedingten Confidence-Abzug."
+                            "Fair-Value-Gate, keine automatische Vergleichsgruppen-Anpassung und keinen Peer-bedingten Confidence-Abzug."
                         )
                     elif peer_group.get("peer_model") == "luxury_premium_reference_v1":
                         st.caption(
@@ -79977,12 +80012,12 @@ if selected_symbol:
                     elif peer_group.get("peer_model") == "oilfield_services_energy_tech_reference_v1":
                         st.caption(
                             "Schritt 2A verändert weder Oilfield/Energy-Tech Quality Score noch Ziel-KGV. "
-                            "SLB/HAL/FTI/BKR werden ausschließlich als reference-only Marktvergleich geladen; keine automatische Peer-Anpassung und kein Peer-bedingter Confidence-Abzug."
+                            "SLB/HAL/FTI/BKR werden ausschließlich als reference-only Marktvergleich geladen; keine automatische Vergleichsgruppen-Anpassung und kein Peer-bedingter Confidence-Abzug."
                         )
                     elif peer_group.get("peer_model") == "exchange_adjusted_eps_runrate_reference_v1":
                         st.caption(
                             "Schritt 2A lädt CME, ICE und Cboe mit issuer-primary FY2025 Adjusted EPS plus Q1+Q2-2026 Adjusted EPS. "
-                            "FY2025 bildet den verifizierten Volljahres-/Trailing-Anker; H1 2026 bleibt ausschließlich Run-Rate/Cycle-Check. Der spätere Peer-Median darf bei vollständig freigegebenen Exchange-Profilen ein score-basiertes Ziel nur downside-only begrenzen; bei issuer-spezifischem Guard bleibt er reine Referenz."
+                            "FY2025 bildet den verifizierten Volljahres-/Trailing-Anker; H1 2026 bleibt ausschließlich Run-Rate/Cycle-Check. Der spätere Vergleichsgruppen-Median darf bei vollständig freigegebenen Exchange-Profilen ein score-basiertes Ziel nur downside-only begrenzen; bei issuer-spezifischem Guard bleibt er reine Referenz."
                         )
                     elif peer_group.get("peer_model") == "capital_goods_adjusted_eps_reference_v1":
                         st.caption(
@@ -80012,7 +80047,7 @@ if selected_symbol:
                             ps_peer_profile_ui = ps_peer_snap_ui.get("specialist_profile_key") or "network_licence_platform"
                             st.caption(
                                 f"Professional & Business Services {APP_BUILD_VERSION}: Im Multi-Issuer Specialist V2 ist noch keine automatische Peer-Gruppe freigegeben. "
-                                "Score, 9–18×-Korridor, Liquidity Guard und Fair Value bleiben vollständig issuer-primary; es gibt keine ±5-%-Peer-Anpassung. "
+                                "Score, 9–18×-Korridor, Liquidity Guard und Fair Value bleiben vollständig issuer-primary; es gibt keine ±5-%-Vergleichsgruppen-Anpassung. "
                                 + ("FRP verwendet sein eigenes Partner-led-Advisory-Profil; DSW-Lizenz-/Plattformmetriken werden nicht übertragen." if ps_peer_profile_ui == "partner_led_advisory" else "DSW verwendet sein eigenes Network/Licence-Platform-Profil.")
                             )
                         else:
@@ -80021,20 +80056,18 @@ if selected_symbol:
                                 "Es gibt weder Peer-Gate noch übertragenen DSW-Korridor; Spezialscore, Ziel-KGV und Fair Value bleiben fail-closed."
                             )
                     else:
-                        if bool((data.get("non_operating_income_guard") or {}).get("active")):
-                            if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
-                                st.caption(
-                                    "Schritt 2A ist in V267 ein reiner Live-Gegentest. Der Familienkorridor und das Ziel-KGV stehen bereits fest; Peers dürfen sie weder erzeugen noch anheben und geben noch keinen fairen Wert frei."
-                                )
-                            else:
-                                st.caption(
-                                    "Schritt 2A ist während der Schutzregel vollständig nachgeordnet. Es wird keine Vergleichsgruppe zur Freigabe von Score, "
-                                    "Standard-Multiple oder fairem Wert verwendet."
-                                )
+                        if bool((data.get("fundamental_multiple") or {}).get("media_internet_family_released")):
+                            st.caption(
+                                "V269 Schritt 2A: Die Vergleichsgruppe ist reine Referenz. Familienkorridor, Ziel-KGV und Fair Value sind unabhängig davon freigegeben; Peers dürfen das Multiple nicht verändern."
+                            )
+                        elif bool((data.get("non_operating_income_guard") or {}).get("active")):
+                            st.caption(
+                                "Schritt 2A ist während der Schutzregel vollständig nachgeordnet. Es wird keine Vergleichsgruppe zur Freigabe von Score, Standard-Multiple oder fairem Wert verwendet."
+                            )
                         else:
                             st.caption(
                                 "Schritt 2A verändert weder Multiple Score "
-                                "noch Fundamental-Multiple. Peer-Median und "
+                                "noch Fundamental-Multiple. Vergleichsgruppen-Median und "
                                 "maximale ±5-%-Anpassung folgen erst nach "
                                 "Prüfung der tatsächlichen Peer-Daten."
                             )
@@ -80271,7 +80304,7 @@ if selected_symbol:
                             else:
                                 st.warning("Exchange H1-2026 Run-Rate/Cycle-Set unvollständig.")
                             if peer_check.get("dual_anchor_gate_passed"):
-                                st.success("Exchange Dual-Anchor Gate bestanden: der stabile 18–26× Family-Korridor kann für freigegebene Profile angewendet werden. FY2025-Peer-Median wirkt ausschließlich downside-only; H1-Run-Rate bleibt Cycle-/Reality-Check.")
+                                st.success("Exchange Dual-Anchor Gate bestanden: der stabile 18–26× Family-Korridor kann für freigegebene Profile angewendet werden. FY2025-Vergleichsgruppen-Median wirkt ausschließlich downside-only; H1-Run-Rate bleibt Cycle-/Reality-Check.")
                             else:
                                 st.warning("Exchange Dual-Anchor Gate nicht bestanden: Family-Multiple und Fair Value bleiben gesperrt.")
 
@@ -80290,11 +80323,11 @@ if selected_symbol:
                                     f"{peer_check.get('basis_comparable_count', 0)}"
                                 )
                             if is_semicap_peer_metric:
-                                st.write("**Automatische Peer-Anpassung:** deaktiviert · Reference-only")
-                                st.info(f"{APP_BUILD_VERSION} Peer-Lock: Unterschiedliche Tool-Mixe, Fiscal-Year-Horizonte, Service-/Installed-Base-Anteile und Zykluspositionen werden sichtbar gemacht, aber der Peer-Median verändert weder Ziel-KGV noch Fair Value.")
+                                st.write("**Automatische Vergleichsgruppen-Anpassung:** deaktiviert · Reference-only")
+                                st.info(f"{APP_BUILD_VERSION} Peer-Lock: Unterschiedliche Tool-Mixe, Fiscal-Year-Horizonte, Service-/Installed-Base-Anteile und Zykluspositionen werden sichtbar gemacht, aber der Vergleichsgruppen-Median verändert weder Ziel-KGV noch Fair Value.")
                             else:
                                 if is_midstream_peer_metric:
-                                    st.write("**Automatische Peer-Anpassung:** deaktiviert · reference-only")
+                                    st.write("**Automatische Vergleichsgruppen-Anpassung:** deaktiviert · reference-only")
                                 else:
                                     st.write(
                                         "**Für automatische Anpassung voll vergleichbar:** "
@@ -80325,7 +80358,7 @@ if selected_symbol:
 
                         if peer_check["peer_median"] is not None:
                             if is_midstream_peer_metric:
-                                peer_median_label = "Peer-Median EV/EBITDA"
+                                peer_median_label = "Vergleichsgruppen-Median EV/EBITDA"
                             elif is_automotive_peer_metric:
                                 peer_median_label = "Automotive Referenzmedian Forward-KGV"
                             elif is_semicap_peer_metric:
@@ -80343,20 +80376,20 @@ if selected_symbol:
                             elif is_exchange_peer_metric:
                                 peer_median_label = "Exchange FY2025 Adjusted-EPS Full-Year Referenzmedian"
                             else:
-                                peer_median_label = "Peer-Median Forward-KGV"
+                                peer_median_label = "Vergleichsgruppen-Median Forward-KGV"
                             st.metric(peer_median_label, f"{peer_check['peer_median']:.2f}×")
                             if is_exchange_peer_metric and safe_float(peer_check.get("runrate_reference_median")) is not None:
                                 st.metric("Exchange H1-2026 Adjusted-EPS Run-Rate Referenzmedian", f"{safe_float(peer_check.get('runrate_reference_median')):.2f}×")
 
                         if is_medical_devices_peer_metric and peer_check.get("structural_core_median") is not None:
                             st.metric(
-                                "Medical-Devices struktureller Core-Peer-Median (nur Referenz)",
+                                "Medical-Devices struktureller Core-Vergleichsgruppen-Median (nur Referenz)",
                                 f"{peer_check['structural_core_median']:.2f}×"
                             )
 
                         if is_medical_devices_peer_metric and peer_check.get("eligible_peer_median") is not None:
                             st.metric(
-                                "Medical-Devices voll vergleichbarer Peer-Median Forward-KGV",
+                                "Medical-Devices voll vergleichbarer Vergleichsgruppen-Median Forward-KGV",
                                 f"{peer_check['eligible_peer_median']:.2f}×"
                             )
 
@@ -80370,7 +80403,7 @@ if selected_symbol:
                             )
 
                             st.write(
-                                "**Peer-Anpassung:** "
+                                "**Vergleichsgruppen-Anpassung:** "
                                 f"{adjustment_percent:+.2f} %"
                             )
 
@@ -80386,7 +80419,7 @@ if selected_symbol:
                             )
 
                             if is_payments_processor_peer_metric:
-                                st.write(f"**Ziel-KGV vor Peer-Anpassung:** {safe_float(peer_check.get('target_multiple_before_peer')):.2f}×")
+                                st.write(f"**Ziel-KGV vor Vergleichsgruppen-Anpassung:** {safe_float(peer_check.get('target_multiple_before_peer')):.2f}×")
                                 st.write(f"**Median Markt/Modell:** {safe_float(peer_check.get('model_adjusted_median_ratio')):.3f}")
                                 st.write(f"**Peer-Faktor:** {safe_float(peer_check.get('peer_factor')):.3f}")
                                 if peer_check.get("protection_binding"):
@@ -80403,7 +80436,7 @@ if selected_symbol:
 
                             if is_asset_management_peer_metric:
                                 st.info(
-                                    "Keine direkte Peer-Anpassung in Schritt 2B. Der Core-Peer-Median wird erst in Schritt 3B zusammen mit einer verfügbaren "
+                                    "Keine direkte Vergleichsgruppen-Anpassung in Schritt 2B. Der Core-Vergleichsgruppen-Median wird erst in Schritt 3B zusammen mit einer verfügbaren "
                                     "3Y-Historical-Referenz als downside-only Premium-Safety-Guard gegen den rohen Asset-Manager-Score-Anker geprüft."
                                 )
                             else:
@@ -80473,7 +80506,7 @@ if selected_symbol:
                                         cg_fundamental_ui = safe_float((data.get("fundamental_multiple") or {}).get("multiple"))
                                         if cg_peer_median_ui is None:
                                             st.warning(
-                                                "Capital-Goods Peer Data Gate nicht bestanden: Es liegt kein belastbarer 3-Peer-Median vor. Der Schneider-Fair-Value bleibt in diesem Lauf gesperrt."
+                                                "Capital-Goods Peer Data Gate nicht bestanden: Es liegt kein belastbarer 3-Vergleichsgruppen-Median vor. Der Schneider-Fair-Value bleibt in diesem Lauf gesperrt."
                                             )
                                         else:
                                             cg_model_ui = data.get("industrials_capital_goods_specialist_model") or {}
@@ -80487,17 +80520,17 @@ if selected_symbol:
                                                 )
                                             elif cg_fundamental_ui is not None and cg_fundamental_ui > cg_peer_ceiling_ui:
                                                 st.warning(
-                                                    f"Downside-only Peer Ceiling bindet: score-basiertes Ziel {cg_fundamental_ui:.2f}× wird auf {cg_peer_ceiling_ui:.2f}× begrenzt. Der Peer-Median kann das Ziel niemals anheben."
+                                                    f"Downside-only Peer Ceiling bindet: score-basiertes Ziel {cg_fundamental_ui:.2f}× wird auf {cg_peer_ceiling_ui:.2f}× begrenzt. Der Vergleichsgruppen-Median kann das Ziel niemals anheben."
                                                 )
                                             else:
                                                 st.info(
-                                                    f"Downside-only Peer Ceiling nicht bindend: Referenzmedian {cg_peer_median_ui:.2f}× liegt nicht unter dem score-basierten Ziel. Der Peer-Median kann das Ziel niemals anheben."
+                                                    f"Downside-only Peer Ceiling nicht bindend: Referenzmedian {cg_peer_median_ui:.2f}× liegt nicht unter dem score-basierten Ziel. Der Vergleichsgruppen-Median kann das Ziel niemals anheben."
                                                 )
                                     else:
                                         st.info("Reference-only: Peer-KGVs verändern Ziel-Multiple und Fair Value nicht.")
                                 else:
                                     st.warning(
-                                        "Keine automatische Peer-Anpassung."
+                                        "Keine automatische Vergleichsgruppen-Anpassung."
                                     )
 
                         st.caption(
@@ -80527,12 +80560,12 @@ if selected_symbol:
                     elif is_oilfield_services_peer_metric:
                         peer_explain = f"Oilfield Services & Energy Technology {APP_BUILD_VERSION}: SLB/HAL/FTI/BKR bleiben reference-only; Score, Same-Basis Adjusted-EPS-Bridge, Ziel-KGV und Fair Value bleiben issuer-/profil-spezifisch."
                     elif is_integrated_oil_gas_peer_metric:
-                        peer_explain = f"Integrated Oil & Gas {APP_BUILD_VERSION}: Die anderen globalen Majors sind reine Markt-Referenzen. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Peer-Anpassung; Score, Through-Cycle-EPS, Ziel-KGV und Fair Value bleiben issuer-spezifisch."
+                        peer_explain = f"Integrated Oil & Gas {APP_BUILD_VERSION}: Die anderen globalen Majors sind reine Markt-Referenzen. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Vergleichsgruppen-Anpassung; Score, Through-Cycle-EPS, Ziel-KGV und Fair Value bleiben issuer-spezifisch."
                     elif (peer_group or {}).get("peer_model") == "upstream_ep_reference_v1":
                         peer_explain = f"Upstream E&P {APP_BUILD_VERSION}: Vergleichsunternehmen sind ausschließlich Markt-Referenzen. Es gibt keine Mindestanzahl als Fair-Value-Gate; fehlende oder wenige Peer-KGVs verändern weder Familienpunktzahl, Ziel-FCF-Yield, Ziel-EV/bereinigtes-EBITDA, Fair Value noch Bewertungssicherheit."
                     elif is_payments_processor_peer_metric:
                         peer_explain = (
-                            "Zahlungsabwickler V187: Mindestens drei vollständig modellierte Kern-Peers. Verglichen wird Markt-KGV relativ zum jeweils eigenen freigegebenen Familien-Ziel-KGV vor Peer-Anpassung; "
+                            "Zahlungsabwickler V187: Mindestens drei vollständig modellierte Kern-Peers. Verglichen wird Markt-KGV relativ zum jeweils eigenen freigegebenen Familien-Ziel-KGV vor Vergleichsgruppen-Anpassung; "
                             "Median statt Durchschnitt, Wirkung maximal ±5 %. Nach der Peer-Kalibrierung werden Familien-Korridor und bestehende Schutzgrenzen erneut vorrangig angewendet; erst das endgültige Ziel-KGV fließt in fairen Wert und Bewertungszonen ein."
                         )
                     elif is_exchange_peer_metric:
@@ -80542,24 +80575,24 @@ if selected_symbol:
                     elif bool((data.get("professional_business_services_specialist_model") or {}).get("applicable")):
                         ps_peer_model_b_ui = data.get("professional_business_services_specialist_model") or {}
                         if ps_peer_model_b_ui.get("valuation_anchor_complete"):
-                            peer_explain = f"Professional & Business Services {APP_BUILD_VERSION}: Noch keine freigegebene Peer-Gruppe. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Peer-Anpassung; der freigegebene Fair Value bleibt issuer-primary."
+                            peer_explain = f"Professional & Business Services {APP_BUILD_VERSION}: Noch keine freigegebene Peer-Gruppe. Es gibt keine Mindestanzahl als Fair-Value-Gate und keine automatische Vergleichsgruppen-Anpassung; der freigegebene Fair Value bleibt issuer-primary."
                         else:
                             peer_explain = f"Professional & Business Services {APP_BUILD_VERSION}: Noch keine freigegebene Peer-Gruppe und noch kein issuer-primary Spezialanker für diesen Emittenten. Peer-Daten können die fehlende Spezialbasis nicht ersetzen; Fair Value bleibt fail-closed."
                     elif bool((data.get("non_operating_income_guard") or {}).get("active")):
-                        if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
+                        if bool((data.get("fundamental_multiple") or {}).get("media_internet_family_released")):
                             peer_explain = (
-                                "V267: Ergebnisbasis, 92/100-Qualitätspunktzahl, 18–32× Familienkorridor und score-positioniertes Ziel-KGV sind freigegeben. "
-                                "Die Vergleichsgruppe dient nur dem zweiten Live-Gegentest; Median oder Peer-Anpassung dürfen den Familienanker nicht verändern."
+                                "V269: Ergebnisbasis, Qualitätsscore, 18–32× Familienkorridor, Ziel-KGV und Fair Value sind freigegeben. "
+                                "Die Vergleichsgruppe bleibt reine Referenz; Median oder Vergleichsgruppen-Anpassung dürfen den Familienanker nicht verändern."
                             )
                         elif bool((data.get("non_operating_income_guard") or {}).get("primary_source_quality_score_released")):
                             peer_explain = (
-                                "V263: Ergebnisbasis und 100-Punkte-Qualitätspunktzahl sind vollständig freigegeben. Die Vergleichsgruppe bleibt bis zur separaten Validierung des "
-                                "Media-/Internet-/Platforms-Familienkorridors ohne Freigabewirkung; weder Median noch Peer-Anpassung dürfen den noch fehlenden Familienanker ersetzen."
+                                "Ergebnisbasis und 100-Punkte-Qualitätsscore sind vollständig freigegeben. Die Vergleichsgruppe bleibt bis zur separaten Validierung des "
+                                "Media-/Internet-/Platforms-Familienkorridors ohne Freigabewirkung; weder Median noch Vergleichsgruppen-Anpassung dürfen einen fehlenden Familienanker ersetzen."
                             )
                         else:
                             peer_explain = (
                                 "Non-Operating-Income-Guard aktiv: Peer-KGVs können eine noch unvollständig normalisierte Gesamtbewertungsbasis nicht ersetzen. "
-                                "Es gilt hier keine Peer-Mindestanzahl zur Freigabe; weder Median noch Peer-Anpassung dürfen Standard-Multiple oder Fair Value erzeugen."
+                                "Es gilt hier keine Peer-Mindestanzahl zur Freigabe; weder Median noch Vergleichsgruppen-Anpassung dürfen Standard-Multiple oder Fair Value erzeugen."
                             )
                     else:
                         peer_explain = "Mindestens 3 brauchbare Peers sind Pflicht; der Median wird statt des Durchschnitts verwendet."
@@ -80583,10 +80616,9 @@ if selected_symbol:
                                     "Der Median erzeugt selbst kein Premium und verändert den Operational Score nicht; er darf das score-basierte Ziel-KGV ausschließlich nach unten begrenzen, niemals anheben."
                                 )
                         else:
-                            if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
+                            if bool((data.get("fundamental_multiple") or {}).get("media_internet_family_released")):
                                 st.caption(
-                                    "V267 Live-Gegentest: Der Peer-Check verändert weder Qualitätspunktzahl noch 18–32× Familienkorridor oder Ziel-KGV. "
-                                    "Fair Value bleibt gerade deshalb noch gesperrt, bis ein zweiter geeigneter Internet-Platform-Emittent denselben Familienpfad praktisch bestätigt. " + peer_explain
+                                    "V269: Der Peer-Check ist reine Plausibilitätsreferenz. Er verändert weder Qualitätsscore noch 18–32× Familienkorridor, Ziel-KGV oder Fair Value. " + peer_explain
                                 )
                             else:
                                 st.caption(
@@ -80595,16 +80627,20 @@ if selected_symbol:
                                 )
                     else:
                         if bool((data.get("non_operating_income_guard") or {}).get("active")):
-                            if bool((data.get("non_operating_income_guard") or {}).get("primary_source_quality_score_released")):
+                            if bool((data.get("non_operating_income_guard") or {}).get("media_internet_family_model_released")):
+                                st.caption(
+                                    "V269 Familienbewertung freigegeben: Die Peer-Schicht bleibt nachgeordnet und ist reine Referenz; sie verändert weder Familien-KGV noch Fair Value. " + peer_explain
+                                )
+                            elif bool((data.get("non_operating_income_guard") or {}).get("primary_source_quality_score_released")):
                                 st.warning(
-                                    "V263 Familienbewertung noch offen: Die Peer-Schicht ist nachgeordnet und darf weder den noch nicht validierten Familien-Korridor noch Standard-Multiple oder Fair Value erzeugen. " + peer_explain
+                                    "Familienbewertung noch offen: Die Peer-Schicht ist nachgeordnet und darf keinen fehlenden Familienanker ersetzen. " + peer_explain
                                 )
                             else:
                                 st.warning(
                                     "Non-Operating-Income-Guard hat Vorrang: Die Peer-Schicht ist vollständig nachgeordnet und kann weder Score, Earnings-Basis, Standard-Multiple noch Fair Value freigeben. " + peer_explain
                                 )
                         else:
-                            st.caption("Die Vergleichsgruppen-Prüfung ist nur ein externer Realitätscheck. Sie verändert die 100-Punkte-Qualitätspunktzahl nicht. " + peer_explain)
+                            st.caption("Die Vergleichsgruppen-Prüfung ist nur ein externer Realitätscheck. Sie verändert die 100-Punkte-Qualitätsscore nicht. " + peer_explain)
 
                     if peer_check.get("reference_only"):
                         if is_exchange_peer_metric:
@@ -80619,7 +80655,7 @@ if selected_symbol:
                             if bool(_cg_peer_model_footer.get("structural_break_active") or _cg_peer_model_footer.get("sotp_required")):
                                 st.caption(
                                     "Die Peer-Schicht erzeugt selbst keinen Fair Value. Für Siemens ist sie nur Familien-/Marktkontext; "
-                                    "der Healthineers-SOTP-Guard hat Vorrang und sperrt Ziel-KGV sowie Fair Value unabhängig vom Peer-Median."
+                                    "der Healthineers-SOTP-Guard hat Vorrang und sperrt Ziel-KGV sowie Fair Value unabhängig vom Vergleichsgruppen-Median."
                                 )
                             else:
                                 st.caption(
@@ -80627,9 +80663,9 @@ if selected_symbol:
                                     "Der Median wirkt anschließend nur als downside-only Ceiling."
                                 )
                         else:
-                            if bool((data.get("fundamental_multiple") or {}).get("media_internet_corridor_stage_only")):
+                            if bool((data.get("fundamental_multiple") or {}).get("media_internet_family_released")):
                                 st.caption(
-                                    "V267: Die Peer-Schicht erzeugt keinen fairen Wert. Der Fair Value bleibt absichtlich gesperrt, bis der zweite Internet-Platform-Live-Gegentest bestanden ist."
+                                    "V269: Der Internet-Platform-Fair-Value wird unabhängig von Referenz-Peers berechnet; die Peer-Schicht erzeugt selbst keinen Fair Value und verändert das Ziel-KGV nicht."
                                 )
                             else:
                                 st.caption(
@@ -80639,7 +80675,7 @@ if selected_symbol:
                     else:
                         if bool((data.get("non_operating_income_guard") or {}).get("active")):
                             st.caption(
-                                "Im Schutzregel-Zustand findet keine freigabewirksame Vergleichsgruppen-Prüfung statt; fairer Wert und Signal bleiben gesperrt."
+                                "Die Vergleichsgruppen-Prüfung bleibt ohne Freigabewirkung auf das Multiple; Fair Value und Signal folgen ausschließlich dem validierten Familienmodell und den allgemeinen Sicherheitsregeln."
                             )
                         else:
                             st.caption(
@@ -80667,6 +80703,7 @@ if selected_symbol:
                         and event_warning.get("valuation_usable") is False
                     )
                     non_operating_normalized_pending = bool(event_warning.get("non_operating_income_normalized") and event_warning.get("family_valuation_pending"))
+                    media_internet_family_released_ui = bool(event_warning.get("family_model_released"))
                     media_internet_corridor_live = bool(event_warning.get("family_corridor_released"))
                     family_calibration_gate = data.get("branded_consumer_family_gate", {}) or {}
                     family_calibration_blocked = bool(
@@ -80691,12 +80728,20 @@ if selected_symbol:
                                 "**Status der regulären Spezialkontrolle:** "
                                 f"{special_control.get('router_status', special_control.get('status'))}"
                             )
-                    elif media_internet_corridor_live:
-                        st.warning(
-                            "**Ergebnisverzerrung erfolgreich normalisiert – Internet-Platform-KGV im Live-Gegentest.**"
+                    elif media_internet_family_released_ui:
+                        st.success(
+                            "**Ergebnisverzerrung erfolgreich normalisiert – Internet-Platform-Familienbewertung freigegeben.**"
                         )
                         st.write(
-                            "**Status:** Qualitätspunktzahl + 18–32× Familienkorridor + Ziel-KGV freigegeben · Fair Value und Handlungssignal noch gesperrt"
+                            "**Status:** Qualitätsscore + 18–32× Familienkorridor + Ziel-KGV + Fair Value + Bewertungszonen + Handlungssignal freigegeben"
+                        )
+                        st.info(event_warning.get("action"))
+                    elif media_internet_corridor_live:
+                        st.warning(
+                            "**Ergebnisverzerrung erfolgreich normalisiert – Familien-KGV noch in Validierung.**"
+                        )
+                        st.write(
+                            "**Status:** Qualitätsscore + Familienkorridor + Ziel-KGV freigegeben · Fair Value und Handlungssignal noch gesperrt"
                         )
                         st.info(event_warning.get("action"))
                     elif non_operating_normalized_pending:
@@ -80788,9 +80833,13 @@ if selected_symbol:
                             "Die Sperre stammt ausschließlich aus dem noch nicht kalibrierten Family-Specialist-Profil. "
                             "Sie ist kein Sonderereignis-Gate und benötigt keine automatische Ursachenrecherche."
                         )
+                    elif media_internet_family_released_ui:
+                        st.caption(
+                            "V269: Ergebnisvergleichbarkeit und Internet-Platform-Familienbewertung sind vollständig freigegeben; die Warnampel bleibt nur als transparenter Hinweis auf die normalisierte Roh-GAAP-Verzerrung bestehen."
+                        )
                     elif media_internet_corridor_live:
                         st.caption(
-                            "Die Ergebnisvergleichbarkeit und der V267-Familienkorridor sind freigegeben. Die verbleibende Sperre betrifft ausschließlich die zweite Live-Validierung vor Fair-Value-/Signal-Freigabe."
+                            "Die Ergebnisvergleichbarkeit und der Familienkorridor sind freigegeben; eine nachgelagerte Validierungsstufe ist noch offen."
                         )
                     elif non_operating_normalized_pending:
                         st.caption(
@@ -81481,7 +81530,7 @@ if selected_symbol:
                             if special_control.get("released"):
                                 st.success(
                                     f"Nasdaq-Fair-Value freigegeben: FY2026 Non-GAAP EPS × {safe_float(val_ex.get('target_multiple')):.2f}× Exchange-Family-KGV. "
-                                    "FY2025-Peer-Median ist downside-only; H1-Run-Rate bleibt Cycle-/Reality-Check."
+                                    "FY2025-Vergleichsgruppen-Median ist downside-only; H1-Run-Rate bleibt Cycle-/Reality-Check."
                                 )
                             elif ex_profile == "integrated_market_infrastructure" and val_ex.get("corridor_released"):
                                 st.error("Fair Value bleibt fail-closed: Earnings Bridge und 18–26× Family-Korridor sind verfügbar; Allfunds verändert jedoch Finanzierung, Aktienzahl und Earnings-Perimeter. Post-Allfunds Pro-forma-Kapitalstruktur und Earnings-/Share-Count-Bridge fehlen weiterhin.")
@@ -82466,13 +82515,13 @@ if selected_symbol:
                                         st.info(f"🟡 Asset Manager Multiple Guard: moderates Premium gegenüber {_guard_ref_label_am}; keine automatische Änderung.")
                                     if _peer_ref_am is not None and _hist_ref_am is not None:
                                         st.write(
-                                            "**Peer-/Historical-Referenz:** Core-Peer-Median "
+                                            "**Peer-/Historical-Referenz:** Core-Vergleichsgruppen-Median "
                                             f"{_peer_ref_am:.2f}× · 3Y Historical Median {_hist_ref_am:.2f}×"
                                         )
                                     elif _peer_ref_am is not None:
                                         st.write(f"**Core-Peer-Referenz:** Median {_peer_ref_am:.2f}× · 3Y Historical Median nicht verfügbar")
                                     elif _hist_ref_am is not None:
-                                        st.write(f"**3Y-Historical-Referenz:** Median {_hist_ref_am:.2f}× · Core-Peer-Median nicht verfügbar")
+                                        st.write(f"**3Y-Historical-Referenz:** Median {_hist_ref_am:.2f}× · Core-Vergleichsgruppen-Median nicht verfügbar")
                                     else:
                                         st.write("**Safety-Guard-Referenz:** Keine belastbare Peer- oder 3Y-Historical-Referenz verfügbar")
                                     st.metric(f"{text_or_dash(snap_am.get('company'))} Fair Value – Fundamentalwährung", format_currency_value(val_am.get("fair_value_financial"), financial_currency, 2))
@@ -83655,7 +83704,7 @@ if selected_symbol:
                                     st.write(f"**Premium-Unlock:** {dv.get('premium_unlock_count')}/5 · {'bestanden' if dv.get('premium_unlock_passed') else 'nicht bestanden'}")
                                     peer_ref_ui = safe_float(dv.get("peer_reference_median_pe"))
                                     if peer_ref_ui is not None:
-                                        st.write(f"**Defense-Peer-Median (reference-only):** {peer_ref_ui:.2f}×")
+                                        st.write(f"**Defense-Vergleichsgruppen-Median (reference-only):** {peer_ref_ui:.2f}×")
                                     st.metric(f"{text_or_dash(snapshot.get('company'))} Fair Value – Fundamentalwährung", format_eps(dv.get("fair_value_financial"), financial_currency))
                                     if dv.get("portfolio_guard"):
                                         st.write(f"**Portfolio-/Sonderereignis-Schutz:** {dv.get('portfolio_guard')}")
@@ -83935,7 +83984,7 @@ if selected_symbol:
                             st.success(
                                 "Bewertungsfreigabe JA: V2.20.57 gibt die de-duplizierte Cycle-KGV-Bewertung nach bestandenem "
                                 "Industrie-FCF-Plausibilitätsgate frei. Ein nicht bestandenes Peer-Comparability-Gate blockiert nicht, "
-                                "sondern verhindert ausschließlich jede automatische Peer-Anpassung."
+                                "sondern verhindert ausschließlich jede automatische Vergleichsgruppen-Anpassung."
                             )
                             st.caption(
                                 "Das Gate bleibt fail-closed, wenn der offizielle Snapshot veraltet oder unvollständig ist. "
@@ -86602,7 +86651,7 @@ if selected_symbol:
                                 f"{text_or_dash(fair_value.get('issuer_name') or 'Payment-Network')}-Fair-Values."
                             )
                         elif fair_value.get("valuation_method") == "exchange_current_fy_adjusted_pe":
-                            st.write("**Bewertungsformel:** issuer-adjustiertes Current-FY Adjusted/Cash EPS × score-positioniertes Exchange-Family-KGV; FY2025-Peer-Median nur downside-only Ceiling")
+                            st.write("**Bewertungsformel:** issuer-adjustiertes Current-FY Adjusted/Cash EPS × punktzahlpositioniertes Exchange-Family-KGV; FY2025-Vergleichsgruppen-Median nur downside-only Ceiling")
                             st.write(f"**Exchange Operational Score:** {safe_float(fair_value.get('specialist_score')):.0f}/100 · {text_or_dash(fair_value.get('specialist_quality_level'))}")
                             st.write("**Current-FY Earnings-Basis (Anzeige):** " + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"]))
                             ex_fv_model_ui = data.get("exchange_market_infrastructure_specialist_model") or {}
@@ -86618,13 +86667,13 @@ if selected_symbol:
                             st.write(f"**Verwendetes Ziel-KGV:** {safe_float(fair_value.get('target_multiple')):.2f}×")
                             if safe_float(fair_value.get("peer_reference_median_pe")) is not None:
                                 st.write(f"**FY2025 Adjusted-EPS Peer-Referenzmedian:** {safe_float(fair_value.get('peer_reference_median_pe')):.2f}×")
-                                st.caption("Der verifizierte Full-Year-Peer-Median kann das Ziel ausschließlich nach unten begrenzen; er kann niemals einen Premium-Multiple hochziehen.")
+                                st.caption("Der verifizierte Full-Year-Vergleichsgruppen-Median kann das Ziel ausschließlich nach unten begrenzen; er kann niemals einen Premium-Multiple hochziehen.")
                             if safe_float(fair_value.get("runrate_reference_median_pe")) is not None:
                                 st.write(f"**H1-2026 Run-Rate-Referenzmedian:** {safe_float(fair_value.get('runrate_reference_median_pe')):.2f}×")
                                 st.caption("Run-Rate nur Cycle-/Reality-Check; nicht als FY2026-Guidance oder Current-FY-Peer-Denominator verwendet.")
                             st.caption("Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV und Analystenziele sind kein Bestandteil des Exchange-Fair-Values.")
                         elif fair_value.get("valuation_method") == "capital_goods_current_fy_adjusted_pe":
-                            st.write("**Bewertungsformel:** issuer-adjustiertes Current-FY EPS × score-positioniertes Capital-Goods-Family-KGV; Live-Peer-Median nur downside-only Ceiling")
+                            st.write("**Bewertungsformel:** issuer-adjustiertes Current-FY EPS × punktzahlpositioniertes Capital-Goods-Family-KGV; Live-Vergleichsgruppen-Median nur downside-only Ceiling")
                             st.write(f"**Capital-Goods Operational Score:** {safe_float(fair_value.get('specialist_score')):.0f}/100 · {text_or_dash(fair_value.get('specialist_quality_level'))}")
                             st.write("**Current-FY Earnings-Basis:** " + format_eps(fair_value.get("normalized_eps"), fair_value["financial_currency"]))
                             st.write(f"**Family-KGV-Korridor:** {safe_float(fair_value.get('multiple_corridor_low')):.1f}× – {safe_float(fair_value.get('multiple_corridor_high')):.1f}×")
@@ -86632,7 +86681,7 @@ if selected_symbol:
                             st.write(f"**Verwendetes Ziel-KGV:** {safe_float(fair_value.get('target_multiple')):.2f}×")
                             if safe_float(fair_value.get("peer_reference_median_pe")) is not None:
                                 st.write(f"**Issuer-adjusted Peer-Referenzmedian:** {safe_float(fair_value.get('peer_reference_median_pe')):.2f}×")
-                                st.caption("Der Peer-Median kann das Ziel ausschließlich nach unten begrenzen; er kann niemals einen Premium-Multiple hochziehen.")
+                                st.caption("Der Vergleichsgruppen-Median kann das Ziel ausschließlich nach unten begrenzen; er kann niemals einen Premium-Multiple hochziehen.")
                             if fair_value.get("transaction_confidence_guard"):
                                 st.info("Transaktions-/Kapitalallokations-Guard aktiv: kein zusätzlicher P/E-Abschlag; Bewertungssicherheit bis zu belastbaren Pro-forma-Abschlussdaten auf Mittel begrenzt.")
                             st.caption("Yahoo-FCF/Net-Debt-to-FCF, Standard-KGV und Analystenziele sind kein Bestandteil des Capital-Goods-Fair-Values.")
@@ -86698,7 +86747,7 @@ if selected_symbol:
                                     )
                                 )
                                 if fair_value.get("peer_overlay_applied"):
-                                    st.write(f"**Peer-Anpassung Ziel-KGV:** {fair_value.get('peer_adjustment_pct', 0.0) * 100:+.2f} %")
+                                    st.write(f"**Vergleichsgruppen-Anpassung Ziel-KGV:** {fair_value.get('peer_adjustment_pct', 0.0) * 100:+.2f} %")
                                     st.write(f"**Verwendeter Fair-Value-Effekt:** {fair_value.get('peer_fair_value_effect_used_pct', 0.0):+.2f} %")
                                     if fair_value.get("peer_fair_value_cap_applied"):
                                         st.warning("Automotive Fair-Value-Safety-Cap aktiv: Peer-Effekt wurde auf ±5 % begrenzt.")
@@ -86771,7 +86820,7 @@ if selected_symbol:
                             ref_pe_fv_sc = safe_float(fair_value.get("peer_reference_median_pe"))
                             if ref_pe_fv_sc is not None:
                                 st.write(f"**Peer-Referenzmedian Prognose-KGV:** {ref_pe_fv_sc:.2f}× · nur Referenz")
-                                st.write("**Peer-Lock:** automatische Peer-Anpassung deaktiviert")
+                                st.write("**Peer-Lock:** automatische Vergleichsgruppen-Anpassung deaktiviert")
                             if fair_value.get("peer_overlay_applied"):
                                 st.write(f"**Tatsächliche Peer-Multiple-Anpassung:** {fair_value.get('peer_adjustment_pct')*100:+.2f} %")
                                 st.write(f"**Fair-Value-Effekt nach Safety-Cap:** {fair_value.get('peer_fair_value_effect_used_pct'):+.2f} %")
@@ -86846,12 +86895,12 @@ if selected_symbol:
                                 + f" · {text_or_dash(fair_value.get('earnings_basis_label'))}"
                             )
                             st.write(f"**Familien-Qualitätspunktzahl:** {safe_float(fair_value.get('payments_processor_score')):.0f}/100")
-                            st.write(f"**Ziel-KGV vor Peer-Anpassung:** {safe_float(fair_value.get('target_multiple_before_peer')):.2f}×")
+                            st.write(f"**Ziel-KGV vor Vergleichsgruppen-Anpassung:** {safe_float(fair_value.get('target_multiple_before_peer')):.2f}×")
                             if fair_value.get("peer_adjustment_released"):
-                                st.write(f"**Modellbereinigter Peer-Median Markt/Modell:** {safe_float(fair_value.get('peer_model_adjusted_median_ratio')):.3f}")
-                                st.write(f"**Peer-Anpassung:** {safe_float(fair_value.get('peer_candidate_adjustment_pct'))*100:+.1f} %")
+                                st.write(f"**Modellbereinigter Vergleichsgruppen-Median Markt/Modell:** {safe_float(fair_value.get('peer_model_adjusted_median_ratio')):.3f}")
+                                st.write(f"**Vergleichsgruppen-Anpassung:** {safe_float(fair_value.get('peer_candidate_adjustment_pct'))*100:+.1f} %")
                             else:
-                                st.write("**Peer-Anpassung:** 0,0 % · Datengate nicht bestanden")
+                                st.write("**Vergleichsgruppen-Anpassung:** 0,0 % · Datengate nicht bestanden")
                             st.write(f"**Endgültiges Ziel-KGV:** {safe_float(fair_value.get('used_multiple')):.2f}×")
                             st.write(
                                 f"**Familien-Korridor:** {safe_float(fair_value.get('family_corridor_low')):.0f}–{safe_float(fair_value.get('family_corridor_high')):.0f}×"
@@ -86859,7 +86908,7 @@ if selected_symbol:
                             if safe_float(fair_value.get("issuer_guard_cap")) is not None:
                                 st.write(f"**Issuer-Schutzgrenze:** maximal {safe_float(fair_value.get('issuer_guard_cap')):.2f}×")
                             st.caption(
-                                "V187: Peer-Berechnung verwendet ausschließlich die Ziel-KGVs der Peers vor deren eigener Peer-Anpassung. Nach der maximal ±5-%-Kalibrierung werden Familien-Korridor und bestehende Schutzgrenzen erneut vorrangig geprüft. Historische Durchschnitts-KGVs und Analystenziele bleiben reine Vergleichsschichten."
+                                "V187: Peer-Berechnung verwendet ausschließlich die Ziel-KGVs der Peers vor deren eigener Vergleichsgruppen-Anpassung. Nach der maximal ±5-%-Kalibrierung werden Familien-Korridor und bestehende Schutzgrenzen erneut vorrangig geprüft. Historische Durchschnitts-KGVs und Analystenziele bleiben reine Vergleichsschichten."
                             )
                         elif fair_value.get("valuation_method") == "professional_business_services_adjusted_pe":
                             ps_basis_gbp_fv_ui = safe_float(fair_value.get("professional_services_earnings_basis_gbp"))
