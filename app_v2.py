@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.76"
+APP_BUILD_VERSION = "V2.23.77"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -1103,6 +1103,7 @@ st.caption(
 # V2.22.41: Asset-Manager Annual-History Candidate Merge V137. Fixes a de-duplication/ranking defect in generic same-basis Asset-Manager EPS-history recovery. The same issuer-primary report can be discovered once for each requested target year; prior builds kept the first URL occurrence and therefore preserved the score from the first target year instead of the best score across all requested years. V117 now merges duplicate URLs by their strongest year-aware score, explicitly recognizes the discovered document_class even when the download URL/anchor is opaque, and prioritizes the latest completed-FY Financial Data Supplement/annual report because such reports often contain the full 3Y same-basis EPS series in one table. Current-period AUM/flow/fee/CIR evidence, specialist score weights, 9–18x corridor, peer/historical guards and signal thresholds are unchanged.
 # V2.22.37: Asset-Manager Structured XLSX Period Binding V133. Fixes wide issuer-primary financial supplements whose comparison headers (for example “Q2 2026 vs. Q1 2026 / Q2 2025”) precede the actual multi-period data-header row. XLSX extraction now preserves explicit worksheet-row boundaries, period detection ranks the real multi-period header row ahead of comparison captions, and KPI rows are parsed only within their own workbook row so comparison columns cannot shift AUM/flow/fee/CIR/EPS values onto the wrong period. Same-scope guards, same-basis earnings requirements, score weights, 9–18x corridor, peer/historical guards and signal thresholds remain unchanged; no issuer ticker, URL or KPI value is hard-coded.
 # V2.22.34: Development-Stage EPS Copy Isolation Cleanup V130. Copy/UI-only change. Keeps V128 subprofile routing and V121 financial-stage detection unchanged, but isolates Development-Stage Mining / Materials from the generic Universal-Family EPS wording: Standard TTM/Forward EPS remains diagnosis-only and is explicitly not a Fair-Value anchor; Mineral Explorer / Mine Developer points instead to a technical/economic project and Project-NAV basis, while Battery Materials / Processing / Technology points to resource/feedstock, process/pilot/scale-up, qualification/offtake, funding and commercialisation evidence. The terminal EPS caption is profile-aware for the same reason. All scores, corridors, guard states, V127 Net-Cash logic, LOM logic and valuation mathematics remain unchanged.
+# V2.23.77: Universal Asset-Management AUM-Evolution Mapper V273. Adds a fail-closed issuer-primary mapper for explicitly labelled firmwide AUM/Net-Flow evolution tables: latest current-year period-end Total AUM, prior 31-Dec same-scope Beginning AUM, and cumulative current-year quarterly Net Flows are mapped onto one period-safe denominator. Supports common dd/mm/yyyy, dd.mm.yyyy and two-digit-year table dates. No issuer/ticker/KPI value is hard-coded; V272 discovery ordering, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds are unchanged.
 # V2.23.76: Universal Asset-Management Host-Fairness Discovery Guard V272. V271 added about.<issuer-domain>, but the consumer probed only the first 12 generated URLs; multiple paths for group./investors./ir./corporate. could therefore exhaust the slice before about. or the bare issuer host was ever tried. V272 changes only candidate ordering: one high-value route per issuer-owned host family is emitted first, then the provider website/root and only then secondary routes. This prevents path-count starvation for any valid corporate/IR subdomain while preserving the existing bounded deadline, issuer-family ownership checks, parser, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds.
 # V2.23.75: Universal Asset-Management Corporate-About-Host Discovery Guard V271. Amundi exposed that a provider marketing/root domain can coexist with the issuer-owned financial-results hub on an about.<domain> corporate subdomain. The generic Asset-Management issuer-primary bootstrap now probes about.<issuer-domain> with bounded financial-results, shareholder-hub, regulated-information and investor-relations routes before the marketing root. All accepted KPI values still must come from issuer-owned fetched content; search snippets remain discovery-only. No Amundi ticker, URL, KPI value, Asset-Management score weight, 9–18x corridor, Premium-Unlock, peer/historical guard, Through-Cycle earnings math, Fair Value or signal threshold is changed.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
@@ -38398,7 +38399,7 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V121"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V122"
 ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22240_asset_manager_historical_year_discovery_isolation_v136"
 
 
@@ -41341,6 +41342,103 @@ def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
     return rows
 
 
+
+def _asset_manager_v122_aum_evolution_mapper(text):
+    """Recover firmwide AUM + same-scope YTD flows from an explicit evolution table.
+
+    Fail closed unless the local issuer-primary section explicitly identifies both
+    assets under management and net flows.  The mapper never infers sub-scopes
+    and never substitutes market/FX/scope effects for client flows.
+    """
+    clean = _clean_text(text)
+    folded = _asset_manager_v108_fold(clean)
+    anchors = [
+        "evolution of assets under management",
+        "evolution of aum",
+        "change in assets under management",
+        "changes in assets under management",
+        "development of assets under management",
+        "evolution des encours sous gestion",
+    ]
+    starts = [folded.find(a) for a in anchors if folded.find(a) >= 0]
+    if not starts:
+        return {}
+    start = min(starts)
+    # Keep the window local: enough for a multi-year bridge, but not the whole
+    # report where unrelated segment tables could create false matches.
+    window = clean[start:start + 9000]
+    wf = _asset_manager_v108_fold(window)
+    if not any(t in wf for t in ["net flows", "net inflows", "net cash flows", "collecte nette"]):
+        return {}
+    if not any(t in wf for t in ["assets under management", "aum", "encours sous gestion"]):
+        return {}
+
+    now_year = datetime.now().year
+    prior_year = now_year - 1
+
+    def full_year(token):
+        yy = int(token)
+        return 2000 + yy if yy < 100 else yy
+
+    # Date rows in AUM evolution tables normally carry the period-end AUM as
+    # the first number after the date.  Require a plausible institutional AUM
+    # magnitude to avoid percentages or footnote numbers.
+    date_rows = []
+    date_pat = re.compile(
+        r"(?P<day>3[01]|[12][0-9]|0?[1-9])[/.-](?P<month>0?[1-9]|1[0-2])[/.-](?P<year>20\d{2}|\d{2})"
+        r"\s+(?P<value>[0-9][0-9 ,.]*)", re.I
+    )
+    for m in date_pat.finditer(window):
+        try:
+            yy, mo, dd = full_year(m.group("year")), int(m.group("month")), int(m.group("day"))
+            val = _asset_manager_primary_amount(m.group("value"), "bn")
+            if val is not None and val >= 1e9:
+                date_rows.append(((yy, mo, dd), val))
+        except Exception:
+            continue
+    current_rows = [row for row in date_rows if row[0][0] == now_year]
+    prior_dec = [row for row in date_rows if row[0][0] == prior_year and row[0][1] == 12 and row[0][2] >= 28]
+    if not current_rows or not prior_dec:
+        return {}
+    current_rows.sort(key=lambda x: x[0])
+    prior_dec.sort(key=lambda x: x[0])
+    latest_date, total_aum = current_rows[-1]
+    beginning_total_aum = prior_dec[-1][1]
+
+    month = latest_date[1]
+    completed_q = 1 if month <= 3 else 2 if month <= 6 else 3 if month <= 9 else 4
+    qflows = {}
+    qpat = re.compile(
+        rf"\bQ(?P<q>[1-4])\s*{now_year}\b\s*"
+        r"(?P<flow>[-+]?(?:[€$£]\s*)?(?:[0-9]{1,3}(?:[ ,.][0-9]{3})+|[0-9]+(?:[.,][0-9]+)?))", re.I
+    )
+    for m in qpat.finditer(window):
+        q = int(m.group("q"))
+        if q > completed_q or q in qflows:
+            continue
+        token = re.sub(r"[€$£\s]", "", m.group("flow"))
+        val = _asset_manager_v108_parse_number(token)
+        if val is not None and abs(val) < 10000:
+            qflows[q] = val * 1e9
+    needed = list(range(1, completed_q + 1))
+    if not needed or any(q not in qflows for q in needed):
+        return {}
+    period_net_flows = sum(qflows[q] for q in needed)
+    label = f"Q1 {now_year}" if completed_q == 1 else f"H1 {now_year}" if completed_q == 2 else f"9M {now_year}" if completed_q == 3 else f"FY {now_year}"
+    return {
+        "total_aum": total_aum,
+        "beginning_total_aum": beginning_total_aum,
+        "flow_beginning_aum": beginning_total_aum,
+        "firmwide_flow_beginning_aum": beginning_total_aum,
+        "period_net_flows": period_net_flows,
+        "firmwide_period_net_flows": period_net_flows,
+        "flow_scope_label": "Firmwide",
+        "flow_period_fraction_year": completed_q / 4.0,
+        "flow_period_label": label,
+        "flow_scope_matches_denominator": True,
+        "aum_evolution_mapper": "V122",
+    }
+
 def _asset_manager_v110_prior_fy_aum_from_prose(text, scope="firmwide"):
     clean = _clean_text(text)
     year = datetime.now().year - 1
@@ -41388,6 +41486,11 @@ def _asset_manager_parse_generic_primary_report(text, source_url, company_name, 
         prior_lt = _asset_manager_v110_prior_fy_aum_from_prose(text, scope="long_term")
         if prior_lt is not None:
             base["beginning_long_term_aum"] = prior_lt
+
+    evolution = _asset_manager_v122_aum_evolution_mapper(text)
+    for key, value in evolution.items():
+        if value is not None and (key not in base or base.get(key) is None or key in {"flow_scope_matches_denominator", "aum_evolution_mapper"}):
+            base[key] = value
 
     table = _asset_manager_v108_period_table_snapshot(text, source_url, company_name, fundamental_info=fundamental_info)
     if not table.get("period_table_recovered"):
