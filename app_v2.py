@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.79"
+APP_BUILD_VERSION = "V2.23.80"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -1105,6 +1105,8 @@ st.caption(
 # V2.22.34: Development-Stage EPS Copy Isolation Cleanup V130. Copy/UI-only change. Keeps V128 subprofile routing and V121 financial-stage detection unchanged, but isolates Development-Stage Mining / Materials from the generic Universal-Family EPS wording: Standard TTM/Forward EPS remains diagnosis-only and is explicitly not a Fair-Value anchor; Mineral Explorer / Mine Developer points instead to a technical/economic project and Project-NAV basis, while Battery Materials / Processing / Technology points to resource/feedstock, process/pilot/scale-up, qualification/offtake, funding and commercialisation evidence. The terminal EPS caption is profile-aware for the same reason. All scores, corridors, guard states, V127 Net-Cash logic, LOM logic and valuation mathematics remain unchanged.
 # V2.23.78: Universal Asset-Management Wide-Schedule Cell-Alignment Mapper V274. Extends only the issuer-primary evidence adapter after V272 host-fair discovery. XLSX extraction now preserves non-numeric worksheet column tags, allowing generic section-aware mapping of wide date-based schedules such as "Assets under management - Total" and "Net flows - Total" even when the metric row itself is labelled only TOTAL and the workbook uses calendar dates instead of FY/Q/H period tokens. The mapper binds current Total AUM, the exact same-scope beginning AUM and cumulative H1/quarter net flows by physical worksheet column, fills only missing AUM/flow evidence, and never replaces already validated prose/period-table values. No issuer ticker, URL or KPI value is hard-coded; fee/CIR/EPS parsing, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds remain unchanged.
 # V2.23.79: Universal Asset-Management Wide-Schedule Reachability Guard V275. Fixes the V274 control-flow gate that returned immediately when the legacy FY/Q/H period-table parser did not recover a table, which made the new date-based wide-schedule mapper unreachable in exactly the issuer schedules it was designed to handle. V275 evaluates the wide-schedule mapper independently, preserves the old early-return behavior when neither legacy nor wide evidence is recovered, and fills only previously missing Total AUM / same-scope beginning AUM / same-scope Net Flows. Discovery, issuer ownership checks, Fee Growth/CIR/EPS parsing, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds remain unchanged.
+
+# V2.23.80: Universal Asset-Management Wide-Schedule Unit-Scale Plausibility Guard V276. Normalizes internally scaled XLSX schedule cells jointly across current AUM, beginning same-scope AUM and period net flows. Candidate powers-of-1000 are accepted only when the same scale preserves the AUM roll-forward, produces a plausible asset-manager market-cap/AUM relationship when provider market cap is available, and keeps annualized same-scope flow intensity bounded. Ambiguous or implausible scaling fails closed. Discovery, fee/CIR/EPS parsing, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds remain unchanged.
 # V2.23.76: Universal Asset-Management Host-Fairness Discovery Guard V272. V271 added about.<issuer-domain>, but the consumer probed only the first 12 generated URLs; multiple paths for group./investors./ir./corporate. could therefore exhaust the slice before about. or the bare issuer host was ever tried. V272 changes only candidate ordering: one high-value route per issuer-owned host family is emitted first, then the provider website/root and only then secondary routes. This prevents path-count starvation for any valid corporate/IR subdomain while preserving the existing bounded deadline, issuer-family ownership checks, parser, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds.
 # V2.23.75: Universal Asset-Management Corporate-About-Host Discovery Guard V271. Amundi exposed that a provider marketing/root domain can coexist with the issuer-owned financial-results hub on an about.<domain> corporate subdomain. The generic Asset-Management issuer-primary bootstrap now probes about.<issuer-domain> with bounded financial-results, shareholder-hub, regulated-information and investor-relations routes before the marketing root. All accepted KPI values still must come from issuer-owned fetched content; search snippets remain discovery-only. No Amundi ticker, URL, KPI value, Asset-Management score weight, 9–18x corridor, Premium-Unlock, peer/historical guard, Through-Cycle earnings math, Fair Value or signal threshold is changed.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
@@ -38400,8 +38402,8 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V124"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22379_asset_manager_wide_schedule_reachability_v139"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V125"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22380_asset_manager_wide_schedule_unit_guard_v140"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -41564,14 +41566,47 @@ def _asset_manager_v123_wide_schedule_snapshot(text, source_url, company_name, f
 
     aum_unit = _asset_manager_v123_scale_unit(rows, aum_start, min(aum_end, aum_start + 12))
     flow_unit = _asset_manager_v123_scale_unit(rows, flow_start, min(flow_end, flow_start + 12))
-    total_aum = _asset_manager_v123_scaled_amount(aum_total.get(current_col), aum_unit)
-    beginning_total_aum = _asset_manager_v123_scaled_amount(aum_total.get(begin_col), aum_unit)
-    period_net_flows = _asset_manager_v123_scaled_amount(flow_total.get(flow_col), flow_unit)
-    if total_aum is None or beginning_total_aum is None or period_net_flows is None:
+    current_raw = _asset_manager_v123_number(aum_total.get(current_col))
+    beginning_raw = _asset_manager_v123_number(aum_total.get(begin_col))
+    flow_raw = _asset_manager_v123_number(flow_total.get(flow_col))
+    if current_raw is None or beginning_raw is None or flow_raw is None or beginning_raw <= 0:
         return out
+
+    # V276: XLSX extractors can expose already-scaled numeric cells while the
+    # visible schedule header still carries bn/tn labels.  Never multiply such
+    # cells blindly.  Infer one common power-of-1000 scale for AUM and flows,
+    # using only issuer-scope consistency plus broad economic plausibility.
+    market_cap = safe_float((fundamental_info or {}).get("marketCap"))
+    candidates = []
+    for factor in (1.0, 1e3, 1e6, 1e9, 1e12):
+        ta = abs(current_raw) * factor
+        ba = abs(beginning_raw) * factor
+        nf = flow_raw * factor
+        if not (1e8 <= ta <= 2e14 and 1e8 <= ba <= 2e14):
+            continue
+        aum_ratio = ta / ba if ba else None
+        annual_flow = abs(nf) / ba / max(flow_fraction, 1e-9) if ba else None
+        if aum_ratio is None or not (0.25 <= aum_ratio <= 4.0):
+            continue
+        if annual_flow is None or annual_flow > 1.50:
+            continue
+        mc_aum = (market_cap / ta) if market_cap and market_cap > 0 else None
+        if mc_aum is not None and not (1e-4 <= mc_aum <= 0.20):
+            continue
+        # Prefer the center of a deliberately broad public-asset-manager
+        # market-cap/AUM plausibility band.  Without market cap, require the
+        # visible schedule unit to resolve the scale uniquely; otherwise fail closed.
+        score = abs(math.log10(mc_aum) - math.log10(0.01)) if mc_aum is not None else 0.0
+        candidates.append((score, factor, ta, ba, nf, mc_aum))
+    if not candidates:
+        return out
+    candidates.sort(key=lambda x: x[0])
+    if market_cap is None and len(candidates) != 1:
+        return out
+    if market_cap is not None and len(candidates) > 1 and abs(candidates[1][0] - candidates[0][0]) < 0.20:
+        return out
+    _, inferred_factor, total_aum, beginning_total_aum, period_net_flows, mc_aum = candidates[0]
     ratio = total_aum / beginning_total_aum if beginning_total_aum else None
-    if ratio is None or not (0.25 <= ratio <= 4.0):
-        return out
 
     out.update({
         "available": True,
@@ -41595,6 +41630,10 @@ def _asset_manager_v123_wide_schedule_snapshot(text, source_url, company_name, f
         "wide_schedule_aum_current_column": current_col,
         "wide_schedule_aum_beginning_column": begin_col,
         "wide_schedule_flow_column": flow_col,
+        "wide_schedule_inferred_scale_factor": inferred_factor,
+        "wide_schedule_market_cap_to_aum": mc_aum,
+        "wide_schedule_declared_aum_unit": aum_unit,
+        "wide_schedule_declared_flow_unit": flow_unit,
     })
     return out
 
