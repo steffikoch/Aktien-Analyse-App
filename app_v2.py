@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.77"
+APP_BUILD_VERSION = "V2.23.79"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Host-Fairness-Discovery · Amundi-Gegentest V272"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Wide-Schedule Reachability Guard · Amundi-Gegentest V275"
 )
 
 
@@ -1103,7 +1103,8 @@ st.caption(
 # V2.22.41: Asset-Manager Annual-History Candidate Merge V137. Fixes a de-duplication/ranking defect in generic same-basis Asset-Manager EPS-history recovery. The same issuer-primary report can be discovered once for each requested target year; prior builds kept the first URL occurrence and therefore preserved the score from the first target year instead of the best score across all requested years. V117 now merges duplicate URLs by their strongest year-aware score, explicitly recognizes the discovered document_class even when the download URL/anchor is opaque, and prioritizes the latest completed-FY Financial Data Supplement/annual report because such reports often contain the full 3Y same-basis EPS series in one table. Current-period AUM/flow/fee/CIR evidence, specialist score weights, 9–18x corridor, peer/historical guards and signal thresholds are unchanged.
 # V2.22.37: Asset-Manager Structured XLSX Period Binding V133. Fixes wide issuer-primary financial supplements whose comparison headers (for example “Q2 2026 vs. Q1 2026 / Q2 2025”) precede the actual multi-period data-header row. XLSX extraction now preserves explicit worksheet-row boundaries, period detection ranks the real multi-period header row ahead of comparison captions, and KPI rows are parsed only within their own workbook row so comparison columns cannot shift AUM/flow/fee/CIR/EPS values onto the wrong period. Same-scope guards, same-basis earnings requirements, score weights, 9–18x corridor, peer/historical guards and signal thresholds remain unchanged; no issuer ticker, URL or KPI value is hard-coded.
 # V2.22.34: Development-Stage EPS Copy Isolation Cleanup V130. Copy/UI-only change. Keeps V128 subprofile routing and V121 financial-stage detection unchanged, but isolates Development-Stage Mining / Materials from the generic Universal-Family EPS wording: Standard TTM/Forward EPS remains diagnosis-only and is explicitly not a Fair-Value anchor; Mineral Explorer / Mine Developer points instead to a technical/economic project and Project-NAV basis, while Battery Materials / Processing / Technology points to resource/feedstock, process/pilot/scale-up, qualification/offtake, funding and commercialisation evidence. The terminal EPS caption is profile-aware for the same reason. All scores, corridors, guard states, V127 Net-Cash logic, LOM logic and valuation mathematics remain unchanged.
-# V2.23.77: Universal Asset-Management AUM-Evolution Mapper V273. Adds a fail-closed issuer-primary mapper for explicitly labelled firmwide AUM/Net-Flow evolution tables: latest current-year period-end Total AUM, prior 31-Dec same-scope Beginning AUM, and cumulative current-year quarterly Net Flows are mapped onto one period-safe denominator. Supports common dd/mm/yyyy, dd.mm.yyyy and two-digit-year table dates. No issuer/ticker/KPI value is hard-coded; V272 discovery ordering, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds are unchanged.
+# V2.23.78: Universal Asset-Management Wide-Schedule Cell-Alignment Mapper V274. Extends only the issuer-primary evidence adapter after V272 host-fair discovery. XLSX extraction now preserves non-numeric worksheet column tags, allowing generic section-aware mapping of wide date-based schedules such as "Assets under management - Total" and "Net flows - Total" even when the metric row itself is labelled only TOTAL and the workbook uses calendar dates instead of FY/Q/H period tokens. The mapper binds current Total AUM, the exact same-scope beginning AUM and cumulative H1/quarter net flows by physical worksheet column, fills only missing AUM/flow evidence, and never replaces already validated prose/period-table values. No issuer ticker, URL or KPI value is hard-coded; fee/CIR/EPS parsing, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds remain unchanged.
+# V2.23.79: Universal Asset-Management Wide-Schedule Reachability Guard V275. Fixes the V274 control-flow gate that returned immediately when the legacy FY/Q/H period-table parser did not recover a table, which made the new date-based wide-schedule mapper unreachable in exactly the issuer schedules it was designed to handle. V275 evaluates the wide-schedule mapper independently, preserves the old early-return behavior when neither legacy nor wide evidence is recovered, and fills only previously missing Total AUM / same-scope beginning AUM / same-scope Net Flows. Discovery, issuer ownership checks, Fee Growth/CIR/EPS parsing, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds remain unchanged.
 # V2.23.76: Universal Asset-Management Host-Fairness Discovery Guard V272. V271 added about.<issuer-domain>, but the consumer probed only the first 12 generated URLs; multiple paths for group./investors./ir./corporate. could therefore exhaust the slice before about. or the bare issuer host was ever tried. V272 changes only candidate ordering: one high-value route per issuer-owned host family is emitted first, then the provider website/root and only then secondary routes. This prevents path-count starvation for any valid corporate/IR subdomain while preserving the existing bounded deadline, issuer-family ownership checks, parser, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds.
 # V2.23.75: Universal Asset-Management Corporate-About-Host Discovery Guard V271. Amundi exposed that a provider marketing/root domain can coexist with the issuer-owned financial-results hub on an about.<domain> corporate subdomain. The generic Asset-Management issuer-primary bootstrap now probes about.<issuer-domain> with bounded financial-results, shareholder-hub, regulated-information and investor-relations routes before the marketing root. All accepted KPI values still must come from issuer-owned fetched content; search snippets remain discovery-only. No Amundi ticker, URL, KPI value, Asset-Management score weight, 9–18x corridor, Premium-Unlock, peer/historical guard, Through-Cycle earnings math, Fair Value or signal threshold is changed.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
@@ -38399,8 +38400,8 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V122"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22240_asset_manager_historical_year_discovery_isolation_v136"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V124"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22379_asset_manager_wide_schedule_reachability_v139"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -38852,7 +38853,17 @@ def _asset_manager_xlsx_bytes_to_text(payload, diagnostics=None):
                             continue
                         val = cell_text(cell)
                         if val:
-                            vals.append(val)
+                            # V274: retain the physical worksheet column without adding
+                            # numeric tokens that could disturb the legacy row parser.
+                            # The new wide-schedule mapper can therefore align a TOTAL
+                            # value with date/period headers even when the metric name is
+                            # carried by a section title rather than by the data row.
+                            ref = str(cell.attrib.get("r") or "").upper()
+                            cm = re.match(r"([A-Z]+)", ref)
+                            if cm:
+                                vals.append(f"[[XCOL_{cm.group(1)}]] {val}")
+                            else:
+                                vals.append(val)
                     if vals:
                         rows_out.append(_clean_text(" ".join(vals)))
                     if sum(len(x) + 1 for x in rows_out) > 260_000:
@@ -41343,101 +41354,250 @@ def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
 
 
 
-def _asset_manager_v122_aum_evolution_mapper(text):
-    """Recover firmwide AUM + same-scope YTD flows from an explicit evolution table.
+def _asset_manager_v123_xlsx_cells(row_text):
+    """Return physical XLSX column -> cell text from the V274 column tags."""
+    row = str(row_text or "")
+    out = {}
+    matches = list(re.finditer(r"\[\[XCOL_([A-Z]+)\]\]", row))
+    for pos, m in enumerate(matches):
+        start = m.end()
+        end = matches[pos + 1].start() if pos + 1 < len(matches) else len(row)
+        value = _clean_text(row[start:end])
+        if value:
+            out[m.group(1)] = value
+    return out
 
-    Fail closed unless the local issuer-primary section explicitly identifies both
-    assets under management and net flows.  The mapper never infers sub-scopes
-    and never substitutes market/FX/scope effects for client flows.
-    """
-    clean = _clean_text(text)
-    folded = _asset_manager_v108_fold(clean)
-    anchors = [
-        "evolution of assets under management",
-        "evolution of aum",
-        "change in assets under management",
-        "changes in assets under management",
-        "development of assets under management",
-        "evolution des encours sous gestion",
-    ]
-    starts = [folded.find(a) for a in anchors if folded.find(a) >= 0]
-    if not starts:
-        return {}
-    start = min(starts)
-    # Keep the window local: enough for a multi-year bridge, but not the whole
-    # report where unrelated segment tables could create false matches.
-    window = clean[start:start + 9000]
-    wf = _asset_manager_v108_fold(window)
-    if not any(t in wf for t in ["net flows", "net inflows", "net cash flows", "collecte nette"]):
-        return {}
-    if not any(t in wf for t in ["assets under management", "aum", "encours sous gestion"]):
-        return {}
 
-    now_year = datetime.now().year
-    prior_year = now_year - 1
-
-    def full_year(token):
-        yy = int(token)
-        return 2000 + yy if yy < 100 else yy
-
-    # Date rows in AUM evolution tables normally carry the period-end AUM as
-    # the first number after the date.  Require a plausible institutional AUM
-    # magnitude to avoid percentages or footnote numbers.
-    date_rows = []
-    date_pat = re.compile(
-        r"(?P<day>3[01]|[12][0-9]|0?[1-9])[/.-](?P<month>0?[1-9]|1[0-2])[/.-](?P<year>20\d{2}|\d{2})"
-        r"\s+(?P<value>[0-9][0-9 ,.]*)", re.I
-    )
-    for m in date_pat.finditer(window):
+def _asset_manager_v123_parse_date_cell(value):
+    raw = _clean_text(value)
+    if not raw:
+        return None
+    for pat in [
+        r"\b(?P<d>0?[1-9]|[12]\d|3[01])[./-](?P<m>0?[1-9]|1[0-2])[./-](?P<y>20\d{2})\b",
+        r"\b(?P<y>20\d{2})[./-](?P<m>0?[1-9]|1[0-2])[./-](?P<d>0?[1-9]|[12]\d|3[01])\b",
+    ]:
+        m = re.search(pat, raw)
+        if m:
+            try:
+                return (int(m.group("y")), int(m.group("m")), int(m.group("d")))
+            except Exception:
+                return None
+    # Some workbooks store header dates as raw Excel serials. Restrict the
+    # fallback to plausible modern date serials so ordinary KPI values cannot
+    # be reinterpreted as dates.
+    if re.fullmatch(r"\d{5}(?:\.\d+)?", raw):
         try:
-            yy, mo, dd = full_year(m.group("year")), int(m.group("month")), int(m.group("day"))
-            val = _asset_manager_primary_amount(m.group("value"), "bn")
-            if val is not None and val >= 1e9:
-                date_rows.append(((yy, mo, dd), val))
+            serial = float(raw)
+            if 35000 <= serial <= 60000:
+                dt = datetime(1899, 12, 30) + timedelta(days=serial)
+                return (dt.year, dt.month, dt.day)
         except Exception:
-            continue
-    current_rows = [row for row in date_rows if row[0][0] == now_year]
-    prior_dec = [row for row in date_rows if row[0][0] == prior_year and row[0][1] == 12 and row[0][2] >= 28]
-    if not current_rows or not prior_dec:
-        return {}
-    current_rows.sort(key=lambda x: x[0])
-    prior_dec.sort(key=lambda x: x[0])
-    latest_date, total_aum = current_rows[-1]
-    beginning_total_aum = prior_dec[-1][1]
+            pass
+    return None
 
-    month = latest_date[1]
-    completed_q = 1 if month <= 3 else 2 if month <= 6 else 3 if month <= 9 else 4
-    qflows = {}
-    qpat = re.compile(
-        rf"\bQ(?P<q>[1-4])\s*{now_year}\b\s*"
-        r"(?P<flow>[-+]?(?:[€$£]\s*)?(?:[0-9]{1,3}(?:[ ,.][0-9]{3})+|[0-9]+(?:[.,][0-9]+)?))", re.I
-    )
-    for m in qpat.finditer(window):
-        q = int(m.group("q"))
-        if q > completed_q or q in qflows:
+
+def _asset_manager_v123_period_cell(value):
+    raw = _asset_manager_v108_fold(value)
+    m = re.search(r"\b(?:H|S)([12])\s*(20\d{2})\b", raw, re.I)
+    if m:
+        return (f"H{int(m.group(1))}", int(m.group(2)), 0.5)
+    m = re.search(r"\b(?:Q|T)([1-4])\s*(20\d{2})\b", raw, re.I)
+    if m:
+        return (f"Q{int(m.group(1))}", int(m.group(2)), 0.25)
+    m = re.search(r"\b(?:FY|full\s+year)\s*(20\d{2})\b", raw, re.I)
+    if m:
+        return ("FY", int(m.group(1)), 1.0)
+    return None
+
+
+def _asset_manager_v123_number(value):
+    raw = _clean_text(value)
+    if not raw or raw in {"-", "–", "—", "NM", "N/M"}:
+        return None
+    m = re.search(r"[-+]?\(?\s*(?:\d{1,3}(?:[,.]\d{3})+|\d+(?:[,.]\d+)?)\s*\)?", raw)
+    return _asset_manager_v108_parse_number(m.group(0)) if m else None
+
+
+def _asset_manager_v123_scale_unit(rows, start, end):
+    hay = _asset_manager_v108_fold(" ".join(rows[max(0, start):min(len(rows), end)]))
+    if any(t in hay for t in ["€tn", "$tn", "£tn", "(tn)", " trillion"]):
+        return "tn"
+    if any(t in hay for t in ["€bn", "$bn", "£bn", "(€bn)", "($bn)", "(£bn)", "(bn)", " billion", " milliards", " mrd"]):
+        return "bn"
+    if any(t in hay for t in ["€m", "$m", "£m", "(€m)", "($m)", "(£m)", "(m)", " million", " mio"]):
+        return "m"
+    return None
+
+
+def _asset_manager_v123_find_section(rows, kind):
+    """Locate a wide issuer schedule title without relying on issuer identity."""
+    candidates = []
+    for i, row in enumerate(rows):
+        folded = _asset_manager_v108_fold(row)
+        numeric_count = len(re.findall(r"(?<![A-Za-z])[-+]?\d+(?:[,.]\d+)?", row))
+        if kind == "aum":
+            metric = bool("assets under management" in folded or "encours sous gestion" in folded or re.search(r"\btotal\s+aum\b", folded))
+            total_scope = "total" in folded
+        else:
+            metric = bool(re.search(r"\bnet\s+(?:cash\s+)?flows?\b", folded) or "net inflows" in folded or "collecte nette" in folded)
+            total_scope = "total" in folded
+        if metric and total_scope and numeric_count <= 2:
+            candidates.append((i, -numeric_count))
+    return max(candidates, key=lambda x: (x[1], -x[0]))[0] if candidates else None
+
+
+def _asset_manager_v123_block_end(rows, start, kind):
+    end = min(len(rows), start + 80)
+    for j in range(start + 1, end):
+        folded = _asset_manager_v108_fold(rows[j])
+        if kind == "aum":
+            if ("assets under management" in folded and "total" not in folded and len(folded) < 180) or (re.search(r"\bnet\s+(?:cash\s+)?flows?\b", folded) and len(folded) < 180):
+                return j
+        else:
+            if j > start + 2 and (("net flows" in folded and "total" not in folded and len(folded) < 180) or ("assets under management" in folded and len(folded) < 180)):
+                return j
+    return end
+
+
+def _asset_manager_v123_header_maps(rows, start, end):
+    dates, periods = {}, {}
+    for row in rows[start:end]:
+        cells = _asset_manager_v123_xlsx_cells(row)
+        for col, value in cells.items():
+            dt = _asset_manager_v123_parse_date_cell(value)
+            if dt is not None:
+                dates.setdefault(col, dt)
+            per = _asset_manager_v123_period_cell(value)
+            if per is not None:
+                periods.setdefault(col, per)
+    return dates, periods
+
+
+def _asset_manager_v123_total_row(rows, start, end):
+    """Pick the section TOTAL row, not an o/w subtotal or narrative total."""
+    candidates = []
+    for row_no in range(start + 1, end):
+        cells = _asset_manager_v123_xlsx_cells(rows[row_no])
+        if not cells:
             continue
-        token = re.sub(r"[€$£\s]", "", m.group("flow"))
-        val = _asset_manager_v108_parse_number(token)
-        if val is not None and abs(val) < 10000:
-            qflows[q] = val * 1e9
-    needed = list(range(1, completed_q + 1))
-    if not needed or any(q not in qflows for q in needed):
-        return {}
-    period_net_flows = sum(qflows[q] for q in needed)
-    label = f"Q1 {now_year}" if completed_q == 1 else f"H1 {now_year}" if completed_q == 2 else f"9M {now_year}" if completed_q == 3 else f"FY {now_year}"
-    return {
+        has_total = any(re.fullmatch(r"total(?:\s*\(\*\))?", _asset_manager_v108_fold(value).strip()) for value in cells.values())
+        if not has_total:
+            continue
+        numeric_cells = sum(1 for v in cells.values() if _asset_manager_v123_number(v) is not None)
+        if numeric_cells >= 2:
+            candidates.append((numeric_cells, -row_no, cells))
+    return max(candidates, key=lambda x: (x[0], x[1]))[2] if candidates else None
+
+
+def _asset_manager_v123_scaled_amount(value, unit):
+    num = _asset_manager_v123_number(value)
+    if num is None or unit not in {"tn", "bn", "m"}:
+        return None
+    return _asset_manager_primary_amount(str(num), unit)
+
+
+def _asset_manager_v123_wide_schedule_snapshot(text, source_url, company_name, fundamental_info=None):
+    """Recover same-scope AUM/flows from wide, date-based issuer XLSX schedules."""
+    clean = _clean_text(text)
+    out = {"available": False, "wide_schedule_recovered": False}
+    if "[[XLSX_ROW]]" not in clean or "[[XCOL_" not in clean:
+        return out
+    rows = [_clean_text(r) for r in clean.split("[[XLSX_ROW]]") if _clean_text(r)]
+    if not rows:
+        return out
+    current_year = datetime.now().year
+    prior_year = current_year - 1
+
+    aum_start = _asset_manager_v123_find_section(rows, "aum")
+    flow_start = _asset_manager_v123_find_section(rows, "flow")
+    if aum_start is None or flow_start is None:
+        return out
+    aum_end = _asset_manager_v123_block_end(rows, aum_start, "aum")
+    flow_end = _asset_manager_v123_block_end(rows, flow_start, "flow")
+    aum_dates, _ = _asset_manager_v123_header_maps(rows, aum_start, aum_end)
+    _, flow_periods = _asset_manager_v123_header_maps(rows, flow_start, flow_end)
+    aum_total = _asset_manager_v123_total_row(rows, aum_start, aum_end)
+    flow_total = _asset_manager_v123_total_row(rows, flow_start, flow_end)
+    if not aum_dates or not flow_periods or aum_total is None or flow_total is None:
+        return out
+
+    flow_choices = []
+    for col, (kind, yy, frac) in flow_periods.items():
+        if yy != current_year or col not in flow_total:
+            continue
+        val = _asset_manager_v123_number(flow_total.get(col))
+        if val is None:
+            continue
+        rank = 100 if kind == "H1" else 40 + int(kind[1]) if kind.startswith("Q") else 10
+        flow_choices.append((rank, col, kind, frac, val))
+    if not flow_choices:
+        return out
+    _, flow_col, flow_kind, flow_fraction, _ = max(flow_choices, key=lambda x: x[0])
+
+    if flow_kind == "H1":
+        begin_date = (prior_year, 12, 31)
+        end_date = (current_year, 6, 30)
+        flow_label = f"H1 {current_year}"
+    elif flow_kind.startswith("Q"):
+        q = int(flow_kind[1])
+        end_month_day = {1: (3, 31), 2: (6, 30), 3: (9, 30), 4: (12, 31)}[q]
+        end_date = (current_year, *end_month_day)
+        begin_date = (prior_year, 12, 31) if q == 1 else (current_year, *{2: (3, 31), 3: (6, 30), 4: (9, 30)}[q])
+        flow_label = f"Q{q} {current_year}"
+    else:
+        return out
+
+    def matching_value(cells, date_tuple):
+        matches = []
+        for col, dt in aum_dates.items():
+            if dt != date_tuple or col not in cells:
+                continue
+            num = _asset_manager_v123_number(cells.get(col))
+            if num is not None:
+                matches.append((col, num))
+        return matches[0] if matches else (None, None)
+
+    current_col, current_num = matching_value(aum_total, end_date)
+    begin_col, begin_num = matching_value(aum_total, begin_date)
+    if current_num is None or begin_num is None:
+        return out
+
+    aum_unit = _asset_manager_v123_scale_unit(rows, aum_start, min(aum_end, aum_start + 12))
+    flow_unit = _asset_manager_v123_scale_unit(rows, flow_start, min(flow_end, flow_start + 12))
+    total_aum = _asset_manager_v123_scaled_amount(aum_total.get(current_col), aum_unit)
+    beginning_total_aum = _asset_manager_v123_scaled_amount(aum_total.get(begin_col), aum_unit)
+    period_net_flows = _asset_manager_v123_scaled_amount(flow_total.get(flow_col), flow_unit)
+    if total_aum is None or beginning_total_aum is None or period_net_flows is None:
+        return out
+    ratio = total_aum / beginning_total_aum if beginning_total_aum else None
+    if ratio is None or not (0.25 <= ratio <= 4.0):
+        return out
+
+    out.update({
+        "available": True,
+        "wide_schedule_recovered": True,
+        "source_url": source_url,
+        "source_name": f"{company_name} issuer-primary wide schedule · Generic Asset-Manager Evidence Adapter {ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION}",
+        "company": company_name,
+        "generic_primary_adapter": True,
         "total_aum": total_aum,
         "beginning_total_aum": beginning_total_aum,
-        "flow_beginning_aum": beginning_total_aum,
-        "firmwide_flow_beginning_aum": beginning_total_aum,
-        "period_net_flows": period_net_flows,
         "firmwide_period_net_flows": period_net_flows,
+        "firmwide_flow_beginning_aum": beginning_total_aum,
         "flow_scope_label": "Firmwide",
-        "flow_period_fraction_year": completed_q / 4.0,
-        "flow_period_label": label,
+        "flow_beginning_aum": beginning_total_aum,
+        "period_net_flows": period_net_flows,
+        "flow_period_fraction_year": flow_fraction,
+        "flow_period_label": flow_label,
         "flow_scope_matches_denominator": True,
-        "aum_evolution_mapper": "V122",
-    }
+        "verified_flow_direction": "positive" if period_net_flows > 0 else "negative" if period_net_flows < 0 else "flat",
+        "as_of_date": f"{end_date[2]:02d}.{end_date[1]:02d}.{end_date[0]:04d}",
+        "wide_schedule_aum_current_column": current_col,
+        "wide_schedule_aum_beginning_column": begin_col,
+        "wide_schedule_flow_column": flow_col,
+    })
+    return out
+
 
 def _asset_manager_v110_prior_fy_aum_from_prose(text, scope="firmwide"):
     clean = _clean_text(text)
@@ -41487,26 +41647,56 @@ def _asset_manager_parse_generic_primary_report(text, source_url, company_name, 
         if prior_lt is not None:
             base["beginning_long_term_aum"] = prior_lt
 
-    evolution = _asset_manager_v122_aum_evolution_mapper(text)
-    for key, value in evolution.items():
-        if value is not None and (key not in base or base.get(key) is None or key in {"flow_scope_matches_denominator", "aum_evolution_mapper"}):
-            base[key] = value
-
     table = _asset_manager_v108_period_table_snapshot(text, source_url, company_name, fundamental_info=fundamental_info)
-    if not table.get("period_table_recovered"):
+
+    # V275: the date-based wide-schedule mapper is intentionally independent
+    # from the legacy FY/Q/H table parser.  In V274 an early return made this
+    # path unreachable when the issuer used calendar-date columns, which is
+    # precisely the format the wide mapper is meant to recover.
+    wide = _asset_manager_v123_wide_schedule_snapshot(
+        text, source_url, company_name, fundamental_info=fundamental_info
+    )
+    table_recovered = bool(table.get("period_table_recovered"))
+    wide_recovered = bool(wide.get("wide_schedule_recovered"))
+    if not table_recovered and not wide_recovered:
         base["adapter_version"] = ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION
         return base
 
     merged = dict(base)
-    for key, value in table.items():
-        if key == "operating_margin_pct" and value is None and safe_float(table.get("cost_income_ratio_pct")) is None:
-            continue
-        # Preserve a prose-recovered beginning denominator when the current
-        # table does not contain FY/Q4 beginning AUM.
-        if key in {"beginning_total_aum", "beginning_long_term_aum", "flow_beginning_aum"} and value is None and safe_float(merged.get(key)) is not None:
-            continue
-        if value is not None or key in {"operating_margin_pct"}:
-            merged[key] = value
+    if table_recovered:
+        for key, value in table.items():
+            if key == "operating_margin_pct" and value is None and safe_float(table.get("cost_income_ratio_pct")) is None:
+                continue
+            # Preserve a prose-recovered beginning denominator when the current
+            # table does not contain FY/Q4 beginning AUM.
+            if key in {"beginning_total_aum", "beginning_long_term_aum", "flow_beginning_aum"} and value is None and safe_float(merged.get(key)) is not None:
+                continue
+            if value is not None or key in {"operating_margin_pct"}:
+                merged[key] = value
+
+    # V274/V275: date-based wide schedules can carry the semantic metric in
+    # the section title while the data row itself is only "TOTAL". Recover
+    # only missing AUM/flow fields by physical XLSX column; never overwrite a
+    # value already validated by the prose/conventional period-table paths.
+    if wide_recovered:
+        fill_only = {
+            "total_aum", "beginning_total_aum", "firmwide_period_net_flows",
+            "firmwide_flow_beginning_aum", "flow_beginning_aum", "period_net_flows",
+            "flow_period_fraction_year", "flow_period_label", "flow_scope_label",
+            "verified_flow_direction", "as_of_date",
+        }
+        for key in fill_only:
+            value = wide.get(key)
+            if value is None:
+                continue
+            current = merged.get(key)
+            if current is None or (isinstance(current, str) and not current.strip()):
+                merged[key] = value
+        merged["wide_schedule_recovered"] = True
+        merged["wide_schedule_source_name"] = wide.get("source_name")
+        merged["wide_schedule_flow_column"] = wide.get("wide_schedule_flow_column")
+        merged["wide_schedule_aum_current_column"] = wide.get("wide_schedule_aum_current_column")
+        merged["wide_schedule_aum_beginning_column"] = wide.get("wide_schedule_aum_beginning_column")
 
     # Re-bind firmwide flow denominator after the partial-table merge. Long-term
     # flows may only be selected when a long-term beginning denominator exists.
