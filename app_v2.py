@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.81"
+APP_BUILD_VERSION = "V2.23.82"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Freshest-Complete Arbitration · Amundi-Gegentest V277"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Fresh-Queue Priority Guard · Amundi-Gegentest V278"
 )
 
 
@@ -1106,6 +1106,7 @@ st.caption(
 # V2.23.78: Universal Asset-Management Wide-Schedule Cell-Alignment Mapper V274. Extends only the issuer-primary evidence adapter after V272 host-fair discovery. XLSX extraction now preserves non-numeric worksheet column tags, allowing generic section-aware mapping of wide date-based schedules such as "Assets under management - Total" and "Net flows - Total" even when the metric row itself is labelled only TOTAL and the workbook uses calendar dates instead of FY/Q/H period tokens. The mapper binds current Total AUM, the exact same-scope beginning AUM and cumulative H1/quarter net flows by physical worksheet column, fills only missing AUM/flow evidence, and never replaces already validated prose/period-table values. No issuer ticker, URL or KPI value is hard-coded; fee/CIR/EPS parsing, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds remain unchanged.
 # V2.23.79: Universal Asset-Management Wide-Schedule Reachability Guard V275. Fixes the V274 control-flow gate that returned immediately when the legacy FY/Q/H period-table parser did not recover a table, which made the new date-based wide-schedule mapper unreachable in exactly the issuer schedules it was designed to handle. V275 evaluates the wide-schedule mapper independently, preserves the old early-return behavior when neither legacy nor wide evidence is recovered, and fills only previously missing Total AUM / same-scope beginning AUM / same-scope Net Flows. Discovery, issuer ownership checks, Fee Growth/CIR/EPS parsing, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds remain unchanged.
 # V2.23.80: Universal Asset-Management XLSX Display-Scale Guard V276. Corrects OOXML financial-supplement cells whose cached formula value is stored in absolute currency units while the workbook number format displays the value in millions/billions/trillions via trailing Excel scaling commas. The XLSX flattener now applies only the display scaling encoded in each cell style before the existing report-unit parser re-expands the disclosed (€m/€bn/€tn) unit. This prevents double-scaling of AUM and Net Flows while preserving already-scaled workbooks, percentage styles, discovery, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds.
+# V2.23.82: Universal Asset-Management Fresh-Queue Priority Guard V278. When an older complete snapshot is retained as fallback and a current-year issuer results hub has already yielded ranked report candidates, the strongest current-period issuer-owned reports are opened immediately before more root pages can consume the bounded discovery budget. Ranking remains issuer-neutral and uses only existing document class, structural year/period context and link score. Older complete evidence remains the fail-closed fallback. No score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value or signal thresholds changed.
 # V2.23.81: Universal Asset-Management Freshest-Complete Snapshot Arbitration V277. Once the generic evidence adapter can fully map an older quarter, discovery no longer returns the first complete document blindly. A complete snapshot older than the calendar-period freshness floor implied by the existing Q3/Q2/Q1 discovery schedule is retained as a fallback while the bounded crawl continues; a complete snapshot at or beyond the expected latest released quarter is released immediately. If no fresher complete snapshot is recovered within the existing budget, the best complete fallback is returned. No issuer identity, URL or KPI value is hard-coded; score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds remain unchanged.
 # V2.23.76: Universal Asset-Management Host-Fairness Discovery Guard V272. V271 added about.<issuer-domain>, but the consumer probed only the first 12 generated URLs; multiple paths for group./investors./ir./corporate. could therefore exhaust the slice before about. or the bare issuer host was ever tried. V272 changes only candidate ordering: one high-value route per issuer-owned host family is emitted first, then the provider website/root and only then secondary routes. This prevents path-count starvation for any valid corporate/IR subdomain while preserving the existing bounded deadline, issuer-family ownership checks, parser, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds.
 # V2.23.75: Universal Asset-Management Corporate-About-Host Discovery Guard V271. Amundi exposed that a provider marketing/root domain can coexist with the issuer-owned financial-results hub on an about.<domain> corporate subdomain. The generic Asset-Management issuer-primary bootstrap now probes about.<issuer-domain> with bounded financial-results, shareholder-hub, regulated-information and investor-relations routes before the marketing root. All accepted KPI values still must come from issuer-owned fetched content; search snippets remain discovery-only. No Amundi ticker, URL, KPI value, Asset-Management score weight, 9–18x corridor, Premium-Unlock, peer/historical guard, Through-Cycle earnings math, Fair Value or signal threshold is changed.
@@ -38402,8 +38403,8 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V126"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22381_asset_manager_freshest_complete_v141"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V127"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22382_asset_manager_fresh_queue_priority_v142"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -41921,6 +41922,44 @@ def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=N
             url = row.get("url")
             if url and url not in seen:
                 seen.add(url); queue.append((row, 0))
+
+        # V278: once an older complete snapshot exists, do not spend the remaining
+        # bounded budget walking more roots while current-year issuer reports are
+        # already queued from this hub.  Open the strongest report candidates now.
+        # This is issuer-neutral: priority comes only from document class, structural
+        # year/period context and the existing link score.  The stale complete result
+        # remains the fail-closed fallback if none of these candidates maps cleanly.
+        if best_complete is not None and parsed_asof_tuple(best_complete) < freshness_floor and queue:
+            queue.sort(key=lambda item: safe_float(item[0].get("score")) or 0, reverse=True)
+            eager = []
+            deferred = []
+            for item in queue:
+                row0, depth0 = item
+                currentish = (
+                    row0.get("kind") == "report"
+                    and (
+                        row0.get("structural_year") == year
+                        or str(year) in _asset_manager_v108_fold(f"{row0.get('table_context','')} {row0.get('label','')} {row0.get('url','')}")
+                        or row0.get("document_class") == "current_period_download"
+                    )
+                )
+                if currentish and len(eager) < 5:
+                    eager.append(item)
+                else:
+                    deferred.append(item)
+            queue = deferred
+            for row0, depth0 in eager:
+                if not _research_budget_ok(deadline, reserve=1.2):
+                    queue.insert(0, (row0, depth0))
+                    continue
+                u0 = row0.get("url")
+                txt0, final0, diag0 = _asset_manager_fetch_primary_text(u0, company_domain, deadline=deadline)
+                hit0 = consider(
+                    _asset_manager_parse_generic_primary_report(txt0, final0 or u0, company_label, fundamental_info),
+                    f"fresh_queue:{u0}:{'ok' if txt0 else 'empty'}",
+                )
+                if hit0:
+                    return hit0
 
     # V112 current-period recovery: multi-year IR hubs can expose identical
     # generic PDF/XLS anchors for every year. Search remains discovery-only;
