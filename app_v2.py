@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.82"
+APP_BUILD_VERSION = "V2.23.83"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Fresh-Queue Priority Guard · Amundi-Gegentest V278"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Stale-Host Freshness Recovery · Amundi-Gegentest V279"
 )
 
 
@@ -1107,6 +1107,7 @@ st.caption(
 # V2.23.79: Universal Asset-Management Wide-Schedule Reachability Guard V275. Fixes the V274 control-flow gate that returned immediately when the legacy FY/Q/H period-table parser did not recover a table, which made the new date-based wide-schedule mapper unreachable in exactly the issuer schedules it was designed to handle. V275 evaluates the wide-schedule mapper independently, preserves the old early-return behavior when neither legacy nor wide evidence is recovered, and fills only previously missing Total AUM / same-scope beginning AUM / same-scope Net Flows. Discovery, issuer ownership checks, Fee Growth/CIR/EPS parsing, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds remain unchanged.
 # V2.23.80: Universal Asset-Management XLSX Display-Scale Guard V276. Corrects OOXML financial-supplement cells whose cached formula value is stored in absolute currency units while the workbook number format displays the value in millions/billions/trillions via trailing Excel scaling commas. The XLSX flattener now applies only the display scaling encoded in each cell style before the existing report-unit parser re-expands the disclosed (€m/€bn/€tn) unit. This prevents double-scaling of AUM and Net Flows while preserving already-scaled workbooks, percentage styles, discovery, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds.
 # V2.23.82: Universal Asset-Management Fresh-Queue Priority Guard V278. When an older complete snapshot is retained as fallback and a current-year issuer results hub has already yielded ranked report candidates, the strongest current-period issuer-owned reports are opened immediately before more root pages can consume the bounded discovery budget. Ranking remains issuer-neutral and uses only existing document class, structural year/period context and link score. Older complete evidence remains the fail-closed fallback. No score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value or signal thresholds changed.
+# V2.23.83: Universal Asset-Management Stale-Host Freshness Recovery V279. Before a stale but complete issuer snapshot is returned as fallback, the adapter gives the already verified source host one small independent freshness-recovery slice and probes only generic results-hub routes on that same issuer-owned host. Current-year report links discovered there are ranked by the existing document/period logic and parsed as primary evidence. This closes the case where broad host discovery exhausts its bounded budget after finding Q1 even though the same verified host already publishes Q2/H1. No issuer hostname, ticker, KPI value, score weight, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guard, Fair Value or signal threshold is hard-coded or changed.
 # V2.23.81: Universal Asset-Management Freshest-Complete Snapshot Arbitration V277. Once the generic evidence adapter can fully map an older quarter, discovery no longer returns the first complete document blindly. A complete snapshot older than the calendar-period freshness floor implied by the existing Q3/Q2/Q1 discovery schedule is retained as a fallback while the bounded crawl continues; a complete snapshot at or beyond the expected latest released quarter is released immediately. If no fresher complete snapshot is recovered within the existing budget, the best complete fallback is returned. No issuer identity, URL or KPI value is hard-coded; score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds remain unchanged.
 # V2.23.76: Universal Asset-Management Host-Fairness Discovery Guard V272. V271 added about.<issuer-domain>, but the consumer probed only the first 12 generated URLs; multiple paths for group./investors./ir./corporate. could therefore exhaust the slice before about. or the bare issuer host was ever tried. V272 changes only candidate ordering: one high-value route per issuer-owned host family is emitted first, then the provider website/root and only then secondary routes. This prevents path-count starvation for any valid corporate/IR subdomain while preserving the existing bounded deadline, issuer-family ownership checks, parser, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds.
 # V2.23.75: Universal Asset-Management Corporate-About-Host Discovery Guard V271. Amundi exposed that a provider marketing/root domain can coexist with the issuer-owned financial-results hub on an about.<domain> corporate subdomain. The generic Asset-Management issuer-primary bootstrap now probes about.<issuer-domain> with bounded financial-results, shareholder-hub, regulated-information and investor-relations routes before the marketing root. All accepted KPI values still must come from issuer-owned fetched content; search snippets remain discovery-only. No Amundi ticker, URL, KPI value, Asset-Management score weight, 9–18x corridor, Premium-Unlock, peer/historical guard, Through-Cycle earnings math, Fair Value or signal threshold is changed.
@@ -38403,8 +38404,8 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V127"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22382_asset_manager_fresh_queue_priority_v142"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V128"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22383_asset_manager_stale_host_freshness_recovery_v143"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -42044,6 +42045,86 @@ def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=N
                 if cu and cu not in seen:
                     seen.add(cu); queue.append((child, depth + 1))
             queue.sort(key=lambda item: safe_float(item[0].get("score")) or 0, reverse=True)
+
+    # V279 stale-host freshness salvage: a complete older snapshot is useful as
+    # a fail-closed fallback, but must not be returned merely because the broad
+    # multi-host crawl consumed its bounded budget first.  At this point we
+    # already possess a verified issuer-primary source URL. Give *that same
+    # host only* one small independent recovery slice and probe generic results
+    # hubs before accepting the stale fallback. This is issuer-neutral and
+    # cannot jump to an unverified sibling/third-party host.
+    if best_complete is not None and parsed_asof_tuple(best_complete) < freshness_floor:
+        stale_source = _clean_text(best_complete.get("source_url"))
+        try:
+            stale_parts = urlparse(stale_source)
+            stale_scheme = stale_parts.scheme or "https"
+            stale_host = stale_parts.netloc
+        except Exception:
+            stale_scheme, stale_host = "https", ""
+        if stale_host and _host_belongs_to_company_family(f"{stale_scheme}://{stale_host}/", company_domain):
+            salvage_deadline = time.monotonic() + 9.0
+            salvage_seen = set()
+            salvage_hubs = [
+                f"{stale_scheme}://{stale_host}/financial-results/",
+                f"{stale_scheme}://{stale_host}/shareholder-hub/",
+                f"{stale_scheme}://{stale_host}/investor-relations/financial-results/",
+                f"{stale_scheme}://{stale_host}/reports-and-events/financial-results/",
+            ]
+            for hub_url in salvage_hubs:
+                if not _research_budget_ok(salvage_deadline, reserve=2.2):
+                    break
+                try:
+                    hub_html, hub_final = _fetch_html(hub_url, timeout=2.2, deadline=salvage_deadline)
+                except Exception as exc:
+                    trace.append(f"stale_host_hub:{hub_url}:error:{type(exc).__name__}")
+                    continue
+                if not hub_html or not hub_final or not _host_belongs_to_company_family(hub_final, company_domain):
+                    trace.append(f"stale_host_hub:{hub_url}:empty")
+                    continue
+                trace.append(f"stale_host_hub:{hub_final}:ok")
+                salvage_rows = _asset_manager_report_link_candidates(hub_html, hub_final, company_domain, year)
+                # Existing score already rewards current structural year,
+                # Financial Supplements and later Q/H periods. Restrict this
+                # recovery slice to report-like current-year candidates only.
+                ranked_salvage = []
+                for row0 in salvage_rows:
+                    u0 = row0.get("url")
+                    if not u0 or u0 in salvage_seen or row0.get("kind") != "report":
+                        continue
+                    hay0 = _asset_manager_v108_fold(
+                        f"{row0.get('table_context','')} {row0.get('label','')} {u0}"
+                    )
+                    currentish = (
+                        row0.get("structural_year") == year
+                        or str(year) in hay0
+                        or row0.get("document_class") == "current_period_download"
+                    )
+                    if currentish:
+                        ranked_salvage.append(row0)
+                ranked_salvage.sort(key=lambda r: safe_float(r.get("score")) or 0, reverse=True)
+                for row0 in ranked_salvage[:6]:
+                    if not _research_budget_ok(salvage_deadline, reserve=0.7):
+                        break
+                    u0 = row0.get("url")
+                    if not u0 or u0 in salvage_seen:
+                        continue
+                    salvage_seen.add(u0)
+                    txt0, final0, diag0 = _asset_manager_fetch_primary_text(u0, company_domain, deadline=salvage_deadline)
+                    hit0 = consider(
+                        _asset_manager_parse_generic_primary_report(
+                            txt0, final0 or u0, company_label, fundamental_info
+                        ),
+                        f"stale_host_report:{u0}:{'ok' if txt0 else 'empty'}",
+                    )
+                    if hit0:
+                        hit0["freshest_complete_arbitration"] = "stale_host_recovery"
+                        return hit0
+                # A successfully opened canonical results hub is the highest
+                # yield path on this verified host; do not spend the small
+                # salvage slice on lower-value alternate routes if it produced
+                # current-year report candidates.
+                if ranked_salvage:
+                    break
 
     if best_complete is not None:
         best_complete["available"] = True
