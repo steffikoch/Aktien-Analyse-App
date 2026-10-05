@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.73"
+APP_BUILD_VERSION = "V2.23.74"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Internet-Platform-Familienfreigabe · Fair Value V269"
+    f"Build {APP_BUILD_VERSION} · Internet-Platform UI-Konsistenz · Release-Cleanup V270"
 )
 
 
@@ -967,6 +967,8 @@ st.caption(
 # V2.23.72: FCF Same-Basis Unit Continuity V268. When a primary-source normalized tax-special-item result is released, the FCF quality gate reconstructs normalized net income in the provider revenue/FCF unit via revenue × normalized TTM margin instead of passing SEC statement values expressed in millions. This preserves the same economics while preventing unit/currency-scale mismatches. Profitability warning UI now reads the earnings-growth basis actually used by the score. No tax-normalization, score thresholds, family corridor, target-P/E mapping, Fair-Value or signal rules change.
 
 # V2.23.73: Internet-Platform Multi-Issuer Release V269. Alphabet and Meta have passed the unchanged 18–32x normalized-TTM-P/E family path with separate primary-source normalization guards. The second-issuer live-validation lock is removed for eligible Internet Content / Digital Platform issuers. Fair Value, valuation zones and generic action signals may now use the already-released normalized TTM EPS and score-positioned family multiple. Peers remain reference-only and cannot adjust the family multiple. No corridor, eligibility threshold, score formula, tax/non-operating normalization mathematics or signal thresholds changed. Visible stale V264/V267/V268 validation wording is aligned to the released family state.
+
+# V2.23.74: Internet-Platform UI Consistency Cleanup V270. No valuation mathematics changed. Removes stale V262/V263 validation-lock wording after the Alphabet+Meta family release, aligns peer/reference and EPS-normalization status text, and cleans German UI terminology.
 # V2.23.70: Discrete Tax Special-Item Same-Basis Guard V266. Adds an issuer-neutral SEC 10-K/10-Q normalizer for explicitly identified material discrete/one-time/non-cash income-tax charges or benefits. The guard reconstructs current and prior TTM revenue, net income and diluted EPS using FY−YTD+YTD, removes only the explicitly quantified tax effects from the periods in which the issuer says they occurred, and derives same-basis earnings growth, net margin and ROE. Legal, severance and other operating costs are never adjusted automatically. Missing filing identity, ambiguous period attribution, missing statement rows or inconsistent tax evidence fail closed. The Internet-Platform 18–32x corridor and 80/100 maturity thresholds are unchanged.
 # V2.23.68: Internet-Platform Family Corridor V264. Adds a reusable Media/Internet subprofile for Internet Content & Information platforms and releases an 18–32x normalized-TTM P/E corridor for mature profitable platform economics only. Eligibility is score/evidence based (quality >=80, growth >=20/30, profitability >=20/30, FCF >=16/25, balance >=10/15, positive normalized earnings basis). The target line is 50 points -> 18x and 100 points -> 32x, with no extra growth premium to avoid double counting. V264 is corridor/target-multiple live-validation only: peer adjustment, Fair Value, valuation zones and signals remain fail-closed pending a second-issuer live regression (Meta). Alphabet non-operating normalization and 92/100 score math are unchanged.
 # V2.23.66: Normalized Common ROE & Quality Score Release V262. Extends the released V260 primary-source EPS bridge to a current normalized TTM net-income/revenue basis and, when a comparable prior-year 10-Q is unambiguously resolved, a prior-TTM normalized earnings bridge. Current normalized net margin and normalized TTM earnings growth are released only when period structure, dominant unrealized-equity coverage and statutory-rate evidence remain consistent. ROE, the generic 100-point score, P/E, Fair Value and signal remain fail-closed for a later validation step. No issuer-specific ticker or financial value is hard-coded.
@@ -8071,7 +8073,7 @@ def calculate_growth_score(
 
     if isinstance(eps_normalization, dict) and eps_normalization.get("valuation_blocked"):
         confidence = "Niedrig"
-        note += " Die Earnings-Basis ist parallel durch das Comparability Gate für die Bewertung gesperrt."
+        note += " Die verwendete Gewinnbasis folgt der jeweils freigegebenen Vergleichbarkeits- und Familienlogik."
 
     return {
         "score": score,
@@ -47001,7 +47003,7 @@ def build_media_internet_platform_corridor_v264(company_type, growth_score, prof
         "confidence": "Mittel",
         "note": (
             "V269 gibt den mit Alphabet und Meta live validierten Internet-Platform-Korridor von 18–32× normalisiertem TTM-KGV frei. "
-            "Der 100-Punkte-Score positioniert das Ziel von 50→18× bis 100→32×; es gibt keinen zusätzlichen Wachstumsaufschlag, "
+            "Die Qualitätspunktzahl positioniert das Ziel von 50→18× bis 100→32×; es gibt keinen zusätzlichen Wachstumsaufschlag, "
             "weil Wachstum bereits 30/100 Punkte ausmacht. Peer-KGVs bleiben reine Referenz und verändern weder Familienanker noch Ziel-KGV."
         ),
     }
@@ -69614,7 +69616,7 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
             )
             balance_score["note"] = (
                 (balance_score.get("note") or "")
-                + " V262: Bilanzpunkte werden ausschließlich für den Qualitätsscore freigegeben; sie geben kein Bewertungsmultiple frei."
+                + " Bilanzpunkte fließen in den Qualitätsscore ein; die Freigabe eines Bewertungsmultiples erfolgt ausschließlich über das jeweilige Familienmodell."
             )
             non_operating_income_guard = {
                 **non_operating_income_guard,
@@ -70864,6 +70866,36 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
                     "family_valuation_pending": False,
                     "family_corridor_stage": "multi_issuer_family_released",
                 }
+            # V270 presentation consistency: the family-release decision is made after
+            # the generic peer objects were built. Refresh their notes so no earlier
+            # validation-lock text leaks into a fully released Internet-Platform result.
+            peer_group = {
+                **(peer_group or {}),
+                "available": False,
+                "peers": [],
+                "count": 0,
+                "reference_only": True,
+                "media_internet_v270": True,
+                "note": (
+                    "V270 Internet-Platform-Familie freigegeben: Alphabet und Meta haben den unveränderten Familienpfad live validiert. "
+                    "Vergleichsunternehmen bleiben reine Plausibilitätsreferenz; es gibt keine automatische Anpassung des 18–32×-Familienkorridors oder des Ziel-KGVs."
+                ),
+            }
+            peer_check = {
+                **(peer_check or {}),
+                "method_supported": False,
+                "peer_rows": [],
+                "usable_count": 0,
+                "peer_median": None,
+                "adjustment_pct": 0.0,
+                "adjusted_multiple": None,
+                "applied": False,
+                "reference_only": True,
+                "note": (
+                    "V270 Vergleichsgruppenprüfung: Die Familienbewertung ist freigegeben. Vergleichsunternehmen dienen ausschließlich der Plausibilitätskontrolle "
+                    "und verändern weder Qualitätspunktzahl, Familienkorridor, Ziel-KGV noch Fairen Wert."
+                ),
+            }
         else:
             fundamental_multiple = {
                 **(fundamental_multiple or {}),
@@ -71947,12 +71979,12 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
     if bool((fundamental_multiple or {}).get("media_internet_family_released")) and fair_value.get("available"):
         fair_value.update({
             "valuation_method": "media_internet_platform_normalized_ttm_pe",
-            "multiple_source": "V269 Internet-Platform 18–32× Familien-KGV · punktzahlpositioniert · Peer-adjustment-free",
+            "multiple_source": "V270 Internet-Platform 18–32× Familien-KGV · punktzahlpositioniert · ohne Vergleichsgruppen-Anpassung",
             "family_corridor_low": safe_float(((fundamental_multiple or {}).get("corridor") or {}).get("lower")),
             "family_corridor_high": safe_float(((fundamental_multiple or {}).get("corridor") or {}).get("upper")),
             "media_internet_family_released": True,
             "note": (
-                "V269 Internet-Platform Fair Value = primärquellen-/same-basis normalisiertes TTM-EPS × punktzahlpositioniertes Ziel-KGV im live validierten 18–32× Familienkorridor. "
+                "V270 Internet-Platform Fairer Wert = primärquellenbasiert auf gleicher Ergebnisbasis normalisiertes TTM-EPS × punktzahlpositioniertes Ziel-KGV im live validierten 18–32× Familienkorridor. "
                 "Alphabet und Meta haben denselben Familienvertrag bestanden. Peer-KGVs, Analystenziele und historische Durchschnitts-KGVs verändern den Fair Value nicht."
             ),
         })
@@ -74396,9 +74428,9 @@ if selected_symbol:
                             _v261_parts.append(f"normalisierter Common-ROE **{_v262_roe_ui*100:.1f} %**")
                         if _v261_parts:
                             st.info(
-                                "🧮 **V262 Ergebnisnormalisierung auf gleicher Basis:** " + " · ".join(_v261_parts) + ". "
+                                "🧮 **Primärquellen-Ergebnisnormalisierung auf gleicher Basis:** " + " · ".join(_v261_parts) + ". "
                                 + (
-                                    "Die Ergebnisbasis für den Qualitätsscore ist vollständig freigegeben; KGV, fairer Wert und Signal bleiben bis zur separaten Familien-Korridorprüfung gesperrt."
+                                    "Die Ergebnisbasis für den Qualitätsscore ist vollständig freigegeben; bei freigegebenem Familienmodell dürfen Ziel-KGV, Fairer Wert und Signal auf dieser normalisierten Basis aufbauen."
                                     if _v261_primary_metrics_ui.get("roe_same_basis_released")
                                     else "Common-ROE ist noch nicht auf gleicher Basis freigegeben; deshalb bleiben Qualitätsscore, KGV, fairer Wert und Signal gesperrt."
                                 )
@@ -75160,9 +75192,18 @@ if selected_symbol:
                     elif bool((data.get("non_operating_income_guard") or {}).get("active")):
 
                         if bool((data.get("non_operating_income_guard") or {}).get("primary_source_eps_normalization_released")):
-                            st.warning(
-                                "EPS-Normalisierung: **primärquellenbasiert freigegeben** · Gesamtbewertung weiterhin gesperrt"
-                            )
+                            if bool((data.get("fundamental_multiple") or {}).get("media_internet_family_released")):
+                                st.success(
+                                    "EPS-Normalisierung: **primärquellenbasiert freigegeben** · Internet-Platform-Familienbewertung freigegeben"
+                                )
+                            elif bool((data.get("non_operating_income_guard") or {}).get("primary_source_quality_score_released")):
+                                st.warning(
+                                    "EPS-Normalisierung: **primärquellenbasiert freigegeben** · Qualitätsscore freigegeben · Familienbewertung noch gesperrt"
+                                )
+                            else:
+                                st.warning(
+                                    "EPS-Normalisierung: **primärquellenbasiert freigegeben** · weitere Same-Basis-Prüfungen noch offen"
+                                )
                             _v255_primary_eps_ui = data.get("non_operating_primary_normalization") or {}
                             _v255_tax_rate_ui = safe_float(_v255_primary_eps_ui.get("statutory_tax_rate"))
                             _v255_coverage_ui = safe_float(_v255_primary_eps_ui.get("unrealized_coverage_ratio"))
@@ -76928,7 +76969,7 @@ if selected_symbol:
                                 st.caption(
                                     "Die FCF-Marge selbst ist solide. Eine separate "
                                     "Quellenabweichung wurde erkannt und bereits durch den "
-                                    "FCF Source Integrity Guard behandelt."
+                                    "FCF-Quellenintegritätsprüfung behandelt."
                                 )
 
                         st.caption(
@@ -80058,7 +80099,7 @@ if selected_symbol:
                     else:
                         if bool((data.get("fundamental_multiple") or {}).get("media_internet_family_released")):
                             st.caption(
-                                "V269 Schritt 2A: Die Vergleichsgruppe ist reine Referenz. Familienkorridor, Ziel-KGV und Fair Value sind unabhängig davon freigegeben; Peers dürfen das Multiple nicht verändern."
+                                "V270 Schritt 2A: Die Vergleichsgruppe ist reine Referenz. Familienkorridor, Ziel-KGV und Fairer Wert sind unabhängig davon freigegeben; Vergleichsunternehmen dürfen das Multiple nicht verändern."
                             )
                         elif bool((data.get("non_operating_income_guard") or {}).get("active")):
                             st.caption(
@@ -80618,7 +80659,7 @@ if selected_symbol:
                         else:
                             if bool((data.get("fundamental_multiple") or {}).get("media_internet_family_released")):
                                 st.caption(
-                                    "V269: Der Peer-Check ist reine Plausibilitätsreferenz. Er verändert weder Qualitätsscore noch 18–32× Familienkorridor, Ziel-KGV oder Fair Value. " + peer_explain
+                                    "V270: Die Vergleichsgruppenprüfung ist reine Plausibilitätsreferenz. Sie verändert weder Qualitätspunktzahl noch 18–32× Familienkorridor, Ziel-KGV oder Fairen Wert. " + peer_explain
                                 )
                             else:
                                 st.caption(
@@ -80640,7 +80681,7 @@ if selected_symbol:
                                     "Non-Operating-Income-Guard hat Vorrang: Die Peer-Schicht ist vollständig nachgeordnet und kann weder Score, Earnings-Basis, Standard-Multiple noch Fair Value freigeben. " + peer_explain
                                 )
                         else:
-                            st.caption("Die Vergleichsgruppen-Prüfung ist nur ein externer Realitätscheck. Sie verändert die 100-Punkte-Qualitätsscore nicht. " + peer_explain)
+                            st.caption("Die Vergleichsgruppenprüfung ist nur ein externer Realitätscheck. Sie verändert die Qualitätspunktzahl nicht. " + peer_explain)
 
                     if peer_check.get("reference_only"):
                         if is_exchange_peer_metric:
@@ -80665,7 +80706,7 @@ if selected_symbol:
                         else:
                             if bool((data.get("fundamental_multiple") or {}).get("media_internet_family_released")):
                                 st.caption(
-                                    "V269: Der Internet-Platform-Fair-Value wird unabhängig von Referenz-Peers berechnet; die Peer-Schicht erzeugt selbst keinen Fair Value und verändert das Ziel-KGV nicht."
+                                    "V270: Der Internet-Platform-Faire-Wert wird unabhängig von Referenzunternehmen berechnet; die Vergleichsgruppen-Schicht erzeugt selbst keinen Fairen Wert und verändert das Ziel-KGV nicht."
                                 )
                             else:
                                 st.caption(
@@ -80675,11 +80716,11 @@ if selected_symbol:
                     else:
                         if bool((data.get("non_operating_income_guard") or {}).get("active")):
                             st.caption(
-                                "Die Vergleichsgruppen-Prüfung bleibt ohne Freigabewirkung auf das Multiple; Fair Value und Signal folgen ausschließlich dem validierten Familienmodell und den allgemeinen Sicherheitsregeln."
+                                "Die Vergleichsgruppenprüfung bleibt ohne Freigabewirkung auf das Multiple; Fair Value und Signal folgen ausschließlich dem validierten Familienmodell und den allgemeinen Sicherheitsregeln."
                             )
                         else:
                             st.caption(
-                                "Die Vergleichsgruppen-Prüfung erzeugt selbst noch keinen fairen Wert. "
+                                "Die Vergleichsgruppenprüfung erzeugt selbst noch keinen fairen Wert. "
                                 "Die eigentliche Berechnung des fairen Werts folgt separat."
                             )
 
