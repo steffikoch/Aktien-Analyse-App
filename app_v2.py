@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.74"
+APP_BUILD_VERSION = "V2.23.75"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Internet-Platform UI-Konsistenz · Release-Cleanup V270"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Corporate-IR-Discovery · Amundi-Gegentest V271"
 )
 
 
@@ -1103,6 +1103,7 @@ st.caption(
 # V2.22.41: Asset-Manager Annual-History Candidate Merge V137. Fixes a de-duplication/ranking defect in generic same-basis Asset-Manager EPS-history recovery. The same issuer-primary report can be discovered once for each requested target year; prior builds kept the first URL occurrence and therefore preserved the score from the first target year instead of the best score across all requested years. V117 now merges duplicate URLs by their strongest year-aware score, explicitly recognizes the discovered document_class even when the download URL/anchor is opaque, and prioritizes the latest completed-FY Financial Data Supplement/annual report because such reports often contain the full 3Y same-basis EPS series in one table. Current-period AUM/flow/fee/CIR evidence, specialist score weights, 9–18x corridor, peer/historical guards and signal thresholds are unchanged.
 # V2.22.37: Asset-Manager Structured XLSX Period Binding V133. Fixes wide issuer-primary financial supplements whose comparison headers (for example “Q2 2026 vs. Q1 2026 / Q2 2025”) precede the actual multi-period data-header row. XLSX extraction now preserves explicit worksheet-row boundaries, period detection ranks the real multi-period header row ahead of comparison captions, and KPI rows are parsed only within their own workbook row so comparison columns cannot shift AUM/flow/fee/CIR/EPS values onto the wrong period. Same-scope guards, same-basis earnings requirements, score weights, 9–18x corridor, peer/historical guards and signal thresholds remain unchanged; no issuer ticker, URL or KPI value is hard-coded.
 # V2.22.34: Development-Stage EPS Copy Isolation Cleanup V130. Copy/UI-only change. Keeps V128 subprofile routing and V121 financial-stage detection unchanged, but isolates Development-Stage Mining / Materials from the generic Universal-Family EPS wording: Standard TTM/Forward EPS remains diagnosis-only and is explicitly not a Fair-Value anchor; Mineral Explorer / Mine Developer points instead to a technical/economic project and Project-NAV basis, while Battery Materials / Processing / Technology points to resource/feedstock, process/pilot/scale-up, qualification/offtake, funding and commercialisation evidence. The terminal EPS caption is profile-aware for the same reason. All scores, corridors, guard states, V127 Net-Cash logic, LOM logic and valuation mathematics remain unchanged.
+# V2.23.75: Universal Asset-Management Corporate-About-Host Discovery Guard V271. Amundi exposed that a provider marketing/root domain can coexist with the issuer-owned financial-results hub on an about.<domain> corporate subdomain. The generic Asset-Management issuer-primary bootstrap now probes about.<issuer-domain> with bounded financial-results, shareholder-hub, regulated-information and investor-relations routes before the marketing root. All accepted KPI values still must come from issuer-owned fetched content; search snippets remain discovery-only. No Amundi ticker, URL, KPI value, Asset-Management score weight, 9–18x corridor, Premium-Unlock, peer/historical guard, Through-Cycle earnings math, Fair Value or signal threshold is changed.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
 # V2.22.13: Universal Issuer-Identity Family Persistence & Metadata-Outage Guard V109. Preserves canonical issuer/search metadata (name, exchange, currency, sector and industry) from the user-resolved security selection and carries it into the cached fundamentals load as a fallback only when Yahoo quoteSummary/info omits those fields. This prevents a transient provider metadata outage from demoting an already identified specialist issuer to General Corporate / Standard. Search metadata never overwrites fresher quote/fundamental metadata, and no DWS-specific family/ticker rule is introduced. V108 corporate-IR evidence recovery and all Asset-Management score weights, 9–18x corridor, Premium-Unlock, peer/historical guards and signal mathematics remain unchanged.
 # V2.22.12: Universal Asset Management Corporate-IR Evidence Escalation & Period-Safe KPI Recovery V108. Keeps the released Asset-Management scoring, 9–18x base corridor, Premium-Unlock, peer/historical guards and signal mathematics unchanged. V108 upgrades only the issuer-primary evidence layer: corporate/group/investor-IR domain-family escalation, financial-results/document-class prioritization, period-safe AUM/flow/fee/CIR/EPS table recovery, issuer-native Cost-Income-Ratio efficiency support without relabelling it as an operating margin, and same-basis reported-or-adjusted TTM/3Y EPS recovery. Sub-scopes remain explicit, search snippets remain discovery-only, period/scope mismatches fail closed, and evidence failures receive diagnostic reason codes. No issuer URLs, ticker-specific KPI values or DWS-specific constants are hard-coded.
@@ -38396,7 +38397,7 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V119"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V120"
 ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22240_asset_manager_historical_year_discovery_isolation_v136"
 
 
@@ -41082,7 +41083,12 @@ def _asset_manager_ir_root_candidates(website, company_domain):
         (f"investors.{family}", ["/financial-results/", "/reports-and-events/financial-results/", "/"]),
         (f"ir.{family}", ["/financial-results/", "/reports-and-events/financial-results/", "/"]),
         (f"corporate.{family}", ["/investor-relations/financial-results/", "/investor-relations/", "/ir/"]),
-        (family, ["/investor-relations/financial-results/", "/investor-relations/", "/ir/", "/"]),
+        # V271: many issuers place the corporate/IR estate on an issuer-owned
+        # about.<domain> host while the bare/www domain remains product-facing.
+        # These are discovery routes only; KPI evidence is still accepted only
+        # after fetching and parsing issuer-owned content.
+        (f"about.{family}", ["/financial-results/", "/shareholder-hub/", "/regulated-information/", "/investor-relations/", "/"]),
+        (family, ["/financial-results/", "/shareholder-hub/", "/regulated-information/", "/investor-relations/financial-results/", "/investor-relations/", "/ir/", "/"]),
     ]
     for host, paths in host_paths:
         for path in paths:
@@ -50289,7 +50295,7 @@ def get_special_control(company_type, symbol):
                 "JHG/Take-private Delisting Guard",
                 "Analysten-Kursziel ausschließlich Reality Check",
             ],
-            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Guard Display Order Cleanup Guard V119",
+            "status": f"Router aktiv – {APP_BUILD_VERSION} Asset Management Specialist Model V1 · Corporate-IR Discovery Guard V120",
             "note": (
                 "Asset Manager werden nicht als generische Standard-Unternehmen bewertet. ROE, Yahoo-FCF-Marge und Net Cash bleiben Diagnosekontext; "
                 "der Spezialpfad ist fail-closed, wenn AUM/Flow/Fee-/Margin-Daten nicht belastbar vorliegen."
@@ -82363,7 +82369,7 @@ if selected_symbol:
 
                     elif special_control.get("control_key") == "asset_management_specialist":
                         st.divider()
-                        st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Guard Display Order Cleanup Guard V119")
+                        st.subheader("🏦 Modul 6 – Schritt 3B: Asset Management Specialist Model V1 · Corporate-IR Discovery Guard V120")
                         if special_control.get("implemented"):
                             checks_am = special_control.get("checks") or {}
                             snap_am = special_control.get("snapshot") or {}
@@ -82382,7 +82388,7 @@ if selected_symbol:
                                         st.caption("Noch fehlende aktuelle Primärdaten: " + " · ".join(str(x) for x in missing_am))
                                     failure_reason_am = discovery_am.get("evidence_failure_reason")
                                     if failure_reason_am:
-                                        st.caption("Evidence-Status V119: " + str(failure_reason_am))
+                                        st.caption("Evidence-Status V120: " + str(failure_reason_am))
                                     partial_bits = []
                                     for key, label in [
                                         ("total_aum", "Total AUM"),
