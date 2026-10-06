@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.84"
+APP_BUILD_VERSION = "V2.23.85"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Flattened-Schedule Recovery · Amundi-Gegentest V280"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Period-Document Classification · Amundi-Gegentest V281"
 )
 
 
@@ -38405,8 +38405,8 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V129"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22383_asset_manager_stale_host_freshness_recovery_v143"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V130"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22385_asset_manager_period_document_classification_v144"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -41341,12 +41341,30 @@ def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
                 break
         if document_class is None and opaque_download and base_current_context:
             document_class = "current_period_download"
+        period = re.search(r"\b(?:q[1-4]|t[1-4]|h[12]|s[12])\b", hay)
+
+        # V281: period-bearing issuer-owned file/download endpoints are documents,
+        # even when their visible anchor is only ``Q2``/``H1`` and the row label
+        # could not be recovered from a responsive/flattened IR table.  Amundi-
+        # style Nuxeo links are extensionless, so relying on ``.pdf``/``.xlsx``
+        # or a recovered row label can misclassify a real report as a navigation
+        # hub before it is ever fetched.  Keep this issuer-neutral: the link must
+        # be on the verified issuer family, carry an explicit period token, and
+        # look like a file/download endpoint.  Actual freshness and KPI validity
+        # are still decided only after parsing the issuer document itself.
+        file_like_endpoint = bool(
+            re.search(r"\.(?:pdf|xls|xlsx)(?:$|[?#])", href, re.I)
+            or re.search(r"/(?:files?|documents?|downloads?|nuxeo|media)/(?:[^?#]*)", href, re.I)
+            or any(t in _asset_manager_v108_fold(label) for t in ["pdf", "xls", "xlsx", "download"])
+        )
+        if document_class is None and period is not None and file_like_endpoint:
+            document_class = "period_document"
+
         hub_terms = [
             "investor relations", "financial results", "quarterly results", "financial reports", "reports and events",
             "berichte und events", "finanzberichte", "resultats financiers", "financial communication", "publications",
         ]
         is_hub = any(t in hay for t in hub_terms)
-        period = re.search(r"\b(?:q[1-4]|t[1-4]|h[12]|s[12])\b", hay)
         inherited_period = None
         if period is None and opaque_download and base_current_context:
             q = re.search(r"(?:^|[/_-])(?:q|t)([1-4])(?:[/_-]|$)", base_hay)
@@ -41368,6 +41386,7 @@ def _asset_manager_report_link_candidates(html, base_url, company_domain, year):
             "annual_report": 75,
             "presentation": 60,
             "press_release": 48,
+            "period_document": 72,
         }
         score += class_bonus.get(document_class, 0)
         if is_hub: score += 35
@@ -42312,9 +42331,11 @@ def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=N
                     continue
                 trace.append(f"stale_host_hub:{hub_final}:ok")
                 salvage_rows = _asset_manager_report_link_candidates(hub_html, hub_final, company_domain, year)
-                # Existing score already rewards current structural year,
-                # Financial Supplements and later Q/H periods. Restrict this
-                # recovery slice to report-like current-year candidates only.
+                # V281: never discard an issuer-owned period document solely
+                # because link-layer year/context recovery was incomplete.  Rank
+                # current-year candidates first, but let the parsed report date
+                # decide freshness.  This keeps the gate fail-closed while making
+                # extensionless Q/H document endpoints reachable.
                 ranked_salvage = []
                 for row0 in salvage_rows:
                     u0 = row0.get("url")
@@ -42326,12 +42347,12 @@ def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=N
                     currentish = (
                         row0.get("structural_year") == year
                         or str(year) in hay0
-                        or row0.get("document_class") == "current_period_download"
+                        or row0.get("document_class") in {"current_period_download", "period_document"}
                     )
-                    if currentish:
-                        ranked_salvage.append(row0)
-                ranked_salvage.sort(key=lambda r: safe_float(r.get("score")) or 0, reverse=True)
-                for row0 in ranked_salvage[:6]:
+                    priority = (200 if currentish else 0) + (safe_float(row0.get("score")) or 0)
+                    ranked_salvage.append((priority, row0))
+                ranked_salvage.sort(key=lambda item: item[0], reverse=True)
+                for _, row0 in ranked_salvage[:8]:
                     if not _research_budget_ok(salvage_deadline, reserve=0.7):
                         break
                     u0 = row0.get("url")
@@ -42348,12 +42369,11 @@ def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=N
                     if hit0:
                         hit0["freshest_complete_arbitration"] = "stale_host_recovery"
                         return hit0
-                # A successfully opened canonical results hub is the highest
-                # yield path on this verified host; do not spend the small
-                # salvage slice on lower-value alternate routes if it produced
-                # current-year report candidates.
-                if ranked_salvage:
-                    break
+                # Do not stop merely because the first canonical hub yielded
+                # report links.  If every fetched document still parsed stale or
+                # incomplete, continue to the remaining same-host result routes;
+                # the first genuinely fresh complete issuer snapshot already
+                # returns above.
 
     if best_complete is not None:
         best_complete["available"] = True
