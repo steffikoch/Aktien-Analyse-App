@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.86"
+APP_BUILD_VERSION = "V2.23.87"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Domain-Bootstrap Resilience · Amundi-Gegentest V282"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Bootstrap-Budget Isolation · Amundi-Gegentest V283"
 )
 
 
@@ -38406,8 +38406,15 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V131"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22386_asset_manager_domain_bootstrap_resilience_v145"
+# V2.23.87 / V283: Asset-Manager Bootstrap-Budget Isolation. When provider metadata
+# omits the issuer website, the cheap fail-closed identity-domain probe now runs
+# before search and receives its own bounded budget slice. Search remains a bounded
+# fallback. This prevents an empty/slow search provider from consuming the complete
+# 38s evidence budget and starving issuer-domain discovery. No valuation, score,
+# corridor, Premium-Unlock, Through-Cycle EPS, peer/historical guard, Fair Value or
+# signal mathematics change.
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V132"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22387_asset_manager_bootstrap_budget_isolation_v146"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -42192,11 +42199,23 @@ def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=N
         raw_website = f"https://{company_domain}/"
         trace.append(f"domain_metadata:{company_domain}")
     if not company_domain:
-        company_domain, bootstrap_rows = _asset_manager_bootstrap_company_domain(company_label, deadline=deadline)
-        trace.append(f"domain_bootstrap:{company_domain or 'none'}:{len(bootstrap_rows)}")
+        # V283: isolate discovery budgets so a slow/empty search provider cannot
+        # consume the full Asset-Manager evidence deadline before the cheap,
+        # fail-closed issuer-identity probe gets even one network attempt.
+        # The identity probe is discovery-only and accepts a guessed family only
+        # after host + page identity + Asset-Management semantics are verified.
+        probe_deadline = min(deadline, time.monotonic() + 6.0)
+        company_domain, probe_rows = _asset_manager_identity_domain_probe(company_label, deadline=probe_deadline)
+        trace.append(f"domain_identity_probe_first:{company_domain or 'none'}:{len(probe_rows)}")
+
         if not company_domain:
-            company_domain, probe_rows = _asset_manager_identity_domain_probe(company_label, deadline=deadline)
-            trace.append(f"domain_identity_probe:{company_domain or 'none'}:{len(probe_rows)}")
+            # Keep the search bootstrap as a fallback, but give it a bounded
+            # slice so successful domain discovery still leaves time for the
+            # issuer-owned results/document crawl that supplies actual evidence.
+            bootstrap_deadline = min(deadline, time.monotonic() + 12.0)
+            company_domain, bootstrap_rows = _asset_manager_bootstrap_company_domain(company_label, deadline=bootstrap_deadline)
+            trace.append(f"domain_bootstrap:{company_domain or 'none'}:{len(bootstrap_rows)}")
+
         if not company_domain:
             return {"available": False, "generic_primary_adapter": True, "company": company_label,
                     "discovery_trace": trace, "missing_current_evidence": ["issuer domain"],
