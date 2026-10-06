@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.85"
+APP_BUILD_VERSION = "V2.23.86"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Period-Document Classification · Amundi-Gegentest V281"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Domain-Bootstrap Resilience · Amundi-Gegentest V282"
 )
 
 
@@ -1110,6 +1110,7 @@ st.caption(
 # V2.23.83: Universal Asset-Management Stale-Host Freshness Recovery V279. Before a stale but complete issuer snapshot is returned as fallback, the adapter gives the already verified source host one small independent freshness-recovery slice and probes only generic results-hub routes on that same issuer-owned host. Current-year report links discovered there are ranked by the existing document/period logic and parsed as primary evidence. This closes the case where broad host discovery exhausts its bounded budget after finding Q1 even though the same verified host already publishes Q2/H1. No issuer hostname, ticker, KPI value, score weight, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guard, Fair Value or signal threshold is hard-coded or changed.
 # V2.23.84: Universal Asset-Management Flattened-Schedule Recovery V280. Extends the already validated date/period wide-schedule mapper to issuer-primary PDF/HTML text when no OOXML column markers are available. A recovery is accepted only when an explicit Total AUM section, explicit Net Flows section, report unit, period/date headers, TOTAL rows, same-scope beginning/end dates and a conservative AUM/flow sanity check all agree. This makes current H1/Q2 supplements usable even when the PDF is reached before the XLSX. Existing XLSX mapping remains preferred; no issuer/ticker/URL/KPI constant, score weight, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guard, Fair Value or signal threshold is changed.
 # V2.23.81: Universal Asset-Management Freshest-Complete Snapshot Arbitration V277. Once the generic evidence adapter can fully map an older quarter, discovery no longer returns the first complete document blindly. A complete snapshot older than the calendar-period freshness floor implied by the existing Q3/Q2/Q1 discovery schedule is retained as a fallback while the bounded crawl continues; a complete snapshot at or beyond the expected latest released quarter is released immediately. If no fresher complete snapshot is recovered within the existing budget, the best complete fallback is returned. No issuer identity, URL or KPI value is hard-coded; score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds remain unchanged.
+# V2.23.86: Universal Asset-Management Domain-Bootstrap Resilience V282. Fixes a fail-closed regression exposed when Yahoo profile data temporarily omitted the issuer website and the bounded search bootstrap returned no rows. The Asset-Management evidence layer now recovers URL-like domains from provider metadata first, retains the existing identity-matching search bootstrap second, and finally allows a tiny search-independent legal-name domain probe only after the fetched page confirms both issuer identity and Asset-Management/financial semantics. The probe supplies discovery metadata only; all AUM/flow/fee/CIR/EPS evidence still requires issuer-owned fetched documents and all valuation gates remain unchanged. No issuer/ticker/domain/KPI hard-coding is introduced.
 # V2.23.76: Universal Asset-Management Host-Fairness Discovery Guard V272. V271 added about.<issuer-domain>, but the consumer probed only the first 12 generated URLs; multiple paths for group./investors./ir./corporate. could therefore exhaust the slice before about. or the bare issuer host was ever tried. V272 changes only candidate ordering: one high-value route per issuer-owned host family is emitted first, then the provider website/root and only then secondary routes. This prevents path-count starvation for any valid corporate/IR subdomain while preserving the existing bounded deadline, issuer-family ownership checks, parser, score weights, 9–18x corridor, Premium-Unlock, Through-Cycle earnings math, peer/historical guards, Fair Value and signal thresholds.
 # V2.23.75: Universal Asset-Management Corporate-About-Host Discovery Guard V271. Amundi exposed that a provider marketing/root domain can coexist with the issuer-owned financial-results hub on an about.<domain> corporate subdomain. The generic Asset-Management issuer-primary bootstrap now probes about.<issuer-domain> with bounded financial-results, shareholder-hub, regulated-information and investor-relations routes before the marketing root. All accepted KPI values still must come from issuer-owned fetched content; search snippets remain discovery-only. No Amundi ticker, URL, KPI value, Asset-Management score weight, 9–18x corridor, Premium-Unlock, peer/historical guard, Through-Cycle earnings math, Fair Value or signal threshold is changed.
 # V2.22.14: Universal Asset Management Opaque-Download Traversal & Partial-Period Merge Guard V110. Extends V108 without changing Asset-Management score weights, 9–18x base corridor, Premium-Unlock, peer/historical guards or signals. Generic issuer-owned opaque download endpoints (including extensionless /download/asset links) inherit current-period context from an issuer results page, corporate/group IR result hubs are probed before marketing roots when needed, and partial H1/Q tables may contribute current fee/CIR/EPS evidence even when the prior-FY beginning AUM lives only in adjacent issuer prose. Same-scope flow denominators remain mandatory and are merged only from explicit prior-FY/Q4 AUM evidence. Evidence-rich but unmapped issuer documents are diagnosed as issuer_data_found_but_unmapped rather than issuer_data_not_published. No DWS ticker, issuer URL or KPI value is hard-coded.
@@ -38405,8 +38406,8 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V130"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22385_asset_manager_period_document_classification_v144"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V131"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22386_asset_manager_domain_bootstrap_resilience_v145"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -38983,6 +38984,113 @@ def _asset_manager_domain_family_root(company_domain):
     if parts[-2] in {"co", "com", "org", "net", "ac"} and len(parts[-1]) == 2 and len(parts) >= 3:
         return ".".join(parts[-3:])
     return ".".join(parts[-2:])
+
+
+def _asset_manager_domain_from_metadata(metadata):
+    """Recover an issuer domain from provider metadata without trusting metrics.
+
+    Only URL/domain-looking fields are considered. This is discovery metadata;
+    all valuation evidence must still be fetched from the resolved issuer family.
+    """
+    if not isinstance(metadata, dict):
+        return None
+    preferred_keys = (
+        "website", "companyWebsite", "homepage", "homePage", "irWebsite",
+        "investorRelationsWebsite", "corporateWebsite", "url",
+    )
+    for key in preferred_keys:
+        domain = _extract_company_domain(metadata.get(key))
+        if domain:
+            return _asset_manager_domain_family_root(domain)
+    # Some provider adapters preserve original fields under shallow nested
+    # dictionaries. Scan only URL-like keys and strings; never infer a domain
+    # from arbitrary business text.
+    for parent_key in ("assetProfile", "profile", "company", "metadata"):
+        nested = metadata.get(parent_key)
+        if not isinstance(nested, dict):
+            continue
+        for key in preferred_keys:
+            domain = _extract_company_domain(nested.get(key))
+            if domain:
+                return _asset_manager_domain_family_root(domain)
+    return None
+
+
+def _asset_manager_identity_domain_probe(company_name, deadline=None):
+    """Last-resort, search-independent issuer-domain bootstrap.
+
+    A domain guessed from a distinctive company identity token is accepted only
+    after the page is fetched and the page itself confirms both company identity
+    and Asset-Management/financial semantics. No KPI is read from this probe.
+    """
+    name = _clean_text(company_name)
+    if not name:
+        return None, []
+    folded = _holding_fold_text(name)
+    legal = {
+        "ag", "sa", "se", "plc", "inc", "corp", "corporation", "company",
+        "co", "ltd", "limited", "nv", "group", "holding", "holdings",
+    }
+    tokens = [t for t in folded.split() if len(t) >= 5 and t not in legal]
+    if not tokens:
+        return None, []
+    # Keep the fallback deliberately small. The first distinctive legal-name
+    # token covers brands such as "Amundi S.A." without opening broad guessing.
+    slugs = []
+    if tokens:
+        slugs.append(tokens[0])
+    if len(tokens) >= 2:
+        joined = "".join(tokens[:2])
+        if joined not in slugs and len(joined) <= 28:
+            slugs.append(joined)
+    candidates = []
+    for slug in slugs[:2]:
+        if re.fullmatch(r"[a-z0-9-]{5,28}", slug):
+            candidates.append(f"{slug}.com")
+    rows = []
+    sector_terms = (
+        "asset management", "assets under management", "investment management",
+        "investor", "investment", "fund", "funds", "gestion", "investissement",
+        "vermögensverwaltung",
+    )
+    identity_terms = _holding_identity_terms(name) or tokens[:2]
+    for candidate in candidates[:2]:
+        if deadline is not None and not _research_budget_ok(deadline, reserve=1.0):
+            break
+        url = f"https://www.{candidate}/"
+        try:
+            effective_timeout = _bounded_timeout(deadline, 3.5) or 2.5
+            response = requests.get(
+                url, headers=_request_headers(),
+                timeout=(min(1.5, effective_timeout), effective_timeout),
+                allow_redirects=True,
+            )
+            final_url = response.url or url
+            final_host = _normalize_host(final_url)
+            family = _asset_manager_domain_family_root(final_host or candidate)
+            text = _holding_fold_text(_html_to_text(response.text or ""))
+            row = {
+                "url": final_url,
+                "candidate_domain": candidate,
+                "resolved_domain": family,
+                "status": getattr(response, "status_code", None),
+            }
+            rows.append(row)
+            if response.status_code >= 400 or not family or not text:
+                continue
+            host_fold = _holding_fold_text(family).replace(" ", "")
+            identity_in_host = any(term in host_fold for term in identity_terms if len(term) >= 5)
+            identity_on_page = any(term in text for term in identity_terms if len(term) >= 5)
+            sector_on_page = any(term in text for term in sector_terms)
+            # Do not accept a redirect into an unrelated family merely because
+            # the page mentions the company name. The identity must be reflected
+            # in both host and fetched page, plus sector semantics.
+            if identity_in_host and identity_on_page and sector_on_page:
+                row["accepted"] = True
+                return family, rows
+        except Exception as exc:
+            rows.append({"url": url, "candidate_domain": candidate, "error": type(exc).__name__})
+    return None, rows
 
 
 def _asset_manager_bootstrap_company_domain(company_name, deadline=None):
@@ -39625,12 +39733,19 @@ def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=N
     year = datetime.now().year
     company_label = _clean_text(company_name) or _clean_text(symbol)
     raw_website = _clean_text(website)
-    company_domain = _extract_company_domain(raw_website)
+    company_domain = _extract_company_domain(raw_website) or _asset_manager_domain_from_metadata(fundamental_info)
     trace = []
+
+    if company_domain and not raw_website:
+        raw_website = f"https://{company_domain}/"
+        trace.append(f"domain_metadata:{company_domain}")
 
     if not company_domain:
         company_domain, bootstrap_rows = _asset_manager_bootstrap_company_domain(company_label, deadline=deadline)
         trace.append(f"domain_bootstrap:{company_domain or 'none'}:{len(bootstrap_rows)}")
+        if not company_domain:
+            company_domain, probe_rows = _asset_manager_identity_domain_probe(company_label, deadline=deadline)
+            trace.append(f"domain_identity_probe:{company_domain or 'none'}:{len(probe_rows)}")
         if not company_domain:
             return {
                 "available": False,
@@ -42071,11 +42186,17 @@ def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=N
     year = datetime.now().year
     company_label = _clean_text(company_name) or _clean_text(symbol)
     raw_website = _clean_text(website)
-    company_domain = _extract_company_domain(raw_website)
+    company_domain = _extract_company_domain(raw_website) or _asset_manager_domain_from_metadata(fundamental_info)
     trace = []
+    if company_domain and not raw_website:
+        raw_website = f"https://{company_domain}/"
+        trace.append(f"domain_metadata:{company_domain}")
     if not company_domain:
         company_domain, bootstrap_rows = _asset_manager_bootstrap_company_domain(company_label, deadline=deadline)
         trace.append(f"domain_bootstrap:{company_domain or 'none'}:{len(bootstrap_rows)}")
+        if not company_domain:
+            company_domain, probe_rows = _asset_manager_identity_domain_probe(company_label, deadline=deadline)
+            trace.append(f"domain_identity_probe:{company_domain or 'none'}:{len(probe_rows)}")
         if not company_domain:
             return {"available": False, "generic_primary_adapter": True, "company": company_label,
                     "discovery_trace": trace, "missing_current_evidence": ["issuer domain"],
