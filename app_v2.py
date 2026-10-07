@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.88"
+APP_BUILD_VERSION = "V2.23.89"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Resolved-Identity Handoff · Amundi-Gegentest V284"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Annual-EPS Scope Guard · Amundi-Gegentest V285"
 )
 
 
@@ -38406,6 +38406,13 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
+# V2.23.89 / V285: Asset-Manager Annual-EPS Scope Guard. Historical same-basis EPS now
+# accepts high-confidence annual/full-year issuer narrative only when the EPS basis,
+# explicit fiscal year and annual scope agree; quarter/half-year sentences are rejected.
+# High-confidence annual narrative may replace a lower-confidence table binding for the
+# same year, preventing quarterly EPS from leaking into the 3Y annual history. No score,
+# 9–18x corridor, Premium-Unlock, Through-Cycle weighting, peer/historical guard, Fair
+# Value or signal mathematics change.
 # V2.23.88 / V284: Asset-Manager Resolved-Identity Handoff. The listing/search
 # layer already knows the selected issuer name even when Yahoo quoteSummary omits
 # longName/shortName together with website. Pass that resolved identity into the
@@ -38418,8 +38425,8 @@ def _asset_manager_history_median_eps(historical_eps):
 # 38s evidence budget and starving issuer-domain discovery. No valuation, score,
 # corridor, Premium-Unlock, Through-Cycle EPS, peer/historical guard, Fair Value or
 # signal mathematics change.
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V133"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22388_asset_manager_resolved_identity_handoff_v147"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V134"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22389_asset_manager_annual_eps_scope_guard_v148"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -42571,6 +42578,67 @@ def _asset_manager_v108_parse_annual_eps_map(text, basis="reported"):
     return result
 
 
+def _asset_manager_v134_annual_narrative_eps_map(text, basis="reported"):
+    """Recover explicit issuer annual EPS statements without quarter leakage.
+
+    This intentionally accepts only a single sentence/compact clause that contains
+    the EPS label, an explicit fiscal year and an annual/full-year scope.  Quarter
+    and half-year language in the same clause is a hard rejection.  It is a
+    high-confidence supplement to table parsing, not a generic numeric guesser.
+    """
+    clean = _clean_text(text)
+    if not clean:
+        return {}
+    basis = str(basis or "reported").lower()
+    # Keep sentence-sized chunks so a nearby Q4 discussion cannot contaminate a
+    # separate full-year EPS sentence in the same press release.
+    chunks = re.split(r"(?<=[.!?])\s+|\n+", clean)
+    result = {}
+    for chunk in chunks:
+        c = _clean_text(chunk)
+        if len(c) < 20 or len(c) > 700:
+            continue
+        folded = _asset_manager_v108_fold(c)
+        if "earnings per share" not in folded:
+            continue
+        # Same-basis hard gate.
+        has_adjusted = bool(re.search(r"\badjusted(?:\s+net)?\s+earnings\s+per\s+share\b|\bearnings\s+per\s+share\s*-\s*adjusted\b", folded, re.I))
+        if basis == "adjusted" and not has_adjusted:
+            continue
+        if basis != "adjusted" and has_adjusted:
+            continue
+        # A sentence that describes a quarter/half-year is never annual history.
+        if re.search(r"\b(?:q[1-4]|t[1-4]|h[12]|s[12]|first\s+quarter|second\s+quarter|third\s+quarter|fourth\s+quarter|half[- ]year|first\s+half|second\s+half|nine\s+months?)\b", folded, re.I):
+            continue
+        years = [int(y) for y in re.findall(r"\b(20\d{2})\b", c)]
+        if not years:
+            continue
+        # Explicit annual wording is preferred; a compact "... reached X in YYYY"
+        # statement is also annual when no sub-annual scope is present.
+        annual_scope = bool(re.search(r"\b(?:full[- ]year|annual|financial\s+year|fiscal\s+year|for\s+the\s+year|in\s+20\d{2}|for\s+20\d{2})\b", folded, re.I))
+        if not annual_scope:
+            continue
+        # Parse the value immediately around the EPS label, allowing currency to
+        # appear before or after the number but never borrowing distant figures.
+        mlabel = re.search(r"(?:adjusted(?:\s+net)?\s+)?earnings\s+per\s+share(?:\s*-\s*adjusted)?", c, re.I)
+        if not mlabel:
+            continue
+        local = c[mlabel.end():mlabel.end()+180]
+        nums = re.findall(r"(?<!\d)(?:€|EUR\s*)?\s*([-+]?\d{1,3}(?:[.,]\d{1,4})?)\s*(?:€|EUR)?(?!\d)", local, re.I)
+        value = None
+        for tok in nums:
+            v = _asset_manager_v108_parse_number(tok)
+            if v is not None and 0 < v < 100:
+                value = v
+                break
+        if value is None:
+            continue
+        # Bind to the year syntactically closest to the EPS clause/value.
+        year = min(years, key=lambda yy: abs(c.find(str(yy)) - mlabel.start()))
+        result[year] = float(value)
+    return result
+
+
 def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None, website=None):
     snap = dict(snapshot or {})
     if not snap.get("generic_primary_adapter"):
@@ -42603,6 +42671,12 @@ def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None
     annual_map = {int(k): float(v) for k, v in (snap.get("same_document_annual_eps_map") or {}).items()
                   if int(k) in target_years and safe_float(v) is not None and safe_float(v) > 0}
     annual_sources = {int(k): snap.get("source_url") for k in annual_map}
+    same_doc_narrative = _asset_manager_v134_annual_narrative_eps_map(snap.get("raw_text") or "", basis=basis)
+    for yy, vv in same_doc_narrative.items():
+        if yy in target_years and vv is not None and vv > 0:
+            annual_map[int(yy)] = float(vv)
+            annual_sources[int(yy)] = snap.get("source_url")
+            trace.append(f"annual_narrative_same_document:{yy}:ok")
 
     raw_website = _clean_text(website)
     company_domain = _extract_company_domain(raw_website) or _normalize_host(snap.get("source_url"))
@@ -42685,11 +42759,18 @@ def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None
         eps_map = _asset_manager_v108_parse_annual_eps_map(text, basis=basis)
         if not eps_map and basis == "adjusted":
             eps_map = _asset_manager_parse_adjusted_annual_eps_map(text)
-        if eps_map:
+        narrative_map = _asset_manager_v134_annual_narrative_eps_map(text, basis=basis)
+        if eps_map or narrative_map:
             trace.append(f"annual_same_basis:{final_url or url}:ok")
             for yy, vv in eps_map.items():
                 if yy in target_years and vv is not None and vv > 0:
                     annual_map.setdefault(int(yy), float(vv)); annual_sources.setdefault(int(yy), final_url or url)
+            # Explicit annual issuer narrative is higher-confidence than a
+            # flattened table binding and may repair the same year's value.
+            for yy, vv in narrative_map.items():
+                if yy in target_years and vv is not None and vv > 0:
+                    annual_map[int(yy)] = float(vv); annual_sources[int(yy)] = final_url or url
+                    trace.append(f"annual_narrative:{yy}:ok")
         # Crawl one hub hop if this was a financial-results index.
         if len(annual_map) < 3 and row.get("kind") == "hub" and _research_budget_ok(deadline, reserve=2.0):
             try: html2, final2 = _fetch_html(url, timeout=2.4, deadline=deadline)
@@ -42703,9 +42784,14 @@ def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None
                         ctext, cfinal, _ = _asset_manager_fetch_primary_text(cu, company_domain, deadline=deadline)
                         cmap = _asset_manager_v108_parse_annual_eps_map(ctext, basis=basis)
                         if not cmap and basis == "adjusted": cmap = _asset_manager_parse_adjusted_annual_eps_map(ctext)
+                        cnarr = _asset_manager_v134_annual_narrative_eps_map(ctext, basis=basis)
                         for y2, v2 in cmap.items():
                             if y2 in target_years and v2 is not None and v2 > 0:
                                 annual_map.setdefault(int(y2), float(v2)); annual_sources.setdefault(int(y2), cfinal or cu)
+                        for y2, v2 in cnarr.items():
+                            if y2 in target_years and v2 is not None and v2 > 0:
+                                annual_map[int(y2)] = float(v2); annual_sources[int(y2)] = cfinal or cu
+                                trace.append(f"annual_narrative_child:{y2}:ok")
                         if len(annual_map) >= 3: break
                     if len(annual_map) >= 3: break
 
