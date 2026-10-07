@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.87"
+APP_BUILD_VERSION = "V2.23.88"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Bootstrap-Budget Isolation · Amundi-Gegentest V283"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Resolved-Identity Handoff · Amundi-Gegentest V284"
 )
 
 
@@ -38406,6 +38406,11 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
+# V2.23.88 / V284: Asset-Manager Resolved-Identity Handoff. The listing/search
+# layer already knows the selected issuer name even when Yahoo quoteSummary omits
+# longName/shortName together with website. Pass that resolved identity into the
+# specialist adapter so strict domain bootstrap never degrades to a bare ticker.
+# Discovery/evidence values remain issuer-primary and fail-closed.
 # V2.23.87 / V283: Asset-Manager Bootstrap-Budget Isolation. When provider metadata
 # omits the issuer website, the cheap fail-closed identity-domain probe now runs
 # before search and receives its own bounded budget slice. Search remains a bounded
@@ -38413,8 +38418,8 @@ def _asset_manager_history_median_eps(historical_eps):
 # 38s evidence budget and starving issuer-domain discovery. No valuation, score,
 # corridor, Premium-Unlock, Through-Cycle EPS, peer/historical guard, Fair Value or
 # signal mathematics change.
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V132"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22387_asset_manager_bootstrap_budget_isolation_v146"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V133"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22388_asset_manager_resolved_identity_handoff_v147"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -40584,11 +40589,21 @@ def build_asset_management_specialist_valuation(snapshot, specialist_score, earn
     return result
 
 
-def build_asset_management_specialist_model(company_type, fundamental_info, symbol, trailing_eps, current_fy_eps, historical_eps):
+def build_asset_management_specialist_model(company_type, fundamental_info, symbol, trailing_eps, current_fy_eps, historical_eps, resolved_company_name=None):
     if not is_asset_management_specialist_type(company_type, symbol):
         return {"applicable": False}
     snapshot = get_verified_asset_manager_snapshot(symbol)
     evidence_discovery = None
+    # V284: preserve the issuer identity already resolved by the listing/search
+    # layer. Yahoo quoteSummary can temporarily omit longName/shortName at the
+    # same time it omits website; falling back to the ticker would make the
+    # strict domain bootstrap unable to form any legal-name candidates.
+    issuer_identity_name = (
+        _clean_text(resolved_company_name)
+        or _clean_text((fundamental_info or {}).get("longName"))
+        or _clean_text((fundamental_info or {}).get("shortName"))
+        or _clean_text(symbol)
+    )
     if not snapshot:
         # V105: discovery may return a partial issuer-primary record for
         # diagnostics. Only an explicitly complete current-evidence snapshot is
@@ -40596,7 +40611,7 @@ def build_asset_management_specialist_model(company_type, fundamental_info, symb
         try:
             evidence_discovery = discover_generic_asset_manager_snapshot(
                 symbol,
-                company_name=(fundamental_info or {}).get("longName") or (fundamental_info or {}).get("shortName") or symbol,
+                company_name=issuer_identity_name,
                 website=(fundamental_info or {}).get("website"),
                 fundamental_info=fundamental_info,
             )
@@ -40625,7 +40640,7 @@ def build_asset_management_specialist_model(company_type, fundamental_info, symb
         try:
             snapshot = enrich_generic_asset_manager_same_basis_earnings(
                 snapshot,
-                company_name=(fundamental_info or {}).get("longName") or (fundamental_info or {}).get("shortName") or symbol,
+                company_name=issuer_identity_name,
                 website=(fundamental_info or {}).get("website"),
             )
         except Exception as exc:
@@ -70420,7 +70435,8 @@ def load_stock(selected_symbol, cache_version, security_identity=None):
         fundamental_symbol,
         valuation_trailing_eps,
         valuation_forward_eps,
-        historical.get("eps", [])
+        historical.get("eps", []),
+        name,
     )
 
     professional_business_services_specialist_model = build_professional_business_services_specialist_model(
