@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.91"
+APP_BUILD_VERSION = "V2.23.92"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Annual-Archive Matrix Recovery · Amundi-Gegentest V287"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Annual-Evidence Budget Priority · Amundi-Gegentest V288"
 )
 
 
@@ -38434,8 +38434,16 @@ def _asset_manager_history_median_eps(historical_eps):
 # 38s evidence budget and starving issuer-domain discovery. No valuation, score,
 # corridor, Premium-Unlock, Through-Cycle EPS, peer/historical guard, Fair Value or
 # signal mathematics change.
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V136"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22391_asset_manager_annual_archive_matrix_recovery_v150"
+# V2.23.92 / V288: Asset-Manager Annual-Evidence Budget Priority. Once an
+# issuer-owned annual archive matrix covers all target fiscal years, its Q4/FY
+# documents are fetched and parsed immediately before any broad search fallback.
+# Structural-year binding prevents comparison columns from pre-empting a year
+# whose own annual source is available. Also accept explicit "Income statement
+# for the year" headings when the EPS row itself is explicitly Adjusted. No score,
+# corridor, Premium-Unlock, Through-Cycle weighting, peer/historical guard, Fair
+# Value or signal mathematics change.
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V137"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22392_asset_manager_annual_evidence_budget_priority_v151"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -39442,7 +39450,7 @@ def _asset_manager_parse_adjusted_annual_eps_map(text):
     # 2024" or simply "2024 and 2023", but explicit quarter/interim scope is
     # rejected before any values are accepted.
     heading_re = re.compile(
-        r"(?:adjusted\s+income\s+statement|compte\s+de\s+resultat\s+ajuste)\d*"
+        r"(?:adjusted\s+income\s+statement|income\s+statement\s+for\s+the\s+year|compte\s+de\s+resultat\s+ajuste)\d*"
         r"(?P<header>.{0,180}?)(?P<y1>20\d{2}).{0,55}?(?P<y2>20\d{2})",
         re.I | re.S,
     )
@@ -42862,6 +42870,8 @@ def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None
         return snap
     deadline = time.monotonic() + 18.0
     fetched, candidate_rows = set(), []
+    matrix_priority_rows = []
+    matrix_coverage = set()
     for start in _asset_manager_v135_annual_roots(raw_website, company_domain, snap.get("source_url"))[:12]:
         if len(annual_map) >= 3 or not _research_budget_ok(deadline, reserve=8.0): break
         try: html, final = _fetch_html(start, timeout=2.6, deadline=deadline)
@@ -42870,23 +42880,104 @@ def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None
         matrix_rows = _asset_manager_v136_annual_archive_matrix_candidates(html, final, company_domain, target_years)
         if matrix_rows:
             candidate_rows.extend(matrix_rows)
+            matrix_priority_rows.extend(matrix_rows)
+            for mr in matrix_rows:
+                try:
+                    sy = int(mr.get("structural_year"))
+                except Exception:
+                    sy = None
+                if sy in target_years:
+                    matrix_coverage.add(sy)
             trace.append(f"annual_archive_matrix_candidates:{len(matrix_rows)}")
         for yy in target_years:
             candidate_rows.extend(_asset_manager_report_link_candidates(html, final, company_domain, yy)[:10])
-    # Direct financial-results hub search can recover older annual/Q4 supplements.
-    for yy in target_years:
-        if len(annual_map) >= 3 or not _research_budget_ok(deadline, reserve=5.0): break
-        terms = "adjusted earnings per share" if basis == "adjusted" else "earnings per share"
-        for query in [
-            f'site:{company_domain} "{yy}" "financial data supplement" "{terms}"',
-            f'site:{company_domain} "{yy}" "annual report" "{terms}"',
-            f'site:{company_domain} "{yy}" "financial results" "{terms}"',
-        ]:
-            for row0 in _duckduckgo_html_search(query, max_results=4, deadline=deadline):
-                url = row0.get("url")
-                if url and _host_belongs_to_company_family(url, company_domain):
-                    candidate_rows.append({"url": url, "score": 80, "kind": "report", "label": row0.get("title") or ""})
-            if not _research_budget_ok(deadline, reserve=3.0): break
+        # V137: once the issuer-owned annual matrix structurally covers every
+        # target FY, stop spending the shared evidence budget on more hubs.
+        # Fetch and parse those high-confidence Q4/FY documents immediately.
+        if set(target_years).issubset(matrix_coverage):
+            trace.append("annual_archive_matrix_coverage:complete")
+            break
+
+    # V137: matrix evidence is issuer-owned, explicit-year and Q4/FY-scoped.
+    # It must be consumed before any external search can spend the remaining
+    # budget. Bind each candidate first to its own structural FY so comparison
+    # columns cannot pre-empt that year's dedicated annual source.
+    if matrix_priority_rows and len(annual_map) < 3:
+        class_priority = {
+            "press_release": 260,
+            "financial_data_supplement": 235,
+            "annual_report": 130,
+            "presentation": 100,
+        }
+        matrix_best = {}
+        for row in matrix_priority_rows:
+            url = row.get("url")
+            if not url:
+                continue
+            try:
+                sy = int(row.get("structural_year"))
+            except Exception:
+                sy = None
+            if sy not in target_years:
+                continue
+            cls = str(row.get("document_class") or "").lower()
+            mscore = (safe_float(row.get("score")) or 0.0) + class_priority.get(cls, 0)
+            # Prefer the dedicated source for each target FY; within a year,
+            # press releases are typically the most parseable audited-style
+            # summary while supplements remain a close issuer-primary fallback.
+            key = (sy, url)
+            matrix_best[key] = (mscore, row)
+        matrix_ranked = sorted(matrix_best.values(), key=lambda x: (x[1].get("structural_year", 0), x[0]), reverse=True)
+        trace.append(f"annual_matrix_priority_fetch:{min(len(matrix_ranked), 8)}")
+        for _, row in matrix_ranked[:8]:
+            if len(annual_map) >= 3 or not _research_budget_ok(deadline, reserve=1.2):
+                break
+            url = row.get("url")
+            if not url or url in fetched:
+                continue
+            fetched.add(url)
+            try:
+                structural_year = int(row.get("structural_year"))
+            except Exception:
+                structural_year = None
+            text, final_url, diag = _asset_manager_fetch_primary_text(url, company_domain, deadline=deadline)
+            diag_code = "text" if text else (str((diag or ["empty"])[-1]).split(":", 1)[0] or "empty")
+            trace.append(f"annual_matrix_fetch:{structural_year or 'na'}:{row.get('document_class') or 'unknown'}:{diag_code}")
+            eps_map = _asset_manager_v108_parse_annual_eps_map(text, basis=basis)
+            if not eps_map and basis == "adjusted":
+                eps_map = _asset_manager_parse_adjusted_annual_eps_map(text)
+            narrative_map = _asset_manager_v134_annual_narrative_eps_map(text, basis=basis)
+            # High-confidence narrative may repair the table value for the same
+            # structural FY, but values for comparison years are left to their
+            # own dedicated annual documents in this priority phase.
+            chosen = None
+            if structural_year in eps_map:
+                chosen = safe_float(eps_map.get(structural_year))
+            if structural_year in narrative_map:
+                nv = safe_float(narrative_map.get(structural_year))
+                if nv is not None and nv > 0:
+                    chosen = nv
+            if structural_year in target_years and chosen is not None and chosen > 0:
+                annual_map[structural_year] = float(chosen)
+                annual_sources[structural_year] = final_url or url
+                trace.append(f"annual_matrix_year:{structural_year}:ok")
+
+    # Direct web search is now fallback-only.  If the issuer matrix already
+    # supplied all three FY observations, no search provider is called at all.
+    if len(annual_map) < 3:
+        for yy in target_years:
+            if len(annual_map) >= 3 or not _research_budget_ok(deadline, reserve=5.0): break
+            terms = "adjusted earnings per share" if basis == "adjusted" else "earnings per share"
+            for query in [
+                f'site:{company_domain} "{yy}" "financial data supplement" "{terms}"',
+                f'site:{company_domain} "{yy}" "annual report" "{terms}"',
+                f'site:{company_domain} "{yy}" "financial results" "{terms}"',
+            ]:
+                for row0 in _duckduckgo_html_search(query, max_results=4, deadline=deadline):
+                    url = row0.get("url")
+                    if url and _host_belongs_to_company_family(url, company_domain):
+                        candidate_rows.append({"url": url, "score": 80, "kind": "report", "label": row0.get("title") or ""})
+                if not _research_budget_ok(deadline, reserve=3.0): break
 
     # V117: the same IR document can be discovered once for every requested
     # historical target year.  Keep the strongest year-aware occurrence per
