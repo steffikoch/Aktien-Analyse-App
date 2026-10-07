@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.92"
+APP_BUILD_VERSION = "V2.23.93"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Annual-Evidence Budget Priority · Amundi-Gegentest V288"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Annual-EPS Footnote Binding · Amundi-Gegentest V289"
 )
 
 
@@ -38442,8 +38442,8 @@ def _asset_manager_history_median_eps(historical_eps):
 # for the year" headings when the EPS row itself is explicitly Adjusted. No score,
 # corridor, Premium-Unlock, Through-Cycle weighting, peer/historical guard, Fair
 # Value or signal mathematics change.
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V137"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22392_asset_manager_annual_evidence_budget_priority_v151"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V138"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22393_asset_manager_annual_eps_footnote_binding_v152"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -42641,10 +42641,22 @@ def _asset_manager_v134_annual_narrative_eps_map(text, basis="reported"):
         if not mlabel:
             continue
         local = c[mlabel.end():mlabel.end()+180]
-        nums = re.findall(r"(?<!\d)(?:€|EUR\s*)?\s*([-+]?\d{1,3}(?:[.,]\d{1,4})?)\s*(?:€|EUR)?(?!\d)", local, re.I)
+        # V138: PDF extraction often preserves footnote markers immediately
+        # after the EPS label (e.g. "Adjusted net Earnings per Share22 reached
+        # €6.00 in 2023").  Never bind that integer footnote as EPS. Prefer an
+        # explicit currency/decimal observation around the EPS predicate; only
+        # then fall back to a plain decimal token.
         value = None
-        for tok in nums:
-            v = _asset_manager_v108_parse_number(tok)
+        value_patterns = [
+            r"(?:reached|was|stood\s+at|came\s+to|amounted\s+to|of|at)?\s*(?:€|EUR|\$|£)\s*([-+]?\d{1,2}[.,]\d{1,4})",
+            r"(?:reached|was|stood\s+at|came\s+to|amounted\s+to|of|at)?\s*([-+]?\d{1,2}[.,]\d{1,4})\s*(?:€|EUR|\$|£)",
+            r"(?<!\d)([-+]?\d{1,2}[.,]\d{1,4})(?!\d)",
+        ]
+        for vpat in value_patterns:
+            vm = re.search(vpat, local, re.I)
+            if not vm:
+                continue
+            v = _asset_manager_v108_parse_number(vm.group(1))
             if v is not None and 0 < v < 100:
                 value = v
                 break
@@ -42940,6 +42952,11 @@ def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None
                 structural_year = int(row.get("structural_year"))
             except Exception:
                 structural_year = None
+            # Once a dedicated annual document has supplied this FY, skip the
+            # remaining presentation/supplement/report variants for the same
+            # year. This preserves the bounded research budget for older FYs.
+            if structural_year in annual_map:
+                continue
             text, final_url, diag = _asset_manager_fetch_primary_text(url, company_domain, deadline=deadline)
             diag_code = "text" if text else (str((diag or ["empty"])[-1]).split(":", 1)[0] or "empty")
             trace.append(f"annual_matrix_fetch:{structural_year or 'na'}:{row.get('document_class') or 'unknown'}:{diag_code}")
