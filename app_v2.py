@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.90"
+APP_BUILD_VERSION = "V2.23.91"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Annual-History Source Arbitration · Amundi-Gegentest V286"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Annual-Archive Matrix Recovery · Amundi-Gegentest V287"
 )
 
 
@@ -38434,8 +38434,8 @@ def _asset_manager_history_median_eps(historical_eps):
 # 38s evidence budget and starving issuer-domain discovery. No valuation, score,
 # corridor, Premium-Unlock, Through-Cycle EPS, peer/historical guard, Fair Value or
 # signal mathematics change.
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V135"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22390_asset_manager_annual_history_source_arbitration_v149"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V136"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22391_asset_manager_annual_archive_matrix_recovery_v150"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -42700,6 +42700,117 @@ def _asset_manager_v135_annual_roots(website, company_domain, source_url=None):
     return out
 
 
+def _asset_manager_v136_annual_archive_matrix_candidates(html, base_url, company_domain, target_years):
+    """Recover exact Q4/FY documents from issuer-owned wide annual-result matrices.
+
+    Many issuer IR archives use years as table columns and document classes as
+    rows, while the individual anchors are only labelled Q1/Q2/Q3/Q4.  Generic
+    nearest-year heuristics are intentionally bounded and can lose historical
+    FY links in such a matrix.  V136 binds the table structurally instead:
+    explicit year header -> document-class row -> Q4/FY anchor.  Link text is
+    discovery evidence only; EPS values are still accepted solely after the
+    issuer document itself is fetched and parsed.
+    """
+    if not html or not base_url or not company_domain:
+        return []
+    wanted = {int(y) for y in (target_years or [])}
+    if not wanted:
+        return []
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:
+        return []
+
+    def row_cells_with_cols(row):
+        out, col = [], 0
+        for cell in row.find_all(["td", "th"], recursive=False):
+            try:
+                span = max(1, int(cell.get("colspan") or 1))
+            except Exception:
+                span = 1
+            out.append((cell, col, col + span - 1))
+            col += span
+        return out
+
+    class_terms = [
+        ("financial_data_supplement", ["financial data supplement", "financial supplement"]),
+        ("press_release", ["press release", "communique de presse", "results release"]),
+        ("presentation", ["presentation", "investor presentation"]),
+        ("annual_report", ["annual report", "universal registration document", "rapport annuel"]),
+    ]
+    rows_out, seen = [], set()
+    for table in soup.find_all("table"):
+        table_rows = table.find_all("tr")
+        if not table_rows:
+            continue
+        year_by_col = {}
+        # Annual archive headers are normally within the first few rows.
+        for row in table_rows[:6]:
+            for cell, c0, c1 in row_cells_with_cols(row):
+                txt = _clean_text(cell.get_text(" ", strip=True))
+                years = [int(v) for v in re.findall(r"\b(20\d{2})\b", txt)]
+                years = [yy for yy in years if yy in wanted]
+                if len(years) == 1:
+                    for cc in range(c0, c1 + 1):
+                        year_by_col[cc] = years[0]
+        if len(set(year_by_col.values())) < 2:
+            continue
+
+        for row in table_rows:
+            cells = row_cells_with_cols(row)
+            if not cells:
+                continue
+            row_label = _asset_manager_v108_fold(cells[0][0].get_text(" ", strip=True))
+            document_class = None
+            for cls, terms in class_terms:
+                if any(t in row_label for t in terms):
+                    document_class = cls
+                    break
+            if document_class is None:
+                continue
+            for cell, c0, c1 in cells[1:]:
+                cell_years = {year_by_col.get(cc) for cc in range(c0, c1 + 1)} - {None}
+                if len(cell_years) != 1:
+                    continue
+                yy = next(iter(cell_years))
+                if yy not in wanted:
+                    continue
+                for a in cell.find_all("a", href=True):
+                    href = urljoin(base_url, a.get("href"))
+                    if not href or href in seen or not _host_belongs_to_company_family(href, company_domain):
+                        continue
+                    label = _clean_text(a.get_text(" ", strip=True))
+                    hay = _asset_manager_v108_fold(f"{label} {href}")
+                    is_fy = bool(
+                        re.search(r"\b(?:q4|t4|h2|s2|fy)\b", hay)
+                        or any(t in hay for t in ["full year", "full-year", "annual results", "annual-results"])
+                    )
+                    # Annual-report rows are intrinsically FY documents even
+                    # when their anchor is just "PDF". Other rows must carry
+                    # explicit Q4/FY semantics.
+                    if document_class != "annual_report" and not is_fy:
+                        continue
+                    seen.add(href)
+                    class_bonus = {
+                        "financial_data_supplement": 145,
+                        "press_release": 135,
+                        "presentation": 115,
+                        "annual_report": 85,
+                    }.get(document_class, 0)
+                    rows_out.append({
+                        "url": href,
+                        "score": 400 + class_bonus + (yy - min(wanted)) * 5,
+                        "kind": "report",
+                        "label": label,
+                        "table_context": f"{row_label} {yy} Q4/FY",
+                        "document_class": document_class,
+                        "structural_year": yy,
+                        "annual_archive_matrix": True,
+                    })
+    rows_out.sort(key=lambda r: (r.get("score", 0), r.get("structural_year", 0)), reverse=True)
+    return rows_out
+
+
 def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None, website=None):
     snap = dict(snapshot or {})
     if not snap.get("generic_primary_adapter"):
@@ -42756,6 +42867,10 @@ def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None
         try: html, final = _fetch_html(start, timeout=2.6, deadline=deadline)
         except Exception: html, final = None, None
         if not html or not final or not _host_belongs_to_company_family(final, company_domain): continue
+        matrix_rows = _asset_manager_v136_annual_archive_matrix_candidates(html, final, company_domain, target_years)
+        if matrix_rows:
+            candidate_rows.extend(matrix_rows)
+            trace.append(f"annual_archive_matrix_candidates:{len(matrix_rows)}")
         for yy in target_years:
             candidate_rows.extend(_asset_manager_report_link_candidates(html, final, company_domain, yy)[:10])
     # Direct financial-results hub search can recover older annual/Q4 supplements.
