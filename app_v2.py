@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.94"
+APP_BUILD_VERSION = "V2.23.95"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Snapshot Budget Isolation · Amundi-Gegentest V290"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Annual-EPS Label & Year-Fairness Guard · Amundi-Gegentest V291"
 )
 
 
@@ -38442,8 +38442,8 @@ def _asset_manager_history_median_eps(historical_eps):
 # for the year" headings when the EPS row itself is explicitly Adjusted. No score,
 # corridor, Premium-Unlock, Through-Cycle weighting, peer/historical guard, Fair
 # Value or signal mathematics change.
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V139"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22394_asset_manager_snapshot_budget_isolation_v153"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V140"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22395_asset_manager_annual_eps_label_year_fairness_v154"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -42615,7 +42615,24 @@ def _asset_manager_v134_annual_narrative_eps_map(text, basis="reported"):
         c = _clean_text(chunk)
         if len(c) < 20 or len(c) > 700:
             continue
-        folded = _asset_manager_v108_fold(c)
+        # V140: PDF text extraction often flattens superscript footnotes into
+        # ordinary digits *inside* the EPS label, e.g. ``Adjusted1 earnings
+        # per share`` or ``earnings per share22 reached``. Normalize only these
+        # tightly-scoped label positions; never strip arbitrary digits from the
+        # surrounding sentence, year or EPS value.
+        label_safe = c.translate(str.maketrans({
+            "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4",
+            "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9",
+        }))
+        label_safe = re.sub(
+            r"\b(adjusted)\s*(?:\[?\d{1,3}\]?|\(\d{1,3}\))(?:\s*[,;]\s*\d{1,3})*\s+(?=(?:net\s+)?earnings\s+per\s+share\b)",
+            r"\1 ", label_safe, flags=re.I,
+        )
+        label_safe = re.sub(
+            r"(\bearnings\s+per\s+share)\s*(?:\[?\d{1,3}\]?|\(\d{1,3}\))(?:\s*[,;]\s*\d{1,3})*(?=\s*(?:reached|was|stood|came|amounted|for\b|in\b|at\b|of\b|:|€|EUR|\$|£))",
+            r"\1 ", label_safe, flags=re.I,
+        )
+        folded = _asset_manager_v108_fold(label_safe)
         if "earnings per share" not in folded:
             continue
         # Same-basis hard gate.
@@ -42627,7 +42644,7 @@ def _asset_manager_v134_annual_narrative_eps_map(text, basis="reported"):
         # A sentence that describes a quarter/half-year is never annual history.
         if re.search(r"\b(?:q[1-4]|t[1-4]|h[12]|s[12]|first\s+quarter|second\s+quarter|third\s+quarter|fourth\s+quarter|half[- ]year|first\s+half|second\s+half|nine\s+months?)\b", folded, re.I):
             continue
-        years = [int(y) for y in re.findall(r"\b(20\d{2})\b", c)]
+        years = [int(y) for y in re.findall(r"\b(20\d{2})\b", label_safe)]
         if not years:
             continue
         # Explicit annual wording is preferred; a compact "... reached X in YYYY"
@@ -42637,10 +42654,10 @@ def _asset_manager_v134_annual_narrative_eps_map(text, basis="reported"):
             continue
         # Parse the value immediately around the EPS label, allowing currency to
         # appear before or after the number but never borrowing distant figures.
-        mlabel = re.search(r"(?:adjusted(?:\s+net)?\s+)?earnings\s+per\s+share(?:\s*-\s*adjusted)?", c, re.I)
+        mlabel = re.search(r"(?:adjusted(?:\s+net)?\s+)?earnings\s+per\s+share(?:\s*-\s*adjusted)?", label_safe, re.I)
         if not mlabel:
             continue
-        local = c[mlabel.end():mlabel.end()+180]
+        local = label_safe[mlabel.end():mlabel.end()+180]
         # V138: PDF extraction often preserves footnote markers immediately
         # after the EPS label (e.g. "Adjusted net Earnings per Share22 reached
         # €6.00 in 2023").  Never bind that integer footnote as EPS. Prefer an
@@ -42663,8 +42680,11 @@ def _asset_manager_v134_annual_narrative_eps_map(text, basis="reported"):
         if value is None:
             continue
         # Bind to the year syntactically closest to the EPS clause/value.
-        year = min(years, key=lambda yy: abs(c.find(str(yy)) - mlabel.start()))
-        result[year] = float(value)
+        year = min(years, key=lambda yy: abs(label_safe.find(str(yy)) - mlabel.start()))
+        # Preserve the first explicit annual statement for a fiscal year.
+        # Later prose can belong to accounting/reconciliation commentary and
+        # must not silently overwrite the first same-basis annual observation.
+        result.setdefault(year, float(value))
     return result
 
 
@@ -42853,6 +42873,7 @@ def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None
     prior_eps = safe_float(snap.get("prior_period_issuer_eps"))
     basis = str(snap.get("issuer_eps_basis") or "reported").lower()
     trace = list(snap.get("same_basis_earnings_trace") or [])
+    trace.append(f"annual_history_basis:{basis}")
     if current_eps is None or prior_eps is None:
         trace.append("current_period_same_basis_eps_pair:missing")
         snap["same_basis_earnings_trace"] = trace[-24:]
@@ -42939,9 +42960,29 @@ def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None
             # summary while supplements remain a close issuer-primary fallback.
             key = (sy, url)
             matrix_best[key] = (mscore, row)
-        matrix_ranked = sorted(matrix_best.values(), key=lambda x: (x[1].get("structural_year", 0), x[0]), reverse=True)
-        trace.append(f"annual_matrix_priority_fetch:{min(len(matrix_ranked), 8)}")
-        for _, row in matrix_ranked[:8]:
+        # V140 year-fairness: consume one strongest issuer document per target
+        # FY before spending budget on second/third variants of a newer year.
+        # A simple global top-N can otherwise be filled entirely by 2025/2024
+        # rows and never reach 2023 despite complete structural coverage.
+        per_year = {yy: [] for yy in target_years}
+        for item in matrix_best.values():
+            try:
+                yy = int(item[1].get("structural_year"))
+            except Exception:
+                yy = None
+            if yy in per_year:
+                per_year[yy].append(item)
+        for yy in per_year:
+            per_year[yy].sort(key=lambda x: x[0], reverse=True)
+        matrix_ranked = []
+        max_depth = max([len(v) for v in per_year.values()] or [0])
+        for depth in range(max_depth):
+            for yy in sorted(target_years, reverse=True):
+                rows = per_year.get(yy) or []
+                if depth < len(rows):
+                    matrix_ranked.append(rows[depth])
+        trace.append(f"annual_matrix_priority_fetch:{min(len(matrix_ranked), 9)}")
+        for _, row in matrix_ranked[:9]:
             if len(annual_map) >= 3 or not _research_budget_ok(deadline, reserve=1.2):
                 break
             url = row.get("url")
@@ -42957,6 +42998,7 @@ def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None
             # year. This preserves the bounded research budget for older FYs.
             if structural_year in annual_map:
                 continue
+            trace.append(f"annual_matrix_pick:{structural_year or 'na'}:{row.get('document_class') or 'unknown'}")
             text, final_url, diag = _asset_manager_fetch_primary_text(url, company_domain, deadline=deadline)
             diag_code = "text" if text else (str((diag or ["empty"])[-1]).split(":", 1)[0] or "empty")
             trace.append(f"annual_matrix_fetch:{structural_year or 'na'}:{row.get('document_class') or 'unknown'}:{diag_code}")
@@ -42970,7 +43012,10 @@ def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None
             chosen = None
             if structural_year in eps_map:
                 chosen = safe_float(eps_map.get(structural_year))
-            if structural_year in narrative_map:
+            # V140 source arbitration: an explicit full-year same-basis table is
+            # stronger than narrative prose. Narrative fills only a missing FY;
+            # it must not overwrite a parsed annual table from the same source.
+            if chosen is None and structural_year in narrative_map:
                 nv = safe_float(narrative_map.get(structural_year))
                 if nv is not None and nv > 0:
                     chosen = nv
@@ -43053,11 +43098,11 @@ def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None
             for yy, vv in eps_map.items():
                 if yy in target_years and vv is not None and vv > 0:
                     annual_map.setdefault(int(yy), float(vv)); annual_sources.setdefault(int(yy), final_url or url)
-            # Explicit annual issuer narrative is higher-confidence than a
-            # flattened table binding and may repair the same year's value.
+            # V140: explicit full-year same-basis tables win. Narrative prose
+            # is a gap-filler only and cannot overwrite a table-backed FY.
             for yy, vv in narrative_map.items():
-                if yy in target_years and vv is not None and vv > 0:
-                    annual_map[int(yy)] = float(vv); annual_sources[int(yy)] = final_url or url
+                if yy in target_years and yy not in eps_map and vv is not None and vv > 0:
+                    annual_map.setdefault(int(yy), float(vv)); annual_sources.setdefault(int(yy), final_url or url)
                     trace.append(f"annual_narrative:{yy}:ok")
         # Crawl one hub hop if this was a financial-results index.
         if len(annual_map) < 3 and row.get("kind") == "hub" and _research_budget_ok(deadline, reserve=2.0):
@@ -43077,8 +43122,8 @@ def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None
                             if y2 in target_years and v2 is not None and v2 > 0:
                                 annual_map.setdefault(int(y2), float(v2)); annual_sources.setdefault(int(y2), cfinal or cu)
                         for y2, v2 in cnarr.items():
-                            if y2 in target_years and v2 is not None and v2 > 0:
-                                annual_map[int(y2)] = float(v2); annual_sources[int(y2)] = cfinal or cu
+                            if y2 in target_years and y2 not in cmap and v2 is not None and v2 > 0:
+                                annual_map.setdefault(int(y2), float(v2)); annual_sources.setdefault(int(y2), cfinal or cu)
                                 trace.append(f"annual_narrative_child:{y2}:ok")
                         if len(annual_map) >= 3: break
                     if len(annual_map) >= 3: break
