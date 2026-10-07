@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.89"
+APP_BUILD_VERSION = "V2.23.90"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Annual-EPS Scope Guard · Amundi-Gegentest V285"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Annual-History Source Arbitration · Amundi-Gegentest V286"
 )
 
 
@@ -38406,6 +38406,15 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
+# V2.23.90 / V286: Asset-Manager Annual-History Source Arbitration. Subannual
+# current-period snapshots (Q1-Q4/H1-H2) may no longer pre-seed the 3Y annual
+# EPS history from their generic multi-period row map. Annual observations from
+# those documents are accepted only through explicit annual/full-year narrative
+# evidence; otherwise the resolver fetches issuer-owned Annual/Q4 sources. The
+# already verified current-report host is tried first via its financial-results
+# routes before broader host-family or search fallback. No score, 9–18x corridor,
+# Premium-Unlock, Through-Cycle weighting, peer/historical guard, Fair Value or
+# signal mathematics change.
 # V2.23.89 / V285: Asset-Manager Annual-EPS Scope Guard. Historical same-basis EPS now
 # accepts high-confidence annual/full-year issuer narrative only when the EPS basis,
 # explicit fiscal year and annual scope agree; quarter/half-year sentences are rejected.
@@ -38425,8 +38434,8 @@ def _asset_manager_history_median_eps(historical_eps):
 # 38s evidence budget and starving issuer-domain discovery. No valuation, score,
 # corridor, Premium-Unlock, Through-Cycle EPS, peer/historical guard, Fair Value or
 # signal mathematics change.
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V134"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22389_asset_manager_annual_eps_scope_guard_v148"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V135"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22390_asset_manager_annual_history_source_arbitration_v149"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -42639,6 +42648,58 @@ def _asset_manager_v134_annual_narrative_eps_map(text, basis="reported"):
     return result
 
 
+def _asset_manager_v135_same_document_annual_seed(snapshot):
+    """Return only annual EPS observations safe to seed from the current report.
+
+    A current Q/H document can carry many comparative columns. Flattened PDF/HTML
+    extraction may align those columns correctly for the current-period KPI row
+    while still making an FY-looking column unsafe as standalone 3Y history.
+    Therefore raw same-document annual maps are trusted only when the snapshot's
+    own governing period is FY. Explicit annual narrative remains independently
+    eligible through V134 because it binds year + annual scope + EPS basis.
+    """
+    snap = dict(snapshot or {})
+    raw_map = snap.get("same_document_annual_eps_map") or {}
+    label = _asset_manager_v108_fold(snap.get("period_basis_label") or "")
+    if not re.match(r"^fy\s+20\d{2}$", label, re.I):
+        return {}
+    out = {}
+    for key, value in raw_map.items():
+        try:
+            yy = int(key)
+        except Exception:
+            continue
+        vv = safe_float(value)
+        if vv is not None and 0 < vv < 1000:
+            out[yy] = float(vv)
+    return out
+
+
+def _asset_manager_v135_annual_roots(website, company_domain, source_url=None):
+    """Prioritize the already proven issuer host for historical annual evidence."""
+    family = _asset_manager_domain_family_root(company_domain)
+    if not family:
+        return []
+    rows = []
+    source_host = _normalize_host(source_url)
+    if source_host and _host_belongs_to_company_family(f"https://{source_host}/", family):
+        for path in [
+            "/financial-results/",
+            "/investor-relations/financial-results/",
+            "/reports-and-events/financial-results/",
+            "/",
+        ]:
+            rows.append(f"https://{source_host}{path}")
+    rows.extend(_asset_manager_ir_root_candidates(website, family))
+    out, seen = [], set()
+    for url in rows:
+        if not url or url in seen or not _host_belongs_to_company_family(url, family):
+            continue
+        seen.add(url)
+        out.append(url)
+    return out
+
+
 def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None, website=None):
     snap = dict(snapshot or {})
     if not snap.get("generic_primary_adapter"):
@@ -42668,9 +42729,13 @@ def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None
     current_year = datetime.now().year
     latest_fy = current_year - 1
     target_years = [latest_fy - 2, latest_fy - 1, latest_fy]
-    annual_map = {int(k): float(v) for k, v in (snap.get("same_document_annual_eps_map") or {}).items()
+    raw_same_doc_map = snap.get("same_document_annual_eps_map") or {}
+    trusted_same_doc_map = _asset_manager_v135_same_document_annual_seed(snap)
+    annual_map = {int(k): float(v) for k, v in trusted_same_doc_map.items()
                   if int(k) in target_years and safe_float(v) is not None and safe_float(v) > 0}
     annual_sources = {int(k): snap.get("source_url") for k in annual_map}
+    if raw_same_doc_map and not trusted_same_doc_map:
+        trace.append("same_document_annual_map:rejected_subannual_source:" + str(snap.get("period_basis_label") or "unknown"))
     same_doc_narrative = _asset_manager_v134_annual_narrative_eps_map(snap.get("raw_text") or "", basis=basis)
     for yy, vv in same_doc_narrative.items():
         if yy in target_years and vv is not None and vv > 0:
@@ -42686,7 +42751,7 @@ def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None
         return snap
     deadline = time.monotonic() + 18.0
     fetched, candidate_rows = set(), []
-    for start in _asset_manager_ir_root_candidates(raw_website, company_domain)[:10]:
+    for start in _asset_manager_v135_annual_roots(raw_website, company_domain, snap.get("source_url"))[:12]:
         if len(annual_map) >= 3 or not _research_budget_ok(deadline, reserve=8.0): break
         try: html, final = _fetch_html(start, timeout=2.6, deadline=deadline)
         except Exception: html, final = None, None
