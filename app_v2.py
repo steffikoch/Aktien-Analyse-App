@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.93"
+APP_BUILD_VERSION = "V2.23.94"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Annual-EPS Footnote Binding · Amundi-Gegentest V289"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Snapshot Budget Isolation · Amundi-Gegentest V290"
 )
 
 
@@ -38442,8 +38442,8 @@ def _asset_manager_history_median_eps(historical_eps):
 # for the year" headings when the EPS row itself is explicitly Adjusted. No score,
 # corridor, Premium-Unlock, Through-Cycle weighting, peer/historical guard, Fair
 # Value or signal mathematics change.
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V138"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22393_asset_manager_annual_eps_footnote_binding_v152"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V139"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22394_asset_manager_snapshot_budget_isolation_v153"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -42228,7 +42228,7 @@ def _asset_manager_v108_failure_reason(best_partial, trace):
 
 def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=None, fundamental_info=None):
     """V115 corporate-IR + structured-XLSX + multi-year-table issuer-primary recovery."""
-    deadline = time.monotonic() + 38.0
+    deadline = time.monotonic() + 52.0
     year = datetime.now().year
     company_label = _clean_text(company_name) or _clean_text(symbol)
     raw_website = _clean_text(website)
@@ -42489,7 +42489,7 @@ def discover_generic_asset_manager_snapshot(symbol, company_name=None, website=N
         except Exception:
             stale_scheme, stale_host = "https", ""
         if stale_host and _host_belongs_to_company_family(f"{stale_scheme}://{stale_host}/", company_domain):
-            salvage_deadline = time.monotonic() + 9.0
+            salvage_deadline = time.monotonic() + 15.0
             salvage_seen = set()
             salvage_hubs = [
                 f"{stale_scheme}://{stale_host}/financial-results/",
