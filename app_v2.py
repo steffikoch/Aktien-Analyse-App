@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.95"
+APP_BUILD_VERSION = "V2.23.96"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +946,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Annual-EPS Label & Year-Fairness Guard · Amundi-Gegentest V291"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Evidence-Control Integration · Amundi-Gegentest V292"
 )
 
 
@@ -38442,8 +38442,8 @@ def _asset_manager_history_median_eps(historical_eps):
 # for the year" headings when the EPS row itself is explicitly Adjusted. No score,
 # corridor, Premium-Unlock, Through-Cycle weighting, peer/historical guard, Fair
 # Value or signal mathematics change.
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V140"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22395_asset_manager_annual_eps_label_year_fairness_v154"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V141"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22396_asset_manager_evidence_control_integration_v155"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -42068,6 +42068,171 @@ def _asset_manager_v110_prior_fy_aum_from_prose(text, scope="firmwide"):
     return None
 
 
+
+
+def _asset_manager_v141_date_tuple(value):
+    m = re.search(r"(\d{1,2})[./-](\d{1,2})[./-](20\d{2})", str(value or ""))
+    if not m:
+        return None
+    dd, mm, yy = map(int, m.groups())
+    return (yy, mm, dd)
+
+def _asset_manager_v141_compact_current_snapshot(text, source_url, company_name, fundamental_info=None):
+    """V141: compact/flattened current-period KPI binder proven in Evidence Control Center V1.5.0.
+
+    This is deliberately label/unit driven and issuer-neutral.  It is a recovery
+    layer for PDF extractors that flatten a table into one long line.  No KPI
+    value is hard-coded; only explicit row labels, units and period/date evidence
+    are accepted.  Adjusted CIR is preferred to an unadjusted CIR row.
+    """
+    compact = _clean_text(text)
+    out = {"available": False, "compact_current_recovered": False}
+    if not compact:
+        return out
+    current_year = datetime.now().year
+    prior_year = current_year - 1
+
+    def num(raw):
+        return _asset_manager_v108_parse_number(raw)
+
+    def first(pattern):
+        m = re.search(pattern, compact, re.I | re.S)
+        return m
+
+    # Require explicit current-period evidence.  Date is strongest; H1/Q2 is a
+    # fallback for issuer documents whose extracted date line is damaged.
+    date_match = first(r"(?:data\s+as\s+of|as\s+of|as\s+at)\s*:?\s*(?P<d>\d{1,2}[/-]\d{1,2}[/-]20\d{2})")
+    as_of_raw = date_match.group('d') if date_match else None
+    current_period = None
+    if as_of_raw and str(current_year) in as_of_raw:
+        dm = re.match(r"(\d{1,2})[/-](\d{1,2})[/-](20\d{2})", as_of_raw)
+        if dm:
+            dd, mm, yy = map(int, dm.groups())
+            if mm == 6:
+                current_period = f"H1 {yy}"
+            elif mm == 3:
+                current_period = f"Q1 {yy}"
+            elif mm == 9:
+                current_period = f"Q3 {yy}"
+            elif mm == 12:
+                current_period = f"FY {yy}"
+    if current_period is None:
+        pm = first(rf"\b(?P<p>H1|Q2)\s*{current_year}\b")
+        if pm:
+            current_period = f"{pm.group('p').upper()} {current_year}"
+    if current_period is None:
+        return out
+
+    # Physical row grammar proven by the control app.  Capture current and, if
+    # adjacent in the same row, the comparison value.  The second AUM value is
+    # accepted as prior-FY beginning AUM only when the document also exposes a
+    # current 30/06 period and a 31/12 prior-year comparator nearby.
+    aum_m = first(r"\b(?:AuM|Assets\s+under\s+management)\s*[\(\{]\s*(?:€|EUR)?\s*(?P<u>bn|billion|tn|trillion)\s*[\)\}]\s*(?P<v1>[+\-]?[0-9][0-9.,]*)(?:\s+(?P<v2>[+\-]?[0-9][0-9.,]*))?")
+    flow_m = first(r"\btotal\s+net\s+(?:inflows|flows)\s*[\(\{]\s*(?:€|EUR)?\s*(?P<u>bn|billion|m|million)\s*[\)\}]\s*(?P<v>[+\-]?[0-9][0-9.,]*)")
+    cir_m = first(r"cost\s*[/\- ]\s*income\s+ratio\s*,?\s*(?:adjusted|ajusted)(?:\s*,?\s*normalised)?\s*\(%\)\s*[^0-9]{0,50}(?P<v>[0-9]{1,2}(?:[.,][0-9]+)?)\s*%")
+    fee_m = first(r"(?:net\s+)?management\s+fees\b.{0,160}?(?P<v>[+\-]?[0-9]{1,3}(?:[.,][0-9]+)?)\s*%")
+    eps_m = first(r"(?:earnings|net\s+earnings)\s+per\s+share\s*[-,:]?\s*(?:adjusted|ajusted)\s*(?:\([^)]*\))?\s*(?P<v1>[+\-]?[0-9]{1,2}(?:[.,][0-9]+)?)(?:\s+(?P<v2>[+\-]?[0-9]{1,2}(?:[.,][0-9]+)?))?")
+
+    def amount(v, unit):
+        x = num(v) if v is not None else None
+        if x is None:
+            return None
+        u = str(unit or '').lower()
+        if u in {'tn','trillion'}: return x * 1e12
+        if u in {'bn','billion'}: return x * 1e9
+        if u in {'m','million'}: return x * 1e6
+        return x
+
+    total_aum = amount(aum_m.group('v1'), aum_m.group('u')) if aum_m else None
+    beginning = None
+    if aum_m and aum_m.groupdict().get('v2'):
+        # Structural date-pair guard: prevents treating an arbitrary comparison
+        # column as beginning AUM.
+        date_pair = bool(re.search(rf"30[./-]0?6[./-]{current_year}.{{0,500}}31[./-]12[./-]{prior_year}|31[./-]12[./-]{prior_year}.{{0,500}}30[./-]0?6[./-]{current_year}", compact, re.I | re.S))
+        if date_pair:
+            beginning = amount(aum_m.group('v2'), aum_m.group('u'))
+    flows = amount(flow_m.group('v'), flow_m.group('u')) if flow_m else None
+    cir = num(cir_m.group('v')) if cir_m else None
+    fee_growth = num(fee_m.group('v')) if fee_m else None
+    eps_cur = num(eps_m.group('v1')) if eps_m else None
+    eps_prior = num(eps_m.group('v2')) if eps_m and eps_m.groupdict().get('v2') else None
+
+    # Generic quality/context scores mirror the existing period-table adapter;
+    # valuation weights themselves are unchanged.
+    folded = _asset_manager_v108_fold(compact)
+    has_perf = 'performance fees' in folded or 'performance fee' in folded
+    has_tech = any(t in folded for t in ['technology revenue','subscription revenue','platform revenue'])
+    fee_mix_score = 12.0 if has_perf and has_tech else 10.0 if has_perf else 8.0
+    fi = fundamental_info if isinstance(fundamental_info, dict) else {}
+    cash, debt = safe_float(fi.get('totalCash')), safe_float(fi.get('totalDebt'))
+    balance_score = 9.0 if cash is not None and debt is not None and cash >= debt else 7.0
+    has_buyback = any(t in folded for t in ['share buyback','share repurchase','buyback programme','buyback program','rachat d actions'])
+    has_dividend = 'dividend' in folded or 'dividende' in folded
+    capital_score = 10.0 if has_buyback and has_dividend else 9.0 if has_buyback else 7.0
+    diversity_count = sum(1 for t in ['active management','etf','index','private','alternative','institutional','retail'] if t in folded)
+    franchise_score = 5.0 if diversity_count >= 5 else 4.0 if diversity_count >= 3 else 3.0
+
+    out.update({
+        'compact_current_recovered': bool(total_aum is not None or flows is not None or cir is not None or fee_growth is not None),
+        'as_of_date': (as_of_raw.replace('/','.') if as_of_raw else (f'30.06.{current_year}' if current_period.startswith(('H1','Q2')) else None)),
+        'period_basis_label': current_period,
+        'period_beginning_label': f'FY {prior_year}' if current_period.startswith(('H1','Q1','Q2')) else None,
+        'source_url': source_url,
+        'source_name': f"{company_name} issuer-primary compact current table · Generic Asset-Manager Evidence Adapter {ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION}",
+        'company': company_name, 'generic_primary_adapter': True,
+        'total_aum': total_aum, 'beginning_total_aum': beginning,
+        'firmwide_period_net_flows': flows, 'period_net_flows': flows,
+        'flow_scope_label': 'Firmwide', 'flow_beginning_aum': beginning,
+        'firmwide_flow_beginning_aum': beginning,
+        'flow_period_fraction_year': 0.5 if current_period.startswith(('H1','Q2')) else 0.25,
+        'flow_period_label': current_period,
+        'flow_scope_matches_denominator': bool(beginning is not None and flows is not None),
+        'verified_flow_direction': 'positive' if flows is not None and flows > 0 else 'negative' if flows is not None and flows < 0 else 'flat' if flows == 0 else None,
+        'fee_revenue_growth_pct': fee_growth,
+        'cost_income_ratio_pct': cir,
+        'operating_margin_pct': None,
+        'issuer_profitability_metric': 'cost_income_ratio' if cir is not None else None,
+        'issuer_eps_basis': 'adjusted' if eps_cur is not None and eps_prior is not None else None,
+        'current_period_issuer_eps': eps_cur, 'prior_period_issuer_eps': eps_prior,
+        'current_period_adjusted_eps': eps_cur, 'prior_period_adjusted_eps': eps_prior,
+        'fee_mix_score': fee_mix_score, 'earnings_stability_score': 10.0 if eps_cur and eps_prior and eps_cur > 0 and eps_prior > 0 else 8.0,
+        'balance_quality_score': balance_score, 'capital_allocation_score': capital_score,
+        'franchise_diversification_score': franchise_score,
+        'valuation_confidence_cap': 'Mittel',
+        'note': 'V141 compact current-table recovery: label/unit-bound H1/Q2 evidence proven by Evidence Control Center V1.5.0; no issuer KPI values are hard-coded.',
+    })
+    out['available'] = bool(total_aum is not None and beginning is not None and flows is not None and fee_growth is not None and cir is not None)
+    return out
+
+
+def _asset_manager_v141_control_annual_eps(text, target_year, basis='adjusted'):
+    """Footnote-safe FY EPS binding mirrored from Evidence Control Center V1.5.0."""
+    raw = text or ''
+    compact = _clean_text(raw)
+    basis_re = r'(?:adjusted\s+(?:net\s+)?(?:earnings|net\s+income)|earnings)' if basis == 'adjusted' else r'(?:reported|accounting|net\s+income)'
+    eps_label = r'(?:earnings|net\s+earnings)\s+per\s+share(?:\s*\(?eps\)?)?'
+    currency_value = r'(?:€|EUR\s*)\s*([0-9]{1,2}(?:[.,][0-9]{1,3})?)'
+    windows=[]
+    for m in re.finditer(str(target_year), compact):
+        windows.append(compact[max(0,m.start()-260):min(len(compact),m.end()+260)])
+    if not windows: windows=[compact]
+    patterns=[
+        rf'{basis_re}[^.;:]{{0,100}}{eps_label}[^.;:]{{0,80}}(?:reached|was|of|:|amounted\s+to|at)?[^.;:]{{0,50}}{currency_value}[^.;:]{{0,100}}(?:in|for|FY|full[- ]year)?\s*{target_year}',
+        rf'{eps_label}[^.;:]{{0,80}}{currency_value}[^.;:]{{0,100}}(?:in|for|FY|full[- ]year)?\s*{target_year}',
+        rf'{target_year}[^.;:]{{0,180}}{eps_label}[^.;:]{{0,80}}{currency_value}',
+    ]
+    for w in windows:
+        for pat in patterns:
+            m=re.search(pat,w,re.I)
+            if not m: continue
+            span=_clean_text(m.group(0))
+            if re.search(r'\b(?:Q[1-4]|H[12])\b',span,re.I) and not re.search(r'full[- ]year|annual|for the year|FY',span,re.I):
+                continue
+            val=_asset_manager_v108_parse_number(m.group(1))
+            if val is not None and 0.05 <= val <= 100:
+                return float(val)
+    return None
+
 def _asset_manager_parse_generic_primary_report(text, source_url, company_name, fundamental_info=None):
     # Keep the validated V107 prose formats, then overlay V110's period-safe
     # table evidence.  A prior-FY AUM denominator may be merged from explicit
@@ -42105,10 +42270,14 @@ def _asset_manager_parse_generic_primary_report(text, source_url, company_name, 
     flat_wide = _asset_manager_v129_flat_wide_schedule_snapshot(
         text, source_url, company_name, fundamental_info=fundamental_info
     )
+    compact_current = _asset_manager_v141_compact_current_snapshot(
+        text, source_url, company_name, fundamental_info=fundamental_info
+    )
     table_recovered = bool(table.get("period_table_recovered"))
     wide_recovered = bool(wide.get("wide_schedule_recovered")) or bool(flat_wide.get("flat_wide_schedule_recovered"))
+    compact_recovered = bool(compact_current.get("compact_current_recovered"))
     wide_source = wide if bool(wide.get("wide_schedule_recovered")) else flat_wide
-    if not table_recovered and not wide_recovered:
+    if not table_recovered and not wide_recovered and not compact_recovered:
         base["adapter_version"] = ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION
         return base
 
@@ -42148,6 +42317,38 @@ def _asset_manager_parse_generic_primary_report(text, source_url, company_name, 
         merged["wide_schedule_flow_column"] = wide_source.get("wide_schedule_flow_column")
         merged["wide_schedule_aum_current_column"] = wide_source.get("wide_schedule_aum_current_column")
         merged["wide_schedule_aum_beginning_column"] = wide_source.get("wide_schedule_aum_beginning_column")
+
+    # V141: merge the control-app-proven compact current table recovery.  It
+    # may overwrite stale/incomplete current-period KPI bindings only when its
+    # explicit as-of date is at least as fresh as the merged snapshot.  Missing
+    # beginning AUM can still be supplied by the independent wide-schedule path.
+    if compact_recovered:
+        compact_date = _asset_manager_v141_date_tuple(compact_current.get("as_of_date"))
+        merged_date = _asset_manager_v141_date_tuple(merged.get("as_of_date"))
+        fresh_enough = compact_date is not None and (merged_date is None or compact_date >= merged_date)
+        if fresh_enough:
+            current_keys = {
+                "total_aum", "firmwide_period_net_flows", "period_net_flows",
+                "fee_revenue_growth_pct", "cost_income_ratio_pct", "issuer_profitability_metric",
+                "current_period_issuer_eps", "prior_period_issuer_eps", "current_period_adjusted_eps",
+                "prior_period_adjusted_eps", "issuer_eps_basis", "as_of_date", "period_basis_label",
+                "flow_period_label", "flow_period_fraction_year", "verified_flow_direction",
+            }
+            for key in current_keys:
+                value = compact_current.get(key)
+                if value is not None:
+                    merged[key] = value
+            # Beginning denominator is accepted only under the helper's explicit
+            # current-date/prior-FY date-pair guard; otherwise preserve wide/prose.
+            for key in ("beginning_total_aum", "flow_beginning_aum", "firmwide_flow_beginning_aum"):
+                value = compact_current.get(key)
+                if value is not None:
+                    merged[key] = value
+            for key in ("fee_mix_score", "earnings_stability_score", "balance_quality_score", "capital_allocation_score", "franchise_diversification_score"):
+                if merged.get(key) is None and compact_current.get(key) is not None:
+                    merged[key] = compact_current.get(key)
+            merged["compact_current_recovered"] = True
+            merged["compact_current_source_name"] = compact_current.get("source_name")
 
     # Re-bind firmwide flow denominator after the partial-table merge. Long-term
     # flows may only be selected when a long-term beginning denominator exists.
@@ -43006,6 +43207,7 @@ def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None
             if not eps_map and basis == "adjusted":
                 eps_map = _asset_manager_parse_adjusted_annual_eps_map(text)
             narrative_map = _asset_manager_v134_annual_narrative_eps_map(text, basis=basis)
+            control_eps = _asset_manager_v141_control_annual_eps(text, structural_year, basis=basis) if structural_year in target_years else None
             # High-confidence narrative may repair the table value for the same
             # structural FY, but values for comparison years are left to their
             # own dedicated annual documents in this priority phase.
@@ -43015,6 +43217,10 @@ def enrich_generic_asset_manager_same_basis_earnings(snapshot, company_name=None
             # V140 source arbitration: an explicit full-year same-basis table is
             # stronger than narrative prose. Narrative fills only a missing FY;
             # it must not overwrite a parsed annual table from the same source.
+            if chosen is None and control_eps is not None:
+                chosen = safe_float(control_eps)
+                if chosen is not None and chosen > 0:
+                    trace.append(f"annual_control_parser:{structural_year}:ok")
             if chosen is None and structural_year in narrative_map:
                 nv = safe_float(narrative_map.get(structural_year))
                 if nv is not None and nv > 0:
