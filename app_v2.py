@@ -17,13 +17,32 @@ from xml.etree import ElementTree as ET
 import requests
 from bs4 import BeautifulSoup
 
+# V2.23.98 / V294: one authoritative Asset-Manager evidence engine is shared
+# byte-for-byte with the Evidence Control Center. The SHA-256 below is the live
+# Amundi control run that passed 11/11 stages on 08.10.2026. Evidence from the
+# legacy family adapter may still provide supplemental score context, but it can
+# no longer release the generic Asset-Manager valuation unless this exact shared
+# engine has passed its current-period + 3Y same-basis EPS gate.
+try:
+    from asset_manager_evidence_engine import (
+        ENGINE_VERSION as SHARED_ASSET_MANAGER_ENGINE_VERSION,
+        engine_sha256 as shared_asset_manager_engine_sha256,
+        run_asset_manager_evidence_pipeline as run_shared_asset_manager_evidence_pipeline,
+    )
+except Exception:
+    SHARED_ASSET_MANAGER_ENGINE_VERSION = None
+    shared_asset_manager_engine_sha256 = None
+    run_shared_asset_manager_evidence_pipeline = None
+
+SHARED_ASSET_MANAGER_REQUIRED_SHA256 = "1d91d5e87267fe269a64ab5d89cca33febc97b05f1370b50d438101dd9f9f806"
+
 st.set_page_config(
     page_title="Aktien-Analyse V2",
     page_icon="📊",
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.96"
+APP_BUILD_VERSION = "V2.23.98"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -946,7 +965,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Evidence-Control Integration · Amundi-Gegentest V292"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Evidence-Control Integration · Amundi-Gegentest V294"
 )
 
 
@@ -38406,6 +38425,11 @@ def _asset_manager_history_median_eps(historical_eps):
 
 
 
+# V2.23.97 / V293: Asset-Manager Annual-EPS Control-Center Parity. Restores the
+# already-tested Evidence Control Center V1.5.0 table/line fallback inside the
+# main-app FY EPS binder. Discovery/fetch, same-basis guards, score weights,
+# 9–18x corridor, Premium-Unlock, peer/historical guards, Fair Value and signal
+# mathematics are unchanged. Cache epoch is bumped only to avoid stale evidence.
 # V2.23.90 / V286: Asset-Manager Annual-History Source Arbitration. Subannual
 # current-period snapshots (Q1-Q4/H1-H2) may no longer pre-seed the 3Y annual
 # EPS history from their generic multi-period row map. Annual observations from
@@ -38442,8 +38466,8 @@ def _asset_manager_history_median_eps(historical_eps):
 # for the year" headings when the EPS row itself is explicitly Adjusted. No score,
 # corridor, Premium-Unlock, Through-Cycle weighting, peer/historical guard, Fair
 # Value or signal mathematics change.
-ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V141"
-ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22396_asset_manager_evidence_control_integration_v155"
+ASSET_MANAGER_EVIDENCE_ADAPTER_VERSION = "V142"
+ASSET_MANAGER_EVIDENCE_CACHE_EPOCH = "v22397_asset_manager_annual_eps_line_parity_v155"
 
 
 def _asset_manager_primary_amount(value_text, unit_text):
@@ -42231,6 +42255,29 @@ def _asset_manager_v141_control_annual_eps(text, target_year, basis='adjusted'):
             val=_asset_manager_v108_parse_number(m.group(1))
             if val is not None and 0.05 <= val <= 100:
                 return float(val)
+
+    # V142 / V2.23.97: exact Evidence Control Center V1.5.0 parity.
+    # PDF/XLSX extraction frequently places the FY label, EPS label and value on
+    # adjacent physical lines.  The compact sentence parser above therefore
+    # cannot bind otherwise valid annual evidence even though discovery/fetch is
+    # successful.  Keep the same fail-closed annual/period guards used by the
+    # already-tested Control Center and return only an explicit same-basis FY EPS.
+    lines = [_clean_text(x) for x in raw.splitlines() if _clean_text(x)]
+    for i, line in enumerate(lines):
+        if not re.search(eps_label, line, re.I):
+            continue
+        block = " ".join(lines[max(0, i - 3): min(len(lines), i + 4)])
+        if str(target_year) not in block:
+            continue
+        if re.search(r'\b(?:Q[1-4]|H[12]|quarter|half[- ]year|nine months)\b', block, re.I) and not re.search(r'full[- ]year|annual|for the year|\bFY\b', block, re.I):
+            continue
+        if basis == 'adjusted' and 'adjust' not in block.lower():
+            continue
+        vals = re.findall(currency_value, block, flags=re.I)
+        nums = [_asset_manager_v108_parse_number(v) for v in vals]
+        nums = [v for v in nums if v is not None and 0.05 <= v <= 100]
+        if nums:
+            return float(nums[0])
     return None
 
 def _asset_manager_parse_generic_primary_report(text, source_url, company_name, fundamental_info=None):
@@ -43403,6 +43450,376 @@ def build_asset_management_earnings_basis(snapshot, trailing_eps, current_fy_eps
         result["earnings_basis_family"] = pretty + " / Current-FY / Through-Cycle"
         result["same_basis_guard"] = "passed"
     return result
+
+
+
+# =========================================================
+# V2.23.98 – Shared 1:1 Asset-Manager Evidence Engine Gate V294
+# =========================================================
+def _shared_asset_manager_absolute_amount(value, unit):
+    """Convert the shared engine's labelled bn/m/tn values to absolute units."""
+    v = safe_float(value)
+    if v is None:
+        return None
+    u = str(unit or "").strip().lower()
+    if u in {"tn", "trillion", "trillions"}:
+        return v * 1e12
+    if u in {"bn", "billion", "billions", "mrd", "mrd."}:
+        return v * 1e9
+    if u in {"m", "mn", "million", "millions", "mio", "mio."}:
+        return v * 1e6
+    return v
+
+
+def _shared_asset_manager_calendar_periods(now=None):
+    """Calendar-only current evidence window; no issuer/ticker exception."""
+    now = now or datetime.now()
+    if now.month >= 11:
+        return ("Q3",)
+    if now.month >= 8:
+        return ("Q2", "H1")
+    if now.month >= 5:
+        return ("Q1",)
+    return ("Q4", "FY")
+
+
+def _shared_asset_manager_engine_run(company_name, symbol, website, fundamental_info, legacy_snapshot=None):
+    """Run the exact Control-Center engine and return its authoritative gate.
+
+    Host/bootstrap discovery may use already-existing issuer metadata or the
+    legacy adapter's source URL. KPI/EPS acceptance itself comes exclusively
+    from run_asset_manager_evidence_pipeline().
+    """
+    if run_shared_asset_manager_evidence_pipeline is None or shared_asset_manager_engine_sha256 is None:
+        return {
+            "evidence_ready": False,
+            "engine_error": "shared_engine_import_failed",
+            "engine_sha256": None,
+            "required_engine_sha256": SHARED_ASSET_MANAGER_REQUIRED_SHA256,
+        }
+    actual_hash = shared_asset_manager_engine_sha256()
+    if actual_hash != SHARED_ASSET_MANAGER_REQUIRED_SHA256:
+        return {
+            "evidence_ready": False,
+            "engine_error": "shared_engine_hash_mismatch",
+            "engine_sha256": actual_hash,
+            "required_engine_sha256": SHARED_ASSET_MANAGER_REQUIRED_SHA256,
+        }
+
+    raw_website = _clean_text(website)
+    legacy_url = _clean_text((legacy_snapshot or {}).get("source_url"))
+    host_candidates = []
+    for raw in [legacy_url, raw_website]:
+        try:
+            host = (urlparse(raw if "://" in raw else "https://" + raw).hostname or "").lower().strip(".")
+        except Exception:
+            host = ""
+        if host and host not in host_candidates:
+            host_candidates.append(host)
+
+    family = None
+    for host in host_candidates:
+        family = _asset_manager_domain_family_root(host)
+        if family:
+            break
+    if not family:
+        family = _asset_manager_domain_from_metadata(fundamental_info)
+    if not family:
+        try:
+            family, _probe = _asset_manager_identity_domain_probe(company_name, deadline=time.monotonic() + 6.0)
+        except Exception:
+            family = None
+    if not family:
+        return {
+            "evidence_ready": False,
+            "engine_error": "issuer_domain_unresolved",
+            "engine_sha256": actual_hash,
+            "required_engine_sha256": SHARED_ASSET_MANAGER_REQUIRED_SHA256,
+        }
+    family = _asset_manager_domain_family_root(family)
+
+    # Prefer the exact host that already supplied issuer evidence (or provider
+    # website), then use the existing issuer-neutral host-fair root generator.
+    archive_candidates = []
+    for host in host_candidates:
+        if _asset_manager_domain_family_root(host) == family:
+            archive_candidates.extend([
+                f"https://{host}/financial-results",
+                f"https://{host}/financial-results/",
+            ])
+    try:
+        roots = _asset_manager_ir_root_candidates(raw_website or f"https://{family}/", family)
+    except Exception:
+        roots = []
+    archive_candidates.extend([u for u in roots if "financial-result" in str(u).lower()])
+    seen = set()
+    archive_candidates = [u for u in archive_candidates if u and not (u in seen or seen.add(u))]
+
+    current_year = datetime.now().year
+    target_years = (current_year - 1, current_year - 2, current_year - 3)
+    current_periods = _shared_asset_manager_calendar_periods()
+    best = None
+    for archive_url in archive_candidates[:8]:
+        try:
+            result = run_shared_asset_manager_evidence_pipeline(
+                company=company_name,
+                symbol=symbol,
+                company_domain=family,
+                archive_url=archive_url,
+                target_years=target_years,
+                current_year=current_year,
+                current_periods=current_periods,
+                timeout=20.0,
+            )
+        except Exception as exc:
+            result = {
+                "evidence_ready": False,
+                "engine_error": f"pipeline_error:{type(exc).__name__}",
+                "engine_sha256": actual_hash,
+                "archive_url": archive_url,
+            }
+        result["required_engine_sha256"] = SHARED_ASSET_MANAGER_REQUIRED_SHA256
+        result["engine_identity_match"] = bool(result.get("engine_sha256") == SHARED_ASSET_MANAGER_REQUIRED_SHA256)
+        # Prefer a fully released run. Otherwise retain the run with the most
+        # passed stages, so diagnostics show the deepest reached point.
+        if result.get("evidence_ready") and result.get("engine_identity_match"):
+            return result
+        if best is None or int((result.get("counts") or {}).get("pass") or 0) > int((best.get("counts") or {}).get("pass") or 0):
+            best = result
+    return best or {
+        "evidence_ready": False,
+        "engine_error": "financial_results_archive_unresolved",
+        "engine_sha256": actual_hash,
+        "required_engine_sha256": SHARED_ASSET_MANAGER_REQUIRED_SHA256,
+        "engine_identity_match": actual_hash == SHARED_ASSET_MANAGER_REQUIRED_SHA256,
+    }
+
+
+def _shared_asset_manager_merge_authoritative_evidence(snapshot, engine_result):
+    """Overlay only evidence fields proven by the shared engine.
+
+    Supplemental franchise/balance/capital-allocation context may remain from
+    the existing specialist adapter; current core KPIs and annual same-basis EPS
+    are overwritten by the exact Control-Center result.
+    """
+    snap = dict(snapshot or {})
+    er = engine_result if isinstance(engine_result, dict) else {}
+    snap["shared_engine_version"] = er.get("engine_version") or SHARED_ASSET_MANAGER_ENGINE_VERSION
+    snap["shared_engine_sha256"] = er.get("engine_sha256")
+    snap["shared_engine_required_sha256"] = SHARED_ASSET_MANAGER_REQUIRED_SHA256
+    snap["shared_engine_identity_match"] = bool(er.get("engine_identity_match") or er.get("engine_sha256") == SHARED_ASSET_MANAGER_REQUIRED_SHA256)
+    snap["shared_engine_evidence_ready"] = bool(er.get("evidence_ready"))
+    snap["shared_engine_archive_url"] = er.get("archive_url")
+    snap["shared_engine_checks"] = list(er.get("checks") or [])
+    snap["shared_engine_counts"] = dict(er.get("counts") or {})
+    snap["shared_engine_first_failure"] = er.get("first_failure")
+
+    current = er.get("current_snapshot") or {}
+    kpis = current.get("kpis") or {}
+    candidate = current.get("candidate") or {}
+    if er.get("evidence_ready"):
+        aum_abs = _shared_asset_manager_absolute_amount(kpis.get("aum"), kpis.get("aum_unit"))
+        flow_abs = _shared_asset_manager_absolute_amount(kpis.get("net_flows"), kpis.get("net_flows_unit"))
+        if aum_abs is not None:
+            snap["total_aum"] = aum_abs
+        if flow_abs is not None:
+            snap["period_net_flows"] = flow_abs
+            snap["firmwide_period_net_flows"] = flow_abs
+            snap["verified_flow_direction"] = "positive" if flow_abs > 0 else "negative" if flow_abs < 0 else "flat"
+            snap["flow_scope_label"] = "Firmwide"
+        cir = safe_float(kpis.get("cost_income_ratio"))
+        if cir is not None:
+            snap["cost_income_ratio_pct"] = cir
+            # Do not expose 100-CIR as an operating margin; the score adapter
+            # performs that equivalence privately when needed.
+            snap["operating_margin_pct"] = None
+            snap["issuer_profitability_metric"] = "cost_income_ratio"
+        fee_growth = safe_float(kpis.get("fee_growth"))
+        if fee_growth is not None:
+            snap["fee_revenue_growth_pct"] = fee_growth
+        if kpis.get("as_of"):
+            snap["as_of_date"] = kpis.get("as_of")
+        if candidate.get("url"):
+            snap["source_url"] = candidate.get("url")
+        snap["source_name"] = (
+            f"{snap.get('company') or ''} issuer-primary · Shared Asset-Manager Evidence Engine "
+            f"{snap.get('shared_engine_version') or ''}"
+        ).strip()
+
+        annual = {}
+        for yy, vv in (er.get("annual_eps") or {}).items():
+            try:
+                yi = int(yy)
+            except Exception:
+                continue
+            fv = safe_float(vv)
+            if fv is not None and fv > 0:
+                annual[yi] = fv
+        years = sorted(annual)
+        snap["issuer_same_basis_eps_history_years"] = years
+        snap["issuer_same_basis_eps_history"] = [annual[y] for y in years]
+        sources = []
+        for y in years:
+            yr = (er.get("annual_results") or {}).get(y) or (er.get("annual_results") or {}).get(str(y)) or {}
+            parsed = yr.get("parsed") or {}
+            cand = parsed.get("candidate") or {}
+            sources.append(cand.get("url"))
+        snap["issuer_same_basis_eps_history_sources"] = sources
+        snap["issuer_eps_basis"] = "adjusted"
+
+        # Same-basis TTM bridge uses the shared engine for the completed FY and
+        # the already issuer-primary current/prior-period EPS pair. If that pair
+        # is missing, the model stays fail-closed instead of substituting Yahoo.
+        if years:
+            latest_fy = max(years)
+            latest_eps = annual.get(latest_fy)
+            current_eps = safe_float(snap.get("current_period_adjusted_eps"))
+            prior_eps = safe_float(snap.get("prior_period_adjusted_eps"))
+            if current_eps is None:
+                current_eps = safe_float(snap.get("current_period_issuer_eps"))
+            if prior_eps is None:
+                prior_eps = safe_float(snap.get("prior_period_issuer_eps"))
+            ttm = latest_eps - prior_eps + current_eps if None not in (latest_eps, prior_eps, current_eps) else None
+            if ttm is not None and ttm > 0:
+                snap["issuer_same_basis_ttm_eps"] = ttm
+                snap["same_basis_ttm_bridge_latest_fy"] = latest_fy
+                snap["same_basis_ttm_bridge_latest_fy_eps"] = latest_eps
+                snap["same_basis_ttm_bridge_current_period_eps"] = current_eps
+                snap["same_basis_ttm_bridge_prior_period_eps"] = prior_eps
+                snap["same_basis_earnings_complete"] = True
+                snap["same_basis_earnings_trace"] = [
+                    f"shared_engine:{snap.get('shared_engine_version')}:{snap.get('shared_engine_sha256')}",
+                    "shared_engine_evidence_ready:yes",
+                    "shared_annual_eps:" + ",".join(f"{y}={annual[y]:.4f}" for y in years),
+                    f"same_basis_ttm_bridge:{latest_eps:.4f}-{prior_eps:.4f}+{current_eps:.4f}={ttm:.4f}",
+                ]
+            else:
+                snap["same_basis_earnings_complete"] = False
+                snap["same_basis_earnings_trace"] = [
+                    f"shared_engine:{snap.get('shared_engine_version')}:{snap.get('shared_engine_sha256')}",
+                    "shared_engine_evidence_ready:yes",
+                    "shared_annual_eps:" + ",".join(f"{y}={annual[y]:.4f}" for y in years),
+                    "same_basis_ttm_bridge:current_or_prior_period_eps_missing",
+                ]
+    snap["generic_primary_adapter"] = True
+    return snap
+
+
+def build_asset_management_specialist_model(company_type, fundamental_info, symbol, trailing_eps, current_fy_eps, historical_eps, resolved_company_name=None):
+    """V294: generic Asset Managers are gated by the exact Control-Center engine."""
+    if not is_asset_management_specialist_type(company_type, symbol):
+        return {"applicable": False}
+
+    verified = get_verified_asset_manager_snapshot(symbol)
+    # Existing fully verified reference snapshots remain unchanged regression
+    # cases. The shared engine gate is authoritative for the generic issuer path.
+    if verified:
+        if verified.get("inactive_delisted"):
+            return {
+                "applicable": True,
+                "primary_source_complete": True,
+                "inactive_delisted": True,
+                "snapshot": verified,
+                "specialist_score": {"available": False},
+                "earnings_basis": {"available": False},
+                "specialist_valuation": {"available": False},
+                "valuation_anchor_complete": False,
+                "readiness": "Take-private abgeschlossen / delistet · laufende Börsenbewertung gesperrt",
+            }
+        score = build_asset_management_specialist_score(verified)
+        earnings = build_asset_management_earnings_basis(verified, trailing_eps, current_fy_eps, historical_eps)
+        valuation = build_asset_management_specialist_valuation(verified, score, earnings)
+        return {
+            "applicable": True,
+            "primary_source_complete": True,
+            "snapshot": verified,
+            "specialist_score": score,
+            "earnings_basis": earnings,
+            "specialist_valuation": valuation,
+            "valuation_anchor_complete": bool(score.get("available") and earnings.get("available") and valuation.get("available")),
+            "readiness": "Asset-Management-Spezialbewertung freigegeben" if valuation.get("available") else "Asset-Management-Spezialbewertung gesperrt",
+        }
+
+    issuer_identity_name = (
+        _clean_text(resolved_company_name)
+        or _clean_text((fundamental_info or {}).get("longName"))
+        or _clean_text((fundamental_info or {}).get("shortName"))
+        or _clean_text(symbol)
+    )
+
+    # Legacy discovery is retained only as issuer-owned host/bootstrap and as
+    # supplemental scoring context. It is no longer the valuation-release gate.
+    try:
+        legacy_snapshot = discover_generic_asset_manager_snapshot(
+            symbol,
+            company_name=issuer_identity_name,
+            website=(fundamental_info or {}).get("website"),
+            fundamental_info=fundamental_info,
+        )
+    except Exception as exc:
+        legacy_snapshot = {
+            "available": False,
+            "generic_primary_adapter": True,
+            "company": issuer_identity_name,
+            "discovery_trace": [f"legacy_bootstrap_error:{type(exc).__name__}"],
+        }
+
+    engine_result = _shared_asset_manager_engine_run(
+        issuer_identity_name,
+        symbol,
+        (fundamental_info or {}).get("website"),
+        fundamental_info,
+        legacy_snapshot=legacy_snapshot,
+    )
+
+    if not engine_result.get("evidence_ready") or engine_result.get("engine_sha256") != SHARED_ASSET_MANAGER_REQUIRED_SHA256:
+        discovery = dict(legacy_snapshot or {})
+        discovery["shared_engine_result"] = engine_result
+        discovery["shared_engine_sha256"] = engine_result.get("engine_sha256")
+        discovery["shared_engine_required_sha256"] = SHARED_ASSET_MANAGER_REQUIRED_SHA256
+        discovery["shared_engine_evidence_ready"] = bool(engine_result.get("evidence_ready"))
+        ff = engine_result.get("first_failure") or {}
+        discovery["evidence_failure_reason"] = ff.get("stage") or engine_result.get("engine_error") or "shared_engine_not_ready"
+        return {
+            "applicable": True,
+            "primary_source_complete": False,
+            "evidence_discovery": discovery,
+            "specialist_score": {"available": False},
+            "earnings_basis": {"available": False},
+            "specialist_valuation": {"available": False},
+            "valuation_anchor_complete": False,
+            "readiness": "Asset-Management-Spezialdaten unvollständig · Shared 1:1 Evidence Engine nicht freigegeben · Fair Value fail-closed",
+        }
+
+    snapshot = _shared_asset_manager_merge_authoritative_evidence(legacy_snapshot, engine_result)
+    snapshot["available"] = True
+    snapshot["company"] = snapshot.get("company") or issuer_identity_name
+
+    score = build_asset_management_specialist_score(snapshot)
+    earnings = build_asset_management_earnings_basis(snapshot, trailing_eps, current_fy_eps, historical_eps)
+    valuation = build_asset_management_specialist_valuation(snapshot, score, earnings)
+    released = bool(
+        snapshot.get("shared_engine_evidence_ready")
+        and snapshot.get("shared_engine_identity_match")
+        and score.get("available")
+        and earnings.get("available")
+        and valuation.get("available")
+    )
+    return {
+        "applicable": True,
+        "primary_source_complete": True,
+        "snapshot": snapshot,
+        "evidence_discovery": {"shared_engine_result": engine_result},
+        "specialist_score": score,
+        "earnings_basis": earnings,
+        "specialist_valuation": valuation,
+        "valuation_anchor_complete": released,
+        "readiness": (
+            "Asset-Management-Spezialbewertung freigegeben · Shared 1:1 Evidence Engine bestätigt"
+            if released else
+            "Shared 1:1 Evidence Engine bestätigt · nachgelagerte Earnings-/Bewertungsbasis noch gesperrt"
+        ),
+    }
 
 
 # =========================================================
@@ -83939,6 +84356,20 @@ if selected_symbol:
                                 )
                                 discovery_am = special_control.get("discovery") or {}
                                 if discovery_am:
+                                    _shared_fail_am = discovery_am.get("shared_engine_result") or {}
+                                    if _shared_fail_am:
+                                        st.caption(
+                                            f"1:1 Shared Engine: {text_or_dash(_shared_fail_am.get('engine_version'))} · "
+                                            f"SHA-256 {text_or_dash(_shared_fail_am.get('engine_sha256'))} · "
+                                            f"Evidence Ready: {'JA' if _shared_fail_am.get('evidence_ready') else 'NEIN'}"
+                                        )
+                                        _ff_shared_am = _shared_fail_am.get("first_failure") or {}
+                                        if _ff_shared_am:
+                                            st.caption(
+                                                "Shared-Engine erste rote Stufe: "
+                                                + text_or_dash(_ff_shared_am.get("stage"))
+                                                + " · " + text_or_dash(_ff_shared_am.get("message"))
+                                            )
                                     missing_am = discovery_am.get("missing_current_evidence") or []
                                     if missing_am:
                                         st.caption("Noch fehlende aktuelle Primärdaten: " + " · ".join(str(x) for x in missing_am))
@@ -83980,6 +84411,16 @@ if selected_symbol:
                                     + (f" (veröffentlicht {text_or_dash(am_published_ui)})" if am_published_ui else "")
                                 )
                                 st.caption(text_or_dash(snap_am.get("source_name")))
+                                if snap_am.get("shared_engine_sha256"):
+                                    _am_engine_hash_ui = str(snap_am.get("shared_engine_sha256"))
+                                    _am_engine_match_ui = bool(snap_am.get("shared_engine_identity_match"))
+                                    st.caption(
+                                        f"1:1 Shared Engine: {text_or_dash(snap_am.get('shared_engine_version'))} · SHA-256 {_am_engine_hash_ui}"
+                                    )
+                                    if _am_engine_match_ui and snap_am.get("shared_engine_evidence_ready"):
+                                        st.success("✅ Shared-Engine-Identität stimmt mit der getesteten Kontroll-App überein · Evidence Ready = JA")
+                                    else:
+                                        st.error("❌ Shared-Engine-Identität/Evidence-Gate nicht bestätigt · Fair Value bleibt gesperrt")
                                 if snap_am.get("source_url"):
                                     st.markdown(f"[Primärquelle]({snap_am.get('source_url')})")
                                 a1, a2 = st.columns(2)
