@@ -17,7 +17,7 @@ from xml.etree import ElementTree as ET
 import requests
 from bs4 import BeautifulSoup
 
-# V2.23.99 / V295: one authoritative Asset-Manager evidence engine is shared
+# V2.24.00 / V296: one authoritative Asset-Manager evidence engine is shared
 # byte-for-byte with the Evidence Control Center. The SHA-256 below is the live
 # Amundi control run that passed 13/13 stages on 08.10.2026. Evidence from the
 # legacy family adapter may still provide supplemental score context, but it can
@@ -36,13 +36,19 @@ except Exception:
 
 SHARED_ASSET_MANAGER_REQUIRED_SHA256 = "4cd66eca043587f4b2d5b8adb38e927725a11adad3aa9c4b62759d33e30568be"
 
+# V2.24.00 / V296: Asset-Manager Downstream Release Diagnosis. The frozen Shared Engine 1.5.0
+# and its SHA-256 remain byte-for-byte unchanged. V296 adds a non-steering diagnostic contract
+# that separates Shared-Engine, specialist-score, earnings-basis and valuation-anchor readiness,
+# reports the first failing downstream stage and names missing score evidence explicitly. No score
+# weight, 9–18x corridor, Premium-Unlock, peer/historical guard, Fair Value or signal threshold changes.
+
 st.set_page_config(
     page_title="Aktien-Analyse V2",
     page_icon="📊",
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.99"
+APP_BUILD_VERSION = "V2.24.00"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -965,7 +971,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Evidence-Control Integration · Amundi-Gegentest V295"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Release-Diagnose · Amundi-Gegentest V296"
 )
 
 
@@ -2823,14 +2829,21 @@ def build_special_event_warning(eps_normalization, bank_special_model=None, insu
                 "reason": "Die Bewertung läuft über den freigegebenen Asset-Management-Spezialpfad; die generische EPS-/Industrieprüfung ist nur Diagnosekontext.",
                 "action": "Keine normale Standardbewertung erforderlich; AUM/Flows, Fee-/Margin-Evidenz und Through-Cycle-Earnings bleiben die Bewertungsanker.",
             }
+        _am_diag = asset_manager_model.get("release_diagnostics") or {}
+        _am_stage = str(_am_diag.get("first_failing_release_stage") or "unbekannt")
+        _am_missing = list(_am_diag.get("missing_score_labels") or [])
+        _am_missing_text = (" Fehlende Score-Evidenz: " + " · ".join(str(x) for x in _am_missing)) if _am_missing else ""
         return {
             "level": "Gelb",
             "icon": "🟡",
-            "title": "Asset-Management-Spezialdaten noch unvollständig – Bewertung fail-closed",
+            "title": "Asset-Management-Spezialpfad noch nicht vollständig freigegeben – Bewertung fail-closed",
             "requires_research": False,
             "valuation_usable": False,
-            "reason": "Der Bewertungsstopp entsteht durch noch unvollständige issuer-primary Asset-Management-Evidenz bzw. Same-Basis-Earnings, nicht durch einen generischen EPS-Sonderfall.",
-            "action": "Nicht in die normale Bewertungslogik wechseln. Der Asset-Management-Spezialpfad bleibt aktiv und Fair Value/Signale bleiben gesperrt, bis die erforderlichen Primärdaten vollständig sind.",
+            "reason": (
+                f"Erste gesperrte Freigabestufe: {_am_stage}." + _am_missing_text +
+                " Der Shared-Engine-Status und die nachgelagerte Score-/Earnings-/Valuation-Freigabe werden getrennt ausgewiesen."
+            ),
+            "action": "Nicht in die normale Bewertungslogik wechseln. Nur die konkret ausgewiesene erste rote Freigabestufe bereinigen; bereits grüne Shared-Engine-/EPS-Stufen bleiben unverändert.",
         }
 
     return {
@@ -40637,6 +40650,92 @@ def build_asset_management_specialist_valuation(snapshot, specialist_score, earn
     return result
 
 
+
+def _asset_manager_release_diagnostics(snapshot, score, earnings, valuation, shared_engine_ready=None):
+    """V296: explain the first downstream release blocker without changing valuation math.
+
+    The shared engine remains the authoritative current-period + annual-EPS gate.
+    This diagnostic layer only reports which already-existing specialist-score /
+    earnings / valuation inputs are still missing. It never invents a score,
+    multiple or Fair Value and therefore cannot release a blocked valuation.
+    """
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    score = score if isinstance(score, dict) else {}
+    earnings = earnings if isinstance(earnings, dict) else {}
+    valuation = valuation if isinstance(valuation, dict) else {}
+
+    if shared_engine_ready is None:
+        shared_engine_ready = bool(
+            snap.get("shared_engine_evidence_ready")
+            and snap.get("shared_engine_identity_match")
+        )
+
+    checks = {
+        "total_aum": safe_float(snap.get("total_aum")) is not None,
+        "beginning_total_aum": safe_float(snap.get("beginning_total_aum")) is not None,
+        "organic_flow_direction": str(snap.get("verified_flow_direction") or "").strip().lower() in {"positive", "flat", "negative"},
+        "fee_growth": safe_float(snap.get("fee_revenue_growth_pct")) is not None,
+        "profitability": (
+            safe_float(snap.get("operating_margin_pct")) is not None
+            or safe_float(snap.get("cost_income_ratio_pct")) is not None
+        ),
+        "fee_mix_quality": safe_float(snap.get("fee_mix_score")) is not None,
+        "earnings_stability_quality": safe_float(snap.get("earnings_stability_score")) is not None,
+        "balance_quality": safe_float(snap.get("balance_quality_score")) is not None,
+        "capital_allocation_quality": safe_float(snap.get("capital_allocation_score")) is not None,
+        "franchise_diversification_quality": safe_float(snap.get("franchise_diversification_score")) is not None,
+    }
+    labels = {
+        "total_aum": "Total AUM",
+        "beginning_total_aum": "periodengleicher Beginning-AUM-Anker",
+        "organic_flow_direction": "Organic-Net-Flow-Richtung / Scope",
+        "fee_growth": "Fee-/Net-Revenue-Wachstum",
+        "profitability": "Core/Adjusted Margin bzw. Cost-Income Ratio",
+        "fee_mix_quality": "Fee-Mix / Effective-Fee-Rate-Qualität",
+        "earnings_stability_quality": "Earnings-Stabilität / EPS-Qualität",
+        "balance_quality": "Bilanzqualität",
+        "capital_allocation_quality": "Kapitalallokation / Buybacks / Ausschüttungen",
+        "franchise_diversification_quality": "Franchise- / Produktdiversifikation",
+    }
+    missing_score_keys = [k for k, ok in checks.items() if not ok]
+    missing_score_labels = [labels[k] for k in missing_score_keys]
+
+    score_ready = bool(score.get("available"))
+    earnings_ready = bool(earnings.get("available"))
+    valuation_ready = bool(valuation.get("available"))
+
+    if not shared_engine_ready:
+        first_stage = "shared_engine"
+    elif not score_ready:
+        first_stage = "specialist_score"
+    elif not earnings_ready:
+        first_stage = "earnings_basis"
+    elif not valuation_ready:
+        first_stage = "specialist_valuation"
+    else:
+        first_stage = None
+
+    return {
+        "shared_engine_ready": bool(shared_engine_ready),
+        "score_ready": score_ready,
+        "earnings_ready": earnings_ready,
+        "valuation_ready": valuation_ready,
+        "first_failing_release_stage": first_stage,
+        "score_input_checks": checks,
+        "missing_score_keys": missing_score_keys,
+        "missing_score_labels": missing_score_labels,
+        "score_note": score.get("note"),
+        "earnings_note": earnings.get("note"),
+        "valuation_note": valuation.get("note"),
+        "released": bool(shared_engine_ready and score_ready and earnings_ready and valuation_ready),
+        "note": (
+            "V296 trennt Evidence-Ready und Valuation-Ready explizit. Ein grüner Shared-Engine-Lauf "
+            "belegt aktuelle KPI-/Same-Basis-EPS-Evidenz, ersetzt aber keine fehlende qualitative "
+            "Score-Evidenz. Fehlende Felder werden deshalb einzeln ausgewiesen statt als generische "
+            "Spezialkontroll-Sperre versteckt."
+        ),
+    }
+
 def build_asset_management_specialist_model(company_type, fundamental_info, symbol, trailing_eps, current_fy_eps, historical_eps, resolved_company_name=None):
     if not is_asset_management_specialist_type(company_type, symbol):
         return {"applicable": False}
@@ -40780,6 +40879,9 @@ def build_asset_management_special_control(control, specialist_model):
     score = model.get("specialist_score") or {}
     earnings = model.get("earnings_basis") or {}
     valuation = model.get("specialist_valuation") or {}
+    release_diag = model.get("release_diagnostics") or _asset_manager_release_diagnostics(
+        snap, score, earnings, valuation, shared_engine_ready=bool(model.get("shared_engine_release_gate"))
+    )
     inactive = bool(model.get("inactive_delisted") or snap.get("inactive_delisted"))
     released = bool(model.get("valuation_anchor_complete") and valuation.get("available") and not inactive)
     out = dict(control)
@@ -40795,6 +40897,7 @@ def build_asset_management_special_control(control, specialist_model):
             "specialist_score": score,
             "earnings_basis": earnings,
             "specialist_valuation": valuation,
+            "release_diagnostics": release_diag,
         },
         "note": (
             f"{APP_BUILD_VERSION} trennt Asset Manager vom generischen Standard-KGV-/ROE-/Yahoo-FCF-Pfad. "
@@ -43454,7 +43557,7 @@ def build_asset_management_earnings_basis(snapshot, trailing_eps, current_fy_eps
 
 
 # =========================================================
-# V2.23.99 – Shared 1:1 Asset-Manager Evidence Engine Gate V295
+# V2.24.00 – Shared 1:1 Asset-Manager Release-Diagnose V296
 # =========================================================
 def _shared_asset_manager_absolute_amount(value, unit):
     """Convert the shared engine's labelled bn/m/tn values to absolute units."""
@@ -43750,7 +43853,7 @@ def _shared_asset_manager_merge_authoritative_evidence(snapshot, engine_result):
 
 
 def build_asset_management_specialist_model(company_type, fundamental_info, symbol, trailing_eps, current_fy_eps, historical_eps, resolved_company_name=None):
-    """V295: generic Asset Managers are gated by the exact Control-Center engine."""
+    """V296: generic Asset Managers use the exact Control-Center engine plus an explicit downstream release diagnosis."""
     if not is_asset_management_specialist_type(company_type, symbol):
         return {"applicable": False}
 
@@ -43773,6 +43876,7 @@ def build_asset_management_specialist_model(company_type, fundamental_info, symb
         score = build_asset_management_specialist_score(verified)
         earnings = build_asset_management_earnings_basis(verified, trailing_eps, current_fy_eps, historical_eps)
         valuation = build_asset_management_specialist_valuation(verified, score, earnings)
+        release_diag = _asset_manager_release_diagnostics(verified, score, earnings, valuation, shared_engine_ready=True)
         return {
             "applicable": True,
             "primary_source_complete": True,
@@ -43780,6 +43884,7 @@ def build_asset_management_specialist_model(company_type, fundamental_info, symb
             "specialist_score": score,
             "earnings_basis": earnings,
             "specialist_valuation": valuation,
+            "release_diagnostics": release_diag,
             "valuation_anchor_complete": bool(score.get("available") and earnings.get("available") and valuation.get("available")),
             "readiness": "Asset-Management-Spezialbewertung freigegeben" if valuation.get("available") else "Asset-Management-Spezialbewertung gesperrt",
         }
@@ -43831,6 +43936,17 @@ def build_asset_management_specialist_model(company_type, fundamental_info, symb
             "specialist_score": {"available": False},
             "earnings_basis": {"available": False},
             "specialist_valuation": {"available": False},
+            "release_diagnostics": {
+                "shared_engine_ready": False,
+                "score_ready": False,
+                "earnings_ready": False,
+                "valuation_ready": False,
+                "first_failing_release_stage": "shared_engine",
+                "missing_score_keys": [],
+                "missing_score_labels": [],
+                "released": False,
+                "note": "Shared 1:1 Evidence Engine ist noch nicht freigegeben; Downstream-Score wird deshalb nicht bewertet.",
+            },
             "valuation_anchor_complete": False,
             "readiness": "Asset-Management-Spezialdaten unvollständig · Shared 1:1 Evidence Engine nicht freigegeben · Fair Value fail-closed",
         }
@@ -43839,7 +43955,7 @@ def build_asset_management_specialist_model(company_type, fundamental_info, symb
     snapshot["available"] = True
     snapshot["company"] = snapshot.get("company") or issuer_identity_name
 
-    # V295: If the exact shared current-period engine is green but the older
+    # V296: If the exact shared current-period engine is green but the older
     # discovery snapshot did not retain a beginning-AUM anchor, do not block the
     # whole family merely because headline AUM growth cannot be measured.  A
     # conservative zero-growth proxy is allowed ONLY when every other score
@@ -43873,13 +43989,9 @@ def build_asset_management_specialist_model(company_type, fundamental_info, symb
     score = build_asset_management_specialist_score(snapshot)
     earnings = build_asset_management_earnings_basis(snapshot, trailing_eps, current_fy_eps, historical_eps)
     valuation = build_asset_management_specialist_valuation(snapshot, score, earnings)
-    released = bool(
-        snapshot.get("shared_engine_evidence_ready")
-        and snapshot.get("shared_engine_identity_match")
-        and score.get("available")
-        and earnings.get("available")
-        and valuation.get("available")
-    )
+    shared_release_gate = bool(snapshot.get("shared_engine_evidence_ready") and snapshot.get("shared_engine_identity_match"))
+    release_diag = _asset_manager_release_diagnostics(snapshot, score, earnings, valuation, shared_engine_ready=shared_release_gate)
+    released = bool(release_diag.get("released"))
     return {
         "applicable": True,
         "primary_source_complete": True,
@@ -43888,12 +44000,16 @@ def build_asset_management_specialist_model(company_type, fundamental_info, symb
         "specialist_score": score,
         "earnings_basis": earnings,
         "specialist_valuation": valuation,
+        "release_diagnostics": release_diag,
         "valuation_anchor_complete": released,
-        "shared_engine_release_gate": bool(snapshot.get("shared_engine_evidence_ready") and snapshot.get("shared_engine_identity_match")),
+        "shared_engine_release_gate": shared_release_gate,
         "readiness": (
             "Asset-Management-Spezialbewertung freigegeben · Shared 1:1 Evidence Engine bestätigt"
             if released else
-            "Shared 1:1 Evidence Engine bestätigt · nachgelagerte Score-/Earnings-/Bewertungsbasis noch gesperrt"
+            (
+                "Shared 1:1 Evidence Engine bestätigt · erste gesperrte Freigabestufe: "
+                + str(release_diag.get("first_failing_release_stage") or "unbekannt")
+            )
         ),
     }
 
@@ -84425,6 +84541,7 @@ if selected_symbol:
                             score_am = checks_am.get("specialist_score") or {}
                             earn_am = checks_am.get("earnings_basis") or {}
                             val_am = checks_am.get("specialist_valuation") or {}
+                            release_diag_am = checks_am.get("release_diagnostics") or {}
                             if not snap_am:
                                 st.warning(
                                     "Asset-Management-Familie erkannt, aber für diesen Emittenten liegt noch kein vollständiger issuer-primary Spezial-Snapshot vor. "
@@ -84653,6 +84770,24 @@ if selected_symbol:
                                         st.write("**Safety-Guard-Referenz:** Keine belastbare Peer- oder 3Y-Historical-Referenz verfügbar")
                                     st.metric(f"{text_or_dash(snap_am.get('company'))} Fair Value – Fundamentalwährung", format_currency_value(val_am.get("fair_value_financial"), financial_currency, 2))
                                 st.caption(text_or_dash(snap_am.get("note")))
+                            if release_diag_am:
+                                st.markdown("**🔬 V296 Freigabe-Diagnose**")
+                                c_am_d1, c_am_d2, c_am_d3, c_am_d4 = st.columns(4)
+                                with c_am_d1:
+                                    st.metric("Shared Engine", "JA" if release_diag_am.get("shared_engine_ready") else "NEIN")
+                                with c_am_d2:
+                                    st.metric("Spezialscore", "JA" if release_diag_am.get("score_ready") else "NEIN")
+                                with c_am_d3:
+                                    st.metric("Gewinnbasis", "JA" if release_diag_am.get("earnings_ready") else "NEIN")
+                                with c_am_d4:
+                                    st.metric("Bewertungsanker", "JA" if release_diag_am.get("valuation_ready") else "NEIN")
+                                _am_first_ui = release_diag_am.get("first_failing_release_stage")
+                                if _am_first_ui:
+                                    st.error(f"Erste gesperrte Freigabestufe: {_am_first_ui}")
+                                _am_missing_ui = list(release_diag_am.get("missing_score_labels") or [])
+                                if _am_missing_ui:
+                                    st.warning("Fehlende Score-Evidenz: " + " · ".join(str(x) for x in _am_missing_ui))
+                                st.caption(text_or_dash(release_diag_am.get("note")))
                             if special_control.get("released"):
                                 st.success("Asset-Management-Spezialkontrolle vollständig – Fair Value freigegeben.")
                             else:
