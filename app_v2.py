@@ -17,7 +17,7 @@ from xml.etree import ElementTree as ET
 import requests
 from bs4 import BeautifulSoup
 
-# V2.24.00 / V296: one authoritative Asset-Manager evidence engine is shared
+# V2.24.01 / V297: one authoritative Asset-Manager evidence engine is shared
 # byte-for-byte with the Evidence Control Center. The SHA-256 below is the live
 # Amundi control run that passed 13/13 stages on 08.10.2026. Evidence from the
 # legacy family adapter may still provide supplemental score context, but it can
@@ -36,8 +36,8 @@ except Exception:
 
 SHARED_ASSET_MANAGER_REQUIRED_SHA256 = "4cd66eca043587f4b2d5b8adb38e927725a11adad3aa9c4b62759d33e30568be"
 
-# V2.24.00 / V296: Asset-Manager Downstream Release Diagnosis. The frozen Shared Engine 1.5.0
-# and its SHA-256 remain byte-for-byte unchanged. V296 adds a non-steering diagnostic contract
+# V2.24.01 / V297: Asset-Manager Derived-Score Trace. The frozen Shared Engine 1.5.0
+# and its SHA-256 remain byte-for-byte unchanged. V297 extends the non-steering diagnostic contract
 # that separates Shared-Engine, specialist-score, earnings-basis and valuation-anchor readiness,
 # reports the first failing downstream stage and names missing score evidence explicitly. No score
 # weight, 9–18x corridor, Premium-Unlock, peer/historical guard, Fair Value or signal threshold changes.
@@ -48,7 +48,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.24.00"
+APP_BUILD_VERSION = "V2.24.01"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -971,7 +971,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Release-Diagnose · Amundi-Gegentest V296"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Score-Rechenprobe · Amundi-Gegentest V297"
 )
 
 
@@ -40652,7 +40652,7 @@ def build_asset_management_specialist_valuation(snapshot, specialist_score, earn
 
 
 def _asset_manager_release_diagnostics(snapshot, score, earnings, valuation, shared_engine_ready=None):
-    """V296: explain the first downstream release blocker without changing valuation math.
+    """V297: explain the first downstream release blocker and derived score trace without changing valuation math.
 
     The shared engine remains the authoritative current-period + annual-EPS gate.
     This diagnostic layer only reports which already-existing specialist-score /
@@ -40700,6 +40700,90 @@ def _asset_manager_release_diagnostics(snapshot, score, earnings, valuation, sha
     missing_score_keys = [k for k, ok in checks.items() if not ok]
     missing_score_labels = [labels[k] for k in missing_score_keys]
 
+    # V297: reproduce the score-builder's derived inputs without steering the
+    # release. This distinguishes truly missing raw evidence from a derived
+    # subcomponent that becomes None (or an integration inconsistency where
+    # every derived component is valid but the specialist score still returns
+    # unavailable).
+    _total_aum = safe_float(snap.get("total_aum"))
+    _begin_total = safe_float(snap.get("beginning_total_aum"))
+    _aum_growth = None
+    if _total_aum is not None and _begin_total is not None and _begin_total > 0:
+        _aum_growth = (_total_aum / _begin_total - 1.0) * 100.0
+    _flow_ctx = _asset_manager_flow_context(snap)
+    _flow_rate = safe_float(_flow_ctx.get("annualized_rate_pct"))
+    _flow_direction = _flow_ctx.get("direction")
+    if _flow_ctx.get("verified_rate"):
+        _flow_pts = _asset_manager_flow_points(_flow_rate)
+    else:
+        _flow_pts = _asset_manager_directional_flow_points(_flow_direction)
+    _aum_flow_for_cap = _flow_rate
+    if not _flow_ctx.get("verified_rate"):
+        if _flow_direction == "negative":
+            _aum_flow_for_cap = -0.01
+        elif _flow_direction == "flat":
+            _aum_flow_for_cap = 0.0
+        else:
+            _aum_flow_for_cap = None
+    _aum_pts = _asset_manager_aum_points(_aum_growth, _aum_flow_for_cap)
+    _fee_mix_pts = safe_float(snap.get("fee_mix_score"))
+    _fee_growth_pts = _asset_manager_fee_growth_points(
+        snap.get("fee_revenue_growth_pct"), snap.get("fee_growth_quality_cap")
+    )
+    _op_margin = safe_float(snap.get("operating_margin_pct"))
+    _op_margin_change = safe_float(snap.get("operating_margin_change_bps"))
+    _cir = safe_float(snap.get("cost_income_ratio_pct"))
+    _cir_change = safe_float(snap.get("cost_income_ratio_change_bps"))
+    _profitability_metric = "operating_margin"
+    if _op_margin is None and _cir is not None:
+        _op_margin = 100.0 - _cir
+        _op_margin_change = -_cir_change if _cir_change is not None else None
+        _profitability_metric = "cost_income_ratio"
+    _profitability_pts = _asset_manager_margin_points(_op_margin, _op_margin_change)
+    _earnings_pts = safe_float(snap.get("earnings_stability_score"))
+    _balance_pts = safe_float(snap.get("balance_quality_score"))
+    _capital_pts = safe_float(snap.get("capital_allocation_score"))
+    _franchise_pts = safe_float(snap.get("franchise_diversification_score"))
+    derived_components = {
+        "flow_points": _flow_pts,
+        "aum_points": _aum_pts,
+        "fee_mix_points": _fee_mix_pts,
+        "fee_growth_points": _fee_growth_pts,
+        "profitability_points": _profitability_pts,
+        "earnings_stability_points": _earnings_pts,
+        "balance_points": _balance_pts,
+        "capital_allocation_points": _capital_pts,
+        "franchise_diversification_points": _franchise_pts,
+    }
+    derived_labels = {
+        "flow_points": "Flow-Punkte",
+        "aum_points": "AUM-Wachstums-Punkte",
+        "fee_mix_points": "Fee-Mix-Punkte",
+        "fee_growth_points": "Fee-Wachstums-Punkte",
+        "profitability_points": "Profitabilitäts-/CIR-Punkte",
+        "earnings_stability_points": "Earnings-Stabilitäts-Punkte",
+        "balance_points": "Bilanz-Punkte",
+        "capital_allocation_points": "Kapitalallokations-Punkte",
+        "franchise_diversification_points": "Franchise-/Diversifikations-Punkte",
+    }
+    missing_derived_keys = [k for k, v in derived_components.items() if v is None]
+    missing_derived_labels = [derived_labels[k] for k in missing_derived_keys]
+    recomputed_score = None
+    if not missing_derived_keys:
+        _aum_flow_component = safe_float(_flow_pts) + safe_float(_aum_pts)
+        if not _flow_ctx.get("verified_rate"):
+            _aum_flow_component = min(_aum_flow_component, 12.0)
+        recomputed_score = max(0.0, min(100.0, round(
+            _aum_flow_component
+            + safe_float(_fee_mix_pts)
+            + safe_float(_fee_growth_pts)
+            + safe_float(_profitability_pts)
+            + safe_float(_earnings_pts)
+            + safe_float(_balance_pts)
+            + safe_float(_capital_pts)
+            + safe_float(_franchise_pts), 2
+        )))
+
     score_ready = bool(score.get("available"))
     earnings_ready = bool(earnings.get("available"))
     valuation_ready = bool(valuation.get("available"))
@@ -40724,12 +40808,24 @@ def _asset_manager_release_diagnostics(snapshot, score, earnings, valuation, sha
         "score_input_checks": checks,
         "missing_score_keys": missing_score_keys,
         "missing_score_labels": missing_score_labels,
+        "derived_score_components": derived_components,
+        "missing_derived_score_keys": missing_derived_keys,
+        "missing_derived_score_labels": missing_derived_labels,
+        "recomputed_score": recomputed_score,
+        "derived_aum_growth_pct": _aum_growth,
+        "derived_beginning_total_aum": _begin_total,
+        "derived_flow_mode": _flow_ctx.get("mode"),
+        "derived_flow_direction": _flow_direction,
+        "derived_flow_rate_pct": _flow_rate,
+        "derived_profitability_metric": _profitability_metric,
+        "derived_profitability_input_pct": _op_margin,
+        "score_builder_inconsistency": bool((not score_ready) and not missing_score_keys and not missing_derived_keys and recomputed_score is not None),
         "score_note": score.get("note"),
         "earnings_note": earnings.get("note"),
         "valuation_note": valuation.get("note"),
         "released": bool(shared_engine_ready and score_ready and earnings_ready and valuation_ready),
         "note": (
-            "V296 trennt Evidence-Ready und Valuation-Ready explizit. Ein grüner Shared-Engine-Lauf "
+            "V297 trennt Evidence-Ready, Roh-Score-Evidenz und die abgeleiteten Score-Komponenten explizit. Ein grüner Shared-Engine-Lauf "
             "belegt aktuelle KPI-/Same-Basis-EPS-Evidenz, ersetzt aber keine fehlende qualitative "
             "Score-Evidenz. Fehlende Felder werden deshalb einzeln ausgewiesen statt als generische "
             "Spezialkontroll-Sperre versteckt."
@@ -43557,7 +43653,7 @@ def build_asset_management_earnings_basis(snapshot, trailing_eps, current_fy_eps
 
 
 # =========================================================
-# V2.24.00 – Shared 1:1 Asset-Manager Release-Diagnose V296
+# V2.24.01 – Shared 1:1 Asset-Manager Derived-Score Trace V297
 # =========================================================
 def _shared_asset_manager_absolute_amount(value, unit):
     """Convert the shared engine's labelled bn/m/tn values to absolute units."""
@@ -43853,7 +43949,7 @@ def _shared_asset_manager_merge_authoritative_evidence(snapshot, engine_result):
 
 
 def build_asset_management_specialist_model(company_type, fundamental_info, symbol, trailing_eps, current_fy_eps, historical_eps, resolved_company_name=None):
-    """V296: generic Asset Managers use the exact Control-Center engine plus an explicit downstream release diagnosis."""
+    """V297: generic Asset Managers use the exact Control-Center engine plus a derived-score release diagnosis."""
     if not is_asset_management_specialist_type(company_type, symbol):
         return {"applicable": False}
 
@@ -43955,7 +44051,7 @@ def build_asset_management_specialist_model(company_type, fundamental_info, symb
     snapshot["available"] = True
     snapshot["company"] = snapshot.get("company") or issuer_identity_name
 
-    # V296: If the exact shared current-period engine is green but the older
+    # V297: If the exact shared current-period engine is green but the older
     # discovery snapshot did not retain a beginning-AUM anchor, do not block the
     # whole family merely because headline AUM growth cannot be measured.  A
     # conservative zero-growth proxy is allowed ONLY when every other score
@@ -84771,7 +84867,7 @@ if selected_symbol:
                                     st.metric(f"{text_or_dash(snap_am.get('company'))} Fair Value – Fundamentalwährung", format_currency_value(val_am.get("fair_value_financial"), financial_currency, 2))
                                 st.caption(text_or_dash(snap_am.get("note")))
                             if release_diag_am:
-                                st.markdown("**🔬 V296 Freigabe-Diagnose**")
+                                st.markdown("**🔬 V297 Score-Rechenprobe**")
                                 c_am_d1, c_am_d2, c_am_d3, c_am_d4 = st.columns(4)
                                 with c_am_d1:
                                     st.metric("Shared Engine", "JA" if release_diag_am.get("shared_engine_ready") else "NEIN")
@@ -84786,7 +84882,42 @@ if selected_symbol:
                                     st.error(f"Erste gesperrte Freigabestufe: {_am_first_ui}")
                                 _am_missing_ui = list(release_diag_am.get("missing_score_labels") or [])
                                 if _am_missing_ui:
-                                    st.warning("Fehlende Score-Evidenz: " + " · ".join(str(x) for x in _am_missing_ui))
+                                    st.warning("Fehlende Roh-Score-Evidenz: " + " · ".join(str(x) for x in _am_missing_ui))
+                                _am_missing_derived_ui = list(release_diag_am.get("missing_derived_score_labels") or [])
+                                if _am_missing_derived_ui:
+                                    st.warning("Fehlende abgeleitete Score-Komponente: " + " · ".join(str(x) for x in _am_missing_derived_ui))
+                                _am_components_ui = release_diag_am.get("derived_score_components") or {}
+                                st.write(
+                                    "**Score-Rechenprobe:** "
+                                    f"Flow {_am_components_ui.get('flow_points')} · "
+                                    f"AUM {_am_components_ui.get('aum_points')} · "
+                                    f"Fee-Mix {_am_components_ui.get('fee_mix_points')} · "
+                                    f"Fee-Wachstum {_am_components_ui.get('fee_growth_points')} · "
+                                    f"Profitabilität/CIR {_am_components_ui.get('profitability_points')} · "
+                                    f"Earnings {_am_components_ui.get('earnings_stability_points')} · "
+                                    f"Bilanz {_am_components_ui.get('balance_points')} · "
+                                    f"Kapitalallokation {_am_components_ui.get('capital_allocation_points')} · "
+                                    f"Franchise {_am_components_ui.get('franchise_diversification_points')}"
+                                )
+                                st.caption(
+                                    "AUM-Basis: "
+                                    f"Beginning={release_diag_am.get('derived_beginning_total_aum')} · "
+                                    f"Headline-Wachstum={release_diag_am.get('derived_aum_growth_pct')} · "
+                                    f"Flow-Modus={release_diag_am.get('derived_flow_mode')} · "
+                                    f"Flow-Richtung={release_diag_am.get('derived_flow_direction')} · "
+                                    f"Profitabilitätsmetrik={release_diag_am.get('derived_profitability_metric')}"
+                                )
+                                if release_diag_am.get("recomputed_score") is not None:
+                                    st.write(f"**Diagnostisch nachgerechneter Spezialscore:** {safe_float(release_diag_am.get('recomputed_score')):.2f}/100")
+                                if release_diag_am.get("score_builder_inconsistency"):
+                                    st.error(
+                                        "V297 Integrationshinweis: Alle Roh- und abgeleiteten Score-Komponenten sind numerisch vollständig, "
+                                        "aber der bestehende Spezialscore-Builder meldet weiterhin NEIN. Das ist ein Downstream-Integrationsfehler, "
+                                        "kein fehlender Primärdatenpunkt. Der Fair Value bleibt bis zur gezielten Reparatur bewusst gesperrt."
+                                    )
+                                _am_score_note_ui = release_diag_am.get("score_note")
+                                if _am_score_note_ui:
+                                    st.caption("Score-Builder: " + str(_am_score_note_ui))
                                 st.caption(text_or_dash(release_diag_am.get("note")))
                             if special_control.get("released"):
                                 st.success("Asset-Management-Spezialkontrolle vollständig – Fair Value freigegeben.")
