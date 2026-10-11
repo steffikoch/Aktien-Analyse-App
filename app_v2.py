@@ -17,9 +17,9 @@ from xml.etree import ElementTree as ET
 import requests
 from bs4 import BeautifulSoup
 
-# V2.23.98 / V294: one authoritative Asset-Manager evidence engine is shared
+# V2.23.99 / V295: one authoritative Asset-Manager evidence engine is shared
 # byte-for-byte with the Evidence Control Center. The SHA-256 below is the live
-# Amundi control run that passed 11/11 stages on 08.10.2026. Evidence from the
+# Amundi control run that passed 13/13 stages on 08.10.2026. Evidence from the
 # legacy family adapter may still provide supplemental score context, but it can
 # no longer release the generic Asset-Manager valuation unless this exact shared
 # engine has passed its current-period + 3Y same-basis EPS gate.
@@ -34,7 +34,7 @@ except Exception:
     shared_asset_manager_engine_sha256 = None
     run_shared_asset_manager_evidence_pipeline = None
 
-SHARED_ASSET_MANAGER_REQUIRED_SHA256 = "1d91d5e87267fe269a64ab5d89cca33febc97b05f1370b50d438101dd9f9f806"
+SHARED_ASSET_MANAGER_REQUIRED_SHA256 = "4cd66eca043587f4b2d5b8adb38e927725a11adad3aa9c4b62759d33e30568be"
 
 st.set_page_config(
     page_title="Aktien-Analyse V2",
@@ -42,7 +42,7 @@ st.set_page_config(
     layout="wide"
 )
 
-APP_BUILD_VERSION = "V2.23.98"
+APP_BUILD_VERSION = "V2.23.99"
 
 # V190 – Vollständige deutsche Darstellungskonsistenz.
 # Reine UI-/Textbereinigung auf Basis von V189: Bewertungsmathematik, Datenquellen, Peers,
@@ -965,7 +965,7 @@ st.caption(
     "Bewertungspunktzahl, Bewertungs-Korridor, Fairer Wert, Signal-Logik & Plausibilitätscheck"
 )
 st.caption(
-    f"Build {APP_BUILD_VERSION} · Asset-Management Evidence-Control Integration · Amundi-Gegentest V294"
+    f"Build {APP_BUILD_VERSION} · Asset-Management Evidence-Control Integration · Amundi-Gegentest V295"
 )
 
 
@@ -43454,7 +43454,7 @@ def build_asset_management_earnings_basis(snapshot, trailing_eps, current_fy_eps
 
 
 # =========================================================
-# V2.23.98 – Shared 1:1 Asset-Manager Evidence Engine Gate V294
+# V2.23.99 – Shared 1:1 Asset-Manager Evidence Engine Gate V295
 # =========================================================
 def _shared_asset_manager_absolute_amount(value, unit):
     """Convert the shared engine's labelled bn/m/tn values to absolute units."""
@@ -43618,18 +43618,60 @@ def _shared_asset_manager_merge_authoritative_evidence(snapshot, engine_result):
     kpis = current.get("kpis") or {}
     candidate = current.get("candidate") or {}
     if er.get("evidence_ready"):
+        # V295 integration invariant: current-period values are authoritative,
+        # while legacy issuer-primary context may only supplement dimensions the
+        # shared engine does not score itself (franchise, balance, capital
+        # allocation, prior-period AUM).  Never retain an old flow denominator
+        # after replacing the numerator with a new Q/H-period value.
+        legacy_begin_total = safe_float(snap.get("beginning_total_aum"))
+        legacy_flow_begin = safe_float(snap.get("flow_beginning_aum"))
+        legacy_flow_scope = str(snap.get("flow_scope_label") or "").strip().lower()
+        legacy_begin_label = str(snap.get("period_beginning_label") or "").strip().upper()
+
         aum_abs = _shared_asset_manager_absolute_amount(kpis.get("aum"), kpis.get("aum_unit"))
         flow_abs = _shared_asset_manager_absolute_amount(kpis.get("net_flows"), kpis.get("net_flows_unit"))
+        period_scope = str(kpis.get("period_scope") or candidate.get("period") or "").strip().upper()
+        current_year = er.get("current_year")
+        try:
+            current_year = int(current_year)
+        except Exception:
+            current_year = datetime.now().year
+
         if aum_abs is not None:
             snap["total_aum"] = aum_abs
+        # Preserve only an already issuer-primary beginning-AUM anchor.  A
+        # legacy Firmwide FY denominator is acceptable for headline AUM growth,
+        # but it is NOT automatically a denominator for the new Q2 flow rate.
+        if legacy_begin_total is None and legacy_flow_begin is not None and legacy_flow_scope == "firmwide" and legacy_begin_label.startswith("FY "):
+            legacy_begin_total = legacy_flow_begin
+        if legacy_begin_total is not None:
+            snap["beginning_total_aum"] = legacy_begin_total
+            snap["shared_engine_beginning_aum_context"] = "issuer-primary legacy FY/beginning-AUM context; not reused as current flow denominator"
+
         if flow_abs is not None:
             snap["period_net_flows"] = flow_abs
             snap["firmwide_period_net_flows"] = flow_abs
             snap["verified_flow_direction"] = "positive" if flow_abs > 0 else "negative" if flow_abs < 0 else "flat"
             snap["flow_scope_label"] = "Firmwide"
+            # The shared engine proves the period and semantic label, but does
+            # not expose a matching beginning-AUM denominator. Therefore the
+            # score may use direction-only evidence, never a fabricated rate.
+            snap["flow_beginning_aum"] = None
+            snap["firmwide_flow_beginning_aum"] = None
+            snap["flow_scope_matches_denominator"] = False
+            snap["issuer_flow_rate_verified"] = False
+            if period_scope:
+                snap["flow_period_label"] = f"{period_scope} {current_year}"
+                snap["flow_period_fraction_year"] = 0.5 if period_scope in {"H1", "H2"} else 1.0 if period_scope == "FY" else 0.25
+
         cir = safe_float(kpis.get("cost_income_ratio"))
         if cir is not None:
             snap["cost_income_ratio_pct"] = cir
+            # A stale Q1/prior-period CIR trend must not be attached to a new
+            # Q2 level. The level itself is enough for the released score.
+            snap["cost_income_ratio_prior_year_pct"] = None
+            snap["cost_income_ratio_change_bps"] = None
+            snap["operating_margin_change_bps"] = None
             # Do not expose 100-CIR as an operating margin; the score adapter
             # performs that equivalence privately when needed.
             snap["operating_margin_pct"] = None
@@ -43639,6 +43681,8 @@ def _shared_asset_manager_merge_authoritative_evidence(snapshot, engine_result):
             snap["fee_revenue_growth_pct"] = fee_growth
         if kpis.get("as_of"):
             snap["as_of_date"] = kpis.get("as_of")
+        snap["shared_engine_period_scope"] = period_scope or None
+        snap["shared_engine_period_semantic_ok"] = bool(kpis.get("period_semantic_ok"))
         if candidate.get("url"):
             snap["source_url"] = candidate.get("url")
         snap["source_name"] = (
@@ -43706,7 +43750,7 @@ def _shared_asset_manager_merge_authoritative_evidence(snapshot, engine_result):
 
 
 def build_asset_management_specialist_model(company_type, fundamental_info, symbol, trailing_eps, current_fy_eps, historical_eps, resolved_company_name=None):
-    """V294: generic Asset Managers are gated by the exact Control-Center engine."""
+    """V295: generic Asset Managers are gated by the exact Control-Center engine."""
     if not is_asset_management_specialist_type(company_type, symbol):
         return {"applicable": False}
 
@@ -43795,6 +43839,37 @@ def build_asset_management_specialist_model(company_type, fundamental_info, symb
     snapshot["available"] = True
     snapshot["company"] = snapshot.get("company") or issuer_identity_name
 
+    # V295: If the exact shared current-period engine is green but the older
+    # discovery snapshot did not retain a beginning-AUM anchor, do not block the
+    # whole family merely because headline AUM growth cannot be measured.  A
+    # conservative zero-growth proxy is allowed ONLY when every other score
+    # input is actually present. It cannot create a premium: the flow rate stays
+    # direction-only and the proxy is explicitly surfaced in diagnostics.
+    _am_non_aum_ready = all([
+        safe_float(snapshot.get("total_aum")) is not None,
+        str(snapshot.get("verified_flow_direction") or "").strip().lower() in {"positive", "flat", "negative"},
+        safe_float(snapshot.get("fee_revenue_growth_pct")) is not None,
+        (safe_float(snapshot.get("operating_margin_pct")) is not None or safe_float(snapshot.get("cost_income_ratio_pct")) is not None),
+        safe_float(snapshot.get("fee_mix_score")) is not None,
+        safe_float(snapshot.get("earnings_stability_score")) is not None,
+        safe_float(snapshot.get("balance_quality_score")) is not None,
+        safe_float(snapshot.get("capital_allocation_score")) is not None,
+        safe_float(snapshot.get("franchise_diversification_score")) is not None,
+    ])
+    if (
+        snapshot.get("shared_engine_evidence_ready")
+        and snapshot.get("shared_engine_identity_match")
+        and safe_float(snapshot.get("beginning_total_aum")) is None
+        and _am_non_aum_ready
+    ):
+        snapshot["beginning_total_aum"] = safe_float(snapshot.get("total_aum"))
+        snapshot["shared_engine_conservative_aum_growth_proxy"] = True
+        snapshot["shared_engine_conservative_aum_growth_note"] = (
+            "Kein periodengleicher Beginning-AUM-Anker im Shared-Engine-Vertrag; "
+            "für den Headline-AUM-Subscore wird konservativ 0 % Wachstum angesetzt. "
+            "Organic Flows bleiben direction-only und können keinen Premium-Unlock auslösen."
+        )
+
     score = build_asset_management_specialist_score(snapshot)
     earnings = build_asset_management_earnings_basis(snapshot, trailing_eps, current_fy_eps, historical_eps)
     valuation = build_asset_management_specialist_valuation(snapshot, score, earnings)
@@ -43814,10 +43889,11 @@ def build_asset_management_specialist_model(company_type, fundamental_info, symb
         "earnings_basis": earnings,
         "specialist_valuation": valuation,
         "valuation_anchor_complete": released,
+        "shared_engine_release_gate": bool(snapshot.get("shared_engine_evidence_ready") and snapshot.get("shared_engine_identity_match")),
         "readiness": (
             "Asset-Management-Spezialbewertung freigegeben · Shared 1:1 Evidence Engine bestätigt"
             if released else
-            "Shared 1:1 Evidence Engine bestätigt · nachgelagerte Earnings-/Bewertungsbasis noch gesperrt"
+            "Shared 1:1 Evidence Engine bestätigt · nachgelagerte Score-/Earnings-/Bewertungsbasis noch gesperrt"
         ),
     }
 
@@ -84419,6 +84495,13 @@ if selected_symbol:
                                     )
                                     if _am_engine_match_ui and snap_am.get("shared_engine_evidence_ready"):
                                         st.success("✅ Shared-Engine-Identität stimmt mit der getesteten Kontroll-App überein · Evidence Ready = JA")
+                                        if snap_am.get("shared_engine_period_scope"):
+                                            st.caption(
+                                                f"Shared Current Scope: {text_or_dash(snap_am.get('shared_engine_period_scope'))} · "
+                                                f"Semantik: {'OK' if snap_am.get('shared_engine_period_semantic_ok') else 'NICHT OK'}"
+                                            )
+                                        if snap_am.get("shared_engine_conservative_aum_growth_proxy"):
+                                            st.info(text_or_dash(snap_am.get("shared_engine_conservative_aum_growth_note")))
                                     else:
                                         st.error("❌ Shared-Engine-Identität/Evidence-Gate nicht bestätigt · Fair Value bleibt gesperrt")
                                 if snap_am.get("source_url"):

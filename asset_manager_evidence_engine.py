@@ -23,7 +23,7 @@ except Exception:  # pragma: no cover
     PdfReader = None
 
 
-ENGINE_VERSION = "AM-EVIDENCE-ENGINE-1.2.0"
+ENGINE_VERSION = "AM-EVIDENCE-ENGINE-1.5.0"
 CONTROL_VERSION = ENGINE_VERSION
 DEFAULT_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -671,7 +671,12 @@ def diagnose_kpi_bindings(text: str) -> dict[str, dict[str, Any]]:
     chosen = next((l for l in aum_rows if re.search(r"AuM\s*\([^)]*(?:€|EUR)?\s*(?:bn|billion|tn|trillion)", l, re.I)), aum_rows[0] if aum_rows else "")
     raw, val = _first_number_after_label(chosen, r"(?:AuM|Assets\s+under\s+management)(?:\s*\([^)]*\))?") if chosen else (None, None)
     unit_m = re.search(r"\((?:[^)]*?)(bn|billion|tn|trillion)(?:[^)]*?)\)", chosen, re.I) if chosen else None
-    unit = unit_m.group(1) if unit_m else ("bn" if re.search(r"€\s*bn|EUR\s*bn", chosen, re.I) else None)
+    if unit_m is None and chosen:
+        # PDF extraction often flattens headlines such as ``AuM €2.6tn``
+        # without parentheses. Preserve the explicitly printed scale instead
+        # of falling through to the historical ``bn`` default.
+        unit_m = re.search(r"(?:€|EUR)?\s*(?:[+\-]?[0-9][0-9.,]*)?\s*(bn|billion|tn|trillion)\b", chosen, re.I)
+    unit = unit_m.group(1) if unit_m else None
     if "aum" not in result:
         result["aum"] = {"status": "PASS" if val is not None else "FAIL", "raw_line": chosen, "raw_value": raw, "parsed_value": val, "unit": unit, "method": "line_table_first_value" if chosen else "not_found", "candidate_count": len(aum_rows)}
 
@@ -703,34 +708,240 @@ def diagnose_kpi_bindings(text: str) -> dict[str, dict[str, Any]]:
     return result
 
 
-def parse_kpis(text: str) -> dict[str, Any]:
+def _parse_named_date(raw: str) -> tuple[tuple[int, int, int], str] | None:
+    month_map = {
+        "january": 1, "february": 2, "march": 3, "april": 4,
+        "may": 5, "june": 6, "july": 7, "august": 8,
+        "september": 9, "october": 10, "november": 11, "december": 12,
+    }
+    m = re.search(r"(\d{1,2})\s+([A-Za-z]+)\s+(20\d{2})", raw or "", re.I)
+    if not m:
+        return None
+    dd, mon, yy = m.groups()
+    mm = month_map.get(mon.lower())
+    if mm is None:
+        return None
+    return (int(yy), mm, int(dd)), f"{int(dd)} {mon} {yy}"
+
+
+def _period_specific_current_bindings(text: str, target_period: str | None, current_year: int | None) -> dict[str, Any]:
+    """Bind current KPIs to one explicit reporting period.
+
+    The generic parser is intentionally not allowed to infer Net Flows or CIR
+    from a nearby number when a current-period label is known.  This prevents
+    decoys such as ``Q2 net income: EUR 431m`` from being accepted as Q2 net
+    inflows and prevents H1 CIR from being shown as Q2 CIR.
+    """
+    period = (target_period or "").upper().strip()
+    if period not in {"Q1", "Q2", "Q3", "Q4", "H1", "H2", "FY"}:
+        return {}
+    compact = normalize_ws(text or "")
+    year = int(current_year) if current_year else None
+    out: dict[str, Any] = {"period_scope": period}
+
+    # AUM: prefer the explicit AUM-as-of statement, because publication dates
+    # and prior-year footnotes can otherwise outrank the actual KPI date.
+    aum_asof_patterns = [
+        r"€\s*([0-9][0-9.,]*)\s*(bn|billion|tn|trillion)\s+AuM\s+as\s+of\s+(\d{1,2}\s+[A-Za-z]+\s+20\d{2})",
+        r"AuM\s+as\s+of\s+(\d{1,2}\s+[A-Za-z]+\s+20\d{2})[^€]{0,80}€\s*([0-9][0-9.,]*)\s*(bn|billion|tn|trillion)",
+    ]
+    m = re.search(aum_asof_patterns[0], compact, re.I)
+    if m:
+        val = _num(m.group(1))
+        if val is not None:
+            out.update({"aum": val, "aum_unit": m.group(2), "aum_evidence": normalize_ws(m.group(0))[:300]})
+            d = _parse_named_date(m.group(3))
+            if d:
+                out["as_of"] = d[1]
+                out["as_of_evidence"] = normalize_ws(m.group(0))[:300]
+    else:
+        m2 = re.search(aum_asof_patterns[1], compact, re.I)
+        if m2:
+            val = _num(m2.group(2))
+            if val is not None:
+                out.update({"aum": val, "aum_unit": m2.group(3), "aum_evidence": normalize_ws(m2.group(0))[:300]})
+                d = _parse_named_date(m2.group(1))
+                if d:
+                    out["as_of"] = d[1]
+                    out["as_of_evidence"] = normalize_ws(m2.group(0))[:300]
+
+    # Headline AUM is still acceptable if exact AUM-as-of wording is absent.
+    if "aum" not in out:
+        hm = re.search(r"\bAuM\s*€\s*([0-9][0-9.,]*)\s*(bn|billion|tn|trillion)\b", compact, re.I)
+        if hm:
+            val = _num(hm.group(1))
+            if val is not None:
+                out.update({"aum": val, "aum_unit": hm.group(2), "aum_evidence": normalize_ws(hm.group(0))[:250]})
+
+    # If exact AUM was found elsewhere, bind its KPI date independently.
+    if "as_of" not in out:
+        dm = re.search(r"AuM\s+as\s+of\s+(\d{1,2}\s+[A-Za-z]+\s+20\d{2})", compact, re.I)
+        if dm:
+            d = _parse_named_date(dm.group(1))
+            if d:
+                out["as_of"] = d[1]
+                out["as_of_evidence"] = normalize_ws(dm.group(0))[:250]
+
+    # Period-safe Net Flows.  Prefer exact Q1/Q2 paired totals when available.
+    if period.startswith("Q") and year:
+        qnum = int(period[1])
+        if qnum >= 2:
+            prev = f"Q{qnum-1}"
+            pair = re.search(
+                rf"([+\-]?)\s*€\s*([0-9][0-9.,]*)\s*(bn|billion|m|million)\s+"
+                rf"([+\-]?)\s*€\s*([0-9][0-9.,]*)\s*(bn|billion|m|million)\s+"
+                rf"{prev}\s+{year}\s+{period}\s+{year}", compact, re.I,
+            )
+            if pair:
+                sign = -1 if pair.group(4) == "-" else 1
+                val = _num(pair.group(5))
+                if val is not None:
+                    out.update({
+                        "net_flows": sign * val,
+                        "net_flows_unit": pair.group(6),
+                        "net_flows_evidence": normalize_ws(pair.group(0))[:320],
+                        "net_flows_method": "period_pair_total_flow",
+                    })
+
+    if "net_flows" not in out and period == "H1" and year:
+        pair = re.search(
+            rf"([+\-]?)\s*€\s*([0-9][0-9.,]*)\s*(bn|billion|m|million)\s+"
+            rf"([+\-]?)\s*€\s*([0-9][0-9.,]*)\s*(bn|billion|m|million)\s+H1\s+{year-1}\s+H1\s+{year}",
+            compact, re.I,
+        )
+        if pair:
+            sign = -1 if pair.group(4) == "-" else 1
+            val = _num(pair.group(5))
+            if val is not None:
+                out.update({
+                    "net_flows": sign * val,
+                    "net_flows_unit": pair.group(6),
+                    "net_flows_evidence": normalize_ws(pair.group(0))[:320],
+                    "net_flows_method": "h1_pair_total_flow",
+                })
+
+    # Explicit prose forms such as '+€24bn Q2 net inflows'.  The flow label and
+    # period must be in the same small semantic window.
+    if "net_flows" not in out:
+        flow_patterns = [
+            rf"([+\-]?)\s*€\s*([0-9][0-9.,]*)\s*(bn|billion|m|million)\s+{period}\s+net\s+(?:inflows|flows)",
+            rf"{period}[^.;]{{0,55}}net\s+(?:inflows|flows)[^.;€]{{0,35}}([+\-]?)\s*€\s*([0-9][0-9.,]*)\s*(bn|billion|m|million)",
+            rf"(?:In\s+)?(?:{period}|T{period[1:] if period.startswith('Q') else period})[^.;]{{0,70}}(?:strong\s+)?net\s+(?:inflows|flows)\s*([+\-]?)\s*€\s*([0-9][0-9.,]*)\s*(bn|billion|m|million)",
+        ]
+        for fp in flow_patterns:
+            fm = re.search(fp, compact, re.I)
+            if not fm:
+                continue
+            ev = normalize_ws(fm.group(0))
+            # A net-income amount in the same matched clause is not flow evidence.
+            if re.search(r"net\s+income", ev, re.I):
+                continue
+            sign = -1 if fm.group(1) == "-" else 1
+            val = _num(fm.group(2))
+            if val is not None:
+                out.update({
+                    "net_flows": sign * val,
+                    "net_flows_unit": fm.group(3),
+                    "net_flows_evidence": ev[:320],
+                    "net_flows_method": "period_explicit_flow_clause",
+                })
+                break
+
+    # Period-safe adjusted CIR.  The value must be explicitly attached to the
+    # requested period and must be a plausible percentage.  This also handles
+    # issuer footnote markers such as ``Q2 Cost/income ratio2: 48.9%``.
+    cir_patterns = [
+        rf"{period}\s+Cost\s*[/\- ]?\s*income\s+ratio(?:\s*\d+)?\s*[:\-]?\s*([0-9]{{1,2}}(?:[.,][0-9]+)?)\s*%",
+        rf"{period}\s+{year}[^.;]{{0,120}}Cost\s*[/\- ]?\s*income\s+ratio(?:\s*\d+)?\s*(?:at|:)?\s*([0-9]{{1,2}}(?:[.,][0-9]+)?)\s*%" if year else r"$a",
+        rf"Cost\s*[/\- ]?\s*income\s+ratio(?:\s*\d+)?\s*(?:at|:)?\s*([0-9]{{1,2}}(?:[.,][0-9]+)?)\s*%[^.;]{{0,80}}{period}(?:\s+{year})?",
+    ]
+    for cp in cir_patterns:
+        cm = re.search(cp, compact, re.I)
+        if not cm:
+            continue
+        val = _num(cm.group(1))
+        # A single-digit result such as 8.9% is a classic partial-match artefact
+        # from flattened PDF tables (the real Amundi Q2 2026 CIR is 48.9%).
+        # Treat implausible CIRs as unbound rather than silently accepting them.
+        if val is None or not (20.0 <= float(val) <= 90.0):
+            continue
+        out.update({"cost_income_ratio": val, "cir_evidence": normalize_ws(cm.group(0))[:280], "cir_method": "period_explicit_cir"})
+        break
+
+    # Q2/H1 fee growth is optional for readiness, but when shown it must share
+    # the period scope rather than borrowing the first percentage on a mixed row.
+    fee_patterns = [
+        rf"Management\s+fees\s*:\s*([+\-]?[0-9]{{1,3}}(?:[.,][0-9]+)?)\s*%\s+{period}/{period}",
+        rf"Net\s+management\s+fees[^%]{{0,150}}([+\-]?[0-9]{{1,3}}(?:[.,][0-9]+)?)\s*%[^%]{{0,80}}{period}/{period}",
+    ]
+    for fp in fee_patterns:
+        fm = re.search(fp, compact, re.I)
+        if fm:
+            val = _num(fm.group(1))
+            if val is not None:
+                out.update({"fee_growth": val, "fee_growth_evidence": normalize_ws(fm.group(0))[:280], "fee_growth_method": "period_explicit_fee_growth"})
+                break
+
+    # Core readiness is only true when Net Flows and CIR are bound to the same
+    # explicit period.  AUM is a point-in-time metric and therefore uses its own
+    # quarter-end as-of date.
+    out["period_semantic_ok"] = all(k in out for k in ("net_flows", "cost_income_ratio"))
+    return out
+
+
+def parse_kpis(text: str, target_period: str | None = None, current_year: int | None = None) -> dict[str, Any]:
     compact = normalize_ws(text)
     out: dict[str, Any] = {}
+    scoped = _period_specific_current_bindings(text, target_period, current_year) if target_period else {}
 
-    date_patterns = [
-        r"data\s+as\s+of\s*[:]?\s*(\d{1,2}[/-]\d{1,2}[/-]20\d{2})",
-        r"as\s+at\s+(\d{1,2}\s+[A-Za-z]+\s+20\d{2})",
-        r"as\s+of\s+(\d{1,2}\s+[A-Za-z]+\s+20\d{2})",
-    ]
-    for p in date_patterns:
-        m = re.search(p, compact, re.I)
-        if m:
-            out["as_of"] = m.group(1)
-            break
+    # For current-period snapshots, semantic period bindings are authoritative.
+    for key in (
+        "period_scope", "period_semantic_ok", "aum", "aum_unit", "aum_evidence",
+        "as_of", "as_of_evidence", "net_flows", "net_flows_unit", "net_flows_evidence",
+        "net_flows_method", "cost_income_ratio", "cir_evidence", "cir_method",
+        "fee_growth", "fee_growth_evidence", "fee_growth_method",
+    ):
+        if key in scoped:
+            out[key] = scoped[key]
+
+    # Generic as-of parsing is only used outside a current-period scoped run.
+    # A scoped run must not substitute a publication date for an AUM KPI date.
+    if not target_period and "as_of" not in out:
+        month_map = {
+            "january": 1, "february": 2, "march": 3, "april": 4,
+            "may": 5, "june": 6, "july": 7, "august": 8,
+            "september": 9, "october": 10, "november": 11, "december": 12,
+        }
+        date_candidates = []
+        for m in re.finditer(r"(?:data\s+as\s+of|as\s+at|as\s+of)\s*[:]?[ \t]*(\d{1,2})[/-](\d{1,2})[/-](20\d{2})", compact, re.I):
+            dd, mm, yy = map(int, m.groups())
+            if 1 <= mm <= 12 and 1 <= dd <= 31:
+                date_candidates.append(((yy, mm, dd), m.group(1) + "/" + m.group(2) + "/" + m.group(3)))
+        for m in re.finditer(r"(?:data\s+as\s+of|as\s+at|as\s+of)\s*[:]?[ \t]*(\d{1,2})\s+([A-Za-z]+)\s+(20\d{2})", compact, re.I):
+            dd, mon, yy = m.groups()
+            mm = month_map.get(mon.lower())
+            if mm is not None:
+                date_candidates.append(((int(yy), mm, int(dd)), f"{int(dd)} {mon} {yy}"))
+        if date_candidates:
+            out["as_of"] = max(date_candidates, key=lambda x: x[0])[1]
 
     diag = diagnose_kpi_bindings(text)
-    if diag["aum"]["parsed_value"] is not None:
+    if "aum" not in out and diag["aum"]["parsed_value"] is not None:
         out["aum"] = diag["aum"]["parsed_value"]
         out["aum_unit"] = diag["aum"]["unit"] or "bn"
         out["aum_evidence"] = diag["aum"]["raw_line"][:300]
-    if diag["net_flows"]["parsed_value"] is not None:
+
+    # When target_period is supplied, generic mixed-period rows are deliberately
+    # not allowed to provide Net Flows/CIR.  They can be used only in unscoped
+    # annual/diagnostic parsing.
+    if not target_period and diag["net_flows"]["parsed_value"] is not None:
         out["net_flows"] = diag["net_flows"]["parsed_value"]
         out["net_flows_unit"] = diag["net_flows"]["unit"] or "bn"
         out["net_flows_evidence"] = diag["net_flows"]["raw_line"][:300]
-    if diag["cost_income_ratio"]["parsed_value"] is not None:
+    if not target_period and diag["cost_income_ratio"]["parsed_value"] is not None:
         out["cost_income_ratio"] = diag["cost_income_ratio"]["parsed_value"]
         out["cir_evidence"] = diag["cost_income_ratio"]["raw_line"][:250]
-    if diag["fee_growth"]["parsed_value"] is not None:
+    if "fee_growth" not in out and not target_period and diag["fee_growth"]["parsed_value"] is not None:
         out["fee_growth"] = diag["fee_growth"]["parsed_value"]
         out["fee_growth_evidence"] = diag["fee_growth"]["raw_line"][:250]
 
@@ -745,7 +956,7 @@ def parse_kpis(text: str) -> dict[str, Any]:
             if m:
                 out["aum"] = _num(m.group(1)); out["aum_unit"] = m.group(2); out["aum_evidence"] = normalize_ws(m.group(0))[:300]; break
 
-    if "net_flows" not in out:
+    if "net_flows" not in out and not target_period:
         flow_patterns = [
             r"(?:net\s+inflows|net\s+flows)[^€]{0,100}([+\-]?)\s*€\s*([0-9][0-9.,\s]*)\s*(bn|billion|m|million)",
             r"([+\-]?)\s*€\s*([0-9][0-9.,\s]*)\s*(bn|billion|m|million)[^.;]{0,80}(?:net\s+inflows|net\s+flows)",
@@ -756,19 +967,18 @@ def parse_kpis(text: str) -> dict[str, Any]:
                 sign = -1 if m.group(1) == "-" else 1
                 out["net_flows"] = sign * (_num(m.group(2)) or 0); out["net_flows_unit"] = m.group(3); out["net_flows_evidence"] = normalize_ws(m.group(0))[:300]; break
 
-    if "cost_income_ratio" not in out:
+    if "cost_income_ratio" not in out and not target_period:
         cir = re.search(r"cost\s*[/\- ]\s*income\s+ratio\s*,?\s*(?:adjusted|ajusted)(?:\s*,?\s*normalised)?\s*\(%\)[^0-9]{0,50}([0-9]{1,2}(?:[.,][0-9]+)?)\s*%", compact, re.I)
         if not cir:
             cir = re.search(r"cost\s*[/\- ]\s*income\s+ratio[^0-9]{0,50}([0-9]{1,2}(?:[.,][0-9]+)?)\s*%", compact, re.I)
         if cir:
             out["cost_income_ratio"] = _num(cir.group(1)); out["cir_evidence"] = normalize_ws(cir.group(0))[:250]
 
-    if "fee_growth" not in out:
+    if "fee_growth" not in out and not target_period:
         fee = re.search(r"(?:management\s+fees|fee\s+revenues?|net\s+revenues?)[^%]{0,120}?([+\-]?[0-9]{1,2}(?:[.,][0-9])?)\s*%", compact, re.I)
         if fee:
             out["fee_growth"] = _num(fee.group(1)); out["fee_growth_evidence"] = normalize_ws(fee.group(0))[:250]
     return out
-
 
 def keyword_probe(text: str) -> dict[str, Any]:
     probes = {
@@ -1005,7 +1215,7 @@ def run_asset_manager_evidence_pipeline(
             continue
         probes = keyword_probe(fr.text)
         binding = diagnose_kpi_bindings(fr.text)
-        kpis = parse_kpis(fr.text)
+        kpis = parse_kpis(fr.text, target_period=cand.get("period"), current_year=int(current_year))
         core_count = sum(1 for k in ("aum", "net_flows", "cost_income_ratio") if k in kpis)
         total_count = core_count + (1 if "fee_growth" in kpis else 0)
         row.update({
@@ -1026,7 +1236,8 @@ def run_asset_manager_evidence_pipeline(
         best = max(usable, key=lambda x: _default_candidate_rank(x, current_priority))
         kpis = best["kpis"]
         complete = all(k in kpis for k in ("aum", "net_flows", "cost_income_ratio"))
-        if complete:
+        semantic_ok = bool(kpis.get("period_semantic_ok"))
+        if complete and semantic_ok:
             current_snapshot = {
                 "candidate": best["candidate"],
                 "fetch": best["fetch"].public_dict(),
@@ -1034,14 +1245,17 @@ def run_asset_manager_evidence_pipeline(
                 "bindings": best["binding"],
                 "probes": best["probes"],
             }
-            emit(Check("current_snapshot_mapping", "PASS", "Aktueller Snapshot vollständig: AUM + Net Flows + CIR.", kpis))
+            emit(Check("current_snapshot_mapping", "PASS", "Aktueller Snapshot vollständig: AUM + periodengleiche Net Flows + CIR.", kpis))
+            emit(Check("current_snapshot_semantic_scope", "PASS", f"Current-KPIs semantisch an {best['candidate'].get('period')} gebunden; Net-Income-/Publikationsdatum-Decoys ausgeschlossen.", {"period": best['candidate'].get('period'), "as_of": kpis.get('as_of'), "net_flows_evidence": kpis.get('net_flows_evidence'), "cir_evidence": kpis.get('cir_evidence')}))
         else:
             missing = [k for k in ("aum", "net_flows", "cost_income_ratio") if k not in kpis]
-            emit(Check("current_snapshot_mapping", "FAIL", "Bester geladener aktueller Kandidat ist in der KPI-Bindung unvollständig.", {
+            msg = "Bester geladener aktueller Kandidat ist in der KPI-Bindung unvollständig." if missing else "Current-KPIs sind nicht periodengleich/semantisch sicher gebunden."
+            emit(Check("current_snapshot_mapping", "FAIL", msg, {
                 "selected_document_class": best["candidate"].get("document_class"),
                 "selected_period": best["candidate"].get("period"),
                 "selected_url": best["candidate"].get("url"),
                 "missing": missing,
+                "period_semantic_ok": semantic_ok,
                 "kpis": kpis,
             }))
     else:
