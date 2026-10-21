@@ -75077,6 +75077,28 @@ if selected_symbol:
                             "rates": {},
                         })
 
+                # --- Diagnose-Export V5: Additiv; niemals Score/EPS/KGV/Signale neu berechnen ---
+                try:
+                    from live_parity_export_v2 import build_live_export_json
+                    _live_export_json = build_live_export_json(
+                        data,
+                        st.session_state.get("security_identity_v1"),
+                        __file__,
+                        display_currency_context,
+                        origin="STAGING_LIVE_EXPORT",
+                    )
+                    st.download_button(
+                        "📥 JSON-Referenzexport (Testzweig, keine Freigabe)",
+                        data=_live_export_json,
+                        file_name=f"TESTZWEIG_REFERENZ_{str(data.get('symbol') or 'AKTIE').replace('.', '_')}.json",
+                        mime="application/json",
+                        key="live_parity_v2_staging_download",
+                    )
+                    st.caption("Originalwerte einschließlich Spezial-EPS; vollständige Daten- und Identitätsparität weiter offen.")
+                except Exception:
+                    st.warning("Diagnose-Export momentan nicht verfügbar; Bewertung unverändert.")
+                # --- Ende Diagnose-Export ---
+
                 # V182 – kompakte Vordergrundansicht. Alle Daten wurden bereits vollständig
                 # berechnet; dieser Block ändert ausschließlich das Rendering.
                 compact_fv = data.get("fair_value") or {}
