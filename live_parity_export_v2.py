@@ -1,4 +1,4 @@
-"""V2 read-only reference export for one already-computed Streamlit result.
+"""V6-provenance additive diagnostics on V2 read-only reference export for one already-computed Streamlit result.
 
 No provider calls. No model recalculation. Staging is NEVER labeled as a phone live export.
 Neither same-data inputs, identity nor strict parity is attested by this module.
@@ -10,6 +10,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 IDENTITY_FIELDS = ('selected_symbol','selected_exchange','selected_exchange_code',
                    'primary_symbol','primary_exchange','selected_currency',
@@ -23,6 +24,16 @@ CURRENCY_FIELDS = ('quote_currency','financial_currency','conversion_kind',
     'conversion_available','financial_to_quote_factor','quote_to_financial_factor',
     'fx_symbol','mixed_units')
 DISPLAY_RATE_FIELDS = ('factor','symbol','as_of','retrieved_at','available')
+EARNINGS_DETAIL_FIELDS = ('available','normalized_eps','ttm_eps','current_fy_eps',
+    'through_cycle_eps','ttm_source','through_cycle_eps_source','earnings_basis_family',
+    'method','confidence','same_basis_consistency_available',
+    'ttm_current_fy_divergence_pct','through_cycle_current_fy_divergence_pct')
+ISSUER_SNAPSHOT_FIELDS = ('symbol','as_of_date','published_date','flow_scope_label',
+    'flow_period_label','flow_period_fraction_year','flow_scope_matches_denominator',
+    'total_aum','beginning_total_aum','flow_beginning_aum','period_net_flows',
+    'long_term_aum','money_market_aum','fee_revenue_growth_pct',
+    'effective_fee_rate_bps','operating_margin_pct','issuer_adjusted_ttm_eps',
+    'through_cycle_eps','historical_forward_pe_3y_median')
 SPECIALIST_FIELDS = ('available','applicable','score','normalized_eps',
     'target_multiple','premium_unlock_count','annualized_flow_rate_pct',
     'flow_rate_verified','flow_direction','flow_cap_applied', 'as_of_date',
@@ -96,6 +107,73 @@ def model_values(data):
         'fair_value_available':available,
         'gate_codes':gates,
         'fx_financial_to_quote':fx.get('financial_to_quote_factor'),
+    })
+
+
+def _safe_public_source_url(url):
+    """Only a public HTTPS locator without credentials, parameters or fragments."""
+    if not isinstance(url,str) or len(url)>600:
+        return None
+    try:
+        u=urlsplit(url.strip())
+        if u.scheme!='https' or not u.hostname or u.username or u.password:
+            return None
+        if not all(x.isascii() for x in u.hostname):
+            return None
+        return urlunsplit(('https',u.hostname.lower(),u.path[:350],'',''))
+    except ValueError:
+        return None
+
+
+def provenance_v6(data):
+    """Current in-memory provenance labels, *not* verification of remote filings."""
+    asset=data.get('asset_management_specialist_model') or {}
+    snap=asset.get('snapshot') or {}
+    baseline=data.get('universal_fundamentals_baseline_v225') or {}
+    if not isinstance(snap,dict): snap={}
+    if not isinstance(baseline,dict): baseline={}
+    earnings=(asset.get('earnings_basis') or asset.get('specialist_earnings') or {})
+    if not isinstance(earnings,dict): earnings={}
+    issuer_inputs=pick(snap,ISSUER_SNAPSHOT_FIELDS)
+    issuer_inputs_hash=hashlib.sha256(json.dumps(issuer_inputs,sort_keys=True,
+        ensure_ascii=False,separators=(',',':'),allow_nan=False).encode('utf8')).hexdigest() if issuer_inputs else ''
+    return safe({
+        'version':'V6_DIAGNOSTIC_ONLY',
+        'issuer_snapshot':{
+            'present':bool(snap),
+            'source_name':safe(snap.get('source_name')) if isinstance(snap.get('source_name'),str) and len(snap['source_name'])<200 else None,
+            'source_url_public':_safe_public_source_url(snap.get('source_url')),
+            'as_of_date_reported':safe(snap.get('as_of_date')),
+            'published_date_reported':safe(snap.get('published_date')),
+            'origin':'EMBEDDED_OR_RUNTIME_PRIMARY_SNAPSHOT_NOT_FETCHED_BY_EXPORTER',
+            'issuer_document_sha256':None,
+            'issuer_document_bytes_verified':False,
+            'inputs_allowlisted':issuer_inputs,
+            'inputs_allowlisted_sha256':issuer_inputs_hash,
+            'hash_scope':'PROCESSED_ALLOWLISTED_ISSUER_VALUES_NOT_ORIGINAL_DOCUMENT',
+        },
+        'specialist_earnings_components':pick(earnings,EARNINGS_DETAIL_FIELDS),
+        'provider_standard_baseline':{
+            'connected':baseline.get('provider_connected'),
+            'available':baseline.get('provider_available'),
+            'available_field_count':baseline.get('available_field_count'),
+            'verified_standard_field_count':baseline.get('verified_standard_field_count'),
+            'independent_source_snapshot_sha256':None,
+            'period_and_eps_definition_equality_verified':False,
+        },
+        'quote_input':{
+            'quote_asof_independently_recorded':False,
+            'provider_revision_or_response_sha256':None,
+            'source_label':'Yahoo/yfinance in selected quote context; raw response not exported',
+        },
+        'strict_parity_blockers':[
+            'LIVE_PHONE_MAIN_APP_REFERENCE_MISSING',
+            'NO_IDENTICAL_FULL_PROVIDER_SNAPSHOTS',
+            'ISSUER_DOCUMENT_HASH_MISSING',
+            'QUOTE_TIMESTAMP_OR_REVISION_MISSING',
+            'ISSUER_IDENTITY_NOT_INDEPENDENTLY_ATTESTED',
+            'NO_CANONICAL_COMPLETE_DATA_FINGERPRINT',
+        ],
     })
 
 
@@ -185,6 +263,7 @@ def build_live_export(data, ui_identity=None, app_file=None, display_context=Non
         'actual_earnings_basis_quote_schema_key':'normalized_ttm_eps',
         'input_subset_sha256':subset_hash,
         'input_subset_complete':False,
+        'provenance_v6':provenance_v6(data),
         'timestamp_evidence':{
           'capture_utc':captured,
           'data_asof_status':'UNVERIFIED_NO_COMMON_QUOTE_AND_FILING_SNAPSHOT',
